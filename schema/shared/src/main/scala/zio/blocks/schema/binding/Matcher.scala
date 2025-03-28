@@ -42,7 +42,7 @@ object Matcher {
   private val _noneMatcher: Matcher[None.type] = new Matcher[None.type] {
     def downcastOrNull(any: Any): None.type = any match {
       case None => None
-      case _    => null
+      case _    => null.asInstanceOf[None.type]
     }
   }
 
