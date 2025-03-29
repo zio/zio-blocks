@@ -1,0 +1,26 @@
+# scala-cli
+.scala-build
+
+# Sbt
+target
+project/target
+project/project/target
+.bsp
+.bloop
+
+# Idea
+.idea
+*.iml
+*.ipr
+*.iws
+
+# Emacs
+*~
+*#
+.#*
+.ensime
+TAGS
+
+# VS Code
+.metals
+.vscode/settings.json
