@@ -200,14 +200,18 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has consistent equals and hashCode") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
-        val deferred3 = Reflect.Deferred[Binding, Int](() =>
+        val deferred3 = Reflect.int[Binding]
+        val deferred4 =
           Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int, Doc.Empty, Nil)
-        )
+        val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
         assert(Schema(deferred2))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred2).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
-        assert(Schema(deferred3))(not(equalTo(Schema(deferred1))))
+        assert(Schema(deferred3))(equalTo(Schema(deferred1))) &&
+        assert(Schema(deferred3).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
+        assert(Schema(deferred4))(not(equalTo(Schema(deferred1)))) &&
+        assert(Schema(deferred5))(not(equalTo(Schema(deferred1))))
       }
     )
   )
