@@ -64,21 +64,29 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record1.length)(equalTo(2)) &&
         assert(record1.fields.length)(equalTo(2)) &&
         assert(record1.registers.length)(equalTo(2)) &&
-        assert(record1.fields(0).value.isInstanceOf[Primitive[Binding, Byte]])(equalTo(true)) &&
+        assert(record1.fields(0).value.asInstanceOf[Primitive[Binding, Byte]].primitiveType)(
+          equalTo(PrimitiveType.Byte(Validation.None))
+        ) &&
         assert(record1.registers(0).usedRegisters)(equalTo(RegisterOffset(bytes = 1))) &&
-        assert(record1.fields(1).value.isInstanceOf[Primitive[Binding, Int]])(equalTo(true)) &&
+        assert(record1.fields(1).value.asInstanceOf[Primitive[Binding, Int]].primitiveType)(
+          equalTo(PrimitiveType.Int(Validation.None))
+        ) &&
         assert(record1.registers(1).usedRegisters)(equalTo(RegisterOffset(ints = 1))) &&
         assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters))) &&
         assert(record2.length)(equalTo(1)) &&
         assert(record2.fields.length)(equalTo(1)) &&
         assert(record2.registers.length)(equalTo(1)) &&
-        assert(record2.fields(0).value.isInstanceOf[Primitive[Binding, Double]])(equalTo(true)) &&
+        assert(record2.fields(0).value.asInstanceOf[Primitive[Binding, Double]].primitiveType)(
+          equalTo(PrimitiveType.Double(Validation.None))
+        ) &&
         assert(record2.registers(0).usedRegisters)(equalTo(RegisterOffset(doubles = 1))) &&
         assert(record2.usedRegisters)(equalTo(record2.registers.foldLeft(0)(_ + _.usedRegisters))) &&
         assert(record3.length)(equalTo(1)) &&
         assert(record3.fields.length)(equalTo(1)) &&
         assert(record3.registers.length)(equalTo(1)) &&
-        assert(record3.fields(0).value.isInstanceOf[Primitive[Binding, String]])(equalTo(true)) &&
+        assert(record3.fields(0).value.asInstanceOf[Primitive[Binding, String]].primitiveType)(
+          equalTo(PrimitiveType.String(Validation.None))
+        ) &&
         assert(record3.registers(0).usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
         assert(record3.usedRegisters)(equalTo(record3.registers.foldLeft(0)(_ + _.usedRegisters)))
       }
