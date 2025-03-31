@@ -259,7 +259,7 @@ object Reflect {
       val v = visited.get
       if (v.containsKey(this)) value.asInstanceOf[Reflect[G, A]] // exit from recursion
       else {
-        v.put(this, this)
+        v.put(this, ())
         try value.refineBinding(f)
         finally v.remove(this)
       }
@@ -269,7 +269,7 @@ object Reflect {
       val v = visited.get
       if (v.containsKey(this)) 0 // exit from recursion
       else {
-        v.put(this, this)
+        v.put(this, ())
         try innerHashCode
         finally v.remove(this)
       }
@@ -281,7 +281,7 @@ object Reflect {
           val v = visited.get
           if (v.containsKey(this)) true // exit from recursion
           else {
-            v.put(this, this)
+            v.put(this, ())
             try inner == that.inner
             finally v.remove(this)
           }
@@ -289,10 +289,10 @@ object Reflect {
       case _ => false
     }
 
-    private[this] val visited: ThreadLocal[java.util.IdentityHashMap[AnyRef, AnyRef]] =
-      new ThreadLocal[java.util.IdentityHashMap[AnyRef, AnyRef]] {
-        override def initialValue: java.util.IdentityHashMap[AnyRef, AnyRef] =
-          new java.util.IdentityHashMap[AnyRef, AnyRef]
+    private[this] val visited: ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] =
+      new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
+        override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] =
+          new java.util.IdentityHashMap[AnyRef, Unit]
       }
     private[this] lazy val innerHashCode = inner.hashCode
   }
