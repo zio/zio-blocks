@@ -302,7 +302,9 @@ object Prism {
 
     def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = {
       if (matcher eq null) init
-      matcher.downcastOption(s)
+      val a = matcher.downcastOrNull(s)
+      if (a != null) new Some(a)
+      else None
     }
 
     def reverseGet(a: A): S = a
