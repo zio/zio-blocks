@@ -110,21 +110,31 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_c3.refineBinding(RefineBinding.noBinding()))(equalTo(Variant1.v2_c3.noBinding))
       },
       test("gets an optional case class value") {
-        assert(Variant1.c1.getOption(Case1(0.1): Variant1))(isSome(equalTo(Case1(0.1)))) &&
-        assert(Variant1.c2.getOption(Case2(Record3(null, null, null)): Variant1))(
+        assert(Variant1.c1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
+        assert(Variant1.c2.getOption(Case2(Record3(null, null, null))))(
           isSome(equalTo(Case2(Record3(null, null, null))))
         ) &&
-        assert(Variant1.v2.getOption(Case3(Case1(0.1)): Variant1))(isSome(equalTo(Case3(Case1(0.1)): Variant2))) &&
-        assert(Variant1.v2_c3.getOption(Case3(Case1(0.1)): Variant1))(isSome(equalTo(Case3(Case1(0.1))))) &&
-        assert(Variant2.c3.getOption(Case3(Case1(0.1)): Variant2))(isSome(equalTo(Case3(Case1(0.1))))) &&
-        assert(Variant2.c4.getOption(Case4(List(Record3(null, null, null))): Variant2))(
+        assert(Variant1.v2.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case3(Case1(0.1)): Variant2))) &&
+        assert(Variant1.v2_c3.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case3(Case1(0.1))))) &&
+        assert(Variant2.c3.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case3(Case1(0.1))))) &&
+        assert(Variant2.c4.getOption(Case4(List(Record3(null, null, null)))))(
           isSome(equalTo(Case4(List(Record3(null, null, null)))))
         ) &&
-        assert(Variant1.v2_v3_c5_left.getOption(Case5(null, null): Variant1))(isSome(equalTo(Case5(null, null)))) &&
-        assert(Variant1.v2_v3_c5_right.getOption(Case5(null, null): Variant1))(isSome(equalTo(Case5(null, null))))
+        assert(Variant1.v2_v3_c5_left.getOption(Case5(null, null)))(isSome(equalTo(Case5(null, null)))) &&
+        assert(Variant1.v2_v3_c5_right.getOption(Case5(null, null)))(isSome(equalTo(Case5(null, null))))
+      },
+      test("doesn't get other case class values") {
+        assert(Variant1.c1.getOption(Case2(Record3(null, null, null))))(isNone) &&
+        assert(Variant1.c2.getOption(Case1(0.1)))(isNone) &&
+        assert(Variant1.v2.getOption(Case1(0.1)))(isNone) &&
+        assert(Variant1.v2_c3.getOption(Case1(0.1)))(isNone) &&
+        assert(Variant2.c3.getOption(Case4(List(Record3(null, null, null)))))(isNone) &&
+        assert(Variant2.c4.getOption(Case3(Case1(0.1))))(isNone) &&
+        assert(Variant1.v2_v3_c5_left.getOption(Case6(null)))(isNone) &&
+        assert(Variant1.v2_v3_c5_right.getOption(Case6(null)))(isNone)
       },
       test("reverse gets a base class value") {
-        assert(Variant1.c1.reverseGet(Case1(0.1)))(equalTo(Case1(0.1): Variant1)) &&
+        assert(Variant1.c1.reverseGet(Case1(0.1)))(equalTo(Case1(0.1))) &&
         assert(Variant1.c2.reverseGet(Case2(Record3(null, null, null))))(
           equalTo(Case2(Record3(null, null, null)): Variant1)
         ) &&
@@ -247,6 +257,14 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
         assert(Case3.v1_c1_d.getOption(Case3(Case1(0.1))))(isSome(equalTo(0.1))) &&
         assert(Case3.v1_c1.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1))))
+      },
+      test("doesn't get a focus value if it's not possible") {
+        assert(Variant1.c2_r3_r1.getOption(Case3(Case1(0.1))))(isNone) &&
+        assert(Variant2.c3_v1_c1_left.getOption(Case4(Nil)))(isNone) &&
+        assert(Variant2.c3_v1_c1_right.getOption(Case4(Nil)))(isNone) &&
+        assert(Variant2.c3_v1_c1_d_right.getOption(Case4(Nil)))(isNone) &&
+        assert(Variant2.c3_v1.getOption(Case4(Nil)))(isNone) &&
+        assert(Case3.v1_c1_d.getOption(Case3(Case4(Nil))))(isNone)
       },
       test("sets a focus value") {
         assert(Variant1.c2_r3_r1.set(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
