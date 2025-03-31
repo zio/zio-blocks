@@ -32,7 +32,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
     val list = self.asSub[List[B]]
     list.focus match {
       case List(element) => list(Traversal.listValues(element))
-      case _             => sys.error("FIXME - Not a list")
+      case _             => sys.error("Expected List")
     }
   }
 
@@ -42,7 +42,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
     val vector = self.asSub[Vector[B]]
     vector.focus match {
       case Vector(element) => vector(Traversal.vectorValues(element))
-      case _               => sys.error("FIXME - Not a vector")
+      case _               => sys.error("Expected Vector")
     }
   }
 
@@ -52,7 +52,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
     val set = self.asSub[Set[B]]
     set.focus match {
       case Set(element) => set(Traversal.setValues(element))
-      case _            => sys.error("FIXME - Not a set")
+      case _            => sys.error("Expected Set")
     }
   }
 
@@ -62,7 +62,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
     val array = self.asSub[Array[B]]
     array.focus match {
       case Array(element) => array(Traversal.arrayValues(element))
-      case _              => sys.error("FIXME - Not an array")
+      case _              => sys.error("Expected Array")
     }
   }
 
@@ -71,7 +71,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
   override def hashCode: Int = linearized.hashCode
 
   override def equals(obj: Any): Boolean = obj match {
-    case other: Optic[F, _, _] => other.linearized.equals(linearized)
+    case other: Optic[_, _, _] => other.linearized.equals(linearized)
     case _                     => false
   }
 
@@ -229,7 +229,7 @@ object Lens {
     override def hashCode: Int = parents.hashCode ^ childs.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: LensImpl[F, _, _] => other.parents.equals(parents) && other.childs.equals(childs)
+      case other: LensImpl[_, _, _] => other.parents.equals(parents) && other.childs.equals(childs)
       case _                        => false
     }
 
@@ -302,7 +302,9 @@ object Prism {
 
     def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = {
       if (matcher eq null) init
-      matcher.downcastOption(s)
+      val a = matcher.downcastOrNull(s)
+      if (a != null) new Some(a)
+      else None
     }
 
     def reverseGet(a: A): S = a
@@ -320,7 +322,7 @@ object Prism {
     override def hashCode: Int = structure.hashCode ^ child.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: PrismImpl[F, _, _, _] => other.structure.equals(structure) && other.child.equals(child)
+      case other: PrismImpl[_, _, _, _] => other.structure.equals(structure) && other.child.equals(child)
       case _                            => false
     }
 
@@ -954,7 +956,7 @@ object Traversal {
     override def hashCode: Int = seq.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: SeqValues[F, _, _] => other.seq.equals(seq)
+      case other: SeqValues[_, _, _] => other.seq.equals(seq)
       case _                         => false
     }
 
@@ -1000,7 +1002,7 @@ object Traversal {
     override def hashCode: Int = map.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: MapKeys[F, _, _, M] => other.map.equals(map)
+      case other: MapKeys[_, _, _, _] => other.map.equals(map)
       case _                          => false
     }
 
@@ -1047,7 +1049,7 @@ object Traversal {
     override def hashCode: Int = map.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: MapValues[F, _, _, M] => other.map.equals(map)
+      case other: MapValues[_, _, _, _] => other.map.equals(map)
       case _                            => false
     }
 
