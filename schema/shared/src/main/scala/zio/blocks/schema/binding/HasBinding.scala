@@ -7,7 +7,8 @@ trait HasBinding[F[_, _]] {
 
   final def primitive[A](fa: F[BindingType.Primitive, A]): Binding.Primitive[A] =
     binding(fa) match {
-      case primitive @ Binding.Primitive(_, _) => primitive
+      case primitive: Binding.Primitive[A] => primitive
+      case _                               => sys.error("Expected Binding.Primitive")
     }
 
   final def updatePrimitive[A](
@@ -16,17 +17,22 @@ trait HasBinding[F[_, _]] {
   ): F[BindingType.Primitive, A] =
     updateBinding(
       fa,
-      { case primitive @ Binding.Primitive(_, _) => f(primitive) }
+      {
+        case primitive: Binding.Primitive[A] => f(primitive)
+        case _                               => sys.error("Expected Binding.Primitive")
+      }
     )
 
   final def record[A](fa: F[BindingType.Record, A]): Binding.Record[A] =
     binding(fa) match {
-      case record @ Binding.Record(_, _, _, _) => record
+      case record: Binding.Record[A] => record
+      case _                         => sys.error("Expected Binding.Record")
     }
 
   final def variant[A](fa: F[BindingType.Variant, A]): Binding.Variant[A] =
     binding(fa) match {
-      case variant @ Binding.Variant(_, _, _, _) => variant
+      case variant: Binding.Variant[A] => variant
+      case _                           => sys.error("Expected Binding.Variant")
     }
 
   final def constructor[A](fa: F[BindingType.Record, A]): Constructor[A] = record(fa).constructor
@@ -37,7 +43,10 @@ trait HasBinding[F[_, _]] {
   ): F[BindingType.Record, A] =
     updateBinding(
       fa,
-      { case record @ Binding.Record(_, _, _, _) => record.copy(constructor = f(record.constructor)) }
+      {
+        case record: Binding.Record[A] => record.copy(constructor = f(record.constructor))
+        case _                         => sys.error("Expected Binding.Record")
+      }
     )
 
   final def deconstructor[A](fa: F[BindingType.Record, A]): Deconstructor[A] = record(fa).deconstructor
@@ -48,8 +57,9 @@ trait HasBinding[F[_, _]] {
   ): F[BindingType.Record, A] =
     updateBinding(
       fa,
-      { case record @ Binding.Record(_, _, _, _) =>
-        record.copy(deconstructor = f(record.deconstructor))
+      {
+        case record: Binding.Record[A] => record.copy(deconstructor = f(record.deconstructor))
+        case _                         => sys.error("Expected Binding.Record")
       }
     )
 
@@ -61,8 +71,9 @@ trait HasBinding[F[_, _]] {
   ): F[BindingType.Variant, A] =
     updateBinding(
       fa,
-      { case variant @ Binding.Variant(_, _, _, _) =>
-        variant.copy(discriminator = f(variant.discriminator))
+      {
+        case variant: Binding.Variant[A] => variant.copy(discriminator = f(variant.discriminator))
+        case _                           => sys.error("Expected Binding.Variant")
       }
     )
 
@@ -71,8 +82,9 @@ trait HasBinding[F[_, _]] {
   final def updateMatchers[A](fa: F[BindingType.Variant, A], f: Matchers[A] => Matchers[A]): F[BindingType.Variant, A] =
     updateBinding(
       fa,
-      { case variant @ Binding.Variant(_, _, _, _) =>
-        variant.copy(matchers = f(variant.matchers))
+      {
+        case variant: Binding.Variant[A] => variant.copy(matchers = f(variant.matchers))
+        case _                           => sys.error("Expected Binding.Variant")
       }
     )
 
@@ -91,6 +103,7 @@ trait HasBinding[F[_, _]] {
   final def map[M[_, _], K, V](fa: F[BindingType.Map[M], M[K, V]]): Binding.Map[M, K, V] =
     binding(fa) match {
       case map @ Binding.Map(_, _, _, _) => map
+      case _                             => sys.error("Expected Binding.Map")
     }
 
   final def updateMap[M[_, _], K, V](
@@ -99,14 +112,16 @@ trait HasBinding[F[_, _]] {
   ): F[BindingType.Map[M], M[K, V]] =
     updateBinding(
       fa,
-      { case map @ Binding.Map(_, _, _, _) =>
-        f(map)
+      {
+        case map @ Binding.Map(_, _, _, _) => f(map)
+        case _                             => sys.error("Expected Binding.Map")
       }
     )
 
   final def seq[C[_], A](fa: F[BindingType.Seq[C], C[A]]): Binding.Seq[C, A] =
     binding(fa) match {
       case seq @ Binding.Seq(_, _, _, _) => seq
+      case _                             => sys.error("Expected Binding.Seq")
     }
 
   final def updateSeq[C[_], A](
@@ -115,8 +130,9 @@ trait HasBinding[F[_, _]] {
   ): F[BindingType.Seq[C], C[A]] =
     updateBinding(
       fa,
-      { case seq @ Binding.Seq(_, _, _, _) =>
-        f(seq)
+      {
+        case seq @ Binding.Seq(_, _, _, _) => f(seq)
+        case _                             => sys.error("Expected Binding.Seq")
       }
     )
 }

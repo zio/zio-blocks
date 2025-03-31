@@ -695,8 +695,9 @@ object OpticSpec extends ZIOSpecDefault {
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[Variant2] {
           def discriminate(a: Variant2): Int = a match {
-            case _: Case3 => 0
-            case _: Case4 => 1
+            case _: Case3    => 0
+            case _: Case4    => 1
+            case _: Variant3 => 2
           }
         },
         matchers = Matchers(
