@@ -468,7 +468,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Record1(b: Boolean, f: Float)
 
   object Record1 {
-    lazy val reflect: Reflect.Record.Bound[Record1] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Record1] = Reflect.Record(
       fields = List(
         Term("b", Reflect.boolean, Doc.Empty, Nil),
         Term("f", Reflect.float, Doc.Empty, Nil)
@@ -501,7 +501,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Record2(l: Long, vi: Vector[Int], r1: Record1)
 
   object Record2 {
-    lazy val reflect: Reflect.Record.Bound[Record2] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Record2] = Reflect.Record(
       fields = List(
         Term("l", Reflect.long, Doc.Empty, Nil),
         Term("vi", Reflect.vector(Reflect.int), Doc.Empty, Nil),
@@ -544,7 +544,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Record3(r1: Record1, r2: Record2, v1: Variant1)
 
   object Record3 {
-    lazy val reflect: Reflect.Record.Bound[Record3] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Record3] = Reflect.Record(
       fields = List(
         Term("r1", Record1.reflect, Doc.Empty, Nil),
         Term("r2", Record2.reflect, Doc.Empty, Nil),
@@ -588,7 +588,7 @@ object OpticSpec extends ZIOSpecDefault {
   sealed trait Variant1
 
   object Variant1 {
-    lazy val reflect: Reflect.Variant.Bound[Variant1] = Reflect.Variant(
+    val reflect: Reflect.Variant.Bound[Variant1] = Reflect.Variant(
       cases = List(
         Term("c1", Case1.reflect, Doc.Empty, Nil),
         Term("c2", Case2.reflect, Doc.Empty, Nil),
@@ -648,7 +648,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Case1(d: Double) extends Variant1
 
   object Case1 {
-    lazy val reflect: Reflect.Record.Bound[Case1] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Case1] = Reflect.Record(
       fields = List(
         Term("d", Reflect.double, Doc.Empty, Nil)
       ),
@@ -676,7 +676,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Case2(r3: Record3) extends Variant1
 
   object Case2 {
-    lazy val reflect: Reflect.Record.Bound[Case2] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Case2] = Reflect.Record(
       fields = List(
         Term("r3", Record3.reflect, Doc.Empty, Nil)
       ),
@@ -704,7 +704,7 @@ object OpticSpec extends ZIOSpecDefault {
   sealed trait Variant2 extends Variant1
 
   object Variant2 {
-    lazy val reflect: Reflect.Variant.Bound[Variant2] = Reflect.Variant(
+    val reflect: Reflect.Variant.Bound[Variant2] = Reflect.Variant(
       cases = List(
         Term("c3", Case3.reflect, Doc.Empty, Nil),
         Term("c4", Case4.reflect, Doc.Empty, Nil),
@@ -756,7 +756,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Case3(v1: Variant1) extends Variant2
 
   object Case3 {
-    lazy val reflect: Reflect.Record.Bound[Case3] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Case3] = Reflect.Record(
       fields = List(
         Term("v1", Reflect.Deferred(() => Variant1.reflect), Doc.Empty, Nil)
       ),
@@ -787,7 +787,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Case4(lr3: List[Record3]) extends Variant2
 
   object Case4 {
-    lazy val reflect: Reflect.Record.Bound[Case4] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Case4] = Reflect.Record(
       fields = List(
         Term("lr3", Reflect.list(Record3.reflect), Doc.Empty, Nil)
       ),
@@ -816,7 +816,7 @@ object OpticSpec extends ZIOSpecDefault {
   sealed trait Variant3 extends Variant2
 
   object Variant3 {
-    lazy val reflect: Reflect.Variant.Bound[Variant3] = Reflect.Variant(
+    val reflect: Reflect.Variant.Bound[Variant3] = Reflect.Variant(
       cases = List(
         Term("c5", Case5.reflect, Doc.Empty, Nil),
         Term("c6", Case6.reflect, Doc.Empty, Nil)
@@ -854,7 +854,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Case5(si: Set[Int], as: Array[String]) extends Variant3
 
   object Case5 {
-    lazy val reflect: Reflect.Record.Bound[Case5] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Case5] = Reflect.Record(
       fields = List(
         Term("si", Reflect.set(Reflect.int), Doc.Empty, Nil),
         Term("as", Reflect.array(Reflect.string), Doc.Empty, Nil)
@@ -892,7 +892,7 @@ object OpticSpec extends ZIOSpecDefault {
   case class Case6(v2: Variant2) extends Variant3
 
   object Case6 {
-    lazy val reflect: Reflect.Record.Bound[Case6] = Reflect.Record(
+    val reflect: Reflect.Record.Bound[Case6] = Reflect.Record(
       fields = List(
         Term("v2", Reflect.Deferred(() => Variant2.reflect), Doc.Empty, Nil)
       ),
