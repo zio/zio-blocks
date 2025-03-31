@@ -493,9 +493,9 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val b: Lens.Bound[Record1, Boolean] =
+    val b: Lens.Bound[Record1, Boolean] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record1, Boolean]])
-    lazy val f: Lens.Bound[Record1, Float] = Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record1, Float]])
+    val f: Lens.Bound[Record1, Float] = Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record1, Float]])
   }
 
   case class Record2(l: Long, vi: Vector[Int], r1: Record1)
@@ -532,10 +532,10 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val l: Lens.Bound[Record2, Long] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record2, Long]])
-    lazy val vi: Traversal.Bound[Record2, Int] =
+    val l: Lens.Bound[Record2, Long] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record2, Long]])
+    val vi: Traversal.Bound[Record2, Int] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record2, Vector[Int]]]).vector
-    lazy val r1: Lens.Bound[Record2, Record1] =
+    val r1: Lens.Bound[Record2, Record1] =
       Lens(reflect, reflect.fields(2).asInstanceOf[Term.Bound[Record2, Record1]])
     lazy val r1_b: Lens.Bound[Record2, Boolean] = r1(Record1.b)
     lazy val r1_f: Lens.Bound[Record2, Float]   = r1(Record1.f)
@@ -575,11 +575,11 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val r1: Lens.Bound[Record3, Record1] =
+    val r1: Lens.Bound[Record3, Record1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record3, Record1]])
-    lazy val r2: Lens.Bound[Record3, Record2] =
+    val r2: Lens.Bound[Record3, Record2] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record3, Record2]])
-    lazy val v1: Lens.Bound[Record3, Variant1] =
+    val v1: Lens.Bound[Record3, Variant1] =
       Lens(reflect, reflect.fields(2).asInstanceOf[Term.Bound[Record3, Variant1]])
     lazy val r2_r1_b_left: Lens.Bound[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
     lazy val r2_r1_b_right: Lens.Bound[Record3, Boolean] = r2(Record2.r1(Record1.b))
@@ -627,11 +627,11 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val c1: Prism.Bound[Variant1, Case1] =
+    val c1: Prism.Bound[Variant1, Case1] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]])
-    lazy val c2: Prism.Bound[Variant1, Case2] =
+    val c2: Prism.Bound[Variant1, Case2] =
       Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[Variant1, Case2]])
-    lazy val v2: Prism.Bound[Variant1, Variant2] =
+    val v2: Prism.Bound[Variant1, Variant2] =
       Prism(reflect, reflect.cases(2).asInstanceOf[Term.Bound[Variant1, Variant2]])
     lazy val v2_c3: Prism.Bound[Variant1, Case3]                    = v2(Variant2.c3)
     lazy val v2_c4: Prism.Bound[Variant1, Case4]                    = v2(Variant2.c4)
@@ -670,7 +670,7 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val d: Lens.Bound[Case1, Double] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case1, Double]])
+    val d: Lens.Bound[Case1, Double] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case1, Double]])
   }
 
   case class Case2(r3: Record3) extends Variant1
@@ -698,7 +698,7 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val r3: Lens.Bound[Case2, Record3] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case2, Record3]])
+    val r3: Lens.Bound[Case2, Record3] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case2, Record3]])
   }
 
   sealed trait Variant2 extends Variant1
@@ -737,11 +737,11 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val c3: Prism.Bound[Variant2, Case3] =
+    val c3: Prism.Bound[Variant2, Case3] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant2, Case3]])
-    lazy val c4: Prism.Bound[Variant2, Case4] =
+    val c4: Prism.Bound[Variant2, Case4] =
       Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[Variant2, Case4]])
-    lazy val v3: Prism.Bound[Variant2, Variant3] =
+    val v3: Prism.Bound[Variant2, Variant3] =
       Prism(reflect, reflect.cases(2).asInstanceOf[Term.Bound[Variant2, Variant3]])
     lazy val c3_v1: Optional.Bound[Variant2, Variant1]           = c3(Case3.v1)
     lazy val c3_v1_c1_left: Optional.Bound[Variant2, Case1]      = c3(Case3.v1)(Variant1.c1)
@@ -778,7 +778,7 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val v1: Lens.Bound[Case3, Variant1] =
+    val v1: Lens.Bound[Case3, Variant1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case3, Variant1]])
     lazy val v1_c1: Optional.Bound[Case3, Case1]    = v1(Variant1.c1)
     lazy val v1_c1_d: Optional.Bound[Case3, Double] = v1(Variant1.c1_d)
@@ -809,7 +809,7 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val lr3: Traversal.Bound[Case4, Record3] =
+    val lr3: Traversal.Bound[Case4, Record3] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]).list
   }
 
@@ -847,7 +847,7 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    lazy val c5: Prism.Bound[Variant3, Case5] =
+    val c5: Prism.Bound[Variant3, Case5] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant3, Case5]])
   }
 
@@ -882,10 +882,10 @@ object OpticSpec extends ZIOSpecDefault {
       modifiers = Nil
     )
     /* FIXME: Is a bug in the compiler?
-    lazy val si: Traversal.Bound[Case5, Int] =
+    val si: Traversal.Bound[Case5, Int] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case5, Set[Int]]]).set
      */
-    lazy val as: Traversal.Bound[Case5, String] =
+    val as: Traversal.Bound[Case5, String] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Case5, Array[String]]]).array
   }
 
