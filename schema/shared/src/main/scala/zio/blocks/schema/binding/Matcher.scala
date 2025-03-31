@@ -22,7 +22,7 @@ object Matcher {
 
   implicit def some[A]: Matcher[Some[A]] = _someMatcher.asInstanceOf[Matcher[Some[A]]]
 
-  implicit val none: Matcher[None.type] = _noneMatcher
+  implicit def none: Matcher[None.type] = _noneMatcher
 
   implicit def left[A, B]: Matcher[Left[A, B]] = _leftMatcher.asInstanceOf[Matcher[Left[A, B]]]
 
