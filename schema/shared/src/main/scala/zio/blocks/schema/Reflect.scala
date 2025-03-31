@@ -289,7 +289,7 @@ object Reflect {
       case _ => false
     }
 
-    private[this] lazy val visited: ThreadLocal[java.util.IdentityHashMap[AnyRef, AnyRef]] =
+    private[this] val visited: ThreadLocal[java.util.IdentityHashMap[AnyRef, AnyRef]] =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, AnyRef]] {
         override def initialValue: java.util.IdentityHashMap[AnyRef, AnyRef] =
           new java.util.IdentityHashMap[AnyRef, AnyRef]
