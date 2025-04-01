@@ -22,6 +22,8 @@ sealed trait Optic[F[_, _], S, A] { self =>
   // Compose this optic with a traversal:
   def apply[B](that: Traversal[F, A, B]): Traversal[F, S, B]
 
+  def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S
+
   def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optic[G, S, A]
 
   def noBinding: Optic[NoBinding, S, A]
@@ -88,8 +90,6 @@ sealed trait Lens[F[_, _], S, A] extends Optic[F, S, A] {
   def get(s: S)(implicit F: HasBinding[F]): A
 
   def set(s: S, a: A)(implicit F: HasBinding[F]): S
-
-  def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S
 
   // Compose this lens with a lens:
   override def apply[B](that: Lens[F, A, B]): Lens[F, S, B] = Lens(this, that)
@@ -249,8 +249,6 @@ sealed trait Prism[F[_, _], S, A <: S] extends Optic[F, S, A] {
 
   def reverseGet(a: A): S
 
-  def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S
-
   // Compose this prism with a prism:
   override def apply[B <: A](that: Prism[F, A, B]): Prism[F, S, B] = Prism(this, that)
 
@@ -336,8 +334,6 @@ sealed trait Optional[F[_, _], S, A] extends Optic[F, S, A] {
   def set(s: S, a: A)(implicit F: HasBinding[F]): S
 
   def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S]
-
-  def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S
 
   // Compose this optional with a lens:
   override def apply[B](that: Lens[F, A, B]): Optional[F, S, B] = Optional(this, that)
@@ -566,9 +562,6 @@ object Optional {
 
 sealed trait Traversal[F[_, _], S, A] extends Optic[F, S, A] { self =>
   def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z
-
-  // Core operation - modify all focuses
-  def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S
 
   // Compose this traversal with a lens:
   override def apply[B](that: Lens[F, A, B]): Traversal[F, S, B] = Traversal(this, that)
