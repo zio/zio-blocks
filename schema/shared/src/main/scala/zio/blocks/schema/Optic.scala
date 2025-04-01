@@ -386,9 +386,9 @@ object Optional {
 
     def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = second.getOption(first.get(s))
 
-    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.set(s, second.reverseGet(a))
+    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.set(s, a)
 
-    def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = new Some(first.set(s, second.reverseGet(a)))
+    def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = new Some(first.set(s, a))
 
     def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
 
@@ -431,15 +431,18 @@ object Optional {
 
     def focus: Reflect[F, A] = second.focus
 
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s).map(second.get)
+    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
+      case Some(x) => new Some(second.get(x))
+      case _       => None
+    }
 
     def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.getOption(s) match {
-      case Some(x) => first.reverseGet(second.set(x, a))
+      case Some(x) => second.set(x, a)
       case _       => s
     }
 
     def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
-      case Some(x) => new Some(first.reverseGet(second.set(x, a)))
+      case Some(x) => new Some(second.set(x, a))
       case _       => None
     }
 
@@ -459,15 +462,18 @@ object Optional {
 
     def focus: Reflect[F, A] = second.focus
 
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s).flatMap(second.getOption)
+    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
+      case Some(x) => second.getOption(x)
+      case _       => None
+    }
 
     def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.getOption(s) match {
-      case Some(x) => first.reverseGet(second.set(x, a))
+      case Some(x) => second.set(x, a)
       case _       => s
     }
 
     def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
-      case Some(x) => new Some(first.reverseGet(second.set(x, a)))
+      case Some(x) => new Some(second.set(x, a))
       case _       => None
     }
 
@@ -487,12 +493,12 @@ object Optional {
 
     def focus: Reflect[F, A] = second.focus
 
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s).map(second.get)
-
-    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.getOption(s) match {
-      case Some(x) => first.set(s, second.set(x, a))
-      case _       => s
+    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
+      case Some(x) => new Some(second.get(x))
+      case _       => None
     }
+
+    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.set(_, a))
 
     def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
       case Some(x) => new Some(first.set(s, second.set(x, a)))
@@ -515,12 +521,15 @@ object Optional {
 
     def focus: Reflect[F, A] = second.focus
 
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s).flatMap(second.getOption)
+    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
+      case Some(x) => second.getOption(x)
+      case _       => None
+    }
 
-    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.set(s, second.reverseGet(a))
+    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.set(s, a)
 
     def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] =
-      if (first.getOption(s) ne None) new Some(first.set(s, second.reverseGet(a)))
+      if (first.getOption(s) ne None) new Some(first.set(s, a))
       else None
 
     def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
@@ -539,12 +548,12 @@ object Optional {
 
     def focus: Reflect[F, A] = second.focus
 
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s).flatMap(second.getOption)
-
-    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.getOption(s) match {
-      case Some(x) => first.set(s, second.set(x, a))
-      case _       => s
+    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
+      case Some(x) => second.getOption(x)
+      case _       => None
     }
+
+    def set(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.set(_, a))
 
     def setOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
       case Some(x) => new Some(first.set(s, second.set(x, a)))
