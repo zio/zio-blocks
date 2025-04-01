@@ -356,25 +356,47 @@ object Optional {
   type Bound[S, A] = Optional[Binding, S, A]
 
   def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] =
-    new Optional.OptionalLens(first, second)
+    first match {
+      case Optional.PrismLens(fp, fl)    => new Optional.PrismLens(fp, Lens.apply(fl, second))
+      case Optional.OptionalLens(fo, fl) => new Optional.OptionalLens(fo, Lens.apply(fl, second))
+      case _                             => new Optional.OptionalLens(first, second)
+    }
 
   def apply[F[_, _], S, T, A <: T](first: Optional[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] =
-    new Optional.OptionalPrism(first, second)
+    first match {
+      case Optional.LensPrism(fl, fp)     => new Optional.LensPrism(fl, Prism.apply(fp, second))
+      case Optional.OptionalPrism(fo, fp) => new Optional.OptionalPrism(fo, Prism.apply(fp, second))
+      case _                              => new Optional.OptionalPrism(first, second)
+    }
 
   def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
-    new Optional.OptionalOptional(first, second)
+    (first, second) match {
+      case (Optional.PrismLens(fp, fl), Optional.LensPrism(sl, sp)) =>
+        new Optional.OptionalPrism(new Optional.PrismLens(fp, Lens.apply(fl, sl)), sp)
+      case (Optional.LensPrism(fl, fp), Optional.PrismLens(sp, sl)) =>
+        new Optional.OptionalLens(new Optional.LensPrism(fl, Prism.apply(fp, sp)), sl)
+      case _ => new Optional.OptionalOptional(first, second)
+    }
 
   def apply[F[_, _], S, T, A <: T](first: Lens[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] =
     new Optional.LensPrism(first, second)
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
-    new Optional.LensOptional(first, second)
+    second match {
+      case Optional.LensPrism(sl, sp)    => new Optional.LensPrism(Lens.apply(first, sl), sp)
+      case Optional.LensOptional(sl, so) => new Optional.LensOptional(Lens.apply(first, sl), so)
+      case _                             => new Optional.LensOptional(first, second)
+    }
 
   def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] =
     new Optional.PrismLens(first, second)
 
   def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
-    new Optional.PrismOptional(first, second)
+    second match {
+      case Optional.PrismLens(sp, sl)     => new Optional.PrismLens(Prism.apply(first, sp), sl)
+      case Optional.PrismOptional(sp, so) => new Optional.PrismOptional(Prism.apply(first, sp), so)
+      case _                              => new Optional.PrismOptional(first, second)
+    }
 
   private case class LensPrism[F[_, _], S, T, A <: T](first: Lens[F, S, T], second: Prism[F, T, A])
       extends Optional[F, S, A] {
