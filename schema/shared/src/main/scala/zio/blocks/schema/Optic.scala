@@ -28,7 +28,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
   def noBinding: Optic[NoBinding, S, A]
 
-  final def list[B](implicit ev: A <:< List[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
+  final def listValues[B](implicit ev: A <:< List[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
     import Reflect.Extractors.List
 
     val list = self.asSub[List[B]]
@@ -38,7 +38,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
     }
   }
 
-  final def vector[B](implicit ev: A <:< Vector[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
+  final def vectorValues[B](implicit ev: A <:< Vector[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
     import Reflect.Extractors.Vector
 
     val vector = self.asSub[Vector[B]]
@@ -48,7 +48,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
     }
   }
 
-  final def set[B](implicit ev: A <:< Set[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
+  final def setValues[B](implicit ev: A <:< Set[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
     import Reflect.Extractors.Set
 
     val set = self.asSub[Set[B]]
@@ -58,7 +58,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
     }
   }
 
-  final def array[B](implicit ev: A <:< Array[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
+  final def arrayValues[B](implicit ev: A <:< Array[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
     import Reflect.Extractors.Array
 
     val array = self.asSub[Array[B]]
