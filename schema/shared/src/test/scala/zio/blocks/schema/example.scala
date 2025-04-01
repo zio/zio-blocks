@@ -70,7 +70,7 @@ object Main {
     val address: Lens.Bound[Person, String] =
       Lens(personRecord, personRecord.fields(3).asInstanceOf[Term.Bound[Person, String]])
     val childrenAges: Traversal.Bound[Person, Int] =
-      Lens(personRecord, personRecord.fields(4).asInstanceOf[Term.Bound[Person, List[Int]]]).list
+      Lens(personRecord, personRecord.fields(4).asInstanceOf[Term.Bound[Person, List[Int]]]).listValues
   }
 
   import Person._
