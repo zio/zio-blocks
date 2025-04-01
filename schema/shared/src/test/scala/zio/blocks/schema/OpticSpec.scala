@@ -534,7 +534,7 @@ object OpticSpec extends ZIOSpecDefault {
     )
     val l: Lens.Bound[Record2, Long] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record2, Long]])
     val vi: Traversal.Bound[Record2, Int] =
-      Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record2, Vector[Int]]]).vector
+      Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record2, Vector[Int]]]).vectorValues
     val r1: Lens.Bound[Record2, Record1] =
       Lens(reflect, reflect.fields(2).asInstanceOf[Term.Bound[Record2, Record1]])
     lazy val r1_b: Lens.Bound[Record2, Boolean] = r1(Record1.b)
@@ -810,7 +810,7 @@ object OpticSpec extends ZIOSpecDefault {
       modifiers = Nil
     )
     val lr3: Traversal.Bound[Case4, Record3] =
-      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]).list
+      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]).listValues
   }
 
   sealed trait Variant3 extends Variant2
@@ -881,12 +881,10 @@ object OpticSpec extends ZIOSpecDefault {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    /* FIXME: Is a bug in the compiler?
     val si: Traversal.Bound[Case5, Int] =
-      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case5, Set[Int]]]).set
-     */
+      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case5, Set[Int]]]).setValues
     val as: Traversal.Bound[Case5, String] =
-      Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Case5, Array[String]]]).array
+      Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Case5, Array[String]]]).arrayValues
   }
 
   case class Case6(v2: Variant2) extends Variant3
