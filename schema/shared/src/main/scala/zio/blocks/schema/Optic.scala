@@ -371,240 +371,152 @@ sealed trait Optional[F[_, _], S, A] extends Optic[F, S, A] {
 object Optional {
   type Bound[S, A] = Optional[Binding, S, A]
 
-  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] =
-    first match {
-      case PrismLens(fp, fl)    => apply(fp, fl(second))
-      case OptionalLens(fo, fl) => apply(fo, fl(second))
-      case _                    => new OptionalLens(first, second)
+  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] = {
+    val firstLeafs = first.asInstanceOf[OptionalImpl[F, _, _]].leafs
+    firstLeafs.last match {
+      case l1: Lens[_, _, _] =>
+        val l = l1.asInstanceOf[Lens[F, _, T]](second)
+        new OptionalImpl(firstLeafs.init :+ l.asInstanceOf[Leaf[F, _, _]])
+      case _ =>
+        new OptionalImpl(firstLeafs :+ second.asInstanceOf[Leaf[F, _, _]])
     }
+  }
 
-  def apply[F[_, _], S, T, A <: T](first: Optional[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] =
-    first match {
-      case LensPrism(fl, fp)     => apply(fl, fp(second))
-      case OptionalPrism(fo, fp) => apply(fo, fp(second))
-      case _                     => new OptionalPrism(first, second)
+  def apply[F[_, _], S, T, A <: T](first: Optional[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] = {
+    val firstLeafs = first.asInstanceOf[OptionalImpl[F, _, _]].leafs
+    firstLeafs.last match {
+      case p1: Prism[_, _, _] =>
+        val p = p1.asInstanceOf[Prism[F, Any, Any]](second.asInstanceOf[Prism[F, Any, Any]])
+        new OptionalImpl(firstLeafs.init :+ p.asInstanceOf[Leaf[F, _, _]])
+      case _ =>
+        new OptionalImpl(firstLeafs :+ second.asInstanceOf[Leaf[F, _, _]])
     }
+  }
 
-  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
-    (first, second) match {
-      case (PrismLens(fp, fl), LensPrism(sl, sp))         => apply(apply(fp, fl(sl)), sp)
-      case (PrismLens(fp, fl), LensOptional(sl, so))      => apply(apply(fp, fl(sl)), so)
-      case (OptionalLens(fo, fl), LensPrism(sl, sp))      => apply(fo, apply(fl(sl), sp))
-      case (OptionalLens(fo, fl), LensOptional(sl, so))   => apply(apply(fo, fl(sl)), so)
-      case (LensPrism(fl, fp), PrismLens(sp, sl))         => apply(apply(fl, fp(sp)), sl)
-      case (LensPrism(fl, fp), PrismOptional(sp, so))     => apply(apply(fl, fp(sp)), so)
-      case (OptionalPrism(fo, fp), PrismLens(sp, sl))     => apply(fo, apply(fp(sp), sl))
-      case (OptionalPrism(fo, fp), PrismOptional(sp, so)) => apply(apply(fo, fp(sp)), so)
-      case _                                              => new OptionalOptional(first, second)
+  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
+    val firstLeafs  = first.asInstanceOf[OptionalImpl[F, _, _]].leafs
+    val secondLeafs = second.asInstanceOf[OptionalImpl[F, _, _]].leafs
+    (firstLeafs.last, secondLeafs.head) match {
+      case (l1: Lens[_, _, _], l2: Lens[_, _, _]) =>
+        val l = Lens.apply(l1.asInstanceOf[Lens[F, Any, Any]], l2.asInstanceOf[Lens[F, Any, Any]])
+        new OptionalImpl((firstLeafs.init :+ l.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
+      case (p1: Prism[_, _, _], p2: Prism[_, _, _]) =>
+        val p = Prism.apply(p1.asInstanceOf[Prism[F, Any, Any]], p2.asInstanceOf[Prism[F, Any, Any]])
+        new OptionalImpl((firstLeafs.init :+ p.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
+      case _ =>
+        new OptionalImpl(firstLeafs ++ secondLeafs)
     }
+  }
 
   def apply[F[_, _], S, T, A <: T](first: Lens[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] =
-    new LensPrism(first, second)
+    new OptionalImpl(ArraySeq(first.asInstanceOf[Leaf[F, _, _]], second.asInstanceOf[Leaf[F, _, _]]))
 
-  def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
-    second match {
-      case LensPrism(sl, sp)    => apply(first(sl), sp)
-      case LensOptional(sl, so) => apply(first(sl), so)
-      case _                    => new LensOptional(first, second)
+  def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
+    val secondLeafs = second.asInstanceOf[OptionalImpl[F, _, _]].leafs
+    secondLeafs.head match {
+      case p2: Lens[_, _, _] =>
+        val p = first.asInstanceOf[Lens[F, Any, Any]](p2.asInstanceOf[Lens[F, Any, Any]])
+        new OptionalImpl(p.asInstanceOf[Leaf[F, _, _]] +: secondLeafs.tail)
+      case _ =>
+        new OptionalImpl(first.asInstanceOf[Leaf[F, _, _]] +: secondLeafs)
     }
+  }
 
   def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] =
-    new PrismLens(first, second)
+    new OptionalImpl(ArraySeq(first.asInstanceOf[Leaf[F, _, _]], second.asInstanceOf[Leaf[F, _, _]]))
 
-  def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
-    second match {
-      case PrismLens(sp, sl)     => apply(first(sp), sl)
-      case PrismOptional(sp, so) => apply(first(sp), so)
-      case _                     => new PrismOptional(first, second)
+  def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
+    val secondLeafs = second.asInstanceOf[OptionalImpl[F, _, _]].leafs
+    secondLeafs.head match {
+      case p2: Prism[_, _, _] =>
+        val p = first.asInstanceOf[Prism[F, Any, Any]](p2.asInstanceOf[Prism[F, Any, Any]])
+        new OptionalImpl(p.asInstanceOf[Leaf[F, _, _]] +: secondLeafs.tail)
+      case _ =>
+        new OptionalImpl(first.asInstanceOf[Leaf[F, _, _]] +: secondLeafs)
     }
-
-  private case class LensPrism[F[_, _], S, T, A <: T](first: Lens[F, S, T], second: Prism[F, T, A])
-      extends Optional[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = second.getOption(first.get(s))
-
-    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.replace(_, a))
-
-    def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = second.replaceOption(first.get(s), a) match {
-      case Some(t) => new Some(first.replace(s, t))
-      case _       => None
-    }
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new LensPrism(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
   }
 
-  private case class LensOptional[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A])
-      extends Optional[F, S, A] {
-    require((first ne null) && (second ne null))
+  private case class OptionalImpl[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Optional[F, S, A] {
+    require((leafs ne null) && leafs.length > 1)
 
-    def structure: Reflect[F, S] = first.structure
+    def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
-    def focus: Reflect[F, A] = second.focus
+    def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
 
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = second.getOption(first.get(s))
-
-    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.replace(_, a))
-
-    def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = second.replaceOption(first.get(s), a) match {
-      case Some(t) => new Some(first.replace(s, t))
-      case _       => None
+    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = {
+      var x: Any = s
+      val len    = leafs.length
+      var i      = 0
+      while (i < len) {
+        leafs(i) match {
+          case l: Lens[F, _, _] =>
+            x match {
+              case None    => return None
+              case Some(v) => x = l.asInstanceOf[Lens[F, Any, Any]].get(v)
+              case _       => x = l.asInstanceOf[Lens[F, Any, Any]].get(x)
+            }
+          case p: Prism[F, _, _] =>
+            x match {
+              case None    => return None
+              case Some(v) => x = p.asInstanceOf[Prism[F, Any, Any]].getOption(v)
+              case _       => x = p.asInstanceOf[Prism[F, Any, Any]].getOption(x)
+            }
+          case _ => sys.error("Expected Lens or Prism")
+        }
+        i += 1
+      }
+      x match {
+        case None       => None
+        case x: Some[_] => x.asInstanceOf[Option[A]]
+        case _          => new Some(x.asInstanceOf[A])
+      }
     }
 
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new LensOptional(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class PrismLens[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Lens[F, T, A])
-      extends Optional[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
-      case Some(x) => new Some(second.get(x))
-      case _       => None
+    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
+      var i = leafs.length
+      i -= 1
+      val last = leafs(i)
+      var g: Any => Any =
+        if (last.isInstanceOf[Prism[F, _, _]]) {
+          val prism = last.asInstanceOf[Prism[F, Any, Any]]
+          (x: Any) => prism.replace(x, a)
+        } else {
+          val lens = last.asInstanceOf[Lens[F, Any, Any]]
+          (x: Any) => lens.replace(x, a)
+        }
+      while (i > 1) {
+        i -= 1
+        g = {
+          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
+          val h    = g
+          (x: Any) => leaf.modify(x, h)
+        }
+      }
+      leafs(0).asInstanceOf[Leaf[F, Any, Any]].modify(s, g).asInstanceOf[S]
     }
-
-    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.replace(_, a))
-
-    def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
-      case Some(x) => new Some(second.replace(x, a))
-      case _       => None
-    }
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new PrismLens(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class PrismOptional[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Optional[F, T, A])
-      extends Optional[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
-      case Some(x) => second.getOption(x)
-      case _       => None
-    }
-
-    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.replace(_, a))
-
-    def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
-      case Some(x) => second.replaceOption(x, a)
-      case _       => None
-    }
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new PrismOptional(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class OptionalLens[F[_, _], S, T, A](first: Optional[F, S, T], second: Lens[F, T, A])
-      extends Optional[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
-      case Some(x) => new Some(second.get(x))
-      case _       => None
-    }
-
-    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.replace(_, a))
-
-    def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
-      case Some(x) => new Some(first.replace(s, second.replace(x, a)))
-      case _       => None
-    }
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new OptionalLens(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class OptionalPrism[F[_, _], S, T, A <: T](first: Optional[F, S, T], second: Prism[F, T, A])
-      extends Optional[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
-      case Some(x) => second.getOption(x)
-      case _       => None
-    }
-
-    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.replace(_, a))
 
     def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] =
-      if (first.getOption(s).flatMap(second.getOption) ne None) new Some(first.replace(s, a))
+      if (getOption(s) ne None) new Some(replace(s, a))
       else None
 
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new OptionalPrism(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class OptionalOptional[F[_, _], S, T, A](first: Optional[F, S, T], second: Optional[F, T, A])
-      extends Optional[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = first.getOption(s) match {
-      case Some(x) => second.getOption(x)
-      case _       => None
+    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = {
+      var g: Any => Any = f.asInstanceOf[Any => Any]
+      var i             = leafs.length
+      while (i > 1) {
+        i -= 1
+        g = {
+          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
+          val h    = g
+          (x: Any) => leaf.modify(x, h)
+        }
+      }
+      leafs(0).asInstanceOf[Leaf[F, Any, Any]].modify(s, g).asInstanceOf[S]
     }
 
-    def replace(s: S, a: A)(implicit F: HasBinding[F]): S = first.modify(s, second.replace(_, a))
-
-    def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = first.getOption(s) match {
-      case Some(x) => new Some(first.replace(s, second.replace(x, a)))
-      case _       => None
-    }
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new OptionalOptional(first.refineBinding(f), second.refineBinding(f))
+      new OptionalImpl(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))
 
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
+    private[schema] def linearized: ArraySeq[Leaf[F, _, _]] = leafs
   }
 }
 
