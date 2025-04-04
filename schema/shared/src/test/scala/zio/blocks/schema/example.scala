@@ -89,7 +89,7 @@ object Main {
     // (a)(b)(c)
     // a > b > c
 
-    val newPerson = Person.name.set(person, "Jane")
+    val newPerson = Person.name.replace(person, "Jane")
 
     println("newPerson: " + newPerson)
 
