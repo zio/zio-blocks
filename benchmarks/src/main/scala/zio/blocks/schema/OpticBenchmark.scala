@@ -32,7 +32,7 @@ class LensGetBenchmark {
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 1)
-class LensSetBenchmark {
+class LensReplaceBenchmark {
   import Domain._
 
   var a: A = A(B(C(D(E("test")))))
@@ -47,7 +47,7 @@ class LensSetBenchmark {
   def quicklens: A = A.b_c_d_e_s_qiocklens.apply(a).setTo("test2")
 
   @Benchmark
-  def zioBlocks: A = A.b_c_d_e_s.set(a, "test2")
+  def zioBlocks: A = A.b_c_d_e_s.replace(a, "test2")
 }
 
 object Domain {
