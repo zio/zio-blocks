@@ -474,6 +474,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_v2_c4_lr3.hashCode)(equalTo(Variant2.c3_v1_v2_c4_lr3.hashCode)) &&
         assert(Record2.r1_f: Any)(not(equalTo(Record2.vi))) &&
         assert(Variant2.c4_lr3: Any)(not(equalTo(Case4.lr3))) &&
+        assert(Case4.lr3_r2_r1: Any)(not(equalTo(Case4.lr3))) &&
         assert(Collections.lb: Any)(not(equalTo(""))) &&
         assert(Collections.mkc: Any)(not(equalTo(""))) &&
         assert(Collections.mvs: Any)(not(equalTo("")))
@@ -484,10 +485,11 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mvs.structure)(equalTo(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]))) &&
         assert(Collections.lc1.structure)(equalTo(Reflect.list(Variant1.reflect))) &&
         assert(Collections.lc1_d.structure)(equalTo(Reflect.list(Variant1.reflect))) &&
-        assert(Collections.lc4.structure)(equalTo(Reflect.list(Case4.reflect))) &&
+        assert(Collections.lc4_lr3.structure)(equalTo(Reflect.list(Case4.reflect))) &&
         assert(Collections.lr1.structure)(equalTo(Reflect.list(Record1.reflect))) &&
         assert(Record2.vi.structure)(equalTo(Record2.reflect)) &&
         assert(Case4.lr3.structure)(equalTo(Case4.reflect)) &&
+        assert(Case4.lr3_r2_r1.structure)(equalTo(Case4.reflect)) &&
         assert(Variant2.c4_lr3.structure)(equalTo(Variant2.reflect)) &&
         assert(Variant2.c3_v1_v2_c4_lr3.structure)(equalTo(Variant2.reflect))
       },
@@ -497,10 +499,11 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mvs.focus)(equalTo(Reflect.string[Binding])) &&
         assert(Collections.lc1.focus)(equalTo(Case1.reflect)) &&
         assert(Collections.lc1_d.focus)(equalTo(Reflect.double[Binding])) &&
-        assert(Collections.lc4.focus)(equalTo(Record3.reflect)) &&
+        assert(Collections.lc4_lr3.focus)(equalTo(Record3.reflect)) &&
         assert(Collections.lr1.focus)(equalTo(Reflect.boolean[Binding])) &&
         assert(Record2.vi.focus)(equalTo(Reflect.int[Binding])) &&
         assert(Case4.lr3.focus)(equalTo(Record3.reflect)) &&
+        assert(Case4.lr3_r2_r1.focus)(equalTo(Record1.reflect)) &&
         assert(Variant2.c4_lr3.focus)(equalTo(Record3.reflect)) &&
         assert(Variant2.c3_v1_v2_c4_lr3.focus)(equalTo(Record3.reflect))
       },
@@ -510,10 +513,11 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mvs.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.mvs.noBinding)) &&
         assert(Collections.lc1.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lc1.noBinding)) &&
         assert(Collections.lc1_d.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lc1_d.noBinding)) &&
-        assert(Collections.lc4.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lc4.noBinding)) &&
+        assert(Collections.lc4_lr3.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lc4_lr3.noBinding)) &&
         assert(Collections.lr1.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lr1.noBinding)) &&
         assert(Record2.vi.refineBinding(RefineBinding.noBinding()))(equalTo(Record2.vi.noBinding)) &&
         assert(Case4.lr3.refineBinding(RefineBinding.noBinding()))(equalTo(Case4.lr3.noBinding)) &&
+        assert(Case4.lr3_r2_r1.refineBinding(RefineBinding.noBinding()))(equalTo(Case4.lr3_r2_r1.noBinding)) &&
         assert(Variant2.c4_lr3.refineBinding(RefineBinding.noBinding()))(equalTo(Variant2.c4_lr3.noBinding)) &&
         assert(Variant2.c3_v1_v2_c4_lr3.refineBinding(RefineBinding.noBinding()))(
           equalTo(Variant2.c3_v1_v2_c4_lr3.noBinding)
@@ -544,7 +548,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mvs.fold[String](Map('a' -> "1", 'b' -> "2", 'c' -> "3"))("", _ + _))(equalTo("123")) &&
         assert(Collections.lc1.fold[String](List(Case1(0.1)))("", _ + _.toString))(equalTo("Case1(0.1)")) &&
         assert(Collections.lc1_d.fold[Double](List(Case1(0.1), Case1(0.4)))(0.0, _ + _))(equalTo(0.5)) &&
-        assert(Collections.lc4.fold[String](List(Case4(List(Record3(null, null, null)))))("", _ + _.toString))(
+        assert(Collections.lc4_lr3.fold[String](List(Case4(List(Record3(null, null, null)))))("", _ + _.toString))(
           equalTo("Record3(null,null,null)")
         ) &&
         assert(Collections.lr1.fold[Boolean](List(Record1(true, 0.1f)))(false, _ | _))(equalTo(true)) &&
@@ -582,7 +586,9 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lc1.modify(List(Case1(0.1)), _.copy(d = 0.2)))(equalTo(List(Case1(0.2)))) &&
         assert(Collections.lc1_d.modify(List(Case1(0.1)), _ + 0.4))(equalTo(List(Case1(0.5)))) &&
-        assert(Collections.lc4.modify(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f))))(
+        assert(
+          Collections.lc4_lr3.modify(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
+        )(
           equalTo(List(Case4(List(Record3(Record1(true, 0.1f), null, null)))))
         ) &&
         assert(Collections.lr1.modify(List(Record1(true, 0.1f)), x => !x))(equalTo(List(Record1(false, 0.1f)))) &&
@@ -955,6 +961,8 @@ object OpticSpec extends ZIOSpecDefault {
     )
     val lr3: Traversal.Bound[Case4, Record3] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]).listValues
+    lazy val lr3_r2: Traversal.Bound[Case4, Record2]    = lr3(Record3.r2)
+    lazy val lr3_r2_r1: Traversal.Bound[Case4, Record1] = lr3_r2(Record2.r1)
   }
 
   sealed trait Variant3 extends Variant2
@@ -1077,6 +1085,6 @@ object OpticSpec extends ZIOSpecDefault {
     lazy val lc1: Traversal.Bound[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
     lazy val lc1_d: Traversal.Bound[List[Variant1], Double] =
       Traversal.listValues(Variant1.reflect).apply(Variant1.c1_d)
-    lazy val lc4: Traversal.Bound[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
+    lazy val lc4_lr3: Traversal.Bound[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
   }
 }

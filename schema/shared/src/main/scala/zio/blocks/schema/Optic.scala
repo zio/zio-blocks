@@ -371,31 +371,31 @@ sealed trait Optional[F[_, _], S, A] extends Optic[F, S, A] {
 object Optional {
   type Bound[S, A] = Optional[Binding, S, A]
 
-  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] = {
-    val firstLeafs = first.asInstanceOf[OptionalImpl[F, _, _]].leafs
-    firstLeafs.last match {
-      case l1: Lens[_, _, _] =>
-        val l = l1.asInstanceOf[Lens[F, _, T]](second)
-        new OptionalImpl(firstLeafs.init :+ l.asInstanceOf[Leaf[F, _, _]])
-      case _ =>
-        new OptionalImpl(firstLeafs :+ second.asInstanceOf[Leaf[F, _, _]])
-    }
-  }
+  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] =
+    apply(first.linearized, second.linearized)
 
-  def apply[F[_, _], S, T, A <: T](first: Optional[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] = {
-    val firstLeafs = first.asInstanceOf[OptionalImpl[F, _, _]].leafs
-    firstLeafs.last match {
-      case p1: Prism[_, _, _] =>
-        val p = p1.asInstanceOf[Prism[F, Any, Any]](second.asInstanceOf[Prism[F, Any, Any]])
-        new OptionalImpl(firstLeafs.init :+ p.asInstanceOf[Leaf[F, _, _]])
-      case _ =>
-        new OptionalImpl(firstLeafs :+ second.asInstanceOf[Leaf[F, _, _]])
-    }
-  }
+  def apply[F[_, _], S, T, A <: T](first: Optional[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] =
+    apply(first.linearized, second.linearized)
 
-  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
-    val firstLeafs  = first.asInstanceOf[OptionalImpl[F, _, _]].leafs
-    val secondLeafs = second.asInstanceOf[OptionalImpl[F, _, _]].leafs
+  def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
+    apply(first.linearized, second.linearized)
+
+  def apply[F[_, _], S, T, A <: T](first: Lens[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] =
+    apply(first.linearized, second.linearized)
+
+  def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
+    apply(first.linearized, second.linearized)
+
+  def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] =
+    apply(first.linearized, second.linearized)
+
+  def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] =
+    apply(first.linearized, second.linearized)
+
+  private[this] def apply[F[_, _], S, A](
+    firstLeafs: ArraySeq[Leaf[F, _, _]],
+    secondLeafs: ArraySeq[Leaf[F, _, _]]
+  ): Optional[F, S, A] =
     (firstLeafs.last, secondLeafs.head) match {
       case (l1: Lens[_, _, _], l2: Lens[_, _, _]) =>
         val l = Lens.apply(l1.asInstanceOf[Lens[F, Any, Any]], l2.asInstanceOf[Lens[F, Any, Any]])
@@ -406,35 +406,6 @@ object Optional {
       case _ =>
         new OptionalImpl(firstLeafs ++ secondLeafs)
     }
-  }
-
-  def apply[F[_, _], S, T, A <: T](first: Lens[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] =
-    new OptionalImpl(ArraySeq(first.asInstanceOf[Leaf[F, _, _]], second.asInstanceOf[Leaf[F, _, _]]))
-
-  def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
-    val secondLeafs = second.asInstanceOf[OptionalImpl[F, _, _]].leafs
-    secondLeafs.head match {
-      case l2: Lens[_, _, _] =>
-        val l = first.asInstanceOf[Lens[F, Any, Any]](l2.asInstanceOf[Lens[F, Any, Any]])
-        new OptionalImpl(l.asInstanceOf[Leaf[F, _, _]] +: secondLeafs.tail)
-      case _ =>
-        new OptionalImpl(first.asInstanceOf[Leaf[F, _, _]] +: secondLeafs)
-    }
-  }
-
-  def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] =
-    new OptionalImpl(ArraySeq(first.asInstanceOf[Leaf[F, _, _]], second.asInstanceOf[Leaf[F, _, _]]))
-
-  def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
-    val secondLeafs = second.asInstanceOf[OptionalImpl[F, _, _]].leafs
-    secondLeafs.head match {
-      case p2: Prism[_, _, _] =>
-        val p = first.asInstanceOf[Prism[F, Any, Any]](p2.asInstanceOf[Prism[F, Any, Any]])
-        new OptionalImpl(p.asInstanceOf[Leaf[F, _, _]] +: secondLeafs.tail)
-      case _ =>
-        new OptionalImpl(first.asInstanceOf[Leaf[F, _, _]] +: secondLeafs)
-    }
-  }
 
   private case class OptionalImpl[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Optional[F, S, A] {
     require((leafs ne null) && leafs.length > 1)
@@ -534,25 +505,40 @@ object Traversal {
   type Bound[S, A] = Traversal[Binding, S, A]
 
   def apply[F[_, _], S, T, A](first: Traversal[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    new TraversalTraversal(first, second)
+    apply(first.linearized, second.linearized)
 
   def apply[F[_, _], S, T, A](first: Traversal[F, S, T], second: Lens[F, T, A]): Traversal[F, S, A] =
-    new TraversalLens(first, second)
+    apply(first.linearized, second.linearized)
 
   def apply[F[_, _], S, T, A <: T](first: Traversal[F, S, T], second: Prism[F, T, A]): Traversal[F, S, A] =
-    new TraversalPrism(first, second)
+    apply(first.linearized, second.linearized)
 
   def apply[F[_, _], S, T, A](first: Traversal[F, S, T], second: Optional[F, T, A]): Traversal[F, S, A] =
-    new TraversalOptional(first, second)
+    apply(first.linearized, second.linearized)
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    new LensTraversal(first, second)
+    apply(first.linearized, second.linearized)
 
   def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    new PrismTraversal(first, second)
+    apply(first.linearized, second.linearized)
 
   def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    new OptionalTraversal(first, second)
+    apply(first.linearized, second.linearized)
+
+  private[this] def apply[F[_, _], S, A](
+    firstLeafs: ArraySeq[Leaf[F, _, _]],
+    secondLeafs: ArraySeq[Leaf[F, _, _]]
+  ): Traversal[F, S, A] =
+    (firstLeafs.last, secondLeafs.head) match {
+      case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
+        val lens = Lens.apply(lens1.asInstanceOf[Lens[F, Any, Any]], lens2.asInstanceOf[Lens[F, Any, Any]])
+        new TraversalMixed((firstLeafs.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
+      case (prism1: Prism[_, _, _], prism2: Prism[_, _, _]) =>
+        val prism = Prism.apply(prism1.asInstanceOf[Prism[F, Any, Any]], prism2.asInstanceOf[Prism[F, Any, Any]])
+        new TraversalMixed((firstLeafs.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
+      case _ =>
+        new TraversalMixed(firstLeafs ++ secondLeafs)
+    }
 
   def arrayValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Array[A], A] =
     new SeqValues(Reflect.array(reflect))
@@ -973,152 +959,75 @@ object Traversal {
     private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = ArraySeq(this)
   }
 
-  // All compositions that yield Traversal:
-  private case class TraversalTraversal[F[_, _], S, T, A](first: Traversal[F, S, T], second: Traversal[F, T, A])
-      extends Traversal[F, S, A] {
-    require((first ne null) && (second ne null))
+  private case class TraversalMixed[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Traversal[F, S, A] {
+    require((leafs ne null) && leafs.length > 1)
 
-    def structure: Reflect[F, S] = first.structure
+    def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
-    def focus: Reflect[F, A] = second.focus
+    def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
 
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z =
-      first.fold[Z](s)(zero, (z, t) => second.fold(t)(z, f))
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new TraversalTraversal(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class TraversalLens[F[_, _], S, T, A](first: Traversal[F, S, T], second: Lens[F, T, A])
-      extends Traversal[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z =
-      first.fold(s)(zero, (z, t) => f(z, second.get(t)))
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new TraversalLens(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class TraversalPrism[F[_, _], S, T, A <: T](first: Traversal[F, S, T], second: Prism[F, T, A])
-      extends Traversal[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = first.fold[Z](s)(
-      zero,
-      (z, t) =>
-        second.getOption(t) match {
-          case Some(a) => f(z, a)
-          case _       => z
+    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = {
+      var i = leafs.length
+      i -= 1
+      val last = leafs(i)
+      var g: (Any, Any) => Any =
+        if (last.isInstanceOf[Lens[F, _, _]]) {
+          val lens = last.asInstanceOf[Lens[F, Any, Any]]
+          (z: Any, t: Any) => f(z.asInstanceOf[Z], lens.get(t).asInstanceOf[A])
+        } else if (last.isInstanceOf[Prism[F, _, _]]) {
+          val prism = last.asInstanceOf[Prism[F, Any, Any]]
+          (z: Any, t: Any) =>
+            prism.getOption(t) match {
+              case Some(a) => f(z.asInstanceOf[Z], a.asInstanceOf[A])
+              case _       => z
+            }
+        } else {
+          val traversal = last.asInstanceOf[Traversal[F, Any, Any]]
+          (z: Any, t: Any) => traversal.fold(t)(z, f.asInstanceOf[(Any, Any) => Any])
         }
-    )
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new TraversalPrism(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class TraversalOptional[F[_, _], S, T, A](first: Traversal[F, S, T], second: Optional[F, T, A])
-      extends Traversal[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = first.fold[Z](s)(
-      zero,
-      (z, t) =>
-        second.getOption(t) match {
-          case Some(a) => f(z, a)
-          case _       => z
+      while (i > 0) {
+        i -= 1
+        g = {
+          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
+          if (leaf.isInstanceOf[Lens[F, _, _]]) {
+            val lens = leaf.asInstanceOf[Lens[F, Any, Any]]
+            val h    = g
+            (z: Any, t: Any) => h(z, lens.get(t))
+          } else if (leaf.isInstanceOf[Prism[F, _, _]]) {
+            val prism = leaf.asInstanceOf[Prism[F, Any, Any]]
+            val h     = g
+            (z: Any, t: Any) =>
+              prism.getOption(t) match {
+                case Some(a) => h(z, a)
+                case _       => z
+              }
+          } else {
+            val traversal = leaf.asInstanceOf[Traversal[F, Any, Any]]
+            val h         = g
+            (z: Any, t: Any) => traversal.fold(t)(z, h)
+          }
         }
-    )
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new TraversalOptional(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class LensTraversal[F[_, _], S, T, A](first: Lens[F, S, T], second: Traversal[F, T, A])
-      extends Traversal[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = second.fold(first.get(s))(zero, f)
-
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new LensTraversal(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class PrismTraversal[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Traversal[F, T, A])
-      extends Traversal[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = first.getOption(s) match {
-      case Some(t) => second.fold(t)(zero, f)
-      case _       => zero
+      }
+      g(zero, s).asInstanceOf[Z]
     }
 
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new PrismTraversal(first.refineBinding(f), second.refineBinding(f))
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
-  }
-
-  private case class OptionalTraversal[F[_, _], S, T, A](first: Optional[F, S, T], second: Traversal[F, T, A])
-      extends Traversal[F, S, A] {
-    require((first ne null) && (second ne null))
-
-    def structure: Reflect[F, S] = first.structure
-
-    def focus: Reflect[F, A] = second.focus
-
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = first.getOption(s) match {
-      case Some(t) => second.fold(t)(zero, f)
-      case _       => zero
+    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = {
+      var g: Any => Any = f.asInstanceOf[Any => Any]
+      var i             = leafs.length
+      while (i > 1) {
+        i -= 1
+        g = {
+          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
+          val h    = g
+          (x: Any) => leaf.modify(x, h)
+        }
+      }
+      leafs(0).asInstanceOf[Leaf[F, Any, Any]].modify(s, g).asInstanceOf[S]
     }
 
-    def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = first.modify(s, second.modify(_, f))
-
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new OptionalTraversal(first.refineBinding(f), second.refineBinding(f))
+      new TraversalMixed(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))
 
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = first.linearized ++ second.linearized
+    private[schema] def linearized: ArraySeq[Leaf[F, _, _]] = leafs
   }
 }
