@@ -414,9 +414,9 @@ object Optional {
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
     val secondLeafs = second.asInstanceOf[OptionalImpl[F, _, _]].leafs
     secondLeafs.head match {
-      case p2: Lens[_, _, _] =>
-        val p = first.asInstanceOf[Lens[F, Any, Any]](p2.asInstanceOf[Lens[F, Any, Any]])
-        new OptionalImpl(p.asInstanceOf[Leaf[F, _, _]] +: secondLeafs.tail)
+      case l2: Lens[_, _, _] =>
+        val l = first.asInstanceOf[Lens[F, Any, Any]](l2.asInstanceOf[Lens[F, Any, Any]])
+        new OptionalImpl(l.asInstanceOf[Leaf[F, _, _]] +: secondLeafs.tail)
       case _ =>
         new OptionalImpl(first.asInstanceOf[Leaf[F, _, _]] +: secondLeafs)
     }
@@ -448,28 +448,18 @@ object Optional {
       val len    = leafs.length
       var i      = 0
       while (i < len) {
-        leafs(i) match {
-          case l: Lens[F, _, _] =>
-            x match {
-              case None    => return None
-              case Some(v) => x = l.asInstanceOf[Lens[F, Any, Any]].get(v)
-              case _       => x = l.asInstanceOf[Lens[F, Any, Any]].get(x)
-            }
-          case p: Prism[F, _, _] =>
-            x match {
-              case None    => return None
-              case Some(v) => x = p.asInstanceOf[Prism[F, Any, Any]].getOption(v)
-              case _       => x = p.asInstanceOf[Prism[F, Any, Any]].getOption(x)
-            }
-          case _ => sys.error("Expected Lens or Prism")
-        }
+        val leaf = leafs(i)
         i += 1
+        if (leaf.isInstanceOf[Lens[F, _, _]]) {
+          x = leaf.asInstanceOf[Lens[F, Any, Any]].get(x)
+        } else {
+          x = leaf.asInstanceOf[Prism[F, Any, Any]].getOption(x) match {
+            case Some(v) => v
+            case _       => return None
+          }
+        }
       }
-      x match {
-        case None       => None
-        case x: Some[_] => x.asInstanceOf[Option[A]]
-        case _          => new Some(x.asInstanceOf[A])
-      }
+      new Some(x.asInstanceOf[A])
     }
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
@@ -477,12 +467,12 @@ object Optional {
       i -= 1
       val last = leafs(i)
       var g: Any => Any =
-        if (last.isInstanceOf[Prism[F, _, _]]) {
-          val prism = last.asInstanceOf[Prism[F, Any, Any]]
-          (x: Any) => prism.replace(x, a)
-        } else {
+        if (last.isInstanceOf[Lens[F, _, _]]) {
           val lens = last.asInstanceOf[Lens[F, Any, Any]]
           (x: Any) => lens.replace(x, a)
+        } else {
+          val prism = last.asInstanceOf[Prism[F, Any, Any]]
+          (x: Any) => prism.replace(x, a)
         }
       while (i > 1) {
         i -= 1
