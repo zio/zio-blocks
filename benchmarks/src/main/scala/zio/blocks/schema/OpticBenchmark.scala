@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import monocle.{Getter, PSetter}
 import org.openjdk.jmh.annotations.{Scope => JScope, _}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.{
@@ -13,6 +12,7 @@ import zio.blocks.schema.binding.{
   RegisterOffset,
   Registers
 }
+
 import java.util.concurrent.TimeUnit
 
 @State(JScope.Thread)
@@ -89,6 +89,9 @@ class OptionalGetOptionBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
+  def monocle: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s_monocle_get.getOption(a1)
+
+  @Benchmark
   def zioBlocks: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s.getOption(a1)
 }
 
@@ -118,6 +121,12 @@ class OptionalReplaceBenchmark extends BaseBenchmark {
     }
     a1
   }
+
+  @Benchmark
+  def monocle: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_monocle_set.replace("test2").apply(a1)
+
+  @Benchmark
+  def quicklens: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_quicklens.apply(a1).setTo("test2")
 
   @Benchmark
   def zioBlocks: A1 = A1.b_b1_c_c1_d_d1_e_e1_s.replace(a1, "test2")
@@ -273,12 +282,12 @@ object LensDomain {
         .andThenModify(modify(_: D)(_.e))
         .andThenModify(modify(_: E)(_.s))
 
-    import monocle.Focus
+    import monocle.{Getter, Focus, Setter}
 
     val b_c_d_e_s_monocle_get: Getter[A, String] =
       Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s)).asGetter
 
-    val b_c_d_e_s_monocle_set: PSetter[A, A, String, String] =
+    val b_c_d_e_s_monocle_set: Setter[A, String] =
       Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s)).asSetter
   }
 }
@@ -687,5 +696,40 @@ object OptionalDomain {
     )
     val b: Lens.Bound[A1, B]                              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A1, B]])
     val b_b1_c_c1_d_d1_e_e1_s: Optional.Bound[A1, String] = b(B.b1)(B1.c)(C.c1)(C1.d)(D.d1)(D1.e)(E.e1)(E1.s)
+
+    import com.softwaremill.quicklens._
+
+    val b_b1_c_c1_d_d1_e_e1_s_quicklens: A1 => PathModify[A1, String] =
+      (modify(_: A1)(_.b.when[B1]))
+        .andThenModify(modify(_: B1)(_.c.when[C1]))
+        .andThenModify(modify(_: C1)(_.d.when[D1]))
+        .andThenModify(modify(_: D1)(_.e.when[E1]))
+        .andThenModify(modify(_: E1)(_.s))
+
+    import monocle.{Focus, Setter, POptional}
+    import monocle.macros.GenPrism
+
+    val b_b1_c_c1_d_d1_e_e1_s_monocle_get: POptional[A1, A1, String, String] =
+      Focus[A1](_.b)
+        .andThen(GenPrism[B, B1])
+        .andThen(Focus[B1](_.c))
+        .andThen(GenPrism[C, C1])
+        .andThen(Focus[C1](_.d))
+        .andThen(GenPrism[D, D1])
+        .andThen(Focus[D1](_.e))
+        .andThen(GenPrism[E, E1])
+        .andThen(Focus[E1](_.s))
+
+    val b_b1_c_c1_d_d1_e_e1_s_monocle_set: Setter[A1, String] =
+      Focus[A1](_.b)
+        .andThen(GenPrism[B, B1])
+        .andThen(Focus[B1](_.c))
+        .andThen(GenPrism[C, C1])
+        .andThen(Focus[C1](_.d))
+        .andThen(GenPrism[D, D1])
+        .andThen(Focus[D1](_.e))
+        .andThen(GenPrism[E, E1])
+        .andThen(Focus[E1](_.s))
+        .asSetter
   }
 }
