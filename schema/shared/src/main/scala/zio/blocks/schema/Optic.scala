@@ -84,7 +84,9 @@ object Optic {
   type Bound[S, A] = Optic[Binding, S, A]
 }
 
-private[schema] sealed trait Leaf[F[_, _], S, A] extends Optic[F, S, A]
+private[schema] sealed trait Leaf[F[_, _], S, A] extends Optic[F, S, A] {
+  override private[schema] def linearized: ArraySeq[Leaf[F, S, A]] = ArraySeq(this)
+}
 
 sealed trait Lens[F[_, _], S, A] extends Optic[F, S, A] {
   def get(s: S)(implicit F: HasBinding[F]): A
@@ -117,9 +119,9 @@ object Lens {
   }
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Lens[F, T, A]): Lens[F, S, A] = {
-    val u1 = first.asInstanceOf[LensImpl[F, S, A]]
-    val u2 = second.asInstanceOf[LensImpl[F, S, A]]
-    new LensImpl(u1.parents ++ u2.parents, u1.childs ++ u2.childs)
+    val lens1 = first.asInstanceOf[LensImpl[F, S, A]]
+    val lens2 = second.asInstanceOf[LensImpl[F, S, A]]
+    new LensImpl(lens1.parents ++ lens2.parents, lens1.childs ++ lens2.childs)
   }
 
   private[schema] case class LensImpl[F[_, _], S, A](
@@ -134,22 +136,22 @@ object Lens {
       var offset   = RegisterOffset.Zero
       val len      = parents.length
       val bindings = new Array[LensBinding](len)
-      var i        = 0
-      while (i < len) {
-        val parent = parents(i)
-        bindings(i) = new LensBinding(
+      var idx      = 0
+      while (idx < len) {
+        val parent = parents(idx)
+        bindings(idx) = new LensBinding(
           deconstructor = F.deconstructor(parent.recordBinding).asInstanceOf[Deconstructor[Any]],
           constructor = F.constructor(parent.recordBinding).asInstanceOf[Constructor[Any]],
           register = parent
             .registers(parent.fields.indexWhere {
-              val childName = childs(i).name
+              val childName = childs(idx).name
               x => x.name == childName
             })
             .asInstanceOf[Register[Any]],
           offset = offset
         )
         offset = RegisterOffset.add(offset, parent.usedRegisters)
-        i += 1
+        idx += 1
       }
       this.bindings = bindings
       this.usedRegisters = offset
@@ -160,13 +162,13 @@ object Lens {
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
-      var i         = 0
-      while (i < len) {
-        val binding = bindings(i)
+      var idx       = 0
+      while (idx < len) {
+        val binding = bindings(idx)
         val offset  = binding.offset
         binding.deconstructor.deconstruct(registers, offset, x)
         x = binding.register.get(registers, offset)
-        i += 1
+        idx += 1
       }
       x.asInstanceOf[A]
     }
@@ -176,18 +178,18 @@ object Lens {
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
-      var i         = 0
-      while (i < len) {
-        val binding = bindings(i)
+      var idx       = 0
+      while (idx < len) {
+        val binding = bindings(idx)
         val offset  = binding.offset
         binding.deconstructor.deconstruct(registers, offset, x)
-        if (i < len) x = binding.register.get(registers, offset)
-        i += 1
+        if (idx < len) x = binding.register.get(registers, offset)
+        idx += 1
       }
       x = a
-      while (i > 0) {
-        i -= 1
-        val binding = bindings(i)
+      while (idx > 0) {
+        idx -= 1
+        val binding = bindings(idx)
         val offset  = binding.offset
         binding.register.set(registers, offset, x)
         x = binding.constructor.construct(registers, offset)
@@ -200,18 +202,18 @@ object Lens {
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
-      var i         = 0
-      while (i < len) {
-        val binding = bindings(i)
+      var idx       = 0
+      while (idx < len) {
+        val binding = bindings(idx)
         val offset  = binding.offset
         binding.deconstructor.deconstruct(registers, offset, x)
         x = binding.register.get(registers, offset)
-        i += 1
+        idx += 1
       }
       x = f(x.asInstanceOf[A])
-      while (i > 0) {
-        i -= 1
-        val binding = bindings(i)
+      while (idx > 0) {
+        idx -= 1
+        val binding = bindings(idx)
         val offset  = binding.offset
         binding.register.set(registers, offset, x)
         x = binding.constructor.construct(registers, offset)
@@ -232,8 +234,6 @@ object Lens {
       case other: LensImpl[_, _, _] => other.parents.equals(parents) && other.childs.equals(childs)
       case _                        => false
     }
-
-    override private[schema] def linearized: ArraySeq[Leaf[F, S, A]] = ArraySeq(this)
   }
 
   private[schema] case class LensBinding(
@@ -279,12 +279,12 @@ object Prism {
   }
 
   def apply[F[_, _], S, T <: S, A <: T](first: Prism[F, S, T], second: Prism[F, T, A]): Prism[F, S, A] = {
-    val u1 = first.asInstanceOf[PrismImpl[F, _, _, _]]
-    val u2 = second.asInstanceOf[PrismImpl[F, _, _, _]]
+    val prism1 = first.asInstanceOf[PrismImpl[F, _, _, _]]
+    val prism2 = second.asInstanceOf[PrismImpl[F, _, _, _]]
     new PrismImpl(
-      u1.structure.asInstanceOf[Reflect.Variant[F, S]],
-      u2.parent.asInstanceOf[Reflect.Variant[F, T]],
-      u2.child.asInstanceOf[Term[F, T, A]]
+      prism1.structure.asInstanceOf[Reflect.Variant[F, S]],
+      prism2.parent.asInstanceOf[Reflect.Variant[F, T]],
+      prism2.child.asInstanceOf[Term[F, T, A]]
     )
   }
 
@@ -339,8 +339,6 @@ object Prism {
       case other: PrismImpl[_, _, _, _] => other.structure.equals(structure) && other.child.equals(child)
       case _                            => false
     }
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = ArraySeq(this)
   }
 }
 
@@ -396,19 +394,19 @@ object Optional {
     firstLeafs: ArraySeq[Leaf[F, _, _]],
     secondLeafs: ArraySeq[Leaf[F, _, _]]
   ): Optional[F, S, A] =
-    (firstLeafs.last, secondLeafs.head) match {
-      case (l1: Lens[_, _, _], l2: Lens[_, _, _]) =>
-        val l = Lens.apply(l1.asInstanceOf[Lens[F, Any, Any]], l2.asInstanceOf[Lens[F, Any, Any]])
-        new OptionalImpl((firstLeafs.init :+ l.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
-      case (p1: Prism[_, _, _], p2: Prism[_, _, _]) =>
-        val p = Prism.apply(p1.asInstanceOf[Prism[F, Any, Any]], p2.asInstanceOf[Prism[F, Any, Any]])
-        new OptionalImpl((firstLeafs.init :+ p.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
+    new OptionalImpl((firstLeafs.last, secondLeafs.head) match {
+      case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
+        val lens = Lens.apply(lens1.asInstanceOf[Lens[F, Any, Any]], lens2.asInstanceOf[Lens[F, Any, Any]])
+        (firstLeafs.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
+      case (prism1: Prism[_, _, _], prism2: Prism[_, _, _]) =>
+        val prism = Prism.apply(prism1.asInstanceOf[Prism[F, Any, Any]], prism2.asInstanceOf[Prism[F, Any, Any]])
+        (firstLeafs.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
       case _ =>
-        new OptionalImpl(firstLeafs ++ secondLeafs)
-    }
+        firstLeafs ++ secondLeafs
+    })
 
   private[schema] case class OptionalImpl[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Optional[F, S, A] {
-    require((leafs ne null) && leafs.length > 1)
+    require(leafs.length > 1)
 
     def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
@@ -417,10 +415,10 @@ object Optional {
     def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = {
       var x: Any = s
       val len    = leafs.length
-      var i      = 0
-      while (i < len) {
-        val leaf = leafs(i)
-        i += 1
+      var idx    = 0
+      while (idx < len) {
+        val leaf = leafs(idx)
+        idx += 1
         if (leaf.isInstanceOf[Lens.LensImpl[F, _, _]]) {
           x = leaf.asInstanceOf[Lens[F, Any, Any]].get(x)
         } else {
@@ -434,10 +432,10 @@ object Optional {
     }
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
-      var i = leafs.length
-      i -= 1
-      val last = leafs(i)
-      var g: Any => Any =
+      var idx = leafs.length
+      idx -= 1
+      val last = leafs(idx)
+      var g =
         if (last.isInstanceOf[Lens.LensImpl[F, _, _]]) {
           val lens = last.asInstanceOf[Lens[F, Any, Any]]
           (x: Any) => lens.replace(x, a)
@@ -445,15 +443,13 @@ object Optional {
           val prism = last.asInstanceOf[Prism[F, Any, Any]]
           (x: Any) => prism.replace(x, a)
         }
-      while (i > 1) {
-        i -= 1
-        g = {
-          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
-          val h    = g
-          (x: Any) => leaf.modify(x, h)
-        }
+      while (idx > 0) {
+        idx -= 1
+        val leaf = leafs(idx).asInstanceOf[Leaf[F, Any, Any]]
+        val h    = g
+        g = (x: Any) => leaf.modify(x, h)
       }
-      leafs(0).asInstanceOf[Leaf[F, Any, Any]].modify(s, g).asInstanceOf[S]
+      g(s).asInstanceOf[S]
     }
 
     def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] =
@@ -461,17 +457,15 @@ object Optional {
       else None
 
     def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = {
-      var g: Any => Any = f.asInstanceOf[Any => Any]
-      var i             = leafs.length
-      while (i > 1) {
-        i -= 1
-        g = {
-          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
-          val h    = g
-          (x: Any) => leaf.modify(x, h)
-        }
+      var g   = f.asInstanceOf[Any => Any]
+      var idx = leafs.length
+      while (idx > 0) {
+        idx -= 1
+        val leaf = leafs(idx).asInstanceOf[Leaf[F, Any, Any]]
+        val h    = g
+        g = (x: Any) => leaf.modify(x, h)
       }
-      leafs(0).asInstanceOf[Leaf[F, Any, Any]].modify(s, g).asInstanceOf[S]
+      g(s).asInstanceOf[S]
     }
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
@@ -529,16 +523,16 @@ object Traversal {
     firstLeafs: ArraySeq[Leaf[F, _, _]],
     secondLeafs: ArraySeq[Leaf[F, _, _]]
   ): Traversal[F, S, A] =
-    (firstLeafs.last, secondLeafs.head) match {
+    new TraversalMixed((firstLeafs.last, secondLeafs.head) match {
       case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
         val lens = Lens.apply(lens1.asInstanceOf[Lens[F, Any, Any]], lens2.asInstanceOf[Lens[F, Any, Any]])
-        new TraversalMixed((firstLeafs.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
+        (firstLeafs.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
       case (prism1: Prism[_, _, _], prism2: Prism[_, _, _]) =>
         val prism = Prism.apply(prism1.asInstanceOf[Prism[F, Any, Any]], prism2.asInstanceOf[Prism[F, Any, Any]])
-        new TraversalMixed((firstLeafs.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail)
+        (firstLeafs.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
       case _ =>
-        new TraversalMixed(firstLeafs ++ secondLeafs)
-    }
+        firstLeafs ++ secondLeafs
+    })
 
   def arrayValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Array[A], A] =
     new SeqValues(Reflect.array(reflect))
@@ -862,8 +856,6 @@ object Traversal {
       case other: SeqValues[_, _, _] => other.seq.equals(seq)
       case _                         => false
     }
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = ArraySeq(this)
   }
 
   private[schema] case class MapKeys[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
@@ -880,8 +872,7 @@ object Traversal {
       var z             = zero
       val it            = deconstructor.deconstruct(s)
       while (it.hasNext) {
-        val next = it.next()
-        z = f(z, deconstructor.getKey(next))
+        z = f(z, deconstructor.getKey(it.next()))
       }
       z
     }
@@ -892,10 +883,8 @@ object Traversal {
       val builder       = constructor.newObjectBuilder[Key, Value]()
       val it            = deconstructor.deconstruct(s)
       while (it.hasNext) {
-        val next  = it.next()
-        val key   = deconstructor.getKey(next)
-        val value = deconstructor.getValue(next)
-        constructor.addObject(builder, f(key), value)
+        val next = it.next()
+        constructor.addObject(builder, f(deconstructor.getKey(next)), deconstructor.getValue(next))
       }
       constructor.resultObject(builder)
     }
@@ -908,8 +897,6 @@ object Traversal {
       case other: MapKeys[_, _, _, _] => other.map.equals(map)
       case _                          => false
     }
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = ArraySeq(this)
   }
 
   private[schema] case class MapValues[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
@@ -926,8 +913,7 @@ object Traversal {
       var z             = zero
       val it            = deconstructor.deconstruct(s)
       while (it.hasNext) {
-        val next = it.next()
-        z = f(z, deconstructor.getValue(next))
+        z = f(z, deconstructor.getValue(it.next()))
       }
       z
     }
@@ -938,10 +924,8 @@ object Traversal {
       val builder       = constructor.newObjectBuilder[Key, Value]()
       val it            = deconstructor.deconstruct(s)
       while (it.hasNext) {
-        val next  = it.next()
-        val key   = deconstructor.getKey(next)
-        val value = deconstructor.getValue(next)
-        constructor.addObject(builder, key, f(value))
+        val next = it.next()
+        constructor.addObject(builder, deconstructor.getKey(next), f(deconstructor.getValue(next)))
       }
       constructor.resultObject(builder)
     }
@@ -955,74 +939,50 @@ object Traversal {
       case other: MapValues[_, _, _, _] => other.map.equals(map)
       case _                            => false
     }
-
-    private[schema] lazy val linearized: ArraySeq[Leaf[F, _, _]] = ArraySeq(this)
   }
 
   private[schema] case class TraversalMixed[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Traversal[F, S, A] {
-    require((leafs ne null) && leafs.length > 1)
+    require(leafs.length > 1)
 
     def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
 
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = {
-      var i = leafs.length
-      i -= 1
-      val last = leafs(i)
-      var g: (Any, Any) => Any =
-        if (last.isInstanceOf[Lens.LensImpl[F, _, _]]) {
-          val lens = last.asInstanceOf[Lens[F, Any, Any]]
-          (z: Any, t: Any) => f(z.asInstanceOf[Z], lens.get(t).asInstanceOf[A])
-        } else if (last.isInstanceOf[Prism.PrismImpl[F, _, _, _]]) {
-          val prism = last.asInstanceOf[Prism[F, Any, Any]]
-          (z: Any, t: Any) =>
+      var g   = f.asInstanceOf[(Any, Any) => Any]
+      var idx = leafs.length
+      while (idx > 0) {
+        idx -= 1
+        val leaf = leafs(idx).asInstanceOf[Leaf[F, Any, Any]]
+        val h    = g
+        if (leaf.isInstanceOf[Lens.LensImpl[F, _, _]]) {
+          val lens = leaf.asInstanceOf[Lens[F, Any, Any]]
+          g = (z: Any, t: Any) => h(z, lens.get(t))
+        } else if (leaf.isInstanceOf[Prism.PrismImpl[F, _, _, _]]) {
+          val prism = leaf.asInstanceOf[Prism[F, Any, Any]]
+          g = (z: Any, t: Any) =>
             prism.getOption(t) match {
-              case Some(a) => f(z.asInstanceOf[Z], a.asInstanceOf[A])
+              case Some(a) => h(z, a)
               case _       => z
             }
         } else {
-          val traversal = last.asInstanceOf[Traversal[F, Any, Any]]
-          (z: Any, t: Any) => traversal.fold(t)(z, f.asInstanceOf[(Any, Any) => Any])
-        }
-      while (i > 0) {
-        i -= 1
-        g = {
-          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
-          if (leaf.isInstanceOf[Lens.LensImpl[F, _, _]]) {
-            val lens = leaf.asInstanceOf[Lens[F, Any, Any]]
-            val h    = g
-            (z: Any, t: Any) => h(z, lens.get(t))
-          } else if (leaf.isInstanceOf[Prism.PrismImpl[F, _, _, _]]) {
-            val prism = leaf.asInstanceOf[Prism[F, Any, Any]]
-            val h     = g
-            (z: Any, t: Any) =>
-              prism.getOption(t) match {
-                case Some(a) => h(z, a)
-                case _       => z
-              }
-          } else {
-            val traversal = leaf.asInstanceOf[Traversal[F, Any, Any]]
-            val h         = g
-            (z: Any, t: Any) => traversal.fold(t)(z, h)
-          }
+          val traversal = leaf.asInstanceOf[Traversal[F, Any, Any]]
+          g = (z: Any, t: Any) => traversal.fold(t)(z, h)
         }
       }
       g(zero, s).asInstanceOf[Z]
     }
 
     def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = {
-      var g: Any => Any = f.asInstanceOf[Any => Any]
-      var i             = leafs.length
-      while (i > 1) {
-        i -= 1
-        g = {
-          val leaf = leafs(i).asInstanceOf[Leaf[F, Any, Any]]
-          val h    = g
-          (x: Any) => leaf.modify(x, h)
-        }
+      var g   = f.asInstanceOf[Any => Any]
+      var idx = leafs.length
+      while (idx > 0) {
+        idx -= 1
+        val leaf = leafs(idx).asInstanceOf[Leaf[F, Any, Any]]
+        val h    = g
+        g = (x: Any) => leaf.modify(x, h)
       }
-      leafs(0).asInstanceOf[Leaf[F, Any, Any]].modify(s, g).asInstanceOf[S]
+      g(s).asInstanceOf[S]
     }
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
