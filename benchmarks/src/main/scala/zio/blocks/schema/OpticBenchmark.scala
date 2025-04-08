@@ -2,7 +2,17 @@ package zio.blocks.schema
 
 import org.openjdk.jmh.annotations.{Scope => JScope, _}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.binding.{Binding, Constructor, Deconstructor, RegisterOffset, Registers}
+import zio.blocks.schema.binding.{
+  Binding,
+  Constructor,
+  Deconstructor,
+  Discriminator,
+  Matcher,
+  Matchers,
+  RegisterOffset,
+  Registers
+}
+
 import java.util.concurrent.TimeUnit
 
 @State(JScope.Thread)
@@ -11,8 +21,10 @@ import java.util.concurrent.TimeUnit
 @Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 1)
-class LensGetBenchmark {
-  import Domain._
+abstract class BaseBenchmark
+
+class LensGetBenchmark extends BaseBenchmark {
+  import LensDomain._
 
   var a: A = A(B(C(D(E("test")))))
 
@@ -26,31 +38,101 @@ class LensGetBenchmark {
   def zioBlocks: String = A.b_c_d_e_s.get(a)
 }
 
-@State(JScope.Thread)
-@BenchmarkMode(Array(Mode.Throughput))
-@OutputTimeUnit(TimeUnit.SECONDS)
-@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1)
-class LensReplaceBenchmark {
-  import Domain._
+class LensReplaceBenchmark extends BaseBenchmark {
+  import LensDomain._
 
   var a: A = A(B(C(D(E("test")))))
 
   @Benchmark
-  def direct: A = a.copy(b = a.b.copy(c = a.b.c.copy(d = a.b.c.d.copy(e = a.b.c.d.e.copy(s = "test2")))))
+  def direct: A = {
+    val a = this.a
+    val b = a.b
+    val c = b.c
+    val d = c.d
+    a.copy(b = b.copy(c = c.copy(d = d.copy(e = d.e.copy(s = "test2")))))
+  }
 
   @Benchmark
   def monocle: A = A.b_c_d_e_s_monocle_set.replace("test2").apply(a)
 
   @Benchmark
-  def quicklens: A = A.b_c_d_e_s_qiocklens.apply(a).setTo("test2")
+  def quicklens: A = A.b_c_d_e_s_quicklens.apply(a).setTo("test2")
 
   @Benchmark
   def zioBlocks: A = A.b_c_d_e_s.replace(a, "test2")
 }
 
-object Domain {
+class OptionalGetOptionBenchmark extends BaseBenchmark {
+  import OptionalDomain._
+
+  var a1: A1 = A1(B1(C1(D1(E1("test")))))
+
+  @Benchmark
+  def direct: Option[String] = {
+    a1.b match {
+      case b1: B1 =>
+        b1.c match {
+          case c1: C1 =>
+            c1.d match {
+              case d1: D1 =>
+                d1.e match {
+                  case e1: E1 => return new Some(e1.s)
+                  case _      =>
+                }
+              case _ =>
+            }
+          case _ =>
+        }
+      case _ =>
+    }
+    None
+  }
+
+  @Benchmark
+  def monocle: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s_monocle_get.getOption(a1)
+
+  @Benchmark
+  def zioBlocks: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s.getOption(a1)
+}
+
+class OptionalReplaceBenchmark extends BaseBenchmark {
+  import OptionalDomain._
+
+  var a1: A1 = A1(B1(C1(D1(E1("test")))))
+
+  @Benchmark
+  def direct: A1 = {
+    val a1 = this.a1
+    a1.b match {
+      case b1: B1 =>
+        b1.c match {
+          case c1: C1 =>
+            c1.d match {
+              case d1: D1 =>
+                d1.e match {
+                  case e1: E1 => return a1.copy(b = b1.copy(c = c1.copy(d = d1.copy(e = e1.copy(s = "test2")))))
+                  case _      =>
+                }
+              case _ =>
+            }
+          case _ =>
+        }
+      case _ =>
+    }
+    a1
+  }
+
+  @Benchmark
+  def monocle: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_monocle_set.replace("test2").apply(a1)
+
+  @Benchmark
+  def quicklens: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_quicklens.apply(a1).setTo("test2")
+
+  @Benchmark
+  def zioBlocks: A1 = A1.b_b1_c_c1_d_d1_e_e1_s.replace(a1, "test2")
+}
+
+object LensDomain {
   case class E(s: String)
 
   object E {
@@ -193,19 +275,461 @@ object Domain {
 
     import com.softwaremill.quicklens._
 
-    val b_c_d_e_s_qiocklens =
+    val b_c_d_e_s_quicklens: A => PathModify[A, String] =
       (modify(_: A)(_.b))
         .andThenModify(modify(_: B)(_.c))
         .andThenModify(modify(_: C)(_.d))
         .andThenModify(modify(_: D)(_.e))
         .andThenModify(modify(_: E)(_.s))
 
-    import monocle.Focus
+    import monocle.{Getter, Focus, Setter}
 
-    val b_c_d_e_s_monocle_get =
+    val b_c_d_e_s_monocle_get: Getter[A, String] =
       Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s)).asGetter
 
-    val b_c_d_e_s_monocle_set =
+    val b_c_d_e_s_monocle_set: Setter[A, String] =
       Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s)).asSetter
+  }
+}
+
+object OptionalDomain {
+  sealed trait E
+
+  object E {
+    val reflect: Reflect.Variant.Bound[E] = Reflect.Variant(
+      cases = List(
+        Term("e1", E1.reflect, Doc.Empty, Nil),
+        Term("e2", E2.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "E"),
+      variantBinding = Binding.Variant(
+        discriminator = new Discriminator[E] {
+          def discriminate(a: E): Int = a match {
+            case _: E1 => 0
+            case _: E2 => 1
+          }
+        },
+        matchers = Matchers(
+          new Matcher[E1] {
+            def downcastOrNull(a: Any): E1 = a match {
+              case x: E1 => x
+              case _     => null
+            }
+          },
+          new Matcher[E2] {
+            def downcastOrNull(a: Any): E2 = a match {
+              case x: E2 => x
+              case _     => null
+            }
+          }
+        )
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val e1: Prism.Bound[E, E1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[E, E1]])
+    val e2: Prism.Bound[E, E2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[E, E2]])
+  }
+
+  case class E1(s: String) extends E
+
+  object E1 {
+    val reflect: Reflect.Record.Bound[E1] = Reflect.Record(
+      fields = List(
+        Term("s", Reflect.string, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "E1"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[E1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): E1 =
+            E1(in.getObject(baseOffset, 0).asInstanceOf[String])
+        },
+        deconstructor = new Deconstructor[E1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: E1): Unit =
+            out.setObject(baseOffset, 0, in.s)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val s: Lens.Bound[E1, String] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E1, String]])
+  }
+
+  case class E2(i: Int) extends E
+
+  object E2 {
+    val reflect: Reflect.Record.Bound[E2] = Reflect.Record(
+      fields = List(
+        Term("i", Reflect.int, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "E2"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[E2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): E2 =
+            E2(in.getInt(baseOffset, 0))
+        },
+        deconstructor = new Deconstructor[E2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: E2): Unit =
+            out.setInt(baseOffset, 0, in.i)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val i: Lens.Bound[E2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E2, Int]])
+  }
+
+  sealed trait D
+
+  object D {
+    val reflect: Reflect.Variant.Bound[D] = Reflect.Variant(
+      cases = List(
+        Term("d1", D1.reflect, Doc.Empty, Nil),
+        Term("d2", D2.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "D"),
+      variantBinding = Binding.Variant(
+        discriminator = new Discriminator[D] {
+          def discriminate(a: D): Int = a match {
+            case _: D1 => 0
+            case _: D2 => 1
+          }
+        },
+        matchers = Matchers(
+          new Matcher[D1] {
+            def downcastOrNull(a: Any): D1 = a match {
+              case x: D1 => x
+              case _     => null
+            }
+          },
+          new Matcher[D2] {
+            def downcastOrNull(a: Any): D2 = a match {
+              case x: D2 => x
+              case _     => null
+            }
+          }
+        )
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val d1: Prism.Bound[D, D1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[D, D1]])
+    val d2: Prism.Bound[D, D2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[D, D2]])
+  }
+
+  case class D1(e: E) extends D
+
+  object D1 {
+    val reflect: Reflect.Record.Bound[D1] = Reflect.Record(
+      fields = List(
+        Term("e", E.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "D1"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[D1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): D1 =
+            D1(in.getObject(baseOffset, 0).asInstanceOf[E])
+        },
+        deconstructor = new Deconstructor[D1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: D1): Unit =
+            out.setObject(baseOffset, 0, in.e)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val e: Lens.Bound[D1, E] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D1, E]])
+  }
+
+  case class D2(i: Int) extends D
+
+  object D2 {
+    val reflect: Reflect.Record.Bound[D2] = Reflect.Record(
+      fields = List(
+        Term("i", Reflect.int, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "D2"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[D2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): D2 =
+            D2(in.getInt(baseOffset, 0))
+        },
+        deconstructor = new Deconstructor[D2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: D2): Unit =
+            out.setInt(baseOffset, 0, in.i)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val i: Lens.Bound[D2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D2, Int]])
+  }
+
+  sealed trait C
+
+  object C {
+    val reflect: Reflect.Variant.Bound[C] = Reflect.Variant(
+      cases = List(
+        Term("c1", C1.reflect, Doc.Empty, Nil),
+        Term("c2", C2.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "C"),
+      variantBinding = Binding.Variant(
+        discriminator = new Discriminator[C] {
+          def discriminate(a: C): Int = a match {
+            case _: C1 => 0
+            case _: C2 => 1
+          }
+        },
+        matchers = Matchers(
+          new Matcher[C1] {
+            def downcastOrNull(a: Any): C1 = a match {
+              case x: C1 => x
+              case _     => null
+            }
+          },
+          new Matcher[C2] {
+            def downcastOrNull(a: Any): C2 = a match {
+              case x: C2 => x
+              case _     => null
+            }
+          }
+        )
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val c1: Prism.Bound[C, C1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[C, C1]])
+    val c2: Prism.Bound[C, C2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[C, C2]])
+  }
+
+  case class C1(d: D) extends C
+
+  object C1 {
+    val reflect: Reflect.Record.Bound[C1] = Reflect.Record(
+      fields = List(
+        Term("d", D.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "C1"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[C1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): C1 =
+            C1(in.getObject(baseOffset, 0).asInstanceOf[D])
+        },
+        deconstructor = new Deconstructor[C1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: C1): Unit =
+            out.setObject(baseOffset, 0, in.d)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val d: Lens.Bound[C1, D] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C1, D]])
+  }
+
+  case class C2(i: Int) extends C
+
+  object C2 {
+    val reflect: Reflect.Record.Bound[C2] = Reflect.Record(
+      fields = List(
+        Term("i", Reflect.int, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "C2"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[C2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): C2 =
+            C2(in.getInt(baseOffset, 0))
+        },
+        deconstructor = new Deconstructor[C2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: C2): Unit =
+            out.setInt(baseOffset, 0, in.i)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val i: Lens.Bound[C2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C2, Int]])
+  }
+
+  sealed trait B
+
+  object B {
+    val reflect: Reflect.Variant.Bound[B] = Reflect.Variant(
+      cases = List(
+        Term("b1", B1.reflect, Doc.Empty, Nil),
+        Term("b2", B2.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "B"),
+      variantBinding = Binding.Variant(
+        discriminator = new Discriminator[B] {
+          def discriminate(a: B): Int = a match {
+            case _: B1 => 0
+            case _: B2 => 1
+          }
+        },
+        matchers = Matchers(
+          new Matcher[B1] {
+            def downcastOrNull(a: Any): B1 = a match {
+              case x: B1 => x
+              case _     => null
+            }
+          },
+          new Matcher[B2] {
+            def downcastOrNull(a: Any): B2 = a match {
+              case x: B2 => x
+              case _     => null
+            }
+          }
+        )
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val b1: Prism.Bound[B, B1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[B, B1]])
+    val b2: Prism.Bound[B, B2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[B, B2]])
+  }
+
+  case class B1(c: C) extends B
+
+  object B1 {
+    val reflect: Reflect.Record.Bound[B1] = Reflect.Record(
+      fields = List(
+        Term("c", C.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "B1"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[B1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): B1 =
+            B1(in.getObject(baseOffset, 0).asInstanceOf[C1])
+        },
+        deconstructor = new Deconstructor[B1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: B1): Unit =
+            out.setObject(baseOffset, 0, in.c)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val c: Lens.Bound[B1, C] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B1, C]])
+  }
+
+  case class B2(i: Int) extends B
+
+  object B2 {
+    val reflect: Reflect.Record.Bound[B2] = Reflect.Record(
+      fields = List(
+        Term("i", Reflect.int, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "B2"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[B2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): B2 =
+            B2(in.getInt(baseOffset, 0))
+        },
+        deconstructor = new Deconstructor[B2] {
+          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: B2): Unit =
+            out.setInt(baseOffset, 0, in.i)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val i: Lens.Bound[B2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B2, Int]])
+  }
+
+  case class A1(b: B)
+
+  object A1 {
+    val reflect: Reflect.Record.Bound[A1] = Reflect.Record(
+      fields = List(
+        Term("b", B1.reflect, Doc.Empty, Nil)
+      ),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "A1"),
+      recordBinding = Binding.Record(
+        constructor = new Constructor[A1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def construct(in: Registers, baseOffset: RegisterOffset): A1 =
+            A1(in.getObject(baseOffset, 0).asInstanceOf[B1])
+        },
+        deconstructor = new Deconstructor[A1] {
+          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
+
+          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A1): Unit =
+            out.setObject(baseOffset, 0, in.b)
+        }
+      ),
+      doc = Doc.Empty,
+      modifiers = Nil
+    )
+    val b: Lens.Bound[A1, B]                              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A1, B]])
+    val b_b1_c_c1_d_d1_e_e1_s: Optional.Bound[A1, String] = b(B.b1)(B1.c)(C.c1)(C1.d)(D.d1)(D1.e)(E.e1)(E1.s)
+
+    import com.softwaremill.quicklens._
+
+    val b_b1_c_c1_d_d1_e_e1_s_quicklens: A1 => PathModify[A1, String] =
+      (modify(_: A1)(_.b.when[B1]))
+        .andThenModify(modify(_: B1)(_.c.when[C1]))
+        .andThenModify(modify(_: C1)(_.d.when[D1]))
+        .andThenModify(modify(_: D1)(_.e.when[E1]))
+        .andThenModify(modify(_: E1)(_.s))
+
+    import monocle.{Focus, Setter, POptional}
+    import monocle.macros.GenPrism
+
+    val b_b1_c_c1_d_d1_e_e1_s_monocle_get: POptional[A1, A1, String, String] =
+      Focus[A1](_.b)
+        .andThen(GenPrism[B, B1])
+        .andThen(Focus[B1](_.c))
+        .andThen(GenPrism[C, C1])
+        .andThen(Focus[C1](_.d))
+        .andThen(GenPrism[D, D1])
+        .andThen(Focus[D1](_.e))
+        .andThen(GenPrism[E, E1])
+        .andThen(Focus[E1](_.s))
+
+    val b_b1_c_c1_d_d1_e_e1_s_monocle_set: Setter[A1, String] =
+      Focus[A1](_.b)
+        .andThen(GenPrism[B, B1])
+        .andThen(Focus[B1](_.c))
+        .andThen(GenPrism[C, C1])
+        .andThen(Focus[C1](_.d))
+        .andThen(GenPrism[D, D1])
+        .andThen(Focus[D1](_.e))
+        .andThen(GenPrism[E, E1])
+        .andThen(Focus[E1](_.s))
+        .asSetter
   }
 }
