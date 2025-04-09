@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-
 import scala.collection.immutable.ArraySeq
 
 sealed trait Optic[F[_, _], S, A] { self =>
@@ -296,9 +295,13 @@ object Prism {
       with Leaf[F, S, A] {
     private[this] var matcher: Matcher[A] = null
 
-    private def init(implicit F: HasBinding[F]): Unit =
-      matcher =
-        F.matchers(parent.variantBinding).apply(parent.cases.indexWhere(_.name == child.name)).asInstanceOf[Matcher[A]]
+    private def init(implicit F: HasBinding[F]): Unit = matcher = F
+      .matchers(parent.variantBinding)
+      .apply(parent.cases.indexWhere {
+        val name = child.name
+        x => x.name == name
+      })
+      .asInstanceOf[Matcher[A]]
 
     def focus: Reflect[F, A] = child.value
 
@@ -391,23 +394,23 @@ object Optional {
     apply(first.linearized, second.linearized)
 
   private[this] def apply[F[_, _], S, A](
-    firstLeafs: ArraySeq[Leaf[F, _, _]],
-    secondLeafs: ArraySeq[Leaf[F, _, _]]
-  ): Optional[F, S, A] =
-    new OptionalImpl((firstLeafs.last, secondLeafs.head) match {
+    leafs1: ArraySeq[Leaf[F, _, _]],
+    leafs2: ArraySeq[Leaf[F, _, _]]
+  ): Optional[F, S, A] = {
+    require(leafs1.nonEmpty && leafs1.nonEmpty)
+    new OptionalImpl((leafs1.last, leafs2.head) match {
       case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
         val lens = Lens.apply(lens1.asInstanceOf[Lens[F, Any, Any]], lens2.asInstanceOf[Lens[F, Any, Any]])
-        (firstLeafs.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
+        (leafs1.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ leafs2.tail
       case (prism1: Prism[_, _, _], prism2: Prism[_, _, _]) =>
         val prism = Prism.apply(prism1.asInstanceOf[Prism[F, Any, Any]], prism2.asInstanceOf[Prism[F, Any, Any]])
-        (firstLeafs.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
+        (leafs1.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ leafs2.tail
       case _ =>
-        firstLeafs ++ secondLeafs
+        leafs1 ++ leafs2
     })
+  }
 
   private[schema] case class OptionalImpl[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Optional[F, S, A] {
-    require(leafs.length > 1)
-
     def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
@@ -418,7 +421,6 @@ object Optional {
       var idx    = 0
       while (idx < len) {
         val leaf = leafs(idx)
-        idx += 1
         if (leaf.isInstanceOf[Lens.LensImpl[F, _, _]]) {
           x = leaf.asInstanceOf[Lens[F, Any, Any]].get(x)
         } else {
@@ -427,6 +429,7 @@ object Optional {
             case _       => return None
           }
         }
+        idx += 1
       }
       new Some(x.asInstanceOf[A])
     }
@@ -520,45 +523,62 @@ object Traversal {
     apply(first.linearized, second.linearized)
 
   private[this] def apply[F[_, _], S, A](
-    firstLeafs: ArraySeq[Leaf[F, _, _]],
-    secondLeafs: ArraySeq[Leaf[F, _, _]]
-  ): Traversal[F, S, A] =
-    new TraversalMixed((firstLeafs.last, secondLeafs.head) match {
+    leafs1: ArraySeq[Leaf[F, _, _]],
+    leafs2: ArraySeq[Leaf[F, _, _]]
+  ): Traversal[F, S, A] = {
+    require(leafs1.nonEmpty && leafs2.nonEmpty)
+    new TraversalMixed((leafs1.last, leafs2.head) match {
       case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
         val lens = Lens.apply(lens1.asInstanceOf[Lens[F, Any, Any]], lens2.asInstanceOf[Lens[F, Any, Any]])
-        (firstLeafs.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
+        (leafs1.init :+ lens.asInstanceOf[Leaf[F, _, _]]) ++ leafs2.tail
       case (prism1: Prism[_, _, _], prism2: Prism[_, _, _]) =>
         val prism = Prism.apply(prism1.asInstanceOf[Prism[F, Any, Any]], prism2.asInstanceOf[Prism[F, Any, Any]])
-        (firstLeafs.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ secondLeafs.tail
+        (leafs1.init :+ prism.asInstanceOf[Leaf[F, _, _]]) ++ leafs2.tail
       case _ =>
-        firstLeafs ++ secondLeafs
+        leafs1 ++ leafs2
     })
+  }
 
-  def arrayValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Array[A], A] =
+  def arrayValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Array[A], A] = {
+    require(reflect ne null)
     new SeqValues(Reflect.array(reflect))
+  }
 
-  def listValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, List[A], A] =
+  def listValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, List[A], A] = {
+    require(reflect ne null)
     new SeqValues(Reflect.list(reflect))
+  }
 
-  def mapKeys[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M]): Traversal[F, M[Key, Value], Key] =
+  def mapKeys[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M]): Traversal[F, M[Key, Value], Key] = {
+    require(map ne null)
     new MapKeys(map)
+  }
 
-  def mapValues[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M]): Traversal[F, M[Key, Value], Value] =
+  def mapValues[F[_, _], Key, Value, M[_, _]](
+    map: Reflect.Map[F, Key, Value, M]
+  ): Traversal[F, M[Key, Value], Value] = {
+    require(map ne null)
     new MapValues(map)
+  }
 
-  def seqValues[F[_, _], A, C[_]](seq: Reflect.Sequence[F, A, C]): Traversal[F, C[A], A] = new SeqValues(seq)
+  def seqValues[F[_, _], A, C[_]](seq: Reflect.Sequence[F, A, C]): Traversal[F, C[A], A] = {
+    require(seq ne null)
+    new SeqValues(seq)
+  }
 
-  def setValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Set[A], A] =
+  def setValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Set[A], A] = {
+    require(reflect ne null)
     new SeqValues(Reflect.set(reflect))
+  }
 
-  def vectorValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Vector[A], A] =
+  def vectorValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Vector[A], A] = {
+    require(reflect ne null)
     new SeqValues(Reflect.vector(reflect))
+  }
 
   private[schema] case class SeqValues[F[_, _], A, C[_]](seq: Reflect.Sequence[F, A, C])
       extends Traversal[F, C[A], A]
       with Leaf[F, C[A], A] {
-    require(seq ne null)
-
     def structure: Reflect[F, C[A]] = seq
 
     def focus: Reflect[F, A] = seq.element
@@ -571,172 +591,170 @@ object Traversal {
           var idx = 0
           indexed.elementType(s) match {
             case _: RegisterType.Boolean.type =>
-              var z  = zero
               val ss = s.asInstanceOf[C[Boolean]]
               val sf = f.asInstanceOf[(Z, Boolean) => Z]
+              var z  = zero
               while (idx < len) {
                 z = sf(z, indexed.booleanAt(ss, idx))
-                idx = idx + 1
+                idx += 1
               }
               z
             case _: RegisterType.Byte.type =>
-              var z  = zero
               val ss = s.asInstanceOf[C[Byte]]
               val sf = f.asInstanceOf[(Z, Byte) => Z]
+              var z  = zero
               while (idx < len) {
                 z = sf(z, indexed.byteAt(ss, idx))
-                idx = idx + 1
+                idx += 1
               }
               z
             case _: RegisterType.Short.type =>
-              var z  = zero
               val ss = s.asInstanceOf[C[Short]]
               val sf = f.asInstanceOf[(Z, Short) => Z]
+              var z  = zero
               while (idx < len) {
                 z = sf(z, indexed.shortAt(ss, idx))
-                idx = idx + 1
+                idx += 1
               }
               z
             case _: RegisterType.Int.type =>
               zero match {
                 case zi: Int =>
-                  var z: Int = zi
                   val ss     = s.asInstanceOf[C[Int]]
                   val sf     = f.asInstanceOf[(Int, Int) => Int]
+                  var z: Int = zi
                   while (idx < len) {
                     z = sf(z, indexed.intAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case zl: Long =>
-                  var z: Long = zl
                   val ss      = s.asInstanceOf[C[Int]]
                   val sf      = f.asInstanceOf[(Long, Int) => Long]
+                  var z: Long = zl
                   while (idx < len) {
                     z = sf(z, indexed.intAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case zd: Double =>
-                  var z: Double = zd
                   val ss        = s.asInstanceOf[C[Int]]
                   val sf        = f.asInstanceOf[(Double, Int) => Double]
+                  var z: Double = zd
                   while (idx < len) {
                     z = sf(z, indexed.intAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case _ =>
-                  var z  = zero
                   val ss = s.asInstanceOf[C[Int]]
                   val sf = f.asInstanceOf[(Z, Int) => Z]
+                  var z  = zero
                   while (idx < len) {
                     z = sf(z, indexed.intAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z
               }
             case _: RegisterType.Long.type =>
               zero match {
                 case zi: Int =>
-                  var z: Int = zi
                   val ss     = s.asInstanceOf[C[Long]]
                   val sf     = f.asInstanceOf[(Int, Long) => Int]
+                  var z: Int = zi
                   while (idx < len) {
                     z = sf(z, indexed.longAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case zl: Long =>
-                  var z: Long = zl
                   val ss      = s.asInstanceOf[C[Long]]
                   val sf      = f.asInstanceOf[(Long, Long) => Long]
+                  var z: Long = zl
                   while (idx < len) {
                     z = sf(z, indexed.longAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case zd: Double =>
-                  var z: Double = zd
                   val ss        = s.asInstanceOf[C[Long]]
                   val sf        = f.asInstanceOf[(Double, Long) => Double]
+                  var z: Double = zd
                   while (idx < len) {
                     z = sf(z, indexed.longAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case _ =>
-                  var z  = zero
                   val ss = s.asInstanceOf[C[Long]]
                   val sf = f.asInstanceOf[(Z, Long) => Z]
+                  var z  = zero
                   while (idx < len) {
                     z = sf(z, indexed.longAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z
               }
             case _: RegisterType.Double.type =>
               zero match {
                 case zi: Int =>
-                  var z: Int = zi
                   val ss     = s.asInstanceOf[C[Double]]
                   val sf     = f.asInstanceOf[(Int, Double) => Int]
+                  var z: Int = zi
                   while (idx < len) {
                     z = sf(z, indexed.doubleAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case zl: Long =>
-                  var z: Long = zl
                   val ss      = s.asInstanceOf[C[Double]]
                   val sf      = f.asInstanceOf[(Long, Double) => Long]
+                  var z: Long = zl
                   while (idx < len) {
                     z = sf(z, indexed.doubleAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case zd: Double =>
-                  var z: Double = zd
                   val ss        = s.asInstanceOf[C[Double]]
                   val sf        = f.asInstanceOf[(Double, Double) => Double]
+                  var z: Double = zd
                   while (idx < len) {
                     z = sf(z, indexed.doubleAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z.asInstanceOf[Z]
                 case _ =>
-                  var z  = zero
                   val ss = s.asInstanceOf[C[Double]]
                   val sf = f.asInstanceOf[(Z, Double) => Z]
+                  var z  = zero
                   while (idx < len) {
                     z = sf(z, indexed.doubleAt(ss, idx))
-                    idx = idx + 1
+                    idx += 1
                   }
                   z
               }
             case _: RegisterType.Char.type =>
-              var z  = zero
               val ss = s.asInstanceOf[C[Char]]
               val sf = f.asInstanceOf[(Z, Char) => Z]
+              var z  = zero
               while (idx < len) {
                 z = sf(z, indexed.charAt(ss, idx))
-                idx = idx + 1
+                idx += 1
               }
               z
             case _ =>
               var z = zero
               while (idx < len) {
                 z = f(z, indexed.objectAt(s, idx))
-                idx = idx + 1
+                idx += 1
               }
               z
           }
         case _ =>
-          var z  = zero
           val it = deconstructor.deconstruct(s)
-          while (it.hasNext) {
-            z = f(z, it.next())
-          }
+          var z  = zero
+          while (it.hasNext) z = f(z, it.next())
           z
       }
     }
@@ -755,7 +773,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addBoolean(builder, sf(indexed.booleanAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultBoolean(builder).asInstanceOf[C[A]]
             case _: RegisterType.Byte.type =>
@@ -765,7 +783,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addByte(builder, sf(indexed.byteAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultByte(builder).asInstanceOf[C[A]]
             case _: RegisterType.Short.type =>
@@ -775,7 +793,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addShort(builder, sf(indexed.shortAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultShort(builder).asInstanceOf[C[A]]
             case _: RegisterType.Int.type =>
@@ -785,7 +803,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addInt(builder, sf(indexed.intAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultInt(builder).asInstanceOf[C[A]]
             case _: RegisterType.Long.type =>
@@ -795,7 +813,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addLong(builder, sf(indexed.longAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultLong(builder).asInstanceOf[C[A]]
             case _: RegisterType.Float.type =>
@@ -805,7 +823,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addFloat(builder, sf(indexed.floatAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultFloat(builder).asInstanceOf[C[A]]
             case _: RegisterType.Double.type =>
@@ -815,7 +833,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addDouble(builder, sf(indexed.doubleAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultDouble(builder).asInstanceOf[C[A]]
             case _: RegisterType.Char.type =>
@@ -825,7 +843,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addChar(builder, sf(indexed.charAt(ss, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultChar(builder).asInstanceOf[C[A]]
             case _ =>
@@ -833,7 +851,7 @@ object Traversal {
               var idx     = 0
               while (idx < len) {
                 constructor.addObject(builder, f(indexed.objectAt(s, idx)))
-                idx = idx + 1
+                idx += 1
               }
               constructor.resultObject(builder)
           }
@@ -841,9 +859,7 @@ object Traversal {
           val constructor = F.seqConstructor(seq.seqBinding)
           val builder     = constructor.newObjectBuilder[A]()
           val it          = deconstructor.deconstruct(s)
-          while (it.hasNext) {
-            constructor.addObject(builder, f(it.next()))
-          }
+          while (it.hasNext) constructor.addObject(builder, f(it.next()))
           constructor.resultObject(builder)
       }
     }
@@ -861,19 +877,15 @@ object Traversal {
   private[schema] case class MapKeys[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
       extends Traversal[F, M[Key, Value], Key]
       with Leaf[F, M[Key, Value], Key] {
-    require(map ne null)
-
     def structure: Reflect[F, M[Key, Value]] = map
 
     def focus: Reflect[F, Key] = map.key
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Key) => Z)(implicit F: HasBinding[F]): Z = {
       val deconstructor = map.mapDeconstructor
-      var z             = zero
       val it            = deconstructor.deconstruct(s)
-      while (it.hasNext) {
-        z = f(z, deconstructor.getKey(it.next()))
-      }
+      var z             = zero
+      while (it.hasNext) z = f(z, deconstructor.getKey(it.next()))
       z
     }
 
@@ -902,19 +914,15 @@ object Traversal {
   private[schema] case class MapValues[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
       extends Traversal[F, M[Key, Value], Value]
       with Leaf[F, M[Key, Value], Value] {
-    require(map ne null)
-
     def structure: Reflect[F, M[Key, Value]] = map
 
     def focus: Reflect[F, Value] = map.value
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Value) => Z)(implicit F: HasBinding[F]): Z = {
       val deconstructor = map.mapDeconstructor
-      var z             = zero
       val it            = deconstructor.deconstruct(s)
-      while (it.hasNext) {
-        z = f(z, deconstructor.getValue(it.next()))
-      }
+      var z             = zero
+      while (it.hasNext) z = f(z, deconstructor.getValue(it.next()))
       z
     }
 
@@ -942,8 +950,6 @@ object Traversal {
   }
 
   private[schema] case class TraversalMixed[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Traversal[F, S, A] {
-    require(leafs.length > 1)
-
     def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
@@ -953,7 +959,7 @@ object Traversal {
       var idx = leafs.length
       while (idx > 0) {
         idx -= 1
-        val leaf = leafs(idx).asInstanceOf[Leaf[F, Any, Any]]
+        val leaf = leafs(idx)
         val h    = g
         if (leaf.isInstanceOf[Lens.LensImpl[F, _, _]]) {
           val lens = leaf.asInstanceOf[Lens[F, Any, Any]]
