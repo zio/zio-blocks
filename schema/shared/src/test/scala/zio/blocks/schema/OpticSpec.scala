@@ -81,7 +81,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.c2: Any)(not(equalTo(Variant1.c1))) &&
         assert(Variant1.v2: Any)(not(equalTo(Variant1.c1))) &&
         assert(Variant2.c3: Any)(not(equalTo(Variant1.c1))) &&
-        assert(Variant2.c4: Any)(not(equalTo(Variant1.c1)))
+        assert(Variant2.c4: Any)(not(equalTo(Variant1.c1))) &&
+        assert(Variant2.c4: Any)(not(equalTo("")))
       },
       test("has associative equals and hashCode") {
         assert(Variant1.v2_v3_c5_left)(equalTo(Variant1.v2_v3_c5_right)) &&
@@ -262,7 +263,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_v2_c4: Any)(not(equalTo(Variant2.c3_v1_v2_c4_lr3))) &&
         assert(Case2.r3_v1_c1)(equalTo(Case2.r3_v1_c1)) &&
         assert(Case2.r3_v1_c1.hashCode)(equalTo(Case2.r3_v1_c1.hashCode)) &&
-        assert(Case3.v1_v2_c3_v1_v2: Any)(not(equalTo(Case3.v1_c1_d_right)))
+        assert(Case3.v1_v2_c3_v1_v2: Any)(not(equalTo(Case3.v1_c1_d_right))) &&
+        assert(Case3.v1_v2_c3_v1_v2: Any)(not(equalTo("")))
       },
       test("has associative equals and hashCode") {
         assert(Variant1.c2_r3_r2_r1_b_left)(equalTo(Variant1.c2_r3_r2_r1_b_right)) &&
@@ -329,33 +331,6 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1_d_right.refineBinding(RefineBinding.noBinding()))(equalTo(Case3.v1_c1_d_right.noBinding)) &&
         assert(Variant2.c3_v1_v2_c4.refineBinding(RefineBinding.noBinding()))(equalTo(Variant2.c3_v1_v2_c4.noBinding))
       },
-      test("gets an optional focus value") {
-        assert(Variant1.c2_r3_r1.getOption(Case2(Record3(Record1(true, 0.1f), null, null))))(
-          isSome(equalTo(Record1(true, 0.1f)))
-        ) &&
-        assert(Case2.r3_v1_c1.getOption(Case2(Record3(null, null, Case1(0.1)))))(isSome(equalTo(Case1(0.1)))) &&
-        assert(Variant1.c2_r3_v1_c1.getOption(Case2(Record3(null, null, Case1(0.1)))))(isSome(equalTo(Case1(0.1)))) &&
-        assert(Variant2.c3_v1_v2_c4.getOption(Case3(Case4(Nil))))(isSome(equalTo(Case4(Nil)))) &&
-        assert(Variant2.c3_v1_c1_left.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
-        assert(Variant2.c3_v1_c1_right.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
-        assert(Variant2.c3_v1_c1_d_right.getOption(Case3(Case1(0.1))))(isSome(equalTo(0.1))) &&
-        assert(Variant2.c3_v1.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
-        assert(Case3.v1_c1_d_left.getOption(Case3(Case1(0.1))))(isSome(equalTo(0.1))) &&
-        assert(Case3.v1_c1_d_right.getOption(Case3(Case1(0.1))))(isSome(equalTo(0.1))) &&
-        assert(Case3.v1_c1.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1))))
-      },
-      test("doesn't get a focus value if it's not possible") {
-        assert(Variant1.c2_r3_r1.getOption(Case3(Case1(0.1))))(isNone) &&
-        assert(Case2.r3_v1_c1.getOption(Case2(Record3(null, null, Case4(Nil)))))(isNone) &&
-        assert(Variant1.c2_r3_v1_c1.getOption(Case2(Record3(null, null, Case4(Nil)))))(isNone) &&
-        assert(Variant2.c3_v1_v2_c4.getOption(Case3(Case1(0.1))))(isNone) &&
-        assert(Variant2.c3_v1_c1_left.getOption(Case4(Nil)))(isNone) &&
-        assert(Variant2.c3_v1_c1_right.getOption(Case3(Case2(null))))(isNone) &&
-        assert(Variant2.c3_v1_c1_d_right.getOption(Case4(Nil)))(isNone) &&
-        assert(Variant2.c3_v1.getOption(Case4(Nil)))(isNone) &&
-        assert(Case3.v1_c1_d_left.getOption(Case3(Case4(Nil))))(isNone) &&
-        assert(Case3.v1_c1_d_right.getOption(Case3(Case4(Nil))))(isNone)
-      },
       test("replaces a focus value") {
         assert(Variant1.c2_r3_r1.replace(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
           equalTo(Case2(Record3(Record1(false, 0.2f), null, null)))
@@ -388,6 +363,33 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.replace(Case4(Nil), Case1(0.2)))(equalTo(Case4(Nil))) &&
         assert(Case3.v1_c1_d_left.replace(Case3(Case4(Nil)), 0.2))(equalTo(Case3(Case4(Nil)))) &&
         assert(Case3.v1_c1_d_right.replace(Case3(Case4(Nil)), 0.2))(equalTo(Case3(Case4(Nil))))
+      },
+      test("gets an optional focus value") {
+        assert(Variant1.c2_r3_r1.getOption(Case2(Record3(Record1(true, 0.1f), null, null))))(
+          isSome(equalTo(Record1(true, 0.1f)))
+        ) &&
+        assert(Case2.r3_v1_c1.getOption(Case2(Record3(null, null, Case1(0.1)))))(isSome(equalTo(Case1(0.1)))) &&
+        assert(Variant1.c2_r3_v1_c1.getOption(Case2(Record3(null, null, Case1(0.1)))))(isSome(equalTo(Case1(0.1)))) &&
+        assert(Variant2.c3_v1_v2_c4.getOption(Case3(Case4(Nil))))(isSome(equalTo(Case4(Nil)))) &&
+        assert(Variant2.c3_v1_c1_left.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
+        assert(Variant2.c3_v1_c1_right.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
+        assert(Variant2.c3_v1_c1_d_right.getOption(Case3(Case1(0.1))))(isSome(equalTo(0.1))) &&
+        assert(Variant2.c3_v1.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
+        assert(Case3.v1_c1_d_left.getOption(Case3(Case1(0.1))))(isSome(equalTo(0.1))) &&
+        assert(Case3.v1_c1_d_right.getOption(Case3(Case1(0.1))))(isSome(equalTo(0.1))) &&
+        assert(Case3.v1_c1.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1))))
+      },
+      test("doesn't get a focus value if it's not possible") {
+        assert(Variant1.c2_r3_r1.getOption(Case3(Case1(0.1))))(isNone) &&
+        assert(Case2.r3_v1_c1.getOption(Case2(Record3(null, null, Case4(Nil)))))(isNone) &&
+        assert(Variant1.c2_r3_v1_c1.getOption(Case2(Record3(null, null, Case4(Nil)))))(isNone) &&
+        assert(Variant2.c3_v1_v2_c4.getOption(Case3(Case1(0.1))))(isNone) &&
+        assert(Variant2.c3_v1_c1_left.getOption(Case4(Nil)))(isNone) &&
+        assert(Variant2.c3_v1_c1_right.getOption(Case3(Case2(null))))(isNone) &&
+        assert(Variant2.c3_v1_c1_d_right.getOption(Case4(Nil)))(isNone) &&
+        assert(Variant2.c3_v1.getOption(Case4(Nil)))(isNone) &&
+        assert(Case3.v1_c1_d_left.getOption(Case3(Case4(Nil))))(isNone) &&
+        assert(Case3.v1_c1_d_right.getOption(Case3(Case4(Nil))))(isNone)
       },
       test("optionally replaces a focus value") {
         assert(Variant1.c2_r3_r1.replaceOption(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
@@ -475,6 +477,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.r1_f: Any)(not(equalTo(Record2.vi))) &&
         assert(Variant2.c4_lr3: Any)(not(equalTo(Case4.lr3))) &&
         assert(Case4.lr3_r2_r1: Any)(not(equalTo(Case4.lr3))) &&
+        assert(Case4.lr3_r2_r1: Any)(not(equalTo(""))) &&
         assert(Collections.lb: Any)(not(equalTo(""))) &&
         assert(Collections.mkc: Any)(not(equalTo(""))) &&
         assert(Collections.mvs: Any)(not(equalTo("")))
@@ -523,6 +526,46 @@ object OpticSpec extends ZIOSpecDefault {
           equalTo(Variant2.c3_v1_v2_c4_lr3.noBinding)
         )
       },
+      test("modifies collection values") {
+        assert(Collections.abl.modify(Array(true, false, true), x => !x).toList)(equalTo(List(false, true, false))) &&
+        assert(Collections.ab.modify(Array(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte).toList)(
+          equalTo(List(2: Byte, 3: Byte, 4: Byte))
+        ) &&
+        assert(Collections.ash.modify(Array(1: Short, 2: Short, 3: Short), x => (x + 1).toShort).toList)(
+          equalTo(List(2: Short, 3: Short, 4: Short))
+        ) &&
+        assert(Collections.ai.modify(Array(1, 2, 3), _ + 1).toList)(equalTo(List(2, 3, 4))) &&
+        assert(Collections.al.modify(Array(1L, 2L, 3L), _ + 1L).toList)(equalTo(List(2L, 3L, 4L))) &&
+        assert(Collections.ad.modify(Array(1.0, 2.0, 3.0), _ + 1.0).toList)(equalTo(List(2.0, 3.0, 4.0))) &&
+        assert(Collections.af.modify(Array(1.0f, 2.0f, 3.0f), _ + 1.0f).toList)(equalTo(List(2.0f, 3.0f, 4.0f))) &&
+        assert(Collections.ac.modify(Array('a', 'b', 'c'), _.toUpper).toList)(equalTo(List('A', 'B', 'C'))) &&
+        assert(Collections.as.modify(Array("1", "2", "3"), _ + "x").toList)(equalTo(List("1x", "2x", "3x"))) &&
+        assert(Collections.mkc.modify(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
+          equalTo(Map('A' -> "1", 'B' -> "2", 'C' -> "3"))
+        ) &&
+        assert(Collections.mvs.modify(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _ + "x"))(
+          equalTo(Map('a' -> "1x", 'b' -> "2x", 'c' -> "3x"))
+        ) &&
+        assert(Collections.lc1.modify(List(Case1(0.1)), _.copy(d = 0.2)))(equalTo(List(Case1(0.2)))) &&
+        assert(Collections.lc1_d.modify(List(Case1(0.1)), _ + 0.4))(equalTo(List(Case1(0.5)))) &&
+        assert(
+          Collections.lc4_lr3.modify(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
+        )(
+          equalTo(List(Case4(List(Record3(Record1(true, 0.1f), null, null)))))
+        ) &&
+        assert(Collections.lr1.modify(List(Record1(true, 0.1f)), x => !x))(equalTo(List(Record1(false, 0.1f)))) &&
+        assert(Record2.vi.modify(Record2(2L, Vector(1, 2, 3), null), _ + 1))(
+          equalTo(Record2(2L, Vector(2, 3, 4), null))
+        ) &&
+        assert(Variant2.c4_lr3.modify(Case4(List(Record3(null, null, null))), _ => null))(equalTo(Case4(List(null)))) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.modify(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
+          equalTo(Case3(Case4(List(null))))
+        )
+      },
+      test("doesn't modify collection values for non-matching cases") {
+        assert(Variant2.c3_v1_v2_c4_lr3.modify(Case4(Nil), _ => null))(equalTo(Case4(Nil))) &&
+        assert(Variant2.c4_lr3.modify(Case3(Case1(0.1)), _ => null))(equalTo(Case3(Case1(0.1))))
+      },
       test("folds collection values") {
         assert(Collections.abl.fold[Int](Array(true, false, true))(0, (z, x) => if (x) z + 1 else z))(equalTo(2)) &&
         assert(Collections.ab.fold[Int](Array(1: Byte, 2: Byte, 3: Byte))(0, _ + _))(equalTo(6)) &&
@@ -563,46 +606,6 @@ object OpticSpec extends ZIOSpecDefault {
       test("folds zero values for non-matching cases") {
         assert(Variant2.c3_v1_v2_c4_lr3.fold[Record3](Case4(Nil))(null, (_, x) => x))(equalTo(null)) &&
         assert(Variant2.c4_lr3.fold[Record3](Case3(Case1(0.1)))(null, (_, x) => x))(equalTo(null))
-      },
-      test("modifies collection values") {
-        assert(Collections.abl.modify(Array(true, false, true), x => !x).toList)(equalTo(List(false, true, false))) &&
-        assert(Collections.ab.modify(Array(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte).toList)(
-          equalTo(List(2: Byte, 3: Byte, 4: Byte))
-        ) &&
-        assert(Collections.ash.modify(Array(1: Short, 2: Short, 3: Short), x => (x + 1).toShort).toList)(
-          equalTo(List(2: Short, 3: Short, 4: Short))
-        ) &&
-        assert(Collections.ai.modify(Array(1, 2, 3), _ + 1).toList)(equalTo(List(2, 3, 4))) &&
-        assert(Collections.al.modify(Array(1L, 2L, 3L), _ + 1L).toList)(equalTo(List(2L, 3L, 4L))) &&
-        assert(Collections.ad.modify(Array(1.0, 2.0, 3.0), _ + 1.0).toList)(equalTo(List(2.0, 3.0, 4.0))) &&
-        assert(Collections.af.modify(Array(1.0f, 2.0f, 3.0f), _ + 1.0f).toList)(equalTo(List(2.0f, 3.0f, 4.0f))) &&
-        assert(Collections.ac.modify(Array('a', 'b', 'c'), _.toUpper).toList)(equalTo(List('A', 'B', 'C'))) &&
-        assert(Collections.as.modify(Array("1", "2", "3"), _ + "x").toList)(equalTo(List("1x", "2x", "3x"))) &&
-        assert(Collections.mkc.modify(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
-          equalTo(Map('A' -> "1", 'B' -> "2", 'C' -> "3"))
-        ) &&
-        assert(Collections.mvs.modify(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _ + "x"))(
-          equalTo(Map('a' -> "1x", 'b' -> "2x", 'c' -> "3x"))
-        ) &&
-        assert(Collections.lc1.modify(List(Case1(0.1)), _.copy(d = 0.2)))(equalTo(List(Case1(0.2)))) &&
-        assert(Collections.lc1_d.modify(List(Case1(0.1)), _ + 0.4))(equalTo(List(Case1(0.5)))) &&
-        assert(
-          Collections.lc4_lr3.modify(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
-        )(
-          equalTo(List(Case4(List(Record3(Record1(true, 0.1f), null, null)))))
-        ) &&
-        assert(Collections.lr1.modify(List(Record1(true, 0.1f)), x => !x))(equalTo(List(Record1(false, 0.1f)))) &&
-        assert(Record2.vi.modify(Record2(2L, Vector(1, 2, 3), null), _ + 1))(
-          equalTo(Record2(2L, Vector(2, 3, 4), null))
-        ) &&
-        assert(Variant2.c4_lr3.modify(Case4(List(Record3(null, null, null))), _ => null))(equalTo(Case4(List(null)))) &&
-        assert(Variant2.c3_v1_v2_c4_lr3.modify(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
-          equalTo(Case3(Case4(List(null))))
-        )
-      },
-      test("doesn't modify collection values for non-matching cases") {
-        assert(Variant2.c3_v1_v2_c4_lr3.modify(Case4(Nil), _ => null))(equalTo(Case4(Nil))) &&
-        assert(Variant2.c4_lr3.modify(Case3(Case1(0.1)), _ => null))(equalTo(Case3(Case1(0.1))))
       }
     )
   )
