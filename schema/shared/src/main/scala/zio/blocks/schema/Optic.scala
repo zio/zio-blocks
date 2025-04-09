@@ -118,6 +118,7 @@ object Lens {
   }
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Lens[F, T, A]): Lens[F, S, A] = {
+    require((first ne null) && (second ne null))
     val lens1 = first.asInstanceOf[LensImpl[F, S, A]]
     val lens2 = second.asInstanceOf[LensImpl[F, S, A]]
     new LensImpl(lens1.parents ++ lens2.parents, lens1.childs ++ lens2.childs)
@@ -278,6 +279,7 @@ object Prism {
   }
 
   def apply[F[_, _], S, T <: S, A <: T](first: Prism[F, S, T], second: Prism[F, T, A]): Prism[F, S, A] = {
+    require((first ne null) && (second ne null))
     val prism1 = first.asInstanceOf[PrismImpl[F, _, _, _]]
     val prism2 = second.asInstanceOf[PrismImpl[F, _, _, _]]
     new PrismImpl(
@@ -396,8 +398,7 @@ object Optional {
   private[this] def apply[F[_, _], S, A](
     leafs1: ArraySeq[Leaf[F, _, _]],
     leafs2: ArraySeq[Leaf[F, _, _]]
-  ): Optional[F, S, A] = {
-    require(leafs1.nonEmpty && leafs1.nonEmpty)
+  ): Optional[F, S, A] =
     new OptionalImpl((leafs1.last, leafs2.head) match {
       case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
         val lens = Lens.apply(lens1.asInstanceOf[Lens[F, Any, Any]], lens2.asInstanceOf[Lens[F, Any, Any]])
@@ -408,7 +409,6 @@ object Optional {
       case _ =>
         leafs1 ++ leafs2
     })
-  }
 
   private[schema] case class OptionalImpl[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Optional[F, S, A] {
     def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
@@ -525,8 +525,7 @@ object Traversal {
   private[this] def apply[F[_, _], S, A](
     leafs1: ArraySeq[Leaf[F, _, _]],
     leafs2: ArraySeq[Leaf[F, _, _]]
-  ): Traversal[F, S, A] = {
-    require(leafs1.nonEmpty && leafs2.nonEmpty)
+  ): Traversal[F, S, A] =
     new TraversalMixed((leafs1.last, leafs2.head) match {
       case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
         val lens = Lens.apply(lens1.asInstanceOf[Lens[F, Any, Any]], lens2.asInstanceOf[Lens[F, Any, Any]])
@@ -537,7 +536,6 @@ object Traversal {
       case _ =>
         leafs1 ++ leafs2
     })
-  }
 
   def arrayValues[F[_, _], A](reflect: Reflect[F, A])(implicit F: FromBinding[F]): Traversal[F, Array[A], A] = {
     require(reflect ne null)
