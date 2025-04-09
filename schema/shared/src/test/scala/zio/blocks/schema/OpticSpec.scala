@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.Scope
+import zio.{Scope, ZIO}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
@@ -9,6 +9,15 @@ import zio.test._
 object OpticSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
+      test("checks prerequisites for creation") {
+        ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO
+          .attempt(Lens(null, Case4.reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+      },
       test("has consistent equals and hashCode") {
         assert(Record1.b)(equalTo(Record1.b)) &&
         assert(Record1.b.hashCode)(equalTo(Record1.b.hashCode)) &&
@@ -75,6 +84,18 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Prism")(
+      test("checks prerequisites for creation") {
+        ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO.attempt(Prism(Variant1.c1, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO
+          .attempt(Prism(Variant1.reflect, null))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO
+          .attempt(Prism(null, Variant1.reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+      },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1)(equalTo(Variant1.c1)) &&
         assert(Variant1.c1.hashCode)(equalTo(Variant1.c1.hashCode)) &&
@@ -463,6 +484,24 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Traversal")(
+      test("checks prerequisites for creation") {
+        ZIO
+          .attempt(Traversal.arrayValues(null)(Binding.bindingFromBinding))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO
+          .attempt(Traversal.listValues(null)(Binding.bindingFromBinding))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO
+          .attempt(Traversal.setValues(null)(Binding.bindingFromBinding))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO
+          .attempt(Traversal.vectorValues(null)(Binding.bindingFromBinding))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+      },
       test("has consistent equals and hashCode") {
         assert(Record2.vi)(equalTo(Record2.vi)) &&
         assert(Record2.vi.hashCode)(equalTo(Record2.vi.hashCode)) &&
