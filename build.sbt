@@ -81,7 +81,9 @@ lazy val benchmarks = project
       Seq(
         "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
         "dev.optics"                 %% "monocle-core"  % "3.3.0",
-        "dev.optics"                 %% "monocle-macro" % "3.3.0"
+        "dev.optics"                 %% "monocle-macro" % "3.3.0",
+        "dev.zio"                   %%% "zio-test"      % "2.1.16" % Test,
+        "dev.zio"                   %%% "zio-test-sbt"  % "2.1.16" % Test
       )
     }
   )
