@@ -1,5 +1,8 @@
 package zio.blocks.schema
 
+import com.softwaremill.quicklens._
+import monocle.{Focus, PLens, POptional}
+import monocle.macros.GenPrism
 import org.openjdk.jmh.annotations.{Scope => JScope, _}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.{
@@ -12,7 +15,6 @@ import zio.blocks.schema.binding.{
   RegisterOffset,
   Registers
 }
-
 import java.util.concurrent.TimeUnit
 
 @State(JScope.Thread)
@@ -32,7 +34,7 @@ class LensGetBenchmark extends BaseBenchmark {
   def direct: String = a.b.c.d.e.s
 
   @Benchmark
-  def monocle: String = A.b_c_d_e_s_monocle_get.get(a)
+  def monocle: String = A.b_c_d_e_s_monocle.get(a)
 
   @Benchmark
   def zioBlocks: String = A.b_c_d_e_s.get(a)
@@ -53,7 +55,7 @@ class LensReplaceBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: A = A.b_c_d_e_s_monocle_set.replace("test2").apply(a)
+  def monocle: A = A.b_c_d_e_s_monocle.replace("test2").apply(a)
 
   @Benchmark
   def quicklens: A = A.b_c_d_e_s_quicklens.apply(a).setTo("test2")
@@ -89,7 +91,7 @@ class OptionalGetOptionBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s_monocle_get.getOption(a1)
+  def monocle: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s_monocle.getOption(a1)
 
   @Benchmark
   def zioBlocks: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s.getOption(a1)
@@ -123,7 +125,7 @@ class OptionalReplaceBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_monocle_set.replace("test2").apply(a1)
+  def monocle: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_monocle.replace("test2").apply(a1)
 
   @Benchmark
   def quicklens: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_quicklens.apply(a1).setTo("test2")
@@ -270,25 +272,18 @@ object LensDomain {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    val b: Lens.Bound[A, B]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A, B]])
-    val b_c_d_e_s: Lens.Bound[A, String] = b.apply(B.c).apply(C.d).apply(D.e).apply(E.s)
-
-    import com.softwaremill.quicklens._
-
+    val b: Lens.Bound[A, B] =
+      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A, B]])
+    val b_c_d_e_s: Lens.Bound[A, String] =
+      b.apply(B.c).apply(C.d).apply(D.e).apply(E.s)
     val b_c_d_e_s_quicklens: A => PathModify[A, String] =
       (modify(_: A)(_.b))
         .andThenModify(modify(_: B)(_.c))
         .andThenModify(modify(_: C)(_.d))
         .andThenModify(modify(_: D)(_.e))
         .andThenModify(modify(_: E)(_.s))
-
-    import monocle.{Getter, Focus, Setter}
-
-    val b_c_d_e_s_monocle_get: Getter[A, String] =
-      Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s)).asGetter
-
-    val b_c_d_e_s_monocle_set: Setter[A, String] =
-      Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s)).asSetter
+    val b_c_d_e_s_monocle: PLens[A, A, String, String] =
+      Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s))
   }
 }
 
@@ -328,7 +323,6 @@ object OptionalDomain {
       modifiers = Nil
     )
     val e1: Prism.Bound[E, E1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[E, E1]])
-    val e2: Prism.Bound[E, E2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[E, E2]])
   }
 
   case class E1(s: String) extends E
@@ -422,7 +416,6 @@ object OptionalDomain {
       modifiers = Nil
     )
     val d1: Prism.Bound[D, D1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[D, D1]])
-    val d2: Prism.Bound[D, D2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[D, D2]])
   }
 
   case class D1(e: E) extends D
@@ -516,7 +509,6 @@ object OptionalDomain {
       modifiers = Nil
     )
     val c1: Prism.Bound[C, C1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[C, C1]])
-    val c2: Prism.Bound[C, C2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[C, C2]])
   }
 
   case class C1(d: D) extends C
@@ -610,7 +602,6 @@ object OptionalDomain {
       modifiers = Nil
     )
     val b1: Prism.Bound[B, B1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[B, B1]])
-    val b2: Prism.Bound[B, B2] = Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[B, B2]])
   }
 
   case class B1(c: C) extends B
@@ -694,22 +685,17 @@ object OptionalDomain {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    val b: Lens.Bound[A1, B]                              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A1, B]])
-    val b_b1_c_c1_d_d1_e_e1_s: Optional.Bound[A1, String] = b(B.b1)(B1.c)(C.c1)(C1.d)(D.d1)(D1.e)(E.e1)(E1.s)
-
-    import com.softwaremill.quicklens._
-
+    val b: Lens.Bound[A1, B] =
+      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A1, B]])
+    val b_b1_c_c1_d_d1_e_e1_s: Optional.Bound[A1, String] =
+      b(B.b1)(B1.c)(C.c1)(C1.d)(D.d1)(D1.e)(E.e1)(E1.s)
     val b_b1_c_c1_d_d1_e_e1_s_quicklens: A1 => PathModify[A1, String] =
       (modify(_: A1)(_.b.when[B1]))
         .andThenModify(modify(_: B1)(_.c.when[C1]))
         .andThenModify(modify(_: C1)(_.d.when[D1]))
         .andThenModify(modify(_: D1)(_.e.when[E1]))
         .andThenModify(modify(_: E1)(_.s))
-
-    import monocle.{Focus, Setter, POptional}
-    import monocle.macros.GenPrism
-
-    val b_b1_c_c1_d_d1_e_e1_s_monocle_get: POptional[A1, A1, String, String] =
+    val b_b1_c_c1_d_d1_e_e1_s_monocle: POptional[A1, A1, String, String] =
       Focus[A1](_.b)
         .andThen(GenPrism[B, B1])
         .andThen(Focus[B1](_.c))
@@ -719,17 +705,5 @@ object OptionalDomain {
         .andThen(Focus[D1](_.e))
         .andThen(GenPrism[E, E1])
         .andThen(Focus[E1](_.s))
-
-    val b_b1_c_c1_d_d1_e_e1_s_monocle_set: Setter[A1, String] =
-      Focus[A1](_.b)
-        .andThen(GenPrism[B, B1])
-        .andThen(Focus[B1](_.c))
-        .andThen(GenPrism[C, C1])
-        .andThen(Focus[C1](_.d))
-        .andThen(GenPrism[D, D1])
-        .andThen(Focus[D1](_.e))
-        .andThen(GenPrism[E, E1])
-        .andThen(Focus[E1](_.s))
-        .asSetter
   }
 }
