@@ -5,10 +5,10 @@ sealed trait Doc {
 
   def flatten: List[Doc.Leaf]
 
-  override lazy val hashCode: Int = flatten.hashCode
+  override def hashCode: Int = flatten.hashCode
 
   override def equals(that: Any): Boolean = that match {
-    case that: Doc => this.flatten == that.flatten
+    case that: Doc => flatten.equals(that.flatten)
     case _         => false
   }
 }
@@ -17,20 +17,20 @@ object Doc {
 
   case object Empty extends Leaf {
     def flatten: List[Leaf] = Nil
-
-    override def equals(that: Any): Boolean = that match {
-      case that: Empty.type => true
-      case _                => false
-    }
   }
+
   final case class Text(value: String) extends Leaf {
-    def flatten: List[Leaf] = List(this)
+    lazy val flatten: List[Leaf] = List(this)
+
+    override def hashCode: Int = value.hashCode
 
     override def equals(that: Any): Boolean = that match {
-      case that: Text => this.value == that.value
+      case that: Text => value.equals(that.value)
+      case that: Doc  => flatten.equals(that.flatten)
       case _          => false
     }
   }
+
   final case class Concat(left: Doc, right: Doc) extends Doc {
     lazy val flatten: List[Leaf] = left.flatten ++ right.flatten
   }
