@@ -134,6 +134,58 @@ class OptionalReplaceBenchmark extends BaseBenchmark {
   def zioBlocks: A1 = A1.b_b1_c_c1_d_d1_e_e1_s.replace(a1, "test2")
 }
 
+class TraversalFoldBenchmark extends BaseBenchmark {
+  import TraversalDomain._
+
+  @Param(Array("1", "10", "100", "1000", "10000"))
+  var size: Int = 10
+
+  var ai: Array[Int] = (1 to size).toArray
+
+  @Setup
+  def setup(): Unit = ai = (1 to size).toArray
+
+  @Benchmark
+  def direct: Int = {
+    var res = 0
+    var i   = 0
+    while (i < ai.length) {
+      res += ai(i)
+      i += 1
+    }
+    res
+  }
+
+  @Benchmark
+  def zioBlocks: Int = a_i.fold[Int](ai)(0, _ + _)
+}
+
+class TraversalModifyBenchmark extends BaseBenchmark {
+  import TraversalDomain._
+
+  @Param(Array("1", "10", "100", "1000", "10000"))
+  var size: Int = 10
+
+  var ai: Array[Int] = (1 to size).toArray
+
+  @Setup
+  def setup(): Unit = ai = (1 to size).toArray
+
+  @Benchmark
+  def direct: Array[Int] = {
+    var res = new Array[Int](ai.length)
+    var i   = 0
+    while (i < ai.length) {
+      res(i) = ai(i) + 1
+      i += 1
+    }
+    res
+  }
+
+  @Benchmark
+  def zioBlocks: Array[Int] = a_i.modify(ai, _ + 1)
+}
+
 object LensDomain {
   case class E(s: String)
 
@@ -706,4 +758,8 @@ object OptionalDomain {
         .andThen(GenPrism[E, E1])
         .andThen(Focus[E1](_.s))
   }
+}
+
+object TraversalDomain {
+  val a_i: Traversal.Bound[Array[Int], Int] = Traversal.arrayValues(Reflect.int[Binding])
 }
