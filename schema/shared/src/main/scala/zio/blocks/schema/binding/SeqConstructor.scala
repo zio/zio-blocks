@@ -171,157 +171,157 @@ object SeqConstructor {
     type CharBuilder      = Builder[Char]
 
     def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      Builder(new Array[AnyRef](sizeHint.max(8)).asInstanceOf[Array[A]], 0)
+      new Builder(new Array[AnyRef](Math.max(sizeHint, 8)).asInstanceOf[Array[A]], 0)
 
-    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = Builder(new Array[Boolean](sizeHint.max(8)), 0)
+    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](Math.max(sizeHint, 8)), 0)
 
-    def newByteBuilder(sizeHint: Int): ByteBuilder = Builder(new Array[Byte](sizeHint.max(8)), 0)
+    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](Math.max(sizeHint, 8)), 0)
 
-    def newShortBuilder(sizeHint: Int): ShortBuilder = Builder(new Array[Short](sizeHint.max(8)), 0)
+    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](Math.max(sizeHint, 8)), 0)
 
-    def newIntBuilder(sizeHint: Int): IntBuilder = Builder(new Array[Int](sizeHint.max(8)), 0)
+    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](Math.max(sizeHint, 8)), 0)
 
-    def newLongBuilder(sizeHint: Int): LongBuilder = Builder(new Array[Long](sizeHint.max(8)), 0)
+    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](Math.max(sizeHint, 8)), 0)
 
-    def newFloatBuilder(sizeHint: Int): FloatBuilder = Builder(new Array[Float](sizeHint.max(8)), 0)
+    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](Math.max(sizeHint, 8)), 0)
 
-    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = Builder(new Array[Double](sizeHint.max(8)), 0)
+    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 8)), 0)
 
-    def newCharBuilder(sizeHint: Int): CharBuilder = Builder(new Array[Char](sizeHint.max(8)), 0)
+    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 8)), 0)
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
-      ensureObjectSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
-      ensureBooleanSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addByte(builder: ByteBuilder, a: Byte): Unit = {
-      ensureByteSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addShort(builder: ShortBuilder, a: Short): Unit = {
-      ensureShortSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addInt(builder: IntBuilder, a: Int): Unit = {
-      ensureIntSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addLong(builder: LongBuilder, a: Long): Unit = {
-      ensureLongSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addFloat(builder: FloatBuilder, a: Float): Unit = {
-      ensureFloatSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addDouble(builder: DoubleBuilder, a: Double): Unit = {
-      ensureDoubleSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
     def addChar(builder: CharBuilder, a: Char): Unit = {
-      ensureCharSize(builder, builder.size + 1)
-      builder.buffer(builder.size) = a
-      builder.size += 1
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
     }
 
-    def resultObject[A](builder: ObjectBuilder[A]): Array[A] = builder.buffer.take(builder.size)
+    def resultObject[A](builder: ObjectBuilder[A]): Array[A] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer.asInstanceOf[Array[AnyRef]], builder.size).asInstanceOf[Array[A]]
 
-    def resultBoolean(builder: BooleanBuilder): Array[Boolean] = builder.buffer.take(builder.size)
+    def resultBoolean(builder: BooleanBuilder): Array[Boolean] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
 
-    def resultByte(builder: ByteBuilder): Array[Byte] = builder.buffer.take(builder.size)
+    def resultByte(builder: ByteBuilder): Array[Byte] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
 
-    def resultShort(builder: ShortBuilder): Array[Short] = builder.buffer.take(builder.size)
+    def resultShort(builder: ShortBuilder): Array[Short] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
 
-    def resultInt(builder: IntBuilder): Array[Int] = builder.buffer.take(builder.size)
+    def resultInt(builder: IntBuilder): Array[Int] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
 
-    def resultLong(builder: LongBuilder): Array[Long] = builder.buffer.take(builder.size)
+    def resultLong(builder: LongBuilder): Array[Long] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
 
-    def resultFloat(builder: FloatBuilder): Array[Float] = builder.buffer.take(builder.size)
+    def resultFloat(builder: FloatBuilder): Array[Float] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
 
-    def resultDouble(builder: DoubleBuilder): Array[Double] = builder.buffer.take(builder.size)
+    def resultDouble(builder: DoubleBuilder): Array[Double] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
 
-    def resultChar(builder: CharBuilder): Array[Char] = builder.buffer.take(builder.size)
-
-    private def ensureObjectSize[A](builder: Builder[A], size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[AnyRef](builder.buffer.length * 2).asInstanceOf[Array[A]]
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureBooleanSize(builder: BooleanBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Boolean](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureByteSize(builder: ByteBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Byte](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureShortSize(builder: ShortBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Short](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureIntSize(builder: IntBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Int](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureLongSize(builder: LongBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Long](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureFloatSize(builder: FloatBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Float](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureDoubleSize(builder: DoubleBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Double](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
-
-    private def ensureCharSize(builder: CharBuilder, size: Int): Unit =
-      if (builder.buffer.length < size) {
-        val newBuffer = new Array[Char](builder.buffer.length * 2)
-        System.arraycopy(builder.buffer, 0, newBuffer, 0, builder.size)
-        builder.buffer = newBuffer
-      }
+    def resultChar(builder: CharBuilder): Array[Char] =
+      if (builder.buffer.length == builder.size) builder.buffer
+      else java.util.Arrays.copyOf(builder.buffer, builder.size)
   }
 }
