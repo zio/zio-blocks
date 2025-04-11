@@ -30,18 +30,28 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(long3))(not(equalTo(Schema[Long]))) &&
         assert(Schema(long4))(not(equalTo(Schema[Long]))) &&
         assert(Schema(long5))(not(equalTo(Schema[Long])))
+      },
+      test("has access to primitive documentation") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.None),
+          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
+          typeName = TypeName.long,
+          doc = Doc("Long (positive)"),
+          modifiers = Nil
+        )
+        assert(Schema(long1).doc)(equalTo(Doc("Long (positive)")))
       }
     ),
     suite("Reflect.Record")(
       test("has consistent equals and hashCode") {
         val record1 = Reflect.Record(
           fields = List[Term.Bound[Record, _]](
-            Term("b", Reflect.byte, Doc.Empty, Nil),
-            Term("i", Reflect.int, Doc.Empty, Nil)
+            Term("b", Reflect.byte, Doc("Field b"), Nil),
+            Term("i", Reflect.int, Doc("Field i"), Nil)
           ),
           typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record"),
           recordBinding = null.asInstanceOf[Binding.Record[Record]], // should be ignored in equals and hashCode
-          doc = Doc.Empty,
+          doc = Doc("Record with 2 fields"),
           modifiers = Nil
         )
         val record2 = record1.copy(typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record2"))
@@ -89,18 +99,25 @@ object SchemaSpec extends ZIOSpecDefault {
         ) &&
         assert(record3.registers(0).usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
         assert(record3.usedRegisters)(equalTo(record3.registers.foldLeft(0)(_ + _.usedRegisters)))
+      },
+      test("has access to record documentation") {
+        assert(Record.schema.doc)(equalTo(Doc("Record with 2 fields")))
+      },
+      test("has access to record term documentation using lens focus") {
+        val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
+        assert(Record.schema.doc(Lens(record, record.fields(0))): Doc)(equalTo(record.fields(0).value.doc))
       }
     ),
     suite("Reflect.Variant")(
       test("has consistent equals and hashCode") {
         val variant1 = Reflect.Variant[Binding, Variant](
           cases = List(
-            Term("case1", Case1.schema.reflect, Doc.Empty, Nil),
-            Term("case2", Case2.schema.reflect, Doc.Empty, Nil)
+            Term("case1", Case1.schema.reflect, Doc("Case 1"), Nil),
+            Term("case2", Case2.schema.reflect, Doc("Case 2"), Nil)
           ),
           typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant"),
           variantBinding = null.asInstanceOf[Binding.Variant[Variant]], // should be ignored in equals and hashCode
-          doc = Doc.Empty,
+          doc = Doc("Variant with 2 cases"),
           modifiers = Nil
         )
         val variant2 = variant1.copy(cases = variant1.cases.reverse)
@@ -115,6 +132,13 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(variant3))(not(equalTo(Variant.schema))) &&
         assert(Schema(variant4))(not(equalTo(Variant.schema))) &&
         assert(Schema(variant5))(not(equalTo(Variant.schema)))
+      },
+      test("has access to variant documentation") {
+        assert(Variant.schema.doc)(equalTo(Doc("Variant with 2 cases")))
+      },
+      test("has access to variant case documentation using prism focus") {
+        val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
+        assert(Variant.schema.doc(Prism(variant, variant.cases(0))): Doc)(equalTo(variant.cases(0).value.doc))
       }
     ),
     suite("Reflect.Sequence")(
@@ -140,6 +164,33 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(sequence3))(not(equalTo(Schema[List[Double]]))) &&
         assert(Schema(sequence4))(not(equalTo(Schema[List[Double]]))) &&
         assert(Schema(sequence5))(not(equalTo(Schema[List[Double]])))
+      },
+      test("has access to sequence documentation") {
+        val sequence1 = Reflect.Sequence[Binding, Double, List](
+          element = Reflect.double,
+          typeName = TypeName.list,
+          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]],
+          doc = Doc("List of doubles"),
+          modifiers = Nil
+        )
+        assert(Schema(sequence1).doc)(equalTo(Doc("List of doubles")))
+      },
+      test("has access to sequence value documentation using traversal focus") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
+          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
+          typeName = TypeName.long,
+          doc = Doc("Long (positive)"),
+          modifiers = Nil
+        )
+        val sequence1 = Reflect.Sequence[Binding, Long, List](
+          element = long1,
+          typeName = TypeName.list,
+          seqBinding = null.asInstanceOf[Binding.Seq[List, Long]],
+          doc = Doc("List of positive longs"),
+          modifiers = Nil
+        )
+        assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
       }
     ),
     suite("Reflect.Map")(
@@ -176,6 +227,25 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(map4))(not(equalTo(Schema[Map[Short, Float]]))) &&
         assert(Schema(map5))(not(equalTo(Schema[Map[Short, Float]]))) &&
         assert(Schema(map6))(not(equalTo(Schema[Map[Short, Float]])))
+      },
+      test("has access to map documentation") {
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = Reflect.int,
+          value = Reflect.long,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]], // should be ignored in equals and hashCode
+          doc = Doc("Map of Int to Long"),
+          modifiers = Nil
+        )
+        assert(Schema(map1).doc)(equalTo(Doc("Map of Int to Long")))
+      },
+      test("has access to map key documentation using traversal focus") {
+        val map = Schema[Map[Int, Long]].reflect.asInstanceOf[Reflect.Map[Binding, Int, Long, Map]]
+        assert(Schema[Map[Int, Long]].doc(Traversal.mapKeys(map)): Doc)(equalTo(Reflect.int[Binding].doc))
+      },
+      test("has access to map value documentation using traversal focus") {
+        val map = Schema[Map[Int, Long]].reflect.asInstanceOf[Reflect.Map[Binding, Int, Long, Map]]
+        assert(Schema[Map[Int, Long]].doc(Traversal.mapValues(map)): Doc)(equalTo(Reflect.long[Binding].doc))
       }
     ),
     suite("Reflect.Dynamic")(
@@ -194,6 +264,14 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(dynamic2).hashCode)(equalTo(Schema(dynamic1).hashCode)) &&
         assert(Schema(dynamic3))(not(equalTo(Schema(dynamic1)))) &&
         assert(Schema(dynamic4))(not(equalTo(Schema(dynamic1))))
+      },
+      test("has access to dynamic documentation") {
+        val dynamic1 = Reflect.Dynamic[Binding](
+          dynamicBinding = Binding.Dynamic(),
+          doc = Doc("Dynamic"),
+          modifiers = Nil
+        )
+        assert(Schema(dynamic1).doc)(equalTo(Doc("Dynamic")))
       }
     ),
     suite("Reflect.Deferred")(
@@ -212,6 +290,18 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred3).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
         assert(Schema(deferred4))(not(equalTo(Schema(deferred1)))) &&
         assert(Schema(deferred5))(not(equalTo(Schema(deferred1))))
+      },
+      test("has access to deferred documentation") {
+        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
+          Primitive(
+            PrimitiveType.Int(Validation.Numeric.Positive),
+            Binding.Primitive.int,
+            TypeName.int,
+            Doc("Int (positive)"),
+            Nil
+          )
+        }
+        assert(Schema(deferred1).doc)(equalTo(Doc("Int (positive)")))
       }
     )
   )
@@ -222,8 +312,8 @@ object SchemaSpec extends ZIOSpecDefault {
     val schema: Schema[Record] = Schema(
       reflect = Reflect.Record[Binding, Record](
         fields = List(
-          Term("b", Reflect.byte, Doc.Empty, Nil),
-          Term("i", Reflect.int, Doc.Empty, Nil)
+          Term("b", Reflect.byte, Doc("Field b"), Nil),
+          Term("i", Reflect.int, Doc("Field i"), Nil)
         ),
         typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record"),
         recordBinding = Binding.Record(
@@ -242,7 +332,7 @@ object SchemaSpec extends ZIOSpecDefault {
             }
           }
         ),
-        doc = Doc.Empty,
+        doc = Doc("Record with 2 fields"),
         modifiers = Nil
       )
     )
@@ -254,8 +344,8 @@ object SchemaSpec extends ZIOSpecDefault {
     val schema: Schema[Variant] = Schema(
       reflect = Reflect.Variant[Binding, Variant](
         cases = List(
-          Term("case1", Case1.schema.reflect, Doc.Empty, Nil),
-          Term("case2", Case2.schema.reflect, Doc.Empty, Nil)
+          Term("case1", Case1.schema.reflect, Doc("Case 1"), Nil),
+          Term("case2", Case2.schema.reflect, Doc("Case 2"), Nil)
         ),
         typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant"),
         variantBinding = Binding.Variant(
@@ -280,7 +370,7 @@ object SchemaSpec extends ZIOSpecDefault {
             }
           )
         ),
-        doc = Doc.Empty,
+        doc = Doc("Variant with 2 cases"),
         modifiers = Nil
       )
     )
