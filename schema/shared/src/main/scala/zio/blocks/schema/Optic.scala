@@ -758,16 +758,16 @@ object Traversal {
     }
 
     def modify(s: C[A], f: A => A)(implicit F: HasBinding[F]): C[A] = {
+      val constructor   = F.seqConstructor(seq.seqBinding)
       val deconstructor = F.seqDeconstructor(seq.seqBinding)
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[C] =>
-          val len         = indexed.length(s)
-          val constructor = F.seqConstructor(seq.seqBinding)
+          val len = indexed.length(s)
           indexed.elementType(s) match {
             case _: RegisterType.Boolean.type =>
+              val builder = constructor.newBooleanBuilder(len)
               val ss      = s.asInstanceOf[C[Boolean]]
               val sf      = f.asInstanceOf[Boolean => Boolean]
-              val builder = constructor.newBooleanBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addBoolean(builder, sf(indexed.booleanAt(ss, idx)))
@@ -775,9 +775,9 @@ object Traversal {
               }
               constructor.resultBoolean(builder).asInstanceOf[C[A]]
             case _: RegisterType.Byte.type =>
+              val builder = constructor.newByteBuilder(len)
               val ss      = s.asInstanceOf[C[Byte]]
               val sf      = f.asInstanceOf[Byte => Byte]
-              val builder = constructor.newByteBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addByte(builder, sf(indexed.byteAt(ss, idx)))
@@ -785,9 +785,9 @@ object Traversal {
               }
               constructor.resultByte(builder).asInstanceOf[C[A]]
             case _: RegisterType.Short.type =>
+              val builder = constructor.newShortBuilder(len)
               val ss      = s.asInstanceOf[C[Short]]
               val sf      = f.asInstanceOf[Short => Short]
-              val builder = constructor.newShortBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addShort(builder, sf(indexed.shortAt(ss, idx)))
@@ -795,9 +795,9 @@ object Traversal {
               }
               constructor.resultShort(builder).asInstanceOf[C[A]]
             case _: RegisterType.Int.type =>
+              val builder = constructor.newIntBuilder(len)
               val ss      = s.asInstanceOf[C[Int]]
               val sf      = f.asInstanceOf[Int => Int]
-              val builder = constructor.newIntBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addInt(builder, sf(indexed.intAt(ss, idx)))
@@ -805,9 +805,9 @@ object Traversal {
               }
               constructor.resultInt(builder).asInstanceOf[C[A]]
             case _: RegisterType.Long.type =>
+              val builder = constructor.newLongBuilder(len)
               val ss      = s.asInstanceOf[C[Long]]
               val sf      = f.asInstanceOf[Long => Long]
-              val builder = constructor.newLongBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addLong(builder, sf(indexed.longAt(ss, idx)))
@@ -815,9 +815,9 @@ object Traversal {
               }
               constructor.resultLong(builder).asInstanceOf[C[A]]
             case _: RegisterType.Float.type =>
+              val builder = constructor.newFloatBuilder(len)
               val ss      = s.asInstanceOf[C[Float]]
               val sf      = f.asInstanceOf[Float => Float]
-              val builder = constructor.newFloatBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addFloat(builder, sf(indexed.floatAt(ss, idx)))
@@ -825,9 +825,9 @@ object Traversal {
               }
               constructor.resultFloat(builder).asInstanceOf[C[A]]
             case _: RegisterType.Double.type =>
+              val builder = constructor.newDoubleBuilder(len)
               val ss      = s.asInstanceOf[C[Double]]
               val sf      = f.asInstanceOf[Double => Double]
-              val builder = constructor.newDoubleBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addDouble(builder, sf(indexed.doubleAt(ss, idx)))
@@ -835,9 +835,9 @@ object Traversal {
               }
               constructor.resultDouble(builder).asInstanceOf[C[A]]
             case _: RegisterType.Char.type =>
+              val builder = constructor.newCharBuilder(len)
               val ss      = s.asInstanceOf[C[Char]]
               val sf      = f.asInstanceOf[Char => Char]
-              val builder = constructor.newCharBuilder()
               var idx     = 0
               while (idx < len) {
                 constructor.addChar(builder, sf(indexed.charAt(ss, idx)))
@@ -845,7 +845,7 @@ object Traversal {
               }
               constructor.resultChar(builder).asInstanceOf[C[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A]()
+              val builder = constructor.newObjectBuilder[A](len)
               var idx     = 0
               while (idx < len) {
                 constructor.addObject(builder, f(indexed.objectAt(s, idx)))
@@ -854,9 +854,8 @@ object Traversal {
               constructor.resultObject(builder)
           }
         case _ =>
-          val constructor = F.seqConstructor(seq.seqBinding)
-          val builder     = constructor.newObjectBuilder[A]()
-          val it          = deconstructor.deconstruct(s)
+          val builder = constructor.newObjectBuilder[A]()
+          val it      = deconstructor.deconstruct(s)
           while (it.hasNext) constructor.addObject(builder, f(it.next()))
           constructor.resultObject(builder)
       }
