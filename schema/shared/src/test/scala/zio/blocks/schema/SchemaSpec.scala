@@ -119,6 +119,12 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("has access to record examples") {
         assert(Record.schema.examples)(equalTo(Record(1, 1000) :: Nil))
+      },
+      test("has access to record term examples using lens focus") {
+        val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
+        assert(Record.schema.examples(Lens(record, record.fields(0))): List[_])(
+          equalTo(record.fields(0).value.binding.examples)
+        )
       }
     ),
     suite("Reflect.Variant")(
@@ -155,6 +161,12 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("has access to record examples") {
         assert(Variant.schema.examples)(equalTo(Case1(1.0) :: Case2("WWW") :: Nil))
+      },
+      test("has access to variant case examples using prism focus") {
+        val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
+        assert(Variant.schema.examples(Prism(variant, variant.cases(0))): List[_])(
+          equalTo(variant.cases(0).value.binding.examples)
+        )
       }
     ),
     suite("Reflect.Sequence")(
@@ -221,6 +233,23 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         assert(Schema(sequence1).examples)(equalTo(List(0.1, 0.2, 0.3) :: Nil))
+      },
+      test("has access to sequence value documentation using traversal focus") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
+          primitiveBinding = Binding.Primitive[Long](examples = List(1L, 2L, 3L)),
+          typeName = TypeName.long,
+          doc = Doc("Long (positive)"),
+          modifiers = Nil
+        )
+        val sequence1 = Reflect.Sequence[Binding, Long, List](
+          element = long1,
+          typeName = TypeName.list,
+          seqBinding = null.asInstanceOf[Binding.Seq[List, Long]],
+          doc = Doc("List of positive longs"),
+          modifiers = Nil
+        )
+        assert(Schema(sequence1).examples(Traversal.listValues(long1)): List[_])(equalTo(List(1L, 2L, 3L)))
       }
     ),
     suite("Reflect.Map")(
@@ -270,12 +299,40 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(map1).doc)(equalTo(Doc("Map of Int to Long")))
       },
       test("has access to map key documentation using traversal focus") {
-        val map = Schema[Map[Int, Long]].reflect.asInstanceOf[Reflect.Map[Binding, Int, Long, Map]]
-        assert(Schema[Map[Int, Long]].doc(Traversal.mapKeys(map)): Doc)(equalTo(Reflect.int[Binding].doc))
+        val int1 = Primitive(
+          primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
+          primitiveBinding = Binding.Primitive[Int](),
+          typeName = TypeName.int,
+          doc = Doc("Int (positive)"),
+          modifiers = Nil
+        )
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = int1,
+          value = Reflect.long,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        assert(Schema(map1).doc(Traversal.mapKeys(map1)): Doc)(equalTo(Doc("Int (positive)")))
       },
       test("has access to map value documentation using traversal focus") {
-        val map = Schema[Map[Int, Long]].reflect.asInstanceOf[Reflect.Map[Binding, Int, Long, Map]]
-        assert(Schema[Map[Int, Long]].doc(Traversal.mapValues(map)): Doc)(equalTo(Reflect.long[Binding].doc))
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
+          primitiveBinding = Binding.Primitive[Long](),
+          typeName = TypeName.long,
+          doc = Doc("Long (positive)"),
+          modifiers = Nil
+        )
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = Reflect.int,
+          value = long1,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        assert(Schema(map1).doc(Traversal.mapValues(map1)): Doc)(equalTo(Doc("Long (positive)")))
       },
       test("has access to map examples") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
@@ -291,6 +348,42 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         assert(Schema(map1).examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
+      },
+      test("has access to sequence map value examples using traversal focus") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
+          primitiveBinding = Binding.Primitive[Long](examples = List(1L, 2L, 3L)),
+          typeName = TypeName.long,
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = Reflect.int,
+          value = long1,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        assert(Schema(map1).examples(Traversal.mapValues(map1)): List[_])(equalTo(List(1L, 2L, 3L)))
+      },
+      test("has access to sequence map value examples using traversal focus") {
+        val int1 = Primitive(
+          primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
+          primitiveBinding = Binding.Primitive[Int](examples = List(1, 2, 3)),
+          typeName = TypeName.int,
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = int1,
+          value = Reflect.long,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        assert(Schema(map1).examples(Traversal.mapKeys(map1)): List[_])(equalTo(List(1, 2, 3)))
       }
     ),
     suite("Reflect.Dynamic")(
