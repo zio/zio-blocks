@@ -19,22 +19,22 @@ object Discriminator {
 
   private val _option: Discriminator[Option[Any]] = new Discriminator[Option[Any]] {
     def discriminate(a: Option[Any]): Int = a match {
-      case Some(_) => 0
-      case None    => 1
+      case _: Some[_] => 0
+      case _          => 1
     }
   }
 
   private val _either: Discriminator[Either[Any, Any]] = new Discriminator[Either[Any, Any]] {
     def discriminate(a: Either[Any, Any]): Int = a match {
-      case Left(_)  => 0
-      case Right(_) => 1
+      case _: Left[_, _] => 0
+      case _             => 1
     }
   }
 
   private val _try: Discriminator[scala.util.Try[Any]] = new Discriminator[scala.util.Try[Any]] {
     def discriminate(a: scala.util.Try[Any]): Int = a match {
-      case scala.util.Success(_) => 0
-      case scala.util.Failure(_) => 1
+      case _: scala.util.Success[_] => 0
+      case _                        => 1
     }
   }
 }
