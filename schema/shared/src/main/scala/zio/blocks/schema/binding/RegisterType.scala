@@ -19,10 +19,7 @@ object RegisterType {
     new RegisterType[AnyRef] {
       override def toString: String = "Object"
 
-      override def equals(obj: Any): Boolean = obj match {
-        case _: Object[_] => true
-        case _            => false
-      }
+      override def equals(obj: Any): Boolean = obj.isInstanceOf[Object[_]]
 
       override def hashCode: Int = 31
     }

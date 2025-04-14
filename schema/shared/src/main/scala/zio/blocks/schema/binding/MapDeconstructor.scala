@@ -9,6 +9,7 @@ trait MapDeconstructor[M[_, _]] {
 
   def getValue[K, V](kv: KeyValue[K, V]): V
 }
+
 object MapDeconstructor {
   def apply[M[_, _]](implicit md: MapDeconstructor[M]): MapDeconstructor[M] = md
 
