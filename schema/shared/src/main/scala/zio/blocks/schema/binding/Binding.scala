@@ -31,6 +31,7 @@ sealed trait Binding[T, A] { self =>
 
   def examples(value: A, values: A*): Binding[T, A]
 }
+
 object Binding {
   type Unused[T, A] = Nothing
 
@@ -42,6 +43,7 @@ object Binding {
 
     def examples(value: A, values: A*): Primitive[A] = copy(examples = value :: values.toList)
   }
+
   object Primitive {
     val unit: Primitive[Unit] = Primitive[Unit]()
 
@@ -221,6 +223,7 @@ object Binding {
       )
     )
   }
+
   final case class Variant[A](
     discriminator: Discriminator[A],
     matchers: Matchers[A],
@@ -231,6 +234,7 @@ object Binding {
 
     def examples(value: A, values: A*): Variant[A] = copy(examples = value :: values.toList)
   }
+
   object Variant {
     def apply[A](implicit v: Variant[A]): Variant[A] = v
 
@@ -249,6 +253,7 @@ object Binding {
 
     def examples(value: C[A], values: C[A]*): Seq[C, A] = copy(examples = value :: values.toList)
   }
+
   object Seq {
     def apply[C[_], A](implicit s: Seq[C, A]): Seq[C, A] = s
 
@@ -271,6 +276,7 @@ object Binding {
 
     def examples(value: M[K, V], values: M[K, V]*): Map[M, K, V] = copy(examples = value :: values.toList)
   }
+
   object Map {
     def map[K, V]: Map[Predef.Map, K, V] = Map(MapConstructor.map, MapDeconstructor.map)
   }

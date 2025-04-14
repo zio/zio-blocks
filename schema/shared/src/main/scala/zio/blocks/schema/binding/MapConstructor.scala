@@ -17,7 +17,7 @@ object MapConstructor {
 
     def newObjectBuilder[K, V](sizeHint: Int): ObjectBuilder[K, V] = Map.newBuilder[K, V]
 
-    def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit = builder += ((k, v))
+    def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit = builder.addOne((k, v))
 
     def resultObject[K, V](builder: ObjectBuilder[K, V]): Map[K, V] = builder.result()
   }
