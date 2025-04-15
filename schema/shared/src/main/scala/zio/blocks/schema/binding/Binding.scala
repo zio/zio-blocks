@@ -148,31 +148,31 @@ object Binding {
 
     def tuple6[A, B, C, D, E, F]: Record[(A, B, C, D, E, F)] = _tuple6.asInstanceOf[Record[(A, B, C, D, E, F)]]
 
-    private val _of = new Record[AnyRef](Constructor.of[AnyRef], Deconstructor.of[AnyRef])
+    private[this] val _of = new Record[AnyRef](Constructor.of[AnyRef], Deconstructor.of[AnyRef])
 
-    private val _left = new Record[Left[AnyRef, AnyRef]](
+    private[this] val _left = new Record[Left[AnyRef, AnyRef]](
       Constructor.of[AnyRef].map(Left(_)),
       Deconstructor.of[AnyRef].contramap(_.value)
     )
 
-    private val _right = new Record[Right[AnyRef, AnyRef]](
+    private[this] val _right = new Record[Right[AnyRef, AnyRef]](
       Constructor.of[AnyRef].map(Right(_)),
       Deconstructor.of[AnyRef].contramap(_.value)
     )
 
-    private val _tuple2 = new Record[(AnyRef, AnyRef)](
+    private[this] val _tuple2 = new Record[(AnyRef, AnyRef)](
       Constructor.tuple2[AnyRef, AnyRef](Constructor.of[AnyRef], Constructor.of[AnyRef]),
       Deconstructor.tuple2[AnyRef, AnyRef](Deconstructor.of[AnyRef], Deconstructor.of[AnyRef])
     )
 
-    private val _tuple3 = new Record[(AnyRef, AnyRef, AnyRef)](
+    private[this] val _tuple3 = new Record[(AnyRef, AnyRef, AnyRef)](
       Constructor
         .tuple3[AnyRef, AnyRef, AnyRef](Constructor.of[AnyRef], Constructor.of[AnyRef], Constructor.of[AnyRef]),
       Deconstructor
         .tuple3[AnyRef, AnyRef, AnyRef](Deconstructor.of[AnyRef], Deconstructor.of[AnyRef], Deconstructor.of[AnyRef])
     )
 
-    private val _tuple4 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef)](
+    private[this] val _tuple4 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef)](
       Constructor.tuple4[AnyRef, AnyRef, AnyRef, AnyRef](
         Constructor.of[AnyRef],
         Constructor.of[AnyRef],
@@ -187,7 +187,7 @@ object Binding {
       )
     )
 
-    private val _tuple5 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef)](
+    private[this] val _tuple5 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef)](
       Constructor.tuple5[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
         Constructor.of[AnyRef],
         Constructor.of[AnyRef],
@@ -204,7 +204,7 @@ object Binding {
       )
     )
 
-    private val _tuple6 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef)](
+    private[this] val _tuple6 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef)](
       Constructor.tuple6[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
         Constructor.of[AnyRef],
         Constructor.of[AnyRef],
