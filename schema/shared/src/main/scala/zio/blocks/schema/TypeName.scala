@@ -95,18 +95,92 @@ object TypeName {
 
   def tuple5[A, B, C, D, E]: TypeName[(A, B, C, D, E)] = _tuple5.asInstanceOf[TypeName[(A, B, C, D, E)]]
 
-  private val _some   = TypeName(Namespace("scala" :: Nil, Nil), "Some")
-  private val _option = TypeName(Namespace("scala" :: Nil, Nil), "Option")
-  private val _list   = TypeName(Namespace("scala" :: Nil, Nil), "List")
-  private val _map    = TypeName(Namespace("scala" :: "collection" :: "immutable" :: Nil, Nil), "Map")
-  private val _set    = TypeName(Namespace("scala" :: "collection" :: "immutable" :: Nil, Nil), "Set")
-  private val _vector = TypeName(Namespace("scala" :: Nil, Nil), "Vector")
-  private val _array  = TypeName(Namespace("scala" :: Nil, Nil), "Array")
-  private val _either = TypeName(Namespace("scala" :: Nil, Nil), "Either")
-  private val _left   = TypeName(Namespace("scala" :: Nil, Nil), "Left")
-  private val _right  = TypeName(Namespace("scala" :: Nil, Nil), "Right")
-  private val _tuple2 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple2")
-  private val _tuple3 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple3")
-  private val _tuple4 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple4")
-  private val _tuple5 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple5")
+  def tuple6[A, B, C, D, E, F]: TypeName[(A, B, C, D, E, F)] = _tuple6.asInstanceOf[TypeName[(A, B, C, D, E, F)]]
+
+  def tuple7[A, B, C, D, E, F, G]: TypeName[(A, B, C, D, E, F, G)] =
+    _tuple7.asInstanceOf[TypeName[(A, B, C, D, E, F, G)]]
+
+  def tuple8[A, B, C, D, E, F, G, H]: TypeName[(A, B, C, D, E, F, G, H)] =
+    _tuple8.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H)]]
+
+  def tuple9[A, B, C, D, E, F, G, H, I]: TypeName[(A, B, C, D, E, F, G, H, I)] =
+    _tuple9.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I)]]
+
+  def tuple10[A, B, C, D, E, F, G, H, I, J]: TypeName[(A, B, C, D, E, F, G, H, I, J)] =
+    _tuple10.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J)]]
+
+  def tuple11[A, B, C, D, E, F, G, H, I, J, K]: TypeName[(A, B, C, D, E, F, G, H, I, J, K)] =
+    _tuple11.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K)]]
+
+  def tuple12[A, B, C, D, E, F, G, H, I, J, K, L]: TypeName[(A, B, C, D, E, F, G, H, I, J, K, L)] =
+    _tuple12.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L)]]
+
+  def tuple13[A, B, C, D, E, F, G, H, I, J, K, L, M]: TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M)] =
+    _tuple13.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M)]]
+
+  def tuple14[A, B, C, D, E, F, G, H, I, J, K, L, M, N]: TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)] =
+    _tuple14.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)]]
+
+  def tuple15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O]: TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)] =
+    _tuple15.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)]]
+
+  def tuple16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P]
+    : TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)] =
+    _tuple16.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)]]
+
+  def tuple17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q]
+    : TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)] =
+    _tuple17.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)]]
+
+  def tuple18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R]
+    : TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)] =
+    _tuple18.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)]]
+
+  def tuple19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S]
+    : TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)] =
+    _tuple19.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)]]
+
+  def tuple20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T]
+    : TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)] =
+    _tuple20.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)]]
+
+  def tuple21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U]
+    : TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)] =
+    _tuple21.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)]]
+
+  def tuple22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V]
+    : TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)] =
+    _tuple22.asInstanceOf[TypeName[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)]]
+
+  private[this] val _some    = TypeName(Namespace("scala" :: Nil, Nil), "Some")
+  private[this] val _option  = TypeName(Namespace("scala" :: Nil, Nil), "Option")
+  private[this] val _list    = TypeName(Namespace("scala" :: Nil, Nil), "List")
+  private[this] val _map     = TypeName(Namespace("scala" :: "collection" :: "immutable" :: Nil, Nil), "Map")
+  private[this] val _set     = TypeName(Namespace("scala" :: "collection" :: "immutable" :: Nil, Nil), "Set")
+  private[this] val _vector  = TypeName(Namespace("scala" :: Nil, Nil), "Vector")
+  private[this] val _array   = TypeName(Namespace("scala" :: Nil, Nil), "Array")
+  private[this] val _either  = TypeName(Namespace("scala" :: Nil, Nil), "Either")
+  private[this] val _left    = TypeName(Namespace("scala" :: Nil, Nil), "Left")
+  private[this] val _right   = TypeName(Namespace("scala" :: Nil, Nil), "Right")
+  private[this] val _tuple2  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple2")
+  private[this] val _tuple3  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple3")
+  private[this] val _tuple4  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple4")
+  private[this] val _tuple5  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple5")
+  private[this] val _tuple6  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple6")
+  private[this] val _tuple7  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple7")
+  private[this] val _tuple8  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple8")
+  private[this] val _tuple9  = TypeName(Namespace("scala" :: Nil, Nil), "Tuple9")
+  private[this] val _tuple10 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple10")
+  private[this] val _tuple11 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple11")
+  private[this] val _tuple12 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple12")
+  private[this] val _tuple13 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple13")
+  private[this] val _tuple14 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple14")
+  private[this] val _tuple15 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple15")
+  private[this] val _tuple16 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple16")
+  private[this] val _tuple17 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple17")
+  private[this] val _tuple18 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple18")
+  private[this] val _tuple19 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple19")
+  private[this] val _tuple20 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple20")
+  private[this] val _tuple21 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple21")
+  private[this] val _tuple22 = TypeName(Namespace("scala" :: Nil, Nil), "Tuple22")
 }
