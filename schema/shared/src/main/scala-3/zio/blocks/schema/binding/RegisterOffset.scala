@@ -25,7 +25,7 @@ object RegisterOffset {
 
   def add(left: RegisterOffset, right: RegisterOffset): RegisterOffset = {
     if ((getBytes(left) + getBytes(right) | getObjects(left) + getObjects(right)) >> 16 != 0) {
-      throw new IllegalArgumentException("add offset overflow")
+      throw new IllegalArgumentException("offset sum overflow")
     }
     left + right
   }
