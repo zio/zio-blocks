@@ -376,4 +376,728 @@ object Constructor {
         )
       }
     }
+
+  def tuple7[A, B, C, D, E, F, G](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G]
+  ): Constructor[(A, B, C, D, E, F, G)] =
+    new Constructor[(A, B, C, D, E, F, G)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple8[A, B, C, D, E, F, G, H](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H]
+  ): Constructor[(A, B, C, D, E, F, G, H)] =
+    new Constructor[(A, B, C, D, E, F, G, H)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple9[A, B, C, D, E, F, G, H, I](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I]
+  ): Constructor[(A, B, C, D, E, F, G, H, I)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple10[A, B, C, D, E, F, G, H, I, J](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple11[A, B, C, D, E, F, G, H, I, J, K](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J, K) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple12[A, B, C, D, E, F, G, H, I, J, K, L](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J, K, L) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple13[A, B, C, D, E, F, G, H, I, J, K, L, M](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J, K, L, M) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple14[A, B, C, D, E, F, G, H, I, J, K, L, M, N](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J, K, L, M, N) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O],
+    _16: Constructor[P]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters +
+          _16.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset }),
+          _16.construct(in, { offset += _15.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O],
+    _16: Constructor[P],
+    _17: Constructor[Q]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters +
+          _16.usedRegisters + _17.usedRegisters
+
+      def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset }),
+          _16.construct(in, { offset += _15.usedRegisters; offset }),
+          _17.construct(in, { offset += _16.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O],
+    _16: Constructor[P],
+    _17: Constructor[Q],
+    _18: Constructor[R]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters +
+          _16.usedRegisters + _17.usedRegisters + _18.usedRegisters
+
+      def construct(
+        in: Registers,
+        baseOffset: RegisterOffset
+      ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset }),
+          _16.construct(in, { offset += _15.usedRegisters; offset }),
+          _17.construct(in, { offset += _16.usedRegisters; offset }),
+          _18.construct(in, { offset += _17.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O],
+    _16: Constructor[P],
+    _17: Constructor[Q],
+    _18: Constructor[R],
+    _19: Constructor[S]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters +
+          _16.usedRegisters + _17.usedRegisters + _18.usedRegisters + _19.usedRegisters
+
+      def construct(
+        in: Registers,
+        baseOffset: RegisterOffset
+      ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset }),
+          _16.construct(in, { offset += _15.usedRegisters; offset }),
+          _17.construct(in, { offset += _16.usedRegisters; offset }),
+          _18.construct(in, { offset += _17.usedRegisters; offset }),
+          _19.construct(in, { offset += _18.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O],
+    _16: Constructor[P],
+    _17: Constructor[Q],
+    _18: Constructor[R],
+    _19: Constructor[S],
+    _20: Constructor[T]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters +
+          _16.usedRegisters + _17.usedRegisters + _18.usedRegisters + _19.usedRegisters + _20.usedRegisters
+
+      def construct(
+        in: Registers,
+        baseOffset: RegisterOffset
+      ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset }),
+          _16.construct(in, { offset += _15.usedRegisters; offset }),
+          _17.construct(in, { offset += _16.usedRegisters; offset }),
+          _18.construct(in, { offset += _17.usedRegisters; offset }),
+          _19.construct(in, { offset += _18.usedRegisters; offset }),
+          _20.construct(in, { offset += _19.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O],
+    _16: Constructor[P],
+    _17: Constructor[Q],
+    _18: Constructor[R],
+    _19: Constructor[S],
+    _20: Constructor[T],
+    _21: Constructor[U]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters +
+          _16.usedRegisters + _17.usedRegisters + _18.usedRegisters + _19.usedRegisters + _20.usedRegisters +
+          _21.usedRegisters
+
+      def construct(
+        in: Registers,
+        baseOffset: RegisterOffset
+      ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset }),
+          _16.construct(in, { offset += _15.usedRegisters; offset }),
+          _17.construct(in, { offset += _16.usedRegisters; offset }),
+          _18.construct(in, { offset += _17.usedRegisters; offset }),
+          _19.construct(in, { offset += _18.usedRegisters; offset }),
+          _20.construct(in, { offset += _19.usedRegisters; offset }),
+          _21.construct(in, { offset += _20.usedRegisters; offset })
+        )
+      }
+    }
+
+  def tuple22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V](
+    _1: Constructor[A],
+    _2: Constructor[B],
+    _3: Constructor[C],
+    _4: Constructor[D],
+    _5: Constructor[E],
+    _6: Constructor[F],
+    _7: Constructor[G],
+    _8: Constructor[H],
+    _9: Constructor[I],
+    _10: Constructor[J],
+    _11: Constructor[K],
+    _12: Constructor[L],
+    _13: Constructor[M],
+    _14: Constructor[N],
+    _15: Constructor[O],
+    _16: Constructor[P],
+    _17: Constructor[Q],
+    _18: Constructor[R],
+    _19: Constructor[S],
+    _20: Constructor[T],
+    _21: Constructor[U],
+    _22: Constructor[V]
+  ): Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)] =
+    new Constructor[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)] {
+      val usedRegisters: RegisterOffset =
+        _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters +
+          _6.usedRegisters + _7.usedRegisters + _8.usedRegisters + _9.usedRegisters + _10.usedRegisters +
+          _11.usedRegisters + _12.usedRegisters + _13.usedRegisters + _14.usedRegisters + _15.usedRegisters +
+          _16.usedRegisters + _17.usedRegisters + _18.usedRegisters + _19.usedRegisters + _20.usedRegisters +
+          _21.usedRegisters + _22.usedRegisters
+
+      def construct(
+        in: Registers,
+        baseOffset: RegisterOffset
+      ): (A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V) = {
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset }),
+          _7.construct(in, { offset += _6.usedRegisters; offset }),
+          _8.construct(in, { offset += _7.usedRegisters; offset }),
+          _9.construct(in, { offset += _8.usedRegisters; offset }),
+          _10.construct(in, { offset += _9.usedRegisters; offset }),
+          _11.construct(in, { offset += _10.usedRegisters; offset }),
+          _12.construct(in, { offset += _11.usedRegisters; offset }),
+          _13.construct(in, { offset += _12.usedRegisters; offset }),
+          _14.construct(in, { offset += _13.usedRegisters; offset }),
+          _15.construct(in, { offset += _14.usedRegisters; offset }),
+          _16.construct(in, { offset += _15.usedRegisters; offset }),
+          _17.construct(in, { offset += _16.usedRegisters; offset }),
+          _18.construct(in, { offset += _17.usedRegisters; offset }),
+          _19.construct(in, { offset += _18.usedRegisters; offset }),
+          _20.construct(in, { offset += _19.usedRegisters; offset }),
+          _21.construct(in, { offset += _20.usedRegisters; offset }),
+          _22.construct(in, { offset += _21.usedRegisters; offset })
+        )
+      }
+    }
 }
