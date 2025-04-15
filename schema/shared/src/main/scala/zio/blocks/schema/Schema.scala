@@ -161,4 +161,531 @@ object Schema {
     d: Schema[D],
     e: Schema[E]
   ): Reflect.Bound[(A, B, C, D, E)] = Reflect.tuple5(a.reflect, b.reflect, c.reflect, d.reflect, e.reflect)
+
+  implicit def tuple6[A, B, C, D, E, F](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F]
+  ): Reflect.Bound[(A, B, C, D, E, F)] =
+    Reflect.tuple6(a.reflect, b.reflect, c.reflect, d.reflect, e.reflect, f.reflect)
+
+  implicit def tuple7[A, B, C, D, E, F, G](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G]
+  ): Reflect.Bound[(A, B, C, D, E, F, G)] =
+    Reflect.tuple7(a.reflect, b.reflect, c.reflect, d.reflect, e.reflect, f.reflect, g.reflect)
+
+  implicit def tuple8[A, B, C, D, E, F, G, H](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H)] =
+    Reflect.tuple8(a.reflect, b.reflect, c.reflect, d.reflect, e.reflect, f.reflect, g.reflect, h.reflect)
+
+  implicit def tuple9[A, B, C, D, E, F, G, H, I](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I)] =
+    Reflect.tuple9(a.reflect, b.reflect, c.reflect, d.reflect, e.reflect, f.reflect, g.reflect, h.reflect, i.reflect)
+
+  implicit def tuple10[A, B, C, D, E, F, G, H, I, J](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J)] =
+    Reflect.tuple10(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect
+    )
+
+  implicit def tuple11[A, B, C, D, E, F, G, H, I, J, K](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K)] =
+    Reflect.tuple11(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect
+    )
+
+  implicit def tuple12[A, B, C, D, E, F, G, H, I, J, K, L](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L)] =
+    Reflect.tuple12(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect
+    )
+
+  implicit def tuple13[A, B, C, D, E, F, G, H, I, J, K, L, M](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M)] =
+    Reflect.tuple13(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect
+    )
+
+  implicit def tuple14[A, B, C, D, E, F, G, H, I, J, K, L, M, N](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)] =
+    Reflect.tuple14(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect
+    )
+
+  implicit def tuple15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)] =
+    Reflect.tuple15(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect
+    )
+
+  implicit def tuple16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O],
+    p: Schema[P]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)] =
+    Reflect.tuple16(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect,
+      p.reflect
+    )
+
+  implicit def tuple17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O],
+    p: Schema[P],
+    q: Schema[Q]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)] =
+    Reflect.tuple17(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect,
+      p.reflect,
+      q.reflect
+    )
+
+  implicit def tuple18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O],
+    p: Schema[P],
+    q: Schema[Q],
+    r: Schema[R]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)] =
+    Reflect.tuple18(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect,
+      p.reflect,
+      q.reflect,
+      r.reflect
+    )
+
+  implicit def tuple19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O],
+    p: Schema[P],
+    q: Schema[Q],
+    r: Schema[R],
+    s: Schema[S]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)] =
+    Reflect.tuple19(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect,
+      p.reflect,
+      q.reflect,
+      r.reflect,
+      s.reflect
+    )
+
+  implicit def tuple20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O],
+    p: Schema[P],
+    q: Schema[Q],
+    r: Schema[R],
+    s: Schema[S],
+    t: Schema[T]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)] =
+    Reflect.tuple20(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect,
+      p.reflect,
+      q.reflect,
+      r.reflect,
+      s.reflect,
+      t.reflect
+    )
+
+  implicit def tuple21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O],
+    p: Schema[P],
+    q: Schema[Q],
+    r: Schema[R],
+    s: Schema[S],
+    t: Schema[T],
+    u: Schema[U]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)] =
+    Reflect.tuple21(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect,
+      p.reflect,
+      q.reflect,
+      r.reflect,
+      s.reflect,
+      t.reflect,
+      u.reflect
+    )
+
+  implicit def tuple22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V](implicit
+    a: Schema[A],
+    b: Schema[B],
+    c: Schema[C],
+    d: Schema[D],
+    e: Schema[E],
+    f: Schema[F],
+    g: Schema[G],
+    h: Schema[H],
+    i: Schema[I],
+    j: Schema[J],
+    k: Schema[K],
+    l: Schema[L],
+    m: Schema[M],
+    n: Schema[N],
+    o: Schema[O],
+    p: Schema[P],
+    q: Schema[Q],
+    r: Schema[R],
+    s: Schema[S],
+    t: Schema[T],
+    u: Schema[U],
+    v: Schema[V]
+  ): Reflect.Bound[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)] =
+    Reflect.tuple22(
+      a.reflect,
+      b.reflect,
+      c.reflect,
+      d.reflect,
+      e.reflect,
+      f.reflect,
+      g.reflect,
+      h.reflect,
+      i.reflect,
+      j.reflect,
+      k.reflect,
+      l.reflect,
+      m.reflect,
+      n.reflect,
+      o.reflect,
+      p.reflect,
+      q.reflect,
+      r.reflect,
+      s.reflect,
+      t.reflect,
+      u.reflect,
+      v.reflect
+    )
 }
