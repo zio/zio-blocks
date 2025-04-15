@@ -284,27 +284,28 @@ object Constructor {
 
   def tuple2[A, B](_1: Constructor[A], _2: Constructor[B]): Constructor[(A, B)] =
     new Constructor[(A, B)] {
-      def usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters
+      val usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters
 
       def construct(in: Registers, baseOffset: RegisterOffset): (A, B) = {
-
-        val a: A = _1.construct(in, baseOffset)
-        val b: B = _2.construct(in, baseOffset + _1.usedRegisters)
-
-        (a, b)
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset })
+        )
       }
     }
 
   def tuple3[A, B, C](_1: Constructor[A], _2: Constructor[B], _3: Constructor[C]): Constructor[(A, B, C)] =
     new Constructor[(A, B, C)] {
-      def usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters
+      val usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters
 
       def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C) = {
-        val a: A = _1.construct(in, baseOffset)
-        val b: B = _2.construct(in, baseOffset + _1.usedRegisters)
-        val c: C = _3.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters)
-
-        (a, b, c)
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset })
+        )
       }
     }
 
@@ -315,15 +316,16 @@ object Constructor {
     _4: Constructor[D]
   ): Constructor[(A, B, C, D)] =
     new Constructor[(A, B, C, D)] {
-      def usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters
+      val usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters
 
       def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D) = {
-        val a: A = _1.construct(in, baseOffset)
-        val b: B = _2.construct(in, baseOffset + _1.usedRegisters)
-        val c: C = _3.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters)
-        val d: D = _4.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters)
-
-        (a, b, c, d)
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset })
+        )
       }
     }
 
@@ -335,18 +337,18 @@ object Constructor {
     _5: Constructor[E]
   ): Constructor[(A, B, C, D, E)] =
     new Constructor[(A, B, C, D, E)] {
-      def usedRegisters: RegisterOffset =
+      val usedRegisters: RegisterOffset =
         _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters
 
       def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E) = {
-        val a: A = _1.construct(in, baseOffset)
-        val b: B = _2.construct(in, baseOffset + _1.usedRegisters)
-        val c: C = _3.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters)
-        val d: D = _4.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters)
-        val e: E =
-          _5.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters)
-
-        (a, b, c, d, e)
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset })
+        )
       }
     }
 
@@ -359,22 +361,19 @@ object Constructor {
     _6: Constructor[F]
   ): Constructor[(A, B, C, D, E, F)] =
     new Constructor[(A, B, C, D, E, F)] {
-      def usedRegisters: RegisterOffset =
+      val usedRegisters: RegisterOffset =
         _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters + _6.usedRegisters
 
       def construct(in: Registers, baseOffset: RegisterOffset): (A, B, C, D, E, F) = {
-        val a: A = _1.construct(in, baseOffset)
-        val b: B = _2.construct(in, baseOffset + _1.usedRegisters)
-        val c: C = _3.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters)
-        val d: D = _4.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters)
-        val e: E =
-          _5.construct(in, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters)
-        val f: F = _6.construct(
-          in,
-          baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters
+        var offset = baseOffset
+        (
+          _1.construct(in, offset),
+          _2.construct(in, { offset += _1.usedRegisters; offset }),
+          _3.construct(in, { offset += _2.usedRegisters; offset }),
+          _4.construct(in, { offset += _3.usedRegisters; offset }),
+          _5.construct(in, { offset += _4.usedRegisters; offset }),
+          _6.construct(in, { offset += _5.usedRegisters; offset })
         )
-
-        (a, b, c, d, e, f)
       }
     }
 }
