@@ -38,7 +38,7 @@ object SchemaMetadata {
     type Simple[S, Z] = Bound[S, Id, Z]
 
     def simple[S, Z](initial0: Z)(f: (Z, Optic[Binding, S, ?]) => Z): Simple[S, Z] = new Simple[S, Z] {
-      val initial = initial0
+      val initial: Z = initial0
 
       def fold[A](z: Z, optic: Optic[Binding, S, A], value: Id[A]): Z = f(z, optic)
     }
