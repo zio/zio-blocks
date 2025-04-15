@@ -14,6 +14,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def noBinding: Reflect[NoBinding, A] = refineBinding(RefineBinding.noBinding())
 
+  def doc(value: String): Reflect[F, A]
+
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
 
   def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, scala.List.empty)
@@ -38,6 +40,8 @@ object Reflect {
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (fields, typeName, doc, modifiers)
     type NodeBinding = BindingType.Record
+
+    def doc(value: String): Record[F, A] = copy(doc = Doc.Text(value))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Record, A] = F.binding(recordBinding)
 
@@ -129,6 +133,8 @@ object Reflect {
 
     type NodeBinding = BindingType.Variant
 
+    def doc(value: String): Variant[F, A] = copy(doc = Doc.Text(value))
+
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
     def caseByName(name: String): scala.Option[Term[F, A, ? <: A]] = cases.find(_.name == name)
@@ -160,6 +166,8 @@ object Reflect {
 
     type NodeBinding = BindingType.Seq[C]
 
+    def doc(value: String): Sequence[F, A, C] = copy(doc = Doc.Text(value))
+
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Seq[C], C[A]] = F.binding(seqBinding)
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Sequence[G, A, C] =
@@ -188,6 +196,8 @@ object Reflect {
 
     type NodeBinding = BindingType.Map[M]
 
+    def doc(value: String): Map[F, Key, Value, M] = copy(doc = Doc.Text(value))
+
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Map[M], M[Key, Value]] = F.binding(mapBinding)
 
     def mapConstructor(implicit F: HasBinding[F]): MapConstructor[M] = F.mapConstructor(mapBinding)
@@ -215,6 +225,8 @@ object Reflect {
 
     type NodeBinding = BindingType.Dynamic
 
+    def doc(value: String): Dynamic[F] = copy(doc = Doc.Text(value))
+
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Dynamic, DynamicValue] = F.binding(dynamicBinding)
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Reflect[G, DynamicValue] =
@@ -232,6 +244,8 @@ object Reflect {
 
     type NodeBinding = BindingType.Primitive
 
+    def doc(value: String): Primitive[F, A] = copy(doc = Doc.Text(value))
+
     def binding(implicit F: HasBinding[F]): Binding.Primitive[A] = F.primitive(primitiveBinding)
 
     def defaultValue(implicit F: HasBinding[F]): scala.Option[() => A] = binding.defaultValue
@@ -248,6 +262,8 @@ object Reflect {
     lazy val value: Reflect[F, A] = _value()
 
     type NodeBinding = value.NodeBinding
+
+    def doc(value: String): Deferred[F, A] = copy(_value = () => _value().doc(value))
 
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 
