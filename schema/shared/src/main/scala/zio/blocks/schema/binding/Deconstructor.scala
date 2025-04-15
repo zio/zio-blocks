@@ -285,7 +285,7 @@ object Deconstructor {
 
   def tuple2[A, B](_1: Deconstructor[A], _2: Deconstructor[B]): Deconstructor[(A, B)] =
     new Deconstructor[(A, B)] {
-      def usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters
+      val usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters
 
       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: (A, B)): Unit = {
         _1.deconstruct(out, baseOffset, in._1)
@@ -295,12 +295,13 @@ object Deconstructor {
 
   def tuple3[A, B, C](_1: Deconstructor[A], _2: Deconstructor[B], _3: Deconstructor[C]): Deconstructor[(A, B, C)] =
     new Deconstructor[(A, B, C)] {
-      def usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters
+      val usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters
 
       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: (A, B, C)): Unit = {
-        _1.deconstruct(out, baseOffset, in._1)
-        _2.deconstruct(out, baseOffset + _1.usedRegisters, in._2)
-        _3.deconstruct(out, baseOffset + _1.usedRegisters + _2.usedRegisters, in._3)
+        var offset = baseOffset
+        _1.deconstruct(out, offset, in._1)
+        _2.deconstruct(out, { offset += _1.usedRegisters; offset }, in._2)
+        _3.deconstruct(out, { offset += _2.usedRegisters; offset }, in._3)
       }
     }
 
@@ -311,13 +312,14 @@ object Deconstructor {
     _4: Deconstructor[D]
   ): Deconstructor[(A, B, C, D)] =
     new Deconstructor[(A, B, C, D)] {
-      def usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters
+      val usedRegisters: RegisterOffset = _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters
 
       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: (A, B, C, D)): Unit = {
-        _1.deconstruct(out, baseOffset, in._1)
-        _2.deconstruct(out, baseOffset + _1.usedRegisters, in._2)
-        _3.deconstruct(out, baseOffset + _1.usedRegisters + _2.usedRegisters, in._3)
-        _4.deconstruct(out, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters, in._4)
+        var offset = baseOffset
+        _1.deconstruct(out, offset, in._1)
+        _2.deconstruct(out, { offset += _1.usedRegisters; offset }, in._2)
+        _3.deconstruct(out, { offset += _2.usedRegisters; offset }, in._3)
+        _4.deconstruct(out, { offset += _3.usedRegisters; offset }, in._4)
       }
     }
 
@@ -329,19 +331,16 @@ object Deconstructor {
     _5: Deconstructor[E]
   ): Deconstructor[(A, B, C, D, E)] =
     new Deconstructor[(A, B, C, D, E)] {
-      def usedRegisters: RegisterOffset =
+      val usedRegisters: RegisterOffset =
         _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters
 
       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: (A, B, C, D, E)): Unit = {
-        _1.deconstruct(out, baseOffset, in._1)
-        _2.deconstruct(out, baseOffset + _1.usedRegisters, in._2)
-        _3.deconstruct(out, baseOffset + _1.usedRegisters + _2.usedRegisters, in._3)
-        _4.deconstruct(out, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters, in._4)
-        _5.deconstruct(
-          out,
-          baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters,
-          in._5
-        )
+        var offset = baseOffset
+        _1.deconstruct(out, offset, in._1)
+        _2.deconstruct(out, { offset += _1.usedRegisters; offset }, in._2)
+        _3.deconstruct(out, { offset += _2.usedRegisters; offset }, in._3)
+        _4.deconstruct(out, { offset += _3.usedRegisters; offset }, in._4)
+        _5.deconstruct(out, { offset += _4.usedRegisters; offset }, in._5)
       }
     }
 
@@ -354,24 +353,17 @@ object Deconstructor {
     _6: Deconstructor[F]
   ): Deconstructor[(A, B, C, D, E, F)] =
     new Deconstructor[(A, B, C, D, E, F)] {
-      def usedRegisters: RegisterOffset =
+      val usedRegisters: RegisterOffset =
         _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters + _6.usedRegisters
 
       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: (A, B, C, D, E, F)): Unit = {
-        _1.deconstruct(out, baseOffset, in._1)
-        _2.deconstruct(out, baseOffset + _1.usedRegisters, in._2)
-        _3.deconstruct(out, baseOffset + _1.usedRegisters + _2.usedRegisters, in._3)
-        _4.deconstruct(out, baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters, in._4)
-        _5.deconstruct(
-          out,
-          baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters,
-          in._5
-        )
-        _6.deconstruct(
-          out,
-          baseOffset + _1.usedRegisters + _2.usedRegisters + _3.usedRegisters + _4.usedRegisters + _5.usedRegisters,
-          in._6
-        )
+        var offset = baseOffset
+        _1.deconstruct(out, offset, in._1)
+        _2.deconstruct(out, { offset += _1.usedRegisters; offset }, in._2)
+        _3.deconstruct(out, { offset += _2.usedRegisters; offset }, in._3)
+        _4.deconstruct(out, { offset += _3.usedRegisters; offset }, in._4)
+        _5.deconstruct(out, { offset += _4.usedRegisters; offset }, in._5)
+        _6.deconstruct(out, { offset += _5.usedRegisters; offset }, in._6)
       }
     }
 }
