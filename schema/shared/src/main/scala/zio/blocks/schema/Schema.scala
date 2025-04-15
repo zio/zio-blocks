@@ -41,7 +41,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def examples: List[A] = reflect.binding.examples
 
-  def examples(value: A, values: A*): Schema[A] = ??? // TODO
+  def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*)) // TODO
 
   def examples[B](optic: Optic.Bound[A, B]): List[B] = optic.focus.binding.examples
 

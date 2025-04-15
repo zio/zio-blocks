@@ -123,6 +123,9 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has access to record examples") {
         assert(Record.schema.examples)(equalTo(Record(1, 1000) :: Nil))
       },
+      test("updates record examples") {
+        assert(Record.schema.examples(Record(2, 2000)).examples)(equalTo(Record(2, 2000) :: Nil))
+      },
       test("has access to record term examples using lens focus") {
         val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
         assert(Record.schema.examples(Lens(record, record.fields(0))): List[_])(
@@ -162,11 +165,14 @@ object SchemaSpec extends ZIOSpecDefault {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
         assert(Variant.schema.doc(Prism(variant, variant.cases(0))): Doc)(equalTo(variant.cases(0).value.doc))
       },
-      test("updates record documentation") {
+      test("updates variant documentation") {
         assert(Variant.schema.doc("Variant (updated)").doc)(equalTo(Doc("Variant (updated)")))
       },
-      test("has access to record examples") {
+      test("has access to variant examples") {
         assert(Variant.schema.examples)(equalTo(Case1(1.0) :: Case2("WWW") :: Nil))
+      },
+      test("updates variant examples") {
+        assert(Variant.schema.examples(Case1(2.0), Case2("VVV")).examples)(equalTo(Case1(2.0) :: Case2("VVV") :: Nil))
       },
       test("has access to variant case examples using prism focus") {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
@@ -242,6 +248,9 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         assert(Schema(sequence1).examples)(equalTo(List(0.1, 0.2, 0.3) :: Nil))
+      },
+      test("updates sequence examples") {
+        assert(Schema[List[Int]].examples(List(1, 2, 3)).examples)(equalTo(List(1, 2, 3) :: Nil))
       },
       test("has access to sequence value examples using traversal focus") {
         val long1 = Primitive(
@@ -325,7 +334,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         assert(Schema(map1).doc(Traversal.mapKeys(map1)): Doc)(equalTo(Doc("Int (positive)")))
       },
-      test("updates sequence documentation") {
+      test("updates map documentation") {
         assert(Schema[Map[Int, Long]].doc("Map (updated)").doc)(equalTo(Doc("Map (updated)")))
       },
       test("has access to map value documentation using traversal focus") {
@@ -360,6 +369,11 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         assert(Schema(map1).examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
+      },
+      test("updates map examples") {
+        assert(Schema[Map[Int, Long]].examples(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)).examples)(
+          equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)
+        )
       },
       test("has access to sequence map value examples using traversal focus") {
         val long1 = Primitive(
@@ -423,7 +437,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         assert(Schema(dynamic1).doc)(equalTo(Doc("Dynamic")))
       },
-      test("updates sequence documentation") {
+      test("updates dynamic documentation") {
         val dynamic1 = Reflect.Dynamic[Binding](
           dynamicBinding = Binding.Dynamic(),
           doc = Doc.Empty,
@@ -438,6 +452,16 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         assert(Schema(dynamic1).examples)(equalTo(Nil))
+      },
+      test("updates dynamic examples") {
+        val dynamic1 = Reflect.Dynamic[Binding](
+          dynamicBinding = Binding.Dynamic(),
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        assert(Schema(dynamic1).examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
+          equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)) :: Nil)
+        )
       }
     ),
     suite("Reflect.Deferred")(
@@ -492,6 +516,18 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         }
         assert(Schema(deferred1).examples)(equalTo(List(1, 2, 3)))
+      },
+      test("updates deferred examples") {
+        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
+          Primitive(
+            PrimitiveType.Int(Validation.Numeric.Positive),
+            Binding.Primitive(examples = List(1, 2, 3)),
+            TypeName.int,
+            Doc.Empty,
+            Nil
+          )
+        }
+        assert(Schema(deferred1).examples(1, 2).examples)(equalTo(List(1, 2)))
       }
     )
   )
