@@ -18,7 +18,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
 
-  def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, scala.List.empty)
+  def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, List.empty)
 
   override def hashCode: Int = inner.hashCode
 
@@ -32,11 +32,11 @@ object Reflect {
   type Bound[A] = Reflect[Binding, A]
 
   final case class Record[F[_, _], A](
-    fields: scala.List[Term[F, A, ?]],
+    fields: List[Term[F, A, ?]],
     typeName: TypeName[A],
     recordBinding: F[BindingType.Record, A],
     doc: Doc,
-    modifiers: scala.List[Modifier.Record]
+    modifiers: List[Modifier.Record]
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (fields, typeName, doc, modifiers)
     type NodeBinding = BindingType.Record
@@ -49,15 +49,15 @@ object Reflect {
 
     def deconstructor(implicit F: HasBinding[F]): Deconstructor[A] = F.deconstructor(recordBinding)
 
-    def fieldByName(name: String): scala.Option[Term[F, A, ?]] = fields.find(_.name == name)
+    def fieldByName(name: String): Option[Term[F, A, ?]] = fields.find(_.name == name)
 
     def lensByIndex(index: Int): Lens[F, A, ?] = Lens(self, fields(index))
 
-    def lensByName(name: String): scala.Option[Lens[F, A, ?]] = fieldByName(name).map(Lens(self, _))
+    def lensByName(name: String): Option[Lens[F, A, ?]] = fieldByName(name).map(Lens(self, _))
 
     val length: Int = fields.length
 
-    def registerByName(name: String): scala.Option[Register[?]] = {
+    def registerByName(name: String): Option[Register[?]] = {
       val i = fields.indexWhere(_.name == name)
       if (i >= 0) Some(registers(i))
       else None
@@ -123,11 +123,11 @@ object Reflect {
   }
 
   final case class Variant[F[_, _], A](
-    cases: scala.List[Term[F, A, ? <: A]],
+    cases: List[Term[F, A, ? <: A]],
     typeName: TypeName[A],
     variantBinding: F[BindingType.Variant, A],
     doc: Doc,
-    modifiers: scala.List[Modifier.Variant]
+    modifiers: List[Modifier.Variant]
   ) extends Reflect[F, A] {
     protected def inner: Any = (cases, typeName, doc, modifiers)
 
@@ -137,7 +137,7 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
-    def caseByName(name: String): scala.Option[Term[F, A, ? <: A]] = cases.find(_.name == name)
+    def caseByName(name: String): Option[Term[F, A, ? <: A]] = cases.find(_.name == name)
 
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
@@ -145,7 +145,7 @@ object Reflect {
 
     def prismByIndex(index: Int): Prism[F, A, ? <: A] = Prism(this, cases(index))
 
-    def prismByName(name: String): scala.Option[Prism[F, A, ? <: A]] = caseByName(name).map(Prism(this, _))
+    def prismByName(name: String): Option[Prism[F, A, ? <: A]] = caseByName(name).map(Prism(this, _))
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Variant[G, A] =
       Variant(cases.map(_.refineBinding(f)), typeName, f(variantBinding), doc, modifiers)
@@ -219,7 +219,7 @@ object Reflect {
   final case class Dynamic[F[_, _]](
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
     doc: Doc,
-    modifiers: scala.List[Modifier.Dynamic]
+    modifiers: List[Modifier.Dynamic]
   ) extends Reflect[F, DynamicValue] {
     protected def inner: Any = (modifiers, modifiers, doc)
 
@@ -238,7 +238,7 @@ object Reflect {
     primitiveBinding: F[BindingType.Primitive, A],
     typeName: TypeName[A],
     doc: Doc,
-    modifiers: scala.List[Modifier.Primitive]
+    modifiers: List[Modifier.Primitive]
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (primitiveType, typeName, doc, modifiers)
 
@@ -248,9 +248,9 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding.Primitive[A] = F.primitive(primitiveBinding)
 
-    def defaultValue(implicit F: HasBinding[F]): scala.Option[() => A] = binding.defaultValue
+    def defaultValue(implicit F: HasBinding[F]): Option[() => A] = binding.defaultValue
 
-    def examples(implicit F: HasBinding[F]): scala.List[A] = binding.examples
+    def examples(implicit F: HasBinding[F]): List[A] = binding.examples
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Primitive[G, A] =
       Primitive(primitiveType, f(primitiveBinding), typeName, doc, modifiers)
@@ -267,7 +267,7 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 
-    def modifiers: scala.List[Modifier] = value.modifiers
+    def modifiers: List[Modifier] = value.modifiers
 
     def doc: Doc = value.doc
 
@@ -573,7 +573,7 @@ object Reflect {
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Predef.Set] =
     Sequence(element, F.fromBinding(Binding.Seq.set), TypeName.set[A], Doc.Empty, Nil)
 
-  def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, scala.List] =
+  def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, List] =
     Sequence(element, F.fromBinding(Binding.Seq.list), TypeName.list[A], Doc.Empty, Nil)
 
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, scala.Vector] =
@@ -589,88 +589,82 @@ object Reflect {
 
   def some[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
     Record(
-      scala.List(Term("value", element, Doc.Empty, scala.List.empty)),
+      List(Term("value", element, Doc.Empty, List.empty)),
       TypeName.some[A],
       F.fromBinding(Binding.Record.some[A]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
 
   def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
-    Record(
-      scala.List.empty,
-      TypeName.none,
-      F.fromBinding(Binding.Record.none),
-      Doc.Empty,
-      scala.List.empty
-    )
+    Record(List.empty, TypeName.none, F.fromBinding(Binding.Record.none), Doc.Empty, List.empty)
 
-  def option[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, scala.Option[A]] = {
-    val noneTerm: Term[F, scala.Option[A], None.type] = Term("None", none, Doc.Empty, scala.List.empty)
-    val someTerm: Term[F, scala.Option[A], Some[A]]   = Term("Some", some[F, A](element), Doc.Empty, scala.List.empty)
+  def option[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
     Variant(
-      scala.List(noneTerm, someTerm),
+      List(
+        Term("None", none, Doc.Empty, List.empty),
+        Term("Some", some[F, A](element), Doc.Empty, List.empty)
+      ),
       TypeName.option[A],
       F.fromBinding(Binding.Variant.option[A]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
-  }
 
   def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] =
     Record(
-      scala.List(Term("value", element, Doc.Empty, scala.List.empty)),
+      List(Term("value", element, Doc.Empty, List.empty)),
       TypeName.left[A, B],
       F.fromBinding(Binding.Record.left[A, B]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
 
   def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] =
     Record(
-      scala.List(Term("value", element, Doc.Empty, scala.List.empty)),
+      List(Term("value", element, Doc.Empty, List.empty)),
       TypeName.right[A, B],
       F.fromBinding(Binding.Record.right[A, B]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
 
   def either[F[_, _], L, R](l: Reflect[F, L], r: Reflect[F, R])(implicit
     F: FromBinding[F]
-  ): Variant[F, scala.Either[L, R]] = {
-    val leftTerm: Term[F, scala.Either[L, R], Left[L, R]]   = Term("Left", left(l), Doc.Empty, scala.List.empty)
-    val rightTerm: Term[F, scala.Either[L, R], Right[L, R]] = Term("Right", right(r), Doc.Empty, scala.List.empty)
+  ): Variant[F, scala.Either[L, R]] =
     Variant(
-      scala.List(leftTerm, rightTerm),
+      List(
+        Term("Left", left(l), Doc.Empty, List.empty),
+        Term("Right", right(r), Doc.Empty, List.empty)
+      ),
       TypeName.either[L, R],
       F.fromBinding(Binding.Variant.either[L, R]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
-  }
 
   def tuple2[F[_, _], A, B](_1: Reflect[F, A], _2: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, (A, B)] =
     Record(
-      scala.List(Term("_1", _1, Doc.Empty, scala.List.empty), Term("_2", _2, Doc.Empty, scala.List.empty)),
+      List(Term("_1", _1, Doc.Empty, List.empty), Term("_2", _2, Doc.Empty, List.empty)),
       TypeName.tuple2[A, B],
       F.fromBinding(Binding.Record.tuple2[A, B]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
 
   def tuple3[F[_, _], A, B, C](_1: Reflect[F, A], _2: Reflect[F, B], _3: Reflect[F, C])(implicit
     F: FromBinding[F]
   ): Record[F, (A, B, C)] =
     Record(
-      scala.List(
-        Term("_1", _1, Doc.Empty, scala.List.empty),
-        Term("_2", _2, Doc.Empty, scala.List.empty),
-        Term("_3", _3, Doc.Empty, scala.List.empty)
+      List(
+        Term("_1", _1, Doc.Empty, List.empty),
+        Term("_2", _2, Doc.Empty, List.empty),
+        Term("_3", _3, Doc.Empty, List.empty)
       ),
       TypeName.tuple3[A, B, C],
       F.fromBinding(Binding.Record.tuple3[A, B, C]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
 
   def tuple4[F[_, _], A, B, C, D](
@@ -680,16 +674,16 @@ object Reflect {
     _4: Reflect[F, D]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D)] =
     Record(
-      scala.List(
-        Term("_1", _1, Doc.Empty, scala.List.empty),
-        Term("_2", _2, Doc.Empty, scala.List.empty),
-        Term("_3", _3, Doc.Empty, scala.List.empty),
-        Term("_4", _4, Doc.Empty, scala.List.empty)
+      List(
+        Term("_1", _1, Doc.Empty, List.empty),
+        Term("_2", _2, Doc.Empty, List.empty),
+        Term("_3", _3, Doc.Empty, List.empty),
+        Term("_4", _4, Doc.Empty, List.empty)
       ),
       TypeName.tuple4[A, B, C, D],
       F.fromBinding(Binding.Record.tuple4[A, B, C, D]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
 
   def tuple5[F[_, _], A, B, C, D, E](
@@ -700,50 +694,54 @@ object Reflect {
     _5: Reflect[F, E]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E)] =
     Record(
-      scala.List(
-        Term("_1", _1, Doc.Empty, scala.List.empty),
-        Term("_2", _2, Doc.Empty, scala.List.empty),
-        Term("_3", _3, Doc.Empty, scala.List.empty),
-        Term("_4", _4, Doc.Empty, scala.List.empty),
-        Term("_5", _5, Doc.Empty, scala.List.empty)
+      List(
+        Term("_1", _1, Doc.Empty, List.empty),
+        Term("_2", _2, Doc.Empty, List.empty),
+        Term("_3", _3, Doc.Empty, List.empty),
+        Term("_4", _4, Doc.Empty, List.empty),
+        Term("_5", _5, Doc.Empty, List.empty)
       ),
       TypeName.tuple5[A, B, C, D, E],
       F.fromBinding(Binding.Record.tuple5[A, B, C, D, E]),
       Doc.Empty,
-      scala.List.empty
+      List.empty
     )
 
   object Extractors {
     object List {
-      def unapply[F[_, _], A](reflect: Reflect[F, scala.List[A]]): scala.Option[Reflect[F, A]] =
+      def unapply[F[_, _], A](reflect: Reflect[F, List[A]]): Option[Reflect[F, A]] =
         reflect match {
           case Sequence(element, _, tn, _, _) if tn == TypeName.list => Some(element)
           case _                                                     => None
         }
     }
+
     object Vector {
-      def unapply[F[_, _], A](reflect: Reflect[F, scala.Vector[A]]): scala.Option[Reflect[F, A]] =
+      def unapply[F[_, _], A](reflect: Reflect[F, scala.Vector[A]]): Option[Reflect[F, A]] =
         reflect match {
           case Sequence(element, _, tn, _, _) if tn == TypeName.vector => Some(element)
           case _                                                       => None
         }
     }
+
     object Set {
-      def unapply[F[_, _], A](reflect: Reflect[F, Predef.Set[A]]): scala.Option[Reflect[F, A]] =
+      def unapply[F[_, _], A](reflect: Reflect[F, Predef.Set[A]]): Option[Reflect[F, A]] =
         reflect match {
           case Sequence(element, _, tn, _, _) if tn == TypeName.set => Some(element)
           case _                                                    => None
         }
     }
+
     object Array {
-      def unapply[F[_, _], A](reflect: Reflect[F, scala.Array[A]]): scala.Option[Reflect[F, A]] =
+      def unapply[F[_, _], A](reflect: Reflect[F, scala.Array[A]]): Option[Reflect[F, A]] =
         reflect match {
           case Sequence(element, _, tn, _, _) if tn == TypeName.array => Some(element)
           case _                                                      => None
         }
     }
+
     object Option {
-      def unapply[F[_, _], A](reflect: Reflect[F, scala.Option[A]]): scala.Option[Reflect[F, A]] =
+      def unapply[F[_, _], A](reflect: Reflect[F, Option[A]]): Option[Reflect[F, A]] =
         reflect match {
           case Variant(noneTerm :: someTerm :: Nil, tn, _, _, _) if tn == TypeName.option =>
             (noneTerm, someTerm) match {
@@ -753,10 +751,9 @@ object Reflect {
           case _ => None
         }
     }
+
     object Either {
-      def unapply[F[_, _], L, R](
-        reflect: Reflect[F, scala.Either[L, R]]
-      ): scala.Option[(Reflect[F, L], Reflect[F, R])] =
+      def unapply[F[_, _], L, R](reflect: Reflect[F, scala.Either[L, R]]): Option[(Reflect[F, L], Reflect[F, R])] =
         reflect match {
           case Variant(leftTerm :: rightTerm :: Nil, tn, _, _, _) if tn == TypeName.either =>
             (leftTerm, rightTerm) match {
