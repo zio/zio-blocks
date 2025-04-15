@@ -10,9 +10,9 @@ import java.util.concurrent.ConcurrentHashMap
  * build up values of that type.
  */
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  private val cache: ConcurrentHashMap[codec.Format, _] = new ConcurrentHashMap
+  private[this] val cache: ConcurrentHashMap[codec.Format, _] = new ConcurrentHashMap
 
-  private def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
+  private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
       .computeIfAbsent(format, _ => derive(format))
@@ -30,7 +30,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def doc: Doc = reflect.doc
 
-  def doc(value: String): Schema[A] = ??? // TODO
+  def doc(value: String): Schema[A] = Schema(reflect.doc(value))
 
   def doc[B](optic: Optic.Bound[A, B]): Doc = optic.focus.doc
 
@@ -51,8 +51,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def toDynamicValue(value: A): DynamicValue = ??? // TODO
 }
-object Schema {
 
+object Schema {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val unit: Schema[Unit] = Schema(Reflect.unit[Binding])
@@ -132,13 +132,11 @@ object Schema {
 
   implicit def option[A](implicit element: Schema[A]): Schema[Option[A]] = Schema(Reflect.option(element.reflect))
 
-  implicit def left[A, B](implicit element: Schema[A]): Schema[Left[A, B]] = Schema(
-    Reflect.left[Binding, A, B](element.reflect)
-  )
+  implicit def left[A, B](implicit element: Schema[A]): Schema[Left[A, B]] =
+    Schema(Reflect.left[Binding, A, B](element.reflect))
 
-  implicit def right[A, B](implicit element: Schema[B]): Schema[Right[A, B]] = Schema(
-    Reflect.right[Binding, A, B](element.reflect)
-  )
+  implicit def right[A, B](implicit element: Schema[B]): Schema[Right[A, B]] =
+    Schema(Reflect.right[Binding, A, B](element.reflect))
 
   implicit def either[L, R](implicit l: Schema[L], r: Schema[R]): Reflect.Bound[Either[L, R]] =
     Reflect.either(l.reflect, r.reflect)

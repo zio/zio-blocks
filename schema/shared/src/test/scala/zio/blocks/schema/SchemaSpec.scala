@@ -117,6 +117,9 @@ object SchemaSpec extends ZIOSpecDefault {
         val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
         assert(Record.schema.doc(Lens(record, record.fields(0))): Doc)(equalTo(record.fields(0).value.doc))
       },
+      test("updates record documentation") {
+        assert(Record.schema.doc("Record (updated)").doc)(equalTo(Doc("Record (updated)")))
+      },
       test("has access to record examples") {
         assert(Record.schema.examples)(equalTo(Record(1, 1000) :: Nil))
       },
@@ -158,6 +161,9 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has access to variant case documentation using prism focus") {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
         assert(Variant.schema.doc(Prism(variant, variant.cases(0))): Doc)(equalTo(variant.cases(0).value.doc))
+      },
+      test("updates record documentation") {
+        assert(Variant.schema.doc("Variant (updated)").doc)(equalTo(Doc("Variant (updated)")))
       },
       test("has access to record examples") {
         assert(Variant.schema.examples)(equalTo(Case1(1.0) :: Case2("WWW") :: Nil))
@@ -220,6 +226,9 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
       },
+      test("updates sequence documentation") {
+        assert(Schema[List[Int]].doc("List (updated)").doc)(equalTo(Doc("List (updated)")))
+      },
       test("has access to record examples") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
           element = Reflect.double,
@@ -234,7 +243,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         assert(Schema(sequence1).examples)(equalTo(List(0.1, 0.2, 0.3) :: Nil))
       },
-      test("has access to sequence value documentation using traversal focus") {
+      test("has access to sequence value examples using traversal focus") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = List(1L, 2L, 3L)),
@@ -315,6 +324,9 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         assert(Schema(map1).doc(Traversal.mapKeys(map1)): Doc)(equalTo(Doc("Int (positive)")))
+      },
+      test("updates sequence documentation") {
+        assert(Schema[Map[Int, Long]].doc("Map (updated)").doc)(equalTo(Doc("Map (updated)")))
       },
       test("has access to map value documentation using traversal focus") {
         val long1 = Primitive(
@@ -411,6 +423,14 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         assert(Schema(dynamic1).doc)(equalTo(Doc("Dynamic")))
       },
+      test("updates sequence documentation") {
+        val dynamic1 = Reflect.Dynamic[Binding](
+          dynamicBinding = Binding.Dynamic(),
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        assert(Schema(dynamic1).doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+      },
       test("has access to dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
           dynamicBinding = Binding.Dynamic(),
@@ -448,6 +468,18 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         }
         assert(Schema(deferred1).doc)(equalTo(Doc("Int (positive)")))
+      },
+      test("updates sequence documentation") {
+        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
+          Primitive(
+            PrimitiveType.Int(Validation.Numeric.Positive),
+            Binding.Primitive.int,
+            TypeName.int,
+            Doc.Empty,
+            Nil
+          )
+        }
+        assert(Schema(deferred1).doc("Deferred (updated)").doc)(equalTo(Doc("Deferred (updated)")))
       },
       test("has access to deferred examples") {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
