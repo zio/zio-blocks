@@ -191,10 +191,10 @@ object LensDomain {
 
   object E {
     val reflect: Reflect.Record.Bound[E] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("s", Reflect.string, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "E"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E"),
       recordBinding = Binding.Record(
         constructor = new Constructor[E] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -219,10 +219,10 @@ object LensDomain {
 
   object D {
     val reflect: Reflect.Record.Bound[D] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("e", E.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "D"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D"),
       recordBinding = Binding.Record(
         constructor = new Constructor[D] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -247,10 +247,10 @@ object LensDomain {
 
   object C {
     val reflect: Reflect.Record.Bound[C] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("d", D.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "C"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C"),
       recordBinding = Binding.Record(
         constructor = new Constructor[C] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -275,10 +275,10 @@ object LensDomain {
 
   object B {
     val reflect: Reflect.Record.Bound[B] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("c", C.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "B"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B"),
       recordBinding = Binding.Record(
         constructor = new Constructor[B] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -303,10 +303,10 @@ object LensDomain {
 
   object A {
     val reflect: Reflect.Record.Bound[A] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("b", B.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "A"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "A"),
       recordBinding = Binding.Record(
         constructor = new Constructor[A] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -344,11 +344,11 @@ object OptionalDomain {
 
   object E {
     val reflect: Reflect.Variant.Bound[E] = Reflect.Variant(
-      cases = List(
+      cases = Seq(
         Term("e1", E1.reflect, Doc.Empty, Nil),
         Term("e2", E2.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "E"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E"),
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[E] {
           def discriminate(a: E): Int = a match {
@@ -381,10 +381,10 @@ object OptionalDomain {
 
   object E1 {
     val reflect: Reflect.Record.Bound[E1] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("s", Reflect.string, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "E1"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E1"),
       recordBinding = Binding.Record(
         constructor = new Constructor[E1] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -409,10 +409,10 @@ object OptionalDomain {
 
   object E2 {
     val reflect: Reflect.Record.Bound[E2] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("i", Reflect.int, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "E2"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E2"),
       recordBinding = Binding.Record(
         constructor = new Constructor[E2] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
@@ -437,11 +437,11 @@ object OptionalDomain {
 
   object D {
     val reflect: Reflect.Variant.Bound[D] = Reflect.Variant(
-      cases = List(
+      cases = Seq(
         Term("d1", D1.reflect, Doc.Empty, Nil),
         Term("d2", D2.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "D"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D"),
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[D] {
           def discriminate(a: D): Int = a match {
@@ -474,10 +474,10 @@ object OptionalDomain {
 
   object D1 {
     val reflect: Reflect.Record.Bound[D1] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("e", E.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "D1"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D1"),
       recordBinding = Binding.Record(
         constructor = new Constructor[D1] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -502,10 +502,10 @@ object OptionalDomain {
 
   object D2 {
     val reflect: Reflect.Record.Bound[D2] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("i", Reflect.int, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "D2"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D2"),
       recordBinding = Binding.Record(
         constructor = new Constructor[D2] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
@@ -530,11 +530,11 @@ object OptionalDomain {
 
   object C {
     val reflect: Reflect.Variant.Bound[C] = Reflect.Variant(
-      cases = List(
+      cases = Seq(
         Term("c1", C1.reflect, Doc.Empty, Nil),
         Term("c2", C2.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "C"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C"),
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[C] {
           def discriminate(a: C): Int = a match {
@@ -567,10 +567,10 @@ object OptionalDomain {
 
   object C1 {
     val reflect: Reflect.Record.Bound[C1] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("d", D.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "C1"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C1"),
       recordBinding = Binding.Record(
         constructor = new Constructor[C1] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -595,10 +595,10 @@ object OptionalDomain {
 
   object C2 {
     val reflect: Reflect.Record.Bound[C2] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("i", Reflect.int, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "C2"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C2"),
       recordBinding = Binding.Record(
         constructor = new Constructor[C2] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
@@ -623,11 +623,11 @@ object OptionalDomain {
 
   object B {
     val reflect: Reflect.Variant.Bound[B] = Reflect.Variant(
-      cases = List(
+      cases = Seq(
         Term("b1", B1.reflect, Doc.Empty, Nil),
         Term("b2", B2.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "B"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B"),
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[B] {
           def discriminate(a: B): Int = a match {
@@ -660,10 +660,10 @@ object OptionalDomain {
 
   object B1 {
     val reflect: Reflect.Record.Bound[B1] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("c", C.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "B1"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B1"),
       recordBinding = Binding.Record(
         constructor = new Constructor[B1] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -688,10 +688,10 @@ object OptionalDomain {
 
   object B2 {
     val reflect: Reflect.Record.Bound[B2] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("i", Reflect.int, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "B2"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B2"),
       recordBinding = Binding.Record(
         constructor = new Constructor[B2] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
@@ -716,10 +716,10 @@ object OptionalDomain {
 
   object A1 {
     val reflect: Reflect.Record.Bound[A1] = Reflect.Record(
-      fields = List(
+      fields = Seq(
         Term("b", B1.reflect, Doc.Empty, Nil)
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "A1"),
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "A1"),
       recordBinding = Binding.Record(
         constructor = new Constructor[A1] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)

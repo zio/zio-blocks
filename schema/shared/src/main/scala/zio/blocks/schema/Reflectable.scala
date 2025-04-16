@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
 trait Reflectable[A] {
-  def modifiers: List[Modifier]
+  def modifiers: Seq[Modifier]
   def doc: Doc
 }
