@@ -19,9 +19,9 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
-        val long3 = long1.copy(typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Long1"))
+        val long3 = long1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Long1"))
         val long4 = long1.copy(doc = Doc("text"))
-        val long5 = long1.copy(modifiers = List(Modifier.config("key", "value")))
+        val long5 = long1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Schema[Long])(equalTo(Schema[Long])) &&
         assert(Schema[Long].hashCode)(equalTo(Schema[Long].hashCode)) &&
         assert(Schema(long1))(equalTo(Schema[Long])) &&
@@ -51,15 +51,15 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has access to primitive examples") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = List(1L, 2L, 3L)),
+          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
           typeName = TypeName.long,
           doc = Doc("Long (positive)"),
           modifiers = Nil
         )
-        assert(Schema(long1).examples)(equalTo(List(1L, 2L, 3L)))
+        assert(Schema(long1).examples)(equalTo(Seq(1L, 2L, 3L)))
       },
       test("updates primitive examples") {
-        assert(Schema[Int].examples(1, 2, 3).examples)(equalTo(List(1, 2, 3)))
+        assert(Schema[Int].examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
       }
     ),
     suite("Reflect.Record")(
@@ -69,15 +69,15 @@ object SchemaSpec extends ZIOSpecDefault {
             Term("b", Reflect.byte, Doc("Field b"), Nil),
             Term("i", Reflect.int, Doc("Field i"), Nil)
           ),
-          typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record"),
+          typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Record"),
           recordBinding = null.asInstanceOf[Binding.Record[Record]], // should be ignored in equals and hashCode
           doc = Doc("Record with 2 fields"),
           modifiers = Nil
         )
-        val record2 = record1.copy(typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record2"))
+        val record2 = record1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Record2"))
         val record3 = record1.copy(fields = record1.fields.reverse)
         val record4 = record1.copy(doc = Doc("text"))
-        val record5 = record1.copy(modifiers = List(Modifier.config("key", "value")))
+        val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Record.schema)(equalTo(Record.schema)) &&
         assert(Record.schema.hashCode)(equalTo(Record.schema.hashCode)) &&
         assert(Schema(record1))(equalTo(Record.schema)) &&
@@ -142,7 +142,7 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("has access to record term examples using lens focus") {
         val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
-        assert(Record.schema.examples(Lens(record, record.fields(0))): List[_])(
+        assert(Record.schema.examples(Lens(record, record.fields(0))): Seq[_])(
           equalTo(record.fields(0).value.binding.examples)
         )
       }
@@ -150,19 +150,19 @@ object SchemaSpec extends ZIOSpecDefault {
     suite("Reflect.Variant")(
       test("has consistent equals and hashCode") {
         val variant1 = Reflect.Variant[Binding, Variant](
-          cases = List(
+          cases = Seq(
             Term("case1", Case1.schema.reflect, Doc("Case 1"), Nil),
             Term("case2", Case2.schema.reflect, Doc("Case 2"), Nil)
           ),
-          typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant"),
+          typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Variant"),
           variantBinding = null.asInstanceOf[Binding.Variant[Variant]], // should be ignored in equals and hashCode
           doc = Doc("Variant with 2 cases"),
           modifiers = Nil
         )
         val variant2 = variant1.copy(cases = variant1.cases.reverse)
-        val variant3 = variant1.copy(typeName = TypeName(Namespace(List("zio", "blocks", "schema2"), Nil), "Variant"))
+        val variant3 = variant1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema2"), Nil), "Variant"))
         val variant4 = variant1.copy(doc = Doc("text"))
-        val variant5 = variant1.copy(modifiers = List(Modifier.config("key", "value")))
+        val variant5 = variant1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Variant.schema)(equalTo(Variant.schema)) &&
         assert(Variant.schema.hashCode)(equalTo(Variant.schema.hashCode)) &&
         assert(Schema(variant1))(equalTo(Variant.schema)) &&
@@ -194,7 +194,7 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("has access to variant case examples using prism focus") {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
-        assert(Variant.schema.examples(Prism(variant, variant.cases(0))): List[_])(
+        assert(Variant.schema.examples(Prism(variant, variant.cases(0))): Seq[_])(
           equalTo(variant.cases(0).value.binding.examples)
         )
       }
@@ -213,7 +213,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         val sequence3 = sequence1.copy(typeName = TypeName[List[Double]](Namespace("scala" :: Nil, Nil), "List2"))
         val sequence4 = sequence1.copy(doc = Doc("text"))
-        val sequence5 = sequence1.copy(modifiers = List(Modifier.config("key", "value")))
+        val sequence5 = sequence1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Schema[List[Double]])(equalTo(Schema[List[Double]])) &&
         assert(Schema[List[Double]].hashCode)(equalTo(Schema[List[Double]].hashCode)) &&
         assert(Schema(sequence1))(equalTo(Schema[List[Double]])) &&
@@ -264,20 +264,20 @@ object SchemaSpec extends ZIOSpecDefault {
           seqBinding = Binding.Seq[List, Double](
             constructor = SeqConstructor.listConstructor,
             deconstructor = SeqDeconstructor.listDeconstructor,
-            examples = List(0.1, 0.2, 0.3) :: Nil
+            examples = Seq(List(0.1, 0.2, 0.3))
           ),
           doc = Doc.Empty,
           modifiers = Nil
         )
-        assert(Schema(sequence1).examples)(equalTo(List(0.1, 0.2, 0.3) :: Nil))
+        assert(Schema(sequence1).examples)(equalTo(Seq(List(0.1, 0.2, 0.3))))
       },
       test("updates sequence examples") {
-        assert(Schema[List[Int]].examples(List(1, 2, 3)).examples)(equalTo(List(1, 2, 3) :: Nil))
+        assert(Schema[List[Int]].examples(List(1, 2, 3)).examples)(equalTo(Seq(List(1, 2, 3))))
       },
       test("has access to sequence value examples using traversal focus") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = List(1L, 2L, 3L)),
+          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
           typeName = TypeName.long,
           doc = Doc("Long (positive)"),
           modifiers = Nil
@@ -289,7 +289,7 @@ object SchemaSpec extends ZIOSpecDefault {
           doc = Doc("List of positive longs"),
           modifiers = Nil
         )
-        assert(Schema(sequence1).examples(Traversal.listValues(long1)): List[_])(equalTo(List(1L, 2L, 3L)))
+        assert(Schema(sequence1).examples(Traversal.listValues(long1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
       }
     ),
     suite("Reflect.Map")(
@@ -316,7 +316,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         val map4 = map1.copy(typeName = TypeName[Map[Short, Float]](Namespace("scala" :: Nil, Nil), "Map2"))
         val map5 = map1.copy(doc = Doc("text"))
-        val map6 = map1.copy(modifiers = List(Modifier.config("key", "value")))
+        val map6 = map1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Schema[Map[Short, Float]])(equalTo(Schema[Map[Short, Float]])) &&
         assert(Schema[Map[Short, Float]].hashCode)(equalTo(Schema[Map[Short, Float]].hashCode)) &&
         assert(Schema(map1))(equalTo(Schema[Map[Short, Float]])) &&
@@ -406,7 +406,7 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has access to sequence map value examples using traversal focus") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = List(1L, 2L, 3L)),
+          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
           typeName = TypeName.long,
           doc = Doc.Empty,
           modifiers = Nil
@@ -419,12 +419,12 @@ object SchemaSpec extends ZIOSpecDefault {
           doc = Doc.Empty,
           modifiers = Nil
         )
-        assert(Schema(map1).examples(Traversal.mapValues(map1)): List[_])(equalTo(List(1L, 2L, 3L)))
+        assert(Schema(map1).examples(Traversal.mapValues(map1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
       },
       test("has access to sequence map value examples using traversal focus") {
         val int1 = Primitive(
           primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Int](examples = List(1, 2, 3)),
+          primitiveBinding = Binding.Primitive[Int](examples = Seq(1, 2, 3)),
           typeName = TypeName.int,
           doc = Doc.Empty,
           modifiers = Nil
@@ -437,7 +437,7 @@ object SchemaSpec extends ZIOSpecDefault {
           doc = Doc.Empty,
           modifiers = Nil
         )
-        assert(Schema(map1).examples(Traversal.mapKeys(map1)): List[_])(equalTo(List(1, 2, 3)))
+        assert(Schema(map1).examples(Traversal.mapKeys(map1)): Seq[_])(equalTo(Seq(1, 2, 3)))
       }
     ),
     suite("Reflect.Dynamic")(
@@ -449,7 +449,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         val dynamic2 = dynamic1.copy(dynamicBinding = null.asInstanceOf[Binding.Dynamic])
         val dynamic3 = dynamic1.copy(doc = Doc("text"))
-        val dynamic4 = dynamic1.copy(modifiers = List(Modifier.config("key", "value")))
+        val dynamic4 = dynamic1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Schema(dynamic1))(equalTo(Schema(dynamic1))) &&
         assert(Schema(dynamic1).hashCode)(equalTo(Schema(dynamic1).hashCode)) &&
         assert(Schema(dynamic2))(equalTo(Schema(dynamic1))) &&
@@ -567,25 +567,25 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive(examples = List(1, 2, 3)),
+            Binding.Primitive(examples = Seq(1, 2, 3)),
             TypeName.int,
             Doc.Empty,
             Nil
           )
         }
-        assert(Schema(deferred1).examples)(equalTo(List(1, 2, 3)))
+        assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3)))
       },
       test("updates deferred examples") {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive(examples = List(1, 2, 3)),
+            Binding.Primitive(examples = Seq(1, 2, 3)),
             TypeName.int,
             Doc.Empty,
             Nil
           )
         }
-        assert(Schema(deferred1).examples(1, 2).examples)(equalTo(List(1, 2)))
+        assert(Schema(deferred1).examples(1, 2).examples)(equalTo(Seq(1, 2)))
       }
     )
   )
@@ -595,11 +595,11 @@ object SchemaSpec extends ZIOSpecDefault {
   object Record {
     val schema: Schema[Record] = Schema(
       reflect = Reflect.Record[Binding, Record](
-        fields = List(
+        fields = Seq(
           Term("b", Reflect.byte, Doc("Field b"), Nil),
           Term("i", Reflect.int, Doc("Field i"), Nil)
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Record"),
         recordBinding = Binding.Record(
           constructor = new Constructor[Record] {
             def usedRegisters: RegisterOffset = RegisterOffset(bytes = 1, ints = 1)
@@ -628,11 +628,11 @@ object SchemaSpec extends ZIOSpecDefault {
   object Variant {
     val schema: Schema[Variant] = Schema(
       reflect = Reflect.Variant[Binding, Variant](
-        cases = List(
+        cases = Seq(
           Term("case1", Case1.schema.reflect, Doc("Case 1"), Nil),
           Term("case2", Case2.schema.reflect, Doc("Case 2"), Nil)
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Variant"),
         variantBinding = Binding.Variant(
           discriminator = new Discriminator[Variant] {
             def discriminate(a: Variant): Int = a match {
@@ -667,10 +667,10 @@ object SchemaSpec extends ZIOSpecDefault {
   object Case1 {
     val schema: Schema[Case1] = Schema(
       reflect = Reflect.Record[Binding, Case1](
-        fields = List(
+        fields = Seq(
           Term("d", Reflect.double, Doc.Empty, Nil)
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case1"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Case1"),
         recordBinding = Binding.Record(
           constructor = new Constructor[Case1] {
             def usedRegisters: RegisterOffset = RegisterOffset(doubles = 1)
@@ -697,10 +697,10 @@ object SchemaSpec extends ZIOSpecDefault {
   object Case2 {
     val schema: Schema[Case2] = Schema(
       reflect = Reflect.Record[Binding, Case2](
-        fields = List(
+        fields = Seq(
           Term("s", Reflect.string, Doc.Empty, Nil)
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case2"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Case2"),
         recordBinding = Binding.Record(
           constructor = new Constructor[Case2] {
             def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
