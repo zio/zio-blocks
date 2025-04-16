@@ -19,7 +19,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def defaultValue[B](optic: Optic.Bound[A, B], value: => B): Schema[A] = ??? // TODO
 
-  def defaultValue(value: => A): Schema[A] = ??? // TODO
+  def defaultValue(value: => A): Schema[A] = Schema(reflect.defaultValue(value))
 
   def derive[F <: codec.Format](format: F): format.TypeClass[A] = ??? // TODO
 
@@ -41,7 +41,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def examples: List[A] = reflect.binding.examples
 
-  def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*)) // TODO
+  def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*))
 
   def examples[B](optic: Optic.Bound[A, B]): List[B] = optic.focus.binding.examples
 
