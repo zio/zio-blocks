@@ -31,6 +31,10 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(long4))(not(equalTo(Schema[Long]))) &&
         assert(Schema(long5))(not(equalTo(Schema[Long])))
       },
+      test("updates primitive default value") {
+        assert(Schema[Int].reflect.binding.defaultValue)(isNone) &&
+        assert(Schema[Int].defaultValue(1).reflect.binding.defaultValue.get.apply())(equalTo(1))
+      },
       test("has access to primitive documentation") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.None),
@@ -116,6 +120,10 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record3.registers(0).usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
         assert(record3.usedRegisters)(equalTo(record3.registers.foldLeft(0)(_ + _.usedRegisters)))
       },
+      test("updates record default value") {
+        assert(Record.schema.reflect.binding.defaultValue)(isNone) &&
+        assert(Record.schema.defaultValue(Record(1, 2)).reflect.binding.defaultValue.get.apply())(equalTo(Record(1, 2)))
+      },
       test("has access to record documentation") {
         assert(Record.schema.doc)(equalTo(Doc("Record with 2 fields")))
       },
@@ -164,6 +172,10 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(variant4))(not(equalTo(Variant.schema))) &&
         assert(Schema(variant5))(not(equalTo(Variant.schema)))
       },
+      test("updates variant default value") {
+        assert(Variant.schema.reflect.binding.defaultValue)(isNone) &&
+        assert(Variant.schema.defaultValue(Case1(1.0)).reflect.binding.defaultValue.get.apply())(equalTo(Case1(1.0)))
+      },
       test("has access to variant documentation") {
         assert(Variant.schema.doc)(equalTo(Doc("Variant with 2 cases")))
       },
@@ -210,6 +222,10 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(sequence3))(not(equalTo(Schema[List[Double]]))) &&
         assert(Schema(sequence4))(not(equalTo(Schema[List[Double]]))) &&
         assert(Schema(sequence5))(not(equalTo(Schema[List[Double]])))
+      },
+      test("updates sequence default value") {
+        assert(Schema[List[Int]].reflect.binding.defaultValue)(isNone) &&
+        assert(Schema[List[Int]].defaultValue(Nil).reflect.binding.defaultValue.get.apply())(equalTo(Nil))
       },
       test("has access to sequence documentation") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
@@ -310,6 +326,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(map4))(not(equalTo(Schema[Map[Short, Float]]))) &&
         assert(Schema(map5))(not(equalTo(Schema[Map[Short, Float]]))) &&
         assert(Schema(map6))(not(equalTo(Schema[Map[Short, Float]])))
+      },
+      test("updates map default value") {
+        assert(Schema[Map[Int, Long]].reflect.binding.defaultValue)(isNone) &&
+        assert(Schema[Map[Int, Long]].defaultValue(Map.empty).reflect.binding.defaultValue.get.apply())(
+          equalTo(Map.empty[Int, Long])
+        )
       },
       test("has access to map documentation") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
@@ -435,6 +457,23 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(dynamic3))(not(equalTo(Schema(dynamic1)))) &&
         assert(Schema(dynamic4))(not(equalTo(Schema(dynamic1))))
       },
+      test("updates dynamic default value") {
+        val dynamic1 = Reflect.Dynamic[Binding](
+          dynamicBinding = Binding.Dynamic(),
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        assert(Schema(dynamic1).reflect.binding.defaultValue)(isNone) &&
+        assert(
+          Schema(dynamic1)
+            .defaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            .reflect
+            .binding
+            .defaultValue
+            .get
+            .apply()
+        )(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+      },
       test("has access to dynamic documentation") {
         val dynamic1 = Reflect.Dynamic[Binding](
           dynamicBinding = Binding.Dynamic(),
@@ -453,11 +492,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("has access to dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(),
-          doc = Doc("Dynamic"),
+          dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil),
+          doc = Doc.Empty,
           modifiers = Nil
         )
-        assert(Schema(dynamic1).examples)(equalTo(Nil))
+        assert(Schema(dynamic1).examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil))
       },
       test("updates dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
@@ -486,6 +525,19 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred3).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
         assert(Schema(deferred4))(not(equalTo(Schema(deferred1)))) &&
         assert(Schema(deferred5))(not(equalTo(Schema(deferred1))))
+      },
+      test("updates deferred default value") {
+        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
+          Primitive(
+            PrimitiveType.Int(Validation.Numeric.Positive),
+            Binding.Primitive.int,
+            TypeName.int,
+            Doc.Empty,
+            Nil
+          )
+        }
+        assert(Schema(deferred1).reflect.binding.defaultValue)(isNone) &&
+        assert(Schema(deferred1).defaultValue(1).reflect.binding.defaultValue.get.apply())(equalTo(1))
       },
       test("has access to deferred documentation") {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
