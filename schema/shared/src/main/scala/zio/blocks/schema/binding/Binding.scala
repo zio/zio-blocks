@@ -126,7 +126,7 @@ object Binding {
   object Record {
     def apply[A](implicit r: Record[A]): Record[A] = r
 
-    def of[A]: Record[A] = _of.asInstanceOf[Record[A]]
+    def of[A]: Record[A] = _tuple1.asInstanceOf[Record[A]]
 
     def some[A]: Record[Some[A]] = Record(Constructor.of[A].map(Some(_)), Deconstructor.of[A].contramap(_.value))
 
@@ -148,78 +148,697 @@ object Binding {
 
     def tuple6[A, B, C, D, E, F]: Record[(A, B, C, D, E, F)] = _tuple6.asInstanceOf[Record[(A, B, C, D, E, F)]]
 
-    private val _of = new Record[AnyRef](Constructor.of[AnyRef], Deconstructor.of[AnyRef])
+    def tuple7[A, B, C, D, E, F, G]: Record[(A, B, C, D, E, F, G)] =
+      _tuple7.asInstanceOf[Record[(A, B, C, D, E, F, G)]]
 
-    private val _left = new Record[Left[AnyRef, AnyRef]](
-      Constructor.of[AnyRef].map(Left(_)),
-      Deconstructor.of[AnyRef].contramap(_.value)
+    def tuple8[A, B, C, D, E, F, G, H]: Record[(A, B, C, D, E, F, G, H)] =
+      _tuple8.asInstanceOf[Record[(A, B, C, D, E, F, G, H)]]
+
+    def tuple9[A, B, C, D, E, F, G, H, I]: Record[(A, B, C, D, E, F, G, H, I)] =
+      _tuple9.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I)]]
+
+    def tuple10[A, B, C, D, E, F, G, H, I, J]: Record[(A, B, C, D, E, F, G, H, I, J)] =
+      _tuple10.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J)]]
+
+    def tuple11[A, B, C, D, E, F, G, H, I, J, K]: Record[(A, B, C, D, E, F, G, H, I, J, K)] =
+      _tuple11.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K)]]
+
+    def tuple12[A, B, C, D, E, F, G, H, I, J, K, L]: Record[(A, B, C, D, E, F, G, H, I, J, K, L)] =
+      _tuple12.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L)]]
+
+    def tuple13[A, B, C, D, E, F, G, H, I, J, K, L, M]: Record[(A, B, C, D, E, F, G, H, I, J, K, L, M)] =
+      _tuple13.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M)]]
+
+    def tuple14[A, B, C, D, E, F, G, H, I, J, K, L, M, N]: Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)] =
+      _tuple14.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N)]]
+
+    def tuple15[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O]: Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)] =
+      _tuple15.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O)]]
+
+    def tuple16[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P]
+      : Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)] =
+      _tuple16.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P)]]
+
+    def tuple17[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q]
+      : Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)] =
+      _tuple17.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q)]]
+
+    def tuple18[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R]
+      : Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)] =
+      _tuple18.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R)]]
+
+    def tuple19[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S]
+      : Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)] =
+      _tuple19.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S)]]
+
+    def tuple20[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T]
+      : Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)] =
+      _tuple20.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)]]
+
+    def tuple21[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U]
+      : Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)] =
+      _tuple21.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)]]
+
+    def tuple22[A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V]
+      : Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)] =
+      _tuple22.asInstanceOf[Record[(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)]]
+
+    private[this] val _left = new Record[Left[Any, Any]](
+      Constructor.of[Any].map(Left(_)),
+      Deconstructor.of[Any].contramap(_.value)
     )
 
-    private val _right = new Record[Right[AnyRef, AnyRef]](
-      Constructor.of[AnyRef].map(Right(_)),
-      Deconstructor.of[AnyRef].contramap(_.value)
+    private[this] val _right = new Record[Right[Any, Any]](
+      Constructor.of[Any].map(Right(_)),
+      Deconstructor.of[Any].contramap(_.value)
     )
 
-    private val _tuple2 = new Record[(AnyRef, AnyRef)](
-      Constructor.tuple2[AnyRef, AnyRef](Constructor.of[AnyRef], Constructor.of[AnyRef]),
-      Deconstructor.tuple2[AnyRef, AnyRef](Deconstructor.of[AnyRef], Deconstructor.of[AnyRef])
+    private[this] val _tuple1 = new Record(Constructor.of[Any], Deconstructor.of[Any])
+
+    private[this] val _tuple2 = new Record(
+      Constructor.tuple2(Constructor.of[Any], Constructor.of[Any]),
+      Deconstructor.tuple2(Deconstructor.of[Any], Deconstructor.of[Any])
     )
 
-    private val _tuple3 = new Record[(AnyRef, AnyRef, AnyRef)](
-      Constructor
-        .tuple3[AnyRef, AnyRef, AnyRef](Constructor.of[AnyRef], Constructor.of[AnyRef], Constructor.of[AnyRef]),
-      Deconstructor
-        .tuple3[AnyRef, AnyRef, AnyRef](Deconstructor.of[AnyRef], Deconstructor.of[AnyRef], Deconstructor.of[AnyRef])
+    private[this] val _tuple3 = new Record(
+      Constructor.tuple3(Constructor.of[Any], Constructor.of[Any], Constructor.of[Any]),
+      Deconstructor.tuple3(Deconstructor.of[Any], Deconstructor.of[Any], Deconstructor.of[Any])
     )
 
-    private val _tuple4 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef)](
-      Constructor.tuple4[AnyRef, AnyRef, AnyRef, AnyRef](
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef]
+    private[this] val _tuple4 = new Record(
+      Constructor.tuple4(Constructor.of[Any], Constructor.of[Any], Constructor.of[Any], Constructor.of[Any]),
+      Deconstructor.tuple4(Deconstructor.of[Any], Deconstructor.of[Any], Deconstructor.of[Any], Deconstructor.of[Any])
+    )
+
+    private[this] val _tuple5 = new Record(
+      Constructor.tuple5(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
       ),
-      Deconstructor.tuple4[AnyRef, AnyRef, AnyRef, AnyRef](
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef]
+      Deconstructor.tuple5(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
       )
     )
 
-    private val _tuple5 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef)](
-      Constructor.tuple5[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef]
+    private[this] val _tuple6 = new Record(
+      Constructor.tuple6(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
       ),
-      Deconstructor.tuple5[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef]
+      Deconstructor.tuple6(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
       )
     )
 
-    private val _tuple6 = new Record[(AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef)](
-      Constructor.tuple6[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef],
-        Constructor.of[AnyRef]
+    private[this] val _tuple7 = new Record(
+      Constructor.tuple7(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
       ),
-      Deconstructor.tuple6[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef, AnyRef](
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef],
-        Deconstructor.of[AnyRef]
+      Deconstructor.tuple7(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple8 = new Record(
+      Constructor.tuple8(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple8(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple9 = new Record(
+      Constructor.tuple9(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple9(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple10 = new Record(
+      Constructor.tuple10(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple10(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple11 = new Record(
+      Constructor.tuple11(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple11(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple12 = new Record(
+      Constructor.tuple12(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple12(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple13 = new Record(
+      Constructor.tuple13(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple13(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple14 = new Record(
+      Constructor.tuple14(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple14(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple15 = new Record(
+      Constructor.tuple15(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple15(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple16 = new Record(
+      Constructor.tuple16(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple16(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple17 = new Record(
+      Constructor.tuple17(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple17(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple18 = new Record(
+      Constructor.tuple18(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple18(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple19 = new Record(
+      Constructor.tuple19(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple19(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple20 = new Record(
+      Constructor.tuple20(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple20(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple21 = new Record(
+      Constructor.tuple21(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple21(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
+      )
+    )
+
+    private[this] val _tuple22 = new Record(
+      Constructor.tuple22(
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any],
+        Constructor.of[Any]
+      ),
+      Deconstructor.tuple22(
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any],
+        Deconstructor.of[Any]
       )
     )
   }
