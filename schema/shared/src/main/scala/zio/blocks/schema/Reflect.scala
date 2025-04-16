@@ -17,6 +17,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def doc(value: String): Reflect[F, A]
 
+  def defaultValue(value: => A): Reflect[F, A]
+
   def examples(value: A, values: A*): Reflect[F, A]
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
@@ -45,6 +47,14 @@ object Reflect {
     type NodeBinding = BindingType.Record
 
     def doc(value: String): Record[F, A] = copy(doc = Doc.Text(value))
+
+    def defaultValue(value: => A): Record[F, A] =
+      copy(recordBinding =
+        recordBinding
+          .asInstanceOf[Binding[BindingType.Record, A]]
+          .defaultValue(value)
+          .asInstanceOf[F[BindingType.Record, A]]
+      )
 
     def examples(value: A, values: A*): Record[F, A] =
       copy(recordBinding =
@@ -146,6 +156,14 @@ object Reflect {
 
     def doc(value: String): Variant[F, A] = copy(doc = Doc.Text(value))
 
+    def defaultValue(value: => A): Variant[F, A] =
+      copy(variantBinding =
+        variantBinding
+          .asInstanceOf[Binding[BindingType.Variant, A]]
+          .defaultValue(value)
+          .asInstanceOf[F[BindingType.Variant, A]]
+      )
+
     def examples(value: A, values: A*): Variant[F, A] =
       copy(variantBinding =
         variantBinding
@@ -187,6 +205,14 @@ object Reflect {
 
     def doc(value: String): Sequence[F, A, C] = copy(doc = Doc.Text(value))
 
+    def defaultValue(value: => C[A]): Sequence[F, A, C] =
+      copy(seqBinding =
+        seqBinding
+          .asInstanceOf[Binding[BindingType.Seq[C], C[A]]]
+          .defaultValue(value)
+          .asInstanceOf[F[BindingType.Seq[C], C[A]]]
+      )
+
     def examples(value: C[A], values: C[A]*): Sequence[F, A, C] =
       copy(seqBinding =
         seqBinding
@@ -225,6 +251,14 @@ object Reflect {
 
     def doc(value: String): Map[F, Key, Value, M] = copy(doc = Doc.Text(value))
 
+    def defaultValue(value: => M[Key, Value]): Map[F, Key, Value, M] =
+      copy(mapBinding =
+        mapBinding
+          .asInstanceOf[Binding[BindingType.Map[M], M[Key, Value]]]
+          .defaultValue(value)
+          .asInstanceOf[F[BindingType.Map[M], M[Key, Value]]]
+      )
+
     def examples(value: M[Key, Value], values: M[Key, Value]*): Map[F, Key, Value, M] =
       copy(mapBinding =
         mapBinding
@@ -262,6 +296,14 @@ object Reflect {
 
     def doc(value: String): Dynamic[F] = copy(doc = Doc.Text(value))
 
+    def defaultValue(value: => DynamicValue): Dynamic[F] =
+      copy(dynamicBinding =
+        dynamicBinding
+          .asInstanceOf[Binding[BindingType.Dynamic, DynamicValue]]
+          .defaultValue(value)
+          .asInstanceOf[F[BindingType.Dynamic, DynamicValue]]
+      )
+
     def examples(value: DynamicValue, values: DynamicValue*): Dynamic[F] =
       copy(dynamicBinding =
         dynamicBinding
@@ -289,6 +331,14 @@ object Reflect {
 
     def doc(value: String): Primitive[F, A] = copy(doc = Doc.Text(value))
 
+    def defaultValue(value: => A): Primitive[F, A] =
+      copy(primitiveBinding =
+        primitiveBinding
+          .asInstanceOf[Binding[BindingType.Primitive, A]]
+          .defaultValue(value)
+          .asInstanceOf[F[BindingType.Primitive, A]]
+      )
+
     def examples(value: A, values: A*): Primitive[F, A] =
       copy(primitiveBinding =
         primitiveBinding
@@ -315,6 +365,8 @@ object Reflect {
     type NodeBinding = value.NodeBinding
 
     def doc(value: String): Deferred[F, A] = copy(_value = () => _value().doc(value))
+
+    def defaultValue(value: => A): Deferred[F, A] = copy(_value = () => _value().defaultValue(value))
 
     def examples(value: A, values: A*): Deferred[F, A] = copy(_value = () => _value().examples(value, values: _*))
 
