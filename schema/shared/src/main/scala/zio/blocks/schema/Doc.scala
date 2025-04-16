@@ -1,9 +1,11 @@
 package zio.blocks.schema
 
+import scala.collection.immutable.ArraySeq
+
 sealed trait Doc {
   def +(that: Doc): Doc = Doc.Concat(this, that)
 
-  def flatten: List[Doc.Leaf]
+  def flatten: Seq[Doc.Leaf]
 
   override def hashCode: Int = flatten.hashCode
 
@@ -16,11 +18,11 @@ object Doc {
   sealed trait Leaf extends Doc
 
   case object Empty extends Leaf {
-    def flatten: List[Leaf] = Nil
+    def flatten: Seq[Leaf] = Nil
   }
 
   final case class Text(value: String) extends Leaf {
-    lazy val flatten: List[Leaf] = List(this)
+    lazy val flatten: Seq[Leaf] = ArraySeq(this)
 
     override def hashCode: Int = value.hashCode
 
@@ -32,7 +34,7 @@ object Doc {
   }
 
   final case class Concat(left: Doc, right: Doc) extends Doc {
-    lazy val flatten: List[Leaf] = left.flatten ++ right.flatten
+    lazy val flatten: Seq[Leaf] = left.flatten ++ right.flatten
   }
 
   def apply(value: String): Doc = Text(value)
