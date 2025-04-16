@@ -41,6 +41,9 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         assert(Schema(long1).doc)(equalTo(Doc("Long (positive)")))
       },
+      test("updates primitive documentation") {
+        assert(Schema[Int].doc("Int (updated)").doc)(equalTo(Doc("Int (updated)")))
+      },
       test("has access to primitive examples") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
@@ -50,6 +53,9 @@ object SchemaSpec extends ZIOSpecDefault {
           modifiers = Nil
         )
         assert(Schema(long1).examples)(equalTo(List(1L, 2L, 3L)))
+      },
+      test("updates primitive examples") {
+        assert(Schema[Int].examples(1, 2, 3).examples)(equalTo(List(1, 2, 3)))
       }
     ),
     suite("Reflect.Record")(
