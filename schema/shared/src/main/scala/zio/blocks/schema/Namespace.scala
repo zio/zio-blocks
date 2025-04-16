@@ -1,5 +1,5 @@
 package zio.blocks.schema
 
-final case class Namespace(packages: List[String], values: List[String]) {
-  val elements: List[String] = packages ++ values
+final case class Namespace(packages: Seq[String], values: Seq[String]) {
+  val elements: Seq[String] = packages ++ values
 }

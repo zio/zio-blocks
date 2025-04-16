@@ -27,7 +27,7 @@ sealed trait Binding[T, A] { self =>
    * A user-defined list of example values for the type `A`, to be used for
    * testing and documentation.
    */
-  def examples: List[A]
+  def examples: Seq[A]
 
   def examples(value: A, values: A*): Binding[T, A]
 }
@@ -37,7 +37,7 @@ object Binding {
 
   final case class Primitive[A](
     defaultValue: Option[() => A] = None,
-    examples: List[A] = Nil
+    examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Primitive, A] {
     def defaultValue(value: => A): Primitive[A] = copy(defaultValue = Some(() => value))
 
@@ -110,7 +110,7 @@ object Binding {
     constructor: Constructor[A],
     deconstructor: Deconstructor[A],
     defaultValue: Option[() => A] = None,
-    examples: List[A] = Nil
+    examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Record, A] {
     def transform[B](f: A => B)(g: B => A): Record[B] = Record(
       constructor.map(f),
@@ -847,7 +847,7 @@ object Binding {
     discriminator: Discriminator[A],
     matchers: Matchers[A],
     defaultValue: Option[() => A] = None,
-    examples: List[A] = Nil
+    examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Variant, A] {
     def defaultValue(value: => A): Variant[A] = copy(defaultValue = Some(() => value))
 
@@ -866,7 +866,7 @@ object Binding {
     constructor: SeqConstructor[C],
     deconstructor: SeqDeconstructor[C],
     defaultValue: Option[() => C[A]] = None,
-    examples: List[C[A]] = Nil
+    examples: collection.immutable.Seq[C[A]] = Nil
   ) extends Binding[BindingType.Seq[C], C[A]] {
     def defaultValue(value: => C[A]): Seq[C, A] = copy(defaultValue = Some(() => value))
 
@@ -889,7 +889,7 @@ object Binding {
     constructor: MapConstructor[M],
     deconstructor: MapDeconstructor[M],
     defaultValue: Option[() => M[K, V]] = None,
-    examples: List[M[K, V]] = Nil
+    examples: collection.immutable.Seq[M[K, V]] = Nil
   ) extends Binding[BindingType.Map[M], M[K, V]] {
     def defaultValue(value: => M[K, V]): Map[M, K, V] = copy(defaultValue = Some(() => value))
 
@@ -902,7 +902,7 @@ object Binding {
 
   final case class Dynamic(
     defaultValue: Option[() => DynamicValue] = None,
-    examples: List[DynamicValue] = Nil
+    examples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Binding[BindingType.Dynamic, DynamicValue] {
     def defaultValue(value: => DynamicValue): Dynamic = copy(defaultValue = Some(() => value))
 

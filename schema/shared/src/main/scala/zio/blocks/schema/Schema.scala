@@ -39,11 +39,11 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def encode[F <: codec.Format](format: F)(output: format.EncodeOutput)(value: A): Unit =
     getInstance(format).encode(value, output)
 
-  def examples: List[A] = reflect.binding.examples
+  def examples: Seq[A] = reflect.binding.examples
 
   def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*))
 
-  def examples[B](optic: Optic.Bound[A, B]): List[B] = optic.focus.binding.examples
+  def examples[B](optic: Optic.Bound[A, B]): Seq[B] = optic.focus.binding.examples
 
   def examples[B](optic: Optic.Bound[A, B])(value: B, values: B*): Schema[A] = ??? // TODO
 

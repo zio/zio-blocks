@@ -16,8 +16,8 @@ package zio.blocks.schema
 final case class DerivationBuilder[TC[_], A](
   schema: Schema[A],
   deriver: Deriver[TC],
-  instanceOverrides: Vector[DeriveOverride[TC, A, ?]],
-  modifierOverrides: Vector[ModifierOverride[A, ?]]
+  instanceOverrides: IndexedSeq[DeriveOverride[TC, A, ?]],
+  modifierOverrides: IndexedSeq[ModifierOverride[A, ?]]
 ) {
   def instance[B](optic: Optic.Bound[A, B], instance: TC[B]): DerivationBuilder[TC, A] = {
     val override_ = DeriveOverride(optic, instance)

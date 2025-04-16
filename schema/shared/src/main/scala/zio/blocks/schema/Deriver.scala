@@ -21,24 +21,24 @@ trait Deriver[TC[_]] { self =>
   def derivePrimitive[F[_, _], A](prim: Reflect.Primitive[F, A]): TC[A]
 
   def deriveRecord[F[_, _], A](
-    fields: List[Term[F, A, ?]],
+    fields: Seq[Term[F, A, ?]],
     typeName: TypeName[A],
     doc: Doc,
-    modifiers: List[Modifier.Record]
+    modifiers: Seq[Modifier.Record]
   )(implicit F: HasBinding[F]): TC[A]
 
   def deriveVariant[F[_, _], A](
-    cases: List[Term[F, A, ?]],
+    cases: Seq[Term[F, A, ?]],
     typeName: TypeName[A],
     doc: Doc,
-    modifiers: List[Modifier.Variant]
+    modifiers: Seq[Modifier.Variant]
   )(implicit B: HasBinding[F], D: HasDerivation[F]): TC[A]
 
   def deriveSeq[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeName: TypeName[C[A]],
     doc: Doc,
-    modifiers: List[Modifier.Seq]
+    modifiers: Seq[Modifier.Seq]
   )(implicit B: HasBinding[F], D: HasDerivation[F]): TC[C[A]]
 
   def deriveMap[F[_, _], M[_, _], K, V](
@@ -46,6 +46,6 @@ trait Deriver[TC[_]] { self =>
     value: Reflect[F, V],
     typeName: TypeName[M[K, V]],
     doc: Doc,
-    modifiers: List[Modifier.Map]
+    modifiers: Seq[Modifier.Map]
   )(implicit B: HasBinding[F], D: HasDerivation[F]): TC[M[K, V]]
 }

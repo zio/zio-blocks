@@ -23,7 +23,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
 
-  def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, List.empty)
+  def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
 
   override def hashCode: Int = inner.hashCode
 
@@ -37,11 +37,11 @@ object Reflect {
   type Bound[A] = Reflect[Binding, A]
 
   final case class Record[F[_, _], A](
-    fields: List[Term[F, A, ?]],
+    fields: Seq[Term[F, A, ?]],
     typeName: TypeName[A],
     recordBinding: F[BindingType.Record, A],
     doc: Doc,
-    modifiers: List[Modifier.Record]
+    modifiers: Seq[Modifier.Record]
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (fields, typeName, doc, modifiers)
     type NodeBinding = BindingType.Record
@@ -144,11 +144,11 @@ object Reflect {
   }
 
   final case class Variant[F[_, _], A](
-    cases: List[Term[F, A, ? <: A]],
+    cases: Seq[Term[F, A, ? <: A]],
     typeName: TypeName[A],
     variantBinding: F[BindingType.Variant, A],
     doc: Doc,
-    modifiers: List[Modifier.Variant]
+    modifiers: Seq[Modifier.Variant]
   ) extends Reflect[F, A] {
     protected def inner: Any = (cases, typeName, doc, modifiers)
 
@@ -197,7 +197,7 @@ object Reflect {
     seqBinding: F[BindingType.Seq[C], C[A]],
     typeName: TypeName[C[A]],
     doc: Doc,
-    modifiers: List[Modifier.Seq]
+    modifiers: Seq[Modifier.Seq]
   ) extends Reflect[F, C[A]] {
     protected def inner: Any = (element, typeName, doc, modifiers)
 
@@ -243,7 +243,7 @@ object Reflect {
     mapBinding: F[BindingType.Map[M], M[Key, Value]],
     typeName: TypeName[M[Key, Value]],
     doc: Doc,
-    modifiers: List[Modifier.Map]
+    modifiers: Seq[Modifier.Map]
   ) extends Reflect[F, M[Key, Value]] {
     protected def inner: Any = (key, value, typeName, doc, modifiers)
 
@@ -288,7 +288,7 @@ object Reflect {
   final case class Dynamic[F[_, _]](
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
     doc: Doc,
-    modifiers: List[Modifier.Dynamic]
+    modifiers: Seq[Modifier.Dynamic]
   ) extends Reflect[F, DynamicValue] {
     protected def inner: Any = (modifiers, modifiers, doc)
 
@@ -323,7 +323,7 @@ object Reflect {
     primitiveBinding: F[BindingType.Primitive, A],
     typeName: TypeName[A],
     doc: Doc,
-    modifiers: List[Modifier.Primitive]
+    modifiers: Seq[Modifier.Primitive]
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (primitiveType, typeName, doc, modifiers)
 
@@ -351,7 +351,7 @@ object Reflect {
 
     def defaultValue(implicit F: HasBinding[F]): Option[() => A] = binding.defaultValue
 
-    def examples(implicit F: HasBinding[F]): List[A] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Primitive[G, A] =
       Primitive(primitiveType, f(primitiveBinding), typeName, doc, modifiers)
@@ -372,7 +372,7 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 
-    def modifiers: List[Modifier] = value.modifiers
+    def modifiers: Seq[Modifier] = value.modifiers
 
     def doc: Doc = value.doc
 
@@ -694,82 +694,82 @@ object Reflect {
 
   def some[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
     Record(
-      List(Term("value", element, Doc.Empty, List.empty)),
+      Seq(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[A],
       F.fromBinding(Binding.Record.some[A]),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
-    Record(List.empty, TypeName.none, F.fromBinding(Binding.Record.none), Doc.Empty, List.empty)
+    Record(Nil, TypeName.none, F.fromBinding(Binding.Record.none), Doc.Empty, Nil)
 
   def option[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
     Variant(
-      List(
-        Term("None", none, Doc.Empty, List.empty),
-        Term("Some", some[F, A](element), Doc.Empty, List.empty)
+      Seq(
+        Term("None", none, Doc.Empty, Nil),
+        Term("Some", some[F, A](element), Doc.Empty, Nil)
       ),
       TypeName.option,
       F.fromBinding(Binding.Variant.option),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] =
     Record(
-      List(Term("value", element, Doc.Empty, List.empty)),
+      Seq(Term("value", element, Doc.Empty, Nil)),
       TypeName.left,
       F.fromBinding(Binding.Record.left),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] =
     Record(
-      List(Term("value", element, Doc.Empty, List.empty)),
+      Seq(Term("value", element, Doc.Empty, Nil)),
       TypeName.right,
       F.fromBinding(Binding.Record.right),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def either[F[_, _], L, R](l: Reflect[F, L], r: Reflect[F, R])(implicit
     F: FromBinding[F]
   ): Variant[F, scala.Either[L, R]] =
     Variant(
-      List(
-        Term("Left", left(l), Doc.Empty, List.empty),
-        Term("Right", right(r), Doc.Empty, List.empty)
+      Seq(
+        Term("Left", left(l), Doc.Empty, Nil),
+        Term("Right", right(r), Doc.Empty, Nil)
       ),
       TypeName.either,
       F.fromBinding(Binding.Variant.either),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple2[F[_, _], A, B](_1: Reflect[F, A], _2: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, (A, B)] =
     Record(
-      List(Term("_1", _1, Doc.Empty, List.empty), Term("_2", _2, Doc.Empty, List.empty)),
+      Seq(Term("_1", _1, Doc.Empty, Nil), Term("_2", _2, Doc.Empty, Nil)),
       TypeName.tuple2,
       F.fromBinding(Binding.Record.tuple2),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple3[F[_, _], A, B, C](_1: Reflect[F, A], _2: Reflect[F, B], _3: Reflect[F, C])(implicit
     F: FromBinding[F]
   ): Record[F, (A, B, C)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil)
       ),
       TypeName.tuple3,
       F.fromBinding(Binding.Record.tuple3),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple4[F[_, _], A, B, C, D](
@@ -779,16 +779,16 @@ object Reflect {
     _4: Reflect[F, D]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil)
       ),
       TypeName.tuple4,
       F.fromBinding(Binding.Record.tuple4),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple5[F[_, _], A, B, C, D, E](
@@ -799,17 +799,17 @@ object Reflect {
     _5: Reflect[F, E]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil)
       ),
       TypeName.tuple5,
       F.fromBinding(Binding.Record.tuple5),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple6[F[_, _], A, B, C, D, E, G](
@@ -821,18 +821,18 @@ object Reflect {
     _6: Reflect[F, G]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil)
       ),
       TypeName.tuple6,
       F.fromBinding(Binding.Record.tuple6),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple7[F[_, _], A, B, C, D, E, G, H](
@@ -845,19 +845,19 @@ object Reflect {
     _7: Reflect[F, H]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil)
       ),
       TypeName.tuple7,
       F.fromBinding(Binding.Record.tuple7),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple8[F[_, _], A, B, C, D, E, G, H, I](
@@ -871,20 +871,20 @@ object Reflect {
     _8: Reflect[F, I]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil)
       ),
       TypeName.tuple8,
       F.fromBinding(Binding.Record.tuple8),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple9[F[_, _], A, B, C, D, E, G, H, I, J](
@@ -899,21 +899,21 @@ object Reflect {
     _9: Reflect[F, J]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil)
       ),
       TypeName.tuple9,
       F.fromBinding(Binding.Record.tuple9),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple10[F[_, _], A, B, C, D, E, G, H, I, J, K](
@@ -929,22 +929,22 @@ object Reflect {
     _10: Reflect[F, K]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil)
       ),
       TypeName.tuple10,
       F.fromBinding(Binding.Record.tuple10),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple11[F[_, _], A, B, C, D, E, G, H, I, J, K, L](
@@ -961,23 +961,23 @@ object Reflect {
     _11: Reflect[F, L]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil)
       ),
       TypeName.tuple11,
       F.fromBinding(Binding.Record.tuple11),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple12[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M](
@@ -995,24 +995,24 @@ object Reflect {
     _12: Reflect[F, M]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil)
       ),
       TypeName.tuple12,
       F.fromBinding(Binding.Record.tuple12),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple13[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N](
@@ -1031,25 +1031,25 @@ object Reflect {
     _13: Reflect[F, N]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil)
       ),
       TypeName.tuple13,
       F.fromBinding(Binding.Record.tuple13),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple14[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O](
@@ -1069,26 +1069,26 @@ object Reflect {
     _14: Reflect[F, O]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil)
       ),
       TypeName.tuple14,
       F.fromBinding(Binding.Record.tuple14),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple15[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P](
@@ -1109,27 +1109,27 @@ object Reflect {
     _15: Reflect[F, P]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil)
       ),
       TypeName.tuple15,
       F.fromBinding(Binding.Record.tuple15),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple16[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q](
@@ -1151,28 +1151,28 @@ object Reflect {
     _16: Reflect[F, Q]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty),
-        Term("_16", _16, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil),
+        Term("_16", _16, Doc.Empty, Nil)
       ),
       TypeName.tuple16,
       F.fromBinding(Binding.Record.tuple16),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple17[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R](
@@ -1195,29 +1195,29 @@ object Reflect {
     _17: Reflect[F, R]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty),
-        Term("_16", _16, Doc.Empty, List.empty),
-        Term("_17", _17, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil),
+        Term("_16", _16, Doc.Empty, Nil),
+        Term("_17", _17, Doc.Empty, Nil)
       ),
       TypeName.tuple17,
       F.fromBinding(Binding.Record.tuple17),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple18[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S](
@@ -1241,30 +1241,30 @@ object Reflect {
     _18: Reflect[F, S]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty),
-        Term("_16", _16, Doc.Empty, List.empty),
-        Term("_17", _17, Doc.Empty, List.empty),
-        Term("_18", _18, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil),
+        Term("_16", _16, Doc.Empty, Nil),
+        Term("_17", _17, Doc.Empty, Nil),
+        Term("_18", _18, Doc.Empty, Nil)
       ),
       TypeName.tuple18,
       F.fromBinding(Binding.Record.tuple18),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple19[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T](
@@ -1289,31 +1289,31 @@ object Reflect {
     _19: Reflect[F, T]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty),
-        Term("_16", _16, Doc.Empty, List.empty),
-        Term("_17", _17, Doc.Empty, List.empty),
-        Term("_18", _18, Doc.Empty, List.empty),
-        Term("_19", _19, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil),
+        Term("_16", _16, Doc.Empty, Nil),
+        Term("_17", _17, Doc.Empty, Nil),
+        Term("_18", _18, Doc.Empty, Nil),
+        Term("_19", _19, Doc.Empty, Nil)
       ),
       TypeName.tuple19,
       F.fromBinding(Binding.Record.tuple19),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple20[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U](
@@ -1339,32 +1339,32 @@ object Reflect {
     _20: Reflect[F, U]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty),
-        Term("_16", _16, Doc.Empty, List.empty),
-        Term("_17", _17, Doc.Empty, List.empty),
-        Term("_18", _18, Doc.Empty, List.empty),
-        Term("_19", _19, Doc.Empty, List.empty),
-        Term("_20", _20, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil),
+        Term("_16", _16, Doc.Empty, Nil),
+        Term("_17", _17, Doc.Empty, Nil),
+        Term("_18", _18, Doc.Empty, Nil),
+        Term("_19", _19, Doc.Empty, Nil),
+        Term("_20", _20, Doc.Empty, Nil)
       ),
       TypeName.tuple20,
       F.fromBinding(Binding.Record.tuple20),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple21[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V](
@@ -1391,33 +1391,33 @@ object Reflect {
     _21: Reflect[F, V]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty),
-        Term("_16", _16, Doc.Empty, List.empty),
-        Term("_17", _17, Doc.Empty, List.empty),
-        Term("_18", _18, Doc.Empty, List.empty),
-        Term("_19", _19, Doc.Empty, List.empty),
-        Term("_20", _20, Doc.Empty, List.empty),
-        Term("_21", _21, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil),
+        Term("_16", _16, Doc.Empty, Nil),
+        Term("_17", _17, Doc.Empty, Nil),
+        Term("_18", _18, Doc.Empty, Nil),
+        Term("_19", _19, Doc.Empty, Nil),
+        Term("_20", _20, Doc.Empty, Nil),
+        Term("_21", _21, Doc.Empty, Nil)
       ),
       TypeName.tuple21,
       F.fromBinding(Binding.Record.tuple21),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   def tuple22[F[_, _], A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W](
@@ -1445,34 +1445,34 @@ object Reflect {
     _22: Reflect[F, W]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W)] =
     Record(
-      List(
-        Term("_1", _1, Doc.Empty, List.empty),
-        Term("_2", _2, Doc.Empty, List.empty),
-        Term("_3", _3, Doc.Empty, List.empty),
-        Term("_4", _4, Doc.Empty, List.empty),
-        Term("_5", _5, Doc.Empty, List.empty),
-        Term("_6", _6, Doc.Empty, List.empty),
-        Term("_7", _7, Doc.Empty, List.empty),
-        Term("_8", _8, Doc.Empty, List.empty),
-        Term("_9", _9, Doc.Empty, List.empty),
-        Term("_10", _10, Doc.Empty, List.empty),
-        Term("_11", _11, Doc.Empty, List.empty),
-        Term("_12", _12, Doc.Empty, List.empty),
-        Term("_13", _13, Doc.Empty, List.empty),
-        Term("_14", _14, Doc.Empty, List.empty),
-        Term("_15", _15, Doc.Empty, List.empty),
-        Term("_16", _16, Doc.Empty, List.empty),
-        Term("_17", _17, Doc.Empty, List.empty),
-        Term("_18", _18, Doc.Empty, List.empty),
-        Term("_19", _19, Doc.Empty, List.empty),
-        Term("_20", _20, Doc.Empty, List.empty),
-        Term("_21", _21, Doc.Empty, List.empty),
-        Term("_22", _22, Doc.Empty, List.empty)
+      ArraySeq(
+        Term("_1", _1, Doc.Empty, Nil),
+        Term("_2", _2, Doc.Empty, Nil),
+        Term("_3", _3, Doc.Empty, Nil),
+        Term("_4", _4, Doc.Empty, Nil),
+        Term("_5", _5, Doc.Empty, Nil),
+        Term("_6", _6, Doc.Empty, Nil),
+        Term("_7", _7, Doc.Empty, Nil),
+        Term("_8", _8, Doc.Empty, Nil),
+        Term("_9", _9, Doc.Empty, Nil),
+        Term("_10", _10, Doc.Empty, Nil),
+        Term("_11", _11, Doc.Empty, Nil),
+        Term("_12", _12, Doc.Empty, Nil),
+        Term("_13", _13, Doc.Empty, Nil),
+        Term("_14", _14, Doc.Empty, Nil),
+        Term("_15", _15, Doc.Empty, Nil),
+        Term("_16", _16, Doc.Empty, Nil),
+        Term("_17", _17, Doc.Empty, Nil),
+        Term("_18", _18, Doc.Empty, Nil),
+        Term("_19", _19, Doc.Empty, Nil),
+        Term("_20", _20, Doc.Empty, Nil),
+        Term("_21", _21, Doc.Empty, Nil),
+        Term("_22", _22, Doc.Empty, Nil)
       ),
       TypeName.tuple22,
       F.fromBinding(Binding.Record.tuple22),
       Doc.Empty,
-      List.empty
+      Nil
     )
 
   object Extractors {
