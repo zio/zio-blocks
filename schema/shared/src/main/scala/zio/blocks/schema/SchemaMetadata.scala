@@ -26,12 +26,14 @@ final case class SchemaMetadata[F[_, _], S, G[_]](private val map: Map[Optic[F, 
 
   def size: Int = map.size
 }
+
 object SchemaMetadata {
   trait Folder[F[_, _], S, G[_], Z] {
     def initial: Z
 
     def fold[A](z: Z, optic: Optic[F, S, A], value: G[A]): Z
   }
+
   object Folder {
     type Bound[S, G[_], Z] = Folder[Binding, S, G, Z]
 
@@ -43,6 +45,7 @@ object SchemaMetadata {
       def fold[A](z: Z, optic: Optic[Binding, S, A], value: Id[A]): Z = f(z, optic)
     }
   }
+
   type Id[A] = A
 
   type Bound[S, G[_]] = SchemaMetadata[Binding, S, G]

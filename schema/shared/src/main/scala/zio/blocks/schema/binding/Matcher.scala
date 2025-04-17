@@ -17,6 +17,7 @@ trait Matcher[+A] {
    */
   final def downcastOption(any: Any): Option[A] = Option(downcastOrNull(any))
 }
+
 object Matcher {
   def apply[A](implicit m: Matcher[A]): Matcher[A] = m
 
@@ -32,42 +33,42 @@ object Matcher {
 
   implicit def failure[A]: Matcher[scala.util.Failure[A]] = _failureMatcher.asInstanceOf[Matcher[scala.util.Failure[A]]]
 
-  private val _someMatcher: Matcher[Some[Any]] = new Matcher[Some[Any]] {
+  private[this] val _someMatcher: Matcher[Some[Any]] = new Matcher[Some[Any]] {
     def downcastOrNull(any: Any): Some[Any] = any match {
       case x: Some[_] => x
       case _          => null
     }
   }
 
-  private val _noneMatcher: Matcher[None.type] = new Matcher[None.type] {
+  private[this] val _noneMatcher: Matcher[None.type] = new Matcher[None.type] {
     def downcastOrNull(any: Any): None.type = any match {
       case None => None
       case _    => null.asInstanceOf[None.type]
     }
   }
 
-  private val _leftMatcher: Matcher[Left[Any, Any]] = new Matcher[Left[Any, Any]] {
+  private[this] val _leftMatcher: Matcher[Left[Any, Any]] = new Matcher[Left[Any, Any]] {
     def downcastOrNull(any: Any): Left[Any, Any] = any match {
       case x: Left[_, _] => x
       case _             => null
     }
   }
 
-  private val _rightMatcher: Matcher[Right[Any, Any]] = new Matcher[Right[Any, Any]] {
+  private[this] val _rightMatcher: Matcher[Right[Any, Any]] = new Matcher[Right[Any, Any]] {
     def downcastOrNull(any: Any): Right[Any, Any] = any match {
       case x: Right[_, _] => x
       case _              => null
     }
   }
 
-  private val _successMatcher: Matcher[scala.util.Success[Any]] = new Matcher[scala.util.Success[Any]] {
+  private[this] val _successMatcher: Matcher[scala.util.Success[Any]] = new Matcher[scala.util.Success[Any]] {
     def downcastOrNull(any: Any): scala.util.Success[Any] = any match {
       case x: scala.util.Success[_] => x
       case _                        => null
     }
   }
 
-  private val _failureMatcher: Matcher[scala.util.Failure[Any]] = new Matcher[scala.util.Failure[Any]] {
+  private[this] val _failureMatcher: Matcher[scala.util.Failure[Any]] = new Matcher[scala.util.Failure[Any]] {
     def downcastOrNull(any: Any): scala.util.Failure[Any] = any match {
       case x: scala.util.Failure[_] => x
       case _                        => null
