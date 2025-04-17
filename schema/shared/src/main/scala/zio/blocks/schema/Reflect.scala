@@ -361,7 +361,7 @@ object Reflect {
   case class Deferred[F[_, _], A](_value: () => Reflect[F, A]) extends Reflect[F, A] {
     protected def inner: Any = value.inner
 
-    lazy val value: Reflect[F, A] = _value()
+    final lazy val value: Reflect[F, A] = _value()
 
     type NodeBinding = value.NodeBinding
 
