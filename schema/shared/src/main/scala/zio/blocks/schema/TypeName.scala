@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 final case class TypeName[A](namespace: Namespace, name: String)
+
 object TypeName {
   val unit: TypeName[Unit] = TypeName(Namespace("scala" :: Nil, Nil), "Unit")
 

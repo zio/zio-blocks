@@ -15,7 +15,6 @@ trait ZSource[-R, +E, +A] {
 }
 
 abstract class ZSourceFiber[+E, +A] { self =>
-
   final def map[B](f: A => B): ZSourceFiber[E, B] = ZSourceFiber.Map(self, f)
 
   final def flatMap[E1 >: E, B](f: A => ZSourceFiber[E1, B]): ZSourceFiber[E1, B] = ZSourceFiber.FlatMap(self, f)
@@ -34,6 +33,7 @@ abstract class ZSourceFiber[+E, +A] { self =>
 
   def unsafeAsyncClose(runnable: Runnable): Boolean
 }
+
 object ZSourceFiber {
   case object Empty extends Exception with NoStackTrace
 
@@ -50,8 +50,9 @@ object ZSourceFiber {
 
     def unsafeAsyncClose(runnable: Runnable): Boolean = self.unsafeAsyncClose(runnable)
   }
+
   final case class FlatMap[E, A, B](self: ZSourceFiber[E, A], f: A => ZSourceFiber[E, B]) extends ZSourceFiber[E, B] {
-    private var current: ZSourceFiber[E, B] = _
+    private[this] var current: ZSourceFiber[E, B] = _
 
     private def attemptCurrent(): Boolean = {
       if (current eq null) {

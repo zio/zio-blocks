@@ -2,8 +2,10 @@ package zio.blocks.schema
 
 // Must be pure data
 sealed trait Modifier extends scala.annotation.StaticAnnotation
+
 object Modifier {
-  sealed trait Term     extends Modifier
+  sealed trait Term extends Modifier
+
   case object transient extends Term
 
   sealed trait Record extends Modifier
@@ -24,7 +26,7 @@ object Modifier {
    * example, `protobuf.field-id` is a key that specifies the field id for a
    * protobuf format.
    */
-  final case class config(key: String, value: String)
+  case class config(key: String, value: String)
       extends Term
       with Record
       with Variant

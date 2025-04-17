@@ -1,6 +1,7 @@
 package zio.blocks.schema.binding
 
 sealed trait RegisterType[A]
+
 object RegisterType {
   case object Unit                 extends RegisterType[Unit]
   case object Char                 extends RegisterType[Char]
@@ -15,7 +16,7 @@ object RegisterType {
 
   def Object[A <: AnyRef](): RegisterType[A] = _object.asInstanceOf[RegisterType[A]]
 
-  private val _object: RegisterType[AnyRef] =
+  private[this] val _object: RegisterType[AnyRef] =
     new RegisterType[AnyRef] {
       override def toString: String = "Object"
 
