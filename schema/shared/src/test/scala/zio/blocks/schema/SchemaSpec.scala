@@ -80,6 +80,274 @@ object SchemaSpec extends ZIOSpecDefault {
         val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Record.schema)(equalTo(Record.schema)) &&
         assert(Record.schema.hashCode)(equalTo(Record.schema.hashCode)) &&
+        assert(Schema.none)(equalTo(Schema.none)) &&
+        assert(Schema.none.hashCode)(equalTo(Schema.none.hashCode)) &&
+        assert(Schema[Some[Short]])(equalTo(Schema[Some[Short]])) &&
+        assert(Schema[Some[Short]].hashCode)(equalTo(Schema[Some[Short]].hashCode)) &&
+        assert(Schema[Option[Short]])(equalTo(Schema[Option[Short]])) &&
+        assert(Schema[Option[Short]].hashCode)(equalTo(Schema[Option[Short]].hashCode)) &&
+        assert(Schema[Left[Char, Unit]])(equalTo(Schema[Left[Char, Unit]])) &&
+        assert(Schema[Left[Char, Unit]].hashCode)(equalTo(Schema[Left[Char, Unit]].hashCode)) &&
+        assert(Schema[Right[Char, Unit]])(equalTo(Schema[Right[Char, Unit]])) &&
+        assert(Schema[Right[Char, Unit]].hashCode)(equalTo(Schema[Right[Char, Unit]].hashCode)) &&
+        assert(Schema[(Int, Int)])(equalTo(Schema[(Int, Int)])) &&
+        assert(Schema[(Int, Int)].hashCode)(equalTo(Schema[(Int, Int)].hashCode)) &&
+        assert(Schema[(Int, Int, Int)])(equalTo(Schema[(Int, Int, Int)])) &&
+        assert(Schema[(Int, Int, Int)].hashCode)(equalTo(Schema[(Int, Int, Int)].hashCode)) &&
+        assert(Schema[(Int, Int, Int, Int)])(equalTo(Schema[(Int, Int, Int, Int)])) &&
+        assert(Schema[(Int, Int, Int, Int)].hashCode)(equalTo(Schema[(Int, Int, Int, Int)].hashCode)) &&
+        assert(Schema[(Int, Int, Int, Int, Int)])(equalTo(Schema[(Int, Int, Int, Int, Int)])) &&
+        assert(Schema[(Int, Int, Int, Int, Int)].hashCode)(equalTo(Schema[(Int, Int, Int, Int, Int)].hashCode)) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int)])(equalTo(Schema[(Int, Int, Int, Int, Int, Int)])) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int)])(equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int)])) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode)(
+          equalTo(
+            Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode
+          )
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])
+        ) &&
+        assert(
+          Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode
+        )(
+          equalTo(
+            Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)].hashCode
+          )
+        ) &&
+        assert(Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)])(
+          equalTo(
+            Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)]
+          )
+        ) &&
+        assert(
+          Schema[
+            (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+          ].hashCode
+        )(
+          equalTo(
+            Schema[
+              (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+            ].hashCode
+          )
+        ) &&
+        assert(
+          Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)]
+        )(
+          equalTo(
+            Schema[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)]
+          )
+        ) &&
+        assert(
+          Schema[
+            (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+          ].hashCode
+        )(
+          equalTo(
+            Schema[
+              (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+            ].hashCode
+          )
+        ) &&
+        assert(
+          Schema[
+            (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+          ]
+        )(
+          equalTo(
+            Schema[
+              (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+            ]
+          )
+        ) &&
+        assert(
+          Schema[
+            (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+          ].hashCode
+        )(
+          equalTo(
+            Schema[
+              (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)
+            ].hashCode
+          )
+        ) &&
+        assert(
+          Schema[
+            (
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int
+            )
+          ]
+        )(
+          equalTo(
+            Schema[
+              (
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int
+              )
+            ]
+          )
+        ) &&
+        assert(
+          Schema[
+            (
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int,
+              Int
+            )
+          ].hashCode
+        )(
+          equalTo(
+            Schema[
+              (
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int,
+                Int
+              )
+            ].hashCode
+          )
+        ) &&
         assert(Schema(record1))(equalTo(Record.schema)) &&
         assert(Schema(record1).hashCode)(equalTo(Record.schema.hashCode)) &&
         assert(Schema(record2))(not(equalTo(Record.schema))) &&
@@ -165,6 +433,8 @@ object SchemaSpec extends ZIOSpecDefault {
         val variant5 = variant1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Variant.schema)(equalTo(Variant.schema)) &&
         assert(Variant.schema.hashCode)(equalTo(Variant.schema.hashCode)) &&
+        assert(Schema[Either[Int, Long]])(equalTo(Schema[Either[Int, Long]])) &&
+        assert(Schema[Either[Int, Long]].hashCode)(equalTo(Schema[Either[Int, Long]].hashCode)) &&
         assert(Schema(variant1))(equalTo(Variant.schema)) &&
         assert(Schema(variant1).hashCode)(equalTo(Variant.schema.hashCode)) &&
         assert(Schema(variant2))(not(equalTo(Variant.schema))) &&
@@ -224,8 +494,10 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(sequence5))(not(equalTo(Schema[List[Double]])))
       },
       test("updates sequence default value") {
-        assert(Schema[List[Int]].reflect.binding.defaultValue)(isNone) &&
-        assert(Schema[List[Int]].defaultValue(Nil).reflect.binding.defaultValue.get.apply())(equalTo(Nil))
+        assert(Schema[Vector[Int]].reflect.binding.defaultValue)(isNone) &&
+        assert(Schema[Vector[Int]].defaultValue(Vector.empty).reflect.binding.defaultValue.get.apply())(
+          equalTo(Vector.empty)
+        )
       },
       test("has access to sequence documentation") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
@@ -255,7 +527,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
       },
       test("updates sequence documentation") {
-        assert(Schema[List[Int]].doc("List (updated)").doc)(equalTo(Doc("List (updated)")))
+        assert(Schema[Array[Int]].doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
       },
       test("has access to record examples") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
@@ -272,7 +544,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(sequence1).examples)(equalTo(Seq(List(0.1, 0.2, 0.3))))
       },
       test("updates sequence examples") {
-        assert(Schema[List[Int]].examples(List(1, 2, 3)).examples)(equalTo(Seq(List(1, 2, 3))))
+        assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
       test("has access to sequence value examples using traversal focus") {
         val long1 = Primitive(

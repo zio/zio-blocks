@@ -14,6 +14,7 @@ sealed trait Doc {
     case _         => false
   }
 }
+
 object Doc {
   sealed trait Leaf extends Doc
 
@@ -21,7 +22,7 @@ object Doc {
     def flatten: Seq[Leaf] = Nil
   }
 
-  final case class Text(value: String) extends Leaf {
+  case class Text(value: String) extends Leaf {
     lazy val flatten: Seq[Leaf] = ArraySeq(this)
 
     override def hashCode: Int = value.hashCode
@@ -33,7 +34,7 @@ object Doc {
     }
   }
 
-  final case class Concat(left: Doc, right: Doc) extends Doc {
+  case class Concat(left: Doc, right: Doc) extends Doc {
     lazy val flatten: Seq[Leaf] = left.flatten ++ right.flatten
   }
 

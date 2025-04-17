@@ -3,6 +3,7 @@ package zio.blocks.schema.binding
 trait SeqDeconstructor[C[_]] {
   def deconstruct[A](c: C[A]): Iterator[A]
 }
+
 object SeqDeconstructor {
   sealed trait SpecializedIndexed[C[_]] extends SeqDeconstructor[C] {
     def elementType[A](c: C[A]): RegisterType[A]
