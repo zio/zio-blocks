@@ -158,7 +158,7 @@ object Lens {
     }
 
     override def get(s: S)(implicit F: HasBinding[F]): A = {
-      if (bindings eq null) init
+      if ((bindings eq null) || (usedRegisters == RegisterOffset.Zero)) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -174,7 +174,7 @@ object Lens {
     }
 
     override def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
-      if (bindings eq null) init
+      if ((bindings eq null) || (usedRegisters == RegisterOffset.Zero)) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -198,7 +198,7 @@ object Lens {
     }
 
     def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = {
-      if (bindings eq null) init
+      if ((bindings eq null) || (usedRegisters == RegisterOffset.Zero)) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
