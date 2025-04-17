@@ -32,13 +32,13 @@ jobs:
         run: sbt "++2.13; check; ++3.3; check"
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         java: ['11', '21']
-        scala: ['2.13.16', '3.3.5']
+        os: ['ubuntu-22.04-arm', 'ubuntu-22.04']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v4.1.2
@@ -52,7 +52,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v6
       - name: Run tests
-        run: sbt ++${{ matrix.scala }}! test
+        run: sbt +test
 
   ci:
     runs-on: ubuntu-latest
