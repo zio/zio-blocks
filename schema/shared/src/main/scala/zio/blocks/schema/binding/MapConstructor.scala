@@ -9,6 +9,7 @@ trait MapConstructor[M[_, _]] {
 
   def resultObject[K, V](builder: ObjectBuilder[K, V]): M[K, V]
 }
+
 object MapConstructor {
   def apply[M[_, _]](implicit mc: MapConstructor[M]): MapConstructor[M] = mc
 

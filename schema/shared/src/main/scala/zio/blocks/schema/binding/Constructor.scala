@@ -34,8 +34,9 @@ abstract class Constructor[+A] { self =>
    */
   final def zip[B](that: Constructor[B]): Constructor[(A, B)] = Constructor.tuple2(self, that)
 }
+
 object Constructor {
-  private val _of = new Constructor[AnyRef] {
+  private[this] val _of = new Constructor[AnyRef] {
     def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
 
     def construct(in: Registers, baseOffset: RegisterOffset): AnyRef = in.getObject(baseOffset, 0)

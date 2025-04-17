@@ -35,7 +35,7 @@ sealed trait Binding[T, A] { self =>
 object Binding {
   type Unused[T, A] = Nothing
 
-  final case class Primitive[A](
+  case class Primitive[A](
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Primitive, A] {
@@ -106,7 +106,7 @@ object Binding {
     val uuid: Primitive[java.util.UUID] = Primitive[java.util.UUID]()
   }
 
-  final case class Record[A](
+  case class Record[A](
     constructor: Constructor[A],
     deconstructor: Deconstructor[A],
     defaultValue: Option[() => A] = None,
@@ -126,7 +126,7 @@ object Binding {
   object Record {
     def apply[A](implicit r: Record[A]): Record[A] = r
 
-    def of[A]: Record[A] = _tuple1.asInstanceOf[Record[A]]
+    def of[A]: Record[A] = _of.asInstanceOf[Record[A]]
 
     def some[A]: Record[Some[A]] = Record(Constructor.of[A].map(Some(_)), Deconstructor.of[A].contramap(_.value))
 
@@ -213,7 +213,7 @@ object Binding {
       Deconstructor.of[Any].contramap(_.value)
     )
 
-    private[this] val _tuple1 = new Record(Constructor.of[Any], Deconstructor.of[Any])
+    private[this] val _of = new Record(Constructor.of[Any], Deconstructor.of[Any])
 
     private[this] val _tuple2 = new Record(
       Constructor.tuple2(Constructor.of[Any], Constructor.of[Any]),
@@ -843,7 +843,7 @@ object Binding {
     )
   }
 
-  final case class Variant[A](
+  case class Variant[A](
     discriminator: Discriminator[A],
     matchers: Matchers[A],
     defaultValue: Option[() => A] = None,
@@ -862,7 +862,7 @@ object Binding {
     def either[L, R]: Variant[Either[L, R]] = Variant(Discriminator.either[L, R], Matchers(Matcher.left, Matcher.right))
   }
 
-  final case class Seq[C[_], A](
+  case class Seq[C[_], A](
     constructor: SeqConstructor[C],
     deconstructor: SeqDeconstructor[C],
     defaultValue: Option[() => C[A]] = None,
@@ -885,7 +885,7 @@ object Binding {
     def array[A]: Seq[Array, A] = Seq(SeqConstructor.arrayConstructor, SeqDeconstructor.arrayDeconstructor)
   }
 
-  final case class Map[M[_, _], K, V](
+  case class Map[M[_, _], K, V](
     constructor: MapConstructor[M],
     deconstructor: MapDeconstructor[M],
     defaultValue: Option[() => M[K, V]] = None,
@@ -900,7 +900,7 @@ object Binding {
     def map[K, V]: Map[Predef.Map, K, V] = Map(MapConstructor.map, MapDeconstructor.map)
   }
 
-  final case class Dynamic(
+  case class Dynamic(
     defaultValue: Option[() => DynamicValue] = None,
     examples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Binding[BindingType.Dynamic, DynamicValue] {

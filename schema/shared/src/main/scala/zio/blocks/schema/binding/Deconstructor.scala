@@ -32,8 +32,9 @@ abstract class Deconstructor[-A] { self =>
    */
   final def zip[B](that: Deconstructor[B]): Deconstructor[(A, B)] = Deconstructor.tuple2(self, that)
 }
+
 object Deconstructor {
-  private val _of = new Deconstructor[AnyRef] {
+  private[this] val _of = new Deconstructor[AnyRef] {
     def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
 
     def deconstruct(out: Registers, baseOffset: RegisterOffset, in: AnyRef): Unit = out.setObject(baseOffset, 0, in)

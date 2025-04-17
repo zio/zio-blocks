@@ -5,6 +5,7 @@ import zio.blocks.schema.binding.{Binding, HasBinding}
 final case class Instances[TC[_], A](automatic: () => TC[A], custom: Option[() => TC[A]]) {
   def derivation: TC[A] = custom.getOrElse(automatic)()
 }
+
 object Instances {}
 
 trait HasDerivation[F[_, _], TC[_]] {
