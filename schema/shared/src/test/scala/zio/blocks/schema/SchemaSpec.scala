@@ -750,7 +750,7 @@ object SchemaSpec extends ZIOSpecDefault {
     val schema: Schema[Case1] = Schema(
       reflect = Reflect.Record[Binding, Case1](
         fields = Seq(
-          Term("d", Reflect.double, Doc.Empty, Nil)
+          Reflect.double[Binding].asTerm("d")
         ),
         typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Case1"),
         recordBinding = Binding.Record(
@@ -779,10 +779,10 @@ object SchemaSpec extends ZIOSpecDefault {
   object Case2 {
     val schema: Schema[Case2] = Schema(
       reflect = Reflect.Record[Binding, Case2](
-        fields = Seq(
-          Term("s", Reflect.string, Doc.Empty, Nil)
+        fields = List(
+          Reflect.string[Binding].asTerm("s")
         ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Case2"),
+        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case2"),
         recordBinding = Binding.Record(
           constructor = new Constructor[Case2] {
             def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
