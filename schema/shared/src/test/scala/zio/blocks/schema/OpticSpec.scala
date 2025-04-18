@@ -1109,20 +1109,22 @@ object OpticSpec extends ZIOSpecDefault {
   }
 
   object Collections {
-    val lb: Traversal.Bound[List[Byte], Byte]             = Reflect.list(Reflect.byte[Binding]).values
-    val vs: Traversal.Bound[Vector[Short], Short]         = Traversal.vectorValues(Reflect.short)
-    val abl: Traversal.Bound[Array[Boolean], Boolean]     = Traversal.arrayValues(Reflect.boolean)
-    val ab: Traversal.Bound[Array[Byte], Byte]            = Traversal.arrayValues(Reflect.byte)
-    val ash: Traversal.Bound[Array[Short], Short]         = Traversal.arrayValues(Reflect.short)
-    val ai: Traversal.Bound[Array[Int], Int]              = Traversal.arrayValues(Reflect.int)
-    val al: Traversal.Bound[Array[Long], Long]            = Traversal.arrayValues(Reflect.long)
-    val ad: Traversal.Bound[Array[Double], Double]        = Traversal.arrayValues(Reflect.double)
-    val af: Traversal.Bound[Array[Float], Float]          = Traversal.arrayValues(Reflect.float)
-    val ac: Traversal.Bound[Array[Char], Char]            = Traversal.arrayValues(Reflect.char)
-    val as: Traversal.Bound[Array[String], String]        = Traversal.arrayValues(Reflect.string)
-    val sf: Traversal.Bound[Set[Float], Float]            = Traversal.setValues(Reflect.float)
-    val mkc: Traversal.Bound[Predef.Map[Char, String], Char]     = Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
-    val mvs: Traversal.Bound[Predef.Map[Char, String], String]   = Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
+    val lb: Traversal.Bound[List[Byte], Byte]         = Reflect.list(Reflect.byte[Binding]).values
+    val vs: Traversal.Bound[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
+    val abl: Traversal.Bound[Array[Boolean], Boolean] = Traversal.arrayValues(Reflect.boolean)
+    val ab: Traversal.Bound[Array[Byte], Byte]        = Traversal.arrayValues(Reflect.byte)
+    val ash: Traversal.Bound[Array[Short], Short]     = Traversal.arrayValues(Reflect.short)
+    val ai: Traversal.Bound[Array[Int], Int]          = Traversal.arrayValues(Reflect.int)
+    val al: Traversal.Bound[Array[Long], Long]        = Traversal.arrayValues(Reflect.long)
+    val ad: Traversal.Bound[Array[Double], Double]    = Traversal.arrayValues(Reflect.double)
+    val af: Traversal.Bound[Array[Float], Float]      = Traversal.arrayValues(Reflect.float)
+    val ac: Traversal.Bound[Array[Char], Char]        = Traversal.arrayValues(Reflect.char)
+    val as: Traversal.Bound[Array[String], String]    = Traversal.arrayValues(Reflect.string)
+    val sf: Traversal.Bound[Set[Float], Float]        = Traversal.setValues(Reflect.float)
+    val mkc: Traversal.Bound[Predef.Map[Char, String], Char] =
+      Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
+    val mvs: Traversal.Bound[Predef.Map[Char, String], String] =
+      Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
     lazy val lr1: Traversal.Bound[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
     lazy val lc1: Traversal.Bound[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
     lazy val lc1_d: Traversal.Bound[List[Variant1], Double] =
