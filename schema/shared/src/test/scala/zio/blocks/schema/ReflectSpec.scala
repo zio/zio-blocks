@@ -23,6 +23,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val long5 = long1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(long1)(equalTo(long1)) &&
         assert(long1.hashCode)(equalTo(long1.hashCode)) &&
+        assert(long1.noBinding: Any)(equalTo(long1)) &&
+        assert(long1.noBinding.hashCode)(equalTo(long1.hashCode)) &&
         assert(Reflect.long[Binding])(equalTo(long1)) &&
         assert(Reflect.long[Binding].hashCode)(equalTo(long1.hashCode)) &&
         assert(long2)(not(equalTo(long1))) &&
@@ -70,6 +72,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(record1)(equalTo(record1)) &&
         assert(record1.hashCode)(equalTo(record1.hashCode)) &&
+        assert(record1.noBinding: Any)(equalTo(record1)) &&
+        assert(record1.noBinding.hashCode)(equalTo(record1.hashCode)) &&
         assert(record2)(not(equalTo(record1))) &&
         assert(record3)(not(equalTo(record1))) &&
         assert(record4)(not(equalTo(record1))) &&
@@ -129,6 +133,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val variant2 = Reflect.either(Reflect.byte[Binding], Reflect.long[Binding])
         assert(variant1)(equalTo(variant1)) &&
         assert(variant1.hashCode)(equalTo(variant1.hashCode)) &&
+        assert(variant1.noBinding: Any)(equalTo(variant1)) &&
+        assert(variant1.noBinding.hashCode)(equalTo(variant1.hashCode)) &&
         assert(variant1.defaultValue(None))(equalTo(variant1)) &&
         assert(variant1.defaultValue(None).hashCode)(equalTo(variant1.hashCode)) &&
         assert(variant1.examples(Some(2)))(equalTo(variant1)) &&
@@ -176,6 +182,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val sequence5 = sequence1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(sequence1)(equalTo(sequence1)) &&
         assert(sequence1.hashCode)(equalTo(sequence1.hashCode)) &&
+        assert(sequence1.noBinding: Any)(equalTo(sequence1)) &&
+        assert(sequence1.noBinding.hashCode)(equalTo(sequence1.hashCode)) &&
         assert(sequence2)(not(equalTo(sequence1))) &&
         assert(sequence3)(not(equalTo(sequence1))) &&
         assert(sequence4)(not(equalTo(sequence1))) &&
@@ -245,6 +253,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val map6 = map1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(map1)(equalTo(map1)) &&
         assert(map1.hashCode)(equalTo(map1.hashCode)) &&
+        assert(map1.noBinding: Any)(equalTo(map1)) &&
+        assert(map1.noBinding.hashCode)(equalTo(map1.hashCode)) &&
         assert(map2)(not(equalTo(map1))) &&
         assert(map3)(not(equalTo(map1))) &&
         assert(map4)(not(equalTo(map1))) &&
@@ -316,6 +326,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val dynamic4 = dynamic1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(dynamic1)(equalTo(dynamic1)) &&
         assert(dynamic1.hashCode)(equalTo(dynamic1.hashCode)) &&
+        assert(dynamic1.noBinding: Any)(equalTo(dynamic1)) &&
+        assert(dynamic1.noBinding.hashCode)(equalTo(dynamic1.hashCode)) &&
         assert(dynamic2)(equalTo(dynamic1)) &&
         assert(dynamic2.hashCode)(equalTo(dynamic1.hashCode)) &&
         assert(dynamic3)(not(equalTo(dynamic1))) &&
@@ -368,6 +380,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(deferred1)(equalTo(deferred1)) &&
         assert(deferred1.hashCode)(equalTo(deferred1.hashCode)) &&
+        assert(deferred1.noBinding: Any)(equalTo(deferred1)) &&
+        assert(deferred1.noBinding.hashCode)(equalTo(deferred1.hashCode)) &&
         assert(deferred2)(equalTo(deferred1)) &&
         assert(deferred2.hashCode)(equalTo(deferred1.hashCode)) &&
         assert(deferred3)(equalTo(deferred1)) &&
