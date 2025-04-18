@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.schema.binding.Binding._
 import zio.blocks.schema.binding._
 
 object Main {
@@ -49,11 +50,11 @@ object Main {
     val personRecord: Reflect.Record.Bound[Person] =
       Reflect.Record(
         List(
-          Term("id", Reflect.uuid, Doc.Empty, Nil),
-          Term("name", Reflect.string, Doc.Empty, Nil),
-          Term("age", Reflect.int, Doc.Empty, Nil),
-          Term("address", Reflect.string, Doc.Empty, Nil),
-          Term("childrenAges", Reflect.list(Reflect.int), Doc.Empty, Nil)
+          Reflect.uuid.asTerm("id"),
+          Reflect.string.asTerm("name"),
+          Reflect.int.asTerm("age"),
+          Reflect.string.asTerm("address"),
+          Reflect.list(Reflect.int).asTerm("childrenAges")
         ),
         TypeName(Namespace(List("example"), Nil), "Person"),
         Binding.Record(constructor, deconstructor),
