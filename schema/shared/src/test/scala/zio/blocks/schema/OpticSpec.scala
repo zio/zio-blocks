@@ -654,8 +654,8 @@ object OpticSpec extends ZIOSpecDefault {
   object Record1 {
     val reflect: Reflect.Record.Bound[Record1] = Reflect.Record(
       fields = List(
-        Term("b", Reflect.boolean, Doc.Empty, Nil),
-        Term("f", Reflect.float, Doc.Empty, Nil)
+        Reflect.boolean[Binding].asTerm("b"),
+        Reflect.float[Binding].asTerm("f")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record1"),
       recordBinding = Binding.Record(
@@ -687,9 +687,9 @@ object OpticSpec extends ZIOSpecDefault {
   object Record2 {
     val reflect: Reflect.Record.Bound[Record2] = Reflect.Record(
       fields = List(
-        Term("l", Reflect.long, Doc.Empty, Nil),
-        Term("vi", Reflect.vector(Reflect.int), Doc.Empty, Nil),
-        Term("r1", Record1.reflect, Doc.Empty, Nil)
+        Reflect.long[Binding].asTerm("l"),
+        Reflect.vector(Reflect.int[Binding]).asTerm("vi"),
+        Record1.reflect.asTerm("r1")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record2"),
       recordBinding = Binding.Record(
@@ -730,9 +730,9 @@ object OpticSpec extends ZIOSpecDefault {
   object Record3 {
     val reflect: Reflect.Record.Bound[Record3] = Reflect.Record(
       fields = List(
-        Term("r1", Record1.reflect, Doc.Empty, Nil),
-        Term("r2", Record2.reflect, Doc.Empty, Nil),
-        Term("v1", Reflect.Deferred(() => Variant1.reflect), Doc.Empty, Nil)
+        Record1.reflect.asTerm("r1"),
+        Record2.reflect.asTerm("r2"),
+        Reflect.Deferred(() => Variant1.reflect).asTerm("v1")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record3"),
       recordBinding = Binding.Record(
@@ -775,9 +775,9 @@ object OpticSpec extends ZIOSpecDefault {
   object Variant1 {
     val reflect: Reflect.Variant.Bound[Variant1] = Reflect.Variant(
       cases = List(
-        Term("c1", Case1.reflect, Doc.Empty, Nil),
-        Term("c2", Case2.reflect, Doc.Empty, Nil),
-        Term("v2", Reflect.Deferred(() => Variant2.reflect), Doc.Empty, Nil)
+        Case1.reflect.asTerm("c1"),
+        Case2.reflect.asTerm("c2"),
+        Reflect.Deferred(() => Variant2.reflect).asTerm("v2")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant1"),
       variantBinding = Binding.Variant(
@@ -837,7 +837,7 @@ object OpticSpec extends ZIOSpecDefault {
   object Case1 {
     val reflect: Reflect.Record.Bound[Case1] = Reflect.Record(
       fields = List(
-        Term("d", Reflect.double, Doc.Empty, Nil)
+        Reflect.double[Binding].asTerm("d")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case1"),
       recordBinding = Binding.Record(
@@ -865,7 +865,7 @@ object OpticSpec extends ZIOSpecDefault {
   object Case2 {
     val reflect: Reflect.Record.Bound[Case2] = Reflect.Record(
       fields = List(
-        Term("r3", Record3.reflect, Doc.Empty, Nil)
+        Record3.reflect.asTerm("r3")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case2"),
       recordBinding = Binding.Record(
@@ -894,9 +894,9 @@ object OpticSpec extends ZIOSpecDefault {
   object Variant2 {
     val reflect: Reflect.Variant.Bound[Variant2] = Reflect.Variant(
       cases = List(
-        Term("c3", Case3.reflect, Doc.Empty, Nil),
-        Term("c4", Case4.reflect, Doc.Empty, Nil),
-        Term("v3", Reflect.Deferred(() => Variant3.reflect), Doc.Empty, Nil)
+        Case3.reflect.asTerm("c3"),
+        Case4.reflect.asTerm("c4"),
+        Reflect.Deferred(() => Variant3.reflect).asTerm("v3")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant2"),
       variantBinding = Binding.Variant(
@@ -947,7 +947,7 @@ object OpticSpec extends ZIOSpecDefault {
   object Case3 {
     val reflect: Reflect.Record.Bound[Case3] = Reflect.Record(
       fields = List(
-        Term("v1", Reflect.Deferred(() => Variant1.reflect), Doc.Empty, Nil)
+        Reflect.Deferred(() => Variant1.reflect).asTerm("v1")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case3"),
       recordBinding = Binding.Record(
@@ -981,7 +981,7 @@ object OpticSpec extends ZIOSpecDefault {
   object Case4 {
     val reflect: Reflect.Record.Bound[Case4] = Reflect.Record(
       fields = List(
-        Term("lr3", Reflect.list(Record3.reflect), Doc.Empty, Nil)
+        Reflect.list(Record3.reflect).asTerm("lr3")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case4"),
       recordBinding = Binding.Record(
@@ -1012,8 +1012,8 @@ object OpticSpec extends ZIOSpecDefault {
   object Variant3 {
     val reflect: Reflect.Variant.Bound[Variant3] = Reflect.Variant(
       cases = List(
-        Term("c5", Case5.reflect, Doc.Empty, Nil),
-        Term("c6", Case6.reflect, Doc.Empty, Nil)
+        Case5.reflect.asTerm("c5"),
+        Case6.reflect.asTerm("c6")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant3"),
       variantBinding = Binding.Variant(
@@ -1050,8 +1050,8 @@ object OpticSpec extends ZIOSpecDefault {
   object Case5 {
     val reflect: Reflect.Record.Bound[Case5] = Reflect.Record(
       fields = List(
-        Term("si", Reflect.set(Reflect.int), Doc.Empty, Nil),
-        Term("as", Reflect.array(Reflect.string), Doc.Empty, Nil)
+        Reflect.set(Reflect.int[Binding]).asTerm("si"),
+        Reflect.array(Reflect.string[Binding]).asTerm("as")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case5"),
       recordBinding = Binding.Record(
@@ -1086,7 +1086,7 @@ object OpticSpec extends ZIOSpecDefault {
   object Case6 {
     val reflect: Reflect.Record.Bound[Case6] = Reflect.Record(
       fields = List(
-        Term("v2", Reflect.Deferred(() => Variant2.reflect), Doc.Empty, Nil)
+        Reflect.Deferred(() => Variant2.reflect).asTerm("v2")
       ),
       typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case6"),
       recordBinding = Binding.Record(
@@ -1121,8 +1121,8 @@ object OpticSpec extends ZIOSpecDefault {
     val ac: Traversal.Bound[Array[Char], Char]            = Traversal.arrayValues(Reflect.char)
     val as: Traversal.Bound[Array[String], String]        = Traversal.arrayValues(Reflect.string)
     val sf: Traversal.Bound[Set[Float], Float]            = Traversal.setValues(Reflect.float)
-    val mkc: Traversal.Bound[Map[Char, String], Char]     = Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
-    val mvs: Traversal.Bound[Map[Char, String], String]   = Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
+    val mkc: Traversal.Bound[Predef.Map[Char, String], Char]     = Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
+    val mvs: Traversal.Bound[Predef.Map[Char, String], String]   = Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
     lazy val lr1: Traversal.Bound[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
     lazy val lc1: Traversal.Bound[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
     lazy val lc1_d: Traversal.Bound[List[Variant1], Double] =
