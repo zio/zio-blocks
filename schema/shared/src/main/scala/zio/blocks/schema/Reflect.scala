@@ -676,6 +676,9 @@ object Reflect {
       Nil
     )
 
+  def dynamic[F[_, _]](implicit F: FromBinding[F]): Dynamic[F] =
+    Dynamic(F.fromBinding(Binding.Dynamic()), Doc.Empty, Nil)
+
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
     Sequence(element, F.fromBinding(Binding.Seq.set), TypeName.set[A], Doc.Empty, Nil)
 
