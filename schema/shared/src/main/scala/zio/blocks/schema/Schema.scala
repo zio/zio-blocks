@@ -55,6 +55,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 object Schema {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
+  implicit val dynamic: Schema[DynamicValue] = Schema(Reflect.dynamic[Binding])
+
   implicit val unit: Schema[Unit] = Schema(Reflect.unit[Binding])
 
   implicit val boolean: Schema[Boolean] = Schema(Reflect.boolean[Binding])
