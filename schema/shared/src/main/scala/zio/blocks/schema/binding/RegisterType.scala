@@ -14,10 +14,10 @@ object RegisterType {
   case object Boolean              extends RegisterType[Boolean]
   sealed trait Object[A <: AnyRef] extends RegisterType[A]
 
-  def Object[A <: AnyRef](): RegisterType[A] = _object.asInstanceOf[RegisterType[A]]
+  def Object[A <: AnyRef](): Object[A] = _object.asInstanceOf[Object[A]]
 
-  private[this] val _object: RegisterType[AnyRef] =
-    new RegisterType[AnyRef] {
+  private[this] val _object =
+    new Object[AnyRef] {
       override def toString: String = "Object"
 
       override def equals(obj: Any): Boolean = obj.isInstanceOf[Object[_]]
