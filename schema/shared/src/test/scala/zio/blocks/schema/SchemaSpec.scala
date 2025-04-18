@@ -11,39 +11,22 @@ object SchemaSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.None),
-          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]], // should be ignored in equals and hashCode
-          typeName = TypeName.long,
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
-        val long3 = long1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Long1"))
-        val long4 = long1.copy(doc = Doc("text"))
-        val long5 = long1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Schema[Long])(equalTo(Schema[Long])) &&
         assert(Schema[Long].hashCode)(equalTo(Schema[Long].hashCode)) &&
-        assert(Schema(long1))(equalTo(Schema[Long])) &&
-        assert(Schema(long1).hashCode)(equalTo(Schema[Long].hashCode)) &&
-        assert(Schema(long2))(not(equalTo(Schema[Long]))) &&
-        assert(Schema(long3))(not(equalTo(Schema[Long]))) &&
-        assert(Schema(long4))(not(equalTo(Schema[Long]))) &&
-        assert(Schema(long5))(not(equalTo(Schema[Long])))
+        assert(Schema[Long].examples(1L, 2L, 3L))(equalTo(Schema[Long])) &&
+        assert(Schema[Long].examples(1L, 2L, 3L).hashCode)(equalTo(Schema[Long].hashCode)) &&
+        assert(Schema[Long].defaultValue(0L))(equalTo(Schema[Long])) &&
+        assert(Schema[Long].defaultValue(0L).hashCode)(equalTo(Schema[Long].hashCode)) &&
+        assert(Schema[Long].doc("Long"))(not(equalTo(Schema[Long]))) &&
+        assert(Schema[Int]: Any)(not(equalTo(Schema[Long]))) &&
+        assert(Schema[Double]: Any)(not(equalTo(Schema[Long])))
       },
       test("updates primitive default value") {
         assert(Schema[Int].reflect.binding.defaultValue)(isNone) &&
         assert(Schema[Int].defaultValue(1).reflect.binding.defaultValue.get.apply())(equalTo(1))
       },
       test("has access to primitive documentation") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.None),
-          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
-          typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
-        )
-        assert(Schema(long1).doc)(equalTo(Doc("Long (positive)")))
+        assert(Schema[Long].doc)(equalTo(Doc.Empty))
       },
       test("updates primitive documentation") {
         assert(Schema[Int].doc("Int (updated)").doc)(equalTo(Doc("Int (updated)")))
@@ -64,20 +47,6 @@ object SchemaSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Record")(
       test("has consistent equals and hashCode") {
-        val record1 = Reflect.Record(
-          fields = List[Term.Bound[Record, _]](
-            Term("b", Reflect.byte, Doc("Field b"), Nil),
-            Term("i", Reflect.int, Doc("Field i"), Nil)
-          ),
-          typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Record"),
-          recordBinding = null.asInstanceOf[Binding.Record[Record]], // should be ignored in equals and hashCode
-          doc = Doc("Record with 2 fields"),
-          modifiers = Nil
-        )
-        val record2 = record1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Record2"))
-        val record3 = record1.copy(fields = record1.fields.reverse)
-        val record4 = record1.copy(doc = Doc("text"))
-        val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Record.schema)(equalTo(Record.schema)) &&
         assert(Record.schema.hashCode)(equalTo(Record.schema.hashCode)) &&
         assert(Schema.none)(equalTo(Schema.none)) &&
@@ -348,45 +317,11 @@ object SchemaSpec extends ZIOSpecDefault {
             ].hashCode
           )
         ) &&
-        assert(Schema(record1))(equalTo(Record.schema)) &&
-        assert(Schema(record1).hashCode)(equalTo(Record.schema.hashCode)) &&
-        assert(Schema(record2))(not(equalTo(Record.schema))) &&
-        assert(Schema(record3))(not(equalTo(Record.schema))) &&
-        assert(Schema(record4))(not(equalTo(Record.schema))) &&
-        assert(Schema(record5))(not(equalTo(Record.schema)))
-      },
-      test("has consistent fields, length, registers and usedRegisters") {
-        val record1 = Record.schema.reflect.asInstanceOf[Reflect.Record.Bound[Record]]
-        val record2 = Case1.schema.reflect.asInstanceOf[Reflect.Record.Bound[Case1]]
-        val record3 = Case2.schema.reflect.asInstanceOf[Reflect.Record.Bound[Case2]]
-        assert(record1.length)(equalTo(2)) &&
-        assert(record1.fields.length)(equalTo(2)) &&
-        assert(record1.registers.length)(equalTo(2)) &&
-        assert(record1.fields(0).value.asInstanceOf[Primitive[Binding, Byte]].primitiveType)(
-          equalTo(PrimitiveType.Byte(Validation.None))
-        ) &&
-        assert(record1.registers(0).usedRegisters)(equalTo(RegisterOffset(bytes = 1))) &&
-        assert(record1.fields(1).value.asInstanceOf[Primitive[Binding, Int]].primitiveType)(
-          equalTo(PrimitiveType.Int(Validation.None))
-        ) &&
-        assert(record1.registers(1).usedRegisters)(equalTo(RegisterOffset(ints = 1))) &&
-        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters))) &&
-        assert(record2.length)(equalTo(1)) &&
-        assert(record2.fields.length)(equalTo(1)) &&
-        assert(record2.registers.length)(equalTo(1)) &&
-        assert(record2.fields(0).value.asInstanceOf[Primitive[Binding, Double]].primitiveType)(
-          equalTo(PrimitiveType.Double(Validation.None))
-        ) &&
-        assert(record2.registers(0).usedRegisters)(equalTo(RegisterOffset(doubles = 1))) &&
-        assert(record2.usedRegisters)(equalTo(record2.registers.foldLeft(0)(_ + _.usedRegisters))) &&
-        assert(record3.length)(equalTo(1)) &&
-        assert(record3.fields.length)(equalTo(1)) &&
-        assert(record3.registers.length)(equalTo(1)) &&
-        assert(record3.fields(0).value.asInstanceOf[Primitive[Binding, String]].primitiveType)(
-          equalTo(PrimitiveType.String(Validation.None))
-        ) &&
-        assert(record3.registers(0).usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
-        assert(record3.usedRegisters)(equalTo(record3.registers.foldLeft(0)(_ + _.usedRegisters)))
+        assert(Record.schema.defaultValue(Record(0, 0)))(equalTo(Record.schema)) &&
+        assert(Record.schema.defaultValue(Record(0, 0)).hashCode)(equalTo(Record.schema.hashCode)) &&
+        assert(Record.schema.examples(Record(1, 1000)))(equalTo(Record.schema)) &&
+        assert(Record.schema.examples(Record(1, 1000)).hashCode)(equalTo(Record.schema.hashCode)) &&
+        assert(Record.schema.doc("Record (updated)"))(not(equalTo(Record.schema)))
       },
       test("updates record default value") {
         assert(Record.schema.reflect.binding.defaultValue)(isNone) &&
@@ -417,30 +352,15 @@ object SchemaSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Variant")(
       test("has consistent equals and hashCode") {
-        val variant1 = Reflect.Variant[Binding, Variant](
-          cases = Seq(
-            Term("case1", Case1.schema.reflect, Doc("Case 1"), Nil),
-            Term("case2", Case2.schema.reflect, Doc("Case 2"), Nil)
-          ),
-          typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Variant"),
-          variantBinding = null.asInstanceOf[Binding.Variant[Variant]], // should be ignored in equals and hashCode
-          doc = Doc("Variant with 2 cases"),
-          modifiers = Nil
-        )
-        val variant2 = variant1.copy(cases = variant1.cases.reverse)
-        val variant3 = variant1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema2"), Nil), "Variant"))
-        val variant4 = variant1.copy(doc = Doc("text"))
-        val variant5 = variant1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Variant.schema)(equalTo(Variant.schema)) &&
         assert(Variant.schema.hashCode)(equalTo(Variant.schema.hashCode)) &&
         assert(Schema[Either[Int, Long]])(equalTo(Schema[Either[Int, Long]])) &&
         assert(Schema[Either[Int, Long]].hashCode)(equalTo(Schema[Either[Int, Long]].hashCode)) &&
-        assert(Schema(variant1))(equalTo(Variant.schema)) &&
-        assert(Schema(variant1).hashCode)(equalTo(Variant.schema.hashCode)) &&
-        assert(Schema(variant2))(not(equalTo(Variant.schema))) &&
-        assert(Schema(variant3))(not(equalTo(Variant.schema))) &&
-        assert(Schema(variant4))(not(equalTo(Variant.schema))) &&
-        assert(Schema(variant5))(not(equalTo(Variant.schema)))
+        assert(Variant.schema.defaultValue(Case1(0.1)))(equalTo(Variant.schema)) &&
+        assert(Variant.schema.defaultValue(Case1(0.1)).hashCode)(equalTo(Variant.schema.hashCode)) &&
+        assert(Variant.schema.examples(Case1(0.1)))(equalTo(Variant.schema)) &&
+        assert(Variant.schema.examples(Case1(0.1)).hashCode)(equalTo(Variant.schema.hashCode)) &&
+        assert(Variant.schema.doc("Variant (updated)"))(not(equalTo(Variant.schema)))
       },
       test("updates variant default value") {
         assert(Variant.schema.reflect.binding.defaultValue)(isNone) &&
@@ -471,27 +391,15 @@ object SchemaSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Sequence")(
       test("has consistent equals and hashCode") {
-        val sequence1 = Reflect.Sequence[Binding, Double, List](
-          element = Reflect.double,
-          typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]], // should be ignored in equals and hashCode
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        val sequence2 = sequence1.copy(element =
-          Primitive(PrimitiveType.Double(Validation.None), Binding.Primitive.double, TypeName.double, Doc("text"), Nil)
-        )
-        val sequence3 = sequence1.copy(typeName = TypeName[List[Double]](Namespace("scala" :: Nil, Nil), "List2"))
-        val sequence4 = sequence1.copy(doc = Doc("text"))
-        val sequence5 = sequence1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Schema[List[Double]])(equalTo(Schema[List[Double]])) &&
         assert(Schema[List[Double]].hashCode)(equalTo(Schema[List[Double]].hashCode)) &&
-        assert(Schema(sequence1))(equalTo(Schema[List[Double]])) &&
-        assert(Schema(sequence1).hashCode)(equalTo(Schema[List[Double]].hashCode)) &&
-        assert(Schema(sequence2))(not(equalTo(Schema[List[Double]]))) &&
-        assert(Schema(sequence3))(not(equalTo(Schema[List[Double]]))) &&
-        assert(Schema(sequence4))(not(equalTo(Schema[List[Double]]))) &&
-        assert(Schema(sequence5))(not(equalTo(Schema[List[Double]])))
+        assert(Schema[List[Double]].defaultValue(Nil))(equalTo(Schema[List[Double]])) &&
+        assert(Schema[List[Double]].defaultValue(Nil).hashCode)(equalTo(Schema[List[Double]].hashCode)) &&
+        assert(Schema[List[Double]].examples(List(0.1)))(equalTo(Schema[List[Double]])) &&
+        assert(Schema[List[Double]].defaultValue(Nil).hashCode)(equalTo(Schema[List[Double]].hashCode)) &&
+        assert(Schema[List[Double]].doc("List[Double] (updated)"))(not(equalTo(Schema[List[Double]]))) &&
+        assert(Schema[List[Int]]: Any)(not(equalTo(Schema[List[Double]]))) &&
+        assert(Schema[Vector[Double]]: Any)(not(equalTo(Schema[List[Double]])))
       },
       test("updates sequence default value") {
         assert(Schema[Vector[Int]].reflect.binding.defaultValue)(isNone) &&
@@ -500,14 +408,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("has access to sequence documentation") {
-        val sequence1 = Reflect.Sequence[Binding, Double, List](
-          element = Reflect.double,
-          typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]],
-          doc = Doc("List of doubles"),
-          modifiers = Nil
-        )
-        assert(Schema(sequence1).doc)(equalTo(Doc("List of doubles")))
+        assert(Schema[List[Double]].doc)(equalTo(Doc.Empty))
       },
       test("has access to sequence value documentation using traversal focus") {
         val long1 = Primitive(
@@ -530,18 +431,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Array[Int]].doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
       },
       test("has access to record examples") {
-        val sequence1 = Reflect.Sequence[Binding, Double, List](
-          element = Reflect.double,
-          typeName = TypeName.list,
-          seqBinding = Binding.Seq[List, Double](
-            constructor = SeqConstructor.listConstructor,
-            deconstructor = SeqDeconstructor.listDeconstructor,
-            examples = Seq(List(0.1, 0.2, 0.3))
-          ),
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        assert(Schema(sequence1).examples)(equalTo(Seq(List(0.1, 0.2, 0.3))))
+        assert(Schema[List[Double]].examples)(equalTo(Seq.empty))
       },
       test("updates sequence examples") {
         assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
@@ -566,38 +456,19 @@ object SchemaSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Map")(
       test("has consistent equals and hashCode") {
-        val map1 = Reflect.Map[Binding, Short, Float, Map](
-          key = Reflect.short,
-          value = Reflect.float,
-          typeName = TypeName.map[Short, Float],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Short, Float]], // should be ignored in equals and hashCode
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        val map2 = map1.copy(key =
-          Primitive(
-            PrimitiveType.Short(Validation.Numeric.Positive),
-            Binding.Primitive.short,
-            TypeName.short,
-            Doc.Empty,
-            Nil
-          )
-        )
-        val map3 = map1.copy(value =
-          Primitive(PrimitiveType.Float(Validation.None), Binding.Primitive.float, TypeName.float, Doc("text"), Nil)
-        )
-        val map4 = map1.copy(typeName = TypeName[Map[Short, Float]](Namespace("scala" :: Nil, Nil), "Map2"))
-        val map5 = map1.copy(doc = Doc("text"))
-        val map6 = map1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(Schema[Map[Short, Float]])(equalTo(Schema[Map[Short, Float]])) &&
         assert(Schema[Map[Short, Float]].hashCode)(equalTo(Schema[Map[Short, Float]].hashCode)) &&
-        assert(Schema(map1))(equalTo(Schema[Map[Short, Float]])) &&
-        assert(Schema(map1).hashCode)(equalTo(Schema[Map[Short, Float]].hashCode)) &&
-        assert(Schema(map2))(not(equalTo(Schema[Map[Short, Float]]))) &&
-        assert(Schema(map3))(not(equalTo(Schema[Map[Short, Float]]))) &&
-        assert(Schema(map4))(not(equalTo(Schema[Map[Short, Float]]))) &&
-        assert(Schema(map5))(not(equalTo(Schema[Map[Short, Float]]))) &&
-        assert(Schema(map6))(not(equalTo(Schema[Map[Short, Float]])))
+        assert(Schema[Map[Short, Float]].defaultValue(Map.empty))(equalTo(Schema[Map[Short, Float]])) &&
+        assert(Schema[Map[Short, Float]].defaultValue(Map.empty).hashCode)(
+          equalTo(Schema[Map[Short, Float]].hashCode)
+        ) &&
+        assert(Schema[Map[Short, Float]].examples(Map((1: Short) -> 0.1f)))(equalTo(Schema[Map[Short, Float]])) &&
+        assert(Schema[Map[Short, Float]].examples(Map((1: Short) -> 0.1f)).hashCode)(
+          equalTo(Schema[Map[Short, Float]].hashCode)
+        ) &&
+        assert(Schema[Map[Short, Float]].doc("Map[Short, Float] (updated)"))(not(equalTo(Schema[Map[Short, Float]]))) &&
+        assert(Schema[Map[Short, Boolean]]: Any)(not(equalTo(Schema[Map[Short, Float]]))) &&
+        assert(Schema[Map[String, Float]]: Any)(not(equalTo(Schema[Map[Short, Float]])))
       },
       test("updates map default value") {
         assert(Schema[Map[Int, Long]].reflect.binding.defaultValue)(isNone) &&
@@ -606,15 +477,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("has access to map documentation") {
-        val map1 = Reflect.Map[Binding, Int, Long, Map](
-          key = Reflect.int,
-          value = Reflect.long,
-          typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]], // should be ignored in equals and hashCode
-          doc = Doc("Map of Int to Long"),
-          modifiers = Nil
-        )
-        assert(Schema(map1).doc)(equalTo(Doc("Map of Int to Long")))
+        assert(Schema[Map[Int, Long]].doc)(equalTo(Doc.Empty))
       },
       test("has access to map key documentation using traversal focus") {
         val int1 = Primitive(
@@ -665,7 +528,7 @@ object SchemaSpec extends ZIOSpecDefault {
             deconstructor = MapDeconstructor.map,
             examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
           ),
-          doc = Doc("Map of Int to Long"),
+          doc = Doc.Empty,
           modifiers = Nil
         )
         assert(Schema(map1).examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
@@ -714,30 +577,13 @@ object SchemaSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Dynamic")(
       test("has consistent equals and hashCode") {
-        val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(),
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        val dynamic2 = dynamic1.copy(dynamicBinding = null.asInstanceOf[Binding.Dynamic])
-        val dynamic3 = dynamic1.copy(doc = Doc("text"))
-        val dynamic4 = dynamic1.copy(modifiers = Seq(Modifier.config("key", "value")))
-        assert(Schema(dynamic1))(equalTo(Schema(dynamic1))) &&
-        assert(Schema(dynamic1).hashCode)(equalTo(Schema(dynamic1).hashCode)) &&
-        assert(Schema(dynamic2))(equalTo(Schema(dynamic1))) &&
-        assert(Schema(dynamic2).hashCode)(equalTo(Schema(dynamic1).hashCode)) &&
-        assert(Schema(dynamic3))(not(equalTo(Schema(dynamic1)))) &&
-        assert(Schema(dynamic4))(not(equalTo(Schema(dynamic1))))
+        assert(Schema[DynamicValue])(equalTo(Schema[DynamicValue])) &&
+        assert(Schema[DynamicValue].hashCode)(equalTo(Schema[DynamicValue].hashCode))
       },
       test("updates dynamic default value") {
-        val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(),
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        assert(Schema(dynamic1).reflect.binding.defaultValue)(isNone) &&
+        assert(Schema[DynamicValue].reflect.binding.defaultValue)(isNone) &&
         assert(
-          Schema(dynamic1)
+          Schema[DynamicValue]
             .defaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))
             .reflect
             .binding
@@ -747,36 +593,16 @@ object SchemaSpec extends ZIOSpecDefault {
         )(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
       },
       test("has access to dynamic documentation") {
-        val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(),
-          doc = Doc("Dynamic"),
-          modifiers = Nil
-        )
-        assert(Schema(dynamic1).doc)(equalTo(Doc("Dynamic")))
+        assert(Schema[DynamicValue].doc)(equalTo(Doc.Empty))
       },
       test("updates dynamic documentation") {
-        val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(),
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        assert(Schema(dynamic1).doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+        assert(Schema[DynamicValue].doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
       },
       test("has access to dynamic examples") {
-        val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil),
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        assert(Schema(dynamic1).examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil))
+        assert(Schema[DynamicValue].examples)(equalTo(Seq.empty))
       },
       test("updates dynamic examples") {
-        val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(),
-          doc = Doc.Empty,
-          modifiers = Nil
-        )
-        assert(Schema(dynamic1).examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
+        assert(Schema[DynamicValue].examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)) :: Nil)
         )
       }
@@ -799,15 +625,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred5))(not(equalTo(Schema(deferred1))))
       },
       test("updates deferred default value") {
-        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
-          Primitive(
-            PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive.int,
-            TypeName.int,
-            Doc.Empty,
-            Nil
-          )
-        }
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         assert(Schema(deferred1).reflect.binding.defaultValue)(isNone) &&
         assert(Schema(deferred1).defaultValue(1).reflect.binding.defaultValue.get.apply())(equalTo(1))
       },
@@ -824,15 +642,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred1).doc)(equalTo(Doc("Int (positive)")))
       },
       test("updates sequence documentation") {
-        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
-          Primitive(
-            PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive.int,
-            TypeName.int,
-            Doc.Empty,
-            Nil
-          )
-        }
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         assert(Schema(deferred1).doc("Deferred (updated)").doc)(equalTo(Doc("Deferred (updated)")))
       },
       test("has access to deferred examples") {
