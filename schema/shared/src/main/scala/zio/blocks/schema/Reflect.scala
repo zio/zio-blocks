@@ -350,8 +350,6 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding.Primitive[A] = F.primitive(primitiveBinding)
 
-    def defaultValue(implicit F: HasBinding[F]): Option[() => A] = binding.defaultValue
-
     def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Primitive[G, A] =
