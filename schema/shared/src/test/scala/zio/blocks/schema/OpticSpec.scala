@@ -657,7 +657,7 @@ object OpticSpec extends ZIOSpecDefault {
         Reflect.boolean[Binding].asTerm("b"),
         Reflect.float[Binding].asTerm("f")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record1"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Record1"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Record1] {
           def usedRegisters: RegisterOffset = RegisterOffset(booleans = 1, floats = 1)
@@ -691,7 +691,7 @@ object OpticSpec extends ZIOSpecDefault {
         Reflect.vector(Reflect.int[Binding]).asTerm("vi"),
         Record1.reflect.asTerm("r1")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record2"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Record2"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Record2] {
           def usedRegisters: RegisterOffset = RegisterOffset(longs = 1, objects = 2)
@@ -734,7 +734,7 @@ object OpticSpec extends ZIOSpecDefault {
         Record2.reflect.asTerm("r2"),
         Reflect.Deferred(() => Variant1.reflect).asTerm("v1")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Record3"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Record3"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Record3] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 3)
@@ -779,7 +779,7 @@ object OpticSpec extends ZIOSpecDefault {
         Case2.reflect.asTerm("c2"),
         Reflect.Deferred(() => Variant2.reflect).asTerm("v2")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant1"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Variant1"),
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[Variant1] {
           def discriminate(a: Variant1): Int = a match {
@@ -839,7 +839,7 @@ object OpticSpec extends ZIOSpecDefault {
       fields = List(
         Reflect.double[Binding].asTerm("d")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case1"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Case1"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Case1] {
           def usedRegisters: RegisterOffset = RegisterOffset(doubles = 1)
@@ -867,7 +867,7 @@ object OpticSpec extends ZIOSpecDefault {
       fields = List(
         Record3.reflect.asTerm("r3")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case2"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Case2"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Case2] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -898,7 +898,7 @@ object OpticSpec extends ZIOSpecDefault {
         Case4.reflect.asTerm("c4"),
         Reflect.Deferred(() => Variant3.reflect).asTerm("v3")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant2"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Variant2"),
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[Variant2] {
           def discriminate(a: Variant2): Int = a match {
@@ -949,7 +949,7 @@ object OpticSpec extends ZIOSpecDefault {
       fields = List(
         Reflect.Deferred(() => Variant1.reflect).asTerm("v1")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case3"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Case3"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Case3] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -983,7 +983,7 @@ object OpticSpec extends ZIOSpecDefault {
       fields = List(
         Reflect.list(Record3.reflect).asTerm("lr3")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case4"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Case4"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Case4] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
@@ -1015,7 +1015,7 @@ object OpticSpec extends ZIOSpecDefault {
         Case5.reflect.asTerm("c5"),
         Case6.reflect.asTerm("c6")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Variant3"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Variant3"),
       variantBinding = Binding.Variant(
         discriminator = new Discriminator[Variant3] {
           def discriminate(a: Variant3): Int = a match {
@@ -1053,7 +1053,7 @@ object OpticSpec extends ZIOSpecDefault {
         Reflect.set(Reflect.int[Binding]).asTerm("si"),
         Reflect.array(Reflect.string[Binding]).asTerm("as")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case5"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Case5"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Case5] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 2)
@@ -1088,7 +1088,7 @@ object OpticSpec extends ZIOSpecDefault {
       fields = List(
         Reflect.Deferred(() => Variant2.reflect).asTerm("v2")
       ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case6"),
+      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Case6"),
       recordBinding = Binding.Record(
         constructor = new Constructor[Case6] {
           def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)

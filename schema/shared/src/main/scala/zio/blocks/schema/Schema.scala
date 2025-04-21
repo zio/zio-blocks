@@ -52,7 +52,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def toDynamicValue(value: A): DynamicValue = ??? // TODO
 }
 
-object Schema {
+object Schema extends SchemaVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = Schema(Reflect.dynamic[Binding])
