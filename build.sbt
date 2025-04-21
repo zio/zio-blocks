@@ -57,18 +57,27 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .nativeSettings(nativeSettings)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
-    scalacOptions ++= (if (scalaVersion.value == Scala3)
-                         Seq(
-                           "-explain"
-                         )
-                       else
-                         Seq(
-                           "-opt:l:method"
-                         )),
+    scalacOptions ++=
+      (CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) =>
+          Seq(
+            "-opt:l:method"
+          )
+        case _ =>
+          Seq(
+            "-explain"
+          )
+      }),
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.16" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.16" % Test
-    ),
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ => Seq()
+    }),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
 
