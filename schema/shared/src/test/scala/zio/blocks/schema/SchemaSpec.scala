@@ -348,6 +348,56 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples(Lens(record, record.fields(0))): Seq[_])(
           equalTo(record.fields(0).value.binding.examples)
         )
+      },
+      test("derives schema using a macro call") {
+        case class `Record-1`(b: Byte, i: Int)
+
+        type Record1 = `Record-1`
+
+        assert(Schema.derived[Record1])(
+          equalTo(
+            new Schema[Record1](
+              reflect = Reflect.Record[Binding, Record1](
+                fields = Nil,
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record-1"
+                ),
+                recordBinding = null,
+                doc = Doc.Empty,
+                modifiers = Nil
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for generic record using a macro call") {
+        case class `Record-2`[B, I](b: B, i: I)
+
+        type Record2[B, I] = `Record-2`[B, I]
+
+        assert(Schema.derived[Record2[Byte, Int]])(
+          equalTo(
+            new Schema[Record2[Byte, Int]](
+              reflect = Reflect.Record[Binding, Record2[Byte, Int]](
+                fields = Nil,
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record-2"
+                ),
+                recordBinding = null,
+                doc = Doc.Empty,
+                modifiers = Nil
+              )
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Variant")(
@@ -678,10 +728,10 @@ object SchemaSpec extends ZIOSpecDefault {
     val schema: Schema[Record] = Schema(
       reflect = Reflect.Record[Binding, Record](
         fields = Seq(
-          Term("b", Reflect.byte, Doc("Field b"), Nil),
-          Term("i", Reflect.int, Doc("Field i"), Nil)
+          Reflect.byte[Binding].asTerm("b"),
+          Reflect.int[Binding].asTerm("i")
         ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Record"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "Record"),
         recordBinding = Binding.Record(
           constructor = new Constructor[Record] {
             def usedRegisters: RegisterOffset = RegisterOffset(bytes = 1, ints = 1)
@@ -711,10 +761,10 @@ object SchemaSpec extends ZIOSpecDefault {
     val schema: Schema[Variant] = Schema(
       reflect = Reflect.Variant[Binding, Variant](
         cases = Seq(
-          Term("case1", Case1.schema.reflect, Doc("Case 1"), Nil),
-          Term("case2", Case2.schema.reflect, Doc("Case 2"), Nil)
+          Case1.schema.reflect.asTerm("case1"),
+          Case2.schema.reflect.asTerm("case2")
         ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Variant"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "Variant"),
         variantBinding = Binding.Variant(
           discriminator = new Discriminator[Variant] {
             def discriminate(a: Variant): Int = a match {
@@ -752,7 +802,7 @@ object SchemaSpec extends ZIOSpecDefault {
         fields = Seq(
           Reflect.double[Binding].asTerm("d")
         ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Case1"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "Case1"),
         recordBinding = Binding.Record(
           constructor = new Constructor[Case1] {
             def usedRegisters: RegisterOffset = RegisterOffset(doubles = 1)
@@ -782,7 +832,7 @@ object SchemaSpec extends ZIOSpecDefault {
         fields = List(
           Reflect.string[Binding].asTerm("s")
         ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Nil), "Case2"),
+        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("SchemaSpec")), "Case2"),
         recordBinding = Binding.Record(
           constructor = new Constructor[Case2] {
             def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
