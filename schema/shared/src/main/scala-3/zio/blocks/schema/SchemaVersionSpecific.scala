@@ -43,7 +43,7 @@ object SchemaVersionSpecific {
         if (tpeClassSym.primaryConstructor.exists) tpeClassSym.primaryConstructor
         else fail(s"Cannot find a primary constructor for '$tpe'")
       val tpeTypeArgs = tpe match
-        case AppliedType(_, typeArgs) => typeArgs
+        case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
         case _                        => Nil
       val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
         case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
