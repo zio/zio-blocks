@@ -58,7 +58,7 @@ object SchemaVersionSpecific {
       val primaryConstructor = tpe.decls.collectFirst {
         case m: MethodSymbol if m.isPrimaryConstructor => m
       }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
-      val tpeTypeArgs   = tpe.typeArgs
+      val tpeTypeArgs   = tpe.typeArgs.map(_.dealias)
       val tpeTypeParams = tpeClassSym.typeParams
       val tpeParams     = primaryConstructor.paramLists
       val fieldInfos = tpeParams.map(_.map { param =>
