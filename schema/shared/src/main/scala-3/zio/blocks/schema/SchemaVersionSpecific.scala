@@ -9,7 +9,8 @@ object SchemaVersionSpecific {
 
   def derived[A: Type](using Quotes): Expr[Schema[A]] = {
     import quotes.reflect._
-    import zio.blocks.schema.binding.Binding
+    import zio.blocks.schema.binding._
+    import zio.blocks.schema.binding.RegisterOffset._
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
@@ -98,8 +99,16 @@ object SchemaVersionSpecific {
               name = ${ Expr(name) }
             ),
             recordBinding = Binding.Record(
-              constructor = null,
-              deconstructor = null,
+              constructor = new Constructor[A] {
+                def usedRegisters: RegisterOffset = ???
+
+                def construct(in: Registers, baseOffset: RegisterOffset): A = ???
+              },
+              deconstructor = new Deconstructor[A] {
+                def usedRegisters: RegisterOffset = ???
+
+                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ???
+              },
               defaultValue = None,
               examples = Nil
             ),

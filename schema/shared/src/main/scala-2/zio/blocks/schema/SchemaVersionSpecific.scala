@@ -89,26 +89,40 @@ object SchemaVersionSpecific {
       })
       // TODO: use `fieldInfos` to generate remaining `Reflect.Record.fields` and `Reflect.Record.recordBinding`
       c.Expr[Schema[A]](
-        q"""new _root_.zio.blocks.schema.Schema[$tpe](
-              reflect = _root_.zio.blocks.schema.Reflect.Record[_root_.zio.blocks.schema.binding.Binding, $tpe](
-                fields = Nil,
-                typeName = TypeName(
-                  namespace = Namespace(
-                    packages = $packages,
-                    values = $values
+        q"""{
+              import _root_.zio.blocks.schema._
+              import _root_.zio.blocks.schema.binding._
+              import _root_.zio.blocks.schema.binding.RegisterOffset._
+
+              new Schema[$tpe](
+                reflect = Reflect.Record[Binding, $tpe](
+                  fields = _root_.scala.Nil,
+                  typeName = TypeName(
+                    namespace = Namespace(
+                      packages = $packages,
+                      values = $values
+                    ),
+                    name = $name
                   ),
-                  name = $name
-                ),
-                recordBinding = Binding.Record(
-                  constructor = null,
-                  deconstructor = null,
-                  defaultValue = None,
-                  examples = Nil
-                ),
-                doc = Doc.Empty,
-                modifiers = Nil
+                  recordBinding = Binding.Record(
+                    constructor = new Constructor[$tpe] {
+                      def usedRegisters: RegisterOffset = ???
+
+                      def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ???
+                    },
+                    deconstructor = new Deconstructor[$tpe] {
+                      def usedRegisters: RegisterOffset = ???
+
+                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = ???
+                    },
+                    defaultValue = _root_.scala.None,
+                    examples = _root_.scala.Nil
+                  ),
+                  doc = Doc.Empty,
+                  modifiers = _root_.scala.Nil
+                )
               )
-            )"""
+            }"""
       )
     } else fail(s"Cannot derive '${typeOf[Schema[_]]}' for '$tpe'.")
   }
