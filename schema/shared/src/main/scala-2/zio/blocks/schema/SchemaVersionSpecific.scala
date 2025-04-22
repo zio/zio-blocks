@@ -19,6 +19,8 @@ object SchemaVersionSpecific {
     def isNonAbstractScalaClass(tpe: Type): Boolean =
       tpe.typeSymbol.isClass && !tpe.typeSymbol.isAbstract && !tpe.typeSymbol.isJava
 
+    def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
+
     def companion(typeSymbol: Symbol): Symbol = {
       val comp = typeSymbol.companion
       if (comp.isModule) comp
@@ -35,39 +37,38 @@ object SchemaVersionSpecific {
       }
     }
 
-    def toName(sym: Symbol): (List[String], List[String], String) = {
-      var values   = List.empty[String]
-      var packages = List.empty[String]
-      var owner    = companion(sym).owner
+    val tpe = weakTypeOf[A].dealias
+    if (isNonAbstractScalaClass(tpe)) {
+      case class FieldInfo(name: String, tpe: Type, getter: Symbol, defaultValue: Option[Tree])
+
+      val tpeTypeSymbol = tpe.typeSymbol
+      val name          = NameTransformer.decode(tpeTypeSymbol.name.toString)
+      val comp          = companion(tpeTypeSymbol)
+      var values        = List.empty[String]
+      var packages      = List.empty[String]
+      var owner         = comp.owner
       while (owner != NoSymbol) {
         val name = NameTransformer.decode(owner.name.toString)
         if (owner.isPackage || owner.isPackageClass) packages = name :: packages
         else values = name :: values
         owner = owner.owner
       }
-      (packages.tail, values, NameTransformer.decode(sym.name.toString))
-    }
-
-    val tpe = weakTypeOf[A].dealias
-    if (isNonAbstractScalaClass(tpe)) {
-      case class FieldInfo(name: String, tpe: Type, getter: Symbol)
-
-      val tpeTypeSym  = tpe.typeSymbol
-      val tpeName     = toName(tpeTypeSym)
-      val tpeClassSym = tpeTypeSym.asClass
+      packages = packages.tail
       val primaryConstructor = tpe.decls.collectFirst {
         case m: MethodSymbol if m.isPrimaryConstructor => m
       }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
-      val tpeTypeArgs   = tpe.typeArgs.map(_.dealias)
-      val tpeTypeParams = tpeClassSym.typeParams
+      val tpeTypeParams = tpeTypeSymbol.asClass.typeParams
       val tpeParams     = primaryConstructor.paramLists
+      val tpeTypeArgs   = typeArgs(tpe)
+      var i             = 0
       val fieldInfos = tpeParams.map(_.map { param =>
-        val sym  = param.asTerm
-        val name = sym.name
+        i += 1
+        val symbol = param.asTerm
+        val name   = symbol.name
         FieldInfo(
           name = NameTransformer.decode(name.toString),
           tpe = {
-            val originFieldTpe = sym.typeSignature.dealias
+            val originFieldTpe = symbol.typeSignature.dealias
             if (tpeTypeArgs.isEmpty) originFieldTpe
             else originFieldTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
           },
@@ -79,6 +80,10 @@ object SchemaVersionSpecific {
                   m
               }
               .getOrElse(fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
+          },
+          defaultValue = {
+            if (symbol.isParamWithDefault) Some(q"${comp.asModule}.${TermName("$lessinit$greater$default$" + i)}")
+            else None
           }
         )
       })
@@ -89,12 +94,17 @@ object SchemaVersionSpecific {
                 fields = Nil,
                 typeName = TypeName(
                   namespace = Namespace(
-                    packages = ${tpeName._1},
-                    values = ${tpeName._2}
+                    packages = $packages,
+                    values = $values
                   ),
-                  name = ${tpeName._3}
+                  name = $name
                 ),
-                recordBinding = null,
+                recordBinding = Binding.Record(
+                  constructor = null,
+                  deconstructor = null,
+                  defaultValue = None,
+                  examples = Nil
+                ),
                 doc = Doc.Empty,
                 modifiers = Nil
               )

@@ -18,10 +18,19 @@ object SchemaVersionSpecific {
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
-    def toName(sym: Symbol): (List[String], List[String], String) = {
-      var values   = List.empty[String]
-      var packages = List.empty[String]
-      var owner    = sym.owner
+    def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match
+      case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
+      case _                        => Nil
+
+    val tpe = TypeRepr.of[A].dealias
+    if (isNonAbstractScalaClass(tpe)) {
+      case class FieldInfo(name: String, tpe: TypeRepr, getter: Symbol, defaultValue: Option[Term])
+
+      val tpeTypeSymbol = tpe.typeSymbol
+      val name          = tpeTypeSymbol.name.toString
+      var values        = List.empty[String]
+      var packages      = List.empty[String]
+      var owner         = tpeTypeSymbol.owner
       while (owner != quotes.reflect.defn.RootClass) {
         val name = owner.name.toString
         if (owner.flags.is(Flags.Package)) packages = name :: packages
@@ -29,44 +38,50 @@ object SchemaVersionSpecific {
         else values = name :: values
         owner = owner.owner
       }
-      (packages, values, sym.name.toString)
-    }
-
-    val tpe = TypeRepr.of[A].dealias
-    if (isNonAbstractScalaClass(tpe)) {
-      case class FieldInfo(name: String, tpe: TypeRepr, getter: Symbol)
-
-      val tpeTypeSym  = tpe.typeSymbol
-      val tpeName     = toName(tpeTypeSym)
-      val tpeClassSym = tpe.classSymbol.get
-      val primaryConstructor =
-        if (tpeClassSym.primaryConstructor.exists) tpeClassSym.primaryConstructor
-        else fail(s"Cannot find a primary constructor for '$tpe'")
-      val tpeTypeArgs = tpe match
-        case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
-        case _                        => Nil
+      val tpeClassSymbol     = tpe.classSymbol.get
+      val primaryConstructor = tpeClassSymbol.primaryConstructor
+      if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '$tpe'")
       val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
         case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
         case ps                                     => (Nil, ps)
       }
-      val fieldInfos = tpeParams.map(_.map { sym =>
-        val name = sym.name
+      val tpeTypeArgs = typeArgs(tpe)
+      var i           = 0
+      val fieldInfos = tpeParams.map(_.map { symbol =>
+        i += 1
+        val name = symbol.name
         FieldInfo(
           name = name,
           tpe = {
-            val originFieldType = tpe.memberType(sym).dealias
+            val originFieldType = tpe.memberType(symbol).dealias
             if (tpeTypeArgs.isEmpty) originFieldType
             else originFieldType.substituteTypes(tpeTypeParams, tpeTypeArgs)
           },
           getter = {
-            val fieldMember = tpeClassSym.fieldMember(name)
+            val fieldMember = tpeClassSymbol.fieldMember(name)
             if (fieldMember.exists) fieldMember
             else {
-              tpeClassSym
+              tpeClassSymbol
                 .methodMember(name)
                 .find(_.flags.is(Flags.ParamAccessor | Flags.CaseAccessor))
                 .getOrElse(fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor."))
             }
+          },
+          defaultValue = {
+            if (symbol.flags.is(Flags.HasDefault)) {
+              val dvMembers = tpeTypeSymbol.companionClass.methodMember("$lessinit$greater$default$" + i)
+              if (dvMembers.isEmpty) fail(s"Cannot find default value for '$symbol' in class ${tpe.show}")
+              val methodSymbol    = dvMembers.head
+              val dvSelectNoTArgs = Ref(tpeTypeSymbol.companionModule).select(methodSymbol)
+              val dvSelect = methodSymbol.paramSymss match
+                case Nil =>
+                  dvSelectNoTArgs
+                case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
+                  TypeApply(dvSelectNoTArgs, tpeTypeArgs.map(Inferred(_)))
+                case _ =>
+                  fail(s"Cannot find default value for '$symbol' in class ${tpe.show}")
+              Some(dvSelect)
+            } else None
           }
         )
       })
@@ -77,12 +92,17 @@ object SchemaVersionSpecific {
             fields = Nil,
             typeName = TypeName(
               namespace = Namespace(
-                packages = ${ Expr(tpeName._1) },
-                values = ${ Expr(tpeName._2) }
+                packages = ${ Expr(packages) },
+                values = ${ Expr(values) }
               ),
-              name = ${ Expr(tpeName._3) }
+              name = ${ Expr(name) }
             ),
-            recordBinding = null,
+            recordBinding = Binding.Record(
+              constructor = null,
+              deconstructor = null,
+              defaultValue = None,
+              examples = Nil
+            ),
             doc = Doc.Empty,
             modifiers = Nil
           )
