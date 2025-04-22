@@ -378,11 +378,13 @@ object SchemaSpec extends ZIOSpecDefault {
         case class `Record-2`[B, I](b: B, i: I)
 
         type Record2[B, I] = `Record-2`[B, I]
+        type `i-8`         = Byte
+        type `i-32`        = Int
 
-        assert(Schema.derived[Record2[Byte, Int]])(
+        assert(Schema.derived[Record2[`i-8`, `i-32`]])(
           equalTo(
-            new Schema[Record2[Byte, Int]](
-              reflect = Reflect.Record[Binding, Record2[Byte, Int]](
+            new Schema[Record2[`i-8`, `i-32`]](
+              reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
                 fields = Nil,
                 typeName = TypeName(
                   namespace = Namespace(
