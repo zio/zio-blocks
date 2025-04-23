@@ -355,9 +355,11 @@ object SchemaSpec extends ZIOSpecDefault {
         type Record1 = `Record-1`
 
         val schema = Schema.derived[Record1]
-        val fields = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]].fields
-        assert(fields(0).value.binding.defaultValue.get.apply(): Any)(equalTo(1)) &&
-        assert(fields(1).value.binding.defaultValue.get.apply(): Any)(equalTo(2)) &&
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
+        assert(record.fields(0).value.binding.defaultValue.get.apply(): Any)(equalTo(1)) &&
+        assert(record.fields(1).value.binding.defaultValue.get.apply(): Any)(equalTo(2)) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
         assert(schema)(
           equalTo(
             new Schema[Record1](

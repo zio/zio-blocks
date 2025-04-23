@@ -25,7 +25,13 @@ object SchemaVersionSpecific {
 
     val tpe = TypeRepr.of[A].dealias
     if (isNonAbstractScalaClass(tpe)) {
-      case class FieldInfo(name: String, tpe: TypeRepr, getter: Symbol, defaultValue: Option[Term])
+      case class FieldInfo(
+        name: String,
+        tpe: TypeRepr,
+        getter: Symbol,
+        defaultValue: Option[Term],
+        offset: RegisterOffset
+      )
 
       val tpeTypeSymbol = tpe.typeSymbol
       val name          = tpeTypeSymbol.name.toString
@@ -47,16 +53,32 @@ object SchemaVersionSpecific {
         case ps                                     => (Nil, ps)
       }
       val tpeTypeArgs = typeArgs(tpe)
+      var offset      = RegisterOffset.Zero
       var i           = 0
       val fieldInfos = tpeParams.map(_.map { symbol =>
         i += 1
         val name = symbol.name
         FieldInfo(
           name = name,
+          offset = offset,
           tpe = {
-            val originFieldType = tpe.memberType(symbol).dealias
-            if (tpeTypeArgs.isEmpty) originFieldType
-            else originFieldType.substituteTypes(tpeTypeParams, tpeTypeArgs)
+            var fTpe = tpe.memberType(symbol).dealias
+            if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
+            offset = RegisterOffset.add(
+              offset,
+              if (fTpe =:= TypeRepr.of[Boolean] || fTpe =:= TypeRepr.of[java.lang.Boolean]) RegisterOffset(booleans = 1)
+              else if (fTpe =:= TypeRepr.of[Byte] || fTpe =:= TypeRepr.of[java.lang.Byte]) RegisterOffset(bytes = 1)
+              else if (fTpe =:= TypeRepr.of[Char] || fTpe =:= TypeRepr.of[java.lang.Character])
+                RegisterOffset(chars = 1)
+              else if (fTpe =:= TypeRepr.of[Short] || fTpe =:= TypeRepr.of[java.lang.Short]) RegisterOffset(shorts = 1)
+              else if (fTpe =:= TypeRepr.of[Float] || fTpe =:= TypeRepr.of[java.lang.Float]) RegisterOffset(floats = 1)
+              else if (fTpe =:= TypeRepr.of[Int] || fTpe =:= TypeRepr.of[java.lang.Integer]) RegisterOffset(ints = 1)
+              else if (fTpe =:= TypeRepr.of[Double] || fTpe =:= TypeRepr.of[java.lang.Double])
+                RegisterOffset(doubles = 1)
+              else if (fTpe =:= TypeRepr.of[Long] || fTpe =:= TypeRepr.of[java.lang.Long]) RegisterOffset(longs = 1)
+              else RegisterOffset(objects = 1)
+            )
+            fTpe
           },
           getter = {
             val fieldMember = tpeClassSymbol.fieldMember(name)
@@ -87,15 +109,16 @@ object SchemaVersionSpecific {
         )
       })
       val fields =
-        fieldInfos.flatMap(_.map { fi =>
-          fi.tpe.asType match
-            case '[ft] =>
-              val nameExpr  = Expr(fi.name)
-              val usingExpr = Expr.summon[Schema[ft]].get
-              fi.defaultValue.fold('{ Schema[ft](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { x =>
-                val valExpr = x.asExprOf[ft]
-                '{ Schema[ft](using $usingExpr).reflect.defaultValue($valExpr).asTerm[A]($nameExpr) }
-              }
+        fieldInfos.flatMap(_.map { fieldInfo =>
+          fieldInfo.tpe.asType match
+            case '[t] =>
+              val nameExpr  = Expr(fieldInfo.name)
+              val usingExpr = Expr.summon[Schema[t]].get
+              fieldInfo.defaultValue
+                .fold('{ Schema[t](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { defaultValue =>
+                  val defaultValueExpr = defaultValue.asExprOf[t]
+                  '{ Schema[t](using $usingExpr).reflect.defaultValue($defaultValueExpr).asTerm[A]($nameExpr) }
+                }
         })
       // TODO: use `fieldInfos` to generate remaining `Reflect.Record.fields` and `Reflect.Record.recordBinding`
       '{
@@ -111,12 +134,12 @@ object SchemaVersionSpecific {
             ),
             recordBinding = Binding.Record(
               constructor = new Constructor[A] {
-                def usedRegisters: RegisterOffset = ???
+                def usedRegisters: RegisterOffset = ${ Expr(offset) }
 
                 def construct(in: Registers, baseOffset: RegisterOffset): A = ???
               },
               deconstructor = new Deconstructor[A] {
-                def usedRegisters: RegisterOffset = ???
+                def usedRegisters: RegisterOffset = ${ Expr(offset) }
 
                 def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ???
               },
