@@ -17,7 +17,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
-                fields = Nil,
+                fields = Seq(
+                  Schema[Byte].reflect.asTerm("b"),
+                  Schema[Int].reflect.asTerm("i")
+                ),
                 typeName = TypeName(
                   namespace = Namespace(
                     packages = Seq("zio", "blocks", "schema"),

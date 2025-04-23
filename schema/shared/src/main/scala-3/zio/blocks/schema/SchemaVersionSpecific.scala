@@ -64,7 +64,7 @@ object SchemaVersionSpecific {
             else {
               tpeClassSymbol
                 .methodMember(name)
-                .find(_.flags.is(Flags.ParamAccessor | Flags.CaseAccessor))
+                .find(_.flags.is(Flags.ParamAccessor))
                 .getOrElse(fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor."))
             }
           },
@@ -86,11 +86,22 @@ object SchemaVersionSpecific {
           }
         )
       })
+      val fields =
+        fieldInfos.flatMap(_.map { fi =>
+          fi.tpe.asType match
+            case '[ft] =>
+              val nameExpr  = Expr(fi.name)
+              val usingExpr = Expr.summon[Schema[ft]].get
+              fi.defaultValue.fold('{ Schema[ft](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { x =>
+                val valExpr = x.asExprOf[ft]
+                '{ Schema[ft](using $usingExpr).reflect.defaultValue($valExpr).asTerm[A]($nameExpr) }
+              }
+        })
       // TODO: use `fieldInfos` to generate remaining `Reflect.Record.fields` and `Reflect.Record.recordBinding`
       '{
         new Schema[A](
           reflect = new Reflect.Record[Binding, A](
-            fields = Nil,
+            fields = ${ Expr.ofList(fields) },
             typeName = TypeName(
               namespace = Namespace(
                 packages = ${ Expr(packages) },

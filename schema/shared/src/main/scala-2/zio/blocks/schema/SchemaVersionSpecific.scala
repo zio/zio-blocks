@@ -46,7 +46,7 @@ object SchemaVersionSpecific {
       val comp          = companion(tpeTypeSymbol)
       var values        = List.empty[String]
       var packages      = List.empty[String]
-      var owner         = comp.owner
+      var owner         = (if (comp == null) tpeTypeSymbol else comp).owner
       while (owner != NoSymbol) {
         val name = NameTransformer.decode(owner.name.toString)
         if (owner.isPackage || owner.isPackageClass) packages = name :: packages
@@ -57,6 +57,12 @@ object SchemaVersionSpecific {
       val primaryConstructor = tpe.decls.collectFirst {
         case m: MethodSymbol if m.isPrimaryConstructor => m
       }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
+      var getters = Map.empty[String, MethodSymbol]
+      tpe.members.foreach {
+        case m: MethodSymbol if m.isParamAccessor =>
+          getters = getters.updated(NameTransformer.decode(m.name.toString), m)
+        case _ =>
+      }
       val tpeTypeParams = tpeTypeSymbol.asClass.typeParams
       val tpeParams     = primaryConstructor.paramLists
       val tpeTypeArgs   = typeArgs(tpe)
@@ -64,28 +70,26 @@ object SchemaVersionSpecific {
       val fieldInfos = tpeParams.map(_.map { param =>
         i += 1
         val symbol = param.asTerm
-        val name   = symbol.name
+        val name   = NameTransformer.decode(symbol.name.toString)
         FieldInfo(
-          name = NameTransformer.decode(name.toString),
+          name = name,
           tpe = {
             val originFieldTpe = symbol.typeSignature.dealias
             if (tpeTypeArgs.isEmpty) originFieldTpe
             else originFieldTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
           },
-          getter = {
-            tpe.members
-              .filter(_.name == name)
-              .collectFirst {
-                case m: MethodSymbol if m.isParamAccessor && m.isGetter =>
-                  m
-              }
-              .getOrElse(fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
-          },
+          getter =
+            getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor.")),
           defaultValue = {
             if (symbol.isParamWithDefault) Some(q"${comp.asModule}.${TermName("$lessinit$greater$default$" + i)}")
             else None
           }
         )
+      })
+      val fields = fieldInfos.flatMap(_.map { fi =>
+        fi.defaultValue.fold(q"Schema[${fi.tpe}].reflect.asTerm(${fi.name})") { x =>
+          q"Schema[${fi.tpe}].reflect.defaultValue($x).asTerm(${fi.name})"
+        }
       })
       // TODO: use `fieldInfos` to generate remaining `Reflect.Record.fields` and `Reflect.Record.recordBinding`
       c.Expr[Schema[A]](
@@ -96,7 +100,7 @@ object SchemaVersionSpecific {
 
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
-                  fields = _root_.scala.Nil,
+                  fields = Seq(..$fields),
                   typeName = TypeName(
                     namespace = Namespace(
                       packages = $packages,
