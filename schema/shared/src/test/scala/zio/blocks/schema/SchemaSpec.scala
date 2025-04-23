@@ -349,16 +349,23 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(record.fields(0).value.binding.examples)
         )
       },
-      test("derives schema using a macro call") {
-        case class `Record-1`(b: Byte, i: Int)
+      test("derives schema for record with default values using a macro call") {
+        case class `Record-1`(`b-1`: Byte = 1, `i-2`: Int = 2)
 
         type Record1 = `Record-1`
 
-        assert(Schema.derived[Record1])(
+        val schema = Schema.derived[Record1]
+        val fields = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]].fields
+        assert(fields(0).value.binding.defaultValue.get.apply(): Any)(equalTo(1)) &&
+        assert(fields(1).value.binding.defaultValue.get.apply(): Any)(equalTo(2)) &&
+        assert(schema)(
           equalTo(
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
-                fields = Nil,
+                fields = Seq(
+                  Schema[Byte].reflect.asTerm("b-1"),
+                  Schema[Int].reflect.asTerm("i-2")
+                ),
                 typeName = TypeName(
                   namespace = Namespace(
                     packages = Seq("zio", "blocks", "schema"),
@@ -385,13 +392,42 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record2[`i-8`, `i-32`]](
               reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
-                fields = Nil,
+                fields = Seq(
+                  Schema[Byte].reflect.asTerm("b"),
+                  Schema[Int].reflect.asTerm("i")
+                ),
                 typeName = TypeName(
                   namespace = Namespace(
                     packages = Seq("zio", "blocks", "schema"),
                     values = Seq("SchemaSpec", "spec")
                   ),
                   name = "Record-2"
+                ),
+                recordBinding = null,
+                doc = Doc.Empty,
+                modifiers = Nil
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for record with multi list constructor using a macro call") {
+        class Record3(val b: Byte)(val i: Int)
+
+        assert(Schema.derived[Record3])(
+          equalTo(
+            new Schema[Record3](
+              reflect = Reflect.Record[Binding, Record3](
+                fields = Seq(
+                  Schema[Byte].reflect.asTerm("b"),
+                  Schema[Int].reflect.asTerm("i")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record3"
                 ),
                 recordBinding = null,
                 doc = Doc.Empty,
