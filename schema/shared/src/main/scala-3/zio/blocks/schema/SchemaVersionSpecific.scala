@@ -53,9 +53,9 @@ object SchemaVersionSpecific {
         case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
         case ps                                     => (Nil, ps)
       }
-      val tpeTypeArgs = typeArgs(tpe)
-      var offset      = RegisterOffset.Zero
-      var i           = 0
+      val tpeTypeArgs   = typeArgs(tpe)
+      var registersUsed = RegisterOffset.Zero
+      var i             = 0
       val fieldInfos = tpeParams.map(_.map { symbol =>
         i += 1
         val name = symbol.name
@@ -86,71 +86,58 @@ object SchemaVersionSpecific {
                 }
                 Some(dvSelect)
               } else None
-            var offsetInc                                                         = RegisterOffset.Zero
             var const: (Expr[Registers], Expr[RegisterOffset]) => Term            = null
             var deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term = null
-            if (fTpe =:= TypeRepr.of[Boolean] || fTpe =:= TypeRepr.of[java.lang.Boolean]) {
-              offsetInc = RegisterOffset(booleans = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getBoolean($baseOffset, ${ Expr(bytes) }) }.asTerm
+            val bytes                                                             = Expr(RegisterOffset.getBytes(registersUsed))
+            val objects                                                           = Expr(RegisterOffset.getObjects(registersUsed))
+            var offset                                                            = RegisterOffset.Zero
+            if (fTpe =:= TypeRepr.of[Boolean]) {
+              offset = RegisterOffset(booleans = 1)
+              const = (in, baseOffset) => '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{
-                  $out.setBoolean($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Boolean] })
-                }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Byte] || fTpe =:= TypeRepr.of[java.lang.Byte]) {
-              offsetInc = RegisterOffset(bytes = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getByte($baseOffset, ${ Expr(bytes) }) }.asTerm
+                '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Byte]) {
+              offset = RegisterOffset(bytes = 1)
+              const = (in, baseOffset) => '{ $in.getByte($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{ $out.setByte($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Char] || fTpe =:= TypeRepr.of[java.lang.Character]) {
-              offsetInc = RegisterOffset(chars = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getChar($baseOffset, ${ Expr(bytes) }) }.asTerm
+                '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Char]) {
+              offset = RegisterOffset(chars = 1)
+              const = (in, baseOffset) => '{ $in.getChar($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{ $out.setChar($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Short] || fTpe =:= TypeRepr.of[java.lang.Short]) {
-              offsetInc = RegisterOffset(shorts = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getShort($baseOffset, ${ Expr(bytes) }) }.asTerm
+                '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Short]) {
+              offset = RegisterOffset(shorts = 1)
+              const = (in, baseOffset) => '{ $in.getShort($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{ $out.setShort($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Float] || fTpe =:= TypeRepr.of[java.lang.Float]) {
-              offsetInc = RegisterOffset(floats = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getFloat($baseOffset, ${ Expr(bytes) }) }.asTerm
+                '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Float]) {
+              offset = RegisterOffset(floats = 1)
+              const = (in, baseOffset) => '{ $in.getFloat($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{ $out.setFloat($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Int] || fTpe =:= TypeRepr.of[java.lang.Integer]) {
-              offsetInc = RegisterOffset(ints = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getInt($baseOffset, ${ Expr(bytes) }) }.asTerm
+                '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Int]) {
+              offset = RegisterOffset(ints = 1)
+              const = (in, baseOffset) => '{ $in.getInt($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{ $out.setInt($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Double] || fTpe =:= TypeRepr.of[java.lang.Double]) {
-              offsetInc = RegisterOffset(doubles = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getDouble($baseOffset, ${ Expr(bytes) }) }.asTerm
+                '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Double]) {
+              offset = RegisterOffset(doubles = 1)
+              const = (in, baseOffset) => '{ $in.getDouble($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{
-                  $out.setDouble($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Double] })
-                }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Long] || fTpe =:= TypeRepr.of[java.lang.Long]) {
-              offsetInc = RegisterOffset(longs = 1)
-              val bytes = RegisterOffset.getBytes(offset)
-              const = (in, baseOffset) => '{ $in.getLong($baseOffset, ${ Expr(bytes) }) }.asTerm
+                '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Long]) {
+              offset = RegisterOffset(longs = 1)
+              const = (in, baseOffset) => '{ $in.getLong($baseOffset, $bytes) }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{ $out.setLong($baseOffset, ${ Expr(bytes) }, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
+                '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
             } else {
-              offsetInc = RegisterOffset(objects = 1)
-              val objects = RegisterOffset.getObjects(offset)
-              const = (in, baseOffset) => '{ $in.getObject($baseOffset, ${ Expr(objects) }).asInstanceOf[ft] }.asTerm
+              offset = RegisterOffset(objects = 1)
+              const = (in, baseOffset) => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm
               deconst = (out, baseOffset, in) =>
-                '{
-                  $out.setObject($baseOffset, ${ Expr(objects) }, ${ Select(in.asTerm, getter).asExprOf[AnyRef] })
-                }.asTerm
+                '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
             }
-            offset = RegisterOffset.add(offset, offsetInc)
+            registersUsed = RegisterOffset.add(registersUsed, offset)
             FieldInfo(symbol, name, fTpe, defaultValue, const, deconst)
         }
       })
@@ -174,15 +161,15 @@ object SchemaVersionSpecific {
           case Nil      => constructorNoTypes
           case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
         }
-        val argss = fieldInfos.map(_.map(fieldInfo => fieldInfo.const(in, baseOffset)))
-        argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args)).asExprOf[A]
-      }
+        val argss = fieldInfos.map(_.map(_.const(in, baseOffset)))
+        argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
+      }.asExprOf[A]
 
-      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[A])(using Quotes) = {
-        val terms = fieldInfos.flatMap(_.map(fieldInfo => fieldInfo.deconst(out, baseOffset, in)))
-        if (terms.size > 1) Block(terms.init, terms.last).asExprOf[Unit]
-        else terms.head.asExprOf[Unit]
-      }
+      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[A])(using Quotes): Expr[Unit] = {
+        val terms = fieldInfos.flatMap(_.map(_.deconst(out, baseOffset, in)))
+        if (terms.size > 1) Block(terms.init, terms.last)
+        else terms.head
+      }.asExprOf[Unit]
 
       val schema =
         '{
@@ -198,12 +185,12 @@ object SchemaVersionSpecific {
               ),
               recordBinding = Binding.Record(
                 constructor = new Constructor[A] {
-                  def usedRegisters: RegisterOffset = ${ Expr(offset) }
+                  def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
 
                   def construct(in: Registers, baseOffset: RegisterOffset): A = ${ const('in, 'baseOffset) }
                 },
                 deconstructor = new Deconstructor[A] {
-                  def usedRegisters: RegisterOffset = ${ Expr(offset) }
+                  def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
 
                   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ${
                     deconst('out, 'baseOffset, 'in)
