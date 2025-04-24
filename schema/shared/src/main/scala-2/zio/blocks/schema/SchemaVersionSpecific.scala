@@ -74,7 +74,7 @@ object SchemaVersionSpecific {
       val tpeTypeParams = tpeTypeSymbol.asClass.typeParams
       val tpeParams     = primaryConstructor.paramLists
       val tpeTypeArgs   = typeArgs(tpe)
-      var offset        = RegisterOffset.Zero
+      var registersUsed = RegisterOffset.Zero
       var i             = 0
       val fieldInfos = tpeParams.map(_.map { param =>
         i += 1
@@ -87,56 +87,49 @@ object SchemaVersionSpecific {
           else None
         val getter =
           getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
-        var offsetInc = RegisterOffset.Zero
-        var const     = q""
-        var deconst   = q""
-        if (fTpe =:= typeOf[Boolean] || fTpe =:= typeOf[java.lang.Boolean]) {
-          offsetInc = RegisterOffset(booleans = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        var const: Tree   = null
+        var deconst: Tree = null
+        val bytes         = RegisterOffset.getBytes(registersUsed)
+        val objects       = RegisterOffset.getObjects(registersUsed)
+        var offset        = RegisterOffset.Zero
+        if (fTpe =:= typeOf[Boolean]) {
+          offset = RegisterOffset(booleans = 1)
           const = q"in.getBoolean(baseOffset, $bytes)"
           deconst = q"out.setBoolean(baseOffset, $bytes, in.$getter)"
-        } else if (fTpe =:= typeOf[Byte] || fTpe =:= typeOf[java.lang.Byte]) {
-          offsetInc = RegisterOffset(bytes = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        } else if (fTpe =:= typeOf[Byte]) {
+          offset = RegisterOffset(bytes = 1)
           const = q"in.getByte(baseOffset, $bytes)"
           deconst = q"out.setByte(baseOffset, $bytes, in.$getter)"
-        } else if (fTpe =:= typeOf[Char] || fTpe =:= typeOf[java.lang.Character]) {
-          offsetInc = RegisterOffset(chars = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        } else if (fTpe =:= typeOf[Char]) {
+          offset = RegisterOffset(chars = 1)
           const = q"in.getChar(baseOffset, $bytes)"
           deconst = q"out.setChar(baseOffset, $bytes, in.$getter)"
-        } else if (fTpe =:= typeOf[Short] || fTpe =:= typeOf[java.lang.Short]) {
-          offsetInc = RegisterOffset(shorts = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        } else if (fTpe =:= typeOf[Short]) {
+          offset = RegisterOffset(shorts = 1)
           const = q"in.getShort(baseOffset, $bytes)"
           deconst = q"out.setShort(baseOffset, $bytes, in.$getter)"
-        } else if (fTpe =:= typeOf[Float] || fTpe =:= typeOf[java.lang.Float]) {
-          offsetInc = RegisterOffset(floats = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        } else if (fTpe =:= typeOf[Float]) {
+          offset = RegisterOffset(floats = 1)
           const = q"in.getFloat(baseOffset, $bytes)"
           deconst = q"out.setFloat(baseOffset, $bytes, in.$getter)"
-        } else if (fTpe =:= typeOf[Int] || fTpe =:= typeOf[java.lang.Integer]) {
-          offsetInc = RegisterOffset(ints = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        } else if (fTpe =:= typeOf[Int]) {
+          offset = RegisterOffset(ints = 1)
           const = q"in.getInt(baseOffset, $bytes)"
           deconst = q"out.setInt(baseOffset, $bytes, in.$getter)"
-        } else if (fTpe =:= typeOf[Double] || fTpe =:= typeOf[java.lang.Double]) {
-          offsetInc = RegisterOffset(doubles = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        } else if (fTpe =:= typeOf[Double]) {
+          offset = RegisterOffset(doubles = 1)
           const = q"in.getDouble(baseOffset, $bytes)"
           deconst = q"out.setDouble(baseOffset, $bytes, in.$getter)"
-        } else if (fTpe =:= typeOf[Long] || fTpe =:= typeOf[java.lang.Long]) {
-          offsetInc = RegisterOffset(longs = 1)
-          val bytes = RegisterOffset.getBytes(offset)
+        } else if (fTpe =:= typeOf[Long]) {
+          offset = RegisterOffset(longs = 1)
           const = q"in.getLong(baseOffset, $bytes)"
           deconst = q"out.setLong(baseOffset, $bytes, in.$getter)"
         } else {
-          offsetInc = RegisterOffset(objects = 1)
-          val objects = RegisterOffset.getObjects(offset)
+          offset = RegisterOffset(objects = 1)
           const = q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
           deconst = q"out.setObject(baseOffset, $objects, in.$getter)"
         }
-        offset = RegisterOffset.add(offset, offsetInc)
+        registersUsed = RegisterOffset.add(registersUsed, offset)
         FieldInfo(symbol, name, fTpe, defaultValue, const, deconst)
       })
       val fields = fieldInfos.flatMap(_.map { fieldInfo =>
@@ -164,12 +157,12 @@ object SchemaVersionSpecific {
                   ),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
-                      def usedRegisters: RegisterOffset = $offset
+                      def usedRegisters: RegisterOffset = $registersUsed
 
                       def construct(in: Registers, baseOffset: RegisterOffset): $tpe = $const
                     },
                     deconstructor = new Deconstructor[$tpe] {
-                      def usedRegisters: RegisterOffset = $offset
+                      def usedRegisters: RegisterOffset = $registersUsed
 
                       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = {
                         ..$deconst
