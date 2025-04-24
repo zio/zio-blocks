@@ -184,38 +184,41 @@ object SchemaVersionSpecific {
         else terms.head.asExprOf[Unit]
       }
 
-      '{
-        new Schema[A](
-          reflect = new Reflect.Record[Binding, A](
-            fields = ${ Expr.ofList(fields) },
-            typeName = TypeName(
-              namespace = Namespace(
-                packages = ${ Expr(packages) },
-                values = ${ Expr(values) }
+      val schema =
+        '{
+          new Schema[A](
+            reflect = new Reflect.Record[Binding, A](
+              fields = ${ Expr.ofList(fields) },
+              typeName = TypeName(
+                namespace = Namespace(
+                  packages = ${ Expr(packages) },
+                  values = ${ Expr(values) }
+                ),
+                name = ${ Expr(name) }
               ),
-              name = ${ Expr(name) }
-            ),
-            recordBinding = Binding.Record(
-              constructor = new Constructor[A] {
-                def usedRegisters: RegisterOffset = ${ Expr(offset) }
+              recordBinding = Binding.Record(
+                constructor = new Constructor[A] {
+                  def usedRegisters: RegisterOffset = ${ Expr(offset) }
 
-                def construct(in: Registers, baseOffset: RegisterOffset): A = ${ const('in, 'baseOffset) }
-              },
-              deconstructor = new Deconstructor[A] {
-                def usedRegisters: RegisterOffset = ${ Expr(offset) }
+                  def construct(in: Registers, baseOffset: RegisterOffset): A = ${ const('in, 'baseOffset) }
+                },
+                deconstructor = new Deconstructor[A] {
+                  def usedRegisters: RegisterOffset = ${ Expr(offset) }
 
-                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ${
-                  deconst('out, 'baseOffset, 'in)
-                }
-              },
-              defaultValue = None,
-              examples = Nil
-            ),
-            doc = Doc.Empty,
-            modifiers = Nil
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ${
+                    deconst('out, 'baseOffset, 'in)
+                  }
+                },
+                defaultValue = None,
+                examples = Nil
+              ),
+              doc = Doc.Empty,
+              modifiers = Nil
+            )
           )
-        )
-      }.asExprOf[Schema[A]]
+        }
+      // report.info(s"Generated schema for type '${tpe.show}':\n${schema.show}", Position.ofMacroExpansion)
+      schema
     } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show}'.")
   }
 }
