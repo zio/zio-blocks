@@ -355,10 +355,12 @@ object SchemaSpec extends ZIOSpecDefault {
 
         val schema = Schema.derived[Record1]
         val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
-        val lens1  = Lens(record, record.fields(0).asInstanceOf[Term.Bound[Record1, Byte]])
-        val lens2  = Lens(record, record.fields(1).asInstanceOf[Term.Bound[Record1, Int]])
-        assert(record.fields(0).value.binding.defaultValue.get.apply(): Any)(equalTo(1)) &&
-        assert(record.fields(1).value.binding.defaultValue.get.apply(): Any)(equalTo(2)) &&
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Byte]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Int]]
+        val lens1  = Lens(record, field1)
+        val lens2  = Lens(record, field2)
+        assert(field1.value.binding.defaultValue.get.apply())(equalTo(1: Byte)) &&
+        assert(field2.value.binding.defaultValue.get.apply())(equalTo(2)) &&
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
         assert(lens1.get(`Record-1`()))(equalTo(1: Byte)) &&
@@ -395,7 +397,21 @@ object SchemaSpec extends ZIOSpecDefault {
         type `i-8`         = Byte
         type `i-32`        = Int
 
-        assert(Schema.derived[Record2[`i-8`, `i-32`]])(
+        val schema = Schema.derived[Record2[`i-8`, `i-32`]]
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record2[`i-8`, `i-32`], `i-8`]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record2[`i-8`, `i-32`], `i-32`]]
+        val lens1  = Lens(record, field1)
+        val lens2  = Lens(record, field2)
+        assert(field1.value.binding.defaultValue)(isNone) &&
+        assert(field2.value.binding.defaultValue)(isNone) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assert(lens1.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
+        assert(lens2.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(2)) &&
+        assert(lens1.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3: Byte))(equalTo(`Record-2`[`i-8`, `i-32`](3, 2))) &&
+        assert(lens2.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3))(equalTo(`Record-2`[`i-8`, `i-32`](1, 3))) &&
+        assert(schema)(
           equalTo(
             new Schema[Record2[`i-8`, `i-32`]](
               reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
@@ -421,7 +437,21 @@ object SchemaSpec extends ZIOSpecDefault {
       test("derives schema for record with multi list constructor using a macro call") {
         class Record3(val b: Byte)(val i: Int)
 
-        assert(Schema.derived[Record3])(
+        val schema = Schema.derived[Record3]
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record3, Byte]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record3, Int]]
+        val lens1  = Lens(record, field1)
+        val lens2  = Lens(record, field2)
+        assert(field1.value.binding.defaultValue)(isNone) &&
+        assert(field2.value.binding.defaultValue)(isNone) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assert(lens1.get(new Record3(1)(2)))(equalTo(1: Byte)) &&
+        assert(lens2.get(new Record3(1)(2)))(equalTo(2)) &&
+        assert(lens1.replace(new Record3(1)(2), 3: Byte).b)(equalTo(3: Byte)) &&
+        assert(lens2.replace(new Record3(1)(2), 3).i)(equalTo(3)) &&
+        assert(schema)(
           equalTo(
             new Schema[Record3](
               reflect = Reflect.Record[Binding, Record3](
