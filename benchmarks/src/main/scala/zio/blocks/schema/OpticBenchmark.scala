@@ -190,140 +190,40 @@ object LensDomain {
   case class E(s: String)
 
   object E {
-    val reflect: Reflect.Record.Bound[E] = Reflect.Record(
-      fields = Seq(
-        Term("s", Reflect.string, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[E] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): E =
-            E(in.getObject(baseOffset, 0).asInstanceOf[String])
-        },
-        deconstructor = new Deconstructor[E] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: E): Unit =
-            out.setObject(baseOffset, 0, in.s)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val s: Lens.Bound[E, String] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E, String]])
+    implicit val schema: Schema[E]       = Schema.derived
+    val reflect: Reflect.Record.Bound[E] = schema.reflect.asInstanceOf[Reflect.Record.Bound[E]]
+    val s: Lens.Bound[E, String]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E, String]])
   }
 
   case class D(e: E)
 
   object D {
-    val reflect: Reflect.Record.Bound[D] = Reflect.Record(
-      fields = Seq(
-        Term("e", E.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[D] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): D =
-            D(in.getObject(baseOffset, 0).asInstanceOf[E])
-        },
-        deconstructor = new Deconstructor[D] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: D): Unit =
-            out.setObject(baseOffset, 0, in.e)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val e: Lens.Bound[D, E] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D, E]])
+    implicit val schema: Schema[D]       = Schema.derived
+    val reflect: Reflect.Record.Bound[D] = schema.reflect.asInstanceOf[Reflect.Record.Bound[D]]
+    val e: Lens.Bound[D, E]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D, E]])
   }
 
   case class C(d: D)
 
   object C {
-    val reflect: Reflect.Record.Bound[C] = Reflect.Record(
-      fields = Seq(
-        Term("d", D.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[C] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): C =
-            C(in.getObject(baseOffset, 0).asInstanceOf[D])
-        },
-        deconstructor = new Deconstructor[C] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: C): Unit =
-            out.setObject(baseOffset, 0, in.d)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val d: Lens.Bound[C, D] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C, D]])
+    implicit val schema: Schema[C]       = Schema.derived
+    val reflect: Reflect.Record.Bound[C] = schema.reflect.asInstanceOf[Reflect.Record.Bound[C]]
+    val d: Lens.Bound[C, D]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C, D]])
   }
 
   case class B(c: C)
 
   object B {
-    val reflect: Reflect.Record.Bound[B] = Reflect.Record(
-      fields = Seq(
-        Term("c", C.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[B] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): B =
-            B(in.getObject(baseOffset, 0).asInstanceOf[C])
-        },
-        deconstructor = new Deconstructor[B] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: B): Unit =
-            out.setObject(baseOffset, 0, in.c)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val c: Lens.Bound[B, C] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B, C]])
+    implicit val schema: Schema[B]       = Schema.derived
+    val reflect: Reflect.Record.Bound[B] = schema.reflect.asInstanceOf[Reflect.Record.Bound[B]]
+    val c: Lens.Bound[B, C]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B, C]])
   }
 
   case class A(b: B)
 
   object A {
-    val reflect: Reflect.Record.Bound[A] = Reflect.Record(
-      fields = Seq(
-        Term("b", B.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "A"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[A] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): A =
-            A(in.getObject(baseOffset, 0).asInstanceOf[B])
-        },
-        deconstructor = new Deconstructor[A] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit =
-            out.setObject(baseOffset, 0, in.b)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
+    implicit val schema: Schema[A]       = Schema.derived
+    val reflect: Reflect.Record.Bound[A] = schema.reflect.asInstanceOf[Reflect.Record.Bound[A]]
     val b: Lens.Bound[A, B] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A, B]])
     val b_c_d_e_s: Lens.Bound[A, String] =
@@ -374,63 +274,24 @@ object OptionalDomain {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    val e1: Prism.Bound[E, E1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[E, E1]])
+    implicit val schema: Schema[E] = Schema(reflect)
+    val e1: Prism.Bound[E, E1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[E, E1]])
   }
 
   case class E1(s: String) extends E
 
   object E1 {
-    val reflect: Reflect.Record.Bound[E1] = Reflect.Record(
-      fields = Seq(
-        Term("s", Reflect.string, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E1"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[E1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): E1 =
-            E1(in.getObject(baseOffset, 0).asInstanceOf[String])
-        },
-        deconstructor = new Deconstructor[E1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: E1): Unit =
-            out.setObject(baseOffset, 0, in.s)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val s: Lens.Bound[E1, String] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E1, String]])
+    implicit val schema: Schema[E1]       = Schema.derived
+    val reflect: Reflect.Record.Bound[E1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[E1]]
+    val s: Lens.Bound[E1, String]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E1, String]])
   }
 
   case class E2(i: Int) extends E
 
   object E2 {
-    val reflect: Reflect.Record.Bound[E2] = Reflect.Record(
-      fields = Seq(
-        Term("i", Reflect.int, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E2"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[E2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): E2 =
-            E2(in.getInt(baseOffset, 0))
-        },
-        deconstructor = new Deconstructor[E2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: E2): Unit =
-            out.setInt(baseOffset, 0, in.i)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val i: Lens.Bound[E2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E2, Int]])
+    implicit val schema: Schema[E2]       = Schema.derived
+    val reflect: Reflect.Record.Bound[E2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[E2]]
+    val i: Lens.Bound[E2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E2, Int]])
   }
 
   sealed trait D
@@ -467,63 +328,24 @@ object OptionalDomain {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    val d1: Prism.Bound[D, D1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[D, D1]])
+    implicit val schema: Schema[D] = Schema(reflect)
+    val d1: Prism.Bound[D, D1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[D, D1]])
   }
 
   case class D1(e: E) extends D
 
   object D1 {
-    val reflect: Reflect.Record.Bound[D1] = Reflect.Record(
-      fields = Seq(
-        Term("e", E.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D1"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[D1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): D1 =
-            D1(in.getObject(baseOffset, 0).asInstanceOf[E])
-        },
-        deconstructor = new Deconstructor[D1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: D1): Unit =
-            out.setObject(baseOffset, 0, in.e)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val e: Lens.Bound[D1, E] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D1, E]])
+    implicit val schema: Schema[D1]       = Schema.derived
+    val reflect: Reflect.Record.Bound[D1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[D1]]
+    val e: Lens.Bound[D1, E]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D1, E]])
   }
 
   case class D2(i: Int) extends D
 
   object D2 {
-    val reflect: Reflect.Record.Bound[D2] = Reflect.Record(
-      fields = Seq(
-        Term("i", Reflect.int, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D2"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[D2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): D2 =
-            D2(in.getInt(baseOffset, 0))
-        },
-        deconstructor = new Deconstructor[D2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: D2): Unit =
-            out.setInt(baseOffset, 0, in.i)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val i: Lens.Bound[D2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D2, Int]])
+    implicit val schema: Schema[D2]       = Schema.derived
+    val reflect: Reflect.Record.Bound[D2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[D2]]
+    val i: Lens.Bound[D2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D2, Int]])
   }
 
   sealed trait C
@@ -560,63 +382,24 @@ object OptionalDomain {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    val c1: Prism.Bound[C, C1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[C, C1]])
+    implicit val schema: Schema[C] = Schema(reflect)
+    val c1: Prism.Bound[C, C1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[C, C1]])
   }
 
   case class C1(d: D) extends C
 
   object C1 {
-    val reflect: Reflect.Record.Bound[C1] = Reflect.Record(
-      fields = Seq(
-        Term("d", D.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C1"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[C1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): C1 =
-            C1(in.getObject(baseOffset, 0).asInstanceOf[D])
-        },
-        deconstructor = new Deconstructor[C1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: C1): Unit =
-            out.setObject(baseOffset, 0, in.d)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val d: Lens.Bound[C1, D] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C1, D]])
+    implicit val schema: Schema[C1]       = Schema.derived
+    val reflect: Reflect.Record.Bound[C1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[C1]]
+    val d: Lens.Bound[C1, D]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C1, D]])
   }
 
   case class C2(i: Int) extends C
 
   object C2 {
-    val reflect: Reflect.Record.Bound[C2] = Reflect.Record(
-      fields = Seq(
-        Term("i", Reflect.int, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C2"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[C2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): C2 =
-            C2(in.getInt(baseOffset, 0))
-        },
-        deconstructor = new Deconstructor[C2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: C2): Unit =
-            out.setInt(baseOffset, 0, in.i)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val i: Lens.Bound[C2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C2, Int]])
+    implicit val schema: Schema[C2]       = Schema.derived
+    val reflect: Reflect.Record.Bound[C2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[C2]]
+    val i: Lens.Bound[C2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C2, Int]])
   }
 
   sealed trait B
@@ -653,90 +436,31 @@ object OptionalDomain {
       doc = Doc.Empty,
       modifiers = Nil
     )
-    val b1: Prism.Bound[B, B1] = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[B, B1]])
+    implicit val schema: Schema[B] = Schema(reflect)
+    val b1: Prism.Bound[B, B1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[B, B1]])
   }
 
   case class B1(c: C) extends B
 
   object B1 {
-    val reflect: Reflect.Record.Bound[B1] = Reflect.Record(
-      fields = Seq(
-        Term("c", C.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B1"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[B1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): B1 =
-            B1(in.getObject(baseOffset, 0).asInstanceOf[C1])
-        },
-        deconstructor = new Deconstructor[B1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: B1): Unit =
-            out.setObject(baseOffset, 0, in.c)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val c: Lens.Bound[B1, C] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B1, C]])
+    implicit val schema: Schema[B1]       = Schema.derived
+    val reflect: Reflect.Record.Bound[B1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[B1]]
+    val c: Lens.Bound[B1, C]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B1, C]])
   }
 
   case class B2(i: Int) extends B
 
   object B2 {
-    val reflect: Reflect.Record.Bound[B2] = Reflect.Record(
-      fields = Seq(
-        Term("i", Reflect.int, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B2"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[B2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): B2 =
-            B2(in.getInt(baseOffset, 0))
-        },
-        deconstructor = new Deconstructor[B2] {
-          def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: B2): Unit =
-            out.setInt(baseOffset, 0, in.i)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    val i: Lens.Bound[B2, Int] = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B2, Int]])
+    implicit val schema: Schema[B2]       = Schema.derived
+    val reflect: Reflect.Record.Bound[B2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[B2]]
+    val i: Lens.Bound[B2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B2, Int]])
   }
 
   case class A1(b: B)
 
   object A1 {
-    val reflect: Reflect.Record.Bound[A1] = Reflect.Record(
-      fields = Seq(
-        Term("b", B1.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "A1"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[A1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): A1 =
-            A1(in.getObject(baseOffset, 0).asInstanceOf[B1])
-        },
-        deconstructor = new Deconstructor[A1] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A1): Unit =
-            out.setObject(baseOffset, 0, in.b)
-        }
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
+    implicit val schema: Schema[A1]       = Schema.derived
+    val reflect: Reflect.Record.Bound[A1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[A1]]
     val b: Lens.Bound[A1, B] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A1, B]])
     val b_b1_c_c1_d_d1_e_e1_s: Optional.Bound[A1, String] =
