@@ -492,7 +492,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.defaultValue(Case1(1.0)).reflect.binding.defaultValue.get.apply())(equalTo(Case1(1.0)))
       },
       test("has access to variant documentation") {
-        assert(Variant.schema.doc)(equalTo(Doc("Variant with 2 cases")))
+        assert(Variant.schema.doc)(equalTo(Doc.Empty))
       },
       test("has access to variant case documentation using prism focus") {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
@@ -502,7 +502,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.doc("Variant (updated)").doc)(equalTo(Doc("Variant (updated)")))
       },
       test("has access to variant examples") {
-        assert(Variant.schema.examples)(equalTo(Case1(1.0) :: Case2("WWW") :: Nil))
+        assert(Variant.schema.examples)(equalTo(Nil))
       },
       test("updates variant examples") {
         assert(Variant.schema.examples(Case1(2.0), Case2("VVV")).examples)(equalTo(Case1(2.0) :: Case2("VVV") :: Nil))
@@ -511,6 +511,152 @@ object SchemaSpec extends ZIOSpecDefault {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
         assert(Variant.schema.examples(Prism(variant, variant.cases(0))): Seq[_])(
           equalTo(variant.cases(0).value.binding.examples)
+        )
+      },
+      test("derives schema for variant using a macro call") {
+        sealed trait `Variant-1`
+
+        case class `Case-1`(d: Double) extends `Variant-1`
+
+        object `Case-1` {
+          implicit val schema: Schema[`Case-1`] = Schema.derived
+        }
+
+        case class `Case-2`(f: Float) extends `Variant-1`
+
+        object `Case-2` {
+          implicit val schema: Schema[`Case-2`] = Schema.derived
+        }
+
+        type Variant1 = `Variant-1`
+
+        val schema  = Schema.derived[Variant1]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant1]]
+        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant1, `Case-1`]]
+        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant1, `Case-2`]]
+        val prism1  = Prism(variant, case1)
+        val prism2  = Prism(variant, case2)
+        assert(prism1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
+        assert(prism2.getOption(`Case-2`(0.2f)))(isSome(equalTo(`Case-2`(0.2f)))) &&
+        assert(prism1.replace(`Case-1`(0.1), `Case-1`(0.2)))(equalTo(`Case-1`(0.2))) &&
+        assert(prism2.replace(`Case-2`(0.2f), `Case-2`(0.3f)))(equalTo(`Case-2`(0.3f))) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Variant1](
+              reflect = Reflect.Variant[Binding, Variant1](
+                cases = Seq(
+                  Schema[`Case-1`].reflect.asTerm("case0"),
+                  Schema[`Case-2`].reflect.asTerm("case1")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Variant-1"
+                ),
+                variantBinding = null,
+                doc = Doc.Empty,
+                modifiers = Nil
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for genetic variant using a macro call") {
+        sealed abstract class `Variant-2`[+A]
+
+        case object MissingValue extends `Variant-2`[Nothing] {
+          implicit val schema: Schema[MissingValue.type] = Schema.derived
+        }
+
+        case object NullValue extends `Variant-2`[Null] {
+          implicit val schema: Schema[NullValue.type] = Schema.derived
+        }
+
+        case class Value[A](a: A) extends `Variant-2`[A]
+
+        type Variant2[A] = `Variant-2`[A]
+
+        implicit val valueOfStringSchema: Schema[Value[String]] = Schema.derived
+        val schema                                              = Schema.derived[Variant2[String]]
+        val variant                                             = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant2[String]]]
+        val case1                                               = variant.cases(0).asInstanceOf[Term.Bound[Variant2[String], MissingValue.type]]
+        val case2                                               = variant.cases(1).asInstanceOf[Term.Bound[Variant2[String], NullValue.type]]
+        val case3                                               = variant.cases(2).asInstanceOf[Term.Bound[Variant2[String], Value[String]]]
+        val prism3                                              = Prism(variant, case3)
+        assert(prism3.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
+        assert(prism3.replace(Value[String]("WWW"), Value[String]("VVV")))(equalTo(Value[String]("VVV"))) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Variant2[String]](
+              reflect = Reflect.Variant[Binding, Variant2[String]](
+                cases = Seq(
+                  Schema[MissingValue.type].reflect
+                    .asTerm("case0")
+                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
+                  Schema[NullValue.type].reflect
+                    .asTerm("case1")
+                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
+                  Schema[Value[String]].reflect
+                    .asTerm("case2")
+                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]]
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Variant-2"
+                ),
+                variantBinding = null,
+                doc = Doc.Empty,
+                modifiers = Nil
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for higher-kinded variant using a macro call") {
+        sealed trait `Variant-3`[F[_]]
+
+        case class `Case-1`[F[_]](a: F[Double]) extends `Variant-3`[F]
+
+        case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
+
+        implicit val schemaCase1Option: Schema[`Case-1`[Option]] = Schema.derived
+        implicit val schemaCase2Option: Schema[`Case-2`[Option]] = Schema.derived
+        val schema                                               = Schema.derived[`Variant-3`[Option]]
+        val variant                                              = schema.reflect.asInstanceOf[Reflect.Variant[Binding, `Variant-3`[Option]]]
+        val case1                                                = variant.cases(0).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-1`[Option]]]
+        val case2                                                = variant.cases(1).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-2`[Option]]]
+        val prism1                                               = Prism(variant, case1)
+        val prism2                                               = Prism(variant, case2)
+        assert(prism1.getOption(`Case-1`[Option](Some(0.1))))(isSome(equalTo(`Case-1`[Option](Some(0.1))))) &&
+        assert(prism2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
+        assert(prism1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
+        assert(prism2.replace(`Case-2`[Option](Some(0.2f)), `Case-2`[Option](None)))(equalTo(`Case-2`[Option](None))) &&
+        assert(schema)(
+          equalTo(
+            new Schema[`Variant-3`[Option]](
+              reflect = Reflect.Variant[Binding, `Variant-3`[Option]](
+                cases = Seq(
+                  Schema[`Case-1`[Option]].reflect.asTerm("case0"),
+                  Schema[`Case-2`[Option]].reflect.asTerm("case1")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Variant-3"
+                ),
+                variantBinding = null,
+                doc = Doc.Empty,
+                modifiers = Nil
+              )
+            )
+          )
         )
       }
     ),
@@ -800,57 +946,24 @@ object SchemaSpec extends ZIOSpecDefault {
   case class Record(b: Byte, i: Int)
 
   object Record {
-    val schema: Schema[Record] = Schema.derived
+    implicit val schema: Schema[Record] = Schema.derived
   }
 
   sealed trait Variant
 
   object Variant {
-    val schema: Schema[Variant] = Schema(
-      reflect = Reflect.Variant[Binding, Variant](
-        cases = Seq(
-          Case1.schema.reflect.asTerm("case1"),
-          Case2.schema.reflect.asTerm("case2")
-        ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "Variant"),
-        variantBinding = Binding.Variant(
-          discriminator = new Discriminator[Variant] {
-            def discriminate(a: Variant): Int = a match {
-              case _: Case1 => 0
-              case _: Case2 => 1
-            }
-          },
-          matchers = Matchers(
-            new Matcher[Case1] {
-              def downcastOrNull(a: Any): Case1 = a match {
-                case x: Case1 => x
-                case _        => null
-              }
-            },
-            new Matcher[Case2] {
-              def downcastOrNull(a: Any): Case2 = a match {
-                case x: Case2 => x
-                case _        => null
-              }
-            }
-          ),
-          examples = Case1(1.0) :: Case2("WWW") :: Nil
-        ),
-        doc = Doc("Variant with 2 cases"),
-        modifiers = Nil
-      )
-    )
+    implicit val schema: Schema[Variant] = Schema.derived
   }
 
   case class Case1(d: Double) extends Variant
 
   object Case1 {
-    val schema: Schema[Case1] = Schema.derived
+    implicit val schema: Schema[Case1] = Schema.derived
   }
 
   case class Case2(s: String) extends Variant
 
   object Case2 {
-    val schema: Schema[Case2] = Schema.derived
+    implicit val schema: Schema[Case2] = Schema.derived
   }
 }

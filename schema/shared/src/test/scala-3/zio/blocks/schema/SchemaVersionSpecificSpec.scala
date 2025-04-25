@@ -50,6 +50,48 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       }
+    ),
+    suite("Reflect.Variant")(
+      test("derives schema using 'derives' keyword") {
+        sealed trait Variant1 derives Schema
+
+        case class Case1(d: Double) extends Variant1 derives Schema
+
+        case class Case2(f: Float) extends Variant1 derives Schema
+
+        val schema  = Schema.derived[Variant1]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant1]]
+        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]]
+        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant1, Case2]]
+        val prism1  = Prism(variant, case1)
+        val prism2  = Prism(variant, case2)
+        assert(prism1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
+        assert(prism2.getOption(Case2(0.2f)))(isSome(equalTo(Case2(0.2f)))) &&
+        assert(prism1.replace(Case1(0.1), Case1(0.2)))(equalTo(Case1(0.2))) &&
+        assert(prism2.replace(Case2(0.2f), Case2(0.3f)))(equalTo(Case2(0.3f))) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Variant1](
+              reflect = Reflect.Variant[Binding, Variant1](
+                cases = Seq(
+                  Schema[Case1].reflect.asTerm("case0"),
+                  Schema[Case2].reflect.asTerm("case1")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaVersionSpecificSpec", "spec")
+                  ),
+                  name = "Variant1"
+                ),
+                variantBinding = null,
+                doc = Doc.Empty,
+                modifiers = Nil
+              )
+            )
+          )
+        )
+      }
     )
   )
 }
