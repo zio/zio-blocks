@@ -243,39 +243,9 @@ object OptionalDomain {
   sealed trait E
 
   object E {
-    val reflect: Reflect.Variant.Bound[E] = Reflect.Variant(
-      cases = Seq(
-        Term("e1", E1.reflect, Doc.Empty, Nil),
-        Term("e2", E2.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "E"),
-      variantBinding = Binding.Variant(
-        discriminator = new Discriminator[E] {
-          def discriminate(a: E): Int = a match {
-            case _: E1 => 0
-            case _: E2 => 1
-          }
-        },
-        matchers = Matchers(
-          new Matcher[E1] {
-            def downcastOrNull(a: Any): E1 = a match {
-              case x: E1 => x
-              case _     => null
-            }
-          },
-          new Matcher[E2] {
-            def downcastOrNull(a: Any): E2 = a match {
-              case x: E2 => x
-              case _     => null
-            }
-          }
-        )
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    implicit val schema: Schema[E] = Schema(reflect)
-    val e1: Prism.Bound[E, E1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[E, E1]])
+    implicit val schema: Schema[E]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[E] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[E]]
+    val e1: Prism.Bound[E, E1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[E, E1]])
   }
 
   case class E1(s: String) extends E
@@ -297,39 +267,9 @@ object OptionalDomain {
   sealed trait D
 
   object D {
-    val reflect: Reflect.Variant.Bound[D] = Reflect.Variant(
-      cases = Seq(
-        Term("d1", D1.reflect, Doc.Empty, Nil),
-        Term("d2", D2.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "D"),
-      variantBinding = Binding.Variant(
-        discriminator = new Discriminator[D] {
-          def discriminate(a: D): Int = a match {
-            case _: D1 => 0
-            case _: D2 => 1
-          }
-        },
-        matchers = Matchers(
-          new Matcher[D1] {
-            def downcastOrNull(a: Any): D1 = a match {
-              case x: D1 => x
-              case _     => null
-            }
-          },
-          new Matcher[D2] {
-            def downcastOrNull(a: Any): D2 = a match {
-              case x: D2 => x
-              case _     => null
-            }
-          }
-        )
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    implicit val schema: Schema[D] = Schema(reflect)
-    val d1: Prism.Bound[D, D1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[D, D1]])
+    implicit val schema: Schema[D]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[D] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[D]]
+    val d1: Prism.Bound[D, D1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[D, D1]])
   }
 
   case class D1(e: E) extends D
@@ -351,39 +291,9 @@ object OptionalDomain {
   sealed trait C
 
   object C {
-    val reflect: Reflect.Variant.Bound[C] = Reflect.Variant(
-      cases = Seq(
-        Term("c1", C1.reflect, Doc.Empty, Nil),
-        Term("c2", C2.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "C"),
-      variantBinding = Binding.Variant(
-        discriminator = new Discriminator[C] {
-          def discriminate(a: C): Int = a match {
-            case _: C1 => 0
-            case _: C2 => 1
-          }
-        },
-        matchers = Matchers(
-          new Matcher[C1] {
-            def downcastOrNull(a: Any): C1 = a match {
-              case x: C1 => x
-              case _     => null
-            }
-          },
-          new Matcher[C2] {
-            def downcastOrNull(a: Any): C2 = a match {
-              case x: C2 => x
-              case _     => null
-            }
-          }
-        )
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    implicit val schema: Schema[C] = Schema(reflect)
-    val c1: Prism.Bound[C, C1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[C, C1]])
+    implicit val schema: Schema[C]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[C] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[C]]
+    val c1: Prism.Bound[C, C1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[C, C1]])
   }
 
   case class C1(d: D) extends C
@@ -405,39 +315,9 @@ object OptionalDomain {
   sealed trait B
 
   object B {
-    val reflect: Reflect.Variant.Bound[B] = Reflect.Variant(
-      cases = Seq(
-        Term("b1", B1.reflect, Doc.Empty, Nil),
-        Term("b2", B2.reflect, Doc.Empty, Nil)
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "B"),
-      variantBinding = Binding.Variant(
-        discriminator = new Discriminator[B] {
-          def discriminate(a: B): Int = a match {
-            case _: B1 => 0
-            case _: B2 => 1
-          }
-        },
-        matchers = Matchers(
-          new Matcher[B1] {
-            def downcastOrNull(a: Any): B1 = a match {
-              case x: B1 => x
-              case _     => null
-            }
-          },
-          new Matcher[B2] {
-            def downcastOrNull(a: Any): B2 = a match {
-              case x: B2 => x
-              case _     => null
-            }
-          }
-        )
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    implicit val schema: Schema[B] = Schema(reflect)
-    val b1: Prism.Bound[B, B1]     = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[B, B1]])
+    implicit val schema: Schema[B]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[B] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[B]]
+    val b1: Prism.Bound[B, B1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[B, B1]])
   }
 
   case class B1(c: C) extends B

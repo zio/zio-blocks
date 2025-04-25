@@ -14,17 +14,233 @@ object SchemaVersionSpecific {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
-    def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { sym =>
-      val flags = sym.flags
+    def isEnumOrModuleValue(tpe: TypeRepr): Boolean = tpe.isSingleton &&
+      (tpe.typeSymbol.flags.is(Flags.Module) || tpe.termSymbol.flags.is(Flags.Enum))
+
+    def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
+      val flags = symbol.flags
+      flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
+    }
+
+    def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
+      val flags = symbol.flags
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
-    def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match
+    def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
       case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
       case _                        => Nil
+    }
 
-    val tpe = TypeRepr.of[A].dealias
-    if (isNonAbstractScalaClass(tpe)) {
+    def directSubTypes(tpe: TypeRepr): Seq[TypeRepr] = {
+      def resolveParentTypeArg(
+        child: Symbol,
+        fromNudeChildTarg: TypeRepr,
+        parentTarg: TypeRepr,
+        binding: Map[String, TypeRepr]
+      ): Map[String, TypeRepr] =
+        if (fromNudeChildTarg.typeSymbol.isTypeParam) { // TODO: check for paramRef instead ?
+          val paramName = fromNudeChildTarg.typeSymbol.name
+          binding.get(paramName) match {
+            case None => binding.updated(paramName, parentTarg)
+            case Some(oldBinding) =>
+              if (oldBinding =:= parentTarg) binding
+              else
+                fail(
+                  s"Type parameter $paramName' in class '${child.name}' appeared in the constructor of " +
+                    s"'${tpe.show}' two times differently, with '${oldBinding.show}' and '${parentTarg.show}'"
+                )
+          }
+        } else if (fromNudeChildTarg <:< parentTarg) {
+          binding // TODO: assure parentTag is covariant, get covariance from type parameters
+        } else {
+          (fromNudeChildTarg, parentTarg) match {
+            case (AppliedType(ctycon, ctargs), AppliedType(ptycon, ptargs)) =>
+              ctargs.zip(ptargs).foldLeft(resolveParentTypeArg(child, ctycon, ptycon, binding)) { (b, e) =>
+                resolveParentTypeArg(child, e._1, e._2, b)
+              }
+            case _ =>
+              fail(
+                s"Failed unification of type parameters of '${tpe.show}' from child '$child' - " +
+                  s"'${fromNudeChildTarg.show}' and '${parentTarg.show}'"
+              )
+          }
+        }
+
+      def resolveParentTypeArgs(
+        child: Symbol,
+        nudeChildParentTags: List[TypeRepr],
+        parentTags: List[TypeRepr],
+        binding: Map[String, TypeRepr]
+      ): Map[String, TypeRepr] =
+        nudeChildParentTags.zip(parentTags).foldLeft(binding)((s, e) => resolveParentTypeArg(child, e._1, e._2, s))
+
+      tpe.typeSymbol.children.map { sym =>
+        if (sym.isType) {
+          if (sym.name == "<local child>") { // problem - we have no other way to find this other return the name
+            fail(
+              s"Local child symbols are not supported, please consider change '${tpe.show}' or implement a " +
+                "custom implicitly accessible schema"
+            )
+          }
+          val nudeSubtype      = TypeIdent(sym).tpe
+          val tpeArgsFromChild = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
+          nudeSubtype.memberType(sym.primaryConstructor) match {
+            case MethodType(_, _, _) => nudeSubtype
+            case PolyType(names, bounds, resPolyTp) =>
+              val tpBinding = resolveParentTypeArgs(sym, tpeArgsFromChild, typeArgs(tpe), Map.empty)
+              val ctArgs = names.map { name =>
+                tpBinding.getOrElse(
+                  name,
+                  fail(
+                    s"Type parameter '$name' of '$sym' can't be deduced from " +
+                      s"type arguments of ${tpe.show}. Please provide a custom implicitly accessible schema for it."
+                  )
+                )
+              }
+              val polyRes = resPolyTp match {
+                case MethodType(_, _, resTp) => resTp
+                case other                   => other // hope we have no multiple typed param lists yet.
+              }
+              if (ctArgs.isEmpty) polyRes
+              else
+                polyRes match {
+                  case AppliedType(base, _)                       => base.appliedTo(ctArgs)
+                  case AnnotatedType(AppliedType(base, _), annot) => AnnotatedType(base.appliedTo(ctArgs), annot)
+                  case _                                          => polyRes.appliedTo(ctArgs)
+                }
+            case other => fail(s"Primary constructior for ${tpe.show} is not MethodType or PolyType but $other")
+          }
+        } else if (sym.isTerm) Ref(sym).tpe
+        else {
+          fail(
+            "Only concrete (no free type parametes) type are supported for ADT cases. Please consider using of " +
+              s"them for ADT with base '${tpe.show}' or provide a custom implicitly accessible schema for the ADT base."
+          )
+        }
+      }
+    }
+
+    val tpe           = TypeRepr.of[A].dealias
+    val tpeTypeSymbol = tpe.typeSymbol
+    val name          = tpeTypeSymbol.name.toString
+    var values        = List.empty[String]
+    var packages      = List.empty[String]
+    var owner         = tpeTypeSymbol.owner
+    while (owner != quotes.reflect.defn.RootClass) {
+      val name = owner.name.toString
+      if (owner.flags.is(Flags.Package)) packages = name :: packages
+      else if (owner.flags.is(Flags.Module)) values = name.substring(0, name.length - 1) :: values
+      else values = name :: values
+      owner = owner.owner
+    }
+    if (isEnumOrModuleValue(tpe)) {
+      val schema =
+        '{
+          new Schema[A](
+            reflect = new Reflect.Record[Binding, A](
+              fields = Nil,
+              typeName = TypeName(
+                namespace = Namespace(
+                  packages = ${ Expr(packages) },
+                  values = ${ Expr(values) }
+                ),
+                name = ${ Expr(name) }
+              ),
+              recordBinding = Binding.Record(
+                constructor = new Constructor[A] {
+                  def usedRegisters: RegisterOffset = 0
+
+                  def construct(in: Registers, baseOffset: RegisterOffset): A = ${ Ref(tpe.termSymbol).asExprOf[A] }
+                },
+                deconstructor = new Deconstructor[A] {
+                  def usedRegisters: RegisterOffset = 0
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ()
+                },
+                defaultValue = None,
+                examples = Nil
+              ),
+              doc = Doc.Empty,
+              modifiers = Nil
+            )
+          )
+        }
+      // report.info(s"Generated schema for type '${tpe.show}':\n${schema.show}", Position.ofMacroExpansion)
+      schema
+    } else if (isSealedTraitOrAbstractClass(tpe)) {
+      val subTypes = directSubTypes(tpe)
+      if (subTypes.isEmpty) {
+        fail(
+          s"Cannot find sub-types for ADT base '$tpe'. " +
+            "Please add them or provide an implicitly accessible schema for the ADT base."
+        )
+      }
+      val cases = subTypes.map {
+        var i = -1
+        (sTpe: TypeRepr) =>
+          sTpe.asType match {
+            case '[st] =>
+              i += 1
+              val nameExpr  = Expr("case" + i)
+              val usingExpr = Expr.summon[Schema[st]].get
+              '{
+                Schema[st](using $usingExpr).reflect.asTerm[A]($nameExpr)
+              }.asExprOf[zio.blocks.schema.Term[Binding, A, ? <: A]]
+          }
+      }
+
+      def discr(a: Expr[A]) = Match(
+        '{ $a: @scala.unchecked }.asTerm,
+        subTypes.map {
+          var i = -1
+          (sTpe: TypeRepr) =>
+            i += 1
+            CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Expr(i).asTerm)
+        }.toList
+      ).asExprOf[Int]
+
+      val matcherCases = subTypes.map { (sTpe: TypeRepr) =>
+        sTpe.asType match {
+          case '[st] =>
+            '{
+              new Matcher[st] {
+                def downcastOrNull(a: Any): st = (a: @scala.unchecked) match {
+                  case x: st => x
+                  case _     => null.asInstanceOf[st]
+                }
+              }
+            }.asExprOf[Matcher[? <: A]]
+        }
+      }
+      val schema =
+        '{
+          new Schema[A](
+            reflect = new Reflect.Variant[Binding, A](
+              cases = ${ Expr.ofList(cases) },
+              typeName = TypeName(
+                namespace = Namespace(
+                  packages = ${ Expr(packages) },
+                  values = ${ Expr(values) }
+                ),
+                name = ${ Expr(name) }
+              ),
+              variantBinding = Binding.Variant(
+                discriminator = new Discriminator[A] {
+                  def discriminate(a: A): Int = ${ discr('a) }
+                },
+                matchers = Matchers(${ Expr.ofSeq(matcherCases) }*),
+                defaultValue = _root_.scala.None,
+                examples = _root_.scala.Nil
+              ),
+              doc = Doc.Empty,
+              modifiers = Nil
+            )
+          )
+        }
+      // report.info(s"Generated schema for type '${tpe.show}':\n${schema.show}", Position.ofMacroExpansion)
+      schema
+    } else if (isNonAbstractScalaClass(tpe)) {
       case class FieldInfo(
         symbol: Symbol,
         name: String,
@@ -34,18 +250,6 @@ object SchemaVersionSpecific {
         deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term
       )
 
-      val tpeTypeSymbol = tpe.typeSymbol
-      val name          = tpeTypeSymbol.name.toString
-      var values        = List.empty[String]
-      var packages      = List.empty[String]
-      var owner         = tpeTypeSymbol.owner
-      while (owner != quotes.reflect.defn.RootClass) {
-        val name = owner.name.toString
-        if (owner.flags.is(Flags.Package)) packages = name :: packages
-        else if (owner.flags.is(Flags.Module)) values = name.substring(0, name.length - 1) :: values
-        else values = name :: values
-        owner = owner.owner
-      }
       val tpeClassSymbol     = tpe.classSymbol.get
       val primaryConstructor = tpeClassSymbol.primaryConstructor
       if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '$tpe'")

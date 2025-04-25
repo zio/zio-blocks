@@ -900,38 +900,8 @@ object OpticSpec extends ZIOSpecDefault {
   sealed trait Variant3 extends Variant2
 
   object Variant3 {
-    val reflect: Reflect.Variant.Bound[Variant3] = Reflect.Variant(
-      cases = List(
-        Case5.reflect.asTerm("c5"),
-        Case6.reflect.asTerm("c6")
-      ),
-      typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("OpticSpec")), "Variant3"),
-      variantBinding = Binding.Variant(
-        discriminator = new Discriminator[Variant3] {
-          def discriminate(a: Variant3): Int = a match {
-            case _: Case5 => 0
-            case _: Case6 => 1
-          }
-        },
-        matchers = Matchers(
-          new Matcher[Case5] {
-            def downcastOrNull(a: Any): Case5 = a match {
-              case x: Case5 => x
-              case _        => null
-            }
-          },
-          new Matcher[Case6] {
-            def downcastOrNull(a: Any): Case6 = a match {
-              case x: Case6 => x
-              case _        => null
-            }
-          }
-        )
-      ),
-      doc = Doc.Empty,
-      modifiers = Nil
-    )
-    implicit val schema: Schema[Variant3] = Schema(reflect)
+    implicit val schema: Schema[Variant3]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[Variant3] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant3]]
     val c5: Prism.Bound[Variant3, Case5] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant3, Case5]])
   }
