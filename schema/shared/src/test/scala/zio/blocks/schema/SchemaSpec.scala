@@ -389,7 +389,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for generic record using a macro call") {
-        case class `Record-2`[B, I](b: B, i: I)
+        case class `Record-2`[B, I](b: B, i: I = null.asInstanceOf[I])
 
         type Record2[B, I] = `Record-2`[B, I]
         type `i-8`         = Byte
@@ -402,7 +402,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val lens1  = Lens(record, field1)
         val lens2  = Lens(record, field2)
         assert(field1.value.binding.defaultValue)(isNone) &&
-        assert(field2.value.binding.defaultValue)(isNone) &&
+        assert(field2.value.binding.defaultValue.get.apply())(equalTo(0)) &&
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
         assert(lens1.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
