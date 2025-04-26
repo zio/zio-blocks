@@ -276,7 +276,9 @@ object SchemaVersionSpecific {
                 )
               )
             }"""
-      } else fail(s"Cannot derive '${typeOf[Schema[_]]}' for '$tpe'.")
+      } else {
+        q"Schema[$tpe]"
+      }
     // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schema)}", force = true)
     c.Expr[Schema[A]](schema)
   }

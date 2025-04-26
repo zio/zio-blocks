@@ -372,7 +372,10 @@ object SchemaVersionSpecific {
             )
           )
         }
-      } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show}'.")
+      } else {
+        val usingExpr = Expr.summon[Schema[A]].get
+        '{ Schema[A](using $usingExpr) }
+      }
     // report.info(s"Generated schema for type '${tpe.show}':\n${schema.show}", Position.ofMacroExpansion)
     schema
   }
