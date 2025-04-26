@@ -29,13 +29,13 @@ object SchemaVersionSpecific {
 
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
-    def companion(typeSymbol: Symbol): Symbol = {
-      val comp = typeSymbol.companion
+    def companion(tpe: Type): Symbol = {
+      val comp = tpe.typeSymbol.companion
       if (comp.isModule) comp
       else {
         val ownerChainOf = (s: Symbol) =>
           Iterator.iterate(s)(_.owner).takeWhile(x => x != NoSymbol).toVector.reverseIterator
-        val path = ownerChainOf(typeSymbol)
+        val path = ownerChainOf(tpe.typeSymbol)
           .zipAll(ownerChainOf(enclosingOwner), NoSymbol, NoSymbol)
           .dropWhile { case (x, y) => x == y }
           .takeWhile { case (x, _) => x != NoSymbol }
@@ -69,26 +69,32 @@ object SchemaVersionSpecific {
       }
     }
 
-    val tpe           = weakTypeOf[A].dealias
-    val tpeTypeSymbol = tpe.typeSymbol
-    val name          = NameTransformer.decode(tpeTypeSymbol.name.toString)
-    val comp          = companion(tpeTypeSymbol)
-    var values        = List.empty[String]
-    var packages      = List.empty[String]
-    var owner = {
-      if (comp == null) tpeTypeSymbol
-      else if (comp == NoSymbol) tpeTypeSymbol.asClass.module
-      else comp
-    }.owner
-    while (owner != NoSymbol) {
-      val name = NameTransformer.decode(owner.name.toString)
-      if (owner.isPackage || owner.isPackageClass) packages = name :: packages
-      else values = name :: values
-      owner = owner.owner
+    def typeName(tpe: Type): Tree = {
+      var packages = List.empty[String]
+      var values   = List.empty[String]
+      var name     = NameTransformer.decode(tpe.typeSymbol.name.toString)
+      val comp     = companion(tpe)
+      var owner =
+        if (comp == null) tpe.typeSymbol
+        else if (comp == NoSymbol) {
+          name += ".type"
+          tpe.typeSymbol.asClass.module
+        } else comp
+      while ({
+        owner = owner.owner
+        owner != NoSymbol
+      }) {
+        val ownerName = NameTransformer.decode(owner.name.toString)
+        if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
+        else values = ownerName :: values
+      }
+      q"TypeName(Namespace(${packages.tail}, $values), $name)"
     }
-    packages = packages.tail
-    if (isEnumOrModuleValue(tpe)) {
-      val schema =
+
+    val tpe     = weakTypeOf[A].dealias
+    val tpeName = typeName(tpe)
+    val schema =
+      if (isEnumOrModuleValue(tpe)) {
         q"""{
               import _root_.zio.blocks.schema._
               import _root_.zio.blocks.schema.binding._
@@ -97,22 +103,19 @@ object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
                   fields = _root_.scala.Nil,
-                  typeName = TypeName(Namespace($packages, $values), ${NameTransformer.decode(tpe.toString)}),
+                  typeName = $tpeName,
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = 0
 
-                      def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpeTypeSymbol.asClass.module}
+                      def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpe.typeSymbol.asClass.module}
                     },
                     deconstructor = Deconstructor.none.asInstanceOf[Deconstructor[$tpe]]
                   )
                 )
               )
             }"""
-      // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schema)}", force = true)
-      c.Expr[Schema[A]](schema)
-    } else {
-      if (isSealedTraitOrAbstractClass(tpe)) {
+      } else if (isSealedTraitOrAbstractClass(tpe)) {
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) {
           fail(
@@ -140,16 +143,14 @@ object SchemaVersionSpecific {
               }
             }"""
         }
-        val schema =
-          q"""{
+        q"""{
               import _root_.zio.blocks.schema._
               import _root_.zio.blocks.schema.binding._
-              import _root_.zio.blocks.schema.binding.RegisterOffset._
 
               new Schema[$tpe](
                 reflect = Reflect.Variant[Binding, $tpe](
                   cases = _root_.scala.Seq(..$cases),
-                  typeName = TypeName(Namespace($packages, $values), $name),
+                  typeName = $tpeName,
                   variantBinding = Binding.Variant(
                     discriminator = new Discriminator[$tpe] {
                       def discriminate(a: $tpe): Int = a match {
@@ -161,8 +162,6 @@ object SchemaVersionSpecific {
                 )
               )
             }"""
-        // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schema)}", force = true)
-        c.Expr[Schema[A]](schema)
       } else if (isNonAbstractScalaClass(tpe)) {
         case class FieldInfo(
           symbol: Symbol,
@@ -182,7 +181,8 @@ object SchemaVersionSpecific {
             getters = getters.updated(NameTransformer.decode(m.name.toString), m)
           case _ =>
         }
-        val tpeTypeParams = tpeTypeSymbol.asClass.typeParams
+        lazy val module   = companion(tpe).asModule
+        val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
         val tpeParams     = primaryConstructor.paramLists
         val tpeTypeArgs   = typeArgs(tpe)
         var registersUsed = RegisterOffset.Zero
@@ -194,7 +194,7 @@ object SchemaVersionSpecific {
           var fTpe   = symbol.typeSignature.dealias
           if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
           val defaultValue =
-            if (symbol.isParamWithDefault) Some(q"${comp.asModule}.${TermName("$lessinit$greater$default$" + i)}")
+            if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + i)}")
             else None
           val getter =
             getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
@@ -250,8 +250,7 @@ object SchemaVersionSpecific {
         })
         val const   = q"new $tpe(...${fieldInfos.map(_.map(fieldInfo => q"${fieldInfo.symbol} = ${fieldInfo.const}"))})"
         val deconst = fieldInfos.flatMap(_.map(_.deconst))
-        val schema =
-          q"""{
+        q"""{
               import _root_.zio.blocks.schema._
               import _root_.zio.blocks.schema.binding._
               import _root_.zio.blocks.schema.binding.RegisterOffset._
@@ -259,7 +258,7 @@ object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
                   fields = _root_.scala.Seq(..$fields),
-                  typeName = TypeName(Namespace($packages, $values), $name),
+                  typeName = $tpeName,
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = $registersUsed
@@ -269,7 +268,7 @@ object SchemaVersionSpecific {
                     deconstructor = new Deconstructor[$tpe] {
                       def usedRegisters: RegisterOffset = $registersUsed
 
-                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = {
+                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
                         ..$deconst
                       }
                     }
@@ -277,9 +276,8 @@ object SchemaVersionSpecific {
                 )
               )
             }"""
-        // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schema)}", force = true)
-        c.Expr[Schema[A]](schema)
       } else fail(s"Cannot derive '${typeOf[Schema[_]]}' for '$tpe'.")
-    }
+    // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schema)}", force = true)
+    c.Expr[Schema[A]](schema)
   }
 }
