@@ -127,10 +127,10 @@ object SchemaVersionSpecific {
       val name     = tpe.typeSymbol.name.toString
       var owner    = tpe.typeSymbol.owner
       while (owner != defn.RootClass) {
-        val name = owner.name.toString
-        if (owner.flags.is(Flags.Package)) packages = name :: packages
-        else if (owner.flags.is(Flags.Module)) values = name.substring(0, name.length - 1) :: values
-        else values = name :: values
+        val ownerName = owner.name.toString
+        if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+        else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
+        else values = ownerName :: values
         owner = owner.owner
       }
       '{ TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }) }.asExprOf[TypeName[A]]
@@ -251,19 +251,19 @@ object SchemaVersionSpecific {
               }
               val defaultValue =
                 if (symbol.flags.is(Flags.HasDefault)) {
-                  val dvMembers = tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + i)
-                  if (dvMembers.isEmpty) fail(s"Cannot find default value for '$symbol' in class ${tpe.show}")
-                  val methodSymbol    = dvMembers.head
-                  val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
-                  val dvSelect = methodSymbol.paramSymss match {
-                    case Nil =>
-                      dvSelectNoTArgs
-                    case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
-                      TypeApply(dvSelectNoTArgs, tpeTypeArgs.map(Inferred(_)))
-                    case _ =>
-                      fail(s"Cannot find default value for '$symbol' in class ${tpe.show}")
-                  }
-                  Some(dvSelect)
+                  (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + i) match {
+                    case methodSymbol :: _ =>
+                      val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
+                      methodSymbol.paramSymss match {
+                        case Nil =>
+                          Some(dvSelectNoTArgs)
+                        case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
+                          Some(TypeApply(dvSelectNoTArgs, tpeTypeArgs.map(Inferred(_))))
+                        case _ =>
+                          None
+                      }
+                    case Nil => None
+                  }).orElse(fail(s"Cannot find default value for '$symbol' in class ${tpe.show}"))
                 } else None
               var const: (Expr[Registers], Expr[RegisterOffset]) => Term            = null
               var deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term = null
