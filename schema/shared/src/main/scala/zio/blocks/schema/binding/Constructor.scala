@@ -275,9 +275,9 @@ object Constructor {
         in.getObject(baseOffset, 0).asInstanceOf[java.util.UUID]
     }
 
-  def some[A](c: Constructor[A]): Constructor[Some[A]] = c.map(Some(_))
+  def some[A](c: Constructor[A]): Constructor[Some[A]] = c.map(new Some(_))
 
-  val none: Constructor[None.type] = Constructor.unit.map(_ => None)
+  val none: Constructor[None.type] = Constructor.unit.asInstanceOf[Constructor[None.type]]
 
   def left[A](c: Constructor[A]): Constructor[Left[A, Nothing]] = c.map(Left(_))
 
