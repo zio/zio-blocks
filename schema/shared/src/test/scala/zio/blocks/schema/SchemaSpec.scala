@@ -349,31 +349,31 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with default values using a macro call") {
-        case class `Record-1`(`b-1`: Byte = 1, `i-2`: Int = 2)
+        case class `Record-1`(`b-1`: Boolean = false, `f-2`: Float = 0.0f)
 
         type Record1 = `Record-1`
 
         val schema = Schema.derived[Record1]
         val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
-        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Byte]]
-        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Int]]
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Boolean]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Float]]
         val lens1  = Lens(record, field1)
         val lens2  = Lens(record, field2)
-        assert(field1.value.binding.defaultValue.get.apply())(equalTo(1: Byte)) &&
-        assert(field2.value.binding.defaultValue.get.apply())(equalTo(2)) &&
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
-        assert(lens1.get(`Record-1`()))(equalTo(1: Byte)) &&
-        assert(lens2.get(`Record-1`()))(equalTo(2)) &&
-        assert(lens1.replace(`Record-1`(), 3: Byte))(equalTo(`Record-1`(3, 2))) &&
-        assert(lens2.replace(`Record-1`(), 3))(equalTo(`Record-1`(1, 3))) &&
+        assert(field1.value.binding.defaultValue.get.apply())(equalTo(false)) &&
+        assert(field2.value.binding.defaultValue.get.apply())(equalTo(0.0f)) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
+        assert(lens1.get(`Record-1`()))(equalTo(false)) &&
+        assert(lens2.get(`Record-1`()))(equalTo(0.0f)) &&
+        assert(lens1.replace(`Record-1`(), true))(equalTo(`Record-1`(`b-1` = true))) &&
+        assert(lens2.replace(`Record-1`(), 1.0f))(equalTo(`Record-1`(`b-1` = false, 1.0f))) &&
         assert(schema)(
           equalTo(
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
                 fields = Seq(
-                  Schema[Byte].reflect.asTerm("b-1"),
-                  Schema[Int].reflect.asTerm("i-2")
+                  Schema[Boolean].reflect.asTerm("b-1"),
+                  Schema[Float].reflect.asTerm("f-2")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
@@ -431,29 +431,29 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with multi list constructor using a macro call") {
-        class Record3(val b: Byte)(val i: Int)
+        class Record3(val s: Short)(val l: Long)
 
         val schema = Schema.derived[Record3]
         val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
-        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record3, Byte]]
-        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record3, Int]]
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record3, Short]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record3, Long]]
         val lens1  = Lens(record, field1)
         val lens2  = Lens(record, field2)
         assert(field1.value.binding.defaultValue)(isNone) &&
         assert(field2.value.binding.defaultValue)(isNone) &&
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
-        assert(lens1.get(new Record3(1)(2)))(equalTo(1: Byte)) &&
-        assert(lens2.get(new Record3(1)(2)))(equalTo(2)) &&
-        assert(lens1.replace(new Record3(1)(2), 3: Byte).b)(equalTo(3: Byte)) &&
-        assert(lens2.replace(new Record3(1)(2), 3).i)(equalTo(3)) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
+        assert(lens1.get(new Record3(1)(2L)))(equalTo(1: Short)) &&
+        assert(lens2.get(new Record3(1)(2L)))(equalTo(2L)) &&
+        assert(lens1.replace(new Record3(1)(2L), 3: Short).s)(equalTo(3: Short)) &&
+        assert(lens2.replace(new Record3(1)(2L), 3L).l)(equalTo(3L)) &&
         assert(schema)(
           equalTo(
             new Schema[Record3](
               reflect = Reflect.Record[Binding, Record3](
                 fields = Seq(
-                  Schema[Byte].reflect.asTerm("b"),
-                  Schema[Int].reflect.asTerm("i")
+                  Schema[Short].reflect.asTerm("s"),
+                  Schema[Long].reflect.asTerm("l")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
