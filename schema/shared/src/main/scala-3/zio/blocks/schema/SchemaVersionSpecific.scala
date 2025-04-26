@@ -151,7 +151,7 @@ object SchemaVersionSpecific {
 
                   def construct(in: Registers, baseOffset: RegisterOffset): A = ${ Ref(tpe.termSymbol).asExprOf[A] }
                 },
-                deconstructor = Deconstructor.none.asInstanceOf[Deconstructor[A]]
+                deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[A]]
               )
             )
           )

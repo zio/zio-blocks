@@ -110,7 +110,7 @@ object SchemaVersionSpecific {
 
                       def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpe.typeSymbol.asClass.module}
                     },
-                    deconstructor = Deconstructor.none.asInstanceOf[Deconstructor[$tpe]]
+                    deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[$tpe]]
                   )
                 )
               )
