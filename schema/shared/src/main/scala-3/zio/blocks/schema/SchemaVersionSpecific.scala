@@ -140,13 +140,7 @@ object SchemaVersionSpecific {
           new Schema[A](
             reflect = new Reflect.Record[Binding, A](
               fields = Nil,
-              typeName = TypeName(
-                namespace = Namespace(
-                  packages = ${ Expr(packages) },
-                  values = ${ Expr(values) }
-                ),
-                name = ${ Expr(name) }
-              ),
+              typeName = TypeName(Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
                 constructor = new Constructor[A] {
                   def usedRegisters: RegisterOffset = 0
@@ -157,12 +151,8 @@ object SchemaVersionSpecific {
                   def usedRegisters: RegisterOffset = 0
 
                   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ()
-                },
-                defaultValue = None,
-                examples = Nil
-              ),
-              doc = Doc.Empty,
-              modifiers = Nil
+                }
+              )
             )
           )
         }
@@ -218,23 +208,13 @@ object SchemaVersionSpecific {
           new Schema[A](
             reflect = new Reflect.Variant[Binding, A](
               cases = ${ Expr.ofList(cases) },
-              typeName = TypeName(
-                namespace = Namespace(
-                  packages = ${ Expr(packages) },
-                  values = ${ Expr(values) }
-                ),
-                name = ${ Expr(name) }
-              ),
+              typeName = TypeName(Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               variantBinding = Binding.Variant(
                 discriminator = new Discriminator[A] {
                   def discriminate(a: A): Int = ${ discr('a) }
                 },
-                matchers = Matchers(${ Expr.ofSeq(matcherCases) }*),
-                defaultValue = _root_.scala.None,
-                examples = _root_.scala.Nil
-              ),
-              doc = Doc.Empty,
-              modifiers = Nil
+                matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
+              )
             )
           )
         }
@@ -380,13 +360,7 @@ object SchemaVersionSpecific {
           new Schema[A](
             reflect = new Reflect.Record[Binding, A](
               fields = ${ Expr.ofList(fields) },
-              typeName = TypeName(
-                namespace = Namespace(
-                  packages = ${ Expr(packages) },
-                  values = ${ Expr(values) }
-                ),
-                name = ${ Expr(name) }
-              ),
+              typeName = TypeName(Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
                 constructor = new Constructor[A] {
                   def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
@@ -399,12 +373,8 @@ object SchemaVersionSpecific {
                   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ${
                     deconst('out, 'baseOffset, 'in)
                   }
-                },
-                defaultValue = None,
-                examples = Nil
-              ),
-              doc = Doc.Empty,
-              modifiers = Nil
+                }
+              )
             )
           )
         }

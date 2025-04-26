@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.Doc.Empty
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
@@ -40,8 +41,8 @@ object Reflect {
     fields: Seq[Term[F, A, ?]],
     typeName: TypeName[A],
     recordBinding: F[BindingType.Record, A],
-    doc: Doc,
-    modifiers: Seq[Modifier.Record]
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Record] = Nil
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (fields, typeName, doc, modifiers)
 
@@ -148,8 +149,8 @@ object Reflect {
     cases: Seq[Term[F, A, ? <: A]],
     typeName: TypeName[A],
     variantBinding: F[BindingType.Variant, A],
-    doc: Doc,
-    modifiers: Seq[Modifier.Variant]
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Variant] = Nil
   ) extends Reflect[F, A] {
     protected def inner: Any = (cases, typeName, doc, modifiers)
 
@@ -197,8 +198,8 @@ object Reflect {
     element: Reflect[F, A],
     seqBinding: F[BindingType.Seq[C], C[A]],
     typeName: TypeName[C[A]],
-    doc: Doc,
-    modifiers: Seq[Modifier.Seq]
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Seq] = Nil
   ) extends Reflect[F, C[A]] {
     protected def inner: Any = (element, typeName, doc, modifiers)
 
@@ -243,8 +244,8 @@ object Reflect {
     value: Reflect[F, Value],
     mapBinding: F[BindingType.Map[M], M[Key, Value]],
     typeName: TypeName[M[Key, Value]],
-    doc: Doc,
-    modifiers: Seq[Modifier.Map]
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Map] = Nil
   ) extends Reflect[F, M[Key, Value]] {
     protected def inner: Any = (key, value, typeName, doc, modifiers)
 
@@ -288,8 +289,8 @@ object Reflect {
 
   case class Dynamic[F[_, _]](
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
-    doc: Doc,
-    modifiers: Seq[Modifier.Dynamic]
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Dynamic] = Nil
   ) extends Reflect[F, DynamicValue] {
     protected def inner: Any = (modifiers, modifiers, doc)
 
@@ -323,8 +324,8 @@ object Reflect {
     primitiveType: PrimitiveType[A],
     primitiveBinding: F[BindingType.Primitive, A],
     typeName: TypeName[A],
-    doc: Doc,
-    modifiers: Seq[Modifier.Primitive]
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Primitive] = Nil
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (primitiveType, typeName, doc, modifiers)
 

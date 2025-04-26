@@ -42,9 +42,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   ),
                   name = "Record1"
                 ),
-                recordBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                recordBinding = null
               )
             )
           )
@@ -84,9 +82,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   ),
                   name = "Variant1"
                 ),
-                variantBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                variantBinding = null
               )
             )
           )
