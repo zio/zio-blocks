@@ -568,15 +568,22 @@ object SchemaSpec extends ZIOSpecDefault {
 
         case class Value[A](a: A) extends `Variant-2`[A]
 
+        object Value {
+          implicit def schema[A <: AnyRef: Schema]: Schema[Value[A]] = Schema.derived[Value[A]]
+        }
+
         type Variant2[A] = `Variant-2`[A]
 
-        implicit val valueOfStringSchema: Schema[Value[String]] = Schema.derived
-        val schema                                              = Schema.derived[Variant2[String]]
-        val variant                                             = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant2[String]]]
-        val case1                                               = variant.cases(0).asInstanceOf[Term.Bound[Variant2[String], MissingValue.type]]
-        val case2                                               = variant.cases(1).asInstanceOf[Term.Bound[Variant2[String], NullValue.type]]
-        val case3                                               = variant.cases(2).asInstanceOf[Term.Bound[Variant2[String], Value[String]]]
-        val prism3                                              = Prism(variant, case3)
+        val schema  = Schema.derived[Variant2[String]]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant2[String]]]
+        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant2[String], MissingValue.type]]
+        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant2[String], NullValue.type]]
+        val case3   = variant.cases(2).asInstanceOf[Term.Bound[Variant2[String], Value[String]]]
+        val prism1  = Prism(variant, case1)
+        val prism2  = Prism(variant, case2)
+        val prism3  = Prism(variant, case3)
+        assert(prism1.getOption(MissingValue))(isSome(equalTo(MissingValue))) &&
+        assert(prism2.getOption(NullValue))(isSome(equalTo(NullValue))) &&
         assert(prism3.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
         assert(prism3.replace(Value[String]("WWW"), Value[String]("VVV")))(equalTo(Value[String]("VVV"))) &&
         assert(schema)(
@@ -616,12 +623,13 @@ object SchemaSpec extends ZIOSpecDefault {
 
         implicit val schemaCase1Option: Schema[`Case-1`[Option]] = Schema.derived
         implicit val schemaCase2Option: Schema[`Case-2`[Option]] = Schema.derived
-        val schema                                               = Schema.derived[`Variant-3`[Option]]
-        val variant                                              = schema.reflect.asInstanceOf[Reflect.Variant[Binding, `Variant-3`[Option]]]
-        val case1                                                = variant.cases(0).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-1`[Option]]]
-        val case2                                                = variant.cases(1).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-2`[Option]]]
-        val prism1                                               = Prism(variant, case1)
-        val prism2                                               = Prism(variant, case2)
+
+        val schema  = Schema.derived[`Variant-3`[Option]]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, `Variant-3`[Option]]]
+        val case1   = variant.cases(0).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-1`[Option]]]
+        val case2   = variant.cases(1).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-2`[Option]]]
+        val prism1  = Prism(variant, case1)
+        val prism2  = Prism(variant, case2)
         assert(prism1.getOption(`Case-1`[Option](Some(0.1))))(isSome(equalTo(`Case-1`[Option](Some(0.1))))) &&
         assert(prism2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
         assert(prism1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
