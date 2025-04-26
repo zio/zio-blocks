@@ -170,9 +170,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
           element = Reflect.double,
           typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]], // should be ignored in equals and hashCode
-          doc = Doc.Empty,
-          modifiers = Nil
+          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]] // should be ignored in equals and hashCode
         )
         val sequence2 = sequence1.copy(element =
           Primitive(PrimitiveType.Double(Validation.None), Binding.Primitive.double, TypeName.double, Doc("text"), Nil)
@@ -216,9 +214,7 @@ object ReflectSpec extends ZIOSpecDefault {
             constructor = SeqConstructor.listConstructor,
             deconstructor = SeqDeconstructor.listDeconstructor,
             examples = Seq(List(0.1, 0.2, 0.3))
-          ),
-          doc = Doc.Empty,
-          modifiers = Nil
+          )
         )
         assert(sequence1.binding.examples)(equalTo(Seq(List(0.1, 0.2, 0.3))))
       },
@@ -232,17 +228,13 @@ object ReflectSpec extends ZIOSpecDefault {
           key = Reflect.short,
           value = Reflect.float,
           typeName = TypeName.map[Short, Float],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Short, Float]], // should be ignored in equals and hashCode
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Short, Float]] // should be ignored in equals and hashCode
         )
         val map2 = map1.copy(key =
           Primitive(
             PrimitiveType.Short(Validation.Numeric.Positive),
             Binding.Primitive.short,
-            TypeName.short,
-            Doc.Empty,
-            Nil
+            TypeName.short
           )
         )
         val map3 = map1.copy(value =
@@ -300,9 +292,7 @@ object ReflectSpec extends ZIOSpecDefault {
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
             examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
-          ),
-          doc = Doc.Empty,
-          modifiers = Nil
+          )
         )
         assert(map1.binding.examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
       },
@@ -357,9 +347,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("has access to dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil),
-          doc = Doc.Empty,
-          modifiers = Nil
+          dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)
         )
         assert(dynamic1.binding.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil))
       },
@@ -375,8 +363,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 =
-          Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int, Doc.Empty, Nil)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(deferred1)(equalTo(deferred1)) &&
         assert(deferred1.hashCode)(equalTo(deferred1.hashCode)) &&
@@ -415,9 +402,7 @@ object ReflectSpec extends ZIOSpecDefault {
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int,
-            Doc.Empty,
-            Nil
+            TypeName.int
           )
         }
         assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3)))
@@ -427,9 +412,7 @@ object ReflectSpec extends ZIOSpecDefault {
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int,
-            Doc.Empty,
-            Nil
+            TypeName.int
           )
         }
         assert(deferred1.binding.examples(1, 2).examples)(equalTo(Seq(1, 2)))
