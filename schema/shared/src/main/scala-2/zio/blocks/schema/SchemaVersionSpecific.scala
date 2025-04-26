@@ -97,29 +97,15 @@ object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
                   fields = _root_.scala.Nil,
-                  typeName = TypeName(
-                    namespace = Namespace(
-                      packages = $packages,
-                      values = $values
-                    ),
-                    name = ${NameTransformer.decode(tpe.toString)}
-                  ),
+                  typeName = TypeName(Namespace($packages, $values), ${NameTransformer.decode(tpe.toString)}),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = 0
 
                       def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpeTypeSymbol.asClass.module}
                     },
-                    deconstructor = new Deconstructor[$tpe] {
-                      def usedRegisters: RegisterOffset = 0
-
-                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = ()
-                    },
-                    defaultValue = _root_.scala.None,
-                    examples = _root_.scala.Nil
-                  ),
-                  doc = Doc.Empty,
-                  modifiers = _root_.scala.Nil
+                    deconstructor = Deconstructor.none.asInstanceOf[Deconstructor[$tpe]]
+                  )
                 )
               )
             }"""
@@ -148,9 +134,9 @@ object SchemaVersionSpecific {
         }
         val matcherCases = subTypes.map { sTpe =>
           q"""new Matcher[$sTpe] {
-              def downcastOrNull(a: Any): $sTpe = (a: @_root_.scala.unchecked) match {
+              def downcastOrNull(a: Any): $sTpe = a match {
                 case x: $sTpe @_root_.scala.unchecked => x
-                case _ => null
+                case _ => null.asInstanceOf[$sTpe]
               }
             }"""
         }
@@ -162,26 +148,16 @@ object SchemaVersionSpecific {
 
               new Schema[$tpe](
                 reflect = Reflect.Variant[Binding, $tpe](
-                  cases = Seq(..$cases),
-                  typeName = TypeName(
-                    namespace = Namespace(
-                      packages = $packages,
-                      values = $values
-                    ),
-                    name = $name
-                  ),
+                  cases = _root_.scala.Seq(..$cases),
+                  typeName = TypeName(Namespace($packages, $values), $name),
                   variantBinding = Binding.Variant(
                     discriminator = new Discriminator[$tpe] {
-                      def discriminate(a: $tpe): Int = (a: @_root_.scala.unchecked) match {
+                      def discriminate(a: $tpe): Int = a match {
                         case ..$discrCases
                       }
                     },
-                    matchers = Matchers(Vector(..$matcherCases)),
-                    defaultValue = _root_.scala.None,
-                    examples = _root_.scala.Nil
-                  ),
-                  doc = Doc.Empty,
-                  modifiers = _root_.scala.Nil
+                    matchers = Matchers(_root_.scala.Vector(..$matcherCases)),
+                  )
                 )
               )
             }"""
@@ -282,14 +258,8 @@ object SchemaVersionSpecific {
 
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
-                  fields = Seq(..$fields),
-                  typeName = TypeName(
-                    namespace = Namespace(
-                      packages = $packages,
-                      values = $values
-                    ),
-                    name = $name
-                  ),
+                  fields = _root_.scala.Seq(..$fields),
+                  typeName = TypeName(Namespace($packages, $values), $name),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = $registersUsed
@@ -302,12 +272,8 @@ object SchemaVersionSpecific {
                       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = {
                         ..$deconst
                       }
-                    },
-                    defaultValue = _root_.scala.None,
-                    examples = _root_.scala.Nil
-                  ),
-                  doc = Doc.Empty,
-                  modifiers = _root_.scala.Nil
+                    }
+                  )
                 )
               )
             }"""

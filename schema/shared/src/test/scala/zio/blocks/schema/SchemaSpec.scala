@@ -382,9 +382,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Record-1"
                 ),
-                recordBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                recordBinding = null
               )
             )
           )
@@ -426,9 +424,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Record-2"
                 ),
-                recordBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                recordBinding = null
               )
             )
           )
@@ -466,9 +462,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Record3"
                 ),
-                recordBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                recordBinding = null
               )
             )
           )
@@ -555,9 +549,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Variant-1"
                 ),
-                variantBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                variantBinding = null
               )
             )
           )
@@ -609,9 +601,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Variant-2"
                 ),
-                variantBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                variantBinding = null
               )
             )
           )
@@ -651,9 +641,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Variant-3"
                 ),
-                variantBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                variantBinding = null
               )
             )
           )
@@ -686,15 +674,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val sequence1 = Reflect.Sequence[Binding, Long, List](
           element = long1,
           typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Long]],
-          doc = Doc("List of positive longs"),
-          modifiers = Nil
+          seqBinding = null,
+          doc = Doc("List of positive longs")
         )
         assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
       },
@@ -712,15 +698,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val sequence1 = Reflect.Sequence[Binding, Long, List](
           element = long1,
           typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Long]],
-          doc = Doc("List of positive longs"),
-          modifiers = Nil
+          seqBinding = null,
+          doc = Doc("List of positive longs")
         )
         assert(Schema(sequence1).examples(Traversal.listValues(long1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
       }
@@ -755,16 +739,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Int](),
           typeName = TypeName.int,
-          doc = Doc("Int (positive)"),
-          modifiers = Nil
+          doc = Doc("Int (positive)")
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = int1,
           value = Reflect.long,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).doc(Traversal.mapKeys(map1)): Doc)(equalTo(Doc("Int (positive)")))
       },
@@ -776,16 +757,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](),
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = long1,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).doc(Traversal.mapValues(map1)): Doc)(equalTo(Doc("Long (positive)")))
       },
@@ -798,9 +776,7 @@ object SchemaSpec extends ZIOSpecDefault {
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
             examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
-          ),
-          doc = Doc.Empty,
-          modifiers = Nil
+          )
         )
         assert(Schema(map1).examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
       },
@@ -813,17 +789,13 @@ object SchemaSpec extends ZIOSpecDefault {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
-          typeName = TypeName.long,
-          doc = Doc.Empty,
-          modifiers = Nil
+          typeName = TypeName.long
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = long1,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).examples(Traversal.mapValues(map1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
       },
@@ -831,17 +803,13 @@ object SchemaSpec extends ZIOSpecDefault {
         val int1 = Primitive(
           primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Int](examples = Seq(1, 2, 3)),
-          typeName = TypeName.int,
-          doc = Doc.Empty,
-          modifiers = Nil
+          typeName = TypeName.int
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = int1,
           value = Reflect.long,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).examples(Traversal.mapKeys(map1)): Seq[_])(equalTo(Seq(1, 2, 3)))
       }
@@ -906,8 +874,7 @@ object SchemaSpec extends ZIOSpecDefault {
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive.int,
             TypeName.int,
-            Doc("Int (positive)"),
-            Nil
+            Doc("Int (positive)")
           )
         }
         assert(Schema(deferred1).doc)(equalTo(Doc("Int (positive)")))
@@ -921,9 +888,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int,
-            Doc.Empty,
-            Nil
+            TypeName.int
           )
         }
         assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3)))
@@ -933,9 +898,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int,
-            Doc.Empty,
-            Nil
+            TypeName.int
           )
         }
         assert(Schema(deferred1).examples(1, 2).examples)(equalTo(Seq(1, 2)))
