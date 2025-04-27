@@ -467,6 +467,44 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("derives schema for record with nested collections using a macro call") {
+        import zio.blocks.schema.binding._
+
+        case class Record4(mx: Array[Array[Int]], rs: List[Set[Int]])
+
+        val schema     = Schema.derived[Record4]
+        val record     = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
+        val field1     = record.fields(0).asInstanceOf[Term.Bound[Record4, Array[Array[Int]]]]
+        val field2     = record.fields(1).asInstanceOf[Term.Bound[Record4, List[Set[Int]]]]
+        val traversal1 = Lens(record, field1).arrayValues.arrayValues
+        val traversal2 = Lens(record, field2).listValues.setValues
+        assert(field1.value.binding.defaultValue)(isNone) &&
+        assert(field2.value.binding.defaultValue)(isNone) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
+        assert(traversal1.fold[Int](Record4(Array(Array(1, 2), Array(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
+        assert(traversal2.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Record4](
+              reflect = Reflect.Record[Binding, Record4](
+                fields = Seq(
+                  Schema[Array[Array[Int]]].reflect.asTerm("mx"),
+                  Schema[List[Set[Int]]].reflect.asTerm("rs")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record4"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Variant")(
