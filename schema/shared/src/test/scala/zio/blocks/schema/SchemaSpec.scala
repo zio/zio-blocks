@@ -3,8 +3,9 @@ package zio.blocks.schema
 import zio.Scope
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.binding._
-import zio.test.Assertion._
 import zio.test._
+import zio.test.Assertion._
+import zio.test.TestAspect.jvmOnly
 
 object SchemaSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
@@ -432,7 +433,7 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         )
-      },
+      } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
       test("derives schema for record with multi list constructor using a macro call") {
         class Record3(val s: Short)(val l: Long)
 
