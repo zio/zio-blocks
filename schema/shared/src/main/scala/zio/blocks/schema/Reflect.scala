@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.Doc.Empty
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
