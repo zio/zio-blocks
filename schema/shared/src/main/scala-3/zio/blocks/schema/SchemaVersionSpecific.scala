@@ -222,7 +222,9 @@ object SchemaVersionSpecific {
           tpe: TypeRepr,
           defaultValue: Option[Term],
           const: (Expr[Registers], Expr[RegisterOffset]) => Term,
-          deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term
+          deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term,
+          isTransient: Boolean,
+          config: List[(String, String)]
         )
 
         val tpeClassSymbol     = tpe.classSymbol.get
@@ -242,12 +244,11 @@ object SchemaVersionSpecific {
           if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
           fTpe.asType match {
             case '[ft] =>
-              var getter = tpeClassSymbol.fieldMember(name)
-              if (!getter.exists) {
-                getter = tpeClassSymbol
-                  .methodMember(name)
-                  .find(_.flags.is(Flags.ParamAccessor))
-                  .getOrElse(fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor."))
+              val getter = tpeClassSymbol.fieldMember(name)
+              if (!getter.exists) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+              val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
+              val config = getter.annotations.filter(_.tpe =:= TypeRepr.of[Modifier.config]).map {
+                case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v)
               }
               val defaultValue =
                 if (symbol.flags.is(Flags.HasDefault)) {
@@ -317,7 +318,7 @@ object SchemaVersionSpecific {
                   '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
               }
               registersUsed = RegisterOffset.add(registersUsed, offset)
-              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst)
+              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
           }
         })
         val fields =
@@ -326,11 +327,37 @@ object SchemaVersionSpecific {
               case '[ft] =>
                 val nameExpr  = Expr(fieldInfo.name)
                 val usingExpr = Expr.summon[Schema[ft]].get
-                fieldInfo.defaultValue
-                  .fold('{ Schema[ft](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { defaultValue =>
-                    val defaultValueExpr = defaultValue.asExprOf[ft]
-                    '{ Schema[ft](using $usingExpr).reflect.defaultValue($defaultValueExpr).asTerm[A]($nameExpr) }
-                  }
+                val modifiers = {
+                  if (fieldInfo.isTransient) Seq('{ Modifier.transient() }.asExprOf[Modifier.Term])
+                  else Seq.empty
+                } ++ fieldInfo.config.map { case (k, v) =>
+                  '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
+                }
+                if (modifiers.isEmpty) {
+                  fieldInfo.defaultValue
+                    .fold('{ Schema[ft](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { defVal =>
+                      val defValExpr = defVal.asExprOf[ft]
+                      '{ Schema[ft](using $usingExpr).reflect.defaultValue($defValExpr).asTerm[A]($nameExpr) }
+                    }
+                } else {
+                  val modifiersExpr = Expr.ofSeq(modifiers)
+                  fieldInfo.defaultValue
+                    .fold('{
+                      Schema[ft](using $usingExpr).reflect
+                        .asTerm[A]($nameExpr)
+                        .copy(modifiers = $modifiersExpr)
+                        .asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
+                    }) { defVal =>
+                      val defValExpr = defVal.asExprOf[ft]
+                      '{
+                        Schema[ft](using $usingExpr).reflect
+                          .defaultValue($defValExpr)
+                          .asTerm[A]($nameExpr)
+                          .copy(modifiers = $modifiersExpr)
+                          .asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
+                      }
+                    }
+                }
             }
           })
 
