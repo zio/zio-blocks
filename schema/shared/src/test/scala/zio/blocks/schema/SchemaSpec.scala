@@ -348,8 +348,11 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(record.fields(0).value.binding.examples)
         )
       },
-      test("derives schema for record with default values using a macro call") {
-        case class `Record-1`(`b-1`: Boolean = false, `f-2`: Float = 0.0f)
+      test("derives schema for record with default values and annotations using a macro call") {
+        case class `Record-1`(
+          @Modifier.config("key", "value") `b-1`: Boolean = false,
+          @Modifier.transient() `f-2`: Float = 0.0f
+        )
 
         type Record1 = `Record-1`
 
@@ -372,8 +375,8 @@ object SchemaSpec extends ZIOSpecDefault {
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
                 fields = Seq(
-                  Schema[Boolean].reflect.asTerm("b-1"),
-                  Schema[Float].reflect.asTerm("f-2")
+                  Schema[Boolean].reflect.asTerm("b-1").copy(modifiers = Seq(Modifier.config("key", "value"))),
+                  Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
                 typeName = TypeName(
                   namespace = Namespace(

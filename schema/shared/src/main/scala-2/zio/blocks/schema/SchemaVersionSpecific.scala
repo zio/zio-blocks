@@ -169,7 +169,9 @@ object SchemaVersionSpecific {
           tpe: Type,
           defaultValue: Option[Tree],
           const: Tree,
-          deconst: Tree
+          deconst: Tree,
+          isTransient: Boolean,
+          config: Seq[(String, String)]
         )
 
         val primaryConstructor = tpe.decls.collectFirst {
@@ -179,6 +181,14 @@ object SchemaVersionSpecific {
         tpe.members.foreach {
           case m: MethodSymbol if m.isParamAccessor =>
             getters = getters.updated(NameTransformer.decode(m.name.toString), m)
+          case _ =>
+        }
+        var annotations = Map.empty[String, List[Annotation]]
+        tpe.members.foreach {
+          case m: TermSymbol =>
+            m.info: Unit // to enforce the type information completeness and availability of annotations
+            val anns = m.annotations.filter(_.tree.tpe <:< typeOf[Modifier.Term])
+            if (anns.nonEmpty) annotations = annotations.updated(NameTransformer.decode(m.name.toString.trim), anns)
           case _ =>
         }
         lazy val module   = companion(tpe).asModule
@@ -193,11 +203,18 @@ object SchemaVersionSpecific {
           val name   = NameTransformer.decode(symbol.name.toString)
           var fTpe   = symbol.typeSignature.dealias
           if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
+          val getter =
+            getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
+          val anns        = annotations.getOrElse(name, Nil)
+          val isTransient = anns.exists(_.tree.tpe =:= typeOf[Modifier.transient])
+          val config = anns
+            .filter(_.tree.tpe =:= typeOf[Modifier.config])
+            .collect(_.tree.children match {
+              case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => (k, v)
+            })
           val defaultValue =
             if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + i)}")
             else None
-          val getter =
-            getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
           var const: Tree   = null
           var deconst: Tree = null
           val bytes         = RegisterOffset.getBytes(registersUsed)
@@ -241,11 +258,22 @@ object SchemaVersionSpecific {
             deconst = q"out.setObject(baseOffset, $objects, in.$getter)"
           }
           registersUsed = RegisterOffset.add(registersUsed, offset)
-          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst)
+          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
-          fieldInfo.defaultValue.fold(q"Schema[${fieldInfo.tpe}].reflect.asTerm(${fieldInfo.name})") { defaultValue =>
-            q"Schema[${fieldInfo.tpe}].reflect.defaultValue($defaultValue).asTerm(${fieldInfo.name})"
+          val fTpe      = fieldInfo.tpe
+          val name      = fieldInfo.name
+          var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
+          if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
+          if (modifiers.isEmpty) {
+            fieldInfo.defaultValue.fold(q"Schema[$fTpe].reflect.asTerm($name)") { defVal =>
+              q"Schema[$fTpe].reflect.defaultValue($defVal).asTerm($name)"
+            }
+          } else {
+            fieldInfo.defaultValue.fold(q"Schema[$fTpe].reflect.asTerm($name).copy(modifiers = Seq(..$modifiers))") {
+              defVal =>
+                q"Schema[$fTpe].reflect.defaultValue($defVal).asTerm($name).copy(modifiers = Seq(..$modifiers))"
+            }
           }
         })
         val const   = q"new $tpe(...${fieldInfos.map(_.map(fieldInfo => q"${fieldInfo.symbol} = ${fieldInfo.const}"))})"
