@@ -9,6 +9,8 @@ sealed trait Modifier extends StaticAnnotation
 object Modifier {
   sealed trait Term extends Modifier
 
+  @field case class deferred() extends Term
+
   @field case class transient() extends Term
 
   sealed trait Record extends Modifier

@@ -4,7 +4,7 @@ trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecific.derived }
 }
 
-object SchemaVersionSpecific {
+private object SchemaVersionSpecific {
   import scala.quoted._
 
   def derived[A: Type](using Quotes): Expr[Schema[A]] = {
@@ -67,14 +67,6 @@ object SchemaVersionSpecific {
           }
         }
 
-      def resolveParentTypeArgs(
-        child: Symbol,
-        nudeChildParentTags: List[TypeRepr],
-        parentTags: List[TypeRepr],
-        binding: Map[String, TypeRepr]
-      ): Map[String, TypeRepr] =
-        nudeChildParentTags.zip(parentTags).foldLeft(binding)((s, e) => resolveParentTypeArg(child, e._1, e._2, s))
-
       tpe.typeSymbol.children.map { sym =>
         if (sym.isType) {
           if (sym.name == "<local child>") { // problem - we have no other way to find this other return the name
@@ -88,7 +80,9 @@ object SchemaVersionSpecific {
           nudeSubtype.memberType(sym.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
             case PolyType(names, bounds, resPolyTp) =>
-              val tpBinding = resolveParentTypeArgs(sym, tpeArgsFromChild, typeArgs(tpe), Map.empty)
+              val tpBinding = tpeArgsFromChild
+                .zip(typeArgs(tpe))
+                .foldLeft(Map.empty[String, TypeRepr])((s, e) => resolveParentTypeArg(sym, e._1, e._2, s))
               val ctArgs = names.map { name =>
                 tpBinding.getOrElse(
                   name,
@@ -136,15 +130,13 @@ object SchemaVersionSpecific {
       '{ TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }) }.asExprOf[TypeName[A]]
     }
 
-    def modifiers(tpe: TypeRepr): Expr[List[Modifier.config]] =
-      Expr.ofList(
-        tpe.typeSymbol.annotations
-          .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-          .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
-            '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
-          }
-          .reverse
-      )
+    def modifiers(tpe: TypeRepr): Seq[Expr[Modifier.config]] =
+      tpe.typeSymbol.annotations
+        .filter(_.tpe =:= TypeRepr.of[Modifier.config])
+        .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
+          '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
+        }
+        .reverse
 
     val tpe     = TypeRepr.of[A].dealias
     val tpeName = typeName(tpe)
@@ -163,7 +155,7 @@ object SchemaVersionSpecific {
                 },
                 deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[A]]
               ),
-              modifiers = ${ modifiers(tpe) }
+              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
         }
@@ -225,7 +217,7 @@ object SchemaVersionSpecific {
                 },
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
               ),
-              modifiers = ${ modifiers(tpe) }
+              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
         }
@@ -237,6 +229,7 @@ object SchemaVersionSpecific {
           defaultValue: Option[Term],
           const: (Expr[Registers], Expr[RegisterOffset]) => Term,
           deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term,
+          isDeferred: Boolean,
           isTransient: Boolean,
           config: List[(String, String)]
         )
@@ -260,6 +253,7 @@ object SchemaVersionSpecific {
             case '[ft] =>
               val getter = tpeClassSymbol.fieldMember(name)
               if (!getter.exists) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+              val isDeferred  = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.deferred])
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
               val config = getter.annotations
                 .filter(_.tpe =:= TypeRepr.of[Modifier.config])
@@ -335,7 +329,7 @@ object SchemaVersionSpecific {
                   '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
               }
               registersUsed = RegisterOffset.add(registersUsed, offset)
-              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
+              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isDeferred, isTransient, config)
           }
         })
         val fields =
@@ -346,37 +340,30 @@ object SchemaVersionSpecific {
                 val usingExpr = Expr.summon[Schema[ft]].getOrElse {
                   fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
                 }
-                val modifiers = {
-                  if (fieldInfo.isTransient) Seq('{ Modifier.transient() }.asExprOf[Modifier.Term])
-                  else Seq.empty
-                } ++ fieldInfo.config.map { case (k, v) =>
-                  '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
-                }
-                if (modifiers.isEmpty) {
+                val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
+                var fieldTermExpr = if (fieldInfo.isDeferred) {
                   fieldInfo.defaultValue
-                    .fold('{ Schema[ft](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { defVal =>
-                      val defValExpr = defVal.asExprOf[ft]
-                      '{ Schema[ft](using $usingExpr).reflect.defaultValue($defValExpr).asTerm[A]($nameExpr) }
+                    .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
+                      '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
                     }
                 } else {
-                  val modifiersExpr = Expr.ofSeq(modifiers)
                   fieldInfo.defaultValue
-                    .fold('{
-                      Schema[ft](using $usingExpr).reflect
-                        .asTerm[A]($nameExpr)
-                        .copy(modifiers = $modifiersExpr)
-                        .asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
-                    }) { defVal =>
-                      val defValExpr = defVal.asExprOf[ft]
-                      '{
-                        Schema[ft](using $usingExpr).reflect
-                          .defaultValue($defValExpr)
-                          .asTerm[A]($nameExpr)
-                          .copy(modifiers = $modifiersExpr)
-                          .asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
-                      }
+                    .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { dv =>
+                      '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }).asTerm[A]($nameExpr) }
                     }
                 }
+                var modifiers = fieldInfo.config.map { case (k, v) =>
+                  '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
+                }
+                if (fieldInfo.isDeferred) modifiers = modifiers :+ '{ Modifier.deferred() }.asExprOf[Modifier.Term]
+                if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
+                if (modifiers.nonEmpty) {
+                  val modifiersExpr = Expr.ofSeq(modifiers)
+                  fieldTermExpr = '{
+                    $fieldTermExpr.copy(modifiers = $modifiersExpr).asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
+                  }
+                }
+                fieldTermExpr
             }
           })
 
@@ -415,7 +402,7 @@ object SchemaVersionSpecific {
                   }
                 }
               ),
-              modifiers = ${ modifiers(tpe) }
+              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
         }
