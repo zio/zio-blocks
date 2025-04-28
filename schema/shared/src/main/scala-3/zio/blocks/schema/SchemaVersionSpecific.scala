@@ -4,7 +4,7 @@ trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecific.derived }
 }
 
-object SchemaVersionSpecific {
+private object SchemaVersionSpecific {
   import scala.quoted._
 
   def derived[A: Type](using Quotes): Expr[Schema[A]] = {

@@ -6,7 +6,7 @@ trait SchemaVersionSpecific {
   def derived[A]: Schema[A] = macro SchemaVersionSpecific.derived[A]
 }
 
-object SchemaVersionSpecific {
+private object SchemaVersionSpecific {
   import scala.reflect.macros.blackbox
   import scala.reflect.NameTransformer
 
