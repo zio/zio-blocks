@@ -253,7 +253,7 @@ private object SchemaVersionSpecific {
             case '[ft] =>
               val getter = tpeClassSymbol.fieldMember(name)
               if (!getter.exists) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
-              val isDeferred = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.deferred])
+              val isDeferred  = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.deferred])
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
               val config = getter.annotations
                 .filter(_.tpe =:= TypeRepr.of[Modifier.config])

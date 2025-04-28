@@ -215,7 +215,7 @@ private object SchemaVersionSpecific {
           val getter =
             getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
           val anns        = annotations.getOrElse(name, Nil)
-          val isDeferred = anns.exists(_.tree.tpe =:= typeOf[Modifier.deferred])
+          val isDeferred  = anns.exists(_.tree.tpe =:= typeOf[Modifier.deferred])
           val isTransient = anns.exists(_.tree.tpe =:= typeOf[Modifier.transient])
           val config = anns
             .filter(_.tree.tpe =:= typeOf[Modifier.config])
