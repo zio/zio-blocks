@@ -136,6 +136,16 @@ object SchemaVersionSpecific {
       '{ TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }) }.asExprOf[TypeName[A]]
     }
 
+    def modifiers(tpe: TypeRepr): Expr[List[Modifier.config]] =
+      Expr.ofList(
+        tpe.typeSymbol.annotations
+          .filter(_.tpe =:= TypeRepr.of[Modifier.config])
+          .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
+            '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
+          }
+          .reverse
+      )
+
     val tpe     = TypeRepr.of[A].dealias
     val tpeName = typeName(tpe)
     val schema =
@@ -152,7 +162,8 @@ object SchemaVersionSpecific {
                   def construct(in: Registers, baseOffset: RegisterOffset): A = ${ Ref(tpe.termSymbol).asExprOf[A] }
                 },
                 deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[A]]
-              )
+              ),
+              modifiers = ${ modifiers(tpe) }
             )
           )
         }
@@ -213,7 +224,8 @@ object SchemaVersionSpecific {
                   def discriminate(a: A): Int = ${ discr('a) }
                 },
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
-              )
+              ),
+              modifiers = ${ modifiers(tpe) }
             )
           )
         }
@@ -249,9 +261,12 @@ object SchemaVersionSpecific {
               val getter = tpeClassSymbol.fieldMember(name)
               if (!getter.exists) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
-              val config = getter.annotations.filter(_.tpe =:= TypeRepr.of[Modifier.config]).map {
-                case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v)
-              }
+              val config = getter.annotations
+                .filter(_.tpe =:= TypeRepr.of[Modifier.config])
+                .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
+                  (k, v)
+                }
+                .reverse
               val defaultValue =
                 if (symbol.flags.is(Flags.HasDefault)) {
                   (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + i) match {
@@ -399,7 +414,8 @@ object SchemaVersionSpecific {
                     deconst('out, 'baseOffset, 'in)
                   }
                 }
-              )
+              ),
+              modifiers = ${ modifiers(tpe) }
             )
           )
         }
