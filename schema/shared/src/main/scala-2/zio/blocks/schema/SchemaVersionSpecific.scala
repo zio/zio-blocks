@@ -69,6 +69,12 @@ object SchemaVersionSpecific {
       }
     }
 
+    def modifiers(tpe: Type): Seq[Tree] = tpe.typeSymbol.annotations
+      .filter(_.tree.tpe =:= typeOf[Modifier.config])
+      .collect(_.tree.children match {
+        case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => q"Modifier.config($k, $v)"
+      })
+
     def typeName(tpe: Type): Tree = {
       var packages = List.empty[String]
       var values   = List.empty[String]
@@ -111,7 +117,8 @@ object SchemaVersionSpecific {
                       def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpe.typeSymbol.asClass.module}
                     },
                     deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[$tpe]]
-                  )
+                  ),
+                  modifiers = _root_.scala.Seq(..${modifiers(tpe)})
                 )
               )
             }"""
@@ -158,7 +165,8 @@ object SchemaVersionSpecific {
                       }
                     },
                     matchers = Matchers(_root_.scala.Vector(..$matcherCases)),
-                  )
+                  ),
+                  modifiers = _root_.scala.Seq(..${modifiers(tpe)})
                 )
               )
             }"""
@@ -300,7 +308,8 @@ object SchemaVersionSpecific {
                         ..$deconst
                       }
                     }
-                  )
+                  ),
+                  modifiers = _root_.scala.Seq(..${modifiers(tpe)}),
                 )
               )
             }"""

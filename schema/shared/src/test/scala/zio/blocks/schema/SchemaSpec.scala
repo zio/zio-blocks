@@ -350,9 +350,14 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with default values and annotations using a macro call") {
+        @Modifier.config("record-key", "record-value-1")
+        @Modifier.config("record-key", "record-value-2")
         case class `Record-1`(
-          @Modifier.config("key", "value") `b-1`: Boolean = false,
-          @Modifier.transient() `f-2`: Float = 0.0f
+          @Modifier.config("field-key", "field-value-1")
+          @Modifier.config("field-key", "field-value-2")
+          `b-1`: Boolean = false,
+          @Modifier.transient()
+          `f-2`: Float = 0.0f
         )
 
         type Record1 = `Record-1`
@@ -376,7 +381,14 @@ object SchemaSpec extends ZIOSpecDefault {
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
                 fields = Seq(
-                  Schema[Boolean].reflect.asTerm("b-1").copy(modifiers = Seq(Modifier.config("key", "value"))),
+                  Schema[Boolean].reflect
+                    .asTerm("b-1")
+                    .copy(modifiers =
+                      Seq(
+                        Modifier.config("field-key", "field-value-1"),
+                        Modifier.config("field-key", "field-value-2")
+                      )
+                    ),
                   Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
                 typeName = TypeName(
@@ -386,7 +398,11 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Record-1"
                 ),
-                recordBinding = null
+                recordBinding = null,
+                modifiers = Seq(
+                  Modifier.config("record-key", "record-value-1"),
+                  Modifier.config("record-key", "record-value-2")
+                )
               )
             )
           )
@@ -550,6 +566,8 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for variant using a macro call") {
+        @Modifier.config("variant-key", "variant-value-1")
+        @Modifier.config("variant-key", "variant-value-2")
         sealed trait `Variant-1`
 
         case class `Case-1`(d: Double) extends `Variant-1`
@@ -591,7 +609,11 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Variant-1"
                 ),
-                variantBinding = null
+                variantBinding = null,
+                modifiers = Seq(
+                  Modifier.config("variant-key", "variant-value-1"),
+                  Modifier.config("variant-key", "variant-value-2")
+                )
               )
             )
           )
@@ -600,6 +622,8 @@ object SchemaSpec extends ZIOSpecDefault {
       test("derives schema for genetic variant using a macro call") {
         sealed abstract class `Variant-2`[+A]
 
+        @Modifier.config("record-key", "record-value-1")
+        @Modifier.config("record-key", "record-value-2")
         case object MissingValue extends `Variant-2`[Nothing] {
           implicit val schema: Schema[MissingValue.type] = Schema.derived
         }
@@ -617,6 +641,7 @@ object SchemaSpec extends ZIOSpecDefault {
         type Variant2[A] = `Variant-2`[A]
 
         val schema  = Schema.derived[Variant2[String]]
+        val record  = Schema[MissingValue.type].reflect.asInstanceOf[Reflect.Record[Binding, MissingValue.type]]
         val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant2[String]]]
         val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant2[String], MissingValue.type]]
         val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant2[String], NullValue.type]]
@@ -624,6 +649,14 @@ object SchemaSpec extends ZIOSpecDefault {
         val prism1  = Prism(variant, case1)
         val prism2  = Prism(variant, case2)
         val prism3  = Prism(variant, case3)
+        assert(record.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("record-key", "record-value-1"),
+              Modifier.config("record-key", "record-value-2")
+            )
+          )
+        ) &&
         assert(prism1.getOption(MissingValue))(isSome(equalTo(MissingValue))) &&
         assert(prism2.getOption(NullValue))(isSome(equalTo(NullValue))) &&
         assert(prism3.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
