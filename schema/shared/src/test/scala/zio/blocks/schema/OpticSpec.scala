@@ -673,39 +673,11 @@ object OpticSpec extends ZIOSpecDefault {
     lazy val r1_f: Lens.Bound[Record2, Float]   = r1(Record1.f)
   }
 
-  case class Record3(r1: Record1, r2: Record2, v1: Variant1)
+  case class Record3(r1: Record1, r2: Record2, @Modifier.deferred v1: Variant1)
 
   object Record3 {
-    val reflect: Reflect.Record.Bound[Record3] = Reflect.Record(
-      fields = Seq(
-        Record1.reflect.asTerm("r1"),
-        Record2.reflect.asTerm("r2"),
-        Reflect.Deferred(() => Variant1.reflect).asTerm("v1")
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Record3"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[Record3] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 3)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): Record3 =
-            Record3(
-              in.getObject(baseOffset, 0).asInstanceOf[Record1],
-              in.getObject(baseOffset, 1).asInstanceOf[Record2],
-              in.getObject(baseOffset, 2).asInstanceOf[Variant1]
-            )
-        },
-        deconstructor = new Deconstructor[Record3] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 3)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Record3): Unit = {
-            out.setObject(baseOffset, 0, in.r1)
-            out.setObject(baseOffset, 1, in.r2)
-            out.setObject(baseOffset, 2, in.v1)
-          }
-        }
-      )
-    )
-    implicit val schema: Schema[Record3] = Schema(reflect)
+    implicit val schema: Schema[Record3]       = Schema.derived
+    val reflect: Reflect.Record.Bound[Record3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record3]]
     val r1: Lens.Bound[Record3, Record1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record3, Record1]])
     val r2: Lens.Bound[Record3, Record2] =
@@ -720,43 +692,8 @@ object OpticSpec extends ZIOSpecDefault {
   sealed trait Variant1
 
   object Variant1 {
-    val reflect: Reflect.Variant.Bound[Variant1] = Reflect.Variant(
-      cases = Seq(
-        Case1.reflect.asTerm("c1"),
-        Case2.reflect.asTerm("c2"),
-        Reflect.Deferred(() => Variant2.reflect).asTerm("v2")
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Variant1"),
-      variantBinding = Binding.Variant(
-        discriminator = new Discriminator[Variant1] {
-          def discriminate(a: Variant1): Int = a match {
-            case _: Case1    => 0
-            case _: Case2    => 1
-            case _: Variant2 => 2
-          }
-        },
-        matchers = Matchers(
-          new Matcher[Case1] {
-            def downcastOrNull(a: Any): Case1 = a match {
-              case x: Case1 => x
-              case _        => null
-            }
-          },
-          new Matcher[Case2] {
-            def downcastOrNull(a: Any): Case2 = a match {
-              case x: Case2 => x
-              case _        => null
-            }
-          },
-          new Matcher[Variant2] {
-            def downcastOrNull(a: Any): Variant2 = a match {
-              case x: Variant2 => x
-              case _           => null
-            }
-          }
-        )
-      )
-    )
+    implicit val schema: Schema[Variant1]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[Variant1] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
     val c1: Prism.Bound[Variant1, Case1] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]])
     val c2: Prism.Bound[Variant1, Case2] =
@@ -797,37 +734,8 @@ object OpticSpec extends ZIOSpecDefault {
   sealed trait Variant2 extends Variant1
 
   object Variant2 {
-    val reflect: Reflect.Variant.Bound[Variant2] = Reflect.Variant(
-      cases = Seq(
-        Case3.reflect.asTerm("c3"),
-        Case4.reflect.asTerm("c4"),
-        Reflect.Deferred(() => Variant3.reflect).asTerm("v3")
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Variant2"),
-      variantBinding = Binding.Variant(
-        discriminator = new Discriminator[Variant2] {
-          def discriminate(a: Variant2): Int = a match {
-            case _: Case3    => 0
-            case _: Case4    => 1
-            case _: Variant3 => 2
-          }
-        },
-        matchers = Matchers(
-          new Matcher[Case3] {
-            def downcastOrNull(a: Any): Case3 = a match {
-              case x: Case3 => x
-              case _        => null
-            }
-          },
-          new Matcher[Case4] {
-            def downcastOrNull(a: Any): Case4 = a match {
-              case x: Case4 => x
-              case _        => null
-            }
-          }
-        )
-      )
-    )
+    implicit val schema: Schema[Variant2]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[Variant2] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant2]]
     val c3: Prism.Bound[Variant2, Case3] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant2, Case3]])
     val c4: Prism.Bound[Variant2, Case4] =
@@ -845,30 +753,11 @@ object OpticSpec extends ZIOSpecDefault {
     lazy val c3_v1_v2_c4: Optional.Bound[Variant2, Case4]        = c3_v1_v2(c4)
   }
 
-  case class Case3(v1: Variant1) extends Variant2
+  case class Case3(@Modifier.deferred v1: Variant1) extends Variant2
 
   object Case3 {
-    val reflect: Reflect.Record.Bound[Case3] = Reflect.Record(
-      fields = Seq(
-        Reflect.Deferred(() => Variant1.reflect).asTerm("v1")
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Case3"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[Case3] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): Case3 =
-            Case3(in.getObject(baseOffset, 0).asInstanceOf[Variant1])
-        },
-        deconstructor = new Deconstructor[Case3] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Case3): Unit =
-            out.setObject(baseOffset, 0, in.v1)
-        }
-      )
-    )
-    implicit val schema: Schema[Case3] = Schema(reflect)
+    implicit val schema: Schema[Case3]       = Schema.derived
+    val reflect: Reflect.Record.Bound[Case3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case3]]
     val v1: Lens.Bound[Case3, Variant1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case3, Variant1]])
     lazy val v1_c1: Optional.Bound[Case3, Case1]             = v1(Variant1.c1)
@@ -909,30 +798,11 @@ object OpticSpec extends ZIOSpecDefault {
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Case5, Array[String]]]).arrayValues
   }
 
-  case class Case6(v2: Variant2) extends Variant3
+  case class Case6(@Modifier.deferred v2: Variant2) extends Variant3
 
   object Case6 {
-    val reflect: Reflect.Record.Bound[Case6] = Reflect.Record(
-      fields = Seq(
-        Reflect.Deferred(() => Variant2.reflect).asTerm("v2")
-      ),
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Case6"),
-      recordBinding = Binding.Record(
-        constructor = new Constructor[Case6] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def construct(in: Registers, baseOffset: RegisterOffset): Case6 =
-            Case6(in.getObject(baseOffset, 0).asInstanceOf[Variant2])
-        },
-        deconstructor = new Deconstructor[Case6] {
-          def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Case6): Unit =
-            out.setObject(baseOffset, 0, in.v2)
-        }
-      )
-    )
-    implicit val schema: Schema[Case6] = Schema(reflect)
+    implicit val schema: Schema[Case6]       = Schema.derived
+    val reflect: Reflect.Record.Bound[Case6] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case6]]
   }
 
   object Collections {
