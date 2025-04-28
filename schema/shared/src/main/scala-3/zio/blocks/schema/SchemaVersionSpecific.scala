@@ -170,8 +170,10 @@ object SchemaVersionSpecific {
             sTpe.asType match {
               case '[st] =>
                 i += 1
-                val nameExpr  = Expr("case" + i)
-                val usingExpr = Expr.summon[Schema[st]].get
+                val nameExpr = Expr("case" + i)
+                val usingExpr = Expr.summon[Schema[st]].getOrElse {
+                  fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
+                }
                 '{
                   Schema[st](using $usingExpr).reflect.asTerm[A]($nameExpr)
                 }.asExprOf[zio.blocks.schema.Term[Binding, A, ? <: A]]
@@ -325,8 +327,10 @@ object SchemaVersionSpecific {
           fieldInfos.flatMap(_.map { fieldInfo =>
             fieldInfo.tpe.asType match {
               case '[ft] =>
-                val nameExpr  = Expr(fieldInfo.name)
-                val usingExpr = Expr.summon[Schema[ft]].get
+                val nameExpr = Expr(fieldInfo.name)
+                val usingExpr = Expr.summon[Schema[ft]].getOrElse {
+                  fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
+                }
                 val modifiers = {
                   if (fieldInfo.isTransient) Seq('{ Modifier.transient() }.asExprOf[Modifier.Term])
                   else Seq.empty
@@ -399,10 +403,7 @@ object SchemaVersionSpecific {
             )
           )
         }
-      } else {
-        val usingExpr = Expr.summon[Schema[A]].get
-        '{ Schema[A](using $usingExpr) }
-      }
+      } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show}'.")
     // report.info(s"Generated schema for type '${tpe.show}':\n${schema.show}", Position.ofMacroExpansion)
     schema
   }
