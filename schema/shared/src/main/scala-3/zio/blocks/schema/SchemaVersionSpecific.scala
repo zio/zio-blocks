@@ -229,6 +229,7 @@ private object SchemaVersionSpecific {
           defaultValue: Option[Term],
           const: (Expr[Registers], Expr[RegisterOffset]) => Term,
           deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term,
+          isDeferred: Boolean,
           isTransient: Boolean,
           config: List[(String, String)]
         )
@@ -252,6 +253,7 @@ private object SchemaVersionSpecific {
             case '[ft] =>
               val getter = tpeClassSymbol.fieldMember(name)
               if (!getter.exists) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+              val isDeferred = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.deferred])
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
               val config = getter.annotations
                 .filter(_.tpe =:= TypeRepr.of[Modifier.config])
@@ -327,7 +329,7 @@ private object SchemaVersionSpecific {
                   '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
               }
               registersUsed = RegisterOffset.add(registersUsed, offset)
-              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
+              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isDeferred, isTransient, config)
           }
         })
         val fields =
@@ -339,14 +341,21 @@ private object SchemaVersionSpecific {
                   fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
                 }
                 val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
-                var fieldTermExpr =
+                var fieldTermExpr = if (fieldInfo.isDeferred) {
                   fieldInfo.defaultValue
-                    .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { defVal =>
-                      '{ $reflectExpr.defaultValue(${ defVal.asExprOf[ft] }).asTerm[A]($nameExpr) }
+                    .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
+                      '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
                     }
+                } else {
+                  fieldInfo.defaultValue
+                    .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { dv =>
+                      '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }).asTerm[A]($nameExpr) }
+                    }
+                }
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
+                if (fieldInfo.isDeferred) modifiers = modifiers :+ '{ Modifier.deferred() }.asExprOf[Modifier.Term]
                 if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
                 if (modifiers.nonEmpty) {
                   val modifiersExpr = Expr.ofSeq(modifiers)

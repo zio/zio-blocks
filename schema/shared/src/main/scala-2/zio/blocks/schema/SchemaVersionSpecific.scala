@@ -178,6 +178,7 @@ private object SchemaVersionSpecific {
           defaultValue: Option[Tree],
           const: Tree,
           deconst: Tree,
+          isDeferred: Boolean,
           isTransient: Boolean,
           config: Seq[(String, String)]
         )
@@ -214,6 +215,7 @@ private object SchemaVersionSpecific {
           val getter =
             getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
           val anns        = annotations.getOrElse(name, Nil)
+          val isDeferred = anns.exists(_.tree.tpe =:= typeOf[Modifier.deferred])
           val isTransient = anns.exists(_.tree.tpe =:= typeOf[Modifier.transient])
           val config = anns
             .filter(_.tree.tpe =:= typeOf[Modifier.config])
@@ -266,17 +268,23 @@ private object SchemaVersionSpecific {
             deconst = q"out.setObject(baseOffset, $objects, in.$getter)"
           }
           registersUsed = RegisterOffset.add(registersUsed, offset)
-          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
+          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isDeferred, isTransient, config)
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe        = fieldInfo.tpe
           val name        = fieldInfo.name
           val reflectTree = q"Schema[$fTpe].reflect"
-          var fieldTermTree =
-            fieldInfo.defaultValue.fold(q"$reflectTree.asTerm($name)") { defVal =>
-              q"$reflectTree.defaultValue($defVal).asTerm($name)"
+          var fieldTermTree = if (fieldInfo.isDeferred) {
+            fieldInfo.defaultValue.fold(q"Reflect.Deferred(() => $reflectTree).asTerm($name)") { dv =>
+              q"Reflect.Deferred(() => $reflectTree.defaultValue($dv)).asTerm($name)"
             }
+          } else {
+            fieldInfo.defaultValue.fold(q"$reflectTree.asTerm($name)") { dv =>
+              q"$reflectTree.defaultValue($dv).asTerm($name)"
+            }
+          }
           var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
+          if (fieldInfo.isDeferred) modifiers = modifiers :+ q"Modifier.deferred()"
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = Seq(..$modifiers))"
           fieldTermTree
