@@ -67,14 +67,6 @@ object SchemaVersionSpecific {
           }
         }
 
-      def resolveParentTypeArgs(
-        child: Symbol,
-        nudeChildParentTags: List[TypeRepr],
-        parentTags: List[TypeRepr],
-        binding: Map[String, TypeRepr]
-      ): Map[String, TypeRepr] =
-        nudeChildParentTags.zip(parentTags).foldLeft(binding)((s, e) => resolveParentTypeArg(child, e._1, e._2, s))
-
       tpe.typeSymbol.children.map { sym =>
         if (sym.isType) {
           if (sym.name == "<local child>") { // problem - we have no other way to find this other return the name
@@ -88,7 +80,9 @@ object SchemaVersionSpecific {
           nudeSubtype.memberType(sym.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
             case PolyType(names, bounds, resPolyTp) =>
-              val tpBinding = resolveParentTypeArgs(sym, tpeArgsFromChild, typeArgs(tpe), Map.empty)
+              val tpBinding = tpeArgsFromChild
+                .zip(typeArgs(tpe))
+                .foldLeft(Map.empty[String, TypeRepr])((s, e) => resolveParentTypeArg(sym, e._1, e._2, s))
               val ctArgs = names.map { name =>
                 tpBinding.getOrElse(
                   name,
@@ -136,15 +130,13 @@ object SchemaVersionSpecific {
       '{ TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }) }.asExprOf[TypeName[A]]
     }
 
-    def modifiers(tpe: TypeRepr): Expr[List[Modifier.config]] =
-      Expr.ofList(
-        tpe.typeSymbol.annotations
-          .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-          .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
-            '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
-          }
-          .reverse
-      )
+    def modifiers(tpe: TypeRepr): Seq[Expr[Modifier.config]] =
+      tpe.typeSymbol.annotations
+        .filter(_.tpe =:= TypeRepr.of[Modifier.config])
+        .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
+          '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
+        }
+        .reverse
 
     val tpe     = TypeRepr.of[A].dealias
     val tpeName = typeName(tpe)
@@ -163,7 +155,7 @@ object SchemaVersionSpecific {
                 },
                 deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[A]]
               ),
-              modifiers = ${ modifiers(tpe) }
+              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
         }
@@ -225,7 +217,7 @@ object SchemaVersionSpecific {
                 },
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
               ),
-              modifiers = ${ modifiers(tpe) }
+              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
         }
@@ -415,7 +407,7 @@ object SchemaVersionSpecific {
                   }
                 }
               ),
-              modifiers = ${ modifiers(tpe) }
+              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
         }
