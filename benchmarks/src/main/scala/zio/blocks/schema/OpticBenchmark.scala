@@ -4,17 +4,7 @@ import com.softwaremill.quicklens._
 import monocle.{Focus, PLens, POptional}
 import monocle.macros.GenPrism
 import org.openjdk.jmh.annotations.{Scope => JScope, _}
-import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import zio.blocks.schema.binding.{
-  Binding,
-  Constructor,
-  Deconstructor,
-  Discriminator,
-  Matcher,
-  Matchers,
-  RegisterOffset,
-  Registers
-}
+import zio.blocks.schema.binding.Binding
 import java.util.concurrent.TimeUnit
 
 @State(JScope.Thread)
@@ -173,7 +163,7 @@ class TraversalModifyBenchmark extends BaseBenchmark {
 
   @Benchmark
   def direct: Array[Int] = {
-    var res = new Array[Int](ai.length)
+    val res = new Array[Int](ai.length)
     var i   = 0
     while (i < ai.length) {
       res(i) = ai(i) + 1
