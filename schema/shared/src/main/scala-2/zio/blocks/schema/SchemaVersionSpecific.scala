@@ -269,20 +269,16 @@ object SchemaVersionSpecific {
           FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
-          val fTpe      = fieldInfo.tpe
-          val name      = fieldInfo.name
-          var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
-          if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
-          if (modifiers.isEmpty) {
+          val fTpe = fieldInfo.tpe
+          val name = fieldInfo.name
+          var fieldTermTree =
             fieldInfo.defaultValue.fold(q"Schema[$fTpe].reflect.asTerm($name)") { defVal =>
               q"Schema[$fTpe].reflect.defaultValue($defVal).asTerm($name)"
             }
-          } else {
-            fieldInfo.defaultValue.fold(q"Schema[$fTpe].reflect.asTerm($name).copy(modifiers = Seq(..$modifiers))") {
-              defVal =>
-                q"Schema[$fTpe].reflect.defaultValue($defVal).asTerm($name).copy(modifiers = Seq(..$modifiers))"
-            }
-          }
+          var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
+          if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
+          if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = Seq(..$modifiers))"
+          fieldTermTree
         })
         val const   = q"new $tpe(...${fieldInfos.map(_.map(fieldInfo => q"${fieldInfo.symbol} = ${fieldInfo.const}"))})"
         val deconst = fieldInfos.flatMap(_.map(_.deconst))

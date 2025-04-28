@@ -338,37 +338,23 @@ object SchemaVersionSpecific {
                 val usingExpr = Expr.summon[Schema[ft]].getOrElse {
                   fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
                 }
-                val modifiers = {
-                  if (fieldInfo.isTransient) Seq('{ Modifier.transient() }.asExprOf[Modifier.Term])
-                  else Seq.empty
-                } ++ fieldInfo.config.map { case (k, v) =>
-                  '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
-                }
-                if (modifiers.isEmpty) {
+                var fieldTermExpr =
                   fieldInfo.defaultValue
                     .fold('{ Schema[ft](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { defVal =>
                       val defValExpr = defVal.asExprOf[ft]
                       '{ Schema[ft](using $usingExpr).reflect.defaultValue($defValExpr).asTerm[A]($nameExpr) }
                     }
-                } else {
-                  val modifiersExpr = Expr.ofSeq(modifiers)
-                  fieldInfo.defaultValue
-                    .fold('{
-                      Schema[ft](using $usingExpr).reflect
-                        .asTerm[A]($nameExpr)
-                        .copy(modifiers = $modifiersExpr)
-                        .asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
-                    }) { defVal =>
-                      val defValExpr = defVal.asExprOf[ft]
-                      '{
-                        Schema[ft](using $usingExpr).reflect
-                          .defaultValue($defValExpr)
-                          .asTerm[A]($nameExpr)
-                          .copy(modifiers = $modifiersExpr)
-                          .asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
-                      }
-                    }
+                var modifiers = fieldInfo.config.map { case (k, v) =>
+                  '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
+                if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
+                if (modifiers.nonEmpty) {
+                  val modifiersExpr = Expr.ofSeq(modifiers)
+                  fieldTermExpr = '{
+                    $fieldTermExpr.copy(modifiers = $modifiersExpr).asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
+                  }
+                }
+                fieldTermExpr
             }
           })
 
