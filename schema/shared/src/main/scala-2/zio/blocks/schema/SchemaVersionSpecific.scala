@@ -269,11 +269,12 @@ object SchemaVersionSpecific {
           FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
-          val fTpe = fieldInfo.tpe
-          val name = fieldInfo.name
+          val fTpe        = fieldInfo.tpe
+          val name        = fieldInfo.name
+          val reflectTree = q"Schema[$fTpe].reflect"
           var fieldTermTree =
-            fieldInfo.defaultValue.fold(q"Schema[$fTpe].reflect.asTerm($name)") { defVal =>
-              q"Schema[$fTpe].reflect.defaultValue($defVal).asTerm($name)"
+            fieldInfo.defaultValue.fold(q"$reflectTree.asTerm($name)") { defVal =>
+              q"$reflectTree.defaultValue($defVal).asTerm($name)"
             }
           var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"

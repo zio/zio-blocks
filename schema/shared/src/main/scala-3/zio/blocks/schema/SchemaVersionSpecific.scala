@@ -338,11 +338,11 @@ object SchemaVersionSpecific {
                 val usingExpr = Expr.summon[Schema[ft]].getOrElse {
                   fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
                 }
+                val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
                 var fieldTermExpr =
                   fieldInfo.defaultValue
-                    .fold('{ Schema[ft](using $usingExpr).reflect.asTerm[A]($nameExpr) }) { defVal =>
-                      val defValExpr = defVal.asExprOf[ft]
-                      '{ Schema[ft](using $usingExpr).reflect.defaultValue($defValExpr).asTerm[A]($nameExpr) }
+                    .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { defVal =>
+                      '{ $reflectExpr.defaultValue(${ defVal.asExprOf[ft] }).asTerm[A]($nameExpr) }
                     }
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
