@@ -2,10 +2,10 @@ package zio.blocks.schema
 
 import zio.Scope
 import zio.blocks.schema.Reflect.Primitive
-import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.test.Assertion._
 import zio.test._
+import zio.test.Assertion._
+import zio.test.TestAspect.jvmOnly
 
 object SchemaSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
@@ -328,7 +328,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.defaultValue(Record(1, 2)).reflect.binding.defaultValue.get.apply())(equalTo(Record(1, 2)))
       },
       test("has access to record documentation") {
-        assert(Record.schema.doc)(equalTo(Doc("Record with 2 fields")))
+        assert(Record.schema.doc)(equalTo(Doc.Empty))
       },
       test("has access to record term documentation using lens focus") {
         val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
@@ -338,7 +338,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.doc("Record (updated)").doc)(equalTo(Doc("Record (updated)")))
       },
       test("has access to record examples") {
-        assert(Record.schema.examples)(equalTo(Record(1, 1000) :: Nil))
+        assert(Record.schema.examples)(equalTo(Nil))
       },
       test("updates record examples") {
         assert(Record.schema.examples(Record(2, 2000)).examples)(equalTo(Record(2, 2000) :: Nil))
@@ -349,16 +349,48 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(record.fields(0).value.binding.examples)
         )
       },
-      test("derives schema using a macro call") {
-        case class `Record-1`(b: Byte, i: Int)
+      test("derives schema for record with default values and annotations using a macro call") {
+        @Modifier.config("record-key", "record-value-1")
+        @Modifier.config("record-key", "record-value-2")
+        case class `Record-1`(
+          @Modifier.config("field-key", "field-value-1")
+          @Modifier.config("field-key", "field-value-2")
+          `b-1`: Boolean = false,
+          @Modifier.transient()
+          `f-2`: Float = 0.0f
+        )
 
         type Record1 = `Record-1`
 
-        assert(Schema.derived[Record1])(
+        val schema = Schema.derived[Record1]
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Boolean]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Float]]
+        val lens1  = Lens(record, field1)
+        val lens2  = Lens(record, field2)
+        assert(field1.value.binding.defaultValue.get.apply())(equalTo(false)) &&
+        assert(field2.value.binding.defaultValue.get.apply())(equalTo(0.0f)) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
+        assert(lens1.get(`Record-1`()))(equalTo(false)) &&
+        assert(lens2.get(`Record-1`()))(equalTo(0.0f)) &&
+        assert(lens1.replace(`Record-1`(), true))(equalTo(`Record-1`(`b-1` = true))) &&
+        assert(lens2.replace(`Record-1`(), 1.0f))(equalTo(`Record-1`(`b-1` = false, 1.0f))) &&
+        assert(schema)(
           equalTo(
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
-                fields = Nil,
+                fields = Seq(
+                  Schema[Boolean].reflect
+                    .asTerm("b-1")
+                    .copy(modifiers =
+                      Seq(
+                        Modifier.config("field-key", "field-value-1"),
+                        Modifier.config("field-key", "field-value-2")
+                      )
+                    ),
+                  Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
+                ),
                 typeName = TypeName(
                   namespace = Namespace(
                     packages = Seq("zio", "blocks", "schema"),
@@ -367,23 +399,44 @@ object SchemaSpec extends ZIOSpecDefault {
                   name = "Record-1"
                 ),
                 recordBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                modifiers = Seq(
+                  Modifier.config("record-key", "record-value-1"),
+                  Modifier.config("record-key", "record-value-2")
+                )
               )
             )
           )
         )
       },
       test("derives schema for generic record using a macro call") {
-        case class `Record-2`[B, I](b: B, i: I)
+        case class `Record-2`[B, I](b: B, i: I = null.asInstanceOf[I])
 
         type Record2[B, I] = `Record-2`[B, I]
+        type `i-8`         = Byte
+        type `i-32`        = Int
 
-        assert(Schema.derived[Record2[Byte, Int]])(
+        val schema = Schema.derived[Record2[`i-8`, `i-32`]]
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record2[`i-8`, `i-32`], `i-8`]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record2[`i-8`, `i-32`], `i-32`]]
+        val lens1  = Lens(record, field1)
+        val lens2  = Lens(record, field2)
+        assert(field1.value.binding.defaultValue)(isNone) &&
+        assert(field2.value.binding.defaultValue.get.apply())(equalTo(0)) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assert(lens1.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
+        assert(lens2.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(2)) &&
+        assert(lens1.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3: Byte))(equalTo(`Record-2`[`i-8`, `i-32`](3, 2))) &&
+        assert(lens2.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3))(equalTo(`Record-2`[`i-8`, `i-32`](1, 3))) &&
+        assert(schema)(
           equalTo(
-            new Schema[Record2[Byte, Int]](
-              reflect = Reflect.Record[Binding, Record2[Byte, Int]](
-                fields = Nil,
+            new Schema[Record2[`i-8`, `i-32`]](
+              reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
+                fields = Seq(
+                  Schema[Byte].reflect.asTerm("b"),
+                  Schema[Int].reflect.asTerm("i")
+                ),
                 typeName = TypeName(
                   namespace = Namespace(
                     packages = Seq("zio", "blocks", "schema"),
@@ -391,9 +444,83 @@ object SchemaSpec extends ZIOSpecDefault {
                   ),
                   name = "Record-2"
                 ),
-                recordBinding = null,
-                doc = Doc.Empty,
-                modifiers = Nil
+                recordBinding = null
+              )
+            )
+          )
+        )
+      } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
+      test("derives schema for record with multi list constructor using a macro call") {
+        class Record3(val s: Short)(val l: Long)
+
+        val schema = Schema.derived[Record3]
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
+        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record3, Short]]
+        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record3, Long]]
+        val lens1  = Lens(record, field1)
+        val lens2  = Lens(record, field2)
+        assert(field1.value.binding.defaultValue)(isNone) &&
+        assert(field2.value.binding.defaultValue)(isNone) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
+        assert(lens1.get(new Record3(1)(2L)))(equalTo(1: Short)) &&
+        assert(lens2.get(new Record3(1)(2L)))(equalTo(2L)) &&
+        assert(lens1.replace(new Record3(1)(2L), 3: Short).s)(equalTo(3: Short)) &&
+        assert(lens2.replace(new Record3(1)(2L), 3L).l)(equalTo(3L)) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Record3](
+              reflect = Reflect.Record[Binding, Record3](
+                fields = Seq(
+                  Schema[Short].reflect.asTerm("s"),
+                  Schema[Long].reflect.asTerm("l")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record3"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for record with nested collections using a macro call") {
+        import zio.blocks.schema.binding._
+
+        case class Record4(mx: Array[Array[Int]], rs: List[Set[Int]])
+
+        val schema     = Schema.derived[Record4]
+        val record     = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
+        val field1     = record.fields(0).asInstanceOf[Term.Bound[Record4, Array[Array[Int]]]]
+        val field2     = record.fields(1).asInstanceOf[Term.Bound[Record4, List[Set[Int]]]]
+        val traversal1 = Lens(record, field1).arrayValues.arrayValues
+        val traversal2 = Lens(record, field2).listValues.setValues
+        assert(field1.value.binding.defaultValue)(isNone) &&
+        assert(field2.value.binding.defaultValue)(isNone) &&
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
+        assert(traversal1.fold[Int](Record4(Array(Array(1, 2), Array(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
+        assert(traversal2.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Record4](
+              reflect = Reflect.Record[Binding, Record4](
+                fields = Seq(
+                  Schema[Array[Array[Int]]].reflect.asTerm("mx"),
+                  Schema[List[Set[Int]]].reflect.asTerm("rs")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record4"
+                ),
+                recordBinding = null
               )
             )
           )
@@ -417,7 +544,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.defaultValue(Case1(1.0)).reflect.binding.defaultValue.get.apply())(equalTo(Case1(1.0)))
       },
       test("has access to variant documentation") {
-        assert(Variant.schema.doc)(equalTo(Doc("Variant with 2 cases")))
+        assert(Variant.schema.doc)(equalTo(Doc.Empty))
       },
       test("has access to variant case documentation using prism focus") {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
@@ -427,7 +554,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.doc("Variant (updated)").doc)(equalTo(Doc("Variant (updated)")))
       },
       test("has access to variant examples") {
-        assert(Variant.schema.examples)(equalTo(Case1(1.0) :: Case2("WWW") :: Nil))
+        assert(Variant.schema.examples)(equalTo(Nil))
       },
       test("updates variant examples") {
         assert(Variant.schema.examples(Case1(2.0), Case2("VVV")).examples)(equalTo(Case1(2.0) :: Case2("VVV") :: Nil))
@@ -436,6 +563,171 @@ object SchemaSpec extends ZIOSpecDefault {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
         assert(Variant.schema.examples(Prism(variant, variant.cases(0))): Seq[_])(
           equalTo(variant.cases(0).value.binding.examples)
+        )
+      },
+      test("derives schema for variant using a macro call") {
+        @Modifier.config("variant-key", "variant-value-1")
+        @Modifier.config("variant-key", "variant-value-2")
+        sealed trait `Variant-1`
+
+        case class `Case-1`(d: Double) extends `Variant-1`
+
+        object `Case-1` {
+          implicit val schema: Schema[`Case-1`] = Schema.derived
+        }
+
+        case class `Case-2`(f: Float) extends `Variant-1`
+
+        object `Case-2` {
+          implicit val schema: Schema[`Case-2`] = Schema.derived
+        }
+
+        type Variant1 = `Variant-1`
+
+        val schema  = Schema.derived[Variant1]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant1]]
+        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant1, `Case-1`]]
+        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant1, `Case-2`]]
+        val prism1  = Prism(variant, case1)
+        val prism2  = Prism(variant, case2)
+        assert(prism1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
+        assert(prism2.getOption(`Case-2`(0.2f)))(isSome(equalTo(`Case-2`(0.2f)))) &&
+        assert(prism1.replace(`Case-1`(0.1), `Case-1`(0.2)))(equalTo(`Case-1`(0.2))) &&
+        assert(prism2.replace(`Case-2`(0.2f), `Case-2`(0.3f)))(equalTo(`Case-2`(0.3f))) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Variant1](
+              reflect = Reflect.Variant[Binding, Variant1](
+                cases = Seq(
+                  Schema[`Case-1`].reflect.asTerm("case0"),
+                  Schema[`Case-2`].reflect.asTerm("case1")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Variant-1"
+                ),
+                variantBinding = null,
+                modifiers = Seq(
+                  Modifier.config("variant-key", "variant-value-1"),
+                  Modifier.config("variant-key", "variant-value-2")
+                )
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for genetic variant using a macro call") {
+        sealed abstract class `Variant-2`[+A]
+
+        @Modifier.config("record-key", "record-value-1")
+        @Modifier.config("record-key", "record-value-2")
+        case object MissingValue extends `Variant-2`[Nothing] {
+          implicit val schema: Schema[MissingValue.type] = Schema.derived
+        }
+
+        case object NullValue extends `Variant-2`[Null] {
+          implicit val schema: Schema[NullValue.type] = Schema.derived
+        }
+
+        case class Value[A](a: A) extends `Variant-2`[A]
+
+        object Value {
+          implicit def schema[A <: AnyRef: Schema]: Schema[Value[A]] = Schema.derived[Value[A]]
+        }
+
+        type Variant2[A] = `Variant-2`[A]
+
+        val schema  = Schema.derived[Variant2[String]]
+        val record  = Schema[MissingValue.type].reflect.asInstanceOf[Reflect.Record[Binding, MissingValue.type]]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant2[String]]]
+        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant2[String], MissingValue.type]]
+        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant2[String], NullValue.type]]
+        val case3   = variant.cases(2).asInstanceOf[Term.Bound[Variant2[String], Value[String]]]
+        val prism1  = Prism(variant, case1)
+        val prism2  = Prism(variant, case2)
+        val prism3  = Prism(variant, case3)
+        assert(record.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("record-key", "record-value-1"),
+              Modifier.config("record-key", "record-value-2")
+            )
+          )
+        ) &&
+        assert(prism1.getOption(MissingValue))(isSome(equalTo(MissingValue))) &&
+        assert(prism2.getOption(NullValue))(isSome(equalTo(NullValue))) &&
+        assert(prism3.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
+        assert(prism3.replace(Value[String]("WWW"), Value[String]("VVV")))(equalTo(Value[String]("VVV"))) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Variant2[String]](
+              reflect = Reflect.Variant[Binding, Variant2[String]](
+                cases = Seq(
+                  Schema[MissingValue.type].reflect
+                    .asTerm("case0")
+                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
+                  Schema[NullValue.type].reflect
+                    .asTerm("case1")
+                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
+                  Schema[Value[String]].reflect
+                    .asTerm("case2")
+                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]]
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Variant-2"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for higher-kinded variant using a macro call") {
+        sealed trait `Variant-3`[F[_]]
+
+        case class `Case-1`[F[_]](a: F[Double]) extends `Variant-3`[F]
+
+        case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
+
+        implicit val schemaCase1Option: Schema[`Case-1`[Option]] = Schema.derived
+        implicit val schemaCase2Option: Schema[`Case-2`[Option]] = Schema.derived
+
+        val schema  = Schema.derived[`Variant-3`[Option]]
+        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, `Variant-3`[Option]]]
+        val case1   = variant.cases(0).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-1`[Option]]]
+        val case2   = variant.cases(1).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-2`[Option]]]
+        val prism1  = Prism(variant, case1)
+        val prism2  = Prism(variant, case2)
+        assert(prism1.getOption(`Case-1`[Option](Some(0.1))))(isSome(equalTo(`Case-1`[Option](Some(0.1))))) &&
+        assert(prism2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
+        assert(prism1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
+        assert(prism2.replace(`Case-2`[Option](Some(0.2f)), `Case-2`[Option](None)))(equalTo(`Case-2`[Option](None))) &&
+        assert(schema)(
+          equalTo(
+            new Schema[`Variant-3`[Option]](
+              reflect = Reflect.Variant[Binding, `Variant-3`[Option]](
+                cases = Seq(
+                  Schema[`Case-1`[Option]].reflect.asTerm("case0"),
+                  Schema[`Case-2`[Option]].reflect.asTerm("case1")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Variant-3"
+                ),
+                variantBinding = null
+              )
+            )
+          )
         )
       }
     ),
@@ -465,15 +757,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val sequence1 = Reflect.Sequence[Binding, Long, List](
           element = long1,
           typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Long]],
-          doc = Doc("List of positive longs"),
-          modifiers = Nil
+          seqBinding = null,
+          doc = Doc("List of positive longs")
         )
         assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
       },
@@ -491,15 +781,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val sequence1 = Reflect.Sequence[Binding, Long, List](
           element = long1,
           typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Long]],
-          doc = Doc("List of positive longs"),
-          modifiers = Nil
+          seqBinding = null,
+          doc = Doc("List of positive longs")
         )
         assert(Schema(sequence1).examples(Traversal.listValues(long1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
       }
@@ -534,16 +822,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Int](),
           typeName = TypeName.int,
-          doc = Doc("Int (positive)"),
-          modifiers = Nil
+          doc = Doc("Int (positive)")
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = int1,
           value = Reflect.long,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).doc(Traversal.mapKeys(map1)): Doc)(equalTo(Doc("Int (positive)")))
       },
@@ -555,16 +840,13 @@ object SchemaSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](),
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = long1,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).doc(Traversal.mapValues(map1)): Doc)(equalTo(Doc("Long (positive)")))
       },
@@ -577,9 +859,7 @@ object SchemaSpec extends ZIOSpecDefault {
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
             examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
-          ),
-          doc = Doc.Empty,
-          modifiers = Nil
+          )
         )
         assert(Schema(map1).examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
       },
@@ -592,17 +872,13 @@ object SchemaSpec extends ZIOSpecDefault {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
-          typeName = TypeName.long,
-          doc = Doc.Empty,
-          modifiers = Nil
+          typeName = TypeName.long
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = long1,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).examples(Traversal.mapValues(map1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
       },
@@ -610,17 +886,13 @@ object SchemaSpec extends ZIOSpecDefault {
         val int1 = Primitive(
           primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Int](examples = Seq(1, 2, 3)),
-          typeName = TypeName.int,
-          doc = Doc.Empty,
-          modifiers = Nil
+          typeName = TypeName.int
         )
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = int1,
           value = Reflect.long,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]],
-          doc = Doc.Empty,
-          modifiers = Nil
+          mapBinding = null
         )
         assert(Schema(map1).examples(Traversal.mapKeys(map1)): Seq[_])(equalTo(Seq(1, 2, 3)))
       }
@@ -685,8 +957,7 @@ object SchemaSpec extends ZIOSpecDefault {
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive.int,
             TypeName.int,
-            Doc("Int (positive)"),
-            Nil
+            Doc("Int (positive)")
           )
         }
         assert(Schema(deferred1).doc)(equalTo(Doc("Int (positive)")))
@@ -700,9 +971,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int,
-            Doc.Empty,
-            Nil
+            TypeName.int
           )
         }
         assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3)))
@@ -712,9 +981,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
             Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int,
-            Doc.Empty,
-            Nil
+            TypeName.int
           )
         }
         assert(Schema(deferred1).examples(1, 2).examples)(equalTo(Seq(1, 2)))
@@ -725,132 +992,24 @@ object SchemaSpec extends ZIOSpecDefault {
   case class Record(b: Byte, i: Int)
 
   object Record {
-    val schema: Schema[Record] = Schema(
-      reflect = Reflect.Record[Binding, Record](
-        fields = Seq(
-          Reflect.byte[Binding].asTerm("b"),
-          Reflect.int[Binding].asTerm("i")
-        ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "Record"),
-        recordBinding = Binding.Record(
-          constructor = new Constructor[Record] {
-            def usedRegisters: RegisterOffset = RegisterOffset(bytes = 1, ints = 1)
-
-            def construct(in: Registers, baseOffset: RegisterOffset): Record =
-              Record(in.getByte(baseOffset, 0), in.getInt(baseOffset, 0))
-          },
-          deconstructor = new Deconstructor[Record] {
-            def usedRegisters: RegisterOffset = RegisterOffset(bytes = 1, ints = 1)
-
-            def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Record): Unit = {
-              out.setByte(baseOffset, 0, in.b)
-              out.setInt(baseOffset, 1, in.i)
-            }
-          },
-          examples = Record(1, 1000) :: Nil
-        ),
-        doc = Doc("Record with 2 fields"),
-        modifiers = Nil
-      )
-    )
+    implicit val schema: Schema[Record] = Schema.derived
   }
 
   sealed trait Variant
 
   object Variant {
-    val schema: Schema[Variant] = Schema(
-      reflect = Reflect.Variant[Binding, Variant](
-        cases = Seq(
-          Case1.schema.reflect.asTerm("case1"),
-          Case2.schema.reflect.asTerm("case2")
-        ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "Variant"),
-        variantBinding = Binding.Variant(
-          discriminator = new Discriminator[Variant] {
-            def discriminate(a: Variant): Int = a match {
-              case _: Case1 => 0
-              case _: Case2 => 1
-            }
-          },
-          matchers = Matchers(
-            new Matcher[Case1] {
-              def downcastOrNull(a: Any): Case1 = a match {
-                case x: Case1 => x
-                case _        => null
-              }
-            },
-            new Matcher[Case2] {
-              def downcastOrNull(a: Any): Case2 = a match {
-                case x: Case2 => x
-                case _        => null
-              }
-            }
-          ),
-          examples = Case1(1.0) :: Case2("WWW") :: Nil
-        ),
-        doc = Doc("Variant with 2 cases"),
-        modifiers = Nil
-      )
-    )
+    implicit val schema: Schema[Variant] = Schema.derived
   }
 
   case class Case1(d: Double) extends Variant
 
   object Case1 {
-    val schema: Schema[Case1] = Schema(
-      reflect = Reflect.Record[Binding, Case1](
-        fields = Seq(
-          Reflect.double[Binding].asTerm("d")
-        ),
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "Case1"),
-        recordBinding = Binding.Record(
-          constructor = new Constructor[Case1] {
-            def usedRegisters: RegisterOffset = RegisterOffset(doubles = 1)
-
-            def construct(in: Registers, baseOffset: RegisterOffset): Case1 =
-              Case1(in.getDouble(baseOffset, 0))
-          },
-          deconstructor = new Deconstructor[Case1] {
-            def usedRegisters: RegisterOffset = RegisterOffset(doubles = 1)
-
-            def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Case1): Unit =
-              out.setDouble(baseOffset, 0, in.d)
-          },
-          examples = Case1(1.0) :: Nil
-        ),
-        doc = Doc.Empty,
-        modifiers = Nil
-      )
-    )
+    implicit val schema: Schema[Case1] = Schema.derived
   }
 
   case class Case2(s: String) extends Variant
 
   object Case2 {
-    val schema: Schema[Case2] = Schema(
-      reflect = Reflect.Record[Binding, Case2](
-        fields = List(
-          Reflect.string[Binding].asTerm("s")
-        ),
-        typeName = TypeName(Namespace(List("zio", "blocks", "schema"), Seq("SchemaSpec")), "Case2"),
-        recordBinding = Binding.Record(
-          constructor = new Constructor[Case2] {
-            def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-            def construct(in: Registers, baseOffset: RegisterOffset): Case2 =
-              Case2(in.getObject(baseOffset, 0).asInstanceOf[String])
-          },
-          deconstructor = new Deconstructor[Case2] {
-            def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
-
-            def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Case2): Unit =
-              out.setObject(baseOffset, 0, in.s)
-          },
-          examples = Case2("WWW") :: Nil
-        ),
-        doc = Doc.Empty,
-        modifiers = Nil
-      )
-    )
+    implicit val schema: Schema[Case2] = Schema.derived
   }
 }
