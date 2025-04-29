@@ -97,8 +97,12 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2.path)(equalTo(Vector(Optic.Path.Case("Variant2")))) &&
         assert(Variant1.v2_c3.path)(equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case3")))) &&
         assert(Variant1.v2_c4.path)(equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case4")))) &&
-        assert(Variant1.v2_v3_c5_left.path)(equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Variant3"), Optic.Path.Case("Case5")))) &&
-        assert(Variant1.v2_c3_v1.path)(equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case3"), Optic.Path.Field("v1"))))
+        assert(Variant1.v2_v3_c5_left.path)(
+          equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Variant3"), Optic.Path.Case("Case5")))
+        ) &&
+        assert(Variant1.v2_c3_v1.path)(
+          equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case3"), Optic.Path.Field("v1")))
+        )
       },
       test("checks prerequisites for creation") {
         ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
@@ -713,8 +717,8 @@ object OpticSpec extends ZIOSpecDefault {
   sealed trait Variant1
 
   object Variant1 {
-    implicit val schema: Schema[zio.blocks.schema.OpticSpec.Variant1]       = Schema.derived
-    val reflect: Reflect.Variant.Bound[Variant1] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
+    implicit val schema: Schema[zio.blocks.schema.OpticSpec.Variant1] = Schema.derived
+    val reflect: Reflect.Variant.Bound[Variant1]                      = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
     val c1: Prism.Bound[Variant1, Case1] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]])
     val c2: Prism.Bound[Variant1, Case2] =

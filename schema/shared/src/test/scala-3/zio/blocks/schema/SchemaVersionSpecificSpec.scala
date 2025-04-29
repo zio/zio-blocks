@@ -72,8 +72,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             new Schema[Variant1](
               reflect = Reflect.Variant[Binding, Variant1](
                 cases = Seq(
-                  Schema[Case1].reflect.asTerm("case0"),
-                  Schema[Case2].reflect.asTerm("case1")
+                  Schema[Case1].reflect.asTerm("Case1"),
+                  Schema[Case2].reflect.asTerm("Case2")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
