@@ -23,6 +23,8 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
   def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S
 
+  def path: Vector[Optic.Path]
+
   def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optic[G, S, A]
 
   def noBinding: Optic[NoBinding, S, A]
@@ -81,6 +83,18 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
 object Optic {
   type Bound[S, A] = Optic[Binding, S, A]
+
+  sealed trait Path
+  object Path {
+    final case class Field(name: String) extends Path
+    final case class Case(name: String) extends Path
+    final case class Index(index: Int) extends Path
+    final case class MapKey(key: String) extends Path
+    final case class Optional(path: Path) extends Path
+    case object Elements extends Path
+    case object MapKeys extends Path
+    case object MapValues extends Path
+  }
 }
 
 private[schema] sealed trait Leaf[F[_, _], S, A] extends Optic[F, S, A] {
@@ -221,6 +235,8 @@ object Lens {
       x.asInstanceOf[S]
     }
 
+    override lazy val path: Vector[Optic.Path] = childs.map(_.name).map(Optic.Path.Field(_)).toVector
+
     override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A] =
       new LensImpl(parents.map(_.refineBinding(f)), childs.map(_.refineBinding(f)))
 
@@ -313,6 +329,8 @@ object Prism {
       if (a != null) new Some(a)
       else None
     }
+
+    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.Case(child.name)) // FIXME
 
     def reverseGet(a: A): S = a
 
@@ -433,6 +451,8 @@ object Optional {
       }
       new Some(x.asInstanceOf[A])
     }
+
+    override lazy val path: Vector[Optic.Path] = leafs.map(_.path).flatten.toVector
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
       var idx = leafs.length
@@ -861,6 +881,8 @@ object Traversal {
       }
     }
 
+    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.Elements)
+
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): SeqValues[G, A, C] = new SeqValues(seq.refineBinding(f))
 
     override def hashCode: Int = seq.hashCode
@@ -898,6 +920,8 @@ object Traversal {
       constructor.resultObject(builder)
     }
 
+    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.MapKeys)
+
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapKeys[G, Key, Value, M] = new MapKeys(map.refineBinding(f))
 
     override def hashCode: Int = map.hashCode
@@ -934,6 +958,8 @@ object Traversal {
       }
       constructor.resultObject(builder)
     }
+
+    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.MapValues)
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapValues[G, Key, Value, M] =
       new MapValues(map.refineBinding(f))
@@ -987,6 +1013,8 @@ object Traversal {
       }
       g(s).asInstanceOf[S]
     }
+
+    override lazy val path: Vector[Optic.Path] = leafs.map(_.path).flatten.toVector
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
       new TraversalMixed(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))
