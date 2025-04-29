@@ -119,14 +119,14 @@ object Lens {
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Lens[F, T, A]): Lens[F, S, A] = {
     require((first ne null) && (second ne null))
-    val lens1 = first.asInstanceOf[LensImpl[F, S, A]]
-    val lens2 = second.asInstanceOf[LensImpl[F, S, A]]
-    new LensImpl(lens1.parents ++ lens2.parents, lens1.childs ++ lens2.childs)
+    val lens1 = first.asInstanceOf[LensImpl[F, _, _]]
+    val lens2 = second.asInstanceOf[LensImpl[F, _, _]]
+    new LensImpl(lens1.parents ++ lens2.parents, lens1.children ++ lens2.children)
   }
 
   private[schema] case class LensImpl[F[_, _], S, A](
-    parents: ArraySeq[Reflect.Record[F, S]],
-    childs: ArraySeq[Term[F, S, A]]
+    parents: ArraySeq[Reflect.Record[F, _]],
+    children: ArraySeq[Term[F, _, _]]
   ) extends Lens[F, S, A]
       with Leaf[F, S, A] {
     private[this] var bindings: Array[LensBinding]  = null
@@ -144,7 +144,7 @@ object Lens {
           constructor = F.constructor(parent.recordBinding).asInstanceOf[Constructor[Any]],
           register = parent
             .registers(parent.fields.indexWhere {
-              val childName = childs(idx).name
+              val childName = children(idx).name
               x => x.name == childName
             })
             .asInstanceOf[Register[Any]],
@@ -222,16 +222,16 @@ object Lens {
     }
 
     override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A] =
-      new LensImpl(parents.map(_.refineBinding(f)), childs.map(_.refineBinding(f)))
+      new LensImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
 
-    override def structure: Reflect[F, S] = parents(0)
+    override def structure: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
 
-    override def focus: Reflect[F, A] = childs(childs.length - 1).value
+    override def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
 
-    override def hashCode: Int = parents.hashCode ^ childs.hashCode
+    override def hashCode: Int = parents.hashCode ^ children.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: LensImpl[_, _, _] => other.parents.equals(parents) && other.childs.equals(childs)
+      case other: LensImpl[_, _, _] => other.parents.equals(parents) && other.children.equals(children)
       case _                        => false
     }
   }
@@ -275,74 +275,107 @@ object Prism {
 
   def apply[F[_, _], S, A <: S](parent: Reflect.Variant[F, S], child: Term[F, S, A]): Prism[F, S, A] = {
     require((parent ne null) && (child ne null))
-    new PrismImpl(parent, parent, child)
+    new PrismImpl(ArraySeq(parent), ArraySeq(child))
   }
 
   def apply[F[_, _], S, T <: S, A <: T](first: Prism[F, S, T], second: Prism[F, T, A]): Prism[F, S, A] = {
     require((first ne null) && (second ne null))
-    val prism1 = first.asInstanceOf[PrismImpl[F, _, _, _]]
-    val prism2 = second.asInstanceOf[PrismImpl[F, _, _, _]]
-    new PrismImpl(
-      prism1.structure.asInstanceOf[Reflect.Variant[F, S]],
-      prism2.parent.asInstanceOf[Reflect.Variant[F, T]],
-      prism2.child.asInstanceOf[Term[F, T, A]]
-    )
+    val prism1 = first.asInstanceOf[PrismImpl[F, _, _]]
+    val prism2 = second.asInstanceOf[PrismImpl[F, _, _]]
+    new PrismImpl(prism1.parents ++ prism2.parents, prism1.children ++ prism2.children)
   }
 
-  private[schema] case class PrismImpl[F[_, _], S, T <: S, A <: T](
-    structure: Reflect.Variant[F, S],
-    parent: Reflect.Variant[F, T],
-    child: Term[F, T, A]
+  private[schema] case class PrismImpl[F[_, _], S, A <: S](
+    parents: ArraySeq[Reflect.Variant[F, _]],
+    children: ArraySeq[Term[F, _, _]]
   ) extends Prism[F, S, A]
       with Leaf[F, S, A] {
-    private[this] var matcher: Matcher[A] = null
+    private[this] var matchers: Array[Matcher[Any]] = null
 
-    private def init(implicit F: HasBinding[F]): Unit = matcher = F
-      .matchers(parent.variantBinding)
-      .apply(parent.cases.indexWhere {
-        val name = child.name
-        x => x.name == name
-      })
-      .asInstanceOf[Matcher[A]]
+    private def init(implicit F: HasBinding[F]): Unit = {
+      val len      = parents.length
+      val matchers = new Array[Matcher[Any]](len)
+      var idx      = 0
+      while (idx < len) {
+        val parent = parents(idx)
+        val child  = children(idx)
+        matchers(idx) = F
+          .matchers(parent.variantBinding)
+          .apply(parent.cases.indexWhere {
+            val name = child.name
+            x => x.name == name
+          })
+        idx += 1
+      }
+      this.matchers = matchers
+    }
 
-    def focus: Reflect[F, A] = child.value
+    def structure: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
+
+    def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
 
     def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = {
-      if (matcher eq null) init
-      val a = matcher.downcastOrNull(s)
-      if (a != null) new Some(a)
-      else None
+      if (matchers eq null) init
+      val len    = matchers.length
+      var x: Any = s
+      var idx    = 0
+      while (idx < len) {
+        x = matchers(idx).downcastOrNull(x)
+        if (x == null) return None
+        idx += 1
+      }
+      new Some(x).asInstanceOf[Option[A]]
     }
 
     def reverseGet(a: A): S = a
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
-      if (matcher eq null) init
-      if (matcher.downcastOrNull(s) != null) a
-      else s
+      if (matchers eq null) init
+      val len    = matchers.length
+      var x: Any = s
+      var idx    = 0
+      while (idx < len) {
+        x = matchers(idx).downcastOrNull(x)
+        if (x == null) return s
+        idx += 1
+      }
+      a
     }
 
     def replaceOption(s: S, a: A)(implicit F: HasBinding[F]): Option[S] = {
-      if (matcher eq null) init
-      if (matcher.downcastOrNull(s) != null) new Some(a)
-      else None
+      if (matchers eq null) init
+      val len    = matchers.length
+      var x: Any = s
+      var idx    = 0
+      while (idx < len) {
+        x = matchers(idx).downcastOrNull(x)
+        if (x == null) return None
+        idx += 1
+      }
+      new Some(a)
     }
 
     def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = {
-      if (matcher eq null) init
-      val a = matcher.downcastOrNull(s)
-      if (a != null) f(a)
-      else s
+      if (matchers eq null) init
+      val len    = matchers.length
+      var x: Any = s
+      var idx    = 0
+      while (idx < len) {
+        x = matchers(idx).downcastOrNull(x)
+        if (x == null) return s
+        idx += 1
+      }
+      f(x.asInstanceOf[A])
     }
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Prism[G, S, A] =
-      new PrismImpl(structure.refineBinding(f), parent.refineBinding(f), child.refineBinding(f))
+      new PrismImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
 
-    override def hashCode: Int = structure.hashCode ^ child.hashCode
+    override def hashCode: Int = parents.hashCode ^ children.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: PrismImpl[_, _, _, _] => other.structure.equals(structure) && other.child.equals(child)
-      case _                            => false
+      case other: PrismImpl[_, _, _] => other.parents.equals(parents) && other.children.equals(children)
+      case _                         => false
     }
   }
 }
@@ -961,7 +994,7 @@ object Traversal {
         if (leaf.isInstanceOf[Lens.LensImpl[F, _, _]]) {
           val lens = leaf.asInstanceOf[Lens[F, Any, Any]]
           g = (z: Any, t: Any) => h(z, lens.get(t))
-        } else if (leaf.isInstanceOf[Prism.PrismImpl[F, _, _, _]]) {
+        } else if (leaf.isInstanceOf[Prism.PrismImpl[F, _, _]]) {
           val prism = leaf.asInstanceOf[Prism[F, Any, Any]]
           g = (z: Any, t: Any) =>
             prism.getOption(t) match {
