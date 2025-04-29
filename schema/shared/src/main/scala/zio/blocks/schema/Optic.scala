@@ -238,7 +238,7 @@ object Lens {
       x.asInstanceOf[S]
     }
 
-    override lazy val path: Vector[Optic.Path] = childs.map(_.name).map(Optic.Path.Field(_)).toVector
+    override lazy val path: Vector[Optic.Path] = children.map(_.name).map(Optic.Path.Field(_)).toVector
 
     override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A] =
       new LensImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
@@ -342,7 +342,7 @@ object Prism {
       new Some(x).asInstanceOf[Option[A]]
     }
 
-    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.Case(child.name)) // FIXME
+    override lazy val path: Vector[Optic.Path] = children.map(_.name).map(Optic.Path.Case(_)).toVector
 
     def reverseGet(a: A): S = a
 
@@ -541,7 +541,12 @@ object Optional {
       new Some(x.asInstanceOf[A])
     }
 
-    override lazy val path: Vector[Optic.Path] = leafs.map(_.path).flatten.toVector
+    override lazy val path: Vector[Optic.Path] = 
+      parents.zip(children).map {
+        case ( _ : Reflect.Record[F, _], term : Term[F, _, _]) => Optic.Path.Field(term.name)
+        case ( _ : Reflect.Variant[F, _], term : Term[F, _, _]) => Optic.Path.Case(term.name)
+        case _ => throw new IllegalArgumentException("Invalid optic")
+      }.toVector
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
       if (bindings eq null) init
