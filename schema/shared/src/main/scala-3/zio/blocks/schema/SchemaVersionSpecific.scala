@@ -115,7 +115,7 @@ private object SchemaVersionSpecific {
       }
     }
 
-    def typeName(tpe: TypeRepr): Expr[TypeName[A]] = {
+    def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
       var packages = List.empty[String]
       var values   = List.empty[String]
       val name     = tpe.typeSymbol.name.toString
@@ -127,7 +127,7 @@ private object SchemaVersionSpecific {
         else values = ownerName :: values
         owner = owner.owner
       }
-      '{ TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }) }.asExprOf[TypeName[A]]
+      (packages, values, name)
     }
 
     def modifiers(tpe: TypeRepr): Seq[Expr[Modifier.config]] =
@@ -138,15 +138,15 @@ private object SchemaVersionSpecific {
         }
         .reverse
 
-    val tpe     = TypeRepr.of[A].dealias
-    val tpeName = typeName(tpe)
+    val tpe                      = TypeRepr.of[A].dealias
+    val (packages, values, name) = typeName(tpe)
     val schema =
       if (isEnumOrModuleValue(tpe)) {
         '{
           new Schema[A](
             reflect = new Reflect.Record[Binding, A](
               fields = Nil,
-              typeName = $tpeName,
+              typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
                 constructor = new Constructor[A] {
                   def usedRegisters: RegisterOffset = 0
@@ -173,12 +173,17 @@ private object SchemaVersionSpecific {
             sTpe.asType match {
               case '[st] =>
                 i += 1
-                val nameExpr = Expr("case" + i)
+                val (_, sValues, sName) = typeName(sTpe)
+                val diffValues =
+                  values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
+                var termName = sName
+                if (termName.endsWith("$")) termName = termName.substring(0, termName.length - 1)
+                if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
                 val usingExpr = Expr.summon[Schema[st]].getOrElse {
                   fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
                 }
                 '{
-                  Schema[st](using $usingExpr).reflect.asTerm[A]($nameExpr)
+                  Schema[st](using $usingExpr).reflect.asTerm[A](${ Expr(termName) })
                 }.asExprOf[zio.blocks.schema.Term[Binding, A, ? <: A]]
             }
         }
@@ -210,7 +215,7 @@ private object SchemaVersionSpecific {
           new Schema[A](
             reflect = new Reflect.Variant[Binding, A](
               cases = ${ Expr.ofList(cases) },
-              typeName = $tpeName,
+              typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               variantBinding = Binding.Variant(
                 discriminator = new Discriminator[A] {
                   def discriminate(a: A): Int = ${ discr('a) }
@@ -387,7 +392,7 @@ private object SchemaVersionSpecific {
           new Schema[A](
             reflect = new Reflect.Record[Binding, A](
               fields = ${ Expr.ofList(fields) },
-              typeName = $tpeName,
+              typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
                 constructor = new Constructor[A] {
                   def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
