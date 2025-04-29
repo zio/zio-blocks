@@ -9,6 +9,13 @@ import zio.test._
 object OpticSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
+      test("path") {
+        assert(Record1.b.path)(equalTo(Vector(Optic.Path.Field("b")))) &&
+        assert(Record2.r1_b.path)(equalTo(Vector(Optic.Path.Field("r1"), Optic.Path.Field("b")))) &&
+        assert(Record3.v1.path)(equalTo(Vector(Optic.Path.Field("v1")))) &&
+        assert(Record3.v1.path)(equalTo(Vector(Optic.Path.Field("v1")))) &&
+        assert(Record3.v1.path)(equalTo(Vector(Optic.Path.Field("v1"))))
+      },
       test("checks prerequisites for creation") {
         ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
         ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
@@ -84,6 +91,14 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Prism")(
+      // test("path") {
+      //   assert(Variant1.c1.path)(equalTo(Vector(Optic.Path.Case("c1")))) &&
+      //   assert(Variant1.c2.path)(equalTo(Vector(Optic.Path.Case("c2")))) &&
+      //   assert(Variant1.v2.path)(equalTo(Vector(Optic.Path.Case("v2")))) &&
+      //   assert(Variant1.v2_c3.path)(equalTo(Vector(Optic.Path.Case("v2"), Optic.Path.Case("c3")))) &&
+      //   assert(Variant1.v2_c4.path)(equalTo(Vector(Optic.Path.Case("v2"), Optic.Path.Case("c4")))) &&
+      //   assert(Variant1.v2_v3_c5_left.path)(equalTo(Vector(Optic.Path.Case("v2"), Optic.Path.Case("v3"), Optic.Path.Case("c5"), Optic.Path.Case("left"))))
+      // },
       test("checks prerequisites for creation") {
         ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
         ZIO.attempt(Prism(Variant1.c1, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
@@ -265,6 +280,11 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Optional")(
+      // test("path") {
+      //   assert(Variant1.c1_d.path)(equalTo(Vector(Optic.Path.Case("c1"), Optic.Path.Field("d")))) &&
+      //   assert(Variant1.c2_r3.path)(equalTo(Vector(Optic.Path.Case("c2"), Optic.Path.Field("r3")))) &&
+      //   assert(Variant1.c2_r3_r1.path)(equalTo(Vector(Optic.Path.Case("c2"), Optic.Path.Field("r3"), Optic.Path.Field("r1"))))
+      // },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1_d)(equalTo(Variant1.c1_d)) &&
         assert(Variant1.c1_d.hashCode)(equalTo(Variant1.c1_d.hashCode)) &&
