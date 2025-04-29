@@ -50,10 +50,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def fromDynamicValue(value: DynamicValue): Either[codec.CodecError, A] = ??? // TODO
 
   def modify[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => (C, Reflect.Bound[B])): (C, Schema[A]) = ???
-    
 
   def toDynamicValue(value: A): DynamicValue = ??? // TODO
-  
+
 }
 
 object Schema extends SchemaVersionSpecific {

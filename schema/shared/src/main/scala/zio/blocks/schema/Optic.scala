@@ -88,14 +88,14 @@ object Optic {
 
   sealed trait Path
   object Path {
-    final case class Field(name: String) extends Path
-    final case class Case(name: String) extends Path
-    final case class Index(index: Int) extends Path
-    final case class MapKey(key: String) extends Path
+    final case class Field(name: String)  extends Path
+    final case class Case(name: String)   extends Path
+    final case class Index(index: Int)    extends Path
+    final case class MapKey(key: String)  extends Path
     final case class Optional(path: Path) extends Path
-    case object Elements extends Path
-    case object MapKeys extends Path
-    case object MapValues extends Path
+    case object Elements                  extends Path
+    case object MapKeys                   extends Path
+    case object MapValues                 extends Path
   }
 }
 
@@ -541,12 +541,15 @@ object Optional {
       new Some(x.asInstanceOf[A])
     }
 
-    override lazy val path: Vector[Optic.Path] = 
-      parents.zip(children).map {
-        case ( _ : Reflect.Record[F, _], term : Term[F, _, _]) => Optic.Path.Field(term.name)
-        case ( _ : Reflect.Variant[F, _], term : Term[F, _, _]) => Optic.Path.Case(term.name)
-        case _ => throw new IllegalArgumentException("Invalid optic")
-      }.toVector
+    override lazy val path: Vector[Optic.Path] =
+      parents
+        .zip(children)
+        .map {
+          case (_: Reflect.Record[F, _], term: Term[F, _, _])  => Optic.Path.Field(term.name)
+          case (_: Reflect.Variant[F, _], term: Term[F, _, _]) => Optic.Path.Case(term.name)
+          case _                                               => throw new IllegalArgumentException("Invalid optic")
+        }
+        .toVector
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
       if (bindings eq null) init
