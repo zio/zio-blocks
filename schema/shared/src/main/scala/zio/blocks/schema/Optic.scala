@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import scala.collection.immutable.ArraySeq
 
 sealed trait Optic[F[_, _], S, A] { self =>
   def structure: Reflect[F, S]
@@ -69,14 +68,15 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
   final def asSub[B](implicit ev: A <:< B): Optic[F, S, B] = self.asInstanceOf[Optic[F, S, B]]
 
-  override def hashCode: Int = linearized.hashCode
+  override def hashCode: Int = java.util.Arrays.hashCode(linearized.asInstanceOf[Array[AnyRef]])
 
   override def equals(obj: Any): Boolean = obj match {
-    case other: Optic[_, _, _] => other.linearized.equals(linearized)
-    case _                     => false
+    case other: Optic[_, _, _] =>
+      java.util.Arrays.equals(other.linearized.asInstanceOf[Array[AnyRef]], linearized.asInstanceOf[Array[AnyRef]])
+    case _ => false
   }
 
-  private[schema] def linearized: ArraySeq[Leaf[F, _, _]]
+  private[schema] def linearized: Array[Leaf[F, _, _]]
 }
 
 object Optic {
@@ -84,7 +84,7 @@ object Optic {
 }
 
 private[schema] sealed trait Leaf[F[_, _], S, A] extends Optic[F, S, A] {
-  override private[schema] def linearized: ArraySeq[Leaf[F, S, A]] = ArraySeq(this)
+  override private[schema] def linearized: Array[Leaf[F, _, _]] = Array(this)
 }
 
 sealed trait Lens[F[_, _], S, A] extends Optic[F, S, A] {
@@ -114,7 +114,7 @@ object Lens {
 
   def apply[F[_, _], S, A](parent: Reflect.Record[F, S], child: Term[F, S, A]): Lens[F, S, A] = {
     require((parent ne null) && (child ne null))
-    new LensImpl(ArraySeq(parent), ArraySeq(child))
+    new LensImpl(Array(parent), Array(child))
   }
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Lens[F, T, A]): Lens[F, S, A] = {
@@ -125,8 +125,8 @@ object Lens {
   }
 
   private[schema] case class LensImpl[F[_, _], S, A](
-    parents: ArraySeq[Reflect.Record[F, _]],
-    children: ArraySeq[Term[F, _, _]]
+    parents: Array[Reflect.Record[F, _]],
+    children: Array[Term[F, _, _]]
   ) extends Lens[F, S, A]
       with Leaf[F, S, A] {
     private[this] var bindings: Array[LensBinding]  = null
@@ -228,11 +228,14 @@ object Lens {
 
     override def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
 
-    override def hashCode: Int = parents.hashCode ^ children.hashCode
+    override def hashCode: Int = java.util.Arrays.hashCode(parents.asInstanceOf[Array[AnyRef]]) ^
+      java.util.Arrays.hashCode(children.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: LensImpl[_, _, _] => other.parents.equals(parents) && other.children.equals(children)
-      case _                        => false
+      case other: LensImpl[_, _, _] =>
+        java.util.Arrays.equals(other.parents.asInstanceOf[Array[AnyRef]], parents.asInstanceOf[Array[AnyRef]]) &&
+        java.util.Arrays.equals(other.children.asInstanceOf[Array[AnyRef]], children.asInstanceOf[Array[AnyRef]])
+      case _ => false
     }
   }
 
@@ -275,7 +278,7 @@ object Prism {
 
   def apply[F[_, _], S, A <: S](parent: Reflect.Variant[F, S], child: Term[F, S, A]): Prism[F, S, A] = {
     require((parent ne null) && (child ne null))
-    new PrismImpl(ArraySeq(parent), ArraySeq(child))
+    new PrismImpl(Array(parent), Array(child))
   }
 
   def apply[F[_, _], S, T <: S, A <: T](first: Prism[F, S, T], second: Prism[F, T, A]): Prism[F, S, A] = {
@@ -286,8 +289,8 @@ object Prism {
   }
 
   private[schema] case class PrismImpl[F[_, _], S, A <: S](
-    parents: ArraySeq[Reflect.Variant[F, _]],
-    children: ArraySeq[Term[F, _, _]]
+    parents: Array[Reflect.Variant[F, _]],
+    children: Array[Term[F, _, _]]
   ) extends Prism[F, S, A]
       with Leaf[F, S, A] {
     private[this] var matchers: Array[Matcher[Any]] = null
@@ -371,11 +374,14 @@ object Prism {
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Prism[G, S, A] =
       new PrismImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
 
-    override def hashCode: Int = parents.hashCode ^ children.hashCode
+    override def hashCode: Int = java.util.Arrays.hashCode(parents.asInstanceOf[Array[AnyRef]]) ^
+      java.util.Arrays.hashCode(children.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: PrismImpl[_, _, _] => other.parents.equals(parents) && other.children.equals(children)
-      case _                         => false
+      case other: PrismImpl[_, _, _] =>
+        java.util.Arrays.equals(other.parents.asInstanceOf[Array[AnyRef]], parents.asInstanceOf[Array[AnyRef]]) &&
+        java.util.Arrays.equals(other.children.asInstanceOf[Array[AnyRef]], children.asInstanceOf[Array[AnyRef]])
+      case _ => false
     }
   }
 }
@@ -429,8 +435,8 @@ object Optional {
     apply(first.linearized, second.linearized)
 
   private[this] def apply[F[_, _], S, A](
-    leafs1: ArraySeq[Leaf[F, _, _]],
-    leafs2: ArraySeq[Leaf[F, _, _]]
+    leafs1: Array[Leaf[F, _, _]],
+    leafs2: Array[Leaf[F, _, _]]
   ): Optional[F, S, A] =
     new OptionalImpl((leafs1.last, leafs2.head) match {
       case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
@@ -443,7 +449,7 @@ object Optional {
         leafs1 ++ leafs2
     })
 
-  private[schema] case class OptionalImpl[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Optional[F, S, A] {
+  private[schema] case class OptionalImpl[F[_, _], S, A](leafs: Array[Leaf[F, _, _]]) extends Optional[F, S, A] {
     def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
@@ -507,7 +513,7 @@ object Optional {
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
       new OptionalImpl(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))
 
-    private[schema] def linearized: ArraySeq[Leaf[F, _, _]] = leafs
+    private[schema] def linearized: Array[Leaf[F, _, _]] = leafs
   }
 }
 
@@ -556,8 +562,8 @@ object Traversal {
     apply(first.linearized, second.linearized)
 
   private[this] def apply[F[_, _], S, A](
-    leafs1: ArraySeq[Leaf[F, _, _]],
-    leafs2: ArraySeq[Leaf[F, _, _]]
+    leafs1: Array[Leaf[F, _, _]],
+    leafs2: Array[Leaf[F, _, _]]
   ): Traversal[F, S, A] =
     new TraversalMixed((leafs1.last, leafs2.head) match {
       case (lens1: Lens[_, _, _], lens2: Lens[_, _, _]) =>
@@ -979,7 +985,7 @@ object Traversal {
     }
   }
 
-  private[schema] case class TraversalMixed[F[_, _], S, A](leafs: ArraySeq[Leaf[F, _, _]]) extends Traversal[F, S, A] {
+  private[schema] case class TraversalMixed[F[_, _], S, A](leafs: Array[Leaf[F, _, _]]) extends Traversal[F, S, A] {
     def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
@@ -1024,6 +1030,6 @@ object Traversal {
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
       new TraversalMixed(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))
 
-    private[schema] def linearized: ArraySeq[Leaf[F, _, _]] = leafs
+    private[schema] def linearized: Array[Leaf[F, _, _]] = leafs
   }
 }
