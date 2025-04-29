@@ -599,8 +599,8 @@ object SchemaSpec extends ZIOSpecDefault {
             new Schema[Variant1](
               reflect = Reflect.Variant[Binding, Variant1](
                 cases = Seq(
-                  Schema[`Case-1`].reflect.asTerm("case0"),
-                  Schema[`Case-2`].reflect.asTerm("case1")
+                  Schema[`Case-1`].reflect.asTerm("Case-1"),
+                  Schema[`Case-2`].reflect.asTerm("Case-2")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
@@ -667,13 +667,13 @@ object SchemaSpec extends ZIOSpecDefault {
               reflect = Reflect.Variant[Binding, Variant2[String]](
                 cases = Seq(
                   Schema[MissingValue.type].reflect
-                    .asTerm("case0")
+                    .asTerm("MissingValue")
                     .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
                   Schema[NullValue.type].reflect
-                    .asTerm("case1")
+                    .asTerm("NullValue")
                     .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
                   Schema[Value[String]].reflect
-                    .asTerm("case2")
+                    .asTerm("Value")
                     .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]]
                 ),
                 typeName = TypeName(
@@ -714,8 +714,8 @@ object SchemaSpec extends ZIOSpecDefault {
             new Schema[`Variant-3`[Option]](
               reflect = Reflect.Variant[Binding, `Variant-3`[Option]](
                 cases = Seq(
-                  Schema[`Case-1`[Option]].reflect.asTerm("case0"),
-                  Schema[`Case-2`[Option]].reflect.asTerm("case1")
+                  Schema[`Case-1`[Option]].reflect.asTerm("Case-1"),
+                  Schema[`Case-2`[Option]].reflect.asTerm("Case-2")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(

@@ -75,7 +75,7 @@ private object SchemaVersionSpecific {
         case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => q"Modifier.config($k, $v)"
       })
 
-    def typeName(tpe: Type): Tree = {
+    def typeName(tpe: Type): (Seq[String], Seq[String], String) = {
       var packages = List.empty[String]
       var values   = List.empty[String]
       var name     = NameTransformer.decode(tpe.typeSymbol.name.toString)
@@ -94,11 +94,11 @@ private object SchemaVersionSpecific {
         if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
         else values = ownerName :: values
       }
-      q"TypeName(Namespace(${packages.tail}, $values), $name)"
+      (packages.tail, values, name)
     }
 
-    val tpe     = weakTypeOf[A].dealias
-    val tpeName = typeName(tpe)
+    val tpe                      = weakTypeOf[A].dealias
+    val (packages, values, name) = typeName(tpe)
     val schema =
       if (isEnumOrModuleValue(tpe)) {
         q"""{
@@ -109,7 +109,7 @@ private object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
                   fields = _root_.scala.Nil,
-                  typeName = $tpeName,
+                  typeName = TypeName(Namespace(Seq(..$packages), Seq(..$values)), $name),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = 0
@@ -134,7 +134,12 @@ private object SchemaVersionSpecific {
           var i = -1
           sTpe =>
             i += 1
-            q"Schema[$sTpe].reflect.asTerm(${"case" + i})"
+            val (_, sValues, sName) = typeName(sTpe)
+            val diffValues =
+              values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
+            var termName = sName
+            if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
+            q"Schema[$sTpe].reflect.asTerm($termName)"
         }
         val discrCases = subTypes.map {
           var i = -1
@@ -157,7 +162,7 @@ private object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Variant[Binding, $tpe](
                   cases = _root_.scala.Seq(..$cases),
-                  typeName = $tpeName,
+                  typeName = TypeName(Namespace(Seq(..$packages), Seq(..$values)), $name),
                   variantBinding = Binding.Variant(
                     discriminator = new Discriminator[$tpe] {
                       def discriminate(a: $tpe): Int = a match {
@@ -299,7 +304,7 @@ private object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
                   fields = _root_.scala.Seq(..$fields),
-                  typeName = $tpeName,
+                  typeName = TypeName(Namespace(Seq(..$packages), Seq(..$values)), $name),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = $registersUsed
