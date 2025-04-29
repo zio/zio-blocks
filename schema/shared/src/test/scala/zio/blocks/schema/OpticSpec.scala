@@ -102,7 +102,10 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Variant1.v2_c3_v1.path)(
           equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case3"), Optic.Path.Field("v1")))
-        )
+        ) &&
+        assert(Variant1.c1_d.path)(equalTo(Vector(Optic.Path.Case("Case1"), Optic.Path.Field("d")))) &&
+        assert(Variant1.c2_r3.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3")))) &&
+        assert(Variant1.c2_r3_r1.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3"), Optic.Path.Field("r1"))))
       },
       test("checks prerequisites for creation") {
         ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
@@ -285,11 +288,11 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Optional")(
-      // test("path") {
-      //   assert(Variant1.c1_d.path)(equalTo(Vector(Optic.Path.Case("c1"), Optic.Path.Field("d")))) &&
-      //   assert(Variant1.c2_r3.path)(equalTo(Vector(Optic.Path.Case("c2"), Optic.Path.Field("r3")))) &&
-      //   assert(Variant1.c2_r3_r1.path)(equalTo(Vector(Optic.Path.Case("c2"), Optic.Path.Field("r3"), Optic.Path.Field("r1"))))
-      // },
+      test("path") {
+        assert(Variant1.c1_d.path)(equalTo(Vector(Optic.Path.Case("Case1"), Optic.Path.Field("d")))) &&
+        assert(Variant1.c2_r3.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3")))) &&
+        assert(Variant1.c2_r3_r1.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3"), Optic.Path.Field("r1"))))
+      },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1_d)(equalTo(Variant1.c1_d)) &&
         assert(Variant1.c1_d.hashCode)(equalTo(Variant1.c1_d.hashCode)) &&
@@ -509,6 +512,13 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Traversal")(
+      test("path") {
+        assert(Record2.vi.path)(equalTo(Vector(Optic.Path.Field("vi"), Optic.Path.Elements))) &&
+        assert(Collections.ai.path)(equalTo(Vector(Optic.Path.Elements))) &&
+        assert(Collections.mkc.path)(equalTo(Vector(Optic.Path.MapKeys))) &&
+        assert(Collections.mvs.path)(equalTo(Vector(Optic.Path.MapValues))) &&
+        assert(Collections.lc1.path)(equalTo(Vector(Optic.Path.Elements, Optic.Path.Case("Case1"))))
+      },
       test("checks prerequisites for creation") {
         ZIO
           .attempt(Traversal.arrayValues(null)(Binding.bindingFromBinding))
