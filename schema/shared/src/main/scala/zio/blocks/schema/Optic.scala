@@ -330,7 +330,7 @@ object Prism {
         if (x == null) return None
         idx += 1
       }
-      new Some(x).asInstanceOf[Option[A]]
+      new Some(x.asInstanceOf[A])
     }
 
     override lazy val toDynamic: DynamicOptic = {
@@ -608,7 +608,7 @@ object Optional {
           x = binding.constructor.construct(registers, offset)
         }
       }
-      new Some(x).asInstanceOf[Option[S]]
+      new Some(x.asInstanceOf[S])
     }
 
     def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S = {
@@ -1144,17 +1144,17 @@ object Traversal {
         val leaf = leafs(idx)
         val h    = g
         if (leaf.isInstanceOf[Lens.LensImpl[F, _, _]]) {
-          val lens = leaf.asInstanceOf[Lens[F, Any, Any]]
+          val lens = leaf.asInstanceOf[Lens.LensImpl[F, Any, Any]]
           g = (z: Any, t: Any) => h(z, lens.get(t))
         } else if (leaf.isInstanceOf[Prism.PrismImpl[F, _, _]]) {
-          val prism = leaf.asInstanceOf[Prism[F, Any, Any]]
+          val prism = leaf.asInstanceOf[Prism.PrismImpl[F, Any, Any]]
           g = (z: Any, t: Any) =>
             prism.getOption(t) match {
               case Some(a) => h(z, a)
               case _       => z
             }
         } else if (leaf.isInstanceOf[Optional.OptionalImpl[F, _, _]]) {
-          val optional = leaf.asInstanceOf[Optional[F, Any, Any]]
+          val optional = leaf.asInstanceOf[Optional.OptionalImpl[F, Any, Any]]
           g = (z: Any, t: Any) =>
             optional.getOption(t) match {
               case Some(a) => h(z, a)
