@@ -54,34 +54,92 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     case _                   => false
   }
 
+  final def get[B](optic: Optic[F, A, B]): Option[Reflect[F, B]] =
+    get(optic.toDynamic).map(_.asInstanceOf[Reflect[F, B]])
+
+  final def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
+    val list = dynamic.nodes.toList
+
+    def loop(current: Reflect[F, _], optic: List[DynamicOptic.Node]): Option[Reflect[F, _]] =
+      optic match {
+        case Nil => Some(current)
+        case head :: tail =>
+          head match {
+            case DynamicOptic.Node.Field(name) =>
+              current.asRecord.flatMap { record =>
+                record.fieldByName(name).flatMap { term =>
+                  loop(term.value, tail)
+                }
+              }
+            case DynamicOptic.Node.Case(name) =>
+              current.asVariant.flatMap { variant =>
+                variant.caseByName(name).flatMap { term =>
+                  loop(term.value, tail)
+                }
+              }
+
+            case DynamicOptic.Node.Elements =>
+              current match {
+                case sequence @ Reflect.Sequence(element, _, _, _, _) =>
+                  loop(element, tail)
+                case _ => None
+              }
+
+            case DynamicOptic.Node.MapKeys =>
+              current match {
+                case map @ Reflect.Map(key, value, _, _, _, _) =>
+                  loop(key, tail)
+                case _ => None
+              }
+
+            case DynamicOptic.Node.MapValues =>
+              current match {
+                case map @ Reflect.Map(key, value, _, _, _, _) =>
+                  loop(value, tail)
+                case _ => None
+              }
+
+            case _ => None
+          }
+      }
+
+    loop(this, list).map(_.asInstanceOf[Reflect[F, A]])
+  }
+
   override def hashCode: Int = inner.hashCode
 
   def noBinding: Reflect[NoBinding, A] = refineBinding(RefineBinding.noBinding())
 
   def refineBinding[G[_, _]](f: RefineBinding[F, G]): Reflect[G, A]
 
-  final def update[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] = {
-    val list = optic.toDynamic.nodes.toList
+  final def updated[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
+    updated(optic.toDynamic)(new Reflect.Updater[F] {
+      def update[A](reflect: Reflect[F, A]): Reflect[F, A] =
+        f(reflect.asInstanceOf[Reflect[F, B]]).asInstanceOf[Reflect[F, A]]
+    })
+
+  final def updated[B](dynamic: DynamicOptic)(f: Reflect.Updater[F]): Option[Reflect[F, A]] = {
+    val list = dynamic.nodes.toList
 
     def loop(current: Reflect[F, _], optic: List[DynamicOptic.Node]): Option[Reflect[F, _]] =
       optic match {
-        case Nil => Some(f(current.asInstanceOf[Reflect[F, B]]))
+        case Nil => Some(f.update(current.asInstanceOf[Reflect[F, B]]))
         case head :: tail =>
           head match {
             case DynamicOptic.Node.Field(name) =>
               current.asRecord.flatMap { record =>
-                record.modifyField(name)(new Term.Modifier[F] {
-                  def modify[S, A](input: Term[F, S, A]): Term[F, S, A] =
+                record.modifyField(name)(new Term.Updater[F] {
+                  def update[S, A](input: Term[F, S, A]): Term[F, S, A] =
                     input.copy(value =
                       loop(input.value, tail).get.asInstanceOf[Reflect[F, A]]
-                    ) // TODO: Fix these gets by modifying Modifier to return option
+                    ) // TODO: Fix these gets by modifying Updater to return option
                 })
               }
 
             case DynamicOptic.Node.Case(name) =>
               current.asVariant.flatMap { variant =>
-                variant.modifyCase(name)(new Term.Modifier[F] {
-                  def modify[S, A](input: Term[F, S, A]): Term[F, S, A] =
+                variant.modifyCase(name)(new Term.Updater[F] {
+                  def update[S, A](input: Term[F, S, A]): Term[F, S, A] =
                     input.copy(value = loop(input.value, tail).get.asInstanceOf[Reflect[F, A]])
                 })
               }
@@ -121,6 +179,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 object Reflect {
   type Bound[A] = Reflect[Binding, A]
 
+  trait Updater[F[_, _]] {
+    def update[A](reflect: Reflect[F, A]): Reflect[F, A]
+  }
+
   case class Record[F[_, _], A](
     fields: Seq[Term[F, A, ?]],
     typeName: TypeName[A],
@@ -156,10 +218,10 @@ object Reflect {
 
     val length: Int = fields.length
 
-    def modifyField(name: String)(f: Term.Modifier[F]): Option[Record[F, A]] = {
+    def modifyField(name: String)(f: Term.Updater[F]): Option[Record[F, A]] = {
       val i = fields.indexWhere(_.name == name)
       if (i >= 0) {
-        val newFields = fields.updated(i, f.modify(fields(i)))
+        val newFields = fields.updated(i, f.update(fields(i)))
         Some(Record(newFields, typeName, recordBinding, doc, modifiers))
       } else None
     }
@@ -258,10 +320,10 @@ object Reflect {
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
 
-    def modifyCase(name: String)(f: Term.Modifier[F]): Option[Variant[F, A]] = {
+    def modifyCase(name: String)(f: Term.Updater[F]): Option[Variant[F, A]] = {
       val i = cases.indexWhere(_.name == name)
       if (i >= 0) {
-        val newCases = cases.updated(i, f.modify(cases(i)))
+        val newCases = cases.updated(i, f.update(cases(i)))
         Some(Variant(newCases, typeName, variantBinding, doc, modifiers))
       } else None
     }

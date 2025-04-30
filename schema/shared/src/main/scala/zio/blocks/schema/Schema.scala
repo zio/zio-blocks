@@ -50,6 +50,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def fromDynamicValue(value: DynamicValue): Either[codec.CodecError, A] = ??? // TODO
 
+  def get[B](optic: Optic.Bound[A, B]): Option[Reflect.Bound[B]] =
+    reflect.get(optic)
+
+  def get(dynamic: DynamicOptic): Option[Reflect.Bound[_]] =
+    reflect.get(dynamic)
+
   def getWith[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => C): Option[C] =
     modify(optic)(b => (f(b), b)).map(_._1)
 
@@ -70,8 +76,11 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def toDynamicValue(value: A): DynamicValue = ??? // TODO
 
+  def updated[B, C](dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
+    reflect.updated(dynamic)(f).map(Schema(_))
+
   def updated[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => Reflect.Bound[B]): Option[Schema[A]] =
-    reflect.update(optic)(f).map(Schema(_))
+    reflect.updated(optic)(f).map(Schema(_))
 }
 
 object Schema extends SchemaVersionSpecific {
