@@ -32,9 +32,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def doc(value: String): Schema[A] = Schema(reflect.doc(value))
 
-  def doc[B](optic: Optic.Bound[A, B]): Doc = optic.focus.doc
+  def doc[B](optic: Optic.Bound[A, B]): Doc = getWith(optic)(_.doc).getOrElse(Doc.Empty)
 
-  def doc[B](optic: Optic.Bound[A, B])(value: String): Schema[A] = ??? // TODO
+  def doc[B](optic: Optic.Bound[A, B])(value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
 
   def encode[F <: codec.Format](format: F)(output: format.EncodeOutput)(value: A): Unit =
     getInstance(format).encode(value, output)
@@ -43,16 +43,35 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*))
 
-  def examples[B](optic: Optic.Bound[A, B]): Seq[B] = optic.focus.binding.examples
+  def examples[B](optic: Optic.Bound[A, B]): Seq[B] = getWith(optic)(_.examples).getOrElse(Nil)
 
-  def examples[B](optic: Optic.Bound[A, B])(value: B, values: B*): Schema[A] = ??? // TODO
+  def examples[B](optic: Optic.Bound[A, B])(value: B, values: B*): Schema[A] =
+    updated(optic)(_.examples(value, values: _*)).getOrElse(this)
 
   def fromDynamicValue(value: DynamicValue): Either[codec.CodecError, A] = ??? // TODO
 
-  def modify[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => (C, Reflect.Bound[B])): (C, Schema[A]) = ???
+  def getWith[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => C): Option[C] =
+    modify(optic)(b => (f(b), b)).map(_._1)
+
+  def modify[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => (C, Reflect.Bound[B])): Option[(C, Schema[A])] = {
+    var c: Option[C] = None
+
+    val schema = updated(optic) { b =>
+      val (c1, b1) = f(b)
+      c = Some(c1)
+      b1
+    }
+
+    for {
+      schema <- schema
+      c      <- c
+    } yield (c, schema)
+  }
 
   def toDynamicValue(value: A): DynamicValue = ??? // TODO
 
+  def updated[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => Reflect.Bound[B]): Option[Schema[A]] =
+    reflect.update(optic)(f).map(Schema(_))
 }
 
 object Schema extends SchemaVersionSpecific {

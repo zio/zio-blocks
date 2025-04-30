@@ -24,7 +24,7 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
   def modify(s: S, f: A => A)(implicit F: HasBinding[F]): S
 
-  def path: Vector[Optic.Path]
+  def toDynamic: DynamicOptic
 
   def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optic[G, S, A]
 
@@ -85,18 +85,6 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
 object Optic {
   type Bound[S, A] = Optic[Binding, S, A]
-
-  sealed trait Path
-  object Path {
-    final case class Field(name: String)  extends Path
-    final case class Case(name: String)   extends Path
-    final case class Index(index: Int)    extends Path
-    final case class MapKey(key: String)  extends Path
-    final case class Optional(path: Path) extends Path
-    case object Elements                  extends Path
-    case object MapKeys                   extends Path
-    case object MapValues                 extends Path
-  }
 }
 
 private[schema] sealed trait Leaf[F[_, _], S, A] extends Optic[F, S, A] {
@@ -238,7 +226,10 @@ object Lens {
       x.asInstanceOf[S]
     }
 
-    override lazy val path: Vector[Optic.Path] = children.map(_.name).map(Optic.Path.Field(_)).toVector
+    override lazy val toDynamic: DynamicOptic = {
+      val children = structure.asInstanceOf[Reflect.Record[F, S]].fields
+      DynamicOptic(children.map(_.name).map(DynamicOptic.Node.Field(_)).toVector)
+    }
 
     override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A] =
       new LensImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
@@ -342,7 +333,10 @@ object Prism {
       new Some(x).asInstanceOf[Option[A]]
     }
 
-    override lazy val path: Vector[Optic.Path] = children.map(_.name).map(Optic.Path.Case(_)).toVector
+    override lazy val toDynamic: DynamicOptic = {
+      val children = structure.asInstanceOf[Reflect.Variant[F, S]].cases
+      DynamicOptic(children.map(_.name).map(DynamicOptic.Node.Case(_)).toVector)
+    }
 
     def reverseGet(a: A): S = a
 
@@ -541,15 +535,19 @@ object Optional {
       new Some(x.asInstanceOf[A])
     }
 
-    override lazy val path: Vector[Optic.Path] =
-      parents
-        .zip(children)
-        .map {
-          case (_: Reflect.Record[F, _], term: Term[F, _, _])  => Optic.Path.Field(term.name)
-          case (_: Reflect.Variant[F, _], term: Term[F, _, _]) => Optic.Path.Case(term.name)
-          case _                                               => throw new IllegalArgumentException("Invalid optic")
-        }
-        .toVector
+    override lazy val toDynamic: DynamicOptic = {
+      val parents  = structure.asInstanceOf[Reflect.Record[F, S]].fields
+      val children = focus.asInstanceOf[Reflect.Record[F, A]].fields
+      DynamicOptic(
+        parents
+          .zip(children)
+          .map { case (parent, child) =>
+            if (parent.name == child.name) DynamicOptic.Node.Field(parent.name)
+            else throw new IllegalArgumentException("Invalid optic")
+          }
+          .toVector
+      )
+    }
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
       if (bindings eq null) init
@@ -1042,7 +1040,7 @@ object Traversal {
       }
     }
 
-    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.Elements)
+    override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.Elements))
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): SeqValues[G, A, C] = new SeqValues(seq.refineBinding(f))
 
@@ -1081,7 +1079,7 @@ object Traversal {
       constructor.resultObject(builder)
     }
 
-    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.MapKeys)
+    override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapKeys[G, Key, Value, M] = new MapKeys(map.refineBinding(f))
 
@@ -1120,7 +1118,7 @@ object Traversal {
       constructor.resultObject(builder)
     }
 
-    override lazy val path: Vector[Optic.Path] = Vector(Optic.Path.MapValues)
+    override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapValues[G, Key, Value, M] =
       new MapValues(map.refineBinding(f))
@@ -1182,7 +1180,10 @@ object Traversal {
       g(s).asInstanceOf[S]
     }
 
-    override lazy val path: Vector[Optic.Path] = leafs.map(_.path).flatten.toVector
+    override lazy val toDynamic: DynamicOptic = {
+      val children = structure.asInstanceOf[Reflect.Record[F, S]].fields
+      DynamicOptic(children.map(_.name).map(DynamicOptic.Node.Field(_)).toVector)
+    }
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
       new TraversalMixed(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))

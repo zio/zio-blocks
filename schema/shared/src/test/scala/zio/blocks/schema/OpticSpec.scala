@@ -9,12 +9,12 @@ import zio.test._
 object OpticSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
-      test("path") {
-        assert(Record1.b.path)(equalTo(Vector(Optic.Path.Field("b")))) &&
-        assert(Record2.r1_b.path)(equalTo(Vector(Optic.Path.Field("r1"), Optic.Path.Field("b")))) &&
-        assert(Record3.v1.path)(equalTo(Vector(Optic.Path.Field("v1")))) &&
-        assert(Record3.v1.path)(equalTo(Vector(Optic.Path.Field("v1")))) &&
-        assert(Record3.v1.path)(equalTo(Vector(Optic.Path.Field("v1"))))
+      test("toDynamic") {
+        assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("b"))))) &&
+        assert(Record2.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("r1"), DynamicOptic.Node.Field("b"))))) &&
+        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("v1"))))) &&
+        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("v1"))))) &&
+        assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("v1")))))
       },
       test("checks prerequisites for creation") {
         ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
@@ -92,20 +92,16 @@ object OpticSpec extends ZIOSpecDefault {
     ),
     suite("Prism")(
       test("path") {
-        assert(Variant1.c1.path)(equalTo(Vector(Optic.Path.Case("Case1")))) &&
-        assert(Variant1.c2.path)(equalTo(Vector(Optic.Path.Case("Case2")))) &&
-        assert(Variant1.v2.path)(equalTo(Vector(Optic.Path.Case("Variant2")))) &&
-        assert(Variant1.v2_c3.path)(equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case3")))) &&
-        assert(Variant1.v2_c4.path)(equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case4")))) &&
-        assert(Variant1.v2_v3_c5_left.path)(
-          equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Variant3"), Optic.Path.Case("Case5")))
-        ) &&
-        assert(Variant1.v2_c3_v1.path)(
-          equalTo(Vector(Optic.Path.Case("Variant2"), Optic.Path.Case("Case3"), Optic.Path.Field("v1")))
-        ) &&
-        assert(Variant1.c1_d.path)(equalTo(Vector(Optic.Path.Case("Case1"), Optic.Path.Field("d")))) &&
-        assert(Variant1.c2_r3.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3")))) &&
-        assert(Variant1.c2_r3_r1.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3"), Optic.Path.Field("r1"))))
+        assert(Variant1.c1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"))))) &&
+        assert(Variant1.c2.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"))))) &&
+        assert(Variant1.v2.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Variant2"))))) &&
+        assert(Variant1.v2_c3.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Variant2"), DynamicOptic.Node.Case("Case3"))))) &&
+        assert(Variant1.v2_c4.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Variant2"), DynamicOptic.Node.Case("Case4"))))) &&
+        assert(Variant1.v2_v3_c5_left.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Variant2"), DynamicOptic.Node.Case("Variant3"), DynamicOptic.Node.Case("Case5"))))) &&
+        assert(Variant1.v2_c3_v1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Variant2"), DynamicOptic.Node.Case("Case3"), DynamicOptic.Node.Field("v1"))))) &&
+        assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"), DynamicOptic.Node.Field("d"))))) &&
+        assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"), DynamicOptic.Node.Field("r3"))))) &&
+        assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"), DynamicOptic.Node.Field("r3"), DynamicOptic.Node.Field("r1")))))
       },
       test("checks prerequisites for creation") {
         ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
@@ -289,9 +285,9 @@ object OpticSpec extends ZIOSpecDefault {
     ),
     suite("Optional")(
       test("path") {
-        assert(Variant1.c1_d.path)(equalTo(Vector(Optic.Path.Case("Case1"), Optic.Path.Field("d")))) &&
-        assert(Variant1.c2_r3.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3")))) &&
-        assert(Variant1.c2_r3_r1.path)(equalTo(Vector(Optic.Path.Case("Case2"), Optic.Path.Field("r3"), Optic.Path.Field("r1"))))
+        assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"), DynamicOptic.Node.Field("d"))))) &&
+        assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"), DynamicOptic.Node.Field("r3"))))) &&
+        assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"), DynamicOptic.Node.Field("r3"), DynamicOptic.Node.Field("r1")))))
       },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1_d)(equalTo(Variant1.c1_d)) &&
@@ -513,11 +509,11 @@ object OpticSpec extends ZIOSpecDefault {
     ),
     suite("Traversal")(
       test("path") {
-        assert(Record2.vi.path)(equalTo(Vector(Optic.Path.Field("vi"), Optic.Path.Elements))) &&
-        assert(Collections.ai.path)(equalTo(Vector(Optic.Path.Elements))) &&
-        assert(Collections.mkc.path)(equalTo(Vector(Optic.Path.MapKeys))) &&
-        assert(Collections.mvs.path)(equalTo(Vector(Optic.Path.MapValues))) &&
-        assert(Collections.lc1.path)(equalTo(Vector(Optic.Path.Elements, Optic.Path.Case("Case1"))))
+        assert(Record2.vi.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("vi"), DynamicOptic.Node.Elements)))) &&
+        assert(Collections.ai.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Elements)))) &&
+        assert(Collections.mkc.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.MapKeys)))) &&
+        assert(Collections.mvs.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.MapValues)))) &&
+        assert(Collections.lc1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Elements, DynamicOptic.Node.Case("Case1")))))
       },
       test("checks prerequisites for creation") {
         ZIO
