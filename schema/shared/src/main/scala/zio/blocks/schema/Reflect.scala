@@ -416,9 +416,14 @@ object Reflect {
   case class Deferred[F[_, _], A](_value: () => Reflect[F, A]) extends Reflect[F, A] {
     protected def inner: Any = value.inner
 
-    final lazy val value: Reflect[F, A] = _value()
+    private[this] var value1: Reflect[F, A] = _
 
-    type NodeBinding = value.NodeBinding
+    def value: Reflect[F, A] = {
+      if (value1 eq null) value1 = _value.apply()
+      value1
+    }
+
+    type NodeBinding = BindingType
 
     def doc(value: Doc): Deferred[F, A] = copy(_value = () => _value().doc(value))
 
@@ -430,7 +435,7 @@ object Reflect {
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Deferred[F, A] =
       copy(_value = () => _value().examples(value, values: _*))
 
-    def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
+    def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding.asInstanceOf[Binding[NodeBinding, A]]
 
     def modifiers: Seq[Modifier] = value.modifiers
 

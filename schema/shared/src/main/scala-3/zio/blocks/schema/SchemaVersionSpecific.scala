@@ -346,7 +346,7 @@ private object SchemaVersionSpecific {
                   fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
                 }
                 val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
-                var fieldTermExpr = if (fieldInfo.isDeferred) {
+                var fieldTermExpr = if (true) {
                   fieldInfo.defaultValue
                     .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
                       '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }

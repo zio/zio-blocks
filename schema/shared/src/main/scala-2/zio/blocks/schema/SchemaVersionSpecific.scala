@@ -279,7 +279,7 @@ private object SchemaVersionSpecific {
           val fTpe        = fieldInfo.tpe
           val name        = fieldInfo.name
           val reflectTree = q"Schema[$fTpe].reflect"
-          var fieldTermTree = if (fieldInfo.isDeferred) {
+          var fieldTermTree = if (true) {
             fieldInfo.defaultValue.fold(q"Reflect.Deferred(() => $reflectTree).asTerm($name)") { dv =>
               q"Reflect.Deferred(() => $reflectTree.defaultValue($dv)).asTerm($name)"
             }

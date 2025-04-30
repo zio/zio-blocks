@@ -684,137 +684,137 @@ object OpticSpec extends ZIOSpecDefault {
 
   object Record1 {
     implicit val schema: Schema[Record1]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Record1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record1]]
-    val b: Lens.Bound[Record1, Boolean] =
+    def reflect: Reflect.Record.Bound[Record1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record1]]
+    def b: Lens.Bound[Record1, Boolean] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record1, Boolean]])
-    val f: Lens.Bound[Record1, Float] = Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record1, Float]])
+    def f: Lens.Bound[Record1, Float] = Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record1, Float]])
   }
 
   case class Record2(l: Long, vi: Vector[Int], r1: Record1)
 
   object Record2 {
     implicit val schema: Schema[Record2]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Record2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record2]]
-    val l: Lens.Bound[Record2, Long]           = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record2, Long]])
-    val vi: Traversal.Bound[Record2, Int] =
+    def reflect: Reflect.Record.Bound[Record2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record2]]
+    def l: Lens.Bound[Record2, Long]           = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record2, Long]])
+    def vi: Traversal.Bound[Record2, Int] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record2, Vector[Int]]]).vectorValues
-    val r1: Lens.Bound[Record2, Record1] =
+    def r1: Lens.Bound[Record2, Record1] =
       Lens(reflect, reflect.fields(2).asInstanceOf[Term.Bound[Record2, Record1]])
-    lazy val r1_b: Lens.Bound[Record2, Boolean] = r1(Record1.b)
-    lazy val r1_f: Lens.Bound[Record2, Float]   = r1(Record1.f)
+    def r1_b: Lens.Bound[Record2, Boolean] = r1(Record1.b)
+    def r1_f: Lens.Bound[Record2, Float]   = r1(Record1.f)
   }
 
   case class Record3(r1: Record1, r2: Record2, @Modifier.deferred v1: Variant1)
 
   object Record3 {
     implicit val schema: Schema[Record3]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Record3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record3]]
-    val r1: Lens.Bound[Record3, Record1] =
+    def reflect: Reflect.Record.Bound[Record3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record3]]
+    def r1: Lens.Bound[Record3, Record1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record3, Record1]])
-    val r2: Lens.Bound[Record3, Record2] =
+    def r2: Lens.Bound[Record3, Record2] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record3, Record2]])
-    val v1: Lens.Bound[Record3, Variant1] =
+    def v1: Lens.Bound[Record3, Variant1] =
       Lens(reflect, reflect.fields(2).asInstanceOf[Term.Bound[Record3, Variant1]])
-    lazy val r2_r1_b_left: Lens.Bound[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
-    lazy val r2_r1_b_right: Lens.Bound[Record3, Boolean] = r2(Record2.r1(Record1.b))
-    lazy val v1_c1: Optional.Bound[Record3, Case1]       = v1(Variant1.c1)
+    def r2_r1_b_left: Lens.Bound[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
+    def r2_r1_b_right: Lens.Bound[Record3, Boolean] = r2(Record2.r1(Record1.b))
+    def v1_c1: Optional.Bound[Record3, Case1]       = v1(Variant1.c1)
   }
 
   sealed trait Variant1
 
   object Variant1 {
     implicit val schema: Schema[zio.blocks.schema.OpticSpec.Variant1] = Schema.derived
-    val reflect: Reflect.Variant.Bound[Variant1]                      = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
-    val c1: Prism.Bound[Variant1, Case1] =
+    def reflect: Reflect.Variant.Bound[Variant1]                      = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
+    def c1: Prism.Bound[Variant1, Case1] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]])
-    val c2: Prism.Bound[Variant1, Case2] =
+    def c2: Prism.Bound[Variant1, Case2] =
       Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[Variant1, Case2]])
-    val v2: Prism.Bound[Variant1, Variant2] =
+    def v2: Prism.Bound[Variant1, Variant2] =
       Prism(reflect, reflect.cases(2).asInstanceOf[Term.Bound[Variant1, Variant2]])
-    lazy val v2_c3: Prism.Bound[Variant1, Case3]                    = v2(Variant2.c3)
-    lazy val v2_c4: Prism.Bound[Variant1, Case4]                    = v2(Variant2.c4)
-    lazy val v2_v3_c5_left: Prism.Bound[Variant1, Case5]            = v2(Variant2.v3)(Variant3.c5)
-    lazy val v2_v3_c5_right: Prism.Bound[Variant1, Case5]           = v2(Variant2.v3(Variant3.c5))
-    lazy val v2_c4_lr3: Traversal.Bound[Variant1, Record3]          = v2(Variant2.c4(Case4.lr3))
-    lazy val v2_c3_v1: Optional.Bound[Variant1, Variant1]           = v2(Variant2.c3_v1)
-    lazy val c1_d: Optional.Bound[Variant1, Double]                 = c1(Case1.d)
-    lazy val c2_r3: Optional.Bound[Variant1, Record3]               = c2(Case2.r3)
-    lazy val c2_r3_r1: Optional.Bound[Variant1, Record1]            = c2_r3(Record3.r1)
-    lazy val c2_r3_r2_r1_b_left: Optional.Bound[Variant1, Boolean]  = c2_r3(Record3.r2_r1_b_left)
-    lazy val c2_r3_r2_r1_b_right: Optional.Bound[Variant1, Boolean] = c2_r3(Record3.r2_r1_b_right)
-    lazy val c2_r3_v1_c1: Optional.Bound[Variant1, Case1]           = c2_r3(Record3.v1_c1)
+    def v2_c3: Prism.Bound[Variant1, Case3]                    = v2(Variant2.c3)
+    def v2_c4: Prism.Bound[Variant1, Case4]                    = v2(Variant2.c4)
+    def v2_v3_c5_left: Prism.Bound[Variant1, Case5]            = v2(Variant2.v3)(Variant3.c5)
+    def v2_v3_c5_right: Prism.Bound[Variant1, Case5]           = v2(Variant2.v3(Variant3.c5))
+    def v2_c4_lr3: Traversal.Bound[Variant1, Record3]          = v2(Variant2.c4(Case4.lr3))
+    def v2_c3_v1: Optional.Bound[Variant1, Variant1]           = v2(Variant2.c3_v1)
+    def c1_d: Optional.Bound[Variant1, Double]                 = c1(Case1.d)
+    def c2_r3: Optional.Bound[Variant1, Record3]               = c2(Case2.r3)
+    def c2_r3_r1: Optional.Bound[Variant1, Record1]            = c2_r3(Record3.r1)
+    def c2_r3_r2_r1_b_left: Optional.Bound[Variant1, Boolean]  = c2_r3(Record3.r2_r1_b_left)
+    def c2_r3_r2_r1_b_right: Optional.Bound[Variant1, Boolean] = c2_r3(Record3.r2_r1_b_right)
+    def c2_r3_v1_c1: Optional.Bound[Variant1, Case1]           = c2_r3(Record3.v1_c1)
   }
 
   case class Case1(d: Double) extends Variant1
 
   object Case1 {
     implicit val schema: Schema[Case1]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Case1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case1]]
-    val d: Lens.Bound[Case1, Double]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case1, Double]])
+    def reflect: Reflect.Record.Bound[Case1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case1]]
+    def d: Lens.Bound[Case1, Double]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case1, Double]])
   }
 
   case class Case2(r3: Record3) extends Variant1
 
   object Case2 {
     implicit val schema: Schema[Case2]              = Schema.derived
-    val reflect: Reflect.Record.Bound[Case2]        = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case2]]
-    val r3: Lens.Bound[Case2, Record3]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case2, Record3]])
-    lazy val r3_v1_c1: Optional.Bound[Case2, Case1] = r3(Record3.v1_c1)
+    def reflect: Reflect.Record.Bound[Case2]        = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case2]]
+    def r3: Lens.Bound[Case2, Record3]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case2, Record3]])
+    def r3_v1_c1: Optional.Bound[Case2, Case1] = r3(Record3.v1_c1)
   }
 
   sealed trait Variant2 extends Variant1
 
   object Variant2 {
     implicit val schema: Schema[Variant2]        = Schema.derived
-    val reflect: Reflect.Variant.Bound[Variant2] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant2]]
-    val c3: Prism.Bound[Variant2, Case3] =
+    def reflect: Reflect.Variant.Bound[Variant2] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant2]]
+    def c3: Prism.Bound[Variant2, Case3] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant2, Case3]])
-    val c4: Prism.Bound[Variant2, Case4] =
+    def c4: Prism.Bound[Variant2, Case4] =
       Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[Variant2, Case4]])
-    val v3: Prism.Bound[Variant2, Variant3] =
+    def v3: Prism.Bound[Variant2, Variant3] =
       Prism(reflect, reflect.cases(2).asInstanceOf[Term.Bound[Variant2, Variant3]])
-    lazy val c3_v1: Optional.Bound[Variant2, Variant1]           = c3(Case3.v1)
-    lazy val c3_v1_c1_left: Optional.Bound[Variant2, Case1]      = c3(Case3.v1)(Variant1.c1)
-    lazy val c3_v1_c1_right: Optional.Bound[Variant2, Case1]     = c3(Case3.v1_c1)
-    lazy val c3_v1_c1_d_left: Optional.Bound[Variant2, Double]   = c3(Case3.v1)(Variant1.c1_d)
-    lazy val c3_v1_c1_d_right: Optional.Bound[Variant2, Double]  = c3_v1(Variant1.c1_d)
-    lazy val c3_v1_v2: Optional.Bound[Variant2, Variant2]        = c3(Case3.v1)(Variant1.v2)
-    lazy val c4_lr3: Traversal.Bound[Variant2, Record3]          = c4(Case4.lr3)
-    lazy val c3_v1_v2_c4_lr3: Traversal.Bound[Variant2, Record3] = c3_v1_v2(c4_lr3)
-    lazy val c3_v1_v2_c4: Optional.Bound[Variant2, Case4]        = c3_v1_v2(c4)
+    def c3_v1: Optional.Bound[Variant2, Variant1]           = c3(Case3.v1)
+    def c3_v1_c1_left: Optional.Bound[Variant2, Case1]      = c3(Case3.v1)(Variant1.c1)
+    def c3_v1_c1_right: Optional.Bound[Variant2, Case1]     = c3(Case3.v1_c1)
+    def c3_v1_c1_d_left: Optional.Bound[Variant2, Double]   = c3(Case3.v1)(Variant1.c1_d)
+    def c3_v1_c1_d_right: Optional.Bound[Variant2, Double]  = c3_v1(Variant1.c1_d)
+    def c3_v1_v2: Optional.Bound[Variant2, Variant2]        = c3(Case3.v1)(Variant1.v2)
+    def c4_lr3: Traversal.Bound[Variant2, Record3]          = c4(Case4.lr3)
+    def c3_v1_v2_c4_lr3: Traversal.Bound[Variant2, Record3] = c3_v1_v2(c4_lr3)
+    def c3_v1_v2_c4: Optional.Bound[Variant2, Case4]        = c3_v1_v2(c4)
   }
 
   case class Case3(@Modifier.deferred v1: Variant1) extends Variant2
 
   object Case3 {
     implicit val schema: Schema[Case3]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Case3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case3]]
-    val v1: Lens.Bound[Case3, Variant1] =
+    def reflect: Reflect.Record.Bound[Case3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case3]]
+    def v1: Lens.Bound[Case3, Variant1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case3, Variant1]])
-    lazy val v1_c1: Optional.Bound[Case3, Case1]             = v1(Variant1.c1)
-    lazy val v1_c1_d_left: Optional.Bound[Case3, Double]     = v1(Variant1.c1)(Case1.d)
-    lazy val v1_c1_d_right: Optional.Bound[Case3, Double]    = v1(Variant1.c1_d)
-    lazy val v1_v2: Optional.Bound[Case3, Variant2]          = v1(Variant1.v2)
-    lazy val v1_v2_c3_v1_v2: Optional.Bound[Case3, Variant2] = v1_v2(Variant2.c3(Case3.v1_v2))
+    def v1_c1: Optional.Bound[Case3, Case1]             = v1(Variant1.c1)
+    def v1_c1_d_left: Optional.Bound[Case3, Double]     = v1(Variant1.c1)(Case1.d)
+    def v1_c1_d_right: Optional.Bound[Case3, Double]    = v1(Variant1.c1_d)
+    def v1_v2: Optional.Bound[Case3, Variant2]          = v1(Variant1.v2)
+    def v1_v2_c3_v1_v2: Optional.Bound[Case3, Variant2] = v1_v2(Variant2.c3(Case3.v1_v2))
   }
 
   case class Case4(lr3: List[Record3]) extends Variant2
 
   object Case4 {
     implicit val schema: Schema[Case4]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Case4] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case4]]
-    val lr3: Traversal.Bound[Case4, Record3] =
+    def reflect: Reflect.Record.Bound[Case4] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case4]]
+    def lr3: Traversal.Bound[Case4, Record3] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]).listValues
-    lazy val lr3_r2: Traversal.Bound[Case4, Record2]    = lr3(Record3.r2)
-    lazy val lr3_r2_r1: Traversal.Bound[Case4, Record1] = lr3_r2(Record2.r1)
+    def lr3_r2: Traversal.Bound[Case4, Record2]    = lr3(Record3.r2)
+    def lr3_r2_r1: Traversal.Bound[Case4, Record1] = lr3_r2(Record2.r1)
   }
 
   sealed trait Variant3 extends Variant2
 
   object Variant3 {
     implicit val schema: Schema[Variant3]        = Schema.derived
-    val reflect: Reflect.Variant.Bound[Variant3] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant3]]
-    val c5: Prism.Bound[Variant3, Case5] =
+    def reflect: Reflect.Variant.Bound[Variant3] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant3]]
+    def c5: Prism.Bound[Variant3, Case5] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant3, Case5]])
   }
 
@@ -822,10 +822,10 @@ object OpticSpec extends ZIOSpecDefault {
 
   object Case5 {
     implicit val schema: Schema[Case5]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Case5] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case5]]
-    val si: Traversal.Bound[Case5, Int] =
+    def reflect: Reflect.Record.Bound[Case5] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case5]]
+    def si: Traversal.Bound[Case5, Int] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case5, Set[Int]]]).setValues
-    val as: Traversal.Bound[Case5, String] =
+    def as: Traversal.Bound[Case5, String] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Case5, Array[String]]]).arrayValues
   }
 
@@ -833,30 +833,30 @@ object OpticSpec extends ZIOSpecDefault {
 
   object Case6 {
     implicit val schema: Schema[Case6]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Case6] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case6]]
+    def reflect: Reflect.Record.Bound[Case6] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case6]]
   }
 
   object Collections {
-    val lb: Traversal.Bound[List[Byte], Byte]         = Reflect.list(Reflect.byte[Binding]).values
-    val vs: Traversal.Bound[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
-    val abl: Traversal.Bound[Array[Boolean], Boolean] = Traversal.arrayValues(Reflect.boolean)
-    val ab: Traversal.Bound[Array[Byte], Byte]        = Traversal.arrayValues(Reflect.byte)
-    val ash: Traversal.Bound[Array[Short], Short]     = Traversal.arrayValues(Reflect.short)
-    val ai: Traversal.Bound[Array[Int], Int]          = Traversal.arrayValues(Reflect.int)
-    val al: Traversal.Bound[Array[Long], Long]        = Traversal.arrayValues(Reflect.long)
-    val ad: Traversal.Bound[Array[Double], Double]    = Traversal.arrayValues(Reflect.double)
-    val af: Traversal.Bound[Array[Float], Float]      = Traversal.arrayValues(Reflect.float)
-    val ac: Traversal.Bound[Array[Char], Char]        = Traversal.arrayValues(Reflect.char)
-    val as: Traversal.Bound[Array[String], String]    = Traversal.arrayValues(Reflect.string)
-    val sf: Traversal.Bound[Set[Float], Float]        = Traversal.setValues(Reflect.float)
-    val mkc: Traversal.Bound[Predef.Map[Char, String], Char] =
+    def lb: Traversal.Bound[List[Byte], Byte]         = Reflect.list(Reflect.byte[Binding]).values
+    def vs: Traversal.Bound[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
+    def abl: Traversal.Bound[Array[Boolean], Boolean] = Traversal.arrayValues(Reflect.boolean)
+    def ab: Traversal.Bound[Array[Byte], Byte]        = Traversal.arrayValues(Reflect.byte)
+    def ash: Traversal.Bound[Array[Short], Short]     = Traversal.arrayValues(Reflect.short)
+    def ai: Traversal.Bound[Array[Int], Int]          = Traversal.arrayValues(Reflect.int)
+    def al: Traversal.Bound[Array[Long], Long]        = Traversal.arrayValues(Reflect.long)
+    def ad: Traversal.Bound[Array[Double], Double]    = Traversal.arrayValues(Reflect.double)
+    def af: Traversal.Bound[Array[Float], Float]      = Traversal.arrayValues(Reflect.float)
+    def ac: Traversal.Bound[Array[Char], Char]        = Traversal.arrayValues(Reflect.char)
+    def as: Traversal.Bound[Array[String], String]    = Traversal.arrayValues(Reflect.string)
+    def sf: Traversal.Bound[Set[Float], Float]        = Traversal.setValues(Reflect.float)
+    def mkc: Traversal.Bound[Predef.Map[Char, String], Char] =
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
-    val mvs: Traversal.Bound[Predef.Map[Char, String], String] =
+    def mvs: Traversal.Bound[Predef.Map[Char, String], String] =
       Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
-    lazy val lr1: Traversal.Bound[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
-    lazy val lc1: Traversal.Bound[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
-    lazy val lc1_d: Traversal.Bound[List[Variant1], Double] =
+    def lr1: Traversal.Bound[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
+    def lc1: Traversal.Bound[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
+    def lc1_d: Traversal.Bound[List[Variant1], Double] =
       Traversal.listValues(Variant1.reflect).apply(Variant1.c1_d)
-    lazy val lc4_lr3: Traversal.Bound[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
+    def lc4_lr3: Traversal.Bound[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
   }
 }
