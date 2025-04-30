@@ -564,7 +564,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.examples(Prism(variant, variant.cases(0))): Seq[_])(
           equalTo(variant.cases(0).value.binding.examples)
         )
-      }  @@ ignore,
+      } @@ ignore,
       test("derives schema for variant using a macro call") {
         @Modifier.config("variant-key", "variant-value-1")
         @Modifier.config("variant-key", "variant-value-2")
