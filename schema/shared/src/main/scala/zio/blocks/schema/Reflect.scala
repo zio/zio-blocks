@@ -11,25 +11,110 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   type NodeBinding <: BindingType
 
-  def refineBinding[G[_, _]](f: RefineBinding[F, G]): Reflect[G, A]
+  def examples(implicit F: HasBinding[F]): Seq[A]
 
-  def noBinding: Reflect[NoBinding, A] = refineBinding(RefineBinding.noBinding())
-
-  def doc(value: String): Reflect[F, A]
-
-  def defaultValue(value: => A): Reflect[F, A]
-
-  def examples(value: A, values: A*): Reflect[F, A]
-
-  def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
+  def examples(value: A, values: A*)(implicit F: HasBinding[F]): Reflect[F, A]
 
   def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
 
-  override def hashCode: Int = inner.hashCode
+  def asRecord: Option[Reflect.Record[F, A]] =
+    self match {
+      case record: Reflect.Record[F, A] => Some(record)
+      case _                            => None
+    }
+
+  def asVariant: Option[Reflect.Variant[F, A]] =
+    self match {
+      case variant: Reflect.Variant[F, A] => Some(variant)
+      case _                              => None
+    }
+
+  def asDynamic: Option[Reflect.Dynamic[F]] =
+    self match {
+      case dynamic: Reflect.Dynamic[F] => Some(dynamic)
+      case _                           => None
+    }
+
+  def asPrimitive: Option[Reflect.Primitive[F, A]] =
+    self match {
+      case primitive: Reflect.Primitive[F, A] => Some(primitive)
+      case _                                  => None
+    }
+
+  def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
+
+  def defaultValue(value: => A)(implicit F: HasBinding[F]): Reflect[F, A]
+
+  def doc(value: Doc): Reflect[F, A]
+
+  def doc(value: String): Reflect[F, A] = doc(Doc.Text(value))
 
   override def equals(obj: Any): Boolean = obj match {
     case that: Reflect[_, _] => (this eq that) || inner == that.inner
     case _                   => false
+  }
+
+  override def hashCode: Int = inner.hashCode
+
+  def noBinding: Reflect[NoBinding, A] = refineBinding(RefineBinding.noBinding())
+
+  def refineBinding[G[_, _]](f: RefineBinding[F, G]): Reflect[G, A]
+
+  final def update[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] = {
+    val list = optic.toDynamic.nodes.toList
+
+    def loop(current: Reflect[F, _], optic: List[DynamicOptic.Node]): Option[Reflect[F, _]] =
+      optic match {
+        case Nil => Some(f(current.asInstanceOf[Reflect[F, B]]))
+        case head :: tail =>
+          head match {
+            case DynamicOptic.Node.Field(name) =>
+              current.asRecord.flatMap { record =>
+                record.modifyField(name)(new Term.Modifier[F] {
+                  def modify[S, A](input: Term[F, S, A]): Term[F, S, A] =
+                    input.copy(value =
+                      loop(input.value, tail).get.asInstanceOf[Reflect[F, A]]
+                    ) // TODO: Fix these gets by modifying Modifier to return option
+                })
+              }
+
+            case DynamicOptic.Node.Case(name) =>
+              current.asVariant.flatMap { variant =>
+                variant.modifyCase(name)(new Term.Modifier[F] {
+                  def modify[S, A](input: Term[F, S, A]): Term[F, S, A] =
+                    input.copy(value = loop(input.value, tail).get.asInstanceOf[Reflect[F, A]])
+                })
+              }
+
+            case DynamicOptic.Node.Elements =>
+              current match {
+                case sequence @ Reflect.Sequence(element, _, _, _, _) =>
+                  Some(sequence.copy(element = loop(element, tail).get.asInstanceOf[Reflect[F, A]]))
+
+                case _ => None
+              }
+
+            case DynamicOptic.Node.MapKeys =>
+              current match {
+                case map @ Reflect.Map(key, value, _, _, _, _) =>
+                  Some(map.copy(key = loop(key, tail).get.asInstanceOf[Reflect[F, A]]))
+
+                case _ => None
+              }
+
+            case DynamicOptic.Node.MapValues =>
+              current match {
+                case map @ Reflect.Map(key, value, _, _, _, _) =>
+                  Some(map.copy(value = loop(value, tail).get.asInstanceOf[Reflect[F, A]]))
+
+                case _ => None
+              }
+
+            case _ => None
+          }
+      }
+
+    loop(this, list).map(_.asInstanceOf[Reflect[F, A]])
   }
 }
 
@@ -47,23 +132,15 @@ object Reflect {
 
     type NodeBinding = BindingType.Record
 
-    def doc(value: String): Record[F, A] = copy(doc = Doc.Text(value))
+    def doc(value: Doc): Record[F, A] = copy(doc = value)
 
-    def defaultValue(value: => A): Record[F, A] =
-      copy(recordBinding =
-        recordBinding
-          .asInstanceOf[Binding[BindingType.Record, A]]
-          .defaultValue(value)
-          .asInstanceOf[F[BindingType.Record, A]]
-      )
+    def defaultValue(value: => A)(implicit F: HasBinding[F]): Record[F, A] =
+      copy(recordBinding = F.updateBinding(recordBinding, _.defaultValue(value)))
 
-    def examples(value: A, values: A*): Record[F, A] =
-      copy(recordBinding =
-        recordBinding
-          .asInstanceOf[Binding[BindingType.Record, A]]
-          .examples(value, values: _*)
-          .asInstanceOf[F[BindingType.Record, A]]
-      )
+    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+
+    def examples(value: A, values: A*)(implicit F: HasBinding[F]): Record[F, A] =
+      copy(recordBinding = F.updateBinding(recordBinding, _.examples(value, values: _*)))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Record, A] = F.binding(recordBinding)
 
@@ -78,6 +155,14 @@ object Reflect {
     def lensByName(name: String): Option[Lens[F, A, ?]] = fieldByName(name).map(Lens(self, _))
 
     val length: Int = fields.length
+
+    def modifyField(name: String)(f: Term.Modifier[F]): Option[Record[F, A]] = {
+      val i = fields.indexWhere(_.name == name)
+      if (i >= 0) {
+        val newFields = fields.updated(i, f.modify(fields(i)))
+        Some(Record(newFields, typeName, recordBinding, doc, modifiers))
+      } else None
+    }
 
     def registerByName(name: String): Option[Register[?]] = {
       val i = fields.indexWhere(_.name == name)
@@ -155,23 +240,15 @@ object Reflect {
 
     type NodeBinding = BindingType.Variant
 
-    def doc(value: String): Variant[F, A] = copy(doc = Doc.Text(value))
+    def doc(value: Doc): Variant[F, A] = copy(doc = value)
 
-    def defaultValue(value: => A): Variant[F, A] =
-      copy(variantBinding =
-        variantBinding
-          .asInstanceOf[Binding[BindingType.Variant, A]]
-          .defaultValue(value)
-          .asInstanceOf[F[BindingType.Variant, A]]
-      )
+    def defaultValue(value: => A)(implicit F: HasBinding[F]): Variant[F, A] =
+      copy(variantBinding = F.updateBinding(variantBinding, _.defaultValue(value)))
 
-    def examples(value: A, values: A*): Variant[F, A] =
-      copy(variantBinding =
-        variantBinding
-          .asInstanceOf[Binding[BindingType.Variant, A]]
-          .examples(value, values: _*)
-          .asInstanceOf[F[BindingType.Variant, A]]
-      )
+    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+
+    def examples(value: A, values: A*)(implicit F: HasBinding[F]): Variant[F, A] =
+      copy(variantBinding = F.updateBinding(variantBinding, _.examples(value, values: _*)))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
@@ -180,6 +257,14 @@ object Reflect {
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
+
+    def modifyCase(name: String)(f: Term.Modifier[F]): Option[Variant[F, A]] = {
+      val i = cases.indexWhere(_.name == name)
+      if (i >= 0) {
+        val newCases = cases.updated(i, f.modify(cases(i)))
+        Some(Variant(newCases, typeName, variantBinding, doc, modifiers))
+      } else None
+    }
 
     def prismByIndex(index: Int): Prism[F, A, ? <: A] = Prism(this, cases(index))
 
@@ -204,23 +289,15 @@ object Reflect {
 
     type NodeBinding = BindingType.Seq[C]
 
-    def doc(value: String): Sequence[F, A, C] = copy(doc = Doc.Text(value))
+    def doc(value: Doc): Sequence[F, A, C] = copy(doc = value)
 
-    def defaultValue(value: => C[A]): Sequence[F, A, C] =
-      copy(seqBinding =
-        seqBinding
-          .asInstanceOf[Binding[BindingType.Seq[C], C[A]]]
-          .defaultValue(value)
-          .asInstanceOf[F[BindingType.Seq[C], C[A]]]
-      )
+    def defaultValue(value: => C[A])(implicit F: HasBinding[F]): Sequence[F, A, C] =
+      copy(seqBinding = F.updateBinding(seqBinding, _.defaultValue(value)))
 
-    def examples(value: C[A], values: C[A]*): Sequence[F, A, C] =
-      copy(seqBinding =
-        seqBinding
-          .asInstanceOf[Binding[BindingType.Seq[C], C[A]]]
-          .examples(value, values: _*)
-          .asInstanceOf[F[BindingType.Seq[C], C[A]]]
-      )
+    def examples(implicit F: HasBinding[F]): Seq[C[A]] = binding.examples
+
+    def examples(value: C[A], values: C[A]*)(implicit F: HasBinding[F]): Sequence[F, A, C] =
+      copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Seq[C], C[A]] = F.binding(seqBinding)
 
@@ -250,23 +327,15 @@ object Reflect {
 
     type NodeBinding = BindingType.Map[M]
 
-    def doc(value: String): Map[F, Key, Value, M] = copy(doc = Doc.Text(value))
+    def doc(value: Doc): Map[F, Key, Value, M] = copy(doc = value)
 
-    def defaultValue(value: => M[Key, Value]): Map[F, Key, Value, M] =
-      copy(mapBinding =
-        mapBinding
-          .asInstanceOf[Binding[BindingType.Map[M], M[Key, Value]]]
-          .defaultValue(value)
-          .asInstanceOf[F[BindingType.Map[M], M[Key, Value]]]
-      )
+    def defaultValue(value: => M[Key, Value])(implicit F: HasBinding[F]): Map[F, Key, Value, M] =
+      copy(mapBinding = F.updateBinding(mapBinding, _.defaultValue(value)))
 
-    def examples(value: M[Key, Value], values: M[Key, Value]*): Map[F, Key, Value, M] =
-      copy(mapBinding =
-        mapBinding
-          .asInstanceOf[Binding[BindingType.Map[M], M[Key, Value]]]
-          .examples(value, values: _*)
-          .asInstanceOf[F[BindingType.Map[M], M[Key, Value]]]
-      )
+    def examples(implicit F: HasBinding[F]): Seq[M[Key, Value]] = binding.examples
+
+    def examples(value: M[Key, Value], values: M[Key, Value]*)(implicit F: HasBinding[F]): Map[F, Key, Value, M] =
+      copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Map[M], M[Key, Value]] = F.binding(mapBinding)
 
@@ -295,23 +364,15 @@ object Reflect {
 
     type NodeBinding = BindingType.Dynamic
 
-    def doc(value: String): Dynamic[F] = copy(doc = Doc.Text(value))
+    def doc(value: Doc): Dynamic[F] = copy(doc = value)
 
-    def defaultValue(value: => DynamicValue): Dynamic[F] =
-      copy(dynamicBinding =
-        dynamicBinding
-          .asInstanceOf[Binding[BindingType.Dynamic, DynamicValue]]
-          .defaultValue(value)
-          .asInstanceOf[F[BindingType.Dynamic, DynamicValue]]
-      )
+    def defaultValue(value: => DynamicValue)(implicit F: HasBinding[F]): Dynamic[F] =
+      copy(dynamicBinding = F.updateBinding(dynamicBinding, _.defaultValue(value)))
 
-    def examples(value: DynamicValue, values: DynamicValue*): Dynamic[F] =
-      copy(dynamicBinding =
-        dynamicBinding
-          .asInstanceOf[Binding[BindingType.Dynamic, DynamicValue]]
-          .examples(value, values: _*)
-          .asInstanceOf[F[BindingType.Dynamic, DynamicValue]]
-      )
+    def examples(implicit F: HasBinding[F]): Seq[DynamicValue] = binding.examples
+
+    def examples(value: DynamicValue, values: DynamicValue*)(implicit F: HasBinding[F]): Dynamic[F] =
+      copy(dynamicBinding = F.updateBinding(dynamicBinding, _.examples(value, values: _*)))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Dynamic, DynamicValue] = F.binding(dynamicBinding)
 
@@ -330,27 +391,17 @@ object Reflect {
 
     type NodeBinding = BindingType.Primitive
 
-    def doc(value: String): Primitive[F, A] = copy(doc = Doc.Text(value))
+    def doc(value: Doc): Primitive[F, A] = copy(doc = value)
 
-    def defaultValue(value: => A): Primitive[F, A] =
-      copy(primitiveBinding =
-        primitiveBinding
-          .asInstanceOf[Binding[BindingType.Primitive, A]]
-          .defaultValue(value)
-          .asInstanceOf[F[BindingType.Primitive, A]]
-      )
-
-    def examples(value: A, values: A*): Primitive[F, A] =
-      copy(primitiveBinding =
-        primitiveBinding
-          .asInstanceOf[Binding[BindingType.Primitive, A]]
-          .examples(value, values: _*)
-          .asInstanceOf[F[BindingType.Primitive, A]]
-      )
-
-    def binding(implicit F: HasBinding[F]): Binding.Primitive[A] = F.primitive(primitiveBinding)
+    def defaultValue(value: => A)(implicit F: HasBinding[F]): Primitive[F, A] =
+      copy(primitiveBinding = F.updateBinding(primitiveBinding, _.defaultValue(value)))
 
     def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+
+    def examples(value: A, values: A*)(implicit F: HasBinding[F]): Primitive[F, A] =
+      copy(primitiveBinding = F.updateBinding(primitiveBinding, _.examples(value, values: _*)))
+
+    def binding(implicit F: HasBinding[F]): Binding.Primitive[A] = F.primitive(primitiveBinding)
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Primitive[G, A] =
       Primitive(primitiveType, f(primitiveBinding), typeName, doc, modifiers)
@@ -363,11 +414,15 @@ object Reflect {
 
     type NodeBinding = value.NodeBinding
 
-    def doc(value: String): Deferred[F, A] = copy(_value = () => _value().doc(value))
+    def doc(value: Doc): Deferred[F, A] = copy(_value = () => _value().doc(value))
 
-    def defaultValue(value: => A): Deferred[F, A] = copy(_value = () => _value().defaultValue(value))
+    def defaultValue(value: => A)(implicit F: HasBinding[F]): Deferred[F, A] =
+      copy(_value = () => _value().defaultValue(value)(F))
 
-    def examples(value: A, values: A*): Deferred[F, A] = copy(_value = () => _value().examples(value, values: _*))
+    def examples(implicit F: HasBinding[F]): Seq[A] = value.examples
+
+    def examples(value: A, values: A*)(implicit F: HasBinding[F]): Deferred[F, A] =
+      copy(_value = () => _value().examples(value, values: _*))
 
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 

@@ -9,4 +9,8 @@ final case class Term[F[_, _], S, A](name: String, value: Reflect[F, A], doc: Do
 
 object Term {
   type Bound[S, A] = Term[Binding, S, A]
+
+  trait Modifier[F[_, _]] {
+    def modify[S, A](input: Term[F, S, A]): Term[F, S, A]
+  }
 }
