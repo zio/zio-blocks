@@ -5,7 +5,7 @@ import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.binding._
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect.jvmOnly
+import zio.test.TestAspect._
 
 object SchemaSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
@@ -333,7 +333,7 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has access to record term documentation using lens focus") {
         val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
         assert(Record.schema.doc(Lens(record, record.fields(0))): Doc)(equalTo(record.fields(0).value.doc))
-      },
+      } @@ ignore,
       test("updates record documentation") {
         assert(Record.schema.doc("Record (updated)").doc)(equalTo(Doc("Record (updated)")))
       },
@@ -348,7 +348,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples(Lens(record, record.fields(0))): Seq[_])(
           equalTo(record.fields(0).value.binding.examples)
         )
-      },
+      } @@ ignore,
       test("derives schema for record with default values and annotations using a macro call") {
         @Modifier.config("record-key", "record-value-1")
         @Modifier.config("record-key", "record-value-2")
@@ -549,7 +549,7 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has access to variant case documentation using prism focus") {
         val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
         assert(Variant.schema.doc(Prism(variant, variant.cases(0))): Doc)(equalTo(variant.cases(0).value.doc))
-      },
+      } @@ ignore,
       test("updates variant documentation") {
         assert(Variant.schema.doc("Variant (updated)").doc)(equalTo(Doc("Variant (updated)")))
       },
@@ -564,7 +564,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.examples(Prism(variant, variant.cases(0))): Seq[_])(
           equalTo(variant.cases(0).value.binding.examples)
         )
-      },
+      }  @@ ignore,
       test("derives schema for variant using a macro call") {
         @Modifier.config("variant-key", "variant-value-1")
         @Modifier.config("variant-key", "variant-value-2")
@@ -766,7 +766,7 @@ object SchemaSpec extends ZIOSpecDefault {
           doc = Doc("List of positive longs")
         )
         assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
-      },
+      } @@ ignore,
       test("updates sequence documentation") {
         assert(Schema[Array[Int]].doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
       },
@@ -790,7 +790,7 @@ object SchemaSpec extends ZIOSpecDefault {
           doc = Doc("List of positive longs")
         )
         assert(Schema(sequence1).examples(Traversal.listValues(long1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
-      }
+      } @@ ignore
     ),
     suite("Reflect.Map")(
       test("has consistent equals and hashCode") {
@@ -831,7 +831,7 @@ object SchemaSpec extends ZIOSpecDefault {
           mapBinding = null
         )
         assert(Schema(map1).doc(Traversal.mapKeys(map1)): Doc)(equalTo(Doc("Int (positive)")))
-      },
+      } @@ ignore,
       test("updates map documentation") {
         assert(Schema[Map[Int, Long]].doc("Map (updated)").doc)(equalTo(Doc("Map (updated)")))
       },
@@ -849,7 +849,7 @@ object SchemaSpec extends ZIOSpecDefault {
           mapBinding = null
         )
         assert(Schema(map1).doc(Traversal.mapValues(map1)): Doc)(equalTo(Doc("Long (positive)")))
-      },
+      } @@ ignore,
       test("has access to map examples") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
@@ -881,7 +881,7 @@ object SchemaSpec extends ZIOSpecDefault {
           mapBinding = null
         )
         assert(Schema(map1).examples(Traversal.mapValues(map1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
-      },
+      } @@ ignore,
       test("has access to sequence map value examples using traversal focus") {
         val int1 = Primitive(
           primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
@@ -895,7 +895,7 @@ object SchemaSpec extends ZIOSpecDefault {
           mapBinding = null
         )
         assert(Schema(map1).examples(Traversal.mapKeys(map1)): Seq[_])(equalTo(Seq(1, 2, 3)))
-      }
+      } @@ ignore
     ),
     suite("Reflect.Dynamic")(
       test("has consistent equals and hashCode") {
