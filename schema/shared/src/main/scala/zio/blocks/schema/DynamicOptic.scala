@@ -10,7 +10,7 @@ object DynamicOptic {
     final case class Field(name: String) extends Node {
       def apply[F[_, _]](reflect: Reflect[F, _]): Option[Reflect[F, _]] =
         reflect match {
-          case record: Reflect.Record[_, _] => record.fieldByName(name).map(_.value)
+          case record: Reflect.Record[_, _] => record.fieldByName(name).map(_.value).asInstanceOf[Option[Reflect[F, _]]]
           case _                            => None
         }
     }
@@ -26,21 +26,21 @@ object DynamicOptic {
     case object Elements extends Node {
       def apply[F[_, _]](reflect: Reflect[F, _]): Option[Reflect[F, _]] =
         reflect match {
-          case sequence: Reflect.Sequence[_, _, _] => Some(sequence.element)
+          case sequence: Reflect.Sequence[_, _, _] => Some(sequence.element).asInstanceOf[Option[Reflect[F, _]]]
           case _                                   => None
         }
     }
     case object MapKeys extends Node {
       def apply[F[_, _]](reflect: Reflect[F, _]): Option[Reflect[F, _]] =
         reflect match {
-          case map: Reflect.Map[_, _, _, _] => Some(map.key)
+          case map: Reflect.Map[_, _, _, _] => Some(map.key).asInstanceOf[Option[Reflect[F, _]]]
           case _                            => None
         }
     }
     case object MapValues extends Node {
       def apply[F[_, _]](reflect: Reflect[F, _]): Option[Reflect[F, _]] =
         reflect match {
-          case map: Reflect.Map[_, _, _, _] => Some(map.value)
+          case map: Reflect.Map[_, _, _, _] => Some(map.value).asInstanceOf[Option[Reflect[F, _]]]
           case _                            => None
         }
     }
