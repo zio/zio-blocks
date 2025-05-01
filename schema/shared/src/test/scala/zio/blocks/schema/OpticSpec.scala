@@ -9,7 +9,7 @@ import zio.test._
 object OpticSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
-      test("toDynamic") {
+      test("toDynamic - Lens") {
         assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("b"))))) &&
         assert(Record2.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("r1"), DynamicOptic.Node.Field("b"))))) &&
         assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("v1"))))) &&
@@ -91,7 +91,7 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Prism")(
-      test("path") {
+      test("toDynamic") {
         assert(Variant1.c1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"))))) &&
         assert(Variant1.c2.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"))))) &&
         assert(Variant1.v2.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Variant2"))))) &&
@@ -284,7 +284,7 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Optional")(
-      test("path") {
+      test("toDynamic - Optional") {
         assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"), DynamicOptic.Node.Field("d"))))) &&
         assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"), DynamicOptic.Node.Field("r3"))))) &&
         assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"), DynamicOptic.Node.Field("r3"), DynamicOptic.Node.Field("r1")))))
@@ -508,7 +508,7 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Traversal")(
-      test("path") {
+      test("toDynamic - Traversal") {
         assert(Record2.vi.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("vi"), DynamicOptic.Node.Elements)))) &&
         assert(Collections.ai.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Elements)))) &&
         assert(Collections.mkc.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.MapKeys)))) &&
