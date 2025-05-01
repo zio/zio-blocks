@@ -1,6 +1,6 @@
 package zio.blocks.schema.codec
 
-import zio.blocks.schema.Deriver
+import zio.blocks.schema.derive._
 
 import java.nio.{ByteBuffer, CharBuffer}
 

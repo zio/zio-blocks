@@ -1,4 +1,6 @@
-package zio.blocks.schema
+package zio.blocks.schema.derive
+
+import zio.blocks.schema._
 
 /**
  * A {{DerivationBuilder}} is capable of deriving a type class instance for any
