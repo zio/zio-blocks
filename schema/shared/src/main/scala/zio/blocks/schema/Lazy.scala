@@ -7,6 +7,8 @@ sealed trait Lazy[+A] {
 
   def flatMap[B](f: A => Lazy[B]): Lazy[B] = FlatMap(this, f)
 
+  def flatten[B](implicit ev: A <:< Lazy[B]): Lazy[B] = flatMap(a => a)
+
   def force: A = {
     @annotation.tailrec
     def loop(current: Lazy[Any], stack: List[Any => Lazy[Any]]): Any = current match {
@@ -38,6 +40,8 @@ sealed trait Lazy[+A] {
   override def toString: String =
     if (isEvaluated) s"Lazy($value)"
     else s"Lazy(<not evaluated>)"
+
+  def zip[B](that: Lazy[B]): Lazy[(A, B)] = flatMap(a => that.map(b => (a, b)))
 }
 
 object Lazy {
