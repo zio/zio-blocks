@@ -5,8 +5,24 @@ import zio.blocks.schema.Prism.PrismImpl
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 
+/**
+ * Represents an optic that provides a generic interface for traversing,
+ * selecting, and updating data structures in a functional way. The `Optic`
+ * trait is parameterized by a binding type constructor `F[_, _]`, the source
+ * type `S`, and the focus type `A`.
+ *
+ * The optic can operate over various its types such as lens, prism, optional,
+ * and traversal, and supports composition of them.
+ *
+ * @tparam F
+ *   The type of the binding applied.
+ * @tparam S
+ *   The source type from which data is accessed or modified.
+ * @tparam A
+ *   The focus type or target type of this optic.
+ */
 sealed trait Optic[F[_, _], S, A] { self =>
-  def structure: Reflect[F, S]
+  def source: Reflect[F, S]
 
   def focus: Reflect[F, A]
 
@@ -232,7 +248,7 @@ object Lens {
     override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A] =
       new LensImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
 
-    override def structure: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
+    override def source: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
 
     override def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
 
@@ -314,7 +330,7 @@ object Prism {
       this.matchers = matchers
     }
 
-    def structure: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
+    def source: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
 
@@ -506,7 +522,7 @@ object Optional {
       this.bindings = bindings
     }
 
-    def structure: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
+    def source: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
 
@@ -754,7 +770,7 @@ object Traversal {
   private[schema] case class SeqValues[F[_, _], A, C[_]](seq: Reflect.Sequence[F, A, C])
       extends Traversal[F, C[A], A]
       with Leaf[F, C[A], A] {
-    def structure: Reflect[F, C[A]] = seq
+    def source: Reflect[F, C[A]] = seq
 
     def focus: Reflect[F, A] = seq.element
 
@@ -1045,7 +1061,7 @@ object Traversal {
     override def hashCode: Int = seq.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: SeqValues[_, _, _] => other.seq.equals(seq)
+      case other: SeqValues[_, _, _] => other.source.equals(seq)
       case _                         => false
     }
   }
@@ -1053,12 +1069,12 @@ object Traversal {
   private[schema] case class MapKeys[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
       extends Traversal[F, M[Key, Value], Key]
       with Leaf[F, M[Key, Value], Key] {
-    def structure: Reflect[F, M[Key, Value]] = map
+    def source: Reflect[F, M[Key, Value]] = map
 
     def focus: Reflect[F, Key] = map.key
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Key) => Z)(implicit F: HasBinding[F]): Z = {
-      val deconstructor = map.mapDeconstructor
+      val deconstructor = F.mapDeconstructor(map.mapBinding)
       val it            = deconstructor.deconstruct(s)
       var z             = zero
       while (it.hasNext) z = f(z, deconstructor.getKey(it.next()))
@@ -1066,8 +1082,8 @@ object Traversal {
     }
 
     def modify(s: M[Key, Value], f: Key => Key)(implicit F: HasBinding[F]): M[Key, Value] = {
-      val deconstructor = map.mapDeconstructor
-      val constructor   = map.mapConstructor
+      val deconstructor = F.mapDeconstructor(map.mapBinding)
+      val constructor   = F.mapConstructor(map.mapBinding)
       val builder       = constructor.newObjectBuilder[Key, Value]()
       val it            = deconstructor.deconstruct(s)
       while (it.hasNext) {
@@ -1084,7 +1100,7 @@ object Traversal {
     override def hashCode: Int = map.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: MapKeys[_, _, _, _] => other.map.equals(map)
+      case other: MapKeys[_, _, _, _] => other.source.equals(map)
       case _                          => false
     }
   }
@@ -1092,12 +1108,12 @@ object Traversal {
   private[schema] case class MapValues[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
       extends Traversal[F, M[Key, Value], Value]
       with Leaf[F, M[Key, Value], Value] {
-    def structure: Reflect[F, M[Key, Value]] = map
+    def source: Reflect[F, M[Key, Value]] = map
 
     def focus: Reflect[F, Value] = map.value
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Value) => Z)(implicit F: HasBinding[F]): Z = {
-      val deconstructor = map.mapDeconstructor
+      val deconstructor = F.mapDeconstructor(map.mapBinding)
       val it            = deconstructor.deconstruct(s)
       var z             = zero
       while (it.hasNext) z = f(z, deconstructor.getValue(it.next()))
@@ -1105,7 +1121,7 @@ object Traversal {
     }
 
     def modify(s: M[Key, Value], f: Value => Value)(implicit F: HasBinding[F]): M[Key, Value] = {
-      val deconstructor = map.mapDeconstructor
+      val deconstructor = F.mapDeconstructor(map.mapBinding)
       val constructor   = F.mapConstructor(map.mapBinding)
       val builder       = constructor.newObjectBuilder[Key, Value]()
       val it            = deconstructor.deconstruct(s)
@@ -1130,7 +1146,7 @@ object Traversal {
   }
 
   private[schema] case class TraversalMixed[F[_, _], S, A](leafs: Array[Leaf[F, _, _]]) extends Traversal[F, S, A] {
-    def structure: Reflect[F, S] = leafs(0).structure.asInstanceOf[Reflect[F, S]]
+    def source: Reflect[F, S] = leafs(0).source.asInstanceOf[Reflect[F, S]]
 
     def focus: Reflect[F, A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect[F, A]]
 
@@ -1183,7 +1199,7 @@ object Traversal {
       val len   = leafs.length
       var idx   = 0
       while (idx < len) {
-        nodes.addAll(leafs(idx).asInstanceOf[Optic[F, _, _]].toDynamic.nodes)
+        nodes.addAll(leafs(idx).toDynamic.nodes)
         idx += 1
       }
       nodes.result()
