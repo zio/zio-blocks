@@ -119,9 +119,9 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def modifiers(modifiers: Iterable[ModifierType]): Reflect[F, A] = ???
 
-  def noBinding: Reflect[NoBinding, A] = refineBinding(RefineBinding.noBinding()).force
+  def noBinding: Reflect[NoBinding, A] = transform(ReflectTransformer.noBinding()).force
 
-  def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Reflect[G, A]]
+  def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
   def updated[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
@@ -238,9 +238,9 @@ object Reflect {
       else None
     }
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Record[G, A]] =
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
-        fields  <- Lazy.foreach(fields.toVector)(_.refineBinding(f))
+        fields  <- Lazy.foreach(fields.toVector)(_.transform(f))
         binding <- f(recordBinding)
       } yield Record(fields, typeName, binding, doc, modifiers)
 
@@ -347,9 +347,9 @@ object Reflect {
 
     def prismByName(name: String): Option[Prism[F, A, ? <: A]] = caseByName(name).map(Prism(this, _))
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Variant[G, A]] =
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
-        cases   <- Lazy.foreach(cases.toVector)(_.refineBinding(f))
+        cases   <- Lazy.foreach(cases.toVector)(_.transform(f))
         binding <- f(variantBinding)
       } yield Variant(cases, typeName, binding, doc, modifiers)
   }
@@ -388,9 +388,9 @@ object Reflect {
 
     def modifier(modifier: Modifier.Seq): Sequence[F, A, C] = copy(modifiers = modifiers :+ modifier)
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Sequence[G, A, C]] =
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
-        element <- element.refineBinding(f)
+        element <- element.transform(f)
         binding <- f(seqBinding)
       } yield Sequence(element, binding, typeName, doc, modifiers)
 
@@ -439,10 +439,10 @@ object Reflect {
 
     def modifier(modifier: Modifier.Map): Map[F, Key, Value, M] = copy(modifiers = modifiers :+ modifier)
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Map[G, Key, Value, M]] =
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Map[G, Key, Value, M]] =
       for {
-        key     <- key.refineBinding(f)
-        value   <- value.refineBinding(f)
+        key     <- key.transform(f)
+        value   <- value.transform(f)
         binding <- f(mapBinding)
       } yield Map(key, value, binding, typeName, doc, modifiers)
 
@@ -484,7 +484,7 @@ object Reflect {
 
     def modifier(modifier: ModifierType): Dynamic[F] = copy(modifiers = modifiers :+ modifier)
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Dynamic[G]] =
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
         binding <- f(dynamicBinding)
       } yield Dynamic(binding, doc, modifiers)
@@ -522,7 +522,7 @@ object Reflect {
 
     def modifier(modifier: Modifier.Primitive): Primitive[F, A] = copy(modifiers = modifiers :+ modifier)
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Primitive[G, A]] =
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
         binding <- f(primitiveBinding)
       } yield Primitive(primitiveType, binding, typeName, doc, modifiers)
@@ -561,12 +561,12 @@ object Reflect {
 
     def doc: Doc = value.doc
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Reflect[G, A]] = Lazy {
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] = Lazy {
       val v = visited.get
       if (v.containsKey(this)) value.asInstanceOf[Reflect[G, A]] // exit from recursion
       else {
         v.put(this, ())
-        try value.refineBinding(f).force // FIXME
+        try value.transform(f).force // FIXME
         finally v.remove(this)
       }
     }

@@ -7,9 +7,9 @@ final case class Term[F[_, _], S, A](name: String, value: Reflect[F, A], doc: Do
   type Source = S
   type Focus  = A
 
-  def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Term[G, S, A]] =
+  def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Term[G, S, A]] =
     for {
-      value <- value.refineBinding(f)
+      value <- value.transform(f)
     } yield Term(name, value, doc, modifiers)
 }
 

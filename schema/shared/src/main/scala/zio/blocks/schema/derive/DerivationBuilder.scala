@@ -73,7 +73,7 @@ final case class DerivationBuilder[TC[_], A](
     type BI[T, A] = BindingInstance[TC, T, A]
 
     schema.reflect
-      .refineBinding[BI](new RefineBinding[Binding, BI] {
+      .transform[BI](new ReflectTransformer[Binding, BI] {
         def apply[T, A](binding: Binding[T, A]): Lazy[BI[T, A]] =
           ???
       })
