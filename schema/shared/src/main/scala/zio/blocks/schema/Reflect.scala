@@ -4,6 +4,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
 
+import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
@@ -23,25 +24,25 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def asRecord: Option[Reflect.Record[F, A]] =
     self match {
-      case record: Reflect.Record[F, A] @scala.unchecked => Some(record)
+      case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
       case _                                             => None
     }
 
   def asVariant: Option[Reflect.Variant[F, A]] =
     self match {
-      case variant: Reflect.Variant[F, A] @scala.unchecked => Some(variant)
+      case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
       case _                                               => None
     }
 
   def asDynamic: Option[Reflect.Dynamic[F]] =
     self match {
-      case dynamic: Reflect.Dynamic[F] @scala.unchecked => Some(dynamic)
+      case dynamic: Reflect.Dynamic[F] @scala.unchecked => new Some(dynamic)
       case _                                            => None
     }
 
   def asPrimitive: Option[Reflect.Primitive[F, A]] =
     self match {
-      case primitive: Reflect.Primitive[F, A] @scala.unchecked => Some(primitive)
+      case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
       case _                                                   => None
     }
 
@@ -60,39 +61,43 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
 
   final def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
+    @tailrec
     def loop(current: Reflect[F, _], i: Int): Option[Reflect[F, _]] =
-      if (i == dynamic.nodes.length) Some(current)
+      if (i == dynamic.nodes.length) new Some(current)
       else {
         dynamic.nodes(i) match {
           case DynamicOptic.Node.Field(name) =>
             current match {
               case record: Reflect.Record[F, _] @scala.unchecked =>
-                record.fieldByName(name).flatMap(term => loop(term.value, i + 1))
+                record.fieldByName(name) match {
+                  case Some(term) => loop(term.value, i + 1)
+                  case _          => None
+                }
               case _ => None
             }
           case DynamicOptic.Node.Case(name) =>
             current match {
               case variant: Reflect.Variant[F, _] @scala.unchecked =>
-                variant.caseByName(name).flatMap(term => loop(term.value, i + 1))
+                variant.caseByName(name) match {
+                  case Some(term) => loop(term.value, i + 1)
+                  case _          => None
+                }
               case _ => None
             }
           case DynamicOptic.Node.Elements =>
             current match {
-              case sequence: Reflect.Sequence[F, _, _] @scala.unchecked =>
-                loop(sequence.element, i + 1)
-              case _ => None
+              case sequence: Reflect.Sequence[F, _, _] @scala.unchecked => loop(sequence.element, i + 1)
+              case _                                                    => None
             }
           case DynamicOptic.Node.MapKeys =>
             current match {
-              case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
-                loop(map.key, i + 1)
-              case _ => None
+              case map: Reflect.Map[F, _, _, _] @scala.unchecked => loop(map.key, i + 1)
+              case _                                             => None
             }
           case DynamicOptic.Node.MapValues =>
             current match {
-              case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
-                loop(map.value, i + 1)
-              case _ => None
+              case map: Reflect.Map[F, _, _, _] @scala.unchecked => loop(map.value, i + 1)
+              case _                                             => None
             }
         }
       }
@@ -106,15 +111,15 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def refineBinding[G[_, _]](f: RefineBinding[F, G]): Reflect[G, A]
 
-  final def updated[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
+  def updated[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
       def update[A](reflect: Reflect[F, A]): Reflect[F, A] =
         f(reflect.asInstanceOf[Reflect[F, B]]).asInstanceOf[Reflect[F, A]]
     })
 
-  final def updated[B](dynamic: DynamicOptic)(f: Reflect.Updater[F]): Option[Reflect[F, A]] = {
+  def updated[B](dynamic: DynamicOptic)(f: Reflect.Updater[F]): Option[Reflect[F, A]] = {
     def loop(current: Reflect[F, _], i: Int): Option[Reflect[F, _]] =
-      if (i == dynamic.nodes.length) Some(f.update(current.asInstanceOf[Reflect[F, B]]))
+      if (i == dynamic.nodes.length) new Some(f.update(current.asInstanceOf[Reflect[F, B]]))
       else {
         dynamic.nodes(i) match {
           case DynamicOptic.Node.Field(name) =>
@@ -213,7 +218,7 @@ object Reflect {
 
     def registerByName(name: String): Option[Register[?]] = {
       val i = fields.indexWhere(_.name == name)
-      if (i >= 0) Some(registers(i))
+      if (i >= 0) new Some(registers(i))
       else None
     }
 
@@ -1595,7 +1600,7 @@ object Reflect {
     object List {
       def unapply[F[_, _], A](reflect: Reflect[F, List[A]]): Option[Reflect[F, A]] =
         reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.list => Some(element)
+          case Sequence(element, _, tn, _, _) if tn == TypeName.list => new Some(element)
           case _                                                     => None
         }
     }
@@ -1603,7 +1608,7 @@ object Reflect {
     object Vector {
       def unapply[F[_, _], A](reflect: Reflect[F, Vector[A]]): Option[Reflect[F, A]] =
         reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.vector => Some(element)
+          case Sequence(element, _, tn, _, _) if tn == TypeName.vector => new Some(element)
           case _                                                       => None
         }
     }
@@ -1611,7 +1616,7 @@ object Reflect {
     object Set {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
         reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.set => Some(element)
+          case Sequence(element, _, tn, _, _) if tn == TypeName.set => new Some(element)
           case _                                                    => None
         }
     }
@@ -1619,7 +1624,7 @@ object Reflect {
     object Array {
       def unapply[F[_, _], A](reflect: Reflect[F, Array[A]]): Option[Reflect[F, A]] =
         reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.array => Some(element)
+          case Sequence(element, _, tn, _, _) if tn == TypeName.array => new Some(element)
           case _                                                      => None
         }
     }
@@ -1629,7 +1634,7 @@ object Reflect {
         reflect match {
           case Variant(noneTerm :: someTerm :: Nil, tn, _, _, _) if tn == TypeName.option =>
             (noneTerm, someTerm) match {
-              case (Term("None", _, _, _), Term("Some", element, _, _)) => Some(element.asInstanceOf[Reflect[F, A]])
+              case (Term("None", _, _, _), Term("Some", element, _, _)) => new Some(element.asInstanceOf[Reflect[F, A]])
               case _                                                    => None
             }
           case _ => None
