@@ -19,26 +19,26 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def asRecord: Option[Reflect.Record[F, A]] =
     self match {
-      case record: Reflect.Record[F, A] => Some(record)
-      case _                            => None
+      case record: Reflect.Record[F, A] @scala.unchecked => Some(record)
+      case _                                             => None
     }
 
   def asVariant: Option[Reflect.Variant[F, A]] =
     self match {
-      case variant: Reflect.Variant[F, A] => Some(variant)
-      case _                              => None
+      case variant: Reflect.Variant[F, A] @scala.unchecked => Some(variant)
+      case _                                               => None
     }
 
   def asDynamic: Option[Reflect.Dynamic[F]] =
     self match {
-      case dynamic: Reflect.Dynamic[F] => Some(dynamic)
-      case _                           => None
+      case dynamic: Reflect.Dynamic[F] @scala.unchecked => Some(dynamic)
+      case _                                            => None
     }
 
   def asPrimitive: Option[Reflect.Primitive[F, A]] =
     self match {
-      case primitive: Reflect.Primitive[F, A] => Some(primitive)
-      case _                                  => None
+      case primitive: Reflect.Primitive[F, A] @scala.unchecked => Some(primitive)
+      case _                                                   => None
     }
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
@@ -77,29 +77,24 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                   loop(term.value, tail)
                 }
               }
-
             case DynamicOptic.Node.Elements =>
               current match {
-                case sequence @ Reflect.Sequence(element, _, _, _, _) =>
-                  loop(element, tail)
+                case sequence: Reflect.Sequence[F, _, _] @scala.unchecked =>
+                  loop(sequence.element, tail)
                 case _ => None
               }
-
             case DynamicOptic.Node.MapKeys =>
               current match {
-                case map @ Reflect.Map(key, value, _, _, _, _) =>
-                  loop(key, tail)
+                case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
+                  loop(map.key, tail)
                 case _ => None
               }
-
             case DynamicOptic.Node.MapValues =>
               current match {
-                case map @ Reflect.Map(key, value, _, _, _, _) =>
-                  loop(value, tail)
+                case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
+                  loop(map.value, tail)
                 case _ => None
               }
-
-            case _ => None
           }
       }
 
@@ -135,7 +130,6 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                     ) // TODO: Fix these gets by modifying Updater to return option
                 })
               }
-
             case DynamicOptic.Node.Case(name) =>
               current.asVariant.flatMap { variant =>
                 variant.modifyCase(name)(new Term.Updater[F] {
@@ -143,32 +137,24 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                     input.copy(value = loop(input.value, tail).get.asInstanceOf[Reflect[F, A]])
                 })
               }
-
             case DynamicOptic.Node.Elements =>
               current match {
-                case sequence @ Reflect.Sequence(element, _, _, _, _) =>
-                  Some(sequence.copy(element = loop(element, tail).get.asInstanceOf[Reflect[F, A]]))
-
+                case sequence: Reflect.Sequence[F, A, _] @scala.unchecked =>
+                  Some(sequence.copy(element = loop(sequence.element, tail).get.asInstanceOf[Reflect[F, A]]))
                 case _ => None
               }
-
             case DynamicOptic.Node.MapKeys =>
               current match {
-                case map @ Reflect.Map(key, value, _, _, _, _) =>
-                  Some(map.copy(key = loop(key, tail).get.asInstanceOf[Reflect[F, A]]))
-
+                case map: Reflect.Map[F, A, _, _] @scala.unchecked =>
+                  Some(map.copy(key = loop(map.key, tail).get.asInstanceOf[Reflect[F, A]]))
                 case _ => None
               }
-
             case DynamicOptic.Node.MapValues =>
               current match {
-                case map @ Reflect.Map(key, value, _, _, _, _) =>
-                  Some(map.copy(value = loop(value, tail).get.asInstanceOf[Reflect[F, A]]))
-
+                case map: Reflect.Map[F, _, A, _] @scala.unchecked =>
+                  Some(map.copy(value = loop(map.value, tail).get.asInstanceOf[Reflect[F, A]]))
                 case _ => None
               }
-
-            case _ => None
           }
       }
 

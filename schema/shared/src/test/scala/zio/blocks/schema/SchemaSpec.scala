@@ -5,7 +5,7 @@ import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.binding._
 import zio.test._
 import zio.test.Assertion._
-import zio.test.TestAspect.jvmOnly
+import zio.test.TestAspect._
 
 object SchemaSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
