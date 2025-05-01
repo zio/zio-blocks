@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.Binding
 
 import java.util.concurrent.ConcurrentHashMap
+import derive.DerivationBuilder
 
 /**
  * A {{Schema}} is a data type that contains reified information on the
@@ -28,7 +29,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def derive[F <: codec.Format](format: F): format.TypeClass[A] = ??? // TODO
 
-  def deriving[F <: codec.Format](format: F): DerivationBuilder[format.TypeClass, A] = ??? // TODO
+  def deriving[F <: codec.Format](format: F): zio.blocks.schema.derive.DerivationBuilder[format.TypeClass, A] =
+    ??? // TODO
 
   def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[codec.CodecError, A] =
     getInstance(format).decode(decodeInput)
