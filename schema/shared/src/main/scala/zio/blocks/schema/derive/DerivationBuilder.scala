@@ -35,39 +35,48 @@ final case class DerivationBuilder[TC[_], A](
     copy(modifierOverrides = modifierOverrides :+ override_)
   }
 
-  def derive: TC[A] = {
+  def derive: Lazy[TC[A]] = {
     val instanceMap = instanceOverrides.map(override_ => override_.optic -> override_.instance).toMap
-    val modifierMap = modifierOverrides.map(override_ => override_.optic -> override_.modifier).toMap
+    val modifierMap = modifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier]]](Map.empty) {
+      case (acc, override_) =>
+        acc.updated(
+          override_.optic,
+          acc.get(override_.optic).map(_ :+ override_.modifier).getOrElse(Vector(override_.modifier))
+        )
+    }
+
+    def addModifiers[A](reflect: Reflect.Bound[A], optic: DynamicOptic): Reflect.Bound[A] = {
+      val extra = modifierMap.getOrElse(optic, Vector.empty)
+
+      reflect match {
+        case record: Reflect.Record.Bound[A] =>
+          record.modifiers(extra.collect { case m: Modifier.Record => m })
+
+        case sequence: Reflect.Sequence.Bound[a, b] @unchecked =>
+          sequence.modifiers(extra.collect { case m: Modifier.Seq => m })
+
+        case map: Reflect.Map.Bound[a, b, c] @unchecked =>
+          map.modifiers(extra.collect { case m: Modifier.Map => m })
+
+        case dynamic: Reflect.Dynamic.Bound @unchecked =>
+          dynamic.modifiers(extra.collect { case m: Modifier.Dynamic => m.asInstanceOf[dynamic.ModifierType] })
+
+        case primitive: Reflect.Primitive.Bound[a] =>
+          primitive.modifiers(extra.collect { case m: Modifier.Primitive => m })
+
+        case _ => reflect
+      }
+    }
 
     def coerceInstance[A](instance: Lazy[TC[?]]): Lazy[TC[A]] = instance.asInstanceOf[Lazy[TC[A]]]
 
-    def loop[A](path: DynamicOptic, reflect: Reflect.Bound[A]): Lazy[TC[A]] =
-      if (instanceMap.contains(path)) {
-        coerceInstance[A](instanceMap(path))
-      } else
-        reflect match {
-          case prim @ Reflect.Primitive(primitiveType, primitiveBinding, typeName, doc, modifiers) =>
-            deriver.derivePrimitive(prim)
+    type BI[T, A] = BindingInstance[TC, T, A]
 
-          case rec @ Reflect.Record(fields, typeName, recordBinding, doc, modifiers) =>
-            ???
-
-          case variant @ Reflect.Variant(cases, typeName, variantBinding, doc, modifiers) =>
-            ???
-
-          case seq @ Reflect.Sequence(element, seqBinding, typeName, doc, modifiers) =>
-            ???
-
-          case map @ Reflect.Map(key, value, mapBinding, typeName, doc, modifiers) =>
-            ???
-
-          case dyn @ Reflect.Dynamic(dynamicBinding, doc, modifiers) =>
-            ???
-
-          case deferred @ Reflect.Deferred(_value) =>
-            loop(path, deferred.value)
-        }
-
-    loop(DynamicOptic.root, schema.reflect).force
+    schema.reflect
+      .refineBinding[BI](new RefineBinding[Binding, BI] {
+        def apply[T, A](binding: Binding[T, A]): Lazy[BI[T, A]] =
+          ???
+      })
+      .flatMap(_.metadata.instance)
   }
 }

@@ -53,8 +53,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.r1_b.focus)(equalTo(Reflect.boolean[Binding]))
       },
       test("refines a binding") {
-        assert(Record1.b.refineBinding(RefineBinding.noBinding()))(equalTo(Record1.b.noBinding)) &&
-        assert(Record2.r1_b.refineBinding(RefineBinding.noBinding()))(equalTo(Record2.r1_b.noBinding))
+        assert(Record1.b.refineBinding(RefineBinding.noBinding()).force)(equalTo(Record1.b.noBinding)) &&
+        assert(Record2.r1_b.refineBinding(RefineBinding.noBinding()).force)(equalTo(Record2.r1_b.noBinding))
       },
       test("gets a focus value") {
         assert(Record1.b.get(Record1(true, 1)))(equalTo(true)) &&
@@ -158,8 +158,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_v3_c5_right.focus)(equalTo(Case5.reflect))
       },
       test("refines a binding") {
-        assert(Variant1.c1.refineBinding(RefineBinding.noBinding()))(equalTo(Variant1.c1.noBinding)) &&
-        assert(Variant1.v2_c3.refineBinding(RefineBinding.noBinding()))(equalTo(Variant1.v2_c3.noBinding))
+        assert(Variant1.c1.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant1.c1.noBinding)) &&
+        assert(Variant1.v2_c3.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant1.v2_c3.noBinding))
       },
       test("gets an optional case class value") {
         assert(Variant1.c1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
@@ -373,29 +373,29 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_v2_c4.focus)(equalTo(Case4.reflect))
       },
       test("refines a binding") {
-        assert(Variant1.c1_d.refineBinding(RefineBinding.noBinding()))(equalTo(Variant1.c1_d.noBinding)) &&
-        assert(Variant1.c2_r3.refineBinding(RefineBinding.noBinding()))(equalTo(Variant1.c2_r3.noBinding)) &&
-        assert(Variant2.c3_v1_c1_left.refineBinding(RefineBinding.noBinding()))(
+        assert(Variant1.c1_d.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant1.c1_d.noBinding)) &&
+        assert(Variant1.c2_r3.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant1.c2_r3.noBinding)) &&
+        assert(Variant2.c3_v1_c1_left.refineBinding(RefineBinding.noBinding()).force)(
           equalTo(Variant2.c3_v1_c1_left.noBinding)
         ) &&
-        assert(Variant2.c3_v1_c1_right.refineBinding(RefineBinding.noBinding()))(
+        assert(Variant2.c3_v1_c1_right.refineBinding(RefineBinding.noBinding()).force)(
           equalTo(Variant2.c3_v1_c1_right.noBinding)
         ) &&
-        assert(Variant2.c3_v1_c1_d_left.refineBinding(RefineBinding.noBinding()))(
+        assert(Variant2.c3_v1_c1_d_left.refineBinding(RefineBinding.noBinding()).force)(
           equalTo(Variant2.c3_v1_c1_d_left.noBinding)
         ) &&
-        assert(Variant2.c3_v1_c1_d_right.refineBinding(RefineBinding.noBinding()))(
+        assert(Variant2.c3_v1_c1_d_right.refineBinding(RefineBinding.noBinding()).force)(
           equalTo(Variant2.c3_v1_c1_d_right.noBinding)
         ) &&
-        assert(Variant1.c2_r3_r1.refineBinding(RefineBinding.noBinding()))(equalTo(Variant1.c2_r3_r1.noBinding)) &&
-        assert(Variant1.v2_c3_v1.refineBinding(RefineBinding.noBinding()))(equalTo(Variant1.v2_c3_v1.noBinding)) &&
-        assert(Variant1.c2_r3_v1_c1.refineBinding(RefineBinding.noBinding()))(
+        assert(Variant1.c2_r3_r1.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant1.c2_r3_r1.noBinding)) &&
+        assert(Variant1.v2_c3_v1.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant1.v2_c3_v1.noBinding)) &&
+        assert(Variant1.c2_r3_v1_c1.refineBinding(RefineBinding.noBinding()).force)(
           equalTo(Variant1.c2_r3_v1_c1.noBinding)
         ) &&
-        assert(Case2.r3_v1_c1.refineBinding(RefineBinding.noBinding()))(equalTo(Case2.r3_v1_c1.noBinding)) &&
-        assert(Case3.v1_c1_d_left.refineBinding(RefineBinding.noBinding()))(equalTo(Case3.v1_c1_d_left.noBinding)) &&
-        assert(Case3.v1_c1_d_right.refineBinding(RefineBinding.noBinding()))(equalTo(Case3.v1_c1_d_right.noBinding)) &&
-        assert(Variant2.c3_v1_v2_c4.refineBinding(RefineBinding.noBinding()))(equalTo(Variant2.c3_v1_v2_c4.noBinding))
+        assert(Case2.r3_v1_c1.refineBinding(RefineBinding.noBinding()).force)(equalTo(Case2.r3_v1_c1.noBinding)) &&
+        assert(Case3.v1_c1_d_left.refineBinding(RefineBinding.noBinding()).force)(equalTo(Case3.v1_c1_d_left.noBinding)) &&
+        assert(Case3.v1_c1_d_right.refineBinding(RefineBinding.noBinding()).force)(equalTo(Case3.v1_c1_d_right.noBinding)) &&
+        assert(Variant2.c3_v1_v2_c4.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant2.c3_v1_v2_c4.noBinding))
       },
       test("replaces a focus value") {
         assert(Variant1.c2_r3_r1.replace(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
@@ -606,18 +606,18 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_v2_c4_lr3.focus)(equalTo(Record3.reflect))
       },
       test("refines a binding") {
-        assert(Collections.ai.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.ai.noBinding)) &&
-        assert(Collections.mkc.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.mkc.noBinding)) &&
-        assert(Collections.mvs.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.mvs.noBinding)) &&
-        assert(Collections.lc1.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lc1.noBinding)) &&
-        assert(Collections.lc1_d.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lc1_d.noBinding)) &&
-        assert(Collections.lc4_lr3.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lc4_lr3.noBinding)) &&
-        assert(Collections.lr1.refineBinding(RefineBinding.noBinding()))(equalTo(Collections.lr1.noBinding)) &&
-        assert(Record2.vi.refineBinding(RefineBinding.noBinding()))(equalTo(Record2.vi.noBinding)) &&
-        assert(Case4.lr3.refineBinding(RefineBinding.noBinding()))(equalTo(Case4.lr3.noBinding)) &&
-        assert(Case4.lr3_r2_r1.refineBinding(RefineBinding.noBinding()))(equalTo(Case4.lr3_r2_r1.noBinding)) &&
-        assert(Variant2.c4_lr3.refineBinding(RefineBinding.noBinding()))(equalTo(Variant2.c4_lr3.noBinding)) &&
-        assert(Variant2.c3_v1_v2_c4_lr3.refineBinding(RefineBinding.noBinding()))(
+        assert(Collections.ai.refineBinding(RefineBinding.noBinding()).force)(equalTo(Collections.ai.noBinding)) &&
+        assert(Collections.mkc.refineBinding(RefineBinding.noBinding()).force)(equalTo(Collections.mkc.noBinding)) &&
+        assert(Collections.mvs.refineBinding(RefineBinding.noBinding()).force)(equalTo(Collections.mvs.noBinding)) &&
+        assert(Collections.lc1.refineBinding(RefineBinding.noBinding()).force)(equalTo(Collections.lc1.noBinding)) &&
+        assert(Collections.lc1_d.refineBinding(RefineBinding.noBinding()).force)(equalTo(Collections.lc1_d.noBinding)) &&
+        assert(Collections.lc4_lr3.refineBinding(RefineBinding.noBinding()).force)(equalTo(Collections.lc4_lr3.noBinding)) &&
+        assert(Collections.lr1.refineBinding(RefineBinding.noBinding()).force)(equalTo(Collections.lr1.noBinding)) &&
+        assert(Record2.vi.refineBinding(RefineBinding.noBinding()).force)(equalTo(Record2.vi.noBinding)) &&
+        assert(Case4.lr3.refineBinding(RefineBinding.noBinding()).force)(equalTo(Case4.lr3.noBinding)) &&
+        assert(Case4.lr3_r2_r1.refineBinding(RefineBinding.noBinding()).force)(equalTo(Case4.lr3_r2_r1.noBinding)) &&
+        assert(Variant2.c4_lr3.refineBinding(RefineBinding.noBinding()).force)(equalTo(Variant2.c4_lr3.noBinding)) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.refineBinding(RefineBinding.noBinding()).force)(
           equalTo(Variant2.c3_v1_v2_c4_lr3.noBinding)
         )
       },

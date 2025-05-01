@@ -42,9 +42,9 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
   def toDynamic: DynamicOptic
 
-  def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optic[G, S, A]
+  def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Optic[G, S, A]]
 
-  def noBinding: Optic[NoBinding, S, A]
+  def noBinding: Optic[NoBinding, S, A] = refineBinding(RefineBinding.noBinding()).force
 
   final def listValues[B](implicit ev: A <:< List[B], F1: HasBinding[F], F2: FromBinding[F]): Traversal[F, S, B] = {
     import Reflect.Extractors.List
@@ -124,9 +124,9 @@ sealed trait Lens[F[_, _], S, A] extends Optic[F, S, A] {
   // Compose this lens with a traversal:
   override def apply[B](that: Traversal[F, A, B]): Traversal[F, S, B] = Traversal(this, that)
 
-  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A]
+  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Lens[G, S, A]]
 
-  override def noBinding: Lens[NoBinding, S, A] = refineBinding(RefineBinding.noBinding())
+  override def noBinding: Lens[NoBinding, S, A] = refineBinding[NoBinding](RefineBinding.noBinding()).force
 }
 
 object Lens {
@@ -245,8 +245,11 @@ object Lens {
     override lazy val toDynamic: DynamicOptic =
       DynamicOptic(focusTerms.map(focusTerm => DynamicOptic.Node.Field(focusTerm.name)).toVector)
 
-    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A] =
-      new LensImpl(sources.map(_.refineBinding(f)), focusTerms.map(_.refineBinding(f)))
+    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Lens[G, S, A]] =
+      for {
+        sources    <- Lazy.collectAll(sources.map(_.refineBinding(f)))
+        focusTerms <- Lazy.collectAll(focusTerms.map(_.refineBinding(f)))
+      } yield new LensImpl(sources, focusTerms)
 
     override def source: Reflect[F, S] = sources(0).asInstanceOf[Reflect[F, S]]
 
@@ -285,9 +288,9 @@ sealed trait Prism[F[_, _], S, A <: S] extends Optic[F, S, A] {
   // Compose this prism with a traversal:
   override def apply[B](that: Traversal[F, A, B]): Traversal[F, S, B] = Traversal(this, that)
 
-  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Prism[G, S, A]
+  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Prism[G, S, A]]
 
-  override def noBinding: Prism[NoBinding, S, A] = refineBinding(RefineBinding.noBinding())
+  override def noBinding: Prism[NoBinding, S, A] = refineBinding(RefineBinding.noBinding()).force
 }
 
 object Prism {
@@ -391,8 +394,11 @@ object Prism {
       f(x.asInstanceOf[A])
     }
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Prism[G, S, A] =
-      new PrismImpl(sources.map(_.refineBinding(f)), focusTerms.map(_.refineBinding(f)))
+    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Prism[G, S, A]] =
+      for {
+        sources    <- Lazy.collectAll(sources.map(_.refineBinding(f)))
+        focusTerms <- Lazy.collectAll(focusTerms.map(_.refineBinding(f)))
+      } yield new PrismImpl(sources, focusTerms)
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -425,9 +431,9 @@ sealed trait Optional[F[_, _], S, A] extends Optic[F, S, A] {
   // Compose this optional with a traversal:
   override def apply[B](that: Traversal[F, A, B]): Traversal[F, S, B] = Traversal(this, that)
 
-  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A]
+  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Optional[G, S, A]]
 
-  override def noBinding: Optional[NoBinding, S, A] = refineBinding(RefineBinding.noBinding())
+  override def noBinding: Optional[NoBinding, S, A] = refineBinding(RefineBinding.noBinding()).force
 }
 
 object Optional {
@@ -656,8 +662,11 @@ object Optional {
       x.asInstanceOf[S]
     }
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new OptionalImpl(sources.map(_.refineBinding(f)), focusTerms.map(_.refineBinding(f)))
+    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Optional[G, S, A]] =
+      for {
+        sources    <- Lazy.collectAll(sources.map(_.refineBinding(f)))
+        focusTerms <- Lazy.collectAll(focusTerms.map(_.refineBinding(f)))
+      } yield new OptionalImpl(sources, focusTerms)
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -686,9 +695,9 @@ sealed trait Traversal[F[_, _], S, A] extends Optic[F, S, A] { self =>
   // Compose this traversal with a traversal:
   override def apply[B](that: Traversal[F, A, B]): Traversal[F, S, B] = Traversal(this, that)
 
-  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A]
+  override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Traversal[G, S, A]]
 
-  override def noBinding: Traversal[NoBinding, S, A] = refineBinding(RefineBinding.noBinding())
+  override def noBinding: Traversal[NoBinding, S, A] = refineBinding(RefineBinding.noBinding()).force
 }
 
 object Traversal {
@@ -1054,7 +1063,10 @@ object Traversal {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.Elements))
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): SeqValues[G, A, C] = new SeqValues(source.refineBinding(f))
+    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[SeqValues[G, A, C]] =
+      for {
+        source <- source.refineBinding(f)
+      } yield new SeqValues(source)
 
     override def hashCode: Int = source.hashCode
 
@@ -1091,7 +1103,10 @@ object Traversal {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapKeys[G, Key, Value, M] = new MapKeys(source.refineBinding(f))
+    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[MapKeys[G, Key, Value, M]] =
+      for {
+        source <- source.refineBinding(f)
+      } yield new MapKeys(source)
 
     override def hashCode: Int = source.hashCode
 
@@ -1128,8 +1143,10 @@ object Traversal {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapValues[G, Key, Value, M] =
-      new MapValues(source.refineBinding(f))
+    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[MapValues[G, Key, Value, M]] =
+      for {
+        source <- source.refineBinding(f)
+      } yield new MapValues(source)
 
     override def hashCode: Int = source.hashCode
 
@@ -1190,8 +1207,10 @@ object Traversal {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(leafs.flatMap(_.toDynamic.nodes).toVector)
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
-      new TraversalMixed(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))
+    override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lazy[Traversal[G, S, A]] =
+      for {
+        leafs <- Lazy.collectAll(leafs.map(_.refineBinding(f)))
+      } yield new TraversalMixed(leafs.map(_.asInstanceOf[Leaf[G, _, _]]))
   }
 }
 
