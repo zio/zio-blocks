@@ -19,6 +19,7 @@ object OpticBenchmarkSpec extends ZIOSpecDefault {
 
         assert((new LensReplaceBenchmark).direct)(equalTo(A(B(C(D(E("test2"))))))) &&
         assert((new LensReplaceBenchmark).monocle)(equalTo(A(B(C(D(E("test2"))))))) &&
+        assert((new LensReplaceBenchmark).quicklens)(equalTo(A(B(C(D(E("test2"))))))) &&
         assert((new LensReplaceBenchmark).zioBlocks)(equalTo(A(B(C(D(E("test2")))))))
       }
     ),
@@ -35,21 +36,18 @@ object OpticBenchmarkSpec extends ZIOSpecDefault {
 
         assert((new OptionalReplaceBenchmark).direct)(equalTo(A1(B1(C1(D1(E1("test2"))))))) &&
         assert((new OptionalReplaceBenchmark).monocle)(equalTo(A1(B1(C1(D1(E1("test2"))))))) &&
+        assert((new OptionalReplaceBenchmark).quicklens)(equalTo(A1(B1(C1(D1(E1("test2"))))))) &&
         assert((new OptionalReplaceBenchmark).zioBlocks)(equalTo(A1(B1(C1(D1(E1("test2")))))))
       }
     ),
     suite("TraversalFoldBenchmark")(
       test("has consistent output") {
-        import zio.blocks.schema.TraversalDomain._
-
         assert((new TraversalFoldBenchmark).direct)(equalTo(55)) &&
         assert((new TraversalFoldBenchmark).zioBlocks)(equalTo(55))
       }
     ),
     suite("TraversalModifyBenchmark")(
       test("has consistent output") {
-        import zio.blocks.schema.TraversalDomain._
-
         assert((new TraversalModifyBenchmark).direct.toList)(equalTo((2 to 11).toList)) &&
         assert((new TraversalModifyBenchmark).zioBlocks.toList)(equalTo((2 to 11).toList))
       }
