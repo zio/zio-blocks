@@ -4,7 +4,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, HasBinding}
 
 trait Deriver[TC[_]] { self =>
-  type HasDerivation[F[_, _]] = zio.blocks.schema.HasDerivation[F, TC]
+  type HasDerivation[F[_, _]] = zio.blocks.schema.derive.HasDerivation[F, TC]
 
   final def binding[F[_, _], T, A](fa: F[T, A])(implicit F: HasBinding[F]): Binding[T, A] = F.binding(fa)
 
