@@ -3,7 +3,6 @@ package zio.blocks.schema
 import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
-import zio.test.TestAspect._
 import zio.test._
 
 object OpticSpec extends ZIOSpecDefault {
@@ -45,9 +44,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record3.r2_r1_b_left: Any)(equalTo(Record3.r2_r1_b_right)) &&
         assert(Record3.r2_r1_b_left.hashCode)(equalTo(Record3.r2_r1_b_right.hashCode))
       },
-      test("returns an initial structure") {
-        assert(Record1.b.structure)(equalTo(Record1.reflect)) &&
-        assert(Record2.r1_b.structure)(equalTo(Record2.reflect))
+      test("returns a source structure") {
+        assert(Record1.b.source)(equalTo(Record1.reflect)) &&
+        assert(Record2.r1_b.source)(equalTo(Record2.reflect))
       },
       test("returns a focus structure") {
         assert(Record1.b.focus)(equalTo(Reflect.boolean[Binding])) &&
@@ -140,16 +139,16 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_v3_c5_left)(equalTo(Variant1.v2_v3_c5_right)) &&
         assert(Variant1.v2_v3_c5_left.hashCode)(equalTo(Variant1.v2_v3_c5_right.hashCode))
       },
-      test("returns a base class structure") {
-        assert(Variant1.c1.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.c2.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.v2.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.v2_c3.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.v2_c4.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.v2_v3_c5_left.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.v2_v3_c5_right.structure)(equalTo(Variant1.reflect))
+      test("returns a source structure") {
+        assert(Variant1.c1.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.c2.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.v2.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.v2_c3.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.v2_c4.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.v2_v3_c5_left.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.v2_v3_c5_right.source)(equalTo(Variant1.reflect))
       },
-      test("returns a case class structure") {
+      test("returns a focus structure") {
         assert(Variant1.c1.focus)(equalTo(Case1.reflect)) &&
         assert(Variant1.c2.focus)(equalTo(Case2.reflect)) &&
         assert(Variant1.v2.focus)(equalTo(Variant2.reflect)) &&
@@ -341,21 +340,21 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1_d_left)(equalTo(Case3.v1_c1_d_right)) &&
         assert(Case3.v1_c1_d_left.hashCode)(equalTo(Case3.v1_c1_d_right.hashCode))
       },
-      test("returns an initial structure") {
-        assert(Variant1.c1_d.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.c2_r3.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant2.c3_v1_c1_left.structure)(equalTo(Variant2.reflect)) &&
-        assert(Variant2.c3_v1_c1_right.structure)(equalTo(Variant2.reflect)) &&
-        assert(Variant2.c3_v1_c1_d_left.structure)(equalTo(Variant2.reflect)) &&
-        assert(Variant2.c3_v1_c1_d_right.structure)(equalTo(Variant2.reflect)) &&
-        assert(Variant1.c2_r3_r1.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.v2_c3_v1.structure)(equalTo(Variant1.reflect)) &&
-        assert(Variant1.c2_r3_v1_c1.structure)(equalTo(Variant1.reflect)) &&
-        assert(Case2.r3_v1_c1.structure)(equalTo(Case2.reflect)) &&
-        assert(Case3.v1_c1_d_left.structure)(equalTo(Case3.reflect)) &&
-        assert(Case3.v1_c1_d_right.structure)(equalTo(Case3.reflect)) &&
-        assert(Case3.v1_c1.structure)(equalTo(Case3.reflect)) &&
-        assert(Variant2.c3_v1_v2_c4.structure)(equalTo(Variant2.reflect))
+      test("returns a source structure") {
+        assert(Variant1.c1_d.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.c2_r3.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant2.c3_v1_c1_left.source)(equalTo(Variant2.reflect)) &&
+        assert(Variant2.c3_v1_c1_right.source)(equalTo(Variant2.reflect)) &&
+        assert(Variant2.c3_v1_c1_d_left.source)(equalTo(Variant2.reflect)) &&
+        assert(Variant2.c3_v1_c1_d_right.source)(equalTo(Variant2.reflect)) &&
+        assert(Variant1.c2_r3_r1.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.v2_c3_v1.source)(equalTo(Variant1.reflect)) &&
+        assert(Variant1.c2_r3_v1_c1.source)(equalTo(Variant1.reflect)) &&
+        assert(Case2.r3_v1_c1.source)(equalTo(Case2.reflect)) &&
+        assert(Case3.v1_c1_d_left.source)(equalTo(Case3.reflect)) &&
+        assert(Case3.v1_c1_d_right.source)(equalTo(Case3.reflect)) &&
+        assert(Case3.v1_c1.source)(equalTo(Case3.reflect)) &&
+        assert(Variant2.c3_v1_v2_c4.source)(equalTo(Variant2.reflect))
       },
       test("returns a focus structure") {
         assert(Variant1.c1_d.focus)(equalTo(Reflect.double[Binding])) &&
@@ -578,21 +577,21 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mkc: Any)(not(equalTo(""))) &&
         assert(Collections.mvs: Any)(not(equalTo("")))
       },
-      test("returns an initial structure") {
-        assert(Collections.ai.structure)(equalTo(Reflect.array(Reflect.int[Binding]))) &&
-        assert(Collections.mkc.structure)(equalTo(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]))) &&
-        assert(Collections.mvs.structure)(equalTo(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]))) &&
-        assert(Collections.lc1.structure)(equalTo(Reflect.list(Variant1.reflect))) &&
-        assert(Collections.lc1_d.structure)(equalTo(Reflect.list(Variant1.reflect))) &&
-        assert(Collections.lc4_lr3.structure)(equalTo(Reflect.list(Case4.reflect))) &&
-        assert(Collections.lr1.structure)(equalTo(Reflect.list(Record1.reflect))) &&
-        assert(Record2.vi.structure)(equalTo(Record2.reflect)) &&
-        assert(Case4.lr3.structure)(equalTo(Case4.reflect)) &&
-        assert(Case4.lr3_r2_r1.structure)(equalTo(Case4.reflect)) &&
-        assert(Variant2.c4_lr3.structure)(equalTo(Variant2.reflect)) &&
-        assert(Variant2.c3_v1_v2_c4_lr3.structure)(equalTo(Variant2.reflect))
+      test("returns a source structure") {
+        assert(Collections.ai.source)(equalTo(Reflect.array(Reflect.int[Binding]))) &&
+        assert(Collections.mkc.source)(equalTo(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]))) &&
+        assert(Collections.mvs.source)(equalTo(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]))) &&
+        assert(Collections.lc1.source)(equalTo(Reflect.list(Variant1.reflect))) &&
+        assert(Collections.lc1_d.source)(equalTo(Reflect.list(Variant1.reflect))) &&
+        assert(Collections.lc4_lr3.source)(equalTo(Reflect.list(Case4.reflect))) &&
+        assert(Collections.lr1.source)(equalTo(Reflect.list(Record1.reflect))) &&
+        assert(Record2.vi.source)(equalTo(Record2.reflect)) &&
+        assert(Case4.lr3.source)(equalTo(Case4.reflect)) &&
+        assert(Case4.lr3_r2_r1.source)(equalTo(Case4.reflect)) &&
+        assert(Variant2.c4_lr3.source)(equalTo(Variant2.reflect)) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.source)(equalTo(Variant2.reflect))
       },
-      test("returns a collection element structure") {
+      test("returns a focus structure") {
         assert(Collections.ai.focus)(equalTo(Reflect.int[Binding])) &&
         assert(Collections.mkc.focus)(equalTo(Reflect.char[Binding])) &&
         assert(Collections.mvs.focus)(equalTo(Reflect.string[Binding])) &&
