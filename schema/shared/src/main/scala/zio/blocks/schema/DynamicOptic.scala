@@ -1,13 +1,24 @@
 package zio.blocks.schema
 
-case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node])
+case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
+  def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, A]] =
+    nodes
+      .foldLeft[Option[Reflect[F, ?]]](Some(reflect)) {
+        case (Some(reflect), node) => node(reflect)
+        case (None, _)             => None
+      }
+      .map(_.asInstanceOf[Reflect[F, A]])
+}
 
 object DynamicOptic {
+  val root = DynamicOptic(Vector.empty)
+
   sealed trait Node {
     def apply[F[_, _]](reflect: Reflect[F, _]): Option[Reflect[F, _]]
   }
 
   object Node {
+    val root = DynamicOptic(Vector.empty)
     case class Field(name: String) extends Node {
       def apply[F[_, _]](reflect: Reflect[F, _]): Option[Reflect[F, _]] =
         reflect match {
