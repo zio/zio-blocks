@@ -548,19 +548,6 @@ object Optional {
       new Some(x.asInstanceOf[A])
     }
 
-    <<<<<<< HEAD
-    override lazy val toDynamic: DynamicOptic =
-      DynamicOptic(
-        parents
-          .zip(children)
-          .toVector
-          .map {
-            case (_: Reflect.Record[F, _], child)  => DynamicOptic.Node.Field(child.name)
-            case (_: Reflect.Variant[F, _], child) => DynamicOptic.Node.Case(child.name)
-            case _                                 => throw new IllegalArgumentException("Invalid optic")
-          }
-      )
-    =======
     override lazy val toDynamic: DynamicOptic = DynamicOptic {
       val nodes = Vector.newBuilder[DynamicOptic.Node]
       val len   = parents.length
@@ -576,7 +563,6 @@ object Optional {
       }
       nodes.result()
     }
-    >>>>>>> e907fe9e52e5f67fa03c8ec4c9e9956925bfeda5
 
     def replace(s: S, a: A)(implicit F: HasBinding[F]): S = {
       if (bindings eq null) init
