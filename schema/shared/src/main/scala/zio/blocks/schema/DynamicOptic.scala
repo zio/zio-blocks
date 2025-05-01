@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-case class DynamicOptic(nodes: Vector[DynamicOptic.Node])
+case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node])
 
 object DynamicOptic {
   sealed trait Node {
