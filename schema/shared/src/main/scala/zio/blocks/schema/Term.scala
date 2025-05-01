@@ -11,6 +11,6 @@ object Term {
   type Bound[S, A] = Term[Binding, S, A]
 
   trait Updater[F[_, _]] {
-    def update[S, A](input: Term[F, S, A]): Term[F, S, A]
+    def update[S, A](input: Term[F, S, A]): Option[Term[F, S, A]]
   }
 }

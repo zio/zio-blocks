@@ -57,50 +57,47 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   }
 
   final def get[B](optic: Optic[F, A, B]): Option[Reflect[F, B]] =
-    get(optic.toDynamic).map(_.asInstanceOf[Reflect[F, B]])
+    get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
 
   final def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
-    val list = dynamic.nodes.toList
-
-    def loop(current: Reflect[F, _], optic: List[DynamicOptic.Node]): Option[Reflect[F, _]] =
-      optic match {
-        case Nil => Some(current)
-        case head :: tail =>
-          head match {
-            case DynamicOptic.Node.Field(name) =>
-              current.asRecord.flatMap { record =>
-                record.fieldByName(name).flatMap { term =>
-                  loop(term.value, tail)
-                }
-              }
-            case DynamicOptic.Node.Case(name) =>
-              current.asVariant.flatMap { variant =>
-                variant.caseByName(name).flatMap { term =>
-                  loop(term.value, tail)
-                }
-              }
-            case DynamicOptic.Node.Elements =>
-              current match {
-                case sequence: Reflect.Sequence[F, _, _] @scala.unchecked =>
-                  loop(sequence.element, tail)
-                case _ => None
-              }
-            case DynamicOptic.Node.MapKeys =>
-              current match {
-                case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
-                  loop(map.key, tail)
-                case _ => None
-              }
-            case DynamicOptic.Node.MapValues =>
-              current match {
-                case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
-                  loop(map.value, tail)
-                case _ => None
-              }
-          }
+    def loop(current: Reflect[F, _], i: Int): Option[Reflect[F, _]] =
+      if (i == dynamic.nodes.length) Some(current)
+      else {
+        dynamic.nodes(i) match {
+          case DynamicOptic.Node.Field(name) =>
+            current match {
+              case record: Reflect.Record[F, _] @scala.unchecked =>
+                record.fieldByName(name).flatMap(term => loop(term.value, i + 1))
+              case _ => None
+            }
+          case DynamicOptic.Node.Case(name) =>
+            current match {
+              case variant: Reflect.Variant[F, _] @scala.unchecked =>
+                variant.caseByName(name).flatMap(term => loop(term.value, i + 1))
+              case _ => None
+            }
+          case DynamicOptic.Node.Elements =>
+            current match {
+              case sequence: Reflect.Sequence[F, _, _] @scala.unchecked =>
+                loop(sequence.element, i + 1)
+              case _ => None
+            }
+          case DynamicOptic.Node.MapKeys =>
+            current match {
+              case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
+                loop(map.key, i + 1)
+              case _ => None
+            }
+          case DynamicOptic.Node.MapValues =>
+            current match {
+              case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
+                loop(map.value, i + 1)
+              case _ => None
+            }
+        }
       }
 
-    loop(this, list).map(_.asInstanceOf[Reflect[F, A]])
+    loop(this, 0).asInstanceOf[Option[Reflect[F, A]]]
   }
 
   override def hashCode: Int = inner.hashCode
@@ -116,51 +113,50 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     })
 
   final def updated[B](dynamic: DynamicOptic)(f: Reflect.Updater[F]): Option[Reflect[F, A]] = {
-    val list = dynamic.nodes.toList
-
-    def loop(current: Reflect[F, _], optic: List[DynamicOptic.Node]): Option[Reflect[F, _]] =
-      optic match {
-        case Nil => Some(f.update(current.asInstanceOf[Reflect[F, B]]))
-        case head :: tail =>
-          head match {
-            case DynamicOptic.Node.Field(name) =>
-              current.asRecord.flatMap { record =>
+    def loop(current: Reflect[F, _], i: Int): Option[Reflect[F, _]] =
+      if (i == dynamic.nodes.length) Some(f.update(current.asInstanceOf[Reflect[F, B]]))
+      else {
+        dynamic.nodes(i) match {
+          case DynamicOptic.Node.Field(name) =>
+            current match {
+              case record: Reflect.Record[F, _] @scala.unchecked =>
                 record.modifyField(name)(new Term.Updater[F] {
-                  def update[S, A](input: Term[F, S, A]): Term[F, S, A] =
-                    input.copy(value =
-                      loop(input.value, tail).get.asInstanceOf[Reflect[F, A]]
-                    ) // TODO: Fix these gets by modifying Updater to return option
+                  def update[S, A](input: Term[F, S, A]): Option[Term[F, S, A]] =
+                    loop(input.value, i + 1).map(x => input.copy(value = x.asInstanceOf[Reflect[F, A]]))
                 })
-              }
-            case DynamicOptic.Node.Case(name) =>
-              current.asVariant.flatMap { variant =>
+              case _ => None
+            }
+          case DynamicOptic.Node.Case(name) =>
+            current match {
+              case variant: Reflect.Variant[F, _] @scala.unchecked =>
                 variant.modifyCase(name)(new Term.Updater[F] {
-                  def update[S, A](input: Term[F, S, A]): Term[F, S, A] =
-                    input.copy(value = loop(input.value, tail).get.asInstanceOf[Reflect[F, A]])
+                  def update[S, A](input: Term[F, S, A]): Option[Term[F, S, A]] =
+                    loop(input.value, i + 1).map(x => input.copy(value = x.asInstanceOf[Reflect[F, A]]))
                 })
-              }
-            case DynamicOptic.Node.Elements =>
-              current match {
-                case sequence: Reflect.Sequence[F, A, _] @scala.unchecked =>
-                  Some(sequence.copy(element = loop(sequence.element, tail).get.asInstanceOf[Reflect[F, A]]))
-                case _ => None
-              }
-            case DynamicOptic.Node.MapKeys =>
-              current match {
-                case map: Reflect.Map[F, A, _, _] @scala.unchecked =>
-                  Some(map.copy(key = loop(map.key, tail).get.asInstanceOf[Reflect[F, A]]))
-                case _ => None
-              }
-            case DynamicOptic.Node.MapValues =>
-              current match {
-                case map: Reflect.Map[F, _, A, _] @scala.unchecked =>
-                  Some(map.copy(value = loop(map.value, tail).get.asInstanceOf[Reflect[F, A]]))
-                case _ => None
-              }
-          }
+              case _ => None
+            }
+          case DynamicOptic.Node.Elements =>
+            current match {
+              case sequence: Reflect.Sequence[F, A, _] @scala.unchecked =>
+                loop(sequence.element, i + 1).map(x => sequence.copy(element = x.asInstanceOf[Reflect[F, A]]))
+              case _ => None
+            }
+          case DynamicOptic.Node.MapKeys =>
+            current match {
+              case map: Reflect.Map[F, A, _, _] @scala.unchecked =>
+                loop(map.key, i + 1).map(x => map.copy(key = x.asInstanceOf[Reflect[F, A]]))
+              case _ => None
+            }
+          case DynamicOptic.Node.MapValues =>
+            current match {
+              case map: Reflect.Map[F, _, A, _] @scala.unchecked =>
+                loop(map.value, i + 1).map(x => map.copy(value = x.asInstanceOf[Reflect[F, A]]))
+              case _ => None
+            }
+        }
       }
 
-    loop(this, list).map(_.asInstanceOf[Reflect[F, A]])
+    loop(this, 0).asInstanceOf[Option[Reflect[F, A]]]
   }
 }
 
@@ -211,8 +207,7 @@ object Reflect {
     def modifyField(name: String)(f: Term.Updater[F]): Option[Record[F, A]] = {
       val i = fields.indexWhere(_.name == name)
       if (i >= 0) {
-        val newFields = fields.updated(i, f.update(fields(i)))
-        Some(Record(newFields, typeName, recordBinding, doc, modifiers))
+        f.update(fields(i)).map(field => Record(fields.updated(i, field), typeName, recordBinding, doc, modifiers))
       } else None
     }
 
@@ -315,8 +310,7 @@ object Reflect {
     def modifyCase(name: String)(f: Term.Updater[F]): Option[Variant[F, A]] = {
       val i = cases.indexWhere(_.name == name)
       if (i >= 0) {
-        val newCases = cases.updated(i, f.update(cases(i)))
-        Some(Variant(newCases, typeName, variantBinding, doc, modifiers))
+        f.update(cases(i)).map(case_ => Variant(cases.updated(i, case_), typeName, variantBinding, doc, modifiers))
       } else None
     }
 
