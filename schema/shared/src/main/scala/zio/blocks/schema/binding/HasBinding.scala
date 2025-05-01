@@ -102,8 +102,8 @@ trait HasBinding[F[_, _]] {
 
   final def map[M[_, _], K, V](fa: F[BindingType.Map[M], M[K, V]]): Binding.Map[M, K, V] =
     binding(fa) match {
-      case map @ Binding.Map(_, _, _, _) => map
-      case _                             => sys.error("Expected Binding.Map")
+      case map: Binding.Map[M, K, V] @scala.unchecked => map
+      case _                                          => sys.error("Expected Binding.Map")
     }
 
   final def updateMap[M[_, _], K, V](
@@ -113,15 +113,15 @@ trait HasBinding[F[_, _]] {
     updateBinding(
       fa,
       {
-        case map @ Binding.Map(_, _, _, _) => f(map)
-        case _                             => sys.error("Expected Binding.Map")
+        case map: Binding.Map[M, K, V] @scala.unchecked => f(map)
+        case _                                          => sys.error("Expected Binding.Map")
       }
     )
 
   final def seq[C[_], A](fa: F[BindingType.Seq[C], C[A]]): Binding.Seq[C, A] =
     binding(fa) match {
-      case seq @ Binding.Seq(_, _, _, _) => seq
-      case _                             => sys.error("Expected Binding.Seq")
+      case seq: Binding.Seq[C, A] @scala.unchecked => seq
+      case _                                       => sys.error("Expected Binding.Seq")
     }
 
   final def updateSeq[C[_], A](
@@ -131,8 +131,8 @@ trait HasBinding[F[_, _]] {
     updateBinding(
       fa,
       {
-        case seq @ Binding.Seq(_, _, _, _) => f(seq)
-        case _                             => sys.error("Expected Binding.Seq")
+        case seq: Binding.Seq[C, A] @scala.unchecked => f(seq)
+        case _                                       => sys.error("Expected Binding.Seq")
       }
     )
 }
