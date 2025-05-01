@@ -533,10 +533,10 @@ object Optional {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic {
       val nodes = Vector.newBuilder[DynamicOptic.Node]
-      val len      = parents.length
-      var idx      = 0
+      val len   = parents.length
+      var idx   = 0
       while (idx < len) {
-        val parent = parents(idx)
+        val parent    = parents(idx)
         val childName = children(idx).name
         nodes.addOne {
           if (parent.isInstanceOf[Reflect.Record[F, _]]) DynamicOptic.Node.Field(childName)
@@ -1180,8 +1180,8 @@ object Traversal {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic {
       val nodes = Vector.newBuilder[DynamicOptic.Node]
-      val len = leafs.length
-      var idx = 0
+      val len   = leafs.length
+      var idx   = 0
       while (idx < len) {
         nodes.addAll(leafs(idx).asInstanceOf[Optic[F, _, _]].toDynamic.nodes)
         idx += 1
