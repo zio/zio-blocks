@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
+  import DynamicOptic.Node
   def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, A]] =
     nodes
       .foldLeft[Option[Reflect[F, ?]]](Some(reflect)) {
@@ -8,6 +9,16 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
         case (None, _)             => None
       }
       .map(_.asInstanceOf[Reflect[F, A]])
+
+  def field(name: String): DynamicOptic = DynamicOptic(nodes :+ Node.Field(name))
+
+  def caseOf(name: String): DynamicOptic = DynamicOptic(nodes :+ Node.Case(name))
+
+  def elements: DynamicOptic = DynamicOptic(nodes :+ Node.Elements)
+
+  def mapKeys: DynamicOptic = DynamicOptic(nodes :+ Node.MapKeys)
+
+  def mapValues: DynamicOptic = DynamicOptic(nodes :+ Node.MapValues)
 }
 
 object DynamicOptic {
