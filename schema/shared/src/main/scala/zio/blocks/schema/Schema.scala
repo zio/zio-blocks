@@ -17,7 +17,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
       .computeIfAbsent(format, _ => derive(format))
 
-  def defaultValue[B](optic: Optic.Bound[A, B], value: => B): Schema[A] = ??? // TODO
+  def getDefaultValue: Option[A] = reflect.getDefaultValue
+
+  def getDefaultValue[B](optic: Optic.Bound[A, B]): Option[B] = getWith(optic)(_.getDefaultValue).flatten
+
+  def defaultValue[B](optic: Optic.Bound[A, B], value: => B): Schema[A] =
+    updated(optic)(_.defaultValue(value)).getOrElse(this)
 
   def defaultValue(value: => A): Schema[A] = Schema(reflect.defaultValue(value))
 

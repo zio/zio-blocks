@@ -986,6 +986,38 @@ object SchemaSpec extends ZIOSpecDefault {
         }
         assert(Schema(deferred1).examples(1, 2).examples)(equalTo(Seq(1, 2)))
       }
+    ),
+    suite("docs")(
+      test("attach and retrieve docs on record") {
+        assert(Schema[Record].doc("Record (updated)").doc)(equalTo(Doc("Record (updated)")))
+      },
+      test("attach and retrieve docs on variant") {
+        assert(Schema[Variant].doc("Variant (updated)").doc)(equalTo(Doc("Variant (updated)")))
+      },
+      test("attach and retrieve docs on case") {
+        assert(Schema[Case1].doc("Case1 (updated)").doc)(equalTo(Doc("Case1 (updated)")))
+      }
+    ),
+    suite("examples")(
+      test("attach and retrieve examples on record") {
+        assert(Schema[Record].examples(Record(1, 2)).examples)(equalTo(Seq(Record(1, 2))))
+      },
+      test("attach and retrieve examples on variant") {
+        assert(Schema[Variant].examples(Case1(1.0)).examples)(equalTo(Seq(Case1(1.0))))
+      },
+      test("attach and retrieve examples on case") {
+        assert(Schema[Case1].examples(Case1(1.0)).examples)(equalTo(Seq(Case1(1.0))))
+      }
+    ),
+    suite("default values")(
+      test("get default value of record") {
+        assert(Schema[Record].getDefaultValue)(isNone) &&
+        assert(Schema[Record].defaultValue(Record(1, 2)).getDefaultValue.get)(equalTo(Record(1, 2)))
+      },
+      test("get default value of variant") {
+        assert(Schema[Variant].getDefaultValue)(isNone) &&
+        assert(Schema[Variant].defaultValue(Case1(1.0)).getDefaultValue.get)(equalTo(Case1(1.0)))
+      }
     )
   )
 
