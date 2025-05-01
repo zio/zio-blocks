@@ -11,28 +11,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
 
   type NodeBinding <: BindingType
-
-  def examples(implicit F: HasBinding[F]): Seq[A]
-
-  def examples(value: A, values: A*)(implicit F: HasBinding[F]): Reflect[F, A]
-
-  def getDefaultValue(implicit F: HasBinding[F]): Option[A]
-
-  def defaultValue(value: => A)(implicit F: HasBinding[F]): Reflect[F, A]
-
-  def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
-
-  def asRecord: Option[Reflect.Record[F, A]] =
-    self match {
-      case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
-      case _                                             => None
-    }
-
-  def asVariant: Option[Reflect.Variant[F, A]] =
-    self match {
-      case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
-      case _                                               => None
-    }
+  type ModifierType <: Modifier
 
   def asDynamic: Option[Reflect.Dynamic[F]] =
     self match {
@@ -46,7 +25,27 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       case _                                                   => None
     }
 
+  def asRecord: Option[Reflect.Record[F, A]] =
+    self match {
+      case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
+      case _                                             => None
+    }
+
+  def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
+
+  def asVariant: Option[Reflect.Variant[F, A]] =
+    self match {
+      case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
+      case _                                               => None
+    }
+
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
+
+  def examples(implicit F: HasBinding[F]): Seq[A]
+
+  def examples(value: A, values: A*)(implicit F: HasBinding[F]): Reflect[F, A]
+
+  def defaultValue(value: => A)(implicit F: HasBinding[F]): Reflect[F, A]
 
   def doc(value: Doc): Reflect[F, A]
 
@@ -108,7 +107,13 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     loop(this, 0).asInstanceOf[Option[Reflect[F, A]]]
   }
 
+  def getDefaultValue(implicit F: HasBinding[F]): Option[A]
+
   override def hashCode: Int = inner.hashCode
+
+  def modifiers: Seq[ModifierType]
+
+  def modifier(modifier: ModifierType): Reflect[F, A]
 
   def noBinding: Reflect[NoBinding, A] = refineBinding(RefineBinding.noBinding())
 
@@ -184,8 +189,8 @@ object Reflect {
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (fields, typeName, doc, modifiers)
 
-    type NodeBinding = BindingType.Record
-
+    type NodeBinding  = BindingType.Record
+    type ModifierType = Modifier.Record
     def doc(value: Doc): Record[F, A] = copy(doc = value)
 
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(recordBinding).defaultValue.map(_())
@@ -211,6 +216,8 @@ object Reflect {
     def lensByName(name: String): Option[Lens[F, A, ?]] = fieldByName(name).map(Lens(self, _))
 
     val length: Int = fields.length
+
+    def modifier(modifier: Modifier.Record): Record[F, A] = copy(modifiers = modifiers :+ modifier)
 
     def modifyField(name: String)(f: Term.Updater[F]): Option[Record[F, A]] = {
       val i = fields.indexWhere(_.name == name)
@@ -293,7 +300,8 @@ object Reflect {
   ) extends Reflect[F, A] {
     protected def inner: Any = (cases, typeName, doc, modifiers)
 
-    type NodeBinding = BindingType.Variant
+    type NodeBinding  = BindingType.Variant
+    type ModifierType = Modifier.Variant
 
     def doc(value: Doc): Variant[F, A] = copy(doc = value)
 
@@ -314,6 +322,8 @@ object Reflect {
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
+
+    def modifier(modifier: Modifier.Variant): Variant[F, A] = copy(modifiers = modifiers :+ modifier)
 
     def modifyCase(name: String)(f: Term.Updater[F]): Option[Variant[F, A]] = {
       val i = cases.indexWhere(_.name == name)
@@ -343,7 +353,8 @@ object Reflect {
   ) extends Reflect[F, C[A]] {
     protected def inner: Any = (element, typeName, doc, modifiers)
 
-    type NodeBinding = BindingType.Seq[C]
+    type NodeBinding  = BindingType.Seq[C]
+    type ModifierType = Modifier.Seq
 
     def doc(value: Doc): Sequence[F, A, C] = copy(doc = value)
 
@@ -358,6 +369,8 @@ object Reflect {
       copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Seq[C], C[A]] = F.binding(seqBinding)
+
+    def modifier(modifier: Modifier.Seq): Sequence[F, A, C] = copy(modifiers = modifiers :+ modifier)
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Sequence[G, A, C] =
       Sequence(element.refineBinding(f), f(seqBinding), typeName, doc, modifiers)
@@ -383,8 +396,8 @@ object Reflect {
   ) extends Reflect[F, M[Key, Value]] {
     protected def inner: Any = (key, value, typeName, doc, modifiers)
 
-    type NodeBinding = BindingType.Map[M]
-
+    type NodeBinding  = BindingType.Map[M]
+    type ModifierType = Modifier.Map
     def doc(value: Doc): Map[F, Key, Value, M] = copy(doc = value)
 
     def getDefaultValue(implicit F: HasBinding[F]): Option[M[Key, Value]] = F.binding(mapBinding).defaultValue.map(_())
@@ -402,6 +415,8 @@ object Reflect {
     def mapConstructor(implicit F: HasBinding[F]): MapConstructor[M] = F.mapConstructor(mapBinding)
 
     def mapDeconstructor(implicit F: HasBinding[F]): MapDeconstructor[M] = F.mapDeconstructor(mapBinding)
+
+    def modifier(modifier: Modifier.Map): Map[F, Key, Value, M] = copy(modifiers = modifiers :+ modifier)
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Map[G, Key, Value, M] =
       Map(key.refineBinding(f), value.refineBinding(f), f(mapBinding), typeName, doc, modifiers)
@@ -422,7 +437,8 @@ object Reflect {
   ) extends Reflect[F, DynamicValue] {
     protected def inner: Any = (modifiers, modifiers, doc)
 
-    type NodeBinding = BindingType.Dynamic
+    type NodeBinding  = BindingType.Dynamic
+    type ModifierType = Modifier.Dynamic
 
     def doc(value: Doc): Dynamic[F] = copy(doc = value)
 
@@ -439,6 +455,8 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Dynamic, DynamicValue] = F.binding(dynamicBinding)
 
+    def modifier(modifier: Modifier.Dynamic): Dynamic[F] = copy(modifiers = modifiers :+ modifier)
+
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Reflect[G, DynamicValue] =
       Dynamic(f(dynamicBinding), doc, modifiers)
   }
@@ -452,8 +470,8 @@ object Reflect {
   ) extends Reflect[F, A] { self =>
     protected def inner: Any = (primitiveType, typeName, doc, modifiers)
 
-    type NodeBinding = BindingType.Primitive
-
+    type NodeBinding  = BindingType.Primitive
+    type ModifierType = Modifier.Primitive
     def doc(value: Doc): Primitive[F, A] = copy(doc = value)
 
     def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(primitiveBinding).defaultValue.map(_())
@@ -468,6 +486,8 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding.Primitive[A] = F.primitive(primitiveBinding)
 
+    def modifier(modifier: Modifier.Primitive): Primitive[F, A] = copy(modifiers = modifiers :+ modifier)
+
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Primitive[G, A] =
       Primitive(primitiveType, f(primitiveBinding), typeName, doc, modifiers)
   }
@@ -477,7 +497,8 @@ object Reflect {
 
     final lazy val value: Reflect[F, A] = _value()
 
-    type NodeBinding = value.NodeBinding
+    final type NodeBinding  = value.NodeBinding
+    final type ModifierType = value.ModifierType
 
     def doc(value: Doc): Deferred[F, A] = copy(_value = () => _value().doc(value))
 
@@ -493,7 +514,9 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 
-    def modifiers: Seq[Modifier] = value.modifiers
+    def modifiers: Seq[ModifierType] = value.modifiers
+
+    def modifier(modifier: ModifierType): Deferred[F, A] = copy(_value = () => value.modifier(modifier))
 
     def doc: Doc = value.doc
 

@@ -4,13 +4,11 @@ import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, HasBinding}
 
 trait Deriver[TC[_]] { self =>
-  type HasInstances[F[_, _]] = zio.blocks.schema.derive.HasInstances[F, TC]
+  type HasInstance[F[_, _]] = zio.blocks.schema.derive.HasInstance[F, TC]
 
   final def binding[F[_, _], T, A](fa: F[T, A])(implicit F: HasBinding[F]): Binding[T, A] = F.binding(fa)
 
-  final def instances[F[_, _], T, A](fa: F[T, A])(implicit D: HasInstances[F]): Instances[TC, A] = D.instances(fa)
-
-  final def derivation[F[_, _], A](fa: F[A, A])(implicit D: HasInstances[F]): Lazy[TC[A]] = instances(fa).derivation
+  final def instance[F[_, _], T, A](fa: F[T, A])(implicit D: HasInstance[F]): Lazy[TC[A]] = D.instance(fa)
 
   def derivePrimitive[F[_, _], A](prim: Reflect.Primitive[F, A]): Lazy[TC[A]]
 
@@ -19,21 +17,21 @@ trait Deriver[TC[_]] { self =>
     typeName: TypeName[A],
     doc: Doc,
     modifiers: Seq[Modifier.Record]
-  )(implicit F: HasBinding[F], D: HasInstances[F]): Lazy[TC[A]]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 
   def deriveVariant[F[_, _], A](
     cases: Seq[Term[F, A, ?]],
     typeName: TypeName[A],
     doc: Doc,
     modifiers: Seq[Modifier.Variant]
-  )(implicit F: HasBinding[F], D: HasInstances[F]): Lazy[TC[A]]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 
   def deriveSeq[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeName: TypeName[C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Seq]
-  )(implicit F: HasBinding[F], D: HasInstances[F]): Lazy[TC[C[A]]]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[C[A]]]
 
   def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
@@ -41,5 +39,5 @@ trait Deriver[TC[_]] { self =>
     typeName: TypeName[M[K, V]],
     doc: Doc,
     modifiers: Seq[Modifier.Map]
-  )(implicit F: HasBinding[F], D: HasInstances[F]): Lazy[TC[M[K, V]]]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[M[K, V]]]
 }
