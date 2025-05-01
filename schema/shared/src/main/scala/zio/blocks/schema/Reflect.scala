@@ -15,6 +15,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def examples(value: A, values: A*)(implicit F: HasBinding[F]): Reflect[F, A]
 
+  def getDefaultValue(implicit F: HasBinding[F]): Option[A]
+
+  def defaultValue(value: => A)(implicit F: HasBinding[F]): Reflect[F, A]
+
   def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
 
   def asRecord: Option[Reflect.Record[F, A]] =
@@ -42,8 +46,6 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     }
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
-
-  def defaultValue(value: => A)(implicit F: HasBinding[F]): Reflect[F, A]
 
   def doc(value: Doc): Reflect[F, A]
 
@@ -182,6 +184,8 @@ object Reflect {
 
     def doc(value: Doc): Record[F, A] = copy(doc = value)
 
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(recordBinding).defaultValue.map(_())
+
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Record[F, A] =
       copy(recordBinding = F.updateBinding(recordBinding, _.defaultValue(value)))
 
@@ -290,6 +294,8 @@ object Reflect {
 
     def doc(value: Doc): Variant[F, A] = copy(doc = value)
 
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(variantBinding).defaultValue.map(_())
+
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Variant[F, A] =
       copy(variantBinding = F.updateBinding(variantBinding, _.defaultValue(value)))
 
@@ -339,6 +345,8 @@ object Reflect {
 
     def doc(value: Doc): Sequence[F, A, C] = copy(doc = value)
 
+    def getDefaultValue(implicit F: HasBinding[F]): Option[C[A]] = F.binding(seqBinding).defaultValue.map(_())
+
     def defaultValue(value: => C[A])(implicit F: HasBinding[F]): Sequence[F, A, C] =
       copy(seqBinding = F.updateBinding(seqBinding, _.defaultValue(value)))
 
@@ -377,6 +385,8 @@ object Reflect {
 
     def doc(value: Doc): Map[F, Key, Value, M] = copy(doc = value)
 
+    def getDefaultValue(implicit F: HasBinding[F]): Option[M[Key, Value]] = F.binding(mapBinding).defaultValue.map(_())
+
     def defaultValue(value: => M[Key, Value])(implicit F: HasBinding[F]): Map[F, Key, Value, M] =
       copy(mapBinding = F.updateBinding(mapBinding, _.defaultValue(value)))
 
@@ -414,6 +424,9 @@ object Reflect {
 
     def doc(value: Doc): Dynamic[F] = copy(doc = value)
 
+    def getDefaultValue(implicit F: HasBinding[F]): Option[DynamicValue] =
+      F.binding(dynamicBinding).defaultValue.map(_())
+
     def defaultValue(value: => DynamicValue)(implicit F: HasBinding[F]): Dynamic[F] =
       copy(dynamicBinding = F.updateBinding(dynamicBinding, _.defaultValue(value)))
 
@@ -441,6 +454,8 @@ object Reflect {
 
     def doc(value: Doc): Primitive[F, A] = copy(doc = value)
 
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.binding(primitiveBinding).defaultValue.map(_())
+
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Primitive[F, A] =
       copy(primitiveBinding = F.updateBinding(primitiveBinding, _.defaultValue(value)))
 
@@ -463,6 +478,8 @@ object Reflect {
     type NodeBinding = value.NodeBinding
 
     def doc(value: Doc): Deferred[F, A] = copy(_value = () => _value().doc(value))
+
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = value.getDefaultValue
 
     def defaultValue(value: => A)(implicit F: HasBinding[F]): Deferred[F, A] =
       copy(_value = () => _value().defaultValue(value)(F))
