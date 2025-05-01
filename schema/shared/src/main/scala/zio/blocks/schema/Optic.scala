@@ -88,15 +88,15 @@ sealed trait Optic[F[_, _], S, A] { self =>
 
   final def asSub[B](implicit ev: A <:< B): Optic[F, S, B] = self.asInstanceOf[Optic[F, S, B]]
 
-  override def hashCode: Int = java.util.Arrays.hashCode(linearized.asInstanceOf[Array[AnyRef]])
+  override def hashCode: Int = java.util.Arrays.hashCode(leafs.asInstanceOf[Array[AnyRef]])
 
   override def equals(obj: Any): Boolean = obj match {
     case other: Optic[_, _, _] =>
-      java.util.Arrays.equals(other.linearized.asInstanceOf[Array[AnyRef]], linearized.asInstanceOf[Array[AnyRef]])
+      java.util.Arrays.equals(other.leafs.asInstanceOf[Array[AnyRef]], leafs.asInstanceOf[Array[AnyRef]])
     case _ => false
   }
 
-  private[schema] def linearized: Array[Leaf[F, _, _]]
+  private[schema] def leafs: Array[Leaf[F, _, _]]
 }
 
 object Optic {
@@ -104,7 +104,7 @@ object Optic {
 }
 
 private[schema] sealed trait Leaf[F[_, _], S, A] extends Optic[F, S, A] {
-  override private[schema] def linearized: Array[Leaf[F, _, _]] = Array(this)
+  override private[schema] def leafs: Array[Leaf[F, _, _]] = Array(this)
 }
 
 sealed trait Lens[F[_, _], S, A] extends Optic[F, S, A] {
@@ -132,21 +132,21 @@ sealed trait Lens[F[_, _], S, A] extends Optic[F, S, A] {
 object Lens {
   type Bound[S, A] = Lens[Binding, S, A]
 
-  def apply[F[_, _], S, A](parent: Reflect.Record[F, S], child: Term[F, S, A]): Lens[F, S, A] = {
-    require((parent ne null) && (child ne null))
-    new LensImpl(Array(parent), Array(child))
+  def apply[F[_, _], S, A](source: Reflect.Record[F, S], focusTerm: Term[F, S, A]): Lens[F, S, A] = {
+    require((source ne null) && (focusTerm ne null))
+    new LensImpl(Array(source), Array(focusTerm))
   }
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Lens[F, T, A]): Lens[F, S, A] = {
     require((first ne null) && (second ne null))
     val lens1 = first.asInstanceOf[LensImpl[F, _, _]]
     val lens2 = second.asInstanceOf[LensImpl[F, _, _]]
-    new LensImpl(lens1.parents ++ lens2.parents, lens1.children ++ lens2.children)
+    new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
   }
 
   private[schema] case class LensImpl[F[_, _], S, A](
-    parents: Array[Reflect.Record[F, _]],
-    children: Array[Term[F, _, _]]
+    sources: Array[Reflect.Record[F, _]],
+    focusTerms: Array[Term[F, _, _]]
   ) extends Lens[F, S, A]
       with Leaf[F, S, A] {
     private[this] var bindings: Array[OpticBinding] = null
@@ -154,24 +154,24 @@ object Lens {
 
     private[this] def init(implicit F: HasBinding[F]): Unit = {
       var offset   = RegisterOffset.Zero
-      val len      = parents.length
+      val len      = sources.length
       val bindings = new Array[OpticBinding](len)
       var idx      = 0
       while (idx < len) {
-        val parent = parents(idx)
+        val source = sources(idx)
         bindings(idx) = new OpticBinding(
           matcher = null,
-          deconstructor = F.deconstructor(parent.recordBinding).asInstanceOf[Deconstructor[Any]],
-          constructor = F.constructor(parent.recordBinding).asInstanceOf[Constructor[Any]],
-          register = parent
-            .registers(parent.fields.indexWhere {
-              val childName = children(idx).name
-              x => x.name == childName
+          deconstructor = F.deconstructor(source.recordBinding).asInstanceOf[Deconstructor[Any]],
+          constructor = F.constructor(source.recordBinding).asInstanceOf[Constructor[Any]],
+          register = source
+            .registers(source.fields.indexWhere {
+              val focusTermName = focusTerms(idx).name
+              x => x.name == focusTermName
             })
             .asInstanceOf[Register[Any]],
           offset = offset
         )
-        offset = RegisterOffset.add(offset, parent.usedRegisters)
+        offset = RegisterOffset.add(offset, source.usedRegisters)
         idx += 1
       }
       this.usedRegisters = offset
@@ -242,24 +242,23 @@ object Lens {
       x.asInstanceOf[S]
     }
 
-    override lazy val toDynamic: DynamicOptic = DynamicOptic(
-      children.toVector.map(term => DynamicOptic.Node.Field(term.name))
-    )
+    override lazy val toDynamic: DynamicOptic =
+      DynamicOptic(focusTerms.map(focusTerm => DynamicOptic.Node.Field(focusTerm.name)).toVector)
 
     override def refineBinding[G[_, _]](f: RefineBinding[F, G]): Lens[G, S, A] =
-      new LensImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
+      new LensImpl(sources.map(_.refineBinding(f)), focusTerms.map(_.refineBinding(f)))
 
-    override def source: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
+    override def source: Reflect[F, S] = sources(0).asInstanceOf[Reflect[F, S]]
 
-    override def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
+    override def focus: Reflect[F, A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect[F, A]]
 
-    override def hashCode: Int = java.util.Arrays.hashCode(parents.asInstanceOf[Array[AnyRef]]) ^
-      java.util.Arrays.hashCode(children.asInstanceOf[Array[AnyRef]])
+    override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
+      java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
       case other: LensImpl[_, _, _] =>
-        java.util.Arrays.equals(other.parents.asInstanceOf[Array[AnyRef]], parents.asInstanceOf[Array[AnyRef]]) &&
-        java.util.Arrays.equals(other.children.asInstanceOf[Array[AnyRef]], children.asInstanceOf[Array[AnyRef]])
+        java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
+        java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
     }
   }
@@ -294,36 +293,36 @@ sealed trait Prism[F[_, _], S, A <: S] extends Optic[F, S, A] {
 object Prism {
   type Bound[S, A <: S] = Prism[Binding, S, A]
 
-  def apply[F[_, _], S, A <: S](parent: Reflect.Variant[F, S], child: Term[F, S, A]): Prism[F, S, A] = {
-    require((parent ne null) && (child ne null))
-    new PrismImpl(Array(parent), Array(child))
+  def apply[F[_, _], S, A <: S](source: Reflect.Variant[F, S], focusTerm: Term[F, S, A]): Prism[F, S, A] = {
+    require((source ne null) && (focusTerm ne null))
+    new PrismImpl(Array(source), Array(focusTerm))
   }
 
   def apply[F[_, _], S, T <: S, A <: T](first: Prism[F, S, T], second: Prism[F, T, A]): Prism[F, S, A] = {
     require((first ne null) && (second ne null))
     val prism1 = first.asInstanceOf[PrismImpl[F, _, _]]
     val prism2 = second.asInstanceOf[PrismImpl[F, _, _]]
-    new PrismImpl(prism1.parents ++ prism2.parents, prism1.children ++ prism2.children)
+    new PrismImpl(prism1.sources ++ prism2.sources, prism1.focusTerms ++ prism2.focusTerms)
   }
 
   private[schema] case class PrismImpl[F[_, _], S, A <: S](
-    parents: Array[Reflect.Variant[F, _]],
-    children: Array[Term[F, _, _]]
+    sources: Array[Reflect.Variant[F, _]],
+    focusTerms: Array[Term[F, _, _]]
   ) extends Prism[F, S, A]
       with Leaf[F, S, A] {
     private[this] var matchers: Array[Matcher[Any]] = null
 
     private def init(implicit F: HasBinding[F]): Unit = {
-      val len      = parents.length
+      val len      = sources.length
       val matchers = new Array[Matcher[Any]](len)
       var idx      = 0
       while (idx < len) {
-        val parent = parents(idx)
-        val child  = children(idx)
+        val source    = sources(idx)
+        val focusTerm = focusTerms(idx)
         matchers(idx) = F
-          .matchers(parent.variantBinding)
-          .apply(parent.cases.indexWhere {
-            val name = child.name
+          .matchers(source.variantBinding)
+          .apply(source.cases.indexWhere {
+            val name = focusTerm.name
             x => x.name == name
           })
         idx += 1
@@ -331,9 +330,9 @@ object Prism {
       this.matchers = matchers
     }
 
-    def source: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
+    def source: Reflect[F, S] = sources(0).asInstanceOf[Reflect[F, S]]
 
-    def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
+    def focus: Reflect[F, A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect[F, A]]
 
     def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = {
       if (matchers eq null) init
@@ -349,7 +348,7 @@ object Prism {
     }
 
     override lazy val toDynamic: DynamicOptic =
-      DynamicOptic(children.map(child => DynamicOptic.Node.Case(child.name)).toVector)
+      DynamicOptic(focusTerms.map(focusTerm => DynamicOptic.Node.Case(focusTerm.name)).toVector)
 
     def reverseGet(a: A): S = a
 
@@ -393,15 +392,15 @@ object Prism {
     }
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Prism[G, S, A] =
-      new PrismImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
+      new PrismImpl(sources.map(_.refineBinding(f)), focusTerms.map(_.refineBinding(f)))
 
-    override def hashCode: Int = java.util.Arrays.hashCode(parents.asInstanceOf[Array[AnyRef]]) ^
-      java.util.Arrays.hashCode(children.asInstanceOf[Array[AnyRef]])
+    override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
+      java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
       case other: PrismImpl[_, _, _] =>
-        java.util.Arrays.equals(other.parents.asInstanceOf[Array[AnyRef]], parents.asInstanceOf[Array[AnyRef]]) &&
-        java.util.Arrays.equals(other.children.asInstanceOf[Array[AnyRef]], children.asInstanceOf[Array[AnyRef]])
+        java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
+        java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
     }
   }
@@ -436,70 +435,70 @@ object Optional {
 
   def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] = {
     val optional1 = first.asInstanceOf[OptionalImpl[F, _, _]]
-    val lens2     = second.asInstanceOf[LensImpl[F, _, _]]
-    new OptionalImpl(optional1.parents ++ lens2.parents, optional1.children ++ lens2.children)
+    val lens2     = second.asInstanceOf[Lens.LensImpl[F, _, _]]
+    new OptionalImpl(optional1.sources ++ lens2.sources, optional1.focusTerms ++ lens2.focusTerms)
   }
 
   def apply[F[_, _], S, T, A <: T](first: Optional[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] = {
     val optional1 = first.asInstanceOf[OptionalImpl[F, _, _]]
-    val prism2    = second.asInstanceOf[PrismImpl[F, _, _]]
-    new OptionalImpl(optional1.parents ++ prism2.parents, optional1.children ++ prism2.children)
+    val prism2    = second.asInstanceOf[Prism.PrismImpl[F, _, _]]
+    new OptionalImpl(optional1.sources ++ prism2.sources, optional1.focusTerms ++ prism2.focusTerms)
   }
 
   def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
     val optional1 = first.asInstanceOf[OptionalImpl[F, _, _]]
     val optional2 = second.asInstanceOf[OptionalImpl[F, _, _]]
-    new OptionalImpl(optional1.parents ++ optional2.parents, optional1.children ++ optional2.children)
+    new OptionalImpl(optional1.sources ++ optional2.sources, optional1.focusTerms ++ optional2.focusTerms)
   }
 
   def apply[F[_, _], S, T, A <: T](first: Lens[F, S, T], second: Prism[F, T, A]): Optional[F, S, A] = {
-    val lens1  = first.asInstanceOf[LensImpl[F, _, _]]
-    val prism2 = second.asInstanceOf[PrismImpl[F, _, _]]
-    new OptionalImpl(lens1.parents ++ prism2.parents, lens1.children ++ prism2.children)
+    val lens1  = first.asInstanceOf[Lens.LensImpl[F, _, _]]
+    val prism2 = second.asInstanceOf[Prism.PrismImpl[F, _, _]]
+    new OptionalImpl(lens1.sources ++ prism2.sources, lens1.focusTerms ++ prism2.focusTerms)
   }
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
-    val lens1     = first.asInstanceOf[LensImpl[F, _, _]]
+    val lens1     = first.asInstanceOf[Lens.LensImpl[F, _, _]]
     val optional2 = second.asInstanceOf[OptionalImpl[F, _, _]]
-    new OptionalImpl(lens1.parents ++ optional2.parents, lens1.children ++ optional2.children)
+    new OptionalImpl(lens1.sources ++ optional2.sources, lens1.focusTerms ++ optional2.focusTerms)
   }
 
   def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Lens[F, T, A]): Optional[F, S, A] = {
-    val prism1 = first.asInstanceOf[PrismImpl[F, _, _]]
-    val lens2  = second.asInstanceOf[LensImpl[F, _, _]]
-    new OptionalImpl(prism1.parents ++ lens2.parents, prism1.children ++ lens2.children)
+    val prism1 = first.asInstanceOf[Prism.PrismImpl[F, _, _]]
+    val lens2  = second.asInstanceOf[Lens.LensImpl[F, _, _]]
+    new OptionalImpl(prism1.sources ++ lens2.sources, prism1.focusTerms ++ lens2.focusTerms)
   }
   def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Optional[F, T, A]): Optional[F, S, A] = {
-    val prism1    = first.asInstanceOf[PrismImpl[F, _, _]]
+    val prism1    = first.asInstanceOf[Prism.PrismImpl[F, _, _]]
     val optional2 = second.asInstanceOf[OptionalImpl[F, _, _]]
-    new OptionalImpl(prism1.parents ++ optional2.parents, prism1.children ++ optional2.children)
+    new OptionalImpl(prism1.sources ++ optional2.sources, prism1.focusTerms ++ optional2.focusTerms)
   }
 
   private[schema] case class OptionalImpl[F[_, _], S, A](
-    parents: Array[Reflect[F, _]],
-    children: Array[Term[F, _, _]]
+    sources: Array[Reflect[F, _]],
+    focusTerms: Array[Term[F, _, _]]
   ) extends Optional[F, S, A]
       with Leaf[F, S, A] {
     private[this] var bindings: Array[OpticBinding] = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
     private[this] def init(implicit F: HasBinding[F]): Unit = {
-      val len      = parents.length
+      val len      = sources.length
       val bindings = new Array[OpticBinding](len)
       var offset   = RegisterOffset.Zero
       var idx      = 0
       while (idx < len) {
-        val parent = parents(idx)
-        val child  = children(idx)
-        if (parent.isInstanceOf[Reflect.Record[F, _]]) {
-          val record = parent.asInstanceOf[Reflect.Record[F, _]]
+        val source    = sources(idx)
+        val focusTerm = focusTerms(idx)
+        if (source.isInstanceOf[Reflect.Record[F, _]]) {
+          val record = source.asInstanceOf[Reflect.Record[F, _]]
           bindings(idx) = new OpticBinding(
             deconstructor = F.deconstructor(record.recordBinding).asInstanceOf[Deconstructor[Any]],
             constructor = F.constructor(record.recordBinding).asInstanceOf[Constructor[Any]],
             register = record
               .registers(record.fields.indexWhere {
-                val childName = child.name
-                x => x.name == childName
+                val focusTermName = focusTerm.name
+                x => x.name == focusTermName
               })
               .asInstanceOf[Register[Any]],
             offset = offset
@@ -507,12 +506,12 @@ object Optional {
           offset = RegisterOffset.add(offset, record.usedRegisters)
 
         } else {
-          val variant = parent.asInstanceOf[Reflect.Variant[F, _]]
+          val variant = source.asInstanceOf[Reflect.Variant[F, _]]
           bindings(idx) = OpticBinding(
             matcher = F
               .matchers(variant.variantBinding)
               .apply(variant.cases.indexWhere {
-                val name = child.name
+                val name = focusTerm.name
                 x => x.name == name
               })
           )
@@ -523,9 +522,9 @@ object Optional {
       this.bindings = bindings
     }
 
-    def source: Reflect[F, S] = parents(0).asInstanceOf[Reflect[F, S]]
+    def source: Reflect[F, S] = sources(0).asInstanceOf[Reflect[F, S]]
 
-    def focus: Reflect[F, A] = children(children.length - 1).value.asInstanceOf[Reflect[F, A]]
+    def focus: Reflect[F, A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect[F, A]]
 
     def getOption(s: S)(implicit F: HasBinding[F]): Option[A] = {
       if (bindings eq null) init
@@ -550,14 +549,14 @@ object Optional {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic {
       val nodes = Vector.newBuilder[DynamicOptic.Node]
-      val len   = parents.length
+      val len   = sources.length
       var idx   = 0
       while (idx < len) {
-        val parent    = parents(idx)
-        val childName = children(idx).name
+        val source        = sources(idx)
+        val focusTermName = focusTerms(idx).name
         nodes.addOne {
-          if (parent.isInstanceOf[Reflect.Record[F, _]]) DynamicOptic.Node.Field(childName)
-          else DynamicOptic.Node.Case(childName)
+          if (source.isInstanceOf[Reflect.Record[F, _]]) DynamicOptic.Node.Field(focusTermName)
+          else DynamicOptic.Node.Case(focusTermName)
         }
         idx += 1
       }
@@ -658,15 +657,15 @@ object Optional {
     }
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Optional[G, S, A] =
-      new OptionalImpl(parents.map(_.refineBinding(f)), children.map(_.refineBinding(f)))
+      new OptionalImpl(sources.map(_.refineBinding(f)), focusTerms.map(_.refineBinding(f)))
 
-    override def hashCode: Int = java.util.Arrays.hashCode(parents.asInstanceOf[Array[AnyRef]]) ^
-      java.util.Arrays.hashCode(children.asInstanceOf[Array[AnyRef]])
+    override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
+      java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
       case other: OptionalImpl[_, _, _] =>
-        java.util.Arrays.equals(other.parents.asInstanceOf[Array[AnyRef]], parents.asInstanceOf[Array[AnyRef]]) &&
-        java.util.Arrays.equals(other.children.asInstanceOf[Array[AnyRef]], children.asInstanceOf[Array[AnyRef]])
+        java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
+        java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
     }
   }
@@ -696,25 +695,25 @@ object Traversal {
   type Bound[S, A] = Traversal[Binding, S, A]
 
   def apply[F[_, _], S, T, A](first: Traversal[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    apply(first.linearized, second.linearized)
+    apply(first.leafs, second.leafs)
 
   def apply[F[_, _], S, T, A](first: Traversal[F, S, T], second: Lens[F, T, A]): Traversal[F, S, A] =
-    apply(first.linearized, second.linearized)
+    apply(first.leafs, second.leafs)
 
   def apply[F[_, _], S, T, A <: T](first: Traversal[F, S, T], second: Prism[F, T, A]): Traversal[F, S, A] =
-    apply(first.linearized, second.linearized)
+    apply(first.leafs, second.leafs)
 
   def apply[F[_, _], S, T, A](first: Traversal[F, S, T], second: Optional[F, T, A]): Traversal[F, S, A] =
-    apply(first.linearized, second.linearized)
+    apply(first.leafs, second.leafs)
 
   def apply[F[_, _], S, T, A](first: Lens[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    apply(first.linearized, second.linearized)
+    apply(first.leafs, second.leafs)
 
   def apply[F[_, _], S, T <: S, A](first: Prism[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    apply(first.linearized, second.linearized)
+    apply(first.leafs, second.leafs)
 
   def apply[F[_, _], S, T, A](first: Optional[F, S, T], second: Traversal[F, T, A]): Traversal[F, S, A] =
-    apply(first.linearized, second.linearized)
+    apply(first.leafs, second.leafs)
 
   private[this] def apply[F[_, _], S, A](
     leafs1: Array[Leaf[F, _, _]],
@@ -768,15 +767,13 @@ object Traversal {
     new SeqValues(Reflect.vector(reflect))
   }
 
-  private[schema] case class SeqValues[F[_, _], A, C[_]](seq: Reflect.Sequence[F, A, C])
+  private[schema] case class SeqValues[F[_, _], A, C[_]](source: Reflect.Sequence[F, A, C])
       extends Traversal[F, C[A], A]
       with Leaf[F, C[A], A] {
-    def source: Reflect[F, C[A]] = seq
-
-    def focus: Reflect[F, A] = seq.element
+    def focus: Reflect[F, A] = source.element
 
     def fold[Z](s: C[A])(zero: Z, f: (Z, A) => Z)(implicit F: HasBinding[F]): Z = {
-      val deconstructor = F.seqDeconstructor(seq.seqBinding)
+      val deconstructor = F.seqDeconstructor(source.seqBinding)
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[C] =>
           val len = indexed.length(s)
@@ -952,8 +949,8 @@ object Traversal {
     }
 
     def modify(s: C[A], f: A => A)(implicit F: HasBinding[F]): C[A] = {
-      val constructor   = F.seqConstructor(seq.seqBinding)
-      val deconstructor = F.seqDeconstructor(seq.seqBinding)
+      val constructor   = F.seqConstructor(source.seqBinding)
+      val deconstructor = F.seqDeconstructor(source.seqBinding)
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[C] =>
           val len = indexed.length(s)
@@ -1057,25 +1054,23 @@ object Traversal {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.Elements))
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): SeqValues[G, A, C] = new SeqValues(seq.refineBinding(f))
+    def refineBinding[G[_, _]](f: RefineBinding[F, G]): SeqValues[G, A, C] = new SeqValues(source.refineBinding(f))
 
-    override def hashCode: Int = seq.hashCode
+    override def hashCode: Int = source.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: SeqValues[_, _, _] => other.source.equals(seq)
+      case other: SeqValues[_, _, _] => other.source.equals(source)
       case _                         => false
     }
   }
 
-  private[schema] case class MapKeys[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
+  private[schema] case class MapKeys[F[_, _], Key, Value, M[_, _]](source: Reflect.Map[F, Key, Value, M])
       extends Traversal[F, M[Key, Value], Key]
       with Leaf[F, M[Key, Value], Key] {
-    def source: Reflect[F, M[Key, Value]] = map
-
-    def focus: Reflect[F, Key] = map.key
+    def focus: Reflect[F, Key] = source.key
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Key) => Z)(implicit F: HasBinding[F]): Z = {
-      val deconstructor = F.mapDeconstructor(map.mapBinding)
+      val deconstructor = F.mapDeconstructor(source.mapBinding)
       val it            = deconstructor.deconstruct(s)
       var z             = zero
       while (it.hasNext) z = f(z, deconstructor.getKey(it.next()))
@@ -1083,8 +1078,8 @@ object Traversal {
     }
 
     def modify(s: M[Key, Value], f: Key => Key)(implicit F: HasBinding[F]): M[Key, Value] = {
-      val deconstructor = F.mapDeconstructor(map.mapBinding)
-      val constructor   = F.mapConstructor(map.mapBinding)
+      val deconstructor = F.mapDeconstructor(source.mapBinding)
+      val constructor   = F.mapConstructor(source.mapBinding)
       val builder       = constructor.newObjectBuilder[Key, Value]()
       val it            = deconstructor.deconstruct(s)
       while (it.hasNext) {
@@ -1096,25 +1091,23 @@ object Traversal {
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
 
-    def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapKeys[G, Key, Value, M] = new MapKeys(map.refineBinding(f))
+    def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapKeys[G, Key, Value, M] = new MapKeys(source.refineBinding(f))
 
-    override def hashCode: Int = map.hashCode
+    override def hashCode: Int = source.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: MapKeys[_, _, _, _] => other.source.equals(map)
+      case other: MapKeys[_, _, _, _] => other.source.equals(source)
       case _                          => false
     }
   }
 
-  private[schema] case class MapValues[F[_, _], Key, Value, M[_, _]](map: Reflect.Map[F, Key, Value, M])
+  private[schema] case class MapValues[F[_, _], Key, Value, M[_, _]](source: Reflect.Map[F, Key, Value, M])
       extends Traversal[F, M[Key, Value], Value]
       with Leaf[F, M[Key, Value], Value] {
-    def source: Reflect[F, M[Key, Value]] = map
-
-    def focus: Reflect[F, Value] = map.value
+    def focus: Reflect[F, Value] = source.value
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Value) => Z)(implicit F: HasBinding[F]): Z = {
-      val deconstructor = F.mapDeconstructor(map.mapBinding)
+      val deconstructor = F.mapDeconstructor(source.mapBinding)
       val it            = deconstructor.deconstruct(s)
       var z             = zero
       while (it.hasNext) z = f(z, deconstructor.getValue(it.next()))
@@ -1122,8 +1115,8 @@ object Traversal {
     }
 
     def modify(s: M[Key, Value], f: Value => Value)(implicit F: HasBinding[F]): M[Key, Value] = {
-      val deconstructor = F.mapDeconstructor(map.mapBinding)
-      val constructor   = F.mapConstructor(map.mapBinding)
+      val deconstructor = F.mapDeconstructor(source.mapBinding)
+      val constructor   = F.mapConstructor(source.mapBinding)
       val builder       = constructor.newObjectBuilder[Key, Value]()
       val it            = deconstructor.deconstruct(s)
       while (it.hasNext) {
@@ -1136,12 +1129,12 @@ object Traversal {
     override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): MapValues[G, Key, Value, M] =
-      new MapValues(map.refineBinding(f))
+      new MapValues(source.refineBinding(f))
 
-    override def hashCode: Int = map.hashCode
+    override def hashCode: Int = source.hashCode
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: MapValues[_, _, _, _] => other.map.equals(map)
+      case other: MapValues[_, _, _, _] => other.source.equals(source)
       case _                            => false
     }
   }
@@ -1195,12 +1188,10 @@ object Traversal {
       g(s).asInstanceOf[S]
     }
 
-    override lazy val toDynamic: DynamicOptic = DynamicOptic(leafs.toVector.flatMap(_.toDynamic.nodes))
+    override lazy val toDynamic: DynamicOptic = DynamicOptic(leafs.flatMap(_.toDynamic.nodes).toVector)
 
     def refineBinding[G[_, _]](f: RefineBinding[F, G]): Traversal[G, S, A] =
       new TraversalMixed(leafs.map(_.refineBinding(f).asInstanceOf[Leaf[G, _, _]]))
-
-    private[schema] def linearized: Array[Leaf[F, _, _]] = leafs
   }
 }
 
