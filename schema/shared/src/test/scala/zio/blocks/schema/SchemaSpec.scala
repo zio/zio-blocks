@@ -362,21 +362,22 @@ object SchemaSpec extends ZIOSpecDefault {
 
         type Record1 = `Record-1`
 
-        val schema = Schema.derived[Record1]
-        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
-        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Boolean]]
-        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Float]]
-        val lens1  = Lens(record, field1)
-        val lens2  = Lens(record, field2)
-        assert(field1.value.binding.defaultValue.get.apply())(equalTo(false)) &&
-        assert(field2.value.binding.defaultValue.get.apply())(equalTo(0.0f)) &&
+        object `Record-1` extends CompanionOptics[`Record-1`] {
+          implicit val schema: Schema[Record1] = Schema.derived
+          val `b-1`: Lens[Record1, Boolean]    = field(x => x.`b-1`)
+          val `f-2`: Lens[Record1, Float]      = field(_.`f-2`)
+        }
+
+        val record = `Record-1`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
-        assert(lens1.get(`Record-1`()))(equalTo(false)) &&
-        assert(lens2.get(`Record-1`()))(equalTo(0.0f)) &&
-        assert(lens1.replace(`Record-1`(), true))(equalTo(`Record-1`(`b-1` = true))) &&
-        assert(lens2.replace(`Record-1`(), 1.0f))(equalTo(`Record-1`(`b-1` = false, 1.0f))) &&
-        assert(schema)(
+        assert(`Record-1`.`b-1`.focus.binding.defaultValue.get.apply())(equalTo(false)) &&
+        assert(`Record-1`.`f-2`.focus.binding.defaultValue.get.apply())(equalTo(0.0f)) &&
+        assert(`Record-1`.`b-1`.get(`Record-1`()))(equalTo(false)) &&
+        assert(`Record-1`.`f-2`.get(`Record-1`()))(equalTo(0.0f)) &&
+        assert(`Record-1`.`b-1`.replace(`Record-1`(), true))(equalTo(`Record-1`(`b-1` = true))) &&
+        assert(`Record-1`.`f-2`.replace(`Record-1`(), 1.0f))(equalTo(`Record-1`(`b-1` = false, 1.0f))) &&
+        assert(`Record-1`.schema)(
           equalTo(
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
@@ -415,21 +416,24 @@ object SchemaSpec extends ZIOSpecDefault {
         type `i-8`         = Byte
         type `i-32`        = Int
 
-        val schema = Schema.derived[Record2[`i-8`, `i-32`]]
-        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
-        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record2[`i-8`, `i-32`], `i-8`]]
-        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record2[`i-8`, `i-32`], `i-32`]]
-        val lens1  = Lens(record, field1)
-        val lens2  = Lens(record, field2)
-        assert(field1.value.binding.defaultValue)(isNone) &&
-        assert(field2.value.binding.defaultValue.get.apply())(equalTo(0)) &&
+        object `Record-2` extends CompanionOptics[Record2[`i-8`, `i-32`]] {
+          implicit val schema: Schema[Record2[`i-8`, `i-32`]] = Schema.derived
+          val b: Lens[Record2[`i-8`, `i-32`], `i-8`]          = field(_.b)
+          val i: Lens[Record2[`i-8`, `i-32`], `i-32`]         = field(_.i)
+        }
+
+        val record = `Record-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
-        assert(lens1.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
-        assert(lens2.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(2)) &&
-        assert(lens1.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3: Byte))(equalTo(`Record-2`[`i-8`, `i-32`](3, 2))) &&
-        assert(lens2.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3))(equalTo(`Record-2`[`i-8`, `i-32`](1, 3))) &&
-        assert(schema)(
+        assert(`Record-2`.b.focus.binding.defaultValue)(isNone) &&
+        assert(`Record-2`.i.focus.binding.defaultValue.get.apply())(equalTo(0)) &&
+        assert(`Record-2`.b.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
+        assert(`Record-2`.i.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(2)) &&
+        assert(`Record-2`.b.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3: Byte))(
+          equalTo(`Record-2`[`i-8`, `i-32`](3, 2))
+        ) &&
+        assert(`Record-2`.i.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3))(equalTo(`Record-2`[`i-8`, `i-32`](1, 3))) &&
+        assert(`Record-2`.schema)(
           equalTo(
             new Schema[Record2[`i-8`, `i-32`]](
               reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
@@ -453,21 +457,22 @@ object SchemaSpec extends ZIOSpecDefault {
       test("derives schema for record with multi list constructor using a macro call") {
         class Record3(val s: Short)(val l: Long)
 
-        val schema = Schema.derived[Record3]
-        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
-        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record3, Short]]
-        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record3, Long]]
-        val lens1  = Lens(record, field1)
-        val lens2  = Lens(record, field2)
-        assert(field1.value.binding.defaultValue)(isNone) &&
-        assert(field2.value.binding.defaultValue)(isNone) &&
+        object Record3 extends CompanionOptics[Record3] {
+          implicit val schema: Schema[Record3] = Schema.derived
+          val s: Lens[Record3, Short]          = field(_.s)
+          val l: Lens[Record3, Long]           = field(_.l)
+        }
+
+        val record = Record3.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
-        assert(lens1.get(new Record3(1)(2L)))(equalTo(1: Short)) &&
-        assert(lens2.get(new Record3(1)(2L)))(equalTo(2L)) &&
-        assert(lens1.replace(new Record3(1)(2L), 3: Short).s)(equalTo(3: Short)) &&
-        assert(lens2.replace(new Record3(1)(2L), 3L).l)(equalTo(3L)) &&
-        assert(schema)(
+        assert(Record3.s.focus.binding.defaultValue)(isNone) &&
+        assert(Record3.l.focus.binding.defaultValue)(isNone) &&
+        assert(Record3.s.get(new Record3(1)(2L)))(equalTo(1: Short)) &&
+        assert(Record3.l.get(new Record3(1)(2L)))(equalTo(2L)) &&
+        assert(Record3.s.replace(new Record3(1)(2L), 3: Short).s)(equalTo(3: Short)) &&
+        assert(Record3.l.replace(new Record3(1)(2L), 3L).l)(equalTo(3L)) &&
+        assert(Record3.schema)(
           equalTo(
             new Schema[Record3](
               reflect = Reflect.Record[Binding, Record3](
@@ -489,22 +494,22 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with nested collections using a macro call") {
-        import zio.blocks.schema.binding._
-
         case class Record4(mx: Array[Array[Int]], rs: List[Set[Int]])
 
-        val schema     = Schema.derived[Record4]
-        val record     = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
-        val field1     = record.fields(0).asInstanceOf[Term.Bound[Record4, Array[Array[Int]]]]
-        val field2     = record.fields(1).asInstanceOf[Term.Bound[Record4, List[Set[Int]]]]
-        val traversal1 = Lens(record, field1).arrayValues.arrayValues
-        val traversal2 = Lens(record, field2).listValues.setValues
-        assert(field1.value.binding.defaultValue)(isNone) &&
-        assert(field2.value.binding.defaultValue)(isNone) &&
+        object Record4 extends CompanionOptics[Record4] {
+          implicit val schema: Schema[Record4] = Schema.derived
+          val mx: Traversal[Record4, Int]      = field((x: Record4) => x.mx).arrayValues.arrayValues
+          val rs: Traversal[Record4, Int]      = field(_.rs).listValues.setValues
+        }
+
+        val schema = Schema.derived[Record4]
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
-        assert(traversal1.fold[Int](Record4(Array(Array(1, 2), Array(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
-        assert(traversal2.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
+        assert(Record4.mx.focus.binding.defaultValue)(isNone) &&
+        assert(Record4.rs.focus.binding.defaultValue)(isNone) &&
+        assert(Record4.mx.fold[Int](Record4(Array(Array(1, 2), Array(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
+        assert(Record4.rs.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
         assert(schema)(
           equalTo(
             new Schema[Record4](
@@ -570,31 +575,31 @@ object SchemaSpec extends ZIOSpecDefault {
         @Modifier.config("variant-key", "variant-value-2")
         sealed trait `Variant-1`
 
-        case class `Case-1`(d: Double) extends `Variant-1`
+        type Variant1 = `Variant-1`
+
+        case class `Case-1`(d: Double) extends Variant1
 
         object `Case-1` {
           implicit val schema: Schema[`Case-1`] = Schema.derived
         }
 
-        case class `Case-2`(f: Float) extends `Variant-1`
+        case class `Case-2`(f: Float) extends Variant1
 
         object `Case-2` {
           implicit val schema: Schema[`Case-2`] = Schema.derived
         }
 
-        type Variant1 = `Variant-1`
+        object `Variant-1` extends CompanionOptics[Variant1] {
+          implicit val schema: Schema[Variant1] = Schema.derived
+          val case1: Prism[Variant1, `Case-1`]  = caseOf
+          val case2: Prism[Variant1, `Case-2`]  = caseOf
+        }
 
-        val schema  = Schema.derived[Variant1]
-        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant1]]
-        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant1, `Case-1`]]
-        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant1, `Case-2`]]
-        val prism1  = Prism(variant, case1)
-        val prism2  = Prism(variant, case2)
-        assert(prism1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
-        assert(prism2.getOption(`Case-2`(0.2f)))(isSome(equalTo(`Case-2`(0.2f)))) &&
-        assert(prism1.replace(`Case-1`(0.1), `Case-1`(0.2)))(equalTo(`Case-1`(0.2))) &&
-        assert(prism2.replace(`Case-2`(0.2f), `Case-2`(0.3f)))(equalTo(`Case-2`(0.3f))) &&
-        assert(schema)(
+        assert(`Variant-1`.case1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
+        assert(`Variant-1`.case2.getOption(`Case-2`(0.2f)))(isSome(equalTo(`Case-2`(0.2f)))) &&
+        assert(`Variant-1`.case1.replace(`Case-1`(0.1), `Case-1`(0.2)))(equalTo(`Case-1`(0.2))) &&
+        assert(`Variant-1`.case2.replace(`Case-2`(0.2f), `Case-2`(0.3f)))(equalTo(`Case-2`(0.3f))) &&
+        assert(`Variant-1`.schema)(
           equalTo(
             new Schema[Variant1](
               reflect = Reflect.Variant[Binding, Variant1](
@@ -622,33 +627,32 @@ object SchemaSpec extends ZIOSpecDefault {
       test("derives schema for genetic variant using a macro call") {
         sealed abstract class `Variant-2`[+A]
 
+        type Variant2[A] = `Variant-2`[A]
+
         @Modifier.config("record-key", "record-value-1")
         @Modifier.config("record-key", "record-value-2")
-        case object MissingValue extends `Variant-2`[Nothing] {
+        case object MissingValue extends Variant2[Nothing] {
           implicit val schema: Schema[MissingValue.type] = Schema.derived
         }
 
-        case object NullValue extends `Variant-2`[Null] {
+        case object NullValue extends Variant2[Null] {
           implicit val schema: Schema[NullValue.type] = Schema.derived
         }
 
-        case class Value[A](a: A) extends `Variant-2`[A]
+        case class Value[A](a: A) extends Variant2[A]
 
         object Value {
-          implicit def schema[A <: AnyRef: Schema]: Schema[Value[A]] = Schema.derived[Value[A]]
+          implicit def schema[A <: AnyRef: Schema]: Schema[Value[A]] = Schema.derived
         }
 
-        type Variant2[A] = `Variant-2`[A]
+        object Variant2OfString extends CompanionOptics[Variant2[String]] {
+          implicit val schema: Schema[Variant2[String]]                = Schema.derived
+          val missingValue: Prism[Variant2[String], MissingValue.type] = caseOf
+          val nullValue: Prism[Variant2[String], NullValue.type]       = caseOf
+          val value: Prism[Variant2[String], Value[String]]            = caseOf
+        }
 
-        val schema  = Schema.derived[Variant2[String]]
-        val record  = Schema[MissingValue.type].reflect.asInstanceOf[Reflect.Record[Binding, MissingValue.type]]
-        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant2[String]]]
-        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant2[String], MissingValue.type]]
-        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant2[String], NullValue.type]]
-        val case3   = variant.cases(2).asInstanceOf[Term.Bound[Variant2[String], Value[String]]]
-        val prism1  = Prism(variant, case1)
-        val prism2  = Prism(variant, case2)
-        val prism3  = Prism(variant, case3)
+        val record = Schema[MissingValue.type].reflect.asInstanceOf[Reflect.Record[Binding, MissingValue.type]]
         assert(record.modifiers)(
           equalTo(
             Seq(
@@ -657,11 +661,13 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         ) &&
-        assert(prism1.getOption(MissingValue))(isSome(equalTo(MissingValue))) &&
-        assert(prism2.getOption(NullValue))(isSome(equalTo(NullValue))) &&
-        assert(prism3.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
-        assert(prism3.replace(Value[String]("WWW"), Value[String]("VVV")))(equalTo(Value[String]("VVV"))) &&
-        assert(schema)(
+        assert(Variant2OfString.missingValue.getOption(MissingValue))(isSome(equalTo(MissingValue))) &&
+        assert(Variant2OfString.nullValue.getOption(NullValue))(isSome(equalTo(NullValue))) &&
+        assert(Variant2OfString.value.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
+        assert(Variant2OfString.value.replace(Value[String]("WWW"), Value[String]("VVV")))(
+          equalTo(Value[String]("VVV"))
+        ) &&
+        assert(Variant2OfString.schema)(
           equalTo(
             new Schema[Variant2[String]](
               reflect = Reflect.Variant[Binding, Variant2[String]](
@@ -696,19 +702,20 @@ object SchemaSpec extends ZIOSpecDefault {
 
         case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
 
-        implicit val schemaCase1Option: Schema[`Case-1`[Option]] = Schema.derived
-        implicit val schemaCase2Option: Schema[`Case-2`[Option]] = Schema.derived
+        object Variant3OfOption extends CompanionOptics[`Variant-3`[Option]] {
+          implicit val schemaCase1: Schema[`Case-1`[Option]]      = Schema.derived
+          implicit val schemaCase2: Schema[`Case-2`[Option]]      = Schema.derived
+          implicit val schema: Schema[`Variant-3`[Option]]        = Schema.derived
+          val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = caseOf
+          val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = caseOf
+        }
 
-        val schema  = Schema.derived[`Variant-3`[Option]]
-        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, `Variant-3`[Option]]]
-        val case1   = variant.cases(0).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-1`[Option]]]
-        val case2   = variant.cases(1).asInstanceOf[Term.Bound[`Variant-3`[Option], `Case-2`[Option]]]
-        val prism1  = Prism(variant, case1)
-        val prism2  = Prism(variant, case2)
-        assert(prism1.getOption(`Case-1`[Option](Some(0.1))))(isSome(equalTo(`Case-1`[Option](Some(0.1))))) &&
-        assert(prism2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
-        assert(prism1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
-        assert(prism2.replace(`Case-2`[Option](Some(0.2f)), `Case-2`[Option](None)))(equalTo(`Case-2`[Option](None))) &&
+        import Variant3OfOption._
+
+        assert(case1.getOption(`Case-1`[Option](Some(0.1))))(isSome(equalTo(`Case-1`[Option](Some(0.1))))) &&
+        assert(case2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
+        assert(case1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
+        assert(case2.replace(`Case-2`[Option](Some(0.2f)), `Case-2`[Option](None)))(equalTo(`Case-2`[Option](None))) &&
         assert(schema)(
           equalTo(
             new Schema[`Variant-3`[Option]](

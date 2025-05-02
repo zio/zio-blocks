@@ -179,45 +179,38 @@ class TraversalModifyBenchmark extends BaseBenchmark {
 object LensDomain {
   case class E(s: String)
 
-  object E {
-    implicit val schema: Schema[E]       = Schema.derived
-    val reflect: Reflect.Record.Bound[E] = schema.reflect.asInstanceOf[Reflect.Record.Bound[E]]
-    val s: Lens.Bound[E, String]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E, String]])
+  object E extends CompanionOptics[E] {
+    implicit val schema: Schema[E] = Schema.derived
+    val s: Lens[E, String]         = field(_.s)
   }
 
   case class D(e: E)
 
-  object D {
-    implicit val schema: Schema[D]       = Schema.derived
-    val reflect: Reflect.Record.Bound[D] = schema.reflect.asInstanceOf[Reflect.Record.Bound[D]]
-    val e: Lens.Bound[D, E]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D, E]])
+  object D extends CompanionOptics[D] {
+    implicit val schema: Schema[D] = Schema.derived
+    val e: Lens[D, E]              = field(_.e)
   }
 
   case class C(d: D)
 
-  object C {
-    implicit val schema: Schema[C]       = Schema.derived
-    val reflect: Reflect.Record.Bound[C] = schema.reflect.asInstanceOf[Reflect.Record.Bound[C]]
-    val d: Lens.Bound[C, D]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C, D]])
+  object C extends CompanionOptics[C] {
+    implicit val schema: Schema[C] = Schema.derived
+    val d: Lens[C, D]              = field(_.d)
   }
 
   case class B(c: C)
 
-  object B {
-    implicit val schema: Schema[B]       = Schema.derived
-    val reflect: Reflect.Record.Bound[B] = schema.reflect.asInstanceOf[Reflect.Record.Bound[B]]
-    val c: Lens.Bound[B, C]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B, C]])
+  object B extends CompanionOptics[B] {
+    implicit val schema: Schema[B] = Schema.derived
+    val c: Lens[B, C]              = field(_.c)
   }
 
   case class A(b: B)
 
-  object A {
-    implicit val schema: Schema[A]       = Schema.derived
-    val reflect: Reflect.Record.Bound[A] = schema.reflect.asInstanceOf[Reflect.Record.Bound[A]]
-    val b: Lens.Bound[A, B] =
-      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A, B]])
-    val b_c_d_e_s: Lens.Bound[A, String] =
-      b.apply(B.c).apply(C.d).apply(D.e).apply(E.s)
+  object A extends CompanionOptics[A] {
+    implicit val schema: Schema[A] = Schema.derived
+    val b: Lens[A, B]              = field(_.b)
+    val b_c_d_e_s: Lens[A, String] = b(B.c)(C.d)(D.e)(E.s)
     val b_c_d_e_s_quicklens: A => PathModify[A, String] =
       (modify(_: A)(_.b))
         .andThenModify(modify(_: B)(_.c))
@@ -232,108 +225,94 @@ object LensDomain {
 object OptionalDomain {
   sealed trait E
 
-  object E {
-    implicit val schema: Schema[E]        = Schema.derived
-    val reflect: Reflect.Variant.Bound[E] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[E]]
-    val e1: Prism.Bound[E, E1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[E, E1]])
+  object E extends CompanionOptics[E] {
+    implicit val schema: Schema[E] = Schema.derived
+    val e1: Prism[E, E1]           = caseOf
   }
 
   case class E1(s: String) extends E
 
-  object E1 {
-    implicit val schema: Schema[E1]       = Schema.derived
-    val reflect: Reflect.Record.Bound[E1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[E1]]
-    val s: Lens.Bound[E1, String]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E1, String]])
+  object E1 extends CompanionOptics[E1] {
+    implicit val schema: Schema[E1] = Schema.derived
+    val s: Lens[E1, String]         = field(_.s)
   }
 
   case class E2(i: Int) extends E
 
-  object E2 {
-    implicit val schema: Schema[E2]       = Schema.derived
-    val reflect: Reflect.Record.Bound[E2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[E2]]
-    val i: Lens.Bound[E2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[E2, Int]])
+  object E2 extends CompanionOptics[E2] {
+    implicit val schema: Schema[E2] = Schema.derived
+    val i: Lens[E2, Int]            = field(_.i)
   }
 
   sealed trait D
 
-  object D {
-    implicit val schema: Schema[D]        = Schema.derived
-    val reflect: Reflect.Variant.Bound[D] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[D]]
-    val d1: Prism.Bound[D, D1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[D, D1]])
+  object D extends CompanionOptics[D] {
+    implicit val schema: Schema[D] = Schema.derived
+    val d1: Prism[D, D1]           = caseOf
   }
 
   case class D1(e: E) extends D
 
-  object D1 {
-    implicit val schema: Schema[D1]       = Schema.derived
-    val reflect: Reflect.Record.Bound[D1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[D1]]
-    val e: Lens.Bound[D1, E]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D1, E]])
+  object D1 extends CompanionOptics[D1] {
+    implicit val schema: Schema[D1] = Schema.derived
+    val e: Lens[D1, E]              = field(_.e)
   }
 
   case class D2(i: Int) extends D
 
-  object D2 {
-    implicit val schema: Schema[D2]       = Schema.derived
-    val reflect: Reflect.Record.Bound[D2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[D2]]
-    val i: Lens.Bound[D2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[D2, Int]])
+  object D2 extends CompanionOptics[D2] {
+    implicit val schema: Schema[D2] = Schema.derived
+    val i: Lens[D2, Int]            = field(_.i)
   }
 
   sealed trait C
 
-  object C {
-    implicit val schema: Schema[C]        = Schema.derived
-    val reflect: Reflect.Variant.Bound[C] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[C]]
-    val c1: Prism.Bound[C, C1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[C, C1]])
+  object C extends CompanionOptics[C] {
+    implicit val schema: Schema[C] = Schema.derived
+    val c1: Prism[C, C1]           = caseOf
   }
 
   case class C1(d: D) extends C
 
-  object C1 {
-    implicit val schema: Schema[C1]       = Schema.derived
-    val reflect: Reflect.Record.Bound[C1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[C1]]
-    val d: Lens.Bound[C1, D]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C1, D]])
+  object C1 extends CompanionOptics[C1] {
+    implicit val schema: Schema[C1] = Schema.derived
+    val d: Lens[C1, D]              = field(_.d)
   }
 
   case class C2(i: Int) extends C
 
-  object C2 {
-    implicit val schema: Schema[C2]       = Schema.derived
-    val reflect: Reflect.Record.Bound[C2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[C2]]
-    val i: Lens.Bound[C2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[C2, Int]])
+  object C2 extends CompanionOptics[C2] {
+    implicit val schema: Schema[C2] = Schema.derived
+    val i: Lens[C2, Int]            = field(_.i)
   }
 
   sealed trait B
 
-  object B {
-    implicit val schema: Schema[B]        = Schema.derived
-    val reflect: Reflect.Variant.Bound[B] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[B]]
-    val b1: Prism.Bound[B, B1]            = Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[B, B1]])
+  object B extends CompanionOptics[B] {
+    implicit val schema: Schema[B] = Schema.derived
+    val b1: Prism[B, B1]           = caseOf
   }
 
   case class B1(c: C) extends B
 
-  object B1 {
-    implicit val schema: Schema[B1]       = Schema.derived
-    val reflect: Reflect.Record.Bound[B1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[B1]]
-    val c: Lens.Bound[B1, C]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B1, C]])
+  object B1 extends CompanionOptics[B1] {
+    implicit val schema: Schema[B1] = Schema.derived
+    val c: Lens[B1, C]              = field(_.c)
   }
 
   case class B2(i: Int) extends B
 
-  object B2 {
-    implicit val schema: Schema[B2]       = Schema.derived
-    val reflect: Reflect.Record.Bound[B2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[B2]]
-    val i: Lens.Bound[B2, Int]            = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[B2, Int]])
+  object B2 extends CompanionOptics[B2] {
+    implicit val schema: Schema[B2] = Schema.derived
+    val i: Lens[B2, Int]            = field(_.i)
   }
 
   case class A1(b: B)
 
-  object A1 {
-    implicit val schema: Schema[A1]       = Schema.derived
-    val reflect: Reflect.Record.Bound[A1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[A1]]
-    val b: Lens.Bound[A1, B] =
-      Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[A1, B]])
-    val b_b1_c_c1_d_d1_e_e1_s: Optional.Bound[A1, String] =
+  object A1 extends CompanionOptics[A1] {
+    implicit val schema: Schema[A1] = Schema.derived
+    val b: Lens[A1, B]              = field(_.b)
+    val b_b1_c_c1_d_d1_e_e1_s: Optional[A1, String] =
       b(B.b1)(B1.c)(C.c1)(C1.d)(D.d1)(D1.e)(E.e1)(E1.s)
     val b_b1_c_c1_d_d1_e_e1_s_quicklens: A1 => PathModify[A1, String] =
       (modify(_: A1)(_.b.when[B1]))
@@ -355,5 +334,5 @@ object OptionalDomain {
 }
 
 object TraversalDomain {
-  val a_i: Traversal.Bound[Array[Int], Int] = Traversal.arrayValues(Reflect.int[Binding])
+  val a_i: Traversal[Array[Int], Int] = Traversal.arrayValues(Reflect.int[Binding])
 }
