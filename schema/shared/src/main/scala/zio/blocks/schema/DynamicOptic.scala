@@ -2,6 +2,9 @@ package zio.blocks.schema
 
 case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   import DynamicOptic.Node
+
+  def apply(that: DynamicOptic): DynamicOptic = DynamicOptic(nodes ++ that.nodes)
+
   def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, A]] =
     nodes
       .foldLeft[Option[Reflect[F, ?]]](Some(reflect)) {
@@ -22,7 +25,13 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 }
 
 object DynamicOptic {
-  val root = DynamicOptic(Vector.empty)
+  val root: DynamicOptic = DynamicOptic(Vector.empty)
+
+  val elements: DynamicOptic = DynamicOptic(Vector(Node.Elements))
+
+  val mapKeys: DynamicOptic = DynamicOptic(Vector(Node.MapKeys))
+
+  val mapValues: DynamicOptic = DynamicOptic(Vector(Node.MapValues))
 
   sealed trait Node {
     def apply[F[_, _]](reflect: Reflect[F, _]): Option[Reflect[F, _]]

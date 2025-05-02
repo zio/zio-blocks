@@ -113,15 +113,56 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   override def hashCode: Int = inner.hashCode
 
+  final def isDeferred: Boolean =
+    this match {
+      case _: Reflect.Deferred[_, _] => true
+      case _                         => false
+    }
+
+  final def isMap: Boolean =
+    this match {
+      case _: Reflect.Map[_, _, _, _] => true
+      case d: Reflect.Deferred[_, _]  => d.value.isMap
+      case _                          => false
+    }
+
+  final def isPrimitive: Boolean =
+    this match {
+      case _: Reflect.Primitive[_, _] => true
+      case d: Reflect.Deferred[_, _]  => d.value.isPrimitive
+      case _                          => false
+    }
+
+  final def isRecord: Boolean =
+    this match {
+      case _: Reflect.Record[_, _]   => true
+      case d: Reflect.Deferred[_, _] => d.value.isRecord
+      case _                         => false
+    }
+
+  final def isSequence: Boolean =
+    this match {
+      case _: Reflect.Sequence[_, _, _] => true
+      case d: Reflect.Deferred[_, _]    => d.value.isSequence
+      case _                            => false
+    }
+
+  final def isVariant: Boolean =
+    this match {
+      case _: Reflect.Variant[_, _]  => true
+      case d: Reflect.Deferred[_, _] => d.value.isVariant
+      case _                         => false
+    }
+
   def modifiers: Seq[ModifierType]
 
   def modifier(modifier: ModifierType): Reflect[F, A]
 
   def modifiers(modifiers: Iterable[ModifierType]): Reflect[F, A] = ???
 
-  def noBinding: Reflect[NoBinding, A] = transform(ReflectTransformer.noBinding()).force
+  def noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
 
-  def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
+  def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
   def updated[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
@@ -238,10 +279,10 @@ object Reflect {
       else None
     }
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
-        fields <- Lazy.foreach(fields.toVector)(_.transform(f))
-        record <- f.transformRecord(fields, typeName, recordBinding, doc, modifiers)
+        fields <- Lazy.foreach(fields.toVector)(_.transform(path, Term.Type.Record, f))
+        record <- f.transformRecord(path, fields, typeName, recordBinding, doc, modifiers)
       } yield record
 
     val registers: IndexedSeq[Register[?]] = {
@@ -347,10 +388,10 @@ object Reflect {
 
     def prismByName(name: String): Option[Prism[F, A, ? <: A]] = caseByName(name).map(Prism(this, _))
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
-        cases   <- Lazy.foreach(cases.toVector)(_.transform(f))
-        variant <- f.transformVariant(cases, typeName, variantBinding, doc, modifiers)
+        cases   <- Lazy.foreach(cases.toVector)(_.transform(path, Term.Type.Variant, f))
+        variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
   }
 
@@ -388,10 +429,10 @@ object Reflect {
 
     def modifier(modifier: Modifier.Seq): Sequence[F, A, C] = copy(modifiers = modifiers :+ modifier)
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
-        element  <- element.transform(f)
-        sequence <- f.transformSequence(element, typeName, seqBinding, doc, modifiers)
+        element  <- element.transform(path(DynamicOptic.elements), f)
+        sequence <- f.transformSequence(path, element, typeName, seqBinding, doc, modifiers)
       } yield sequence
 
     def seqConstructor(implicit F: HasBinding[F]): SeqConstructor[C] = F.seqConstructor(seqBinding)
@@ -439,11 +480,11 @@ object Reflect {
 
     def modifier(modifier: Modifier.Map): Map[F, Key, Value, M] = copy(modifiers = modifiers :+ modifier)
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Map[G, Key, Value, M]] =
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, Key, Value, M]] =
       for {
-        key   <- key.transform(f)
-        value <- value.transform(f)
-        map   <- f.transformMap(key, value, typeName, mapBinding, doc, modifiers)
+        key   <- key.transform(path(DynamicOptic.mapKeys), f)
+        value <- value.transform(path(DynamicOptic.mapValues), f)
+        map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
     def keys: Traversal[F, M[Key, Value], Key] = Traversal.mapKeys(this)
@@ -484,9 +525,9 @@ object Reflect {
 
     def modifier(modifier: ModifierType): Dynamic[F] = copy(modifiers = modifiers :+ modifier)
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
-        dynamic <- f.transformDynamic(dynamicBinding, doc, modifiers)
+        dynamic <- f.transformDynamic(path, dynamicBinding, doc, modifiers)
       } yield dynamic
   }
   object Dynamic {
@@ -522,9 +563,9 @@ object Reflect {
 
     def modifier(modifier: Modifier.Primitive): Primitive[F, A] = copy(modifiers = modifiers :+ modifier)
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
-        primitive <- f.transformPrimitive(primitiveType, typeName, primitiveBinding, doc, modifiers)
+        primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
       } yield primitive
   }
   object Primitive {
@@ -561,16 +602,17 @@ object Reflect {
 
     def doc: Doc = value.doc
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] = Lazy[Lazy[Reflect[G, A]]] {
-      val v = visited.get
-      if (v.containsKey(this)) Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion
-      else {
-        for {
-          _      <- Lazy(v.put(this, ()))
-          result <- value.transform(f).ensuring(Lazy(v.remove(this)))
-        } yield result
-      }
-    }.flatten
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
+      Lazy[Lazy[Reflect[G, A]]] {
+        val v = visited.get
+        if (v.containsKey(this)) Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion
+        else {
+          for {
+            _      <- Lazy(v.put(this, ()))
+            result <- value.transform(path, f).ensuring(Lazy(v.remove(this)))
+          } yield result
+        }
+      }.flatten
 
     override def hashCode: Int = {
       val v = visited.get
