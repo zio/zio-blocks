@@ -131,10 +131,6 @@ object ReflectSpec extends ZIOSpecDefault {
       test("has consistent equals and hashCode") {
         val variant1 = Reflect.option(Reflect.int[Binding])
         val variant2 = Reflect.either(Reflect.byte[Binding], Reflect.long[Binding])
-
-        println(variant1.noBinding)
-        println(variant1)
-        
         assert(variant1)(equalTo(variant1)) &&
         assert(variant1.hashCode)(equalTo(variant1.hashCode)) &&
         assert(variant1.noBinding: Any)(equalTo(variant1)) &&
