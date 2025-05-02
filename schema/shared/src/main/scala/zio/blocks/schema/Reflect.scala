@@ -160,6 +160,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def modifiers(modifiers: Iterable[ModifierType]): Reflect[F, A] = ???
 
+  def nodeType: Reflect.Type { type NodeBinding = self.NodeBinding; type ModifierType = self.ModifierType }
+
   def noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
 
   def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
@@ -220,6 +222,37 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
 object Reflect {
   type Bound[A] = Reflect[Binding, A]
+
+  sealed trait Type {
+    type ModifierType <: Modifier
+    type NodeBinding <: BindingType
+  }
+  object Type {
+    case object Record extends Type {
+      type ModifierType = Modifier.Record
+      type NodeBinding  = BindingType.Record
+    }
+    case object Variant extends Type {
+      type ModifierType = Modifier.Variant
+      type NodeBinding  = BindingType.Variant
+    }
+    case class Sequence[C[_]]() extends Type {
+      type ModifierType = Modifier.Seq
+      type NodeBinding  = BindingType.Seq[C]
+    }
+    case class Map[M[_, _]]() extends Type {
+      type ModifierType = Modifier.Map
+      type NodeBinding  = BindingType.Map[M]
+    }
+    case object Dynamic extends Type {
+      type ModifierType = Modifier.Dynamic
+      type NodeBinding  = BindingType.Dynamic
+    }
+    case object Primitive extends Type {
+      type ModifierType = Modifier.Primitive
+      type NodeBinding  = BindingType.Primitive
+    }
+  }
 
   trait Updater[F[_, _]] {
     def update[A](reflect: Reflect[F, A]): Reflect[F, A]
@@ -338,6 +371,8 @@ object Reflect {
     val usedRegisters: RegisterOffset = registers.foldLeft(RegisterOffset.Zero) { (acc, register) =>
       RegisterOffset.add(acc, register.usedRegisters)
     }
+
+    override final val nodeType: Reflect.Type.Record.type = Reflect.Type.Record
   }
 
   object Record {
@@ -399,6 +434,8 @@ object Reflect {
         cases   <- Lazy.foreach(cases.toVector)(_.transform(path, Term.Type.Variant, f))
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
+
+    override final val nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
   }
 
   object Variant {
@@ -445,7 +482,7 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    // def values(implicit F: HasBinding[F]): Traversal[C[A], A] = Traversal.seqValues(this.transform(DynamicOptic.root, F).force)
+    override final val nodeType: Reflect.Type.Sequence[C] = Reflect.Type.Sequence[C]()
   }
 
   object Sequence {
@@ -493,8 +530,7 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
-    // def keys: Traversal[M[Key, Value], Key] = Traversal.mapKeys(this.transform(DynamicOptic.root, F).force)
-    // def values: Traversal[M[Key, Value], Value] = Traversal.mapValues(this.transform(DynamicOptic.root, F).force)
+    override final val nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
   }
 
   object Map {
@@ -534,6 +570,8 @@ object Reflect {
       for {
         dynamic <- f.transformDynamic(path, dynamicBinding, doc, modifiers)
       } yield dynamic
+
+    override final val nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
   }
   object Dynamic {
     type Bound = Dynamic[Binding]
@@ -572,6 +610,8 @@ object Reflect {
       for {
         primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
       } yield primitive
+
+    override final val nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
   }
   object Primitive {
     type Bound[A] = Primitive[Binding, A]
@@ -648,6 +688,8 @@ object Reflect {
         override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] =
           new java.util.IdentityHashMap[AnyRef, Unit](1)
       }
+
+    def nodeType = value.nodeType
   }
 
   def unit[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Unit] =
