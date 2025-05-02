@@ -10,7 +10,12 @@ trait Deriver[TC[_]] { self =>
 
   final def instance[F[_, _], T, A](fa: F[T, A])(implicit D: HasInstance[F]): Lazy[TC[A]] = D.instance(fa)
 
-  def derivePrimitive[F[_, _], A](prim: Reflect.Primitive[F, A]): Lazy[TC[A]]
+  def derivePrimitive[F[_, _], A](
+    primitiveType: PrimitiveType[A],
+    typeName: TypeName[A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Primitive]
+  ): Lazy[TC[A]]
 
   def deriveRecord[F[_, _], A](
     fields: Seq[Term[F, A, ?]],
@@ -26,7 +31,7 @@ trait Deriver[TC[_]] { self =>
     modifiers: Seq[Modifier.Variant]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 
-  def deriveSeq[F[_, _], C[_], A](
+  def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeName: TypeName[C[A]],
     doc: Doc,
@@ -40,4 +45,9 @@ trait Deriver[TC[_]] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Map]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[M[K, V]]]
+
+  def deriveDynamic[F[_, _]](
+    doc: Doc,
+    modifiers: Seq[Modifier.Dynamic]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[DynamicValue]]
 }
