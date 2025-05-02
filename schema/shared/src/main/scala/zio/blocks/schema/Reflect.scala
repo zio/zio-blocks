@@ -58,7 +58,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     case _                   => false
   }
 
-  final def get[B](optic: Optic[F, A, B]): Option[Reflect[F, B]] =
+  final def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] =
     get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
 
   final def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
@@ -164,7 +164,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
-  def updated[B](optic: Optic[F, A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
+  def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
       def update[A](reflect: Reflect[F, A]): Reflect[F, A] =
         f(reflect.asInstanceOf[Reflect[F, B]]).asInstanceOf[Reflect[F, A]]
@@ -256,9 +256,12 @@ object Reflect {
 
     def fieldByName(name: String): Option[Term[F, A, ?]] = fields.find(_.name == name)
 
-    def lensByIndex(index: Int): Lens[F, A, ?] = Lens(self, fields(index))
+    def lensByIndex(index: Int): Lens[A, ?] =
+      Lens(self.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, ?]])
 
-    def lensByName(name: String): Option[Lens[F, A, ?]] = fieldByName(name).map(Lens(self, _))
+    def lensByName(name: String): Option[Lens[A, ?]] = fieldByName(name).map(term =>
+      Lens(self.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, ?]])
+    )
 
     val length: Int = fields.length
 
@@ -384,9 +387,12 @@ object Reflect {
       } else None
     }
 
-    def prismByIndex(index: Int): Prism[F, A, ? <: A] = Prism(this, cases(index))
+    def prismByIndex(index: Int): Prism[A, ? <: A] =
+      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, ? <: A]])
 
-    def prismByName(name: String): Option[Prism[F, A, ? <: A]] = caseByName(name).map(Prism(this, _))
+    def prismByName(name: String): Option[Prism[A, ? <: A]] = caseByName(name).map(term =>
+      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], term.asInstanceOf[Term.Bound[A, ? <: A]])
+    )
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
@@ -439,7 +445,7 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    def values: Traversal[F, C[A], A] = Traversal.seqValues(this)
+    // def values(implicit F: HasBinding[F]): Traversal[C[A], A] = Traversal.seqValues(this.transform(DynamicOptic.root, F).force)
   }
 
   object Sequence {
@@ -487,9 +493,8 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
-    def keys: Traversal[F, M[Key, Value], Key] = Traversal.mapKeys(this)
-
-    def values: Traversal[F, M[Key, Value], Value] = Traversal.mapValues(this)
+    // def keys: Traversal[M[Key, Value], Key] = Traversal.mapKeys(this.transform(DynamicOptic.root, F).force)
+    // def values: Traversal[M[Key, Value], Value] = Traversal.mapValues(this.transform(DynamicOptic.root, F).force)
   }
 
   object Map {

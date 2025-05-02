@@ -26,12 +26,12 @@ final case class DerivationBuilder[TC[_], A](
   instanceOverrides: IndexedSeq[InstanceOverride[TC, ?]],
   modifierOverrides: IndexedSeq[ModifierOverride]
 ) {
-  def instance[B](optic: Optic.Bound[A, B], instance: => TC[B]): DerivationBuilder[TC, A] = {
+  def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] = {
     val override_ = InstanceOverride(optic.toDynamic, Lazy(instance))
     copy(instanceOverrides = instanceOverrides :+ override_)
   }
 
-  def modifier[B](optic: Optic.Bound[A, B], modifier: Modifier): DerivationBuilder[TC, A] = {
+  def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A] = {
     val override_ = ModifierOverride(optic.toDynamic, modifier)
     copy(modifierOverrides = modifierOverrides :+ override_)
   }

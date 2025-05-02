@@ -52,10 +52,6 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record1.b.focus)(equalTo(Reflect.boolean[Binding])) &&
         assert(Record2.r1_b.focus)(equalTo(Reflect.boolean[Binding]))
       },
-      test("refines a binding") {
-        assert(Record1.b.transform(ReflectTransformer.noBinding()).force)(equalTo(Record1.b.noBinding)) &&
-        assert(Record2.r1_b.transform(ReflectTransformer.noBinding()).force)(equalTo(Record2.r1_b.noBinding))
-      },
       test("gets a focus value") {
         assert(Record1.b.get(Record1(true, 1)))(equalTo(true)) &&
         assert(Record1.b.get(Record1(false, 1)))(equalTo(false)) &&
@@ -156,10 +152,6 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_c4.focus)(equalTo(Case4.reflect)) &&
         assert(Variant1.v2_v3_c5_left.focus)(equalTo(Case5.reflect)) &&
         assert(Variant1.v2_v3_c5_right.focus)(equalTo(Case5.reflect))
-      },
-      test("refines a binding") {
-        assert(Variant1.c1.transform(ReflectTransformer.noBinding()).force)(equalTo(Variant1.c1.noBinding)) &&
-        assert(Variant1.v2_c3.transform(ReflectTransformer.noBinding()).force)(equalTo(Variant1.v2_c3.noBinding))
       },
       test("gets an optional case class value") {
         assert(Variant1.c1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
@@ -372,41 +364,6 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1.focus)(equalTo(Case1.reflect)) &&
         assert(Variant2.c3_v1_v2_c4.focus)(equalTo(Case4.reflect))
       },
-      test("refines a binding") {
-        assert(Variant1.c1_d.transform(ReflectTransformer.noBinding()).force)(equalTo(Variant1.c1_d.noBinding)) &&
-        assert(Variant1.c2_r3.transform(ReflectTransformer.noBinding()).force)(equalTo(Variant1.c2_r3.noBinding)) &&
-        assert(Variant2.c3_v1_c1_left.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant2.c3_v1_c1_left.noBinding)
-        ) &&
-        assert(Variant2.c3_v1_c1_right.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant2.c3_v1_c1_right.noBinding)
-        ) &&
-        assert(Variant2.c3_v1_c1_d_left.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant2.c3_v1_c1_d_left.noBinding)
-        ) &&
-        assert(Variant2.c3_v1_c1_d_right.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant2.c3_v1_c1_d_right.noBinding)
-        ) &&
-        assert(Variant1.c2_r3_r1.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant1.c2_r3_r1.noBinding)
-        ) &&
-        assert(Variant1.v2_c3_v1.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant1.v2_c3_v1.noBinding)
-        ) &&
-        assert(Variant1.c2_r3_v1_c1.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant1.c2_r3_v1_c1.noBinding)
-        ) &&
-        assert(Case2.r3_v1_c1.transform(ReflectTransformer.noBinding()).force)(equalTo(Case2.r3_v1_c1.noBinding)) &&
-        assert(Case3.v1_c1_d_left.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Case3.v1_c1_d_left.noBinding)
-        ) &&
-        assert(Case3.v1_c1_d_right.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Case3.v1_c1_d_right.noBinding)
-        ) &&
-        assert(Variant2.c3_v1_v2_c4.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant2.c3_v1_v2_c4.noBinding)
-        )
-      },
       test("replaces a focus value") {
         assert(Variant1.c2_r3_r1.replace(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
           equalTo(Case2(Record3(Record1(false, 0.2f), null, null)))
@@ -552,19 +509,19 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("checks prerequisites for creation") {
         ZIO
-          .attempt(Traversal.arrayValues(null)(Binding.bindingFromBinding))
+          .attempt(Traversal.arrayValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
         ZIO
-          .attempt(Traversal.listValues(null)(Binding.bindingFromBinding))
+          .attempt(Traversal.listValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
         ZIO
-          .attempt(Traversal.setValues(null)(Binding.bindingFromBinding))
+          .attempt(Traversal.setValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
         ZIO
-          .attempt(Traversal.vectorValues(null)(Binding.bindingFromBinding))
+          .attempt(Traversal.vectorValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
       },
@@ -614,26 +571,6 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case4.lr3_r2_r1.focus)(equalTo(Record1.reflect)) &&
         assert(Variant2.c4_lr3.focus)(equalTo(Record3.reflect)) &&
         assert(Variant2.c3_v1_v2_c4_lr3.focus)(equalTo(Record3.reflect))
-      },
-      test("refines a binding") {
-        assert(Collections.ai.transform(ReflectTransformer.noBinding()).force)(equalTo(Collections.ai.noBinding)) &&
-        assert(Collections.mkc.transform(ReflectTransformer.noBinding()).force)(equalTo(Collections.mkc.noBinding)) &&
-        assert(Collections.mvs.transform(ReflectTransformer.noBinding()).force)(equalTo(Collections.mvs.noBinding)) &&
-        assert(Collections.lc1.transform(ReflectTransformer.noBinding()).force)(equalTo(Collections.lc1.noBinding)) &&
-        assert(Collections.lc1_d.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Collections.lc1_d.noBinding)
-        ) &&
-        assert(Collections.lc4_lr3.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Collections.lc4_lr3.noBinding)
-        ) &&
-        assert(Collections.lr1.transform(ReflectTransformer.noBinding()).force)(equalTo(Collections.lr1.noBinding)) &&
-        assert(Record2.vi.transform(ReflectTransformer.noBinding()).force)(equalTo(Record2.vi.noBinding)) &&
-        assert(Case4.lr3.transform(ReflectTransformer.noBinding()).force)(equalTo(Case4.lr3.noBinding)) &&
-        assert(Case4.lr3_r2_r1.transform(ReflectTransformer.noBinding()).force)(equalTo(Case4.lr3_r2_r1.noBinding)) &&
-        assert(Variant2.c4_lr3.transform(ReflectTransformer.noBinding()).force)(equalTo(Variant2.c4_lr3.noBinding)) &&
-        assert(Variant2.c3_v1_v2_c4_lr3.transform(ReflectTransformer.noBinding()).force)(
-          equalTo(Variant2.c3_v1_v2_c4_lr3.noBinding)
-        )
       },
       test("modifies collection values") {
         assert(Collections.abl.modify(Array(true, false, true), x => !x).toList)(equalTo(List(false, true, false))) &&
@@ -724,9 +661,9 @@ object OpticSpec extends ZIOSpecDefault {
   object Record1 {
     implicit val schema: Schema[Record1]       = Schema.derived
     val reflect: Reflect.Record.Bound[Record1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record1]]
-    val b: Lens.Bound[Record1, Boolean] =
+    val b: Lens[Record1, Boolean] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record1, Boolean]])
-    val f: Lens.Bound[Record1, Float] = Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record1, Float]])
+    val f: Lens[Record1, Float] = Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record1, Float]])
   }
 
   case class Record2(l: Long, vi: Vector[Int], r1: Record1)
@@ -734,13 +671,13 @@ object OpticSpec extends ZIOSpecDefault {
   object Record2 {
     implicit val schema: Schema[Record2]       = Schema.derived
     val reflect: Reflect.Record.Bound[Record2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record2]]
-    val l: Lens.Bound[Record2, Long]           = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record2, Long]])
-    val vi: Traversal.Bound[Record2, Int] =
+    val l: Lens[Record2, Long]           = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record2, Long]])
+    val vi: Traversal[Record2, Int] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record2, Vector[Int]]]).vectorValues
-    val r1: Lens.Bound[Record2, Record1] =
+    val r1: Lens[Record2, Record1] =
       Lens(reflect, reflect.fields(2).asInstanceOf[Term.Bound[Record2, Record1]])
-    lazy val r1_b: Lens.Bound[Record2, Boolean] = r1(Record1.b)
-    lazy val r1_f: Lens.Bound[Record2, Float]   = r1(Record1.f)
+    lazy val r1_b: Lens[Record2, Boolean] = r1(Record1.b)
+    lazy val r1_f: Lens[Record2, Float]   = r1(Record1.f)
   }
 
   case class Record3(r1: Record1, r2: Record2, @Modifier.deferred v1: Variant1)
@@ -748,15 +685,15 @@ object OpticSpec extends ZIOSpecDefault {
   object Record3 {
     implicit val schema: Schema[Record3]       = Schema.derived
     val reflect: Reflect.Record.Bound[Record3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record3]]
-    val r1: Lens.Bound[Record3, Record1] =
+    val r1: Lens[Record3, Record1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Record3, Record1]])
-    val r2: Lens.Bound[Record3, Record2] =
+    val r2: Lens[Record3, Record2] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Record3, Record2]])
-    val v1: Lens.Bound[Record3, Variant1] =
+    val v1: Lens[Record3, Variant1] =
       Lens(reflect, reflect.fields(2).asInstanceOf[Term.Bound[Record3, Variant1]])
-    lazy val r2_r1_b_left: Lens.Bound[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
-    lazy val r2_r1_b_right: Lens.Bound[Record3, Boolean] = r2(Record2.r1(Record1.b))
-    lazy val v1_c1: Optional.Bound[Record3, Case1]       = v1(Variant1.c1)
+    lazy val r2_r1_b_left: Lens[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
+    lazy val r2_r1_b_right: Lens[Record3, Boolean] = r2(Record2.r1(Record1.b))
+    lazy val v1_c1: Optional[Record3, Case1]       = v1(Variant1.c1)
   }
 
   sealed trait Variant1
@@ -764,24 +701,24 @@ object OpticSpec extends ZIOSpecDefault {
   object Variant1 {
     implicit val schema: Schema[zio.blocks.schema.OpticSpec.Variant1] = Schema.derived
     val reflect: Reflect.Variant.Bound[Variant1]                      = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
-    val c1: Prism.Bound[Variant1, Case1] =
+    val c1: Prism[Variant1, Case1] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]])
-    val c2: Prism.Bound[Variant1, Case2] =
+    val c2: Prism[Variant1, Case2] =
       Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[Variant1, Case2]])
-    val v2: Prism.Bound[Variant1, Variant2] =
+    val v2: Prism[Variant1, Variant2] =
       Prism(reflect, reflect.cases(2).asInstanceOf[Term.Bound[Variant1, Variant2]])
-    lazy val v2_c3: Prism.Bound[Variant1, Case3]                    = v2(Variant2.c3)
-    lazy val v2_c4: Prism.Bound[Variant1, Case4]                    = v2(Variant2.c4)
-    lazy val v2_v3_c5_left: Prism.Bound[Variant1, Case5]            = v2(Variant2.v3)(Variant3.c5)
-    lazy val v2_v3_c5_right: Prism.Bound[Variant1, Case5]           = v2(Variant2.v3(Variant3.c5))
-    lazy val v2_c4_lr3: Traversal.Bound[Variant1, Record3]          = v2(Variant2.c4(Case4.lr3))
-    lazy val v2_c3_v1: Optional.Bound[Variant1, Variant1]           = v2(Variant2.c3_v1)
-    lazy val c1_d: Optional.Bound[Variant1, Double]                 = c1(Case1.d)
-    lazy val c2_r3: Optional.Bound[Variant1, Record3]               = c2(Case2.r3)
-    lazy val c2_r3_r1: Optional.Bound[Variant1, Record1]            = c2_r3(Record3.r1)
-    lazy val c2_r3_r2_r1_b_left: Optional.Bound[Variant1, Boolean]  = c2_r3(Record3.r2_r1_b_left)
-    lazy val c2_r3_r2_r1_b_right: Optional.Bound[Variant1, Boolean] = c2_r3(Record3.r2_r1_b_right)
-    lazy val c2_r3_v1_c1: Optional.Bound[Variant1, Case1]           = c2_r3(Record3.v1_c1)
+    lazy val v2_c3: Prism[Variant1, Case3]                    = v2(Variant2.c3)
+    lazy val v2_c4: Prism[Variant1, Case4]                    = v2(Variant2.c4)
+    lazy val v2_v3_c5_left: Prism[Variant1, Case5]            = v2(Variant2.v3)(Variant3.c5)
+    lazy val v2_v3_c5_right: Prism[Variant1, Case5]           = v2(Variant2.v3(Variant3.c5))
+    lazy val v2_c4_lr3: Traversal[Variant1, Record3]          = v2(Variant2.c4(Case4.lr3))
+    lazy val v2_c3_v1: Optional[Variant1, Variant1]           = v2(Variant2.c3_v1)
+    lazy val c1_d: Optional[Variant1, Double]                 = c1(Case1.d)
+    lazy val c2_r3: Optional[Variant1, Record3]               = c2(Case2.r3)
+    lazy val c2_r3_r1: Optional[Variant1, Record1]            = c2_r3(Record3.r1)
+    lazy val c2_r3_r2_r1_b_left: Optional[Variant1, Boolean]  = c2_r3(Record3.r2_r1_b_left)
+    lazy val c2_r3_r2_r1_b_right: Optional[Variant1, Boolean] = c2_r3(Record3.r2_r1_b_right)
+    lazy val c2_r3_v1_c1: Optional[Variant1, Case1]           = c2_r3(Record3.v1_c1)
   }
 
   case class Case1(d: Double) extends Variant1
@@ -789,7 +726,7 @@ object OpticSpec extends ZIOSpecDefault {
   object Case1 {
     implicit val schema: Schema[Case1]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case1]]
-    val d: Lens.Bound[Case1, Double]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case1, Double]])
+    val d: Lens[Case1, Double]         = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case1, Double]])
   }
 
   case class Case2(r3: Record3) extends Variant1
@@ -797,8 +734,8 @@ object OpticSpec extends ZIOSpecDefault {
   object Case2 {
     implicit val schema: Schema[Case2]              = Schema.derived
     val reflect: Reflect.Record.Bound[Case2]        = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case2]]
-    val r3: Lens.Bound[Case2, Record3]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case2, Record3]])
-    lazy val r3_v1_c1: Optional.Bound[Case2, Case1] = r3(Record3.v1_c1)
+    val r3: Lens[Case2, Record3]              = Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case2, Record3]])
+    lazy val r3_v1_c1: Optional[Case2, Case1] = r3(Record3.v1_c1)
   }
 
   sealed trait Variant2 extends Variant1
@@ -806,21 +743,21 @@ object OpticSpec extends ZIOSpecDefault {
   object Variant2 {
     implicit val schema: Schema[Variant2]        = Schema.derived
     val reflect: Reflect.Variant.Bound[Variant2] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant2]]
-    val c3: Prism.Bound[Variant2, Case3] =
+    val c3: Prism[Variant2, Case3] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant2, Case3]])
-    val c4: Prism.Bound[Variant2, Case4] =
+    val c4: Prism[Variant2, Case4] =
       Prism(reflect, reflect.cases(1).asInstanceOf[Term.Bound[Variant2, Case4]])
-    val v3: Prism.Bound[Variant2, Variant3] =
+    val v3: Prism[Variant2, Variant3] =
       Prism(reflect, reflect.cases(2).asInstanceOf[Term.Bound[Variant2, Variant3]])
-    lazy val c3_v1: Optional.Bound[Variant2, Variant1]           = c3(Case3.v1)
-    lazy val c3_v1_c1_left: Optional.Bound[Variant2, Case1]      = c3(Case3.v1)(Variant1.c1)
-    lazy val c3_v1_c1_right: Optional.Bound[Variant2, Case1]     = c3(Case3.v1_c1)
-    lazy val c3_v1_c1_d_left: Optional.Bound[Variant2, Double]   = c3(Case3.v1)(Variant1.c1_d)
-    lazy val c3_v1_c1_d_right: Optional.Bound[Variant2, Double]  = c3_v1(Variant1.c1_d)
-    lazy val c3_v1_v2: Optional.Bound[Variant2, Variant2]        = c3(Case3.v1)(Variant1.v2)
-    lazy val c4_lr3: Traversal.Bound[Variant2, Record3]          = c4(Case4.lr3)
-    lazy val c3_v1_v2_c4_lr3: Traversal.Bound[Variant2, Record3] = c3_v1_v2(c4_lr3)
-    lazy val c3_v1_v2_c4: Optional.Bound[Variant2, Case4]        = c3_v1_v2(c4)
+    lazy val c3_v1: Optional[Variant2, Variant1]           = c3(Case3.v1)
+    lazy val c3_v1_c1_left: Optional[Variant2, Case1]      = c3(Case3.v1)(Variant1.c1)
+    lazy val c3_v1_c1_right: Optional[Variant2, Case1]     = c3(Case3.v1_c1)
+    lazy val c3_v1_c1_d_left: Optional[Variant2, Double]   = c3(Case3.v1)(Variant1.c1_d)
+    lazy val c3_v1_c1_d_right: Optional[Variant2, Double]  = c3_v1(Variant1.c1_d)
+    lazy val c3_v1_v2: Optional[Variant2, Variant2]        = c3(Case3.v1)(Variant1.v2)
+    lazy val c4_lr3: Traversal[Variant2, Record3]          = c4(Case4.lr3)
+    lazy val c3_v1_v2_c4_lr3: Traversal[Variant2, Record3] = c3_v1_v2(c4_lr3)
+    lazy val c3_v1_v2_c4: Optional[Variant2, Case4]        = c3_v1_v2(c4)
   }
 
   case class Case3(@Modifier.deferred v1: Variant1) extends Variant2
@@ -828,13 +765,13 @@ object OpticSpec extends ZIOSpecDefault {
   object Case3 {
     implicit val schema: Schema[Case3]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case3]]
-    val v1: Lens.Bound[Case3, Variant1] =
+    val v1: Lens[Case3, Variant1] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case3, Variant1]])
-    lazy val v1_c1: Optional.Bound[Case3, Case1]             = v1(Variant1.c1)
-    lazy val v1_c1_d_left: Optional.Bound[Case3, Double]     = v1(Variant1.c1)(Case1.d)
-    lazy val v1_c1_d_right: Optional.Bound[Case3, Double]    = v1(Variant1.c1_d)
-    lazy val v1_v2: Optional.Bound[Case3, Variant2]          = v1(Variant1.v2)
-    lazy val v1_v2_c3_v1_v2: Optional.Bound[Case3, Variant2] = v1_v2(Variant2.c3(Case3.v1_v2))
+    lazy val v1_c1: Optional[Case3, Case1]             = v1(Variant1.c1)
+    lazy val v1_c1_d_left: Optional[Case3, Double]     = v1(Variant1.c1)(Case1.d)
+    lazy val v1_c1_d_right: Optional[Case3, Double]    = v1(Variant1.c1_d)
+    lazy val v1_v2: Optional[Case3, Variant2]          = v1(Variant1.v2)
+    lazy val v1_v2_c3_v1_v2: Optional[Case3, Variant2] = v1_v2(Variant2.c3(Case3.v1_v2))
   }
 
   case class Case4(lr3: List[Record3]) extends Variant2
@@ -842,10 +779,10 @@ object OpticSpec extends ZIOSpecDefault {
   object Case4 {
     implicit val schema: Schema[Case4]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case4] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case4]]
-    val lr3: Traversal.Bound[Case4, Record3] =
+    val lr3: Traversal[Case4, Record3] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]).listValues
-    lazy val lr3_r2: Traversal.Bound[Case4, Record2]    = lr3(Record3.r2)
-    lazy val lr3_r2_r1: Traversal.Bound[Case4, Record1] = lr3_r2(Record2.r1)
+    lazy val lr3_r2: Traversal[Case4, Record2]    = lr3(Record3.r2)
+    lazy val lr3_r2_r1: Traversal[Case4, Record1] = lr3_r2(Record2.r1)
   }
 
   sealed trait Variant3 extends Variant2
@@ -853,7 +790,7 @@ object OpticSpec extends ZIOSpecDefault {
   object Variant3 {
     implicit val schema: Schema[Variant3]        = Schema.derived
     val reflect: Reflect.Variant.Bound[Variant3] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant3]]
-    val c5: Prism.Bound[Variant3, Case5] =
+    val c5: Prism[Variant3, Case5] =
       Prism(reflect, reflect.cases(0).asInstanceOf[Term.Bound[Variant3, Case5]])
   }
 
@@ -862,9 +799,9 @@ object OpticSpec extends ZIOSpecDefault {
   object Case5 {
     implicit val schema: Schema[Case5]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case5] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case5]]
-    val si: Traversal.Bound[Case5, Int] =
+    val si: Traversal[Case5, Int] =
       Lens(reflect, reflect.fields(0).asInstanceOf[Term.Bound[Case5, Set[Int]]]).setValues
-    val as: Traversal.Bound[Case5, String] =
+    val as: Traversal[Case5, String] =
       Lens(reflect, reflect.fields(1).asInstanceOf[Term.Bound[Case5, Array[String]]]).arrayValues
   }
 
@@ -876,26 +813,26 @@ object OpticSpec extends ZIOSpecDefault {
   }
 
   object Collections {
-    val lb: Traversal.Bound[List[Byte], Byte]         = Reflect.list(Reflect.byte[Binding]).values
-    val vs: Traversal.Bound[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
-    val abl: Traversal.Bound[Array[Boolean], Boolean] = Traversal.arrayValues(Reflect.boolean)
-    val ab: Traversal.Bound[Array[Byte], Byte]        = Traversal.arrayValues(Reflect.byte)
-    val ash: Traversal.Bound[Array[Short], Short]     = Traversal.arrayValues(Reflect.short)
-    val ai: Traversal.Bound[Array[Int], Int]          = Traversal.arrayValues(Reflect.int)
-    val al: Traversal.Bound[Array[Long], Long]        = Traversal.arrayValues(Reflect.long)
-    val ad: Traversal.Bound[Array[Double], Double]    = Traversal.arrayValues(Reflect.double)
-    val af: Traversal.Bound[Array[Float], Float]      = Traversal.arrayValues(Reflect.float)
-    val ac: Traversal.Bound[Array[Char], Char]        = Traversal.arrayValues(Reflect.char)
-    val as: Traversal.Bound[Array[String], String]    = Traversal.arrayValues(Reflect.string)
-    val sf: Traversal.Bound[Set[Float], Float]        = Traversal.setValues(Reflect.float)
-    val mkc: Traversal.Bound[Predef.Map[Char, String], Char] =
+    val lb: Traversal[List[Byte], Byte]         = Traversal.listValues(Reflect.byte)
+    val vs: Traversal[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
+    val abl: Traversal[Array[Boolean], Boolean] = Traversal.arrayValues(Reflect.boolean)
+    val ab: Traversal[Array[Byte], Byte]        = Traversal.arrayValues(Reflect.byte)
+    val ash: Traversal[Array[Short], Short]     = Traversal.arrayValues(Reflect.short)
+    val ai: Traversal[Array[Int], Int]          = Traversal.arrayValues(Reflect.int)
+    val al: Traversal[Array[Long], Long]        = Traversal.arrayValues(Reflect.long)
+    val ad: Traversal[Array[Double], Double]    = Traversal.arrayValues(Reflect.double)
+    val af: Traversal[Array[Float], Float]      = Traversal.arrayValues(Reflect.float)
+    val ac: Traversal[Array[Char], Char]        = Traversal.arrayValues(Reflect.char)
+    val as: Traversal[Array[String], String]    = Traversal.arrayValues(Reflect.string)
+    val sf: Traversal[Set[Float], Float]        = Traversal.setValues(Reflect.float)
+    val mkc: Traversal[Predef.Map[Char, String], Char] =
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
-    val mvs: Traversal.Bound[Predef.Map[Char, String], String] =
+    val mvs: Traversal[Predef.Map[Char, String], String] =
       Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
-    lazy val lr1: Traversal.Bound[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
-    lazy val lc1: Traversal.Bound[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
-    lazy val lc1_d: Traversal.Bound[List[Variant1], Double] =
+    lazy val lr1: Traversal[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
+    lazy val lc1: Traversal[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
+    lazy val lc1_d: Traversal[List[Variant1], Double] =
       Traversal.listValues(Variant1.reflect).apply(Variant1.c1_d)
-    lazy val lc4_lr3: Traversal.Bound[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
+    lazy val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
   }
 }

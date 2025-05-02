@@ -1,6 +1,11 @@
 package zio.blocks.schema.binding
 
-trait HasBinding[F[_, _]] {
+import zio.blocks.schema.{Lazy, ReflectTransformer}
+import zio.blocks.schema.binding.Binding
+
+trait HasBinding[F[_, _]] extends ReflectTransformer.OnlyMetadata[F, Binding] {
+  override def transformMetadata[T, A](f: F[T, A]): Lazy[Binding[T, A]] = Lazy(binding(f))
+
   def binding[T, A](fa: F[T, A]): Binding[T, A]
 
   def updateBinding[T, A](fa: F[T, A], f: Binding[T, A] => Binding[T, A]): F[T, A]
