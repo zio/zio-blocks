@@ -6,9 +6,12 @@ import zio.blocks.schema.binding._
 
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
+import scala.collection.mutable.HashMap
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
+
+  final type Structure = A
 
   type NodeBinding <: BindingType
   type ModifierType <: Modifier
@@ -57,6 +60,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     case that: Reflect[_, _] => (this eq that) || inner == that.inner
     case _                   => false
   }
+
+  def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[String, A] = ???
 
   final def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] =
     get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
@@ -163,6 +168,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def nodeType: Reflect.Type { type NodeBinding = self.NodeBinding; type ModifierType = self.ModifierType }
 
   def noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
+
+  def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue
 
   def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
@@ -315,6 +322,37 @@ object Reflect {
       else None
     }
 
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
+      val pool = RegisterPool.get()
+
+      val registers = pool.allocate()
+
+      try {
+        deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
+
+        // Create vector builder:
+        val builder = Vector.newBuilder[(String, DynamicValue)]
+        var i       = 0
+        while (i < self.registers.length) {
+
+          val field    = fields(i)
+          val register = self.registers(i)
+
+          val fieldReflect: Reflect[F, field.Focus] = field.value.asInstanceOf[Reflect[F, field.Focus]]
+
+          val value =
+            fieldReflect.toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+
+          builder += (field.name -> value)
+          i += 1
+        }
+
+        DynamicValue.Record(builder.result())
+      } finally {
+        pool.releaseLast()
+      }
+    }
+
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
         fields <- Lazy.foreach(fields.toVector)(_.transform(path, Term.Type.Record, f))
@@ -429,6 +467,18 @@ object Reflect {
       Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], term.asInstanceOf[Term.Bound[A, ? <: A]])
     )
 
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
+      val index = discriminator.discriminate(value)
+
+      val case_ = cases(index)
+
+      val downcasted = matchers.matchers(index).downcastOrNull(value)
+
+      val caseValue = case_.value.asInstanceOf[Reflect[F, downcasted.type]]
+
+      caseValue.toDynamicValue(downcasted)
+    }
+
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
         cases   <- Lazy.foreach(cases.toVector)(_.transform(path, Term.Type.Variant, f))
@@ -448,7 +498,7 @@ object Reflect {
     typeName: TypeName[C[A]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Seq] = Vector()
-  ) extends Reflect[F, C[A]] {
+  ) extends Reflect[F, C[A]] { self =>
     protected def inner: Any = (element, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Seq[C]
@@ -471,6 +521,20 @@ object Reflect {
     def metadata: F[NodeBinding, C[A]] = seqBinding
 
     def modifier(modifier: Modifier.Seq): Sequence[F, A, C] = copy(modifiers = modifiers :+ modifier)
+
+    def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
+      val iterator = seqDeconstructor.deconstruct(value)
+
+      val builder = Vector.newBuilder[DynamicValue]
+
+      while (iterator.hasNext) {
+        val value = iterator.next()
+
+        builder += self.element.toDynamicValue(value)
+      }
+
+      DynamicValue.Sequence(builder.result())
+    }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
@@ -496,7 +560,7 @@ object Reflect {
     typeName: TypeName[M[Key, Value]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Map] = Vector()
-  ) extends Reflect[F, M[Key, Value]] {
+  ) extends Reflect[F, M[Key, Value]] { self =>
     protected def inner: Any = (key, value, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Map[M]
@@ -522,6 +586,26 @@ object Reflect {
     def metadata: F[NodeBinding, M[Key, Value]] = mapBinding
 
     def modifier(modifier: Modifier.Map): Map[F, Key, Value, M] = copy(modifiers = modifiers :+ modifier)
+
+    def toDynamicValue(value: M[Key, Value])(implicit F: HasBinding[F]): DynamicValue = {
+
+      val d = mapDeconstructor
+
+      val iterator = d.deconstruct(value)
+
+      val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
+
+      while (iterator.hasNext) {
+        val pair = iterator.next()
+
+        val keyValue   = d.getKey(pair)
+        val valueValue = d.getValue(pair)
+
+        builder += (self.key.toDynamicValue(keyValue) -> self.value.toDynamicValue(valueValue))
+      }
+
+      DynamicValue.Map(builder.result())
+    }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, Key, Value, M]] =
       for {
@@ -566,6 +650,8 @@ object Reflect {
 
     def modifier(modifier: ModifierType): Dynamic[F] = copy(modifiers = modifiers :+ modifier)
 
+    def toDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): DynamicValue = value
+
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
         dynamic <- f.transformDynamic(path, dynamicBinding, doc, modifiers)
@@ -606,6 +692,8 @@ object Reflect {
 
     def modifier(modifier: Modifier.Primitive): Primitive[F, A] = copy(modifiers = modifiers :+ modifier)
 
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = primitiveType.toDynamicValue(value)
+
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
         primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
@@ -617,13 +705,15 @@ object Reflect {
     type Bound[A] = Primitive[Binding, A]
   }
 
-  case class Deferred[F[_, _], A](_value: () => Reflect[F, A]) extends Reflect[F, A] {
+  case class Deferred[F[_, _], A](_value: () => Reflect[F, A]) extends Reflect[F, A] { self =>
     protected def inner: Any = value.inner
 
     final lazy val value: Reflect[F, A] = _value()
 
     final type NodeBinding  = value.NodeBinding
     final type ModifierType = value.ModifierType
+
+    def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 
     def doc(value: Doc): Deferred[F, A] = copy(_value = () => _value().doc(value))
 
@@ -637,8 +727,6 @@ object Reflect {
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Deferred[F, A] =
       copy(_value = () => _value().examples(value, values: _*))
 
-    def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
-
     def metadata: F[NodeBinding, A] = value.metadata
 
     def modifiers: Seq[ModifierType] = value.modifiers
@@ -646,6 +734,8 @@ object Reflect {
     def modifier(modifier: ModifierType): Deferred[F, A] = copy(_value = () => value.modifier(modifier))
 
     def doc: Doc = value.doc
+
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = self.value.toDynamicValue(value)
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
       Lazy[Lazy[Reflect[G, A]]] {

@@ -78,7 +78,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
     } yield (c, schema)
   }
 
-  def toDynamicValue(value: A): DynamicValue = ??? // TODO
+  def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(Schema(_))
