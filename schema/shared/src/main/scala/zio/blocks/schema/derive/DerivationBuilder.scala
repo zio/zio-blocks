@@ -70,106 +70,110 @@ final case class DerivationBuilder[TC[_], A](
     type G[T, A] = BindingInstance[TC, T, A]
 
     schema.reflect
-      .transform[G](new ReflectTransformer[F, G] {
-        override def transformRecord[A](
-          fields: Seq[Term[G, A, ?]],
-          typeName: TypeName[A],
-          metadata: F[BindingType.Record, A],
-          doc: Doc,
-          modifiers: Seq[Modifier.Record]
-        ): Lazy[Reflect.Record[G, A]] =
-          Lazy(
-            Reflect.Record(
-              fields,
-              typeName,
-              BindingInstance(metadata, deriver.deriveRecord(fields, typeName, doc, modifiers)),
-              doc,
-              modifiers
+      .transform[G](
+        DynamicOptic.root,
+        new ReflectTransformer[F, G] {
+          override def transformRecord[A](
+            path: DynamicOptic,
+            fields: Seq[Term[G, A, ?]],
+            typeName: TypeName[A],
+            metadata: F[BindingType.Record, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Record]
+          ): Lazy[Reflect.Record[G, A]] =
+            Lazy(
+              Reflect.Record(
+                fields,
+                typeName,
+                BindingInstance(metadata, deriver.deriveRecord(fields, typeName, doc, modifiers)),
+                doc,
+                modifiers
+              )
             )
-          )
 
-        override def transformVariant[A](
-          cases: Seq[Term[G, A, ? <: A]],
-          typeName: TypeName[A],
-          metadata: F[BindingType.Variant, A],
-          doc: Doc,
-          modifiers: Seq[Modifier.Variant]
-        ): Lazy[Reflect.Variant[G, A]] =
-          Lazy(
-            Reflect.Variant(
-              cases,
-              typeName,
-              BindingInstance(metadata, deriver.deriveVariant(cases, typeName, doc, modifiers)),
-              doc,
-              modifiers
+          override def transformVariant[A](
+            path: DynamicOptic,
+            cases: Seq[Term[G, A, ? <: A]],
+            typeName: TypeName[A],
+            metadata: F[BindingType.Variant, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Variant]
+          ): Lazy[Reflect.Variant[G, A]] =
+            Lazy(
+              Reflect.Variant(
+                cases,
+                typeName,
+                BindingInstance(metadata, deriver.deriveVariant(cases, typeName, doc, modifiers)),
+                doc,
+                modifiers
+              )
             )
-          )
 
-        override def transformSequence[A, C[_]](
-          element: Reflect[G, A],
-          typeName: TypeName[C[A]],
-          metadata: F[BindingType.Seq[C], C[A]],
-          doc: Doc,
-          modifiers: Seq[Modifier.Seq]
-        ): Lazy[Reflect.Sequence[G, A, C]] =
-          Lazy(
-            Reflect.Sequence(
-              element,
-              BindingInstance(metadata, deriver.deriveSequence(element, typeName, doc, modifiers)),
-              typeName,
-              doc,
-              modifiers
+          override def transformSequence[A, C[_]](
+            path: DynamicOptic,
+            element: Reflect[G, A],
+            typeName: TypeName[C[A]],
+            metadata: F[BindingType.Seq[C], C[A]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Seq]
+          ): Lazy[Reflect.Sequence[G, A, C]] =
+            Lazy(
+              Reflect.Sequence(
+                element,
+                BindingInstance(metadata, deriver.deriveSequence(element, typeName, doc, modifiers)),
+                typeName,
+                doc,
+                modifiers
+              )
             )
-          )
 
-        override def transformMap[Key, Value, M[_, _]](
-          key: Reflect[G, Key],
-          value: Reflect[G, Value],
-          typeName: TypeName[M[Key, Value]],
-          metadata: F[BindingType.Map[M], M[Key, Value]],
-          doc: Doc,
-          modifiers: Seq[Modifier.Map]
-        ): Lazy[Reflect.Map[G, Key, Value, M]] =
-          Lazy(
-            Reflect.Map(
-              key,
-              value,
-              BindingInstance(metadata, deriver.deriveMap(key, value, typeName, doc, modifiers)),
-              typeName,
-              doc,
-              modifiers
+          override def transformMap[Key, Value, M[_, _]](
+            path: DynamicOptic,
+            key: Reflect[G, Key],
+            value: Reflect[G, Value],
+            typeName: TypeName[M[Key, Value]],
+            metadata: F[BindingType.Map[M], M[Key, Value]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Map]
+          ): Lazy[Reflect.Map[G, Key, Value, M]] =
+            Lazy(
+              Reflect.Map(
+                key,
+                value,
+                BindingInstance(metadata, deriver.deriveMap(key, value, typeName, doc, modifiers)),
+                typeName,
+                doc,
+                modifiers
+              )
             )
-          )
 
-        override def transformDynamic(
-          metadata: F[BindingType.Dynamic, DynamicValue],
-          doc: Doc,
-          modifiers: Seq[Modifier.Dynamic]
-        ): Lazy[Reflect.Dynamic[G]] =
-          Lazy(Reflect.Dynamic(BindingInstance(metadata, deriver.deriveDynamic[G](doc, modifiers)), doc, modifiers))
+          override def transformDynamic(
+            path: DynamicOptic,
+            metadata: F[BindingType.Dynamic, DynamicValue],
+            doc: Doc,
+            modifiers: Seq[Modifier.Dynamic]
+          ): Lazy[Reflect.Dynamic[G]] =
+            Lazy(Reflect.Dynamic(BindingInstance(metadata, deriver.deriveDynamic[G](doc, modifiers)), doc, modifiers))
 
-        override def transformPrimitive[A](
-          primitiveType: PrimitiveType[A],
-          typeName: TypeName[A],
-          metadata: F[BindingType.Primitive, A],
-          doc: Doc,
-          modifiers: Seq[Modifier.Primitive]
-        ): Lazy[Reflect.Primitive[G, A]] =
-          Lazy(
-            Reflect.Primitive(
-              primitiveType,
-              BindingInstance(metadata, deriver.derivePrimitive(primitiveType, typeName, doc, modifiers)),
-              typeName,
-              doc,
-              modifiers
+          override def transformPrimitive[A](
+            path: DynamicOptic,
+            primitiveType: PrimitiveType[A],
+            typeName: TypeName[A],
+            metadata: F[BindingType.Primitive, A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Primitive]
+          ): Lazy[Reflect.Primitive[G, A]] =
+            Lazy(
+              Reflect.Primitive(
+                primitiveType,
+                BindingInstance(metadata, deriver.derivePrimitive(primitiveType, typeName, doc, modifiers)),
+                typeName,
+                doc,
+                modifiers
+              )
             )
-          )
-
-        override def transformDeferred[A](
-          value: () => Reflect[G, A]
-        ): Lazy[Reflect.Deferred[G, A]] =
-          Lazy(Reflect.Deferred(value))
-      })
+        }
+      )
       .flatMap(_.metadata.instance)
   }
 }
