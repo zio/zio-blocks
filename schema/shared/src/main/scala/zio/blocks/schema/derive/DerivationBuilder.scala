@@ -36,7 +36,7 @@ final case class DerivationBuilder[TC[_], A](
     copy(modifierOverrides = modifierOverrides :+ override_)
   }
 
-  def derive: Lazy[TC[A]] = {
+  lazy val derive: TC[A] = {
     val instanceMap = instanceOverrides.map(override_ => override_.optic -> override_.instance).toMap
     val modifierMap = modifierOverrides.foldLeft[ScalaMap[DynamicOptic, Vector[Modifier]]](ScalaMap.empty) {
       case (acc, override_) =>
@@ -215,5 +215,6 @@ final case class DerivationBuilder[TC[_], A](
         }
       )
       .flatMap(_.metadata.instance)
+      .force
   }
 }
