@@ -9,36 +9,36 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformRecord[A](
     fields: Seq[Term[G, A, ?]],
     typeName: TypeName[A],
-    recordBinding: F[BindingType.Record, A],
+    metadata: F[BindingType.Record, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Record] = Vector()
   ): Lazy[Reflect.Record[G, A]] =
     for {
-      binding <- apply(recordBinding)
+      binding <- apply(metadata)
     } yield Reflect.Record(fields, typeName, binding, doc, modifiers)
 
   // This function takes all the cases of a Reflect.Variant and transforms them into a new variant with the binding changed to G[BindingType.Variant, A]:
   def transformVariant[A](
     cases: Seq[Term[G, A, ? <: A]],
     typeName: TypeName[A],
-    variantBinding: F[BindingType.Variant, A],
+    metadata: F[BindingType.Variant, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Variant] = Vector()
   ): Lazy[Reflect.Variant[G, A]] =
     for {
-      binding <- apply(variantBinding)
+      binding <- apply(metadata)
     } yield Reflect.Variant(cases, typeName, binding, doc, modifiers)
 
   // This function takes a sequence element and transforms it into a new sequence with the binding changed to G[BindingType.Seq[C], C[A]]:
   def transformSequence[A, C[_]](
     element: Reflect[G, A],
     typeName: TypeName[C[A]],
-    seqBinding: F[BindingType.Seq[C], C[A]],
+    metadata: F[BindingType.Seq[C], C[A]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Seq] = Vector()
   ): Lazy[Reflect.Sequence[G, A, C]] =
     for {
-      binding <- apply(seqBinding)
+      binding <- apply(metadata)
     } yield Reflect.Sequence(element, binding, typeName, doc, modifiers)
 
   // This function takes map key and value elements and transforms them into a new map with the binding changed to G[BindingType.Map[M], M[Key, Value]]:
@@ -46,34 +46,34 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     key: Reflect[G, Key],
     value: Reflect[G, Value],
     typeName: TypeName[M[Key, Value]],
-    mapBinding: F[BindingType.Map[M], M[Key, Value]],
+    metadata: F[BindingType.Map[M], M[Key, Value]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Map] = Vector()
   ): Lazy[Reflect.Map[G, Key, Value, M]] =
     for {
-      binding <- apply(mapBinding)
+      binding <- apply(metadata)
     } yield Reflect.Map(key, value, binding, typeName, doc, modifiers)
 
   // This function transforms a dynamic value with the binding changed to G[BindingType.Dynamic, DynamicValue]:
   def transformDynamic(
-    dynamicBinding: F[BindingType.Dynamic, DynamicValue],
+    metadata: F[BindingType.Dynamic, DynamicValue],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Dynamic] = Vector()
   ): Lazy[Reflect.Dynamic[G]] =
     for {
-      binding <- apply(dynamicBinding)
+      binding <- apply(metadata)
     } yield Reflect.Dynamic(binding, doc, modifiers)
 
   // This function transforms a primitive value with the binding changed to G[BindingType.Primitive, A]:
   def transformPrimitive[A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
-    primitiveBinding: F[BindingType.Primitive, A],
+    metadata: F[BindingType.Primitive, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Primitive] = Vector()
   ): Lazy[Reflect.Primitive[G, A]] =
     for {
-      binding <- apply(primitiveBinding)
+      binding <- apply(metadata)
     } yield Reflect.Primitive(primitiveType, binding, typeName, doc, modifiers)
 
   // This function transforms a deferred value with the binding changed to G:

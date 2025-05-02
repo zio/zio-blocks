@@ -240,9 +240,9 @@ object Reflect {
 
     def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
-        fields  <- Lazy.foreach(fields.toVector)(_.transform(f))
-        binding <- f(recordBinding)
-      } yield Record(fields, typeName, binding, doc, modifiers)
+        fields <- Lazy.foreach(fields.toVector)(_.transform(f))
+        record <- f.transformRecord(fields, typeName, recordBinding, doc, modifiers)
+      } yield record
 
     val registers: IndexedSeq[Register[?]] = {
       val registers      = new Array[Register[?]](length)
@@ -350,8 +350,8 @@ object Reflect {
     def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
         cases   <- Lazy.foreach(cases.toVector)(_.transform(f))
-        binding <- f(variantBinding)
-      } yield Variant(cases, typeName, binding, doc, modifiers)
+        variant <- f.transformVariant(cases, typeName, variantBinding, doc, modifiers)
+      } yield variant
   }
 
   object Variant {
@@ -390,9 +390,9 @@ object Reflect {
 
     def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
-        element <- element.transform(f)
-        binding <- f(seqBinding)
-      } yield Sequence(element, binding, typeName, doc, modifiers)
+        element  <- element.transform(f)
+        sequence <- f.transformSequence(element, typeName, seqBinding, doc, modifiers)
+      } yield sequence
 
     def seqConstructor(implicit F: HasBinding[F]): SeqConstructor[C] = F.seqConstructor(seqBinding)
 
@@ -441,10 +441,10 @@ object Reflect {
 
     def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Map[G, Key, Value, M]] =
       for {
-        key     <- key.transform(f)
-        value   <- value.transform(f)
-        binding <- f(mapBinding)
-      } yield Map(key, value, binding, typeName, doc, modifiers)
+        key   <- key.transform(f)
+        value <- value.transform(f)
+        map   <- f.transformMap(key, value, typeName, mapBinding, doc, modifiers)
+      } yield map
 
     def keys: Traversal[F, M[Key, Value], Key] = Traversal.mapKeys(this)
 
@@ -486,8 +486,8 @@ object Reflect {
 
     def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
-        binding <- f(dynamicBinding)
-      } yield Dynamic(binding, doc, modifiers)
+        dynamic <- f.transformDynamic(dynamicBinding, doc, modifiers)
+      } yield dynamic
   }
   object Dynamic {
     type Bound = Dynamic[Binding]
@@ -524,8 +524,8 @@ object Reflect {
 
     def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
-        binding <- f(primitiveBinding)
-      } yield Primitive(primitiveType, binding, typeName, doc, modifiers)
+        primitive <- f.transformPrimitive(primitiveType, typeName, primitiveBinding, doc, modifiers)
+      } yield primitive
   }
   object Primitive {
     type Bound[A] = Primitive[Binding, A]
@@ -561,15 +561,16 @@ object Reflect {
 
     def doc: Doc = value.doc
 
-    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] = Lazy {
+    def transform[G[_, _]](f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] = Lazy[Lazy[Reflect[G, A]]] {
       val v = visited.get
-      if (v.containsKey(this)) value.asInstanceOf[Reflect[G, A]] // exit from recursion
+      if (v.containsKey(this)) Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion
       else {
-        v.put(this, ())
-        try value.transform(f).force // FIXME
-        finally v.remove(this)
+        for {
+          _      <- Lazy(v.put(this, ()))
+          result <- value.transform(f).ensuring(Lazy(v.remove(this)))
+        } yield result
       }
-    }
+    }.flatten
 
     override def hashCode: Int = {
       val v = visited.get
