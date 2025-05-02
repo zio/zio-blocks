@@ -20,9 +20,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
-  def getDefaultValue[B](optic: Optic.Bound[A, B]): Option[B] = getWith(optic)(_.getDefaultValue).flatten
+  def getDefaultValue[B](optic: Optic[A, B]): Option[B] = getWith(optic)(_.getDefaultValue).flatten
 
-  def defaultValue[B](optic: Optic.Bound[A, B], value: => B): Schema[A] =
+  def defaultValue[B](optic: Optic[A, B], value: => B): Schema[A] =
     updated(optic)(_.defaultValue(value)).getOrElse(this)
 
   def defaultValue(value: => A): Schema[A] = Schema(reflect.defaultValue(value))
@@ -39,9 +39,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def doc(value: String): Schema[A] = Schema(reflect.doc(value))
 
-  def doc[B](optic: Optic.Bound[A, B]): Doc = getWith(optic)(_.doc).getOrElse(Doc.Empty)
+  def doc[B](optic: Optic[A, B]): Doc = getWith(optic)(_.doc).getOrElse(Doc.Empty)
 
-  def doc[B](optic: Optic.Bound[A, B])(value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
+  def doc[B](optic: Optic[A, B])(value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
 
   def encode[F <: codec.Format](format: F)(output: format.EncodeOutput)(value: A): Unit =
     getInstance(format).encode(value, output)
@@ -50,21 +50,21 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*))
 
-  def examples[B](optic: Optic.Bound[A, B]): Seq[B] = getWith(optic)(_.examples).getOrElse(Nil)
+  def examples[B](optic: Optic[A, B]): Seq[B] = getWith(optic)(_.examples).getOrElse(Nil)
 
-  def examples[B](optic: Optic.Bound[A, B])(value: B, values: B*): Schema[A] =
+  def examples[B](optic: Optic[A, B])(value: B, values: B*): Schema[A] =
     updated(optic)(_.examples(value, values: _*)).getOrElse(this)
 
   def fromDynamicValue(value: DynamicValue): Either[codec.CodecError, A] = ??? // TODO
 
-  def get[B](optic: Optic.Bound[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
+  def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
   def get(dynamic: DynamicOptic): Option[Reflect.Bound[_]] = reflect.get(dynamic)
 
-  def getWith[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => C): Option[C] =
+  def getWith[B, C](optic: Optic[A, B])(f: Reflect.Bound[B] => C): Option[C] =
     modify(optic)(b => (f(b), b)).map(_._1)
 
-  def modify[B, C](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => (C, Reflect.Bound[B])): Option[(C, Schema[A])] = {
+  def modify[B, C](optic: Optic[A, B])(f: Reflect.Bound[B] => (C, Reflect.Bound[B])): Option[(C, Schema[A])] = {
     var c: Option[C] = None
     val schema = updated(optic) { b =>
       val (c1, b1) = f(b)
@@ -82,7 +82,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def updated(dynamic: DynamicOptic)(f: Reflect.Updater[Binding]): Option[Schema[A]] =
     reflect.updated(dynamic)(f).map(Schema(_))
 
-  def updated[B](optic: Optic.Bound[A, B])(f: Reflect.Bound[B] => Reflect.Bound[B]): Option[Schema[A]] =
+  def updated[B](optic: Optic[A, B])(f: Reflect.Bound[B] => Reflect.Bound[B]): Option[Schema[A]] =
     reflect.updated(optic)(f).map(Schema(_))
 }
 

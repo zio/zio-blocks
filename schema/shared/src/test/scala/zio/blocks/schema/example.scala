@@ -62,15 +62,15 @@ object Main {
         Nil
       )
 
-    val id: Lens.Bound[Person, java.util.UUID] =
+    val id: Lens[Person, java.util.UUID] =
       Lens(personRecord, personRecord.fields(0).asInstanceOf[Term.Bound[Person, java.util.UUID]])
-    val name: Lens.Bound[Person, String] =
+    val name: Lens[Person, String] =
       Lens(personRecord, personRecord.fields(1).asInstanceOf[Term.Bound[Person, String]])
-    val age: Lens.Bound[Person, Int] =
+    val age: Lens[Person, Int] =
       Lens(personRecord, personRecord.fields(2).asInstanceOf[Term.Bound[Person, Int]])
-    val address: Lens.Bound[Person, String] =
+    val address: Lens[Person, String] =
       Lens(personRecord, personRecord.fields(3).asInstanceOf[Term.Bound[Person, String]])
-    val childrenAges: Traversal.Bound[Person, Int] =
+    val childrenAges: Traversal[Person, Int] =
       Lens(personRecord, personRecord.fields(4).asInstanceOf[Term.Bound[Person, List[Int]]]).listValues
   }
 
