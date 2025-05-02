@@ -167,7 +167,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def nodeType: Reflect.Type { type NodeBinding = self.NodeBinding; type ModifierType = self.ModifierType }
 
-  def noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
+  lazy val noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
 
   def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue
 

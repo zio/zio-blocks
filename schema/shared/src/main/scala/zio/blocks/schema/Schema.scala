@@ -33,7 +33,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
     zio.blocks.schema.derive
       .DerivationBuilder[format.TypeClass, A](this, format.deriver, IndexedSeq.empty, IndexedSeq.empty)
 
-  def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[codec.CodecError, A] =
+  def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[SchemaError, A] =
     getInstance(format).decode(decodeInput)
 
   def doc: Doc = reflect.doc
@@ -56,7 +56,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def examples[B](optic: Optic[A, B])(value: B, values: B*): Schema[A] =
     updated(optic)(_.examples(value, values: _*)).getOrElse(this)
 
-  def fromDynamicValue(value: DynamicValue): Either[codec.CodecError, A] = ??? // TODO
+  def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = ??? // TODO
 
   def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
