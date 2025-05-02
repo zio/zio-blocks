@@ -61,7 +61,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     case _                   => false
   }
 
-  def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[String, A] = ???
+  def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] = ???
 
   final def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] =
     get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
