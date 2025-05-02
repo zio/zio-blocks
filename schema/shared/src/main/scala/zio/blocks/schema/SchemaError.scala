@@ -3,39 +3,61 @@ package zio.blocks.schema
 import zio.blocks.schema._
 
 import scala.util.control.NoStackTrace
+import zio.blocks.schema.binding.NoBinding
 
-sealed trait SchemaError extends Exception with NoStackTrace {
-  def message: String
+final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception with NoStackTrace {
+  def ++(other: SchemaError): SchemaError = SchemaError(::(errors.head, errors.tail ++ other.errors))
+
+  def message: String = errors.map(_.message).mkString("\n")
 
   override def getMessage: String = message
 }
 
 object SchemaError {
-  // FIXME: Flesh these out
-  case class ValidationError[F[_, _], A](
-    structure: Reflect[F, ?],
-    focus: Reflect[F, A],
+  def invalidData[A](
+    source: DynamicOptic,
+    focus: DynamicOptic,
     expected: Validation[A],
     actual: A,
     message: String
-  ) extends SchemaError
+  ): SchemaError =
+    SchemaError(::(InvalidData(source, focus, expected, actual, message), Nil))
 
-  case class MissingField[F[_, _], S, A](structure: Reflect.Record[F, S], field: Term[F, S, A], message: String)
-      extends SchemaError
+  def invalidType[A](source: DynamicOptic, focus: DynamicOptic, message: String): SchemaError =
+    SchemaError(::(InvalidType(source, focus, message), Nil))
 
-  case class UnknownField[F[_, _], S, A](structure: Reflect.Record[F, S], field: Term[F, S, A], message: String)
-      extends SchemaError
+  def missingCase[S, A](source: DynamicOptic, case0: Term[NoBinding, S, A], message: String): SchemaError =
+    SchemaError(::(MissingCase(source, case0, message), Nil))
 
-  case class InvalidType[F[_, _], A](structure: Reflect[F, ?], focus: Reflect[F, A], message: String)
-      extends SchemaError
+  def missingField[S, A](source: DynamicOptic, field: Term[NoBinding, S, A], message: String): SchemaError =
+    SchemaError(::(MissingField(source, field, message), Nil))
 
-  case class MissingCase[F[_, _], S, A](structure: Reflect.Variant[F, S], case0: Term[F, S, A], message: String)
-      extends SchemaError
+  def unknownField[S, A](source: DynamicOptic, fieldName: String, message: String): SchemaError =
+    SchemaError(::(UnknownField(source, fieldName, message), Nil))
 
-  case class UnknownCase[F[_, _], S, A](structure: Reflect.Variant[F, S], case0: Term[F, S, A], message: String)
-      extends SchemaError
+  def unknownCase[S, A](source: DynamicOptic, caseName: String, message: String): SchemaError =
+    SchemaError(::(UnknownCase(source, caseName, message), Nil))
 
-  case class MultipleErrors(errors: ::[SchemaError]) extends SchemaError {
-    def message: String = errors.map(_.message).mkString("\n")
+  sealed trait Single {
+    def message: String
+
+    def source: DynamicOptic
   }
+  case class InvalidData[A](
+    source: DynamicOptic,
+    focus: DynamicOptic,
+    expected: Validation[A],
+    actual: A,
+    message: String
+  ) extends Single
+
+  case class MissingField[S, A](source: DynamicOptic, field: Term[NoBinding, S, A], message: String) extends Single
+
+  case class UnknownField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
+
+  case class InvalidType[A](source: DynamicOptic, focus: DynamicOptic, message: String) extends Single
+
+  case class MissingCase[S, A](source: DynamicOptic, case0: Term[NoBinding, S, A], message: String) extends Single
+
+  case class UnknownCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single
 }
