@@ -16,7 +16,7 @@ object PrimitiveType {
       case DynamicValue.Primitive(primitiveValue) => fromPrimitiveValue(primitiveValue)
       case _ =>
         Left(
-          SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected a primitive value but got: $value")
+          SchemaError.invalidType(DynamicOptic.root, s"Expected a primitive value but got: $value")
         )
     }
 
@@ -28,7 +28,7 @@ object PrimitiveType {
       case DynamicValue.Primitive(primitiveValue) => fromPrimitiveValue(primitiveValue)
       case _ =>
         Left(
-          SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected a primitive value but got: $value")
+          SchemaError.invalidType(DynamicOptic.root, s"Expected a primitive value but got: $value")
         )
     }
 
@@ -42,7 +42,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Unit] = value match {
       case PrimitiveValue.Unit => Right(())
-      case _                   => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Unit but got: $value"))
+      case _                   => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Unit but got: $value"))
     }
   }
 
@@ -51,7 +51,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Boolean] = value match {
       case PrimitiveValue.Boolean(b) => Right(b)
-      case _                         => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Boolean but got: $value"))
+      case _                         => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Boolean but got: $value"))
     }
   }
 
@@ -60,7 +60,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Byte] = value match {
       case PrimitiveValue.Byte(b) => Right(b)
-      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Byte but got: $value"))
+      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Byte but got: $value"))
     }
   }
 
@@ -69,7 +69,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Short] = value match {
       case PrimitiveValue.Short(s) => Right(s)
-      case _                       => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Short but got: $value"))
+      case _                       => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Short but got: $value"))
     }
   }
 
@@ -78,7 +78,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Int] = value match {
       case PrimitiveValue.Int(i) => Right(i)
-      case _                     => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Int but got: $value"))
+      case _                     => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Int but got: $value"))
     }
   }
 
@@ -87,7 +87,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Long] = value match {
       case PrimitiveValue.Long(l) => Right(l)
-      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Long but got: $value"))
+      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Long but got: $value"))
     }
   }
 
@@ -96,7 +96,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Float] = value match {
       case PrimitiveValue.Float(f) => Right(f)
-      case _                       => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Float but got: $value"))
+      case _                       => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Float but got: $value"))
     }
   }
 
@@ -105,7 +105,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Double] = value match {
       case PrimitiveValue.Double(d) => Right(d)
-      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Double but got: $value"))
+      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Double but got: $value"))
     }
   }
 
@@ -114,7 +114,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.Char] = value match {
       case PrimitiveValue.Char(c) => Right(c)
-      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Char but got: $value"))
+      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Char but got: $value"))
     }
   }
 
@@ -123,7 +123,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, Predef.String] = value match {
       case PrimitiveValue.String(s) => Right(s)
-      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected String but got: $value"))
+      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected String but got: $value"))
     }
   }
 
@@ -132,7 +132,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.BigInt] = value match {
       case PrimitiveValue.BigInt(b) => Right(b)
-      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected BigInt but got: $value"))
+      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected BigInt but got: $value"))
     }
   }
 
@@ -142,7 +142,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, scala.BigDecimal] = value match {
       case PrimitiveValue.BigDecimal(b) => Right(b)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected BigDecimal but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected BigDecimal but got: $value"))
     }
   }
 
@@ -153,7 +153,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.DayOfWeek] = value match {
       case PrimitiveValue.DayOfWeek(d) => Right(d)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected DayOfWeek but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected DayOfWeek but got: $value"))
     }
   }
 
@@ -163,7 +163,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.Duration] = value match {
       case PrimitiveValue.Duration(d) => Right(d)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Duration but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Duration but got: $value"))
     }
   }
 
@@ -172,7 +172,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.Instant] = value match {
       case PrimitiveValue.Instant(i) => Right(i)
-      case _                         => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Instant but got: $value"))
+      case _                         => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Instant but got: $value"))
     }
   }
 
@@ -183,7 +183,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.LocalDate] = value match {
       case PrimitiveValue.LocalDate(d) => Right(d)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected LocalDate but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected LocalDate but got: $value"))
     }
   }
 
@@ -195,7 +195,7 @@ object PrimitiveType {
       value match {
         case PrimitiveValue.LocalDateTime(d) => Right(d)
         case _ =>
-          Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected LocalDateTime but got: $value"))
+          Left(SchemaError.invalidType(DynamicOptic.root, s"Expected LocalDateTime but got: $value"))
       }
   }
 
@@ -206,7 +206,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.LocalTime] = value match {
       case PrimitiveValue.LocalTime(t) => Right(t)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected LocalTime but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected LocalTime but got: $value"))
     }
   }
 
@@ -215,7 +215,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.Month] = value match {
       case PrimitiveValue.Month(m) => Right(m)
-      case _                       => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Month but got: $value"))
+      case _                       => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Month but got: $value"))
     }
   }
 
@@ -225,7 +225,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.MonthDay] = value match {
       case PrimitiveValue.MonthDay(m) => Right(m)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected MonthDay but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected MonthDay but got: $value"))
     }
   }
 
@@ -238,7 +238,7 @@ object PrimitiveType {
         case PrimitiveValue.OffsetDateTime(d) => Right(d)
         case _ =>
           Left(
-            SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected OffsetDateTime but got: $value")
+            SchemaError.invalidType(DynamicOptic.root, s"Expected OffsetDateTime but got: $value")
           )
       }
   }
@@ -250,7 +250,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.OffsetTime] = value match {
       case PrimitiveValue.OffsetTime(t) => Right(t)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected OffsetTime but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected OffsetTime but got: $value"))
     }
   }
 
@@ -259,7 +259,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.Period] = value match {
       case PrimitiveValue.Period(p) => Right(p)
-      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Period but got: $value"))
+      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Period but got: $value"))
     }
   }
 
@@ -268,7 +268,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.Year] = value match {
       case PrimitiveValue.Year(y) => Right(y)
-      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Year but got: $value"))
+      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Year but got: $value"))
     }
   }
 
@@ -279,7 +279,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.YearMonth] = value match {
       case PrimitiveValue.YearMonth(y) => Right(y)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected YearMonth but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected YearMonth but got: $value"))
     }
   }
 
@@ -288,7 +288,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.ZoneId] = value match {
       case PrimitiveValue.ZoneId(z) => Right(z)
-      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected ZoneId but got: $value"))
+      case _                        => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected ZoneId but got: $value"))
     }
   }
 
@@ -299,7 +299,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.time.ZoneOffset] = value match {
       case PrimitiveValue.ZoneOffset(z) => Right(z)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected ZoneOffset but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected ZoneOffset but got: $value"))
     }
   }
 
@@ -311,7 +311,7 @@ object PrimitiveType {
       value match {
         case PrimitiveValue.ZonedDateTime(z) => Right(z)
         case _ =>
-          Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected ZonedDateTime but got: $value"))
+          Left(SchemaError.invalidType(DynamicOptic.root, s"Expected ZonedDateTime but got: $value"))
       }
   }
 
@@ -320,7 +320,7 @@ object PrimitiveType {
 
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.util.UUID] = value match {
       case PrimitiveValue.UUID(u) => Right(u)
-      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected UUID but got: $value"))
+      case _                      => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected UUID but got: $value"))
     }
   }
 
@@ -330,7 +330,7 @@ object PrimitiveType {
     protected def fromPrimitiveValue(value: PrimitiveValue): Either[SchemaError, java.util.Currency] = value match {
       case PrimitiveValue.Currency(c) => Right(c)
       case _ =>
-        Left(SchemaError.invalidType(DynamicOptic.root, DynamicOptic.root, s"Expected Currency but got: $value"))
+        Left(SchemaError.invalidType(DynamicOptic.root, s"Expected Currency but got: $value"))
     }
   }
 }
