@@ -1,21 +1,16 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.Lens.LensImpl
-import zio.blocks.schema.Prism.PrismImpl
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 
 /**
  * Represents an optic that provides a generic interface for traversing,
  * selecting, and updating data structures in a functional way. The `Optic`
- * trait is parameterized by a binding type constructor `F[_, _]`, the source
- * type `S`, and the focus type `A`.
+ * trait is parameterized by the source type `S`, and the focus type `A`.
  *
  * The optic can operate over various its types such as lens, prism, optional,
  * and traversal, and supports composition of them.
  *
- * @tparam F
- *   The type of the binding applied.
  * @tparam S
  *   The source type from which data is accessed or modified.
  * @tparam A
@@ -138,7 +133,7 @@ object Lens {
     private[this] var bindings: Array[OpticBinding] = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-    private[this] def init: Unit = {
+    {
       var offset   = RegisterOffset.Zero
       val len      = sources.length
       val bindings = new Array[OpticBinding](len)
@@ -165,7 +160,6 @@ object Lens {
     }
 
     override def get(s: S): A = {
-      if (bindings eq null) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -181,7 +175,6 @@ object Lens {
     }
 
     override def replace(s: S, a: A): S = {
-      if (bindings eq null) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -205,7 +198,6 @@ object Lens {
     }
 
     def modify(s: S, f: A => A): S = {
-      if (bindings eq null) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -289,7 +281,7 @@ object Prism {
       with Leaf[S, A] {
     private[this] var matchers: Array[Matcher[Any]] = null
 
-    private def init: Unit = {
+    {
       val len      = sources.length
       val matchers = new Array[Matcher[Any]](len)
       var idx      = 0
@@ -311,7 +303,6 @@ object Prism {
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
     def getOption(s: S): Option[A] = {
-      if (matchers eq null) init
       val len    = matchers.length
       var x: Any = s
       var idx    = 0
@@ -329,7 +320,6 @@ object Prism {
     def reverseGet(a: A): S = a
 
     def replace(s: S, a: A): S = {
-      if (matchers eq null) init
       val len    = matchers.length
       var x: Any = s
       var idx    = 0
@@ -342,7 +332,6 @@ object Prism {
     }
 
     def replaceOption(s: S, a: A): Option[S] = {
-      if (matchers eq null) init
       val len    = matchers.length
       var x: Any = s
       var idx    = 0
@@ -355,7 +344,6 @@ object Prism {
     }
 
     def modify(s: S, f: A => A): S = {
-      if (matchers eq null) init
       val len    = matchers.length
       var x: Any = s
       var idx    = 0
@@ -450,7 +438,7 @@ object Optional {
     private[this] var bindings: Array[OpticBinding] = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-    private[this] def init: Unit = {
+    {
       val len      = sources.length
       val bindings = new Array[OpticBinding](len)
       var offset   = RegisterOffset.Zero
@@ -494,7 +482,6 @@ object Optional {
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
     def getOption(s: S): Option[A] = {
-      if (bindings eq null) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -531,7 +518,6 @@ object Optional {
     }
 
     def replace(s: S, a: A): S = {
-      if (bindings eq null) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -562,7 +548,6 @@ object Optional {
     }
 
     def replaceOption(s: S, a: A): Option[S] = {
-      if (bindings eq null) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -593,7 +578,6 @@ object Optional {
     }
 
     def modify(s: S, f: A => A): S = {
-      if (bindings eq null) init
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length

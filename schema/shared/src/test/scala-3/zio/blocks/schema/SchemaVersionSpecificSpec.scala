@@ -13,20 +13,23 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema using 'derives' keyword") {
         case class Record1(c: Char, d: Double) derives Schema
 
+        object Record1 extends CompanionOptics[Record1] {
+          val c = field(x => x.c)
+          val d = field(_.d)
+        }
+
         val schema = summon[Schema[Record1]]
         val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
         val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Char]]
         val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Double]]
-        val lens1  = Lens(record, field1)
-        val lens2  = Lens(record, field2)
         assert(field1.value.binding.defaultValue)(isNone) &&
         assert(field2.value.binding.defaultValue)(isNone) &&
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(chars = 1, doubles = 1))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(chars = 1, doubles = 1))) &&
-        assert(lens1.get(Record1('1', 2.0)))(equalTo('1')) &&
-        assert(lens2.get(Record1('1', 2.0)))(equalTo(2.0)) &&
-        assert(lens1.replace(Record1('1', 2.0), '3'))(equalTo(Record1('3', 2.0))) &&
-        assert(lens2.replace(Record1('1', 2.0), 3.0))(equalTo(Record1('1', 3.0))) &&
+        assert(Record1.c.get(Record1('1', 2.0)))(equalTo('1')) &&
+        assert(Record1.d.get(Record1('1', 2.0)))(equalTo(2.0)) &&
+        assert(Record1.c.replace(Record1('1', 2.0), '3'))(equalTo(Record1('3', 2.0))) &&
+        assert(Record1.d.replace(Record1('1', 2.0), 3.0))(equalTo(Record1('1', 3.0))) &&
         assert(schema)(
           equalTo(
             new Schema[Record1](
@@ -57,16 +60,16 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         case class Case2(f: Float) extends Variant1 derives Schema
 
-        val schema  = Schema.derived[Variant1]
-        val variant = schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant1]]
-        val case1   = variant.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]]
-        val case2   = variant.cases(1).asInstanceOf[Term.Bound[Variant1, Case2]]
-        val prism1  = Prism(variant, case1)
-        val prism2  = Prism(variant, case2)
-        assert(prism1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
-        assert(prism2.getOption(Case2(0.2f)))(isSome(equalTo(Case2(0.2f)))) &&
-        assert(prism1.replace(Case1(0.1), Case1(0.2)))(equalTo(Case1(0.2))) &&
-        assert(prism2.replace(Case2(0.2f), Case2(0.3f)))(equalTo(Case2(0.3f))) &&
+        object Variant1 extends CompanionOptics[Variant1] {
+          val case1 = caseOf[Case1]
+          val case2 = caseOf[Case2]
+        }
+
+        val schema = Schema.derived[Variant1]
+        assert(Variant1.case1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
+        assert(Variant1.case2.getOption(Case2(0.2f)))(isSome(equalTo(Case2(0.2f)))) &&
+        assert(Variant1.case1.replace(Case1(0.1), Case1(0.2)))(equalTo(Case1(0.2))) &&
+        assert(Variant1.case2.replace(Case2(0.2f), Case2(0.3f)))(equalTo(Case2(0.3f))) &&
         assert(schema)(
           equalTo(
             new Schema[Variant1](
