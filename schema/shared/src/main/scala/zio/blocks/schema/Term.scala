@@ -4,8 +4,8 @@ import zio.blocks.schema.binding._
 
 final case class Term[F[_, _], S, A](name: String, value: Reflect[F, A], doc: Doc, modifiers: Seq[Modifier.Term])
     extends Reflectable[A] { self =>
-  type Source = S
-  type Focus  = A
+  final type Source = S
+  final type Focus  = A
 
   def transform[G[_, _]](path: DynamicOptic, termType: Term.Type, f: ReflectTransformer[F, G]): Lazy[Term[G, S, A]] =
     for {
