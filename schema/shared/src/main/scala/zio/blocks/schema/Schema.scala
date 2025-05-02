@@ -27,10 +27,11 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def defaultValue(value: => A): Schema[A] = Schema(reflect.defaultValue(value))
 
-  def derive[F <: codec.Format](format: F): format.TypeClass[A] = ??? // TODO
+  def derive[F <: codec.Format](format: F): format.TypeClass[A] = deriving(format).derive
 
   def deriving[F <: codec.Format](format: F): zio.blocks.schema.derive.DerivationBuilder[format.TypeClass, A] =
-    ??? // TODO
+    zio.blocks.schema.derive
+      .DerivationBuilder[format.TypeClass, A](this, format.deriver, IndexedSeq.empty, IndexedSeq.empty)
 
   def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[codec.CodecError, A] =
     getInstance(format).decode(decodeInput)
