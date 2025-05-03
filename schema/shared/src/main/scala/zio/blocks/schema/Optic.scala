@@ -101,7 +101,7 @@ sealed trait Lens[S, A] extends Optic[S, A] {
 
   def replace(s: S, a: A): S
 
-  final def check(s: S): Option[Nothing] = None
+  final def check(s: S): None.type = None
 
   // Compose this lens with a lens:
   override def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
@@ -502,7 +502,8 @@ object Optional {
               .apply(variant.cases.indexWhere {
                 val name = focusTerm.name
                 x => x.name == name
-              })
+              }),
+            discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
           )
         }
         idx += 1
@@ -511,8 +512,52 @@ object Optional {
       this.bindings = bindings
     }
 
-    def check(s: S): Option[OpticCheck] = ???
-    def source: Reflect.Bound[S]        = sources(0).asInstanceOf[Reflect.Bound[S]]
+    def check(s: S): Option[OpticCheck] = {
+      val registers = Registers(usedRegisters)
+      var x: Any    = s
+      val len       = bindings.length
+      var idx       = 0
+      while (idx < len) {
+        val lastX   = x
+        val binding = bindings(idx)
+        if (binding.matcher eq null) {
+          val offset = binding.offset
+          binding.deconstructor.deconstruct(registers, offset, x)
+          x = binding.register.get(registers, offset)
+        } else {
+          x = binding.matcher.downcastOrNull(x)
+          if (x == null) {
+            val focusTerm     = focusTerms(idx)
+            val discriminator = binding.discriminator
+            val expectedIdx   = discriminator.discriminate(lastX)
+            val expectedCase  = focusTerms(expectedIdx).name
+
+            return Some(
+              OpticCheck.unexpectedCase(
+                focusTerm.name,
+                expectedCase,
+                toDynamic,
+                DynamicOptic(
+                  focusTerms
+                    .take(idx + 1)
+                    .zipWithIndex
+                    .map {
+                      case (term, index) if bindings(index).matcher eq null => DynamicOptic.Node.Case(term.name)
+                      case (term, index)                                    => DynamicOptic.Node.Field(term.name)
+                    }
+                    .toVector
+                ),
+                lastX
+              )
+            )
+          }
+        }
+        idx += 1
+      }
+      None
+    }
+
+    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
 
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
@@ -1176,5 +1221,6 @@ private[schema] case class OpticBinding(
   deconstructor: Deconstructor[Any] = null,
   constructor: Constructor[Any] = null,
   register: Register[Any] = null,
-  matcher: Matcher[Any] = null
+  matcher: Matcher[Any] = null,
+  discriminator: Discriminator[Any] = null
 )
