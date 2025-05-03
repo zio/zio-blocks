@@ -163,7 +163,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def modifier(modifier: ModifierType): Reflect[F, A]
 
-  def modifiers(modifiers: Iterable[ModifierType]): Reflect[F, A] = ???
+  def modifiers(modifiers: Iterable[ModifierType]): Reflect[F, A]
 
   def nodeType: Reflect.Type { type NodeBinding = self.NodeBinding; type ModifierType = self.ModifierType }
 
@@ -351,6 +351,8 @@ object Reflect {
 
     def modifier(modifier: Modifier.Record): Record[F, A] = copy(modifiers = modifiers :+ modifier)
 
+    def modifiers(modifiers: Iterable[Modifier.Record]): Record[F, A] = copy(modifiers = this.modifiers ++ modifiers)
+
     def modifyField(name: String)(f: Term.Updater[F]): Option[Record[F, A]] = {
       val i = fields.indexWhere(_.name == name)
       if (i >= 0) {
@@ -489,13 +491,28 @@ object Reflect {
 
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
-    def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] = ???
+    def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
+      value match {
+        case DynamicValue.Variant(discriminator, value) =>
+          caseByName(discriminator) match {
+            case Some(case_) =>
+              val caseValue = case_.value.asInstanceOf[Reflect[F, A]]
+
+              caseValue.fromDynamicValue(value)
+
+            case None =>
+              Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case $discriminator"))
+          }
+        case _ => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a variant, got $value"))
+      }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
 
     def metadata: F[NodeBinding, A] = variantBinding
 
     def modifier(modifier: Modifier.Variant): Variant[F, A] = copy(modifiers = modifiers :+ modifier)
+
+    def modifiers(modifiers: Iterable[Modifier.Variant]): Variant[F, A] = copy(modifiers = this.modifiers ++ modifiers)
 
     def modifyCase(name: String)(f: Term.Updater[F]): Option[Variant[F, A]] = {
       val i = cases.indexWhere(_.name == name)
@@ -562,11 +579,135 @@ object Reflect {
     def examples(value: C[A], values: C[A]*)(implicit F: HasBinding[F]): Sequence[F, A, C] =
       copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
 
-    def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, C[A]] = ???
+    def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, C[A]] = {
+      val seqConstructor             = self.seqConstructor
+      var error: Option[SchemaError] = None
+
+      def addError(e: SchemaError): Unit =
+        error = error.map(_ ++ e).orElse(Some(e))
+
+      value match {
+        case DynamicValue.Sequence(elements) =>
+          element match {
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Boolean) =>
+              val builder = seqConstructor.newBooleanBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addBoolean(builder, value.asInstanceOf[Boolean])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultBoolean(builder).asInstanceOf[C[A]])
+
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Byte) =>
+              val builder = seqConstructor.newByteBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addByte(builder, value.asInstanceOf[Byte])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultByte(builder).asInstanceOf[C[A]])
+
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Char) =>
+              val builder = seqConstructor.newCharBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addChar(builder, value.asInstanceOf[Char])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultChar(builder).asInstanceOf[C[A]])
+
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Short) =>
+              val builder = seqConstructor.newShortBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addShort(builder, value.asInstanceOf[Short])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultShort(builder).asInstanceOf[C[A]])
+
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Int) =>
+              val builder = seqConstructor.newIntBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addInt(builder, value.asInstanceOf[Int])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultInt(builder).asInstanceOf[C[A]])
+
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Long) =>
+              val builder = seqConstructor.newLongBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addLong(builder, value.asInstanceOf[Long])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultLong(builder).asInstanceOf[C[A]])
+
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Float) =>
+              val builder = seqConstructor.newFloatBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addFloat(builder, value.asInstanceOf[Float])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultFloat(builder).asInstanceOf[C[A]])
+
+            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Double) =>
+              val builder = seqConstructor.newDoubleBuilder(elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addDouble(builder, value.asInstanceOf[Double])
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultDouble(builder).asInstanceOf[C[A]])
+
+            case _ =>
+              val builder = seqConstructor.newObjectBuilder[A](elements.size)
+
+              elements.foreach { elem =>
+                self.element.fromDynamicValue(elem) match {
+                  case Right(value) => seqConstructor.addObject(builder, value)
+                  case Left(error)  => addError(error)
+                }
+              }
+
+              error.toLeft(seqConstructor.resultObject(builder))
+
+          }
+        case _ =>
+          Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a sequence, got $value"))
+      }
+    }
 
     def metadata: F[NodeBinding, C[A]] = seqBinding
 
     def modifier(modifier: Modifier.Seq): Sequence[F, A, C] = copy(modifiers = modifiers :+ modifier)
+
+    def modifiers(modifiers: Iterable[Modifier.Seq]): Sequence[F, A, C] = copy(modifiers = this.modifiers ++ modifiers)
 
     def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
       val iterator = seqDeconstructor.deconstruct(value)
@@ -626,7 +767,35 @@ object Reflect {
     def examples(value: M[Key, Value], values: M[Key, Value]*)(implicit F: HasBinding[F]): Map[F, Key, Value, M] =
       copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
 
-    def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, M[Key, Value]] = ???
+    def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, M[Key, Value]] = {
+      val mapConstructor             = self.mapConstructor
+      var error: Option[SchemaError] = None
+
+      def addError(e: SchemaError): Unit =
+        error = error.map(_ ++ e).orElse(Some(e))
+
+      value match {
+        case DynamicValue.Map(elements) =>
+          val builder = mapConstructor.newObjectBuilder[Key, Value](elements.size)
+
+          elements.foreach { case (key, value) =>
+            self.key.fromDynamicValue(key) match {
+              case Right(keyValue) =>
+                self.value.fromDynamicValue(value) match {
+                  case Right(valueValue) => mapConstructor.addObject(builder, keyValue, valueValue)
+                  case Left(error)       => addError(error)
+                }
+              case Left(error) => addError(error)
+            }
+          }
+
+          error.toLeft(mapConstructor.resultObject(builder))
+
+        case _ =>
+          Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a map, got $value"))
+      }
+
+    }
 
     def mapConstructor(implicit F: HasBinding[F]): MapConstructor[M] = F.mapConstructor(mapBinding)
 
@@ -635,6 +804,9 @@ object Reflect {
     def metadata: F[NodeBinding, M[Key, Value]] = mapBinding
 
     def modifier(modifier: Modifier.Map): Map[F, Key, Value, M] = copy(modifiers = modifiers :+ modifier)
+
+    def modifiers(modifiers: Iterable[Modifier.Map]): Map[F, Key, Value, M] =
+      copy(modifiers = this.modifiers ++ modifiers)
 
     def toDynamicValue(value: M[Key, Value])(implicit F: HasBinding[F]): DynamicValue = {
 
@@ -703,6 +875,8 @@ object Reflect {
 
     def modifier(modifier: ModifierType): Dynamic[F] = copy(modifiers = modifiers :+ modifier)
 
+    def modifiers(modifiers: Iterable[ModifierType]): Dynamic[F] = copy(modifiers = this.modifiers ++ modifiers)
+
     def toDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): DynamicValue = value
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
@@ -748,6 +922,9 @@ object Reflect {
 
     def modifier(modifier: Modifier.Primitive): Primitive[F, A] = copy(modifiers = modifiers :+ modifier)
 
+    def modifiers(modifiers: Iterable[Modifier.Primitive]): Primitive[F, A] =
+      copy(modifiers = this.modifiers ++ modifiers)
+
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = primitiveType.toDynamicValue(value)
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
@@ -791,6 +968,8 @@ object Reflect {
     def modifiers: Seq[ModifierType] = value.modifiers
 
     def modifier(modifier: ModifierType): Deferred[F, A] = copy(_value = () => value.modifier(modifier))
+
+    def modifiers(modifiers: Iterable[ModifierType]): Deferred[F, A] = copy(_value = () => value.modifiers(modifiers))
 
     def doc: Doc = value.doc
 
