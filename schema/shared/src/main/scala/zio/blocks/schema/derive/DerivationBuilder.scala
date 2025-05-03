@@ -43,7 +43,7 @@ final case class DerivationBuilder[TC[_], A](
         acc + (override_.optic -> acc.getOrElse(override_.optic, Vector.empty).appended(override_.modifier))
     }
 
-    def extraModifiers[A](reflect: Reflect.Type, optic: DynamicOptic): Vector[reflect.ModifierType] = {
+    def extraModifiers(reflect: Reflect.Type, optic: DynamicOptic): Vector[reflect.ModifierType] = {
       val extra = modifierMap.getOrElse(optic, Vector.empty)
 
       (reflect match {
@@ -66,11 +66,8 @@ final case class DerivationBuilder[TC[_], A](
       }).asInstanceOf[Vector[reflect.ModifierType]]
     }
 
-    def getCustomInstance[A](path: DynamicOptic): Option[Lazy[TC[A]]] = {
-      def coerceTC[B](lazy_tc: Lazy[TC[B]]): Lazy[TC[A]] = lazy_tc.asInstanceOf[Lazy[TC[A]]]
-
-      instanceMap.get(path).map(coerceTC(_))
-    }
+    def getCustomInstance[A](path: DynamicOptic): Option[Lazy[TC[A]]] =
+      instanceMap.get(path).map(_.asInstanceOf[Lazy[TC[A]]])
 
     type F[T, A] = Binding[T, A]
     type G[T, A] = BindingInstance[TC, T, A]
