@@ -37,47 +37,47 @@ sealed trait Optic[S, A] { self =>
 
   def toDynamic: DynamicOptic
 
-  final def listValues[B](implicit ev: A <:< List[B]): Traversal[S, B] = {
+  final def listValues[B](implicit ev: A =:= List[B]): Traversal[S, B] = {
     import Reflect.Extractors.List
 
-    val list = self.asSub[List[B]]
+    val list = self.asEquivalent[List[B]]
     list.focus match {
       case List(element) => list(Traversal.listValues(element))
       case _             => sys.error("Expected List")
     }
   }
 
-  final def vectorValues[B](implicit ev: A <:< Vector[B]): Traversal[S, B] = {
+  final def vectorValues[B](implicit ev: A =:= Vector[B]): Traversal[S, B] = {
     import Reflect.Extractors.Vector
 
-    val vector = self.asSub[Vector[B]]
+    val vector = self.asEquivalent[Vector[B]]
     vector.focus match {
       case Vector(element) => vector(Traversal.vectorValues(element))
       case _               => sys.error("Expected Vector")
     }
   }
 
-  final def setValues[B](implicit ev: A <:< Set[B]): Traversal[S, B] = {
+  final def setValues[B](implicit ev: A =:= Set[B]): Traversal[S, B] = {
     import Reflect.Extractors.Set
 
-    val set = self.asSub[Set[B]]
+    val set = self.asEquivalent[Set[B]]
     set.focus match {
       case Set(element) => set(Traversal.setValues(element))
       case _            => sys.error("Expected Set")
     }
   }
 
-  final def arrayValues[B](implicit ev: A <:< Array[B]): Traversal[S, B] = {
+  final def arrayValues[B](implicit ev: A =:= Array[B]): Traversal[S, B] = {
     import Reflect.Extractors.Array
 
-    val array = self.asSub[Array[B]]
+    val array = self.asEquivalent[Array[B]]
     array.focus match {
       case Array(element) => array(Traversal.arrayValues(element))
       case _              => sys.error("Expected Array")
     }
   }
 
-  final def asSub[B](implicit ev: A <:< B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
+  final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
 
   override def hashCode: Int = java.util.Arrays.hashCode(leafs.asInstanceOf[Array[AnyRef]])
 
