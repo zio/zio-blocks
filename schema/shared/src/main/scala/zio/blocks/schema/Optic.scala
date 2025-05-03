@@ -33,6 +33,8 @@ sealed trait Optic[S, A] { self =>
   // Compose this optic with a traversal:
   def apply[B](that: Traversal[A, B]): Traversal[S, B]
 
+  def check(s: S): Option[OpticCheck]
+
   def modify(s: S, f: A => A): S
 
   def toDynamic: DynamicOptic
@@ -98,6 +100,8 @@ sealed trait Lens[S, A] extends Optic[S, A] {
   def get(s: S): A
 
   def replace(s: S, a: A): S
+
+  final def check(s: S): Option[Nothing] = None
 
   // Compose this lens with a lens:
   override def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
@@ -258,7 +262,6 @@ sealed trait Prism[S, A <: S] extends Optic[S, A] {
 
   // Compose this prism with a traversal:
   override def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
-
 }
 
 object Prism {
@@ -279,7 +282,8 @@ object Prism {
     focusTerms: Array[Term.Bound[_, _]]
   ) extends Prism[S, A]
       with Leaf[S, A] {
-    private[this] var matchers: Array[Matcher[Any]] = null
+    private[this] var matchers: Array[Matcher[Any]]             = null
+    private[this] var discriminators: Array[Discriminator[Any]] = null
 
     {
       val len      = sources.length
@@ -293,9 +297,39 @@ object Prism {
             val name = focusTerm.name
             x => x.name == name
           })
+        discriminators(idx) = source.discriminator.asInstanceOf[Discriminator[Any]]
         idx += 1
       }
       this.matchers = matchers
+    }
+
+    def check(s: S): Option[OpticCheck] = {
+      val len    = matchers.length
+      var x: Any = s
+      var idx    = 0
+      while (idx < len) {
+        val lastX = x
+        x = matchers(idx).downcastOrNull(x)
+        if (x == null) {
+          val focusTerm     = focusTerms(idx)
+          val discriminator = discriminators(idx)
+
+          val expectedIdx  = discriminator.discriminate(lastX)
+          val expectedCase = focusTerms(expectedIdx).name
+
+          return Some(
+            OpticCheck.unexpectedCase(
+              focusTerm.name,
+              expectedCase,
+              toDynamic,
+              DynamicOptic(focusTerms.take(idx + 1).map(term => DynamicOptic.Node.Case(term.name)).toVector),
+              lastX
+            )
+          )
+        }
+        idx += 1
+      }
+      None
     }
 
     def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
@@ -477,7 +511,8 @@ object Optional {
       this.bindings = bindings
     }
 
-    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
+    def check(s: S): Option[OpticCheck] = ???
+    def source: Reflect.Bound[S]        = sources(0).asInstanceOf[Reflect.Bound[S]]
 
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
@@ -713,6 +748,8 @@ object Traversal {
   private[schema] case class SeqValues[A, C[_]](source: Reflect.Sequence.Bound[A, C])
       extends Traversal[C[A], A]
       with Leaf[C[A], A] {
+    def check(s: C[A]): Option[OpticCheck] = ???
+
     def focus: Reflect.Bound[A] = source.element
 
     def fold[Z](s: C[A])(zero: Z, f: (Z, A) => Z): Z = {
@@ -1008,6 +1045,8 @@ object Traversal {
   private[schema] case class MapKeys[Key, Value, M[_, _]](source: Reflect.Map.Bound[Key, Value, M])
       extends Traversal[M[Key, Value], Key]
       with Leaf[M[Key, Value], Key] {
+    def check(s: M[Key, Value]): Option[OpticCheck] = ???
+
     def focus: Reflect.Bound[Key] = source.key
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Key) => Z): Z = {
@@ -1045,6 +1084,8 @@ object Traversal {
       with Leaf[M[Key, Value], Value] {
     def focus: Reflect.Bound[Value] = source.value
 
+    def check(s: M[Key, Value]): Option[OpticCheck] = ???
+
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Value) => Z): Z = {
       val deconstructor = source.mapDeconstructor
       val it            = deconstructor.deconstruct(s)
@@ -1076,7 +1117,8 @@ object Traversal {
   }
 
   private[schema] case class TraversalMixed[S, A](leafs: Array[Leaf[_, _]]) extends Traversal[S, A] {
-    def source: Reflect.Bound[S] = leafs(0).source.asInstanceOf[Reflect.Bound[S]]
+    def check(s: S): Option[OpticCheck] = ???
+    def source: Reflect.Bound[S]        = leafs(0).source.asInstanceOf[Reflect.Bound[S]]
 
     def focus: Reflect.Bound[A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect.Bound[A]]
 
