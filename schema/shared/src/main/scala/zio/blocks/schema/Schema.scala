@@ -56,7 +56,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def examples[B](optic: Optic[A, B])(value: B, values: B*): Schema[A] =
     updated(optic)(_.examples(value, values: _*)).getOrElse(this)
 
-  def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = ??? // TODO
+  def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = reflect.fromDynamicValue(value)
 
   def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
