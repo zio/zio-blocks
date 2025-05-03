@@ -49,6 +49,7 @@ object OpticBenchmarkSpec extends ZIOSpecDefault {
     suite("TraversalModifyBenchmark")(
       test("has consistent output") {
         assert((new TraversalModifyBenchmark).direct.toList)(equalTo((2 to 11).toList)) &&
+        assert((new TraversalModifyBenchmark).quicklens.toList)(equalTo((2 to 11).toList)) &&
         assert((new TraversalModifyBenchmark).zioBlocks.toList)(equalTo((2 to 11).toList))
       }
     )

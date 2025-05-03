@@ -173,6 +173,9 @@ class TraversalModifyBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
+  def quicklens: Array[Int] = a_i_quicklens.apply(ai).using(_ + 1)
+
+  @Benchmark
   def zioBlocks: Array[Int] = a_i.modify(ai, _ + 1)
 }
 
@@ -334,5 +337,6 @@ object OptionalDomain {
 }
 
 object TraversalDomain {
-  val a_i: Traversal[Array[Int], Int] = Traversal.arrayValues(Reflect.int[Binding])
+  val a_i: Traversal[Array[Int], Int]                          = Traversal.arrayValues(Reflect.int[Binding])
+  val a_i_quicklens: Array[Int] => PathModify[Array[Int], Int] = modify(_: Array[Int])(_.each)
 }
