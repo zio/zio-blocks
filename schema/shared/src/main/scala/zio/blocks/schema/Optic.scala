@@ -37,6 +37,32 @@ sealed trait Optic[S, A] { self =>
 
   def modify(s: S, f: A => A): S
 
+  def modifyOption(s: S, f: A => A): Option[S] = {
+    var modified = false
+    var wrapper = (a: A) => {
+      modified = true
+      f(a)
+    }
+
+    val result = modify(s, wrapper)
+
+    if (modified) Some(result)
+    else None
+  }
+
+  def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
+    var modified = false
+    var wrapper = (a: A) => {
+      modified = true
+      f(a)
+    }
+
+    val result = modify(s, wrapper)
+
+    if (modified) Right(result)
+    else Left(check(s).get)
+  }
+
   def toDynamic: DynamicOptic
 
   final def listValues[B](implicit ev: A =:= List[B]): Traversal[S, B] = {
@@ -245,11 +271,23 @@ object Lens {
 sealed trait Prism[S, A <: S] extends Optic[S, A] {
   def getOption(s: S): Option[A]
 
+  def getOrFail(s: S): Either[OpticCheck, A] =
+    getOption(s) match {
+      case Some(a) => Right(a)
+      case None    => Left(check(s).get)
+    }
+
   def reverseGet(a: A): S
 
   def replace(s: S, a: A): S
 
   def replaceOption(s: S, a: A): Option[S]
+
+  def replaceOrFail(s: S, a: A): Either[OpticCheck, S] =
+    replaceOption(s, a) match {
+      case Some(s) => Right(s)
+      case None    => Left(check(s).get)
+    }
 
   // Compose this prism with a prism:
   override def apply[B <: A](that: Prism[A, B]): Prism[S, B] = Prism(this, that)
@@ -404,9 +442,21 @@ object Prism {
 sealed trait Optional[S, A] extends Optic[S, A] {
   def getOption(s: S): Option[A]
 
+  def getOrFail(s: S): Either[OpticCheck, A] =
+    getOption(s) match {
+      case Some(a) => Right(a)
+      case None    => Left(check(s).get)
+    }
+
   def replace(s: S, a: A): S
 
   def replaceOption(s: S, a: A): Option[S]
+
+  def replaceOrFail(s: S, a: A): Either[OpticCheck, S] =
+    replaceOption(s, a) match {
+      case Some(s) => Right(s)
+      case None    => Left(check(s).get)
+    }
 
   // Compose this optional with a lens:
   override def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
@@ -701,6 +751,23 @@ object Optional {
 
 sealed trait Traversal[S, A] extends Optic[S, A] { self =>
   def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z
+
+  def reduce(s: S)(f: (A, A) => A): Either[OpticCheck, A] = {
+    var one = false
+
+    val reduced = fold[A](s)(
+      null.asInstanceOf[A],
+      (acc, a) => {
+        if (!one) {
+          one = true
+          a
+        } else f(acc, a)
+      }
+    )
+
+    if (one) Right(reduced)
+    else Left(check(s).get)
+  }
 
   // Compose this traversal with a lens:
   override def apply[B](that: Lens[A, B]): Traversal[S, B] = Traversal(this, that)
@@ -1218,6 +1285,7 @@ object Traversal {
 
       checks.reduceOption(_ ++ _)
     }
+
     def source: Reflect.Bound[S] = leafs(0).source.asInstanceOf[Reflect.Bound[S]]
 
     def focus: Reflect.Bound[A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect.Bound[A]]
