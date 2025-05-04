@@ -793,7 +793,14 @@ object Traversal {
   private[schema] case class SeqValues[A, C[_]](source: Reflect.Sequence.Bound[A, C])
       extends Traversal[C[A], A]
       with Leaf[C[A], A] {
-    def check(s: C[A]): Option[OpticCheck] = ???
+    def check(s: C[A]): Option[OpticCheck] = {
+      val deconstructor = source.seqDeconstructor
+
+      val iterator = deconstructor.deconstruct(s)
+
+      if (iterator.hasNext) None
+      else Some(OpticCheck.emptySequence(toDynamic, DynamicOptic.root, s))
+    }
 
     def focus: Reflect.Bound[A] = source.element
 
@@ -1090,7 +1097,12 @@ object Traversal {
   private[schema] case class MapKeys[Key, Value, M[_, _]](source: Reflect.Map.Bound[Key, Value, M])
       extends Traversal[M[Key, Value], Key]
       with Leaf[M[Key, Value], Key] {
-    def check(s: M[Key, Value]): Option[OpticCheck] = ???
+    def check(s: M[Key, Value]): Option[OpticCheck] = {
+      val deconstructor = source.mapDeconstructor
+      val iterator      = deconstructor.deconstruct(s)
+      if (iterator.hasNext) None
+      else Some(OpticCheck.emptyMap(toDynamic, DynamicOptic.root, s))
+    }
 
     def focus: Reflect.Bound[Key] = source.key
 
@@ -1129,7 +1141,12 @@ object Traversal {
       with Leaf[M[Key, Value], Value] {
     def focus: Reflect.Bound[Value] = source.value
 
-    def check(s: M[Key, Value]): Option[OpticCheck] = ???
+    def check(s: M[Key, Value]): Option[OpticCheck] = {
+      val deconstructor = source.mapDeconstructor
+      val iterator      = deconstructor.deconstruct(s)
+      if (iterator.hasNext) None
+      else Some(OpticCheck.emptyMap(toDynamic, DynamicOptic.root, s))
+    }
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Value) => Z): Z = {
       val deconstructor = source.mapDeconstructor
@@ -1162,8 +1179,46 @@ object Traversal {
   }
 
   private[schema] case class TraversalMixed[S, A](leafs: Array[Leaf[_, _]]) extends Traversal[S, A] {
-    def check(s: S): Option[OpticCheck] = ???
-    def source: Reflect.Bound[S]        = leafs(0).source.asInstanceOf[Reflect.Bound[S]]
+    def check(s: S): Option[OpticCheck] = {
+      var xs: Vector[Any] = Vector(s)
+      var checks          = Vector.empty[OpticCheck]
+
+      var idx = 0
+      while (checks.isEmpty && idx < leafs.length) {
+        val leaf = leafs(idx)
+        if (leaf.isInstanceOf[Lens.LensImpl[_, _]]) {
+          val lens = leaf.asInstanceOf[Lens.LensImpl[Any, Any]]
+          xs = xs.map(x => lens.get(x))
+        } else if (leaf.isInstanceOf[Prism.PrismImpl[_, _]]) {
+          val prism = leaf.asInstanceOf[Prism.PrismImpl[Any, Any]]
+          xs = xs.flatMap { x =>
+            prism.getOption(x) match {
+              case Some(a) => Vector(a)
+              case None =>
+                checks = checks ++ prism.check(x).toVector
+                Vector.empty[Any]
+            }
+          }
+        } else if (leaf.isInstanceOf[Traversal[_, _]]) {
+          val traversal = leaf.asInstanceOf[Traversal[Any, Any]]
+          xs = xs.flatMap { x =>
+            val check = traversal.check(x)
+            check match {
+              case Some(check) =>
+                checks = checks :+ check
+                Vector.empty[Any]
+
+              case None =>
+                traversal.fold[Vector[Any]](x)(Vector.empty[Any], (acc, a) => acc :+ a)
+            }
+          }
+        }
+        idx += 1
+      }
+
+      checks.reduceOption(_ ++ _)
+    }
+    def source: Reflect.Bound[S] = leafs(0).source.asInstanceOf[Reflect.Bound[S]]
 
     def focus: Reflect.Bound[A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect.Bound[A]]
 
