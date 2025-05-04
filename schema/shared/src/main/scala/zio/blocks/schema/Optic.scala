@@ -350,13 +350,13 @@ object Prism {
           val focusTerm     = focusTerms(idx)
           val discriminator = discriminators(idx)
 
-          val expectedIdx  = discriminator.discriminate(lastX)
-          val expectedCase = focusTerms(expectedIdx).name
+          val actualCaseIdx = discriminator.discriminate(lastX)
+          val actualCase    = sources(idx).cases(actualCaseIdx).name
 
           return Some(
             OpticCheck.unexpectedCase(
               focusTerm.name,
-              expectedCase,
+              actualCase,
               toDynamic,
               DynamicOptic(focusTerms.take(idx + 1).map(term => DynamicOptic.Node.Case(term.name)).toVector),
               lastX
@@ -566,32 +566,32 @@ object Optional {
       val len       = bindings.length
       var idx       = 0
       while (idx < len) {
-        val lastX   = x
+
         val binding = bindings(idx)
         if (binding.matcher eq null) {
           val offset = binding.offset
           binding.deconstructor.deconstruct(registers, offset, x)
           x = binding.register.get(registers, offset)
         } else {
+          val lastX = x
           x = binding.matcher.downcastOrNull(x)
           if (x == null) {
             val focusTerm     = focusTerms(idx)
-            val discriminator = binding.discriminator
-            val expectedIdx   = discriminator.discriminate(lastX)
-            val expectedCase  = focusTerms(expectedIdx).name
+            val actualCaseIdx = binding.discriminator.discriminate(lastX)
+            val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
 
             return Some(
               OpticCheck.unexpectedCase(
                 focusTerm.name,
-                expectedCase,
+                actualCase,
                 toDynamic,
                 DynamicOptic(
                   focusTerms
                     .take(idx + 1)
                     .zipWithIndex
                     .map {
-                      case (term, index) if bindings(index).matcher eq null => DynamicOptic.Node.Case(term.name)
-                      case (term, index)                                    => DynamicOptic.Node.Field(term.name)
+                      case (term, index) if bindings(index).matcher eq null => DynamicOptic.Node.Field(term.name)
+                      case (term, index)                                    => DynamicOptic.Node.Case(term.name)
                     }
                     .toVector
                 ),

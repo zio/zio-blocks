@@ -22,6 +22,22 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   def mapKeys: DynamicOptic = DynamicOptic(nodes :+ Node.MapKeys)
 
   def mapValues: DynamicOptic = DynamicOptic(nodes :+ Node.MapValues)
+
+  override lazy val toString: String = {
+    val sb  = new StringBuilder
+    var idx = 0
+    while (idx < nodes.length) {
+      nodes(idx) match {
+        case Node.Field(name) => sb.append(s".$name")
+        case Node.Case(name)  => sb.append(s".when[$name]")
+        case Node.Elements    => sb.append(".each")
+        case Node.MapKeys     => sb.append(".mapKeys")
+        case Node.MapValues   => sb.append(".mapValues")
+      }
+      idx += 1
+    }
+    sb.toString()
+  }
 }
 
 object DynamicOptic {
