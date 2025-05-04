@@ -6,6 +6,7 @@ import zio.test.Assertion._
 import zio.test._
 
 object OpticSpec extends ZIOSpecDefault {
+  import OpticSpecTypes._
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
       test("path") {
@@ -302,6 +303,62 @@ object OpticSpec extends ZIOSpecDefault {
           )
         )
       },
+      // test("check") {
+      //   assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
+      //     isSome(
+      //       hasField[OpticCheck, String](
+      //         "message",
+      //         _.message,
+      //         containsString("Expected Case1, but got Case2")
+      //       )
+      //     )
+      //   ) &&
+      //   assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case2(null)))))(
+      //     isSome(
+      //       hasField[OpticCheck, String](
+      //         "message",
+      //         _.message,
+      //         containsString("Expected Case1, but got Case2")
+      //       )
+      //     )
+      //   ) &&
+      //   assert(Variant2.c3_v1_c1_left.check(Case4(Nil)))(
+      //     isSome(
+      //       hasField[OpticCheck, String](
+      //         "message",
+      //         _.message,
+      //         containsString("Expected Case3, but got Case4")
+      //       )
+      //     )
+      //   ) &&
+      //   assert(Variant2.c3_v1_c1_right.check(Case3(Case2(null))))(
+      //     isSome(
+      //       hasField[OpticCheck, String](
+      //         "message",
+      //         _.message,
+      //         containsString("Expected Case1, but got Case2")
+      //       )
+      //     )
+      //   ) &&
+      //   assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
+      //     isSome(
+      //       hasField[OpticCheck, String](
+      //         "message",
+      //         _.message,
+      //         containsString("Expected Case1, but got Case4")
+      //       )
+      //     )
+      //   ) &&
+      //   assert(Variant1.c2_r3_r2_r1_b_left.check(Case1(0.1)))(
+      //     isSome(
+      //       hasField[OpticCheck, String](
+      //         "message",
+      //         _.message,
+      //         containsString("Expected Case2, but got Case1")
+      //       )
+      //     )
+      //   )
+      // },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1_d)(equalTo(Variant1.c1_d)) &&
         assert(Variant1.c1_d.hashCode)(equalTo(Variant1.c1_d.hashCode)) &&
@@ -655,6 +712,10 @@ object OpticSpec extends ZIOSpecDefault {
       }
     )
   )
+
+}
+
+object OpticSpecTypes {
 
   case class Record1(b: Boolean, f: Float)
 

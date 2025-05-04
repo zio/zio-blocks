@@ -1247,11 +1247,11 @@ object Traversal {
 
   private[schema] case class TraversalMixed[S, A](leafs: Array[Leaf[_, _]]) extends Traversal[S, A] {
     def check(s: S): Option[OpticCheck] = {
-      var xs: Vector[Any] = Vector(s)
-      var checks          = Vector.empty[OpticCheck]
+      var xs    = Vector[Any](s)
+      var check = Option.empty[OpticCheck]
 
       var idx = 0
-      while (checks.isEmpty && idx < leafs.length) {
+      while (check.isEmpty && idx < leafs.length) {
         val leaf = leafs(idx)
         if (leaf.isInstanceOf[Lens.LensImpl[_, _]]) {
           val lens = leaf.asInstanceOf[Lens.LensImpl[Any, Any]]
@@ -1262,28 +1262,32 @@ object Traversal {
             prism.getOption(x) match {
               case Some(a) => Vector(a)
               case None =>
-                checks = checks ++ prism.check(x).toVector
+                check = prism.check(x)
+
                 Vector.empty[Any]
             }
           }
         } else if (leaf.isInstanceOf[Traversal[_, _]]) {
           val traversal = leaf.asInstanceOf[Traversal[Any, Any]]
           xs = xs.flatMap { x =>
-            val check = traversal.check(x)
-            check match {
-              case Some(check) =>
-                checks = checks :+ check
-                Vector.empty[Any]
+            check = traversal.check(x)
 
-              case None =>
-                traversal.fold[Vector[Any]](x)(Vector.empty[Any], (acc, a) => acc :+ a)
+            if (check.isEmpty) {
+              traversal.fold[Vector[Any]](x)(Vector.empty[Any], (acc, a) => acc :+ a)
+            } else {
+              Vector.empty[Any]
             }
           }
         }
         idx += 1
       }
 
-      checks.reduceOption(_ ++ _)
+      check.map { check =>
+        // Attach the right prefix paths to the error message:
+        leafs.take(idx - 1).foldRight(check) { (optic, acc) =>
+          acc.shift(optic.toDynamic)
+        }
+      }
     }
 
     def source: Reflect.Bound[S] = leafs(0).source.asInstanceOf[Reflect.Bound[S]]
