@@ -507,7 +507,9 @@ object OpticSpec extends ZIOSpecDefault {
             hasField[OpticCheck, String](
               "message",
               _.message,
-              containsString("Expected Case1, but got Case4")
+              containsString(
+                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: Expected Case1, but got Variant2 (Case4(List()))"
+              )
             )
           )
         ) &&
