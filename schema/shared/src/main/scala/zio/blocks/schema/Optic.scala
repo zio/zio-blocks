@@ -320,13 +320,12 @@ object Prism {
     focusTerms: Array[Term.Bound[_, _]]
   ) extends Prism[S, A]
       with Leaf[S, A] {
-    private[this] var matchers: Array[Matcher[Any]]             = null
-    private[this] var discriminators: Array[Discriminator[Any]] = null
+    private[this] var matchers: Array[Matcher[Any]]             = new Array[Matcher[Any]](sources.length)
+    private[this] var discriminators: Array[Discriminator[Any]] = new Array[Discriminator[Any]](sources.length)
 
     {
-      val len      = sources.length
-      val matchers = new Array[Matcher[Any]](len)
-      var idx      = 0
+      val len = sources.length
+      var idx = 0
       while (idx < len) {
         val source    = sources(idx)
         val focusTerm = focusTerms(idx)
@@ -338,7 +337,6 @@ object Prism {
         discriminators(idx) = source.discriminator.asInstanceOf[Discriminator[Any]]
         idx += 1
       }
-      this.matchers = matchers
     }
 
     def check(s: S): Option[OpticCheck] = {
