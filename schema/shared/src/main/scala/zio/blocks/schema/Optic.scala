@@ -324,8 +324,10 @@ object Prism {
     private[this] var discriminators: Array[Discriminator[Any]] = new Array[Discriminator[Any]](sources.length)
 
     {
-      val len = sources.length
-      var idx = 0
+      val len            = sources.length
+      val matchers       = new Array[Matcher[Any]](len)
+      val discriminators = new Array[Discriminator[Any]](len)
+      var idx            = 0
       while (idx < len) {
         val source    = sources(idx)
         val focusTerm = focusTerms(idx)
@@ -337,6 +339,8 @@ object Prism {
         discriminators(idx) = source.discriminator.asInstanceOf[Discriminator[Any]]
         idx += 1
       }
+      this.discriminators = discriminators
+      this.matchers = matchers
     }
 
     def check(s: S): Option[OpticCheck] = {
@@ -589,9 +593,9 @@ object Optional {
                   focusTerms
                     .take(idx + 1)
                     .zipWithIndex
-                    .map {
-                      case (term, index) if bindings(index).matcher eq null => DynamicOptic.Node.Field(term.name)
-                      case (term, index)                                    => DynamicOptic.Node.Case(term.name)
+                    .map { case (term, index) =>
+                      if (bindings(index).matcher eq null) DynamicOptic.Node.Field(term.name)
+                      else DynamicOptic.Node.Case(term.name)
                     }
                     .toVector
                 ),
@@ -1337,7 +1341,6 @@ object Traversal {
     }
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(leafs.flatMap(_.toDynamic.nodes).toVector)
-
   }
 }
 
