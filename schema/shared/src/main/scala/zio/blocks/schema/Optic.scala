@@ -324,8 +324,10 @@ object Prism {
     private[this] var discriminators: Array[Discriminator[Any]] = new Array[Discriminator[Any]](sources.length)
 
     {
-      val len = sources.length
-      var idx = 0
+      val len            = sources.length
+      val matchers       = new Array[Matcher[Any]](len)
+      val discriminators = new Array[Discriminator[Any]](len)
+      var idx            = 0
       while (idx < len) {
         val source    = sources(idx)
         val focusTerm = focusTerms(idx)
@@ -337,6 +339,8 @@ object Prism {
         discriminators(idx) = source.discriminator.asInstanceOf[Discriminator[Any]]
         idx += 1
       }
+      this.discriminators = discriminators
+      this.matchers = matchers
     }
 
     def check(s: S): Option[OpticCheck] = {
@@ -347,15 +351,11 @@ object Prism {
         val lastX = x
         x = matchers(idx).downcastOrNull(x)
         if (x == null) {
-          val focusTerm     = focusTerms(idx)
-          val discriminator = discriminators(idx)
-
-          val expectedIdx  = discriminator.discriminate(lastX)
-          val expectedCase = focusTerms(expectedIdx).name
-
+          val expectedIdx  = discriminators(idx).discriminate(lastX)
+          val expectedCase = sources(idx).cases(expectedIdx).name
           return Some(
             OpticCheck.unexpectedCase(
-              focusTerm.name,
+              focusTerms(idx).name,
               expectedCase,
               toDynamic,
               DynamicOptic(focusTerms.take(idx + 1).map(term => DynamicOptic.Node.Case(term.name)).toVector),
@@ -575,23 +575,20 @@ object Optional {
         } else {
           x = binding.matcher.downcastOrNull(x)
           if (x == null) {
-            val focusTerm     = focusTerms(idx)
-            val discriminator = binding.discriminator
-            val expectedIdx   = discriminator.discriminate(lastX)
-            val expectedCase  = focusTerms(expectedIdx).name
-
+            val expectedIdx  = binding.discriminator.discriminate(lastX)
+            val expectedCase = sources(idx).asInstanceOf[Reflect.Variant.Bound[_]].cases(expectedIdx).name
             return Some(
               OpticCheck.unexpectedCase(
-                focusTerm.name,
+                focusTerms(idx).name,
                 expectedCase,
                 toDynamic,
                 DynamicOptic(
                   focusTerms
                     .take(idx + 1)
                     .zipWithIndex
-                    .map {
-                      case (term, index) if bindings(index).matcher eq null => DynamicOptic.Node.Case(term.name)
-                      case (term, index)                                    => DynamicOptic.Node.Field(term.name)
+                    .map { case (term, index) =>
+                      if (bindings(index).matcher eq null) DynamicOptic.Node.Field(term.name)
+                      else DynamicOptic.Node.Case(term.name)
                     }
                     .toVector
                 ),
@@ -1337,7 +1334,6 @@ object Traversal {
     }
 
     override lazy val toDynamic: DynamicOptic = DynamicOptic(leafs.flatMap(_.toDynamic.nodes).toVector)
-
   }
 }
 
