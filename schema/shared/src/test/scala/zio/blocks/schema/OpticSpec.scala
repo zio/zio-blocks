@@ -352,6 +352,166 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_v3_c5_left.getOption(Case6(null)))(isNone) &&
         assert(Variant1.v2_v3_c5_right.getOption(Case6(null)))(isNone)
       },
+      test("gets an optional case wrapped to rigth") {
+        assert(Variant1.c1.getOrFail(Case1(0.1)))(equalTo(Right(Case1(0.1)))) &&
+        assert(Variant1.c2.getOrFail(Case2(Record3(null, null, null))))(
+          equalTo(Right(Case2(Record3(null, null, null))))
+        ) &&
+        assert(Variant1.v2.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case3(Case1(0.1)): Variant2))) &&
+        assert(Variant1.v2_c3.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case3(Case1(0.1))))) &&
+        assert(Variant2.c3.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case3(Case1(0.1))))) &&
+        assert(Variant2.c4.getOrFail(Case4(List(Record3(null, null, null)))))(
+          equalTo(Right(Case4(List(Record3(null, null, null)))))
+        ) &&
+        assert(Variant1.v2_v3_c5_left.getOrFail(Case5(null, null)))(equalTo(Right(Case5(null, null)))) &&
+        assert(Variant1.v2_v3_c5_right.getOrFail(Case5(null, null)))(equalTo(Right(Case5(null, null))))
+      },
+      test("doesn't get other case class values") {
+        assert(Variant1.c1.getOrFail(Case2(Record3(null, null, null))))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Case2",
+                    full = DynamicOptic(Vector(Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    actualValue = Case2(Record3(null, null, null))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.c2.getOrFail(Case1(0.1)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Case2"))),
+                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2.getOrFail(Case1(0.1)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Variant2"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_c3.getOrFail(Case1(0.1)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3.getOrFail(Case4(List(Record3(null, null, null)))))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Case3"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(List(Record3(null, null, null)))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c4.getOrFail(Case3(Case1(0.1))))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case4",
+                    actualCase = "Case3",
+                    full = DynamicOptic(Vector(Case("Case4"))),
+                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_v3_c5_left.getOrFail(Case6(null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case5",
+                    actualCase = "Case6",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    actualValue = Case6(null)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_v3_c5_right.getOrFail(Case6(null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case5",
+                    actualCase = "Case6",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    actualValue = Case6(null)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
+      },
       test("reverse gets a base class value") {
         assert(Variant1.c1.reverseGet(Case1(0.1)))(equalTo(Case1(0.1))) &&
         assert(Variant1.c2.reverseGet(Case2(Record3(null, null, null))))(
@@ -425,6 +585,174 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c4.replaceOption(Case3(Case1(0.1)), Case4(Nil)))(isNone) &&
         assert(Variant1.v2_v3_c5_left.replaceOption(Case4(Nil), Case5(Set.empty, null)))(isNone) &&
         assert(Variant1.v2_v3_c5_right.replaceOption(Case4(Nil), Case5(Set.empty, null)))(isNone)
+      },
+      test("optionally replaces a case wrapping the result to right") {
+        assert(Variant1.c1.replaceOrFail(Case1(0.1), Case1(0.2)))(equalTo(Right(Case1(0.2): Variant1))) &&
+        assert(Variant1.c2.replaceOrFail(Case2(Record3(null, null, null)), Case2(null)))(
+          equalTo(Right(Case2(null): Variant1))
+        ) &&
+        assert(Variant1.v2.replaceOrFail(Case3(Case1(0.1)), Case4(Nil)))(equalTo(Right(Case4(Nil): Variant1))) &&
+        assert(Variant1.v2_c3.replaceOrFail(Case3(Case1(0.1)), Case3(Case1(0.2))))(
+          equalTo(Right(Case3(Case1(0.2)): Variant1))
+        ) &&
+        assert(Variant2.c3.replaceOrFail(Case3(Case1(0.1)), Case3(Case1(0.2))))(
+          equalTo(Right(Case3(Case1(0.2)): Variant2))
+        ) &&
+        assert(Variant2.c4.replaceOrFail(Case4(List(Record3(null, null, null))), Case4(Nil)))(
+          equalTo(Right(Case4(Nil): Variant2))
+        ) &&
+        assert(Variant1.v2_v3_c5_left.replaceOrFail(Case5(null, null), Case5(Set.empty, null)))(
+          equalTo(Right(Case5(Set.empty, null): Variant1))
+        ) &&
+        assert(Variant1.v2_v3_c5_right.replaceOrFail(Case5(null, null), Case5(Set.empty, null)))(
+          equalTo(Right(Case5(Set.empty, null): Variant1))
+        )
+      },
+      test("optionally doesn't replace other case returning an error") {
+        assert(Variant1.c1.replaceOrFail(Case2(null), Case1(0.2)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Case2",
+                    full = DynamicOptic(Vector(Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    actualValue = Case2(null)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.c2.replaceOrFail(Case1(0.1), Case2(null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Case2"))),
+                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2.replaceOrFail(Case2(null), Case4(Nil)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant2",
+                    actualCase = "Case2",
+                    full = DynamicOptic(Vector(Case("Variant2"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    actualValue = Case2(null)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_c3.replaceOrFail(Case1(0.1), Case3(Case1(0.2))))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3.replaceOrFail(Case4(List(Record3(null, null, null))), Case3(Case1(0.2))))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Case3"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(List(Record3(null, null, null)))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c4.replaceOrFail(Case3(Case1(0.1)), Case4(Nil)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case4",
+                    actualCase = "Case3",
+                    full = DynamicOptic(Vector(Case("Case4"))),
+                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_v3_c5_left.replaceOrFail(Case4(Nil), Case5(Set.empty, null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_v3_c5_right.replaceOrFail(Case4(Nil), Case5(Set.empty, null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
       },
       test("modify an optional case class value") {
         assert(Variant1.c1.modify(Case1(0.1), _ => Case1(0.2)))(equalTo(Case1(0.2): Variant1)) &&
