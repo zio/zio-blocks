@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.DynamicOptic.Node.{Case, Field}
-import zio.blocks.schema.OpticCheck.UnexpectedCase
+import zio.blocks.schema.DynamicOptic.Node.{Case, Elements, Field}
+import zio.blocks.schema.OpticCheck.{EmptySequence, UnexpectedCase}
 import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
@@ -91,6 +91,18 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record1.b.modify(Record1(true, 1), x => !x))(equalTo(Record1(false, 1))) &&
         assert(Record2.r1_b.modify(Record2(2L, Vector.empty, Record1(true, 1)), x => !x))(
           equalTo(Record2(2L, Vector.empty, Record1(false, 1)))
+        )
+      },
+      test("modifies a focus value optionaly") {
+        assert(Record1.b.modifyOption(Record1(true, 1), x => !x))(isSome(equalTo(Record1(false, 1)))) &&
+        assert(Record2.r1_b.modifyOption(Record2(2L, Vector.empty, Record1(true, 1)), x => !x))(
+          isSome(equalTo(Record2(2L, Vector.empty, Record1(false, 1))))
+        )
+      },
+      test("modifies a focus value or fails with a error") {
+        assert(Record1.b.modifyOrFail(Record1(true, 1), x => !x))(equalTo(Right(Record1(false, 1)))) &&
+        assert(Record2.r1_b.modifyOrFail(Record2(2L, Vector.empty, Record1(true, 1)), x => !x))(
+          equalTo(Right(Record2(2L, Vector.empty, Record1(false, 1))))
         )
       }
     ),
@@ -447,6 +459,206 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Variant1.v2_v3_c5_left.modify(Case4(Nil), _ => Case5(Set.empty, null)))(equalTo(Case4(Nil): Variant1)) &&
         assert(Variant1.v2_v3_c5_right.modify(Case4(Nil), _ => Case5(Set.empty, null)))(equalTo(Case4(Nil): Variant1))
+      },
+      test("modifies an optional case class value wrapped to some") {
+        assert(Variant1.c1.modifyOption(Case1(0.1), _ => Case1(0.2)))(isSome(equalTo(Case1(0.2): Variant1))) &&
+        assert(Variant1.c2.modifyOption(Case2(Record3(null, null, null)), _ => Case2(null)))(
+          isSome(equalTo(Case2(null): Variant1))
+        ) &&
+        assert(Variant1.v2.modifyOption(Case3(Case1(0.1)), _ => Case4(Nil)))(isSome(equalTo(Case4(Nil): Variant1))) &&
+        assert(Variant1.v2_c3.modifyOption(Case3(Case1(0.1)), _ => Case3(Case1(0.2))))(
+          isSome(equalTo(Case3(Case1(0.2)): Variant1))
+        ) &&
+        assert(Variant2.c3.modifyOption(Case3(Case1(0.1)), _ => Case3(Case1(0.2))))(
+          isSome(equalTo(Case3(Case1(0.2)): Variant2))
+        ) &&
+        assert(Variant2.c4.modifyOption(Case4(List(Record3(null, null, null))), _ => Case4(Nil)))(
+          isSome(equalTo(Case4(Nil): Variant2))
+        ) &&
+        assert(Variant1.v2_v3_c5_left.modifyOption(Case5(null, null), _ => Case5(Set.empty, null)))(
+          isSome(equalTo(Case5(Set.empty, null): Variant1))
+        ) &&
+        assert(Variant1.v2_v3_c5_right.modifyOption(Case5(null, null), _ => Case5(Set.empty, null)))(
+          isSome(equalTo(Case5(Set.empty, null): Variant1))
+        )
+      },
+      test("doesn't modify other case class values returning none") {
+        assert(Variant1.c1.modifyOption(Case2(null), _ => Case1(0.2)))(isNone) &&
+        assert(Variant1.c2.modifyOption(Case1(0.1), _ => Case2(null)))(isNone) &&
+        assert(Variant1.v2.modifyOption(Case2(null), _ => Case4(Nil)))(isNone) &&
+        assert(Variant1.v2_c3.modifyOption(Case1(0.1), _ => Case3(Case1(0.2))))(isNone) &&
+        assert(Variant2.c3.modifyOption(Case4(List(Record3(null, null, null))), _ => Case3(Case1(0.2))))(isNone) &&
+        assert(Variant2.c4.modifyOption(Case3(Case1(0.1)), _ => Case4(Nil)))(isNone) &&
+        assert(Variant1.v2_v3_c5_left.modifyOption(Case4(Nil), _ => Case5(Set.empty, null)))(isNone) &&
+        assert(Variant1.v2_v3_c5_right.modifyOption(Case4(Nil), _ => Case5(Set.empty, null)))(isNone)
+      },
+      test("modifies an optional case class value wrapped to right") {
+        assert(Variant1.c1.modifyOrFail(Case1(0.1), _ => Case1(0.2)))(equalTo(Right(Case1(0.2): Variant1))) &&
+        assert(Variant1.c2.modifyOrFail(Case2(Record3(null, null, null)), _ => Case2(null)))(
+          equalTo(Right(Case2(null): Variant1))
+        ) &&
+        assert(Variant1.v2.modifyOrFail(Case3(Case1(0.1)), _ => Case4(Nil)))(equalTo(Right(Case4(Nil): Variant1))) &&
+        assert(Variant1.v2_c3.modifyOrFail(Case3(Case1(0.1)), _ => Case3(Case1(0.2))))(
+          equalTo(Right(Case3(Case1(0.2)): Variant1))
+        ) &&
+        assert(Variant2.c3.modifyOrFail(Case3(Case1(0.1)), _ => Case3(Case1(0.2))))(
+          equalTo(Right(Case3(Case1(0.2)): Variant2))
+        ) &&
+        assert(Variant2.c4.modifyOrFail(Case4(List(Record3(null, null, null))), _ => Case4(Nil)))(
+          equalTo(Right(Case4(Nil): Variant2))
+        ) &&
+        assert(Variant1.v2_v3_c5_left.modifyOrFail(Case5(null, null), _ => Case5(Set.empty, null)))(
+          equalTo(Right(Case5(Set.empty, null): Variant1))
+        ) &&
+        assert(Variant1.v2_v3_c5_right.modifyOrFail(Case5(null, null), _ => Case5(Set.empty, null)))(
+          equalTo(Right(Case5(Set.empty, null): Variant1))
+        )
+      },
+      test("doesn't modify other case class values returning none") {
+        assert(Variant1.c1.modifyOrFail(Case2(null), _ => Case1(0.2)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Case2",
+                    full = DynamicOptic(Vector(Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    actualValue = Case2(null)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.c2.modifyOrFail(Case1(0.1), _ => Case2(null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Case2"))),
+                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2.modifyOrFail(Case2(null), _ => Case4(Nil)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant2",
+                    actualCase = "Case2",
+                    full = DynamicOptic(Vector(Case("Variant2"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    actualValue = Case2(null)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_c3.modifyOrFail(Case1(0.1), _ => Case3(Case1(0.2))))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3.modifyOrFail(Case4(List(Record3(null, null, null))), _ => Case3(Case1(0.2))))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Case3"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(List(Record3(null, null, null)))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c4.modifyOrFail(Case3(Case1(0.1)), _ => Case4(Nil)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case4",
+                    actualCase = "Case3",
+                    full = DynamicOptic(Vector(Case("Case4"))),
+                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_v3_c5_left.modifyOrFail(Case4(Nil), _ => Case5(Set.empty, null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.v2_v3_c5_right.modifyOrFail(Case4(Nil), _ => Case5(Set.empty, null)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
+                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("Optional")(
@@ -909,6 +1121,258 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.modify(Case4(Nil), _ => Case1(0.2)))(equalTo(Case4(Nil))) &&
         assert(Case3.v1_c1_d_left.modify(Case3(Case4(Nil)), _ => 0.2))(equalTo(Case3(Case4(Nil)))) &&
         assert(Case3.v1_c1_d_right.modify(Case3(Case4(Nil)), _ => 0.2))(equalTo(Case3(Case4(Nil))))
+      },
+      test("modifies a focus value wrapped to some") {
+        assert(
+          Variant1.c2_r3_r1.modifyOption(Case2(Record3(Record1(true, 0.1f), null, null)), _ => Record1(false, 0.2f))
+        )(
+          isSome(equalTo(Case2(Record3(Record1(false, 0.2f), null, null))))
+        ) &&
+        assert(Case2.r3_v1_c1.modifyOption(Case2(Record3(null, null, Case1(0.1))), _ => Case1(0.2)))(
+          isSome(equalTo(Case2(Record3(null, null, Case1(0.2)))))
+        ) &&
+        assert(Variant1.c2_r3_v1_c1.modifyOption(Case2(Record3(null, null, Case1(0.1))), _ => Case1(0.2)))(
+          isSome(equalTo(Case2(Record3(null, null, Case1(0.2)))))
+        ) &&
+        assert(Variant2.c3_v1_v2_c4.modifyOption(Case3(Case4(Nil)), _ => Case4(null)))(
+          isSome(equalTo(Case3(Case4(null))))
+        ) &&
+        assert(Variant2.c3_v1_c1_left.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(
+          isSome(equalTo(Case3(Case1(0.2))))
+        ) &&
+        assert(Variant2.c3_v1_c1_right.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(
+          isSome(equalTo(Case3(Case1(0.2))))
+        ) &&
+        assert(Variant2.c3_v1_c1_d_right.modifyOption(Case3(Case1(0.1)), _ => 0.2))(
+          isSome(equalTo(Case3(Case1(0.2))))
+        ) &&
+        assert(Variant2.c3_v1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_left.modifyOption(Case3(Case1(0.1)), _ => 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_right.modifyOption(Case3(Case1(0.1)), _ => 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2)))))
+      },
+      test("doesn't modify a focus value returning none") {
+        assert(Variant1.c2_r3_r1.modifyOption(Case3(Case1(0.1)), _ => Record1(false, 0.2f)))(isNone) &&
+        assert(Case2.r3_v1_c1.modifyOption(Case2(Record3(null, null, Case4(Nil))), _ => Case1(0.2)))(isNone) &&
+        assert(Variant1.c2_r3_v1_c1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isNone) &&
+        assert(Variant2.c3_v1_v2_c4.modifyOption(Case3(Case1(0.1)), _ => Case4(Nil)))(isNone) &&
+        assert(Variant2.c3_v1_c1_left.modifyOption(Case4(Nil), _ => Case1(0.2)))(isNone) &&
+        assert(Variant2.c3_v1_c1_right.modifyOption(Case4(Nil), _ => Case1(0.2)))(isNone) &&
+        assert(Variant2.c3_v1_c1_d_right.modifyOption(Case4(Nil), _ => 0.2))(isNone) &&
+        assert(Variant2.c3_v1.modifyOption(Case4(Nil), _ => Case1(0.2)))(isNone) &&
+        assert(Case3.v1_c1_d_left.modifyOption(Case3(Case4(Nil)), _ => 0.2))(isNone) &&
+        assert(Case3.v1_c1_d_right.modifyOption(Case3(Case4(Nil)), _ => 0.2))(isNone)
+      },
+      test("modifies a focus value wrapped to right") {
+        assert(
+          Variant1.c2_r3_r1.modifyOrFail(Case2(Record3(Record1(true, 0.1f), null, null)), _ => Record1(false, 0.2f))
+        )(
+          equalTo(Right(Case2(Record3(Record1(false, 0.2f), null, null))))
+        ) &&
+        assert(Case2.r3_v1_c1.modifyOrFail(Case2(Record3(null, null, Case1(0.1))), _ => Case1(0.2)))(
+          equalTo(Right(Case2(Record3(null, null, Case1(0.2)))))
+        ) &&
+        assert(Variant1.c2_r3_v1_c1.modifyOrFail(Case2(Record3(null, null, Case1(0.1))), _ => Case1(0.2)))(
+          equalTo(Right(Case2(Record3(null, null, Case1(0.2)))))
+        ) &&
+        assert(Variant2.c3_v1_v2_c4.modifyOrFail(Case3(Case4(Nil)), _ => Case4(null)))(
+          equalTo(Right(Case3(Case4(null))))
+        ) &&
+        assert(Variant2.c3_v1_c1_left.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(
+          equalTo(Right(Case3(Case1(0.2))))
+        ) &&
+        assert(Variant2.c3_v1_c1_right.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(
+          equalTo(Right(Case3(Case1(0.2))))
+        ) &&
+        assert(Variant2.c3_v1_c1_d_right.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(
+          equalTo(Right(Case3(Case1(0.2))))
+        ) &&
+        assert(Variant2.c3_v1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(equalTo(Right(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_left.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(equalTo(Right(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_right.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(equalTo(Right(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(equalTo(Right(Case3(Case1(0.2)))))
+      },
+      test("doesn't modify a focus value returning none") {
+        assert(Variant1.c2_r3_r1.modifyOrFail(Case3(Case1(0.1)), _ => Record1(false, 0.2f)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case2",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
+                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Case2.r3_v1_c1.modifyOrFail(Case2(Record3(null, null, Case4(Nil))), _ => Case1(0.2)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant1.c2_r3_v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case2",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case2"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3_v1_v2_c4.modifyOrFail(Case3(Case1(0.1)), _ => Case4(Nil)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Variant2",
+                    actualCase = "Case1",
+                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"))),
+                    actualValue = Case1(0.1)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3_v1_c1_left.modifyOrFail(Case4(Nil), _ => Case1(0.2)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3_v1_c1_right.modifyOrFail(Case4(Nil), _ => Case1(0.2)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3_v1_c1_d_right.modifyOrFail(Case4(Nil), _ => 0.2))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3_v1.modifyOrFail(Case4(Nil), _ => Case1(0.2)))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"))),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Case3.v1_c1_d_left.modifyOrFail(Case3(Case4(Nil)), _ => 0.2))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Case3.v1_c1_d_right.modifyOrFail(Case3(Case4(Nil)), _ => 0.2))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
       }
     ),
     suite("Traversal")(
@@ -1027,6 +1491,105 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't modify collection values for non-matching cases") {
         assert(Variant2.c3_v1_v2_c4_lr3.modify(Case4(Nil), _ => null))(equalTo(Case4(Nil))) &&
         assert(Variant2.c4_lr3.modify(Case3(Case1(0.1)), _ => null))(equalTo(Case3(Case1(0.1))))
+      },
+      test("modifies collection values and wraps result to some") {
+        assert(Collections.mkc.modifyOption(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
+          isSome(equalTo(Map('A' -> "1", 'B' -> "2", 'C' -> "3")))
+        ) &&
+        assert(Collections.mvs.modifyOption(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _ + "x"))(
+          isSome(equalTo(Map('a' -> "1x", 'b' -> "2x", 'c' -> "3x")))
+        ) &&
+        assert(Collections.lc1.modifyOption(List(Case1(0.1)), _.copy(d = 0.2)))(isSome(equalTo(List(Case1(0.2))))) &&
+        assert(Collections.lc1_d.modifyOption(List(Case1(0.1)), _ + 0.4))(isSome(equalTo(List(Case1(0.5))))) &&
+        assert(
+          Collections.lc4_lr3
+            .modifyOption(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
+        )(
+          isSome(equalTo(List(Case4(List(Record3(Record1(true, 0.1f), null, null))))))
+        ) &&
+        assert(Collections.lr1.modifyOption(List(Record1(true, 0.1f)), x => !x))(
+          isSome(equalTo(List(Record1(false, 0.1f))))
+        ) &&
+        assert(Record2.vi.modifyOption(Record2(2L, Vector(1, 2, 3), null), _ + 1))(
+          isSome(equalTo(Record2(2L, Vector(2, 3, 4), null)))
+        ) &&
+        assert(Variant2.c4_lr3.modifyOption(Case4(List(Record3(null, null, null))), _ => null))(
+          isSome(equalTo(Case4(List(null))))
+        ) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.modifyOption(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
+          isSome(equalTo(Case3(Case4(List(null)))))
+        )
+      },
+      test("doesn't modify collection values for non-matching cases and returns none") {
+        assert(Variant2.c3_v1_v2_c4_lr3.modifyOption(Case4(Nil), _ => null))(isNone) &&
+        assert(Variant2.c4_lr3.modifyOption(Case3(Case1(0.1)), _ => null))(isNone)
+      },
+      test("modifies collection values and wraps result to right") {
+        assert(Collections.mkc.modifyOrFail(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
+          equalTo(Right(Map('A' -> "1", 'B' -> "2", 'C' -> "3")))
+        ) &&
+        assert(Collections.mvs.modifyOrFail(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _ + "x"))(
+          equalTo(Right(Map('a' -> "1x", 'b' -> "2x", 'c' -> "3x")))
+        ) &&
+        assert(Collections.lc1.modifyOrFail(List(Case1(0.1)), _.copy(d = 0.2)))(equalTo(Right(List(Case1(0.2))))) &&
+        assert(Collections.lc1_d.modifyOrFail(List(Case1(0.1)), _ + 0.4))(equalTo(Right(List(Case1(0.5))))) &&
+        assert(
+          Collections.lc4_lr3
+            .modifyOrFail(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
+        )(
+          equalTo(Right(List(Case4(List(Record3(Record1(true, 0.1f), null, null))))))
+        ) &&
+        assert(Collections.lr1.modifyOrFail(List(Record1(true, 0.1f)), x => !x))(
+          equalTo(Right(List(Record1(false, 0.1f))))
+        ) &&
+        assert(Record2.vi.modifyOrFail(Record2(2L, Vector(1, 2, 3), null), _ + 1))(
+          equalTo(Right(Record2(2L, Vector(2, 3, 4), null)))
+        ) &&
+        assert(Variant2.c4_lr3.modifyOrFail(Case4(List(Record3(null, null, null))), _ => null))(
+          equalTo(Right(Case4(List(null))))
+        ) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
+          equalTo(Right(Case3(Case4(List(null)))))
+        )
+      },
+      test("doesn't modify collection values for non-matching cases and returns an error") {
+        assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case4(Nil), _ => null))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  EmptySequence(
+                    full = DynamicOptic(
+                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                    ),
+                    prefix =
+                      DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"))),
+                    actualValue = Nil
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c4_lr3.modifyOrFail(Case3(Case1(0.1)), _ => null))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case4",
+                    actualCase = "Case3",
+                    full = DynamicOptic(Vector(Case("Case4"))),
+                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
       },
       test("folds collection values") {
         assert(Collections.abl.fold[Int](Array(true, false, true))(0, (z, x) => if (x) z + 1 else z))(equalTo(2)) &&
