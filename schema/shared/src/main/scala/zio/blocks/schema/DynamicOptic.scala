@@ -31,8 +31,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
         case Node.Field(name) => sb.append(s".$name")
         case Node.Case(name)  => sb.append(s".when[$name]")
         case Node.Elements    => sb.append(".each")
-        case Node.MapKeys     => sb.append(".mapKeys")
-        case Node.MapValues   => sb.append(".mapValues")
+        case Node.MapKeys     => sb.append(".eachKey")
+        case Node.MapValues   => sb.append(".eachValue")
       }
       idx += 1
     }
