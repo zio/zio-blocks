@@ -25,10 +25,10 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
       acc match {
         case Some(s) =>
           single match {
-            case LensPair(optic, LensOp.Set(a)) => Some(optic.replace(s, a))
-            case PrismPair(optic, _)            => Some(s)
-            case OptionalPair(optic, _)         => Some(s)
-            case TraversalPair(optic, _)        => Some(s)
+            case LensPair(optic, LensOp.Set(a))               => Some(optic.replace(s, a))
+            case PrismPair(optic, PrismOp.ReverseGet(a))      => Some(optic.reverseGet(a))
+            case OptionalPair(optic, OptionalOp.Replace(a))   => Some(optic.replace(s, a))
+            case TraversalPair(optic, TraversalOp.Replace(a)) => Some(optic.modify(s, _ => a))
           }
         case None => None
       }
@@ -41,6 +41,15 @@ object Patch {
   def replace[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
     Patch(Vector(LensPair(lens, LensOp.Set(a))), source)
 
+  def replace[S, A](optional: Optional[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(OptionalPair(optional, OptionalOp.Replace(a))), source)
+
+  def replace[S, A](traversal: Traversal[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(TraversalPair(traversal, TraversalOp.Replace(a))), source)
+
+  def reverseGet[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(PrismPair(prism, PrismOp.ReverseGet(a))), source)
+
   sealed trait Op[A]
 
   sealed trait LensOp[A] extends Op[A]
@@ -49,10 +58,19 @@ object Patch {
   }
 
   sealed trait PrismOp[A] extends Op[A]
+  object PrismOp {
+    final case class ReverseGet[A](a: A) extends PrismOp[A]
+  }
 
   sealed trait OptionalOp[A] extends Op[A]
+  object OptionalOp {
+    final case class Replace[A](a: A) extends OptionalOp[A]
+  }
 
   sealed trait TraversalOp[A] extends Op[A]
+  object TraversalOp {
+    final case class Replace[A](a: A) extends TraversalOp[A]
+  }
 
   sealed trait Pair[S, A] {
     def optic: Optic[S, A]
