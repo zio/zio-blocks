@@ -36,6 +36,12 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       case _                                             => None
     }
 
+  def asSequence(implicit ev: IsCollection[A]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
+    self match {
+      case sequence: Reflect.Sequence[F, ev.Elem, ev.Collection] @scala.unchecked => new Some(sequence)
+      case _                                                                      => None
+    }
+
   def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
 
   def asVariant: Option[Reflect.Variant[F, A]] =
