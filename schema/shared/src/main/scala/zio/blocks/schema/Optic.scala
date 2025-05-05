@@ -39,26 +39,26 @@ sealed trait Optic[S, A] { self =>
 
   def modifyOption(s: S, f: A => A): Option[S] = {
     var modified = false
-    var wrapper = (a: A) => {
-      modified = true
-      f(a)
-    }
-
-    val result = modify(s, wrapper)
-
+    val result = modify(
+      s,
+      (a: A) => {
+        modified = true
+        f(a)
+      }
+    )
     if (modified) Some(result)
     else None
   }
 
   def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
     var modified = false
-    var wrapper = (a: A) => {
-      modified = true
-      f(a)
-    }
-
-    val result = modify(s, wrapper)
-
+    val result = modify(
+      s,
+      (a: A) => {
+        modified = true
+        f(a)
+      }
+    )
     if (modified) Right(result)
     else Left(check(s).get)
   }
@@ -754,9 +754,8 @@ object Optional {
 sealed trait Traversal[S, A] extends Optic[S, A] { self =>
   def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z
 
-  def reduce(s: S)(f: (A, A) => A): Either[OpticCheck, A] = {
+  def reduceOrFail(s: S)(f: (A, A) => A): Either[OpticCheck, A] = {
     var one = false
-
     val reduced = fold[A](s)(
       null.asInstanceOf[A],
       (acc, a) => {
@@ -766,7 +765,6 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
         } else f(acc, a)
       }
     )
-
     if (one) Right(reduced)
     else Left(check(s).get)
   }
@@ -782,7 +780,6 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
 
   // Compose this traversal with a traversal:
   override def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
-
 }
 
 object Traversal {
@@ -1251,8 +1248,7 @@ object Traversal {
     def check(s: S): Option[OpticCheck] = {
       var xs    = Vector[Any](s)
       var check = Option.empty[OpticCheck]
-
-      var idx = 0
+      var idx   = 0
       while (check.isEmpty && idx < leafs.length) {
         val leaf = leafs(idx)
         if (leaf.isInstanceOf[Lens.LensImpl[_, _]]) {
@@ -1265,7 +1261,6 @@ object Traversal {
               case Some(a) => Vector(a)
               case None =>
                 check = prism.check(x)
-
                 Vector.empty[Any]
             }
           }
@@ -1273,7 +1268,6 @@ object Traversal {
           val traversal = leaf.asInstanceOf[Traversal[Any, Any]]
           xs = xs.flatMap { x =>
             check = traversal.check(x)
-
             if (check.isEmpty) {
               traversal.fold[Vector[Any]](x)(Vector.empty[Any], (acc, a) => acc :+ a)
             } else {
@@ -1283,7 +1277,6 @@ object Traversal {
         }
         idx += 1
       }
-
       check.map { check =>
         // Attach the right prefix paths to the error message:
         leafs.take(idx - 1).foldRight(check) { (optic, acc) =>
