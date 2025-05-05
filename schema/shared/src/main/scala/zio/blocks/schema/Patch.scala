@@ -7,8 +7,8 @@ package zio.blocks.schema
  * patches themselves can be serialized.
  *
  * ```scala
- * val patch1 = Patch.set(Person.name, "John")
- * val patch2 = Patch.set(Person.age, 30)
+ * val patch1 = Patch.replace(Person.name, "John")
+ * val patch2 = Patch.replace(Person.age, 30)
  *
  * val patch3 = patch1 ++ patch2
  *
