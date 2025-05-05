@@ -821,12 +821,12 @@ object Traversal {
 
   def arrayValues[A](reflect: Reflect.Bound[A]): Traversal[Array[A], A] = {
     require(reflect ne null)
-    new SeqValues(Reflect.array(reflect))
+    seqValues(Reflect.array(reflect))
   }
 
   def listValues[A](reflect: Reflect.Bound[A]): Traversal[List[A], A] = {
     require(reflect ne null)
-    new SeqValues(Reflect.list(reflect))
+    seqValues(Reflect.list(reflect))
   }
 
   def mapKeys[Key, Value, M[_, _]](map: Reflect.Map.Bound[Key, Value, M]): Traversal[M[Key, Value], Key] = {
@@ -848,25 +848,20 @@ object Traversal {
 
   def setValues[A](reflect: Reflect.Bound[A]): Traversal[Set[A], A] = {
     require(reflect ne null)
-    new SeqValues(Reflect.set(reflect))
+    seqValues(Reflect.set(reflect))
   }
 
   def vectorValues[A](reflect: Reflect.Bound[A]): Traversal[Vector[A], A] = {
     require(reflect ne null)
-    new SeqValues(Reflect.vector(reflect))
+    seqValues(Reflect.vector(reflect))
   }
 
   private[schema] case class SeqValues[A, C[_]](source: Reflect.Sequence.Bound[A, C])
       extends Traversal[C[A], A]
       with Leaf[C[A], A] {
-    def check(s: C[A]): Option[OpticCheck] = {
-      val deconstructor = source.seqDeconstructor
-
-      val iterator = deconstructor.deconstruct(s)
-
-      if (iterator.hasNext) None
+    def check(s: C[A]): Option[OpticCheck] =
+      if (source.seqDeconstructor.deconstruct(s).nonEmpty) None
       else Some(OpticCheck.emptySequence(toDynamic, DynamicOptic.root, s))
-    }
 
     def focus: Reflect.Bound[A] = source.element
 
@@ -1163,12 +1158,9 @@ object Traversal {
   private[schema] case class MapKeys[Key, Value, M[_, _]](source: Reflect.Map.Bound[Key, Value, M])
       extends Traversal[M[Key, Value], Key]
       with Leaf[M[Key, Value], Key] {
-    def check(s: M[Key, Value]): Option[OpticCheck] = {
-      val deconstructor = source.mapDeconstructor
-      val iterator      = deconstructor.deconstruct(s)
-      if (iterator.hasNext) None
+    def check(s: M[Key, Value]): Option[OpticCheck] =
+      if (source.mapDeconstructor.deconstruct(s).nonEmpty) None
       else Some(OpticCheck.emptyMap(toDynamic, DynamicOptic.root, s))
-    }
 
     def focus: Reflect.Bound[Key] = source.key
 
@@ -1207,12 +1199,9 @@ object Traversal {
       with Leaf[M[Key, Value], Value] {
     def focus: Reflect.Bound[Value] = source.value
 
-    def check(s: M[Key, Value]): Option[OpticCheck] = {
-      val deconstructor = source.mapDeconstructor
-      val iterator      = deconstructor.deconstruct(s)
-      if (iterator.hasNext) None
+    def check(s: M[Key, Value]): Option[OpticCheck] =
+      if (source.mapDeconstructor.deconstruct(s).nonEmpty) None
       else Some(OpticCheck.emptyMap(toDynamic, DynamicOptic.root, s))
-    }
 
     def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Value) => Z): Z = {
       val deconstructor = source.mapDeconstructor
