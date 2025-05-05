@@ -15,33 +15,52 @@ package zio.blocks.schema
  * patch3(Person("Jane", 25)) // Some(Person("John", 30))
  * ```
  */
-final case class Patch[S](ops: Vector[Patch.Single[?, S, ?]], source: Schema[S]) {
+final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
   def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source)
 
-  def apply(s: S): Option[S] = ???
+  def apply(s: S): Option[S] = {
+    import Patch._
+
+    ops.foldLeft[Option[S]](Some(s)) { (acc, single) =>
+      acc match {
+        case Some(s) =>
+          single match {
+            case LensPair(optic, LensOp.Set(a)) => Some(optic.replace(s, a))
+            case PrismPair(optic, _)            => Some(s)
+            case OptionalPair(optic, _)         => Some(s)
+            case TraversalPair(optic, _)        => Some(s)
+          }
+        case None => None
+      }
+    }
+  }
 
   def applyOrFail(s: S): Either[OpticCheck, S] = ???
 }
 object Patch {
-  import Op._
-  import LensOp._
+  def replace[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(LensPair(lens, LensOp.Set(a))), source)
 
-  def set[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(Single(lens, Set(a))), source)
+  sealed trait Op[A]
 
-  sealed trait Op[T, A]
-  object Op {
-    sealed trait LensOp[A] extends Op[Optic.Type.Lens, A]
-    object LensOp {
-      final case class Set[A](a: A) extends LensOp[A]
-    }
-
-    sealed trait PrismOp[A] extends Op[Optic.Type.Prism, A]
-
-    sealed trait OptionalOp[A] extends Op[Optic.Type.Optional, A]
-
-    sealed trait TraversalOp[A] extends Op[Optic.Type.Traversal, A]
+  sealed trait LensOp[A] extends Op[A]
+  object LensOp {
+    final case class Set[A](a: A) extends LensOp[A]
   }
 
-  final case class Single[T, S, A](optic: Optic[S, A] { type Type = T }, op: Op[T, A])
+  sealed trait PrismOp[A] extends Op[A]
+
+  sealed trait OptionalOp[A] extends Op[A]
+
+  sealed trait TraversalOp[A] extends Op[A]
+
+  sealed trait Pair[S, A] {
+    def optic: Optic[S, A]
+    def op: Op[A]
+  }
+
+  final case class LensPair[S, A](optic: Lens[S, A], op: LensOp[A])                extends Pair[S, A]
+  final case class PrismPair[S, A <: S](optic: Prism[S, A], op: PrismOp[A])        extends Pair[S, A]
+  final case class OptionalPair[S, A](optic: Optional[S, A], op: OptionalOp[A])    extends Pair[S, A]
+  final case class TraversalPair[S, A](optic: Traversal[S, A], op: TraversalOp[A]) extends Pair[S, A]
 }
