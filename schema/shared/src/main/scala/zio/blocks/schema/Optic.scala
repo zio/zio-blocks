@@ -17,6 +17,8 @@ import zio.blocks.schema.binding._
  *   The focus type or target type of this optic.
  */
 sealed trait Optic[S, A] { self =>
+  type Type <: Optic.Type
+
   def source: Reflect.Bound[S]
 
   def focus: Reflect.Bound[A]
@@ -118,11 +120,23 @@ sealed trait Optic[S, A] { self =>
   private[schema] def leafs: Array[Leaf[_, _]]
 }
 
+object Optic {
+  sealed trait Type
+  object Type {
+    sealed trait Lens      extends Type
+    sealed trait Prism     extends Type
+    sealed trait Optional  extends Type
+    sealed trait Traversal extends Type
+  }
+}
+
 private[schema] sealed trait Leaf[S, A] extends Optic[S, A] {
   override private[schema] def leafs: Array[Leaf[_, _]] = Array(this)
 }
 
 sealed trait Lens[S, A] extends Optic[S, A] {
+  override final type Type = Optic.Type.Lens
+
   def get(s: S): A
 
   def replace(s: S, a: A): S
@@ -269,6 +283,8 @@ object Lens {
 }
 
 sealed trait Prism[S, A <: S] extends Optic[S, A] {
+  override final type Type = Optic.Type.Prism
+
   def getOption(s: S): Option[A]
 
   def getOrFail(s: S): Either[OpticCheck, A] =
@@ -442,6 +458,8 @@ object Prism {
 }
 
 sealed trait Optional[S, A] extends Optic[S, A] {
+  override final type Type = Optic.Type.Optional
+
   def getOption(s: S): Option[A]
 
   def getOrFail(s: S): Either[OpticCheck, A] =
@@ -752,6 +770,8 @@ object Optional {
 }
 
 sealed trait Traversal[S, A] extends Optic[S, A] { self =>
+  override final type Type = Optic.Type.Traversal
+
   def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z
 
   def reduceOrFail(s: S)(f: (A, A) => A): Either[OpticCheck, A] = {
