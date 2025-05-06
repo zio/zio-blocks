@@ -2185,6 +2185,76 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c4_lr3.focus)(equalTo(Record3.reflect)) &&
         assert(Variant2.c3_v1_v2_c4_lr3.focus)(equalTo(Record3.reflect))
       },
+      test("checks collection values and returns none if they will be modified") {
+        assert(Collections.mkc.check(Map('a' -> "1", 'b' -> "2", 'c' -> "3")))(isNone) &&
+        assert(Collections.mvs.check(Map('a' -> "1", 'b' -> "2", 'c' -> "3")))(isNone) &&
+        assert(Collections.lc1.check(List(Case1(0.1))))(isNone) &&
+        assert(Collections.lc1_d.check(List(Case1(0.1))))(isNone) &&
+        assert(Collections.lc4_lr3.check(List(Case4(List(Record3(null, null, null))))))(isNone) &&
+        assert(Collections.lr1.check(List(Record1(true, 0.1f))))(isNone) &&
+        assert(Record2.vi.check(Record2(2L, Vector(1, 2, 3), null)))(isNone) &&
+        assert(Variant2.c4_lr3.check(Case4(List(Record3(null, null, null)))))(isNone) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(List(Record3(null, null, null))))))(isNone)
+      },
+      test("checks collection values and returns an error if they will not be modified") {
+        assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(Nil))))(
+          isSome(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  EmptySequence(
+                    full = DynamicOptic(
+                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                    ),
+                    prefix =
+                      DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"))),
+                    actualValue = Nil
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.check(Case4(Nil)))(
+          isSome(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(
+                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                    ),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Variant2.c4_lr3.check(Case3(Case1(0.1))))(
+          isSome(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case4",
+                    actualCase = "Case3",
+                    full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
+                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
+      } @@ ignore,
       test("modifies collection values") {
         assert(Collections.abl.modify(Array(true, false, true), x => !x).toList)(equalTo(List(false, true, false))) &&
         assert(Collections.ab.modify(Array(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte).toList)(
@@ -2286,7 +2356,7 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("doesn't modify collection values for non-matching cases and returns an error") {
-        assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case4(Nil), _ => null))(
+        assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case3(Case4(Nil)), _ => null))(
           equalTo(
             Left(
               OpticCheck(
@@ -2305,6 +2375,26 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         ) &&
+        assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case4(Nil), _ => null))(
+          equalTo(
+            Left(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(
+                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                    ),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
         assert(Variant2.c4_lr3.modifyOrFail(Case3(Case1(0.1)), _ => null))(
           equalTo(
             Left(
@@ -2313,7 +2403,7 @@ object OpticSpec extends ZIOSpecDefault {
                   UnexpectedCase(
                     expectedCase = "Case4",
                     actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"))),
+                    full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
                     prefix = DynamicOptic(Vector(Case("Case4"))),
                     actualValue = Case3(Case1(0.1))
                   ),
