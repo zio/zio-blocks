@@ -18,6 +18,12 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def metadata: F[NodeBinding, A]
 
+  def asDeferred: Option[Reflect.Deferred[F, A]] =
+    self match {
+      case deferred: Reflect.Deferred[F, A] @scala.unchecked => new Some(deferred)
+      case _                                                 => None
+    }
+
   def asDynamic: Option[Reflect.Dynamic[F]] =
     self match {
       case dynamic: Reflect.Dynamic[F] @scala.unchecked => new Some(dynamic)
@@ -25,52 +31,69 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     }
 
   def asMap(implicit ev: IsMap[A]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
-    self match {
-      case map: Reflect.Map[F, ev.Key, ev.Value, ev.Map] @scala.unchecked => new Some(map)
-      case _                                                              => None
-    }
+    if (isDeferred) asDeferred.get.value.asMap
+    else
+      self match {
+        case map: Reflect.Map[F, ev.Key, ev.Value, ev.Map] @scala.unchecked => new Some(map)
+        case _                                                              => None
+      }
 
   def asMapUnknown: Option[Reflect.Map.Unknown[F]] =
     if (isMap) {
-      new Some(new Reflect.Map.Unknown[F] {
-        def map: Reflect.Map[F, KeyType, ValueType, MapType] =
-          map.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
-      })
+      if (isDeferred) asDeferred.get.value.asMapUnknown
+      else
+        new Some(new Reflect.Map.Unknown[F] {
+          def map: Reflect.Map[F, KeyType, ValueType, MapType] =
+            map match {
+              case map: Reflect.Map[F, KeyType, ValueType, MapType] @scala.unchecked => map
+              case _                                                                 => sys.error("Expected Reflect.Map")
+            }
+        })
     } else None
 
   def asPrimitive: Option[Reflect.Primitive[F, A]] =
-    self match {
-      case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
-      case _                                                   => None
-    }
+    if (isDeferred) asDeferred.get.value.asPrimitive
+    else
+      self match {
+        case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
+        case _                                                   => None
+      }
 
   def asRecord: Option[Reflect.Record[F, A]] =
-    self match {
-      case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
-      case _                                             => None
-    }
+    if (isDeferred) asDeferred.get.value.asRecord
+    else
+      self match {
+        case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
+        case _                                             => None
+      }
 
   def asSequence(implicit ev: IsCollection[A]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
-    self match {
-      case sequence: Reflect.Sequence[F, ev.Elem, ev.Collection] @scala.unchecked => new Some(sequence)
-      case _                                                                      => None
-    }
+    if (isDeferred) asDeferred.get.value.asSequence
+    else
+      self match {
+        case sequence: Reflect.Sequence[F, ev.Elem, ev.Collection] @scala.unchecked => new Some(sequence)
+        case _                                                                      => None
+      }
 
   def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] =
     if (isSequence) {
-      new Some(new Reflect.Sequence.Unknown[F] {
-        def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
-          sequence.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
-      })
+      if (isDeferred) asDeferred.get.value.asSequenceUnknown
+      else
+        new Some(new Reflect.Sequence.Unknown[F] {
+          def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
+            sequence.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
+        })
     } else None
 
   def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
 
   def asVariant: Option[Reflect.Variant[F, A]] =
-    self match {
-      case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
-      case _                                               => None
-    }
+    if (isDeferred) asDeferred.get.value.asVariant
+    else
+      self match {
+        case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
+        case _                                               => None
+      }
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
 
