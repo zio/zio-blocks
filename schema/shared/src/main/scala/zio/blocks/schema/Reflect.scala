@@ -44,10 +44,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       else
         new Some(new Reflect.Map.Unknown[F] {
           def map: Reflect.Map[F, KeyType, ValueType, MapType] =
-            map match {
-              case map: Reflect.Map[F, KeyType, ValueType, MapType] @scala.unchecked => map
-              case _                                                                 => sys.error("Expected Reflect.Map")
-            }
+            self.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
         })
     } else None
 
@@ -81,7 +78,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       else
         new Some(new Reflect.Sequence.Unknown[F] {
           def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
-            sequence.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
+            self.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
         })
     } else None
 
