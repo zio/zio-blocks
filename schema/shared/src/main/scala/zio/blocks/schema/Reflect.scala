@@ -30,6 +30,14 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       case _                                                              => None
     }
 
+  def asMapUnknown: Option[Reflect.Map.Unknown[F]] =
+    if (isMap) {
+      new Some(new Reflect.Map.Unknown[F] {
+        def map: Reflect.Map[F, KeyType, ValueType, MapType] =
+          map.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
+      })
+    } else None
+
   def asPrimitive: Option[Reflect.Primitive[F, A]] =
     self match {
       case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
@@ -47,6 +55,14 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       case sequence: Reflect.Sequence[F, ev.Elem, ev.Collection] @scala.unchecked => new Some(sequence)
       case _                                                                      => None
     }
+
+  def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] =
+    if (isSequence) {
+      new Some(new Reflect.Sequence.Unknown[F] {
+        def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
+          sequence.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
+      })
+    } else None
 
   def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
 
@@ -752,6 +768,13 @@ object Reflect {
 
   object Sequence {
     type Bound[A, C[_]] = Sequence[Binding, A, C]
+
+    trait Unknown[F[_, _]] {
+      type CollectionType[A]
+      type ElementType
+
+      def sequence: Reflect.Sequence[F, ElementType, CollectionType]
+    }
   }
 
   case class Map[F[_, _], Key, Value, M[_, _]](
@@ -858,6 +881,12 @@ object Reflect {
 
   object Map {
     type Bound[K, V, M[_, _]] = Map[Binding, K, V, M]
+
+    trait Unknown[F[_, _]] {
+      type MapType[K, V]
+      type KeyType
+      type ValueType
+    }
   }
 
   case class Dynamic[F[_, _]](
