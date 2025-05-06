@@ -326,15 +326,11 @@ object Prism {
         val lastX = x
         x = matchers(idx).downcastOrNull(x)
         if (x == null) {
-          val focusTerm     = focusTerms(idx)
-          val discriminator = discriminators(idx)
-
-          val actualCaseIdx = discriminator.discriminate(lastX)
+          val actualCaseIdx = discriminators(idx).discriminate(lastX)
           val actualCase    = sources(idx).cases(actualCaseIdx).name
-
           return Some(
             OpticCheck.unexpectedCase(
-              focusTerm.name,
+              focusTerms(idx).name,
               actualCase,
               toDynamic,
               DynamicOptic(focusTerms.take(idx + 1).map(term => DynamicOptic.Node.Case(term.name)).toVector),
@@ -515,7 +511,6 @@ object Optional {
             offset = offset
           )
           offset = RegisterOffset.add(offset, record.usedRegisters)
-
         } else {
           val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
           bindings(idx) = PrismBinding(
@@ -535,41 +530,37 @@ object Optional {
       val len       = bindings.length
       var idx       = 0
       while (idx < len) {
-
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.deconstructor.deconstruct(registers, offset, x)
-          x = lensBinding.register.get(registers, offset)
-        } else {
-          val prismBinding = binding.asInstanceOf[PrismBinding]
-          val lastX        = x
-          x = prismBinding.matcher.downcastOrNull(x)
-          if (x == null) {
-            val focusTerm     = focusTerms(idx)
-            val actualCaseIdx = prismBinding.discriminator.discriminate(lastX)
-            val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
-
-            return Some(
-              OpticCheck.unexpectedCase(
-                focusTerm.name,
-                actualCase,
-                toDynamic,
-                DynamicOptic(
-                  focusTerms
-                    .take(idx + 1)
-                    .zipWithIndex
-                    .map { case (term, index) =>
-                      if (bindings(index).isInstanceOf[LensBinding]) DynamicOptic.Node.Field(term.name)
-                      else DynamicOptic.Node.Case(term.name)
-                    }
-                    .toVector
-                ),
-                lastX
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            x = lensBinding.register.get(registers, offset)
+          case prismBinding: PrismBinding =>
+            val lastX = x
+            x = prismBinding.matcher.downcastOrNull(x)
+            if (x == null) {
+              val actualCaseIdx = prismBinding.discriminator.discriminate(lastX)
+              val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
+              return Some(
+                OpticCheck.unexpectedCase(
+                  focusTerms(idx).name,
+                  actualCase,
+                  toDynamic,
+                  DynamicOptic(
+                    focusTerms
+                      .take(idx + 1)
+                      .zipWithIndex
+                      .map { case (term, index) =>
+                        if (bindings(index).isInstanceOf[LensBinding]) DynamicOptic.Node.Field(term.name)
+                        else DynamicOptic.Node.Case(term.name)
+                      }
+                      .toVector
+                  ),
+                  lastX
+                )
               )
-            )
-          }
+            }
+          case _ =>
         }
         idx += 1
       }
@@ -586,16 +577,15 @@ object Optional {
       val len       = bindings.length
       var idx       = 0
       while (idx < len) {
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.deconstructor.deconstruct(registers, offset, x)
-          x = lensBinding.register.get(registers, offset)
-        } else {
-          val prismBinding = binding.asInstanceOf[PrismBinding]
-          x = prismBinding.matcher.downcastOrNull(x)
-          if (x == null) return None
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            x = lensBinding.register.get(registers, offset)
+          case prismBinding: PrismBinding =>
+            x = prismBinding.matcher.downcastOrNull(x)
+            if (x == null) return None
+          case _ =>
         }
         idx += 1
       }
@@ -624,28 +614,27 @@ object Optional {
       val len       = bindings.length
       var idx       = 0
       while (idx < len) {
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.deconstructor.deconstruct(registers, offset, x)
-          if (idx < len) x = lensBinding.register.get(registers, offset)
-        } else {
-          val prismBinding = binding.asInstanceOf[PrismBinding]
-          x = prismBinding.matcher.downcastOrNull(x)
-          if (x == null) return s
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            if (idx <= len) x = lensBinding.register.get(registers, offset)
+          case prismBinding: PrismBinding =>
+            x = prismBinding.matcher.downcastOrNull(x)
+            if (x == null) return s
+          case _ =>
         }
         idx += 1
       }
       x = a
       while (idx > 0) {
         idx -= 1
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.register.set(registers, offset, x)
-          x = lensBinding.constructor.construct(registers, offset)
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.register.set(registers, offset, x)
+            x = lensBinding.constructor.construct(registers, offset)
+          case _ =>
         }
       }
       x.asInstanceOf[S]
@@ -657,28 +646,27 @@ object Optional {
       val len       = bindings.length
       var idx       = 0
       while (idx < len) {
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.deconstructor.deconstruct(registers, offset, x)
-          if (idx < len) x = lensBinding.register.get(registers, offset)
-        } else {
-          val prismBinding = binding.asInstanceOf[PrismBinding]
-          x = prismBinding.matcher.downcastOrNull(x)
-          if (x == null) return None
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            if (idx <= len) x = lensBinding.register.get(registers, offset)
+          case prismBinding: PrismBinding =>
+            x = prismBinding.matcher.downcastOrNull(x)
+            if (x == null) return None
+          case _ =>
         }
         idx += 1
       }
       x = a
       while (idx > 0) {
         idx -= 1
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.register.set(registers, offset, x)
-          x = lensBinding.constructor.construct(registers, offset)
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.register.set(registers, offset, x)
+            x = lensBinding.constructor.construct(registers, offset)
+          case _ =>
         }
       }
       new Some(x.asInstanceOf[S])
@@ -690,28 +678,27 @@ object Optional {
       val len       = bindings.length
       var idx       = 0
       while (idx < len) {
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.deconstructor.deconstruct(registers, offset, x)
-          x = lensBinding.register.get(registers, offset)
-        } else {
-          val prismBinding = binding.asInstanceOf[PrismBinding]
-          x = prismBinding.matcher.downcastOrNull(x)
-          if (x == null) return s
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            x = lensBinding.register.get(registers, offset)
+          case prismBinding: PrismBinding =>
+            x = prismBinding.matcher.downcastOrNull(x)
+            if (x == null) return s
+          case _ =>
         }
         idx += 1
       }
       x = f(x.asInstanceOf[A])
       while (idx > 0) {
         idx -= 1
-        val binding = bindings(idx)
-        if (binding.isInstanceOf[LensBinding]) {
-          val lensBinding = binding.asInstanceOf[LensBinding]
-          val offset      = lensBinding.offset
-          lensBinding.register.set(registers, offset, x)
-          x = lensBinding.constructor.construct(registers, offset)
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.register.set(registers, offset, x)
+            x = lensBinding.constructor.construct(registers, offset)
+          case _ =>
         }
       }
       x.asInstanceOf[S]
@@ -842,14 +829,14 @@ object Traversal {
     sources: Array[Reflect.Bound[_]],
     focusTerms: Array[Term.Bound[_, _]]
   ) extends Traversal[S, A] {
+    private[this] var bindings: Array[OpticBinding] = null
+    private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
+
     type Key
     type Value
     type Map[Key, Value]
     type Elem
     type Col[Elem]
-
-    private[this] var bindings: Array[OpticBinding] = null
-    private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
     {
       val len      = sources.length
@@ -900,45 +887,7 @@ object Traversal {
       this.bindings = bindings
     }
 
-    def check(s: S): Option[OpticCheck] = ??? /*{
-      var xs    = Vector[Any](s)
-      var check = Option.empty[OpticCheck]
-      var idx   = 0
-      while (check.isEmpty && idx < leafs.length) {
-        val leaf = leafs(idx)
-        if (leaf.isInstanceOf[Lens.LensImpl[_, _]]) {
-          val lens = leaf.asInstanceOf[Lens.LensImpl[Any, Any]]
-          xs = xs.map(x => lens.get(x))
-        } else if (leaf.isInstanceOf[Prism.PrismImpl[_, _]]) {
-          val prism = leaf.asInstanceOf[Prism.PrismImpl[Any, Any]]
-          xs = xs.flatMap { x =>
-            prism.getOption(x) match {
-              case Some(a) => Vector(a)
-              case None =>
-                check = prism.check(x)
-                Vector.empty[Any]
-            }
-          }
-        } else if (leaf.isInstanceOf[Traversal[_, _]]) {
-          val traversal = leaf.asInstanceOf[Traversal[Any, Any]]
-          xs = xs.flatMap { x =>
-            check = traversal.check(x)
-            if (check.isEmpty) {
-              traversal.fold[Vector[Any]](x)(Vector.empty[Any], (acc, a) => acc :+ a)
-            } else {
-              Vector.empty[Any]
-            }
-          }
-        }
-        idx += 1
-      }
-      check.map { check =>
-        // Attach the right prefix paths to the error message:
-        leafs.take(idx - 1).foldRight(check) { (optic, acc) =>
-          acc.shift(optic.toDynamic)
-        }
-      }
-    }*/
+    def check(s: S): Option[OpticCheck] = None
 
     def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
 
