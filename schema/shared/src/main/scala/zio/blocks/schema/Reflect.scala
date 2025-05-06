@@ -24,6 +24,12 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
       case _                                            => None
     }
 
+  def asMap(implicit ev: IsMap[A]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
+    self match {
+      case map: Reflect.Map[F, ev.Key, ev.Value, ev.Map] @scala.unchecked => new Some(map)
+      case _                                                              => None
+    }
+
   def asPrimitive: Option[Reflect.Primitive[F, A]] =
     self match {
       case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
@@ -566,6 +572,8 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Seq] = Vector()
   ) extends Reflect[F, C[A]] { self =>
+    type CollectionType[A] = C[A]
+    type ElementType       = A
     protected def inner: Any = (element, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Seq[C]
@@ -754,6 +762,10 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Map] = Vector()
   ) extends Reflect[F, M[Key, Value]] { self =>
+    type MapType[K, V] = M[K, V]
+    type KeyType       = Key
+    type ValueType     = Value
+
     protected def inner: Any = (key, value, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Map[M]
