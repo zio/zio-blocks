@@ -906,6 +906,8 @@ object Reflect {
       type MapType[K, V]
       type KeyType
       type ValueType
+
+      def map: Reflect.Map[F, KeyType, ValueType, MapType]
     }
   }
 

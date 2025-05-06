@@ -106,20 +106,6 @@ sealed trait Optic[S, A] { self =>
   }
 
   final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
-
-  override def hashCode: Int = java.util.Arrays.hashCode(leafs.asInstanceOf[Array[AnyRef]])
-
-  override def equals(obj: Any): Boolean = obj match {
-    case other: Optic[_, _] =>
-      java.util.Arrays.equals(other.leafs.asInstanceOf[Array[AnyRef]], leafs.asInstanceOf[Array[AnyRef]])
-    case _ => false
-  }
-
-  private[schema] def leafs: Array[Leaf[_, _]]
-}
-
-private[schema] sealed trait Leaf[S, A] extends Optic[S, A] {
-  override private[schema] def leafs: Array[Leaf[_, _]] = Array(this)
 }
 
 sealed trait Lens[S, A] extends Optic[S, A] {
@@ -158,28 +144,22 @@ object Lens {
   private[schema] case class LensImpl[S, A](
     sources: Array[Reflect.Record.Bound[_]],
     focusTerms: Array[Term.Bound[_, _]]
-  ) extends Lens[S, A]
-      with Leaf[S, A] {
-    private[this] var bindings: Array[OpticBinding] = null
+  ) extends Lens[S, A] {
+    private[this] var bindings: Array[LensBinding]  = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
     {
       var offset   = RegisterOffset.Zero
       val len      = sources.length
-      val bindings = new Array[OpticBinding](len)
+      val bindings = new Array[LensBinding](len)
       var idx      = 0
       while (idx < len) {
-        val source = sources(idx)
-        bindings(idx) = new OpticBinding(
-          matcher = null,
+        val source        = sources(idx)
+        val focusTermName = focusTerms(idx).name
+        bindings(idx) = new LensBinding(
           deconstructor = source.deconstructor.asInstanceOf[Deconstructor[Any]],
           constructor = source.constructor.asInstanceOf[Constructor[Any]],
-          register = source
-            .registers(source.fields.indexWhere {
-              val focusTermName = focusTerms(idx).name
-              x => x.name == focusTermName
-            })
-            .asInstanceOf[Register[Any]],
+          register = source.registers(source.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
           offset = offset
         )
         offset = RegisterOffset.add(offset, source.usedRegisters)
@@ -318,8 +298,7 @@ object Prism {
   private[schema] case class PrismImpl[S, A <: S](
     sources: Array[Reflect.Variant.Bound[_]],
     focusTerms: Array[Term.Bound[_, _]]
-  ) extends Prism[S, A]
-      with Leaf[S, A] {
+  ) extends Prism[S, A] {
     private[this] var matchers: Array[Matcher[Any]]             = new Array[Matcher[Any]](sources.length)
     private[this] var discriminators: Array[Discriminator[Any]] = new Array[Discriminator[Any]](sources.length)
 
@@ -329,13 +308,9 @@ object Prism {
       val discriminators = new Array[Discriminator[Any]](len)
       var idx            = 0
       while (idx < len) {
-        val source    = sources(idx)
-        val focusTerm = focusTerms(idx)
-        matchers(idx) = source.matchers
-          .apply(source.cases.indexWhere {
-            val name = focusTerm.name
-            x => x.name == name
-          })
+        val source        = sources(idx)
+        val focusTermName = focusTerms(idx).name
+        matchers(idx) = source.matchers.apply(source.cases.indexWhere(_.name == focusTermName))
         discriminators(idx) = source.discriminator.asInstanceOf[Discriminator[Any]]
         idx += 1
       }
@@ -519,8 +494,7 @@ object Optional {
   private[schema] case class OptionalImpl[S, A](
     sources: Array[Reflect.Bound[_]],
     focusTerms: Array[Term.Bound[_, _]]
-  ) extends Optional[S, A]
-      with Leaf[S, A] {
+  ) extends Optional[S, A] {
     private[this] var bindings: Array[OpticBinding] = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
@@ -530,31 +504,22 @@ object Optional {
       var offset   = RegisterOffset.Zero
       var idx      = 0
       while (idx < len) {
-        val source    = sources(idx)
-        val focusTerm = focusTerms(idx)
+        val source        = sources(idx)
+        val focusTermName = focusTerms(idx).name
         if (source.isInstanceOf[Reflect.Record.Bound[_]]) {
           val record = source.asInstanceOf[Reflect.Record.Bound[_]]
-          bindings(idx) = new OpticBinding(
+          bindings(idx) = new LensBinding(
             deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
             constructor = record.constructor.asInstanceOf[Constructor[Any]],
-            register = record
-              .registers(record.fields.indexWhere {
-                val focusTermName = focusTerm.name
-                x => x.name == focusTermName
-              })
-              .asInstanceOf[Register[Any]],
+            register = record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
             offset = offset
           )
           offset = RegisterOffset.add(offset, record.usedRegisters)
 
         } else {
           val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
-          bindings(idx) = OpticBinding(
-            matcher = variant.matchers
-              .apply(variant.cases.indexWhere {
-                val name = focusTerm.name
-                x => x.name == name
-              }),
+          bindings(idx) = PrismBinding(
+            matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
             discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
           )
         }
@@ -572,16 +537,18 @@ object Optional {
       while (idx < len) {
 
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.deconstructor.deconstruct(registers, offset, x)
-          x = binding.register.get(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          x = lensBinding.register.get(registers, offset)
         } else {
-          val lastX = x
-          x = binding.matcher.downcastOrNull(x)
+          val prismBinding = binding.asInstanceOf[PrismBinding]
+          val lastX        = x
+          x = prismBinding.matcher.downcastOrNull(x)
           if (x == null) {
             val focusTerm     = focusTerms(idx)
-            val actualCaseIdx = binding.discriminator.discriminate(lastX)
+            val actualCaseIdx = prismBinding.discriminator.discriminate(lastX)
             val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
 
             return Some(
@@ -594,7 +561,7 @@ object Optional {
                     .take(idx + 1)
                     .zipWithIndex
                     .map { case (term, index) =>
-                      if (bindings(index).matcher eq null) DynamicOptic.Node.Field(term.name)
+                      if (bindings(index).isInstanceOf[LensBinding]) DynamicOptic.Node.Field(term.name)
                       else DynamicOptic.Node.Case(term.name)
                     }
                     .toVector
@@ -620,12 +587,14 @@ object Optional {
       var idx       = 0
       while (idx < len) {
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.deconstructor.deconstruct(registers, offset, x)
-          x = binding.register.get(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          x = lensBinding.register.get(registers, offset)
         } else {
-          x = binding.matcher.downcastOrNull(x)
+          val prismBinding = binding.asInstanceOf[PrismBinding]
+          x = prismBinding.matcher.downcastOrNull(x)
           if (x == null) return None
         }
         idx += 1
@@ -656,12 +625,14 @@ object Optional {
       var idx       = 0
       while (idx < len) {
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.deconstructor.deconstruct(registers, offset, x)
-          if (idx < len) x = binding.register.get(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          if (idx < len) x = lensBinding.register.get(registers, offset)
         } else {
-          x = binding.matcher.downcastOrNull(x)
+          val prismBinding = binding.asInstanceOf[PrismBinding]
+          x = prismBinding.matcher.downcastOrNull(x)
           if (x == null) return s
         }
         idx += 1
@@ -670,10 +641,11 @@ object Optional {
       while (idx > 0) {
         idx -= 1
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.register.set(registers, offset, x)
-          x = binding.constructor.construct(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.register.set(registers, offset, x)
+          x = lensBinding.constructor.construct(registers, offset)
         }
       }
       x.asInstanceOf[S]
@@ -686,12 +658,14 @@ object Optional {
       var idx       = 0
       while (idx < len) {
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.deconstructor.deconstruct(registers, offset, x)
-          if (idx < len) x = binding.register.get(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          if (idx < len) x = lensBinding.register.get(registers, offset)
         } else {
-          x = binding.matcher.downcastOrNull(x)
+          val prismBinding = binding.asInstanceOf[PrismBinding]
+          x = prismBinding.matcher.downcastOrNull(x)
           if (x == null) return None
         }
         idx += 1
@@ -700,10 +674,11 @@ object Optional {
       while (idx > 0) {
         idx -= 1
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.register.set(registers, offset, x)
-          x = binding.constructor.construct(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.register.set(registers, offset, x)
+          x = lensBinding.constructor.construct(registers, offset)
         }
       }
       new Some(x.asInstanceOf[S])
@@ -716,12 +691,14 @@ object Optional {
       var idx       = 0
       while (idx < len) {
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.deconstructor.deconstruct(registers, offset, x)
-          x = binding.register.get(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          x = lensBinding.register.get(registers, offset)
         } else {
-          x = binding.matcher.downcastOrNull(x)
+          val prismBinding = binding.asInstanceOf[PrismBinding]
+          x = prismBinding.matcher.downcastOrNull(x)
           if (x == null) return s
         }
         idx += 1
@@ -730,10 +707,11 @@ object Optional {
       while (idx > 0) {
         idx -= 1
         val binding = bindings(idx)
-        if (binding.matcher eq null) {
-          val offset = binding.offset
-          binding.register.set(registers, offset, x)
-          x = binding.constructor.construct(registers, offset)
+        if (binding.isInstanceOf[LensBinding]) {
+          val lensBinding = binding.asInstanceOf[LensBinding]
+          val offset      = lensBinding.offset
+          lensBinding.register.set(registers, offset, x)
+          x = lensBinding.constructor.construct(registers, offset)
         }
       }
       x.asInstanceOf[S]
@@ -783,41 +761,47 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
 }
 
 object Traversal {
-  def apply[S, T, A](first: Traversal[S, T], second: Traversal[T, A]): Traversal[S, A] =
-    apply(first.leafs, second.leafs)
+  def apply[S, T, A](first: Traversal[S, T], second: Traversal[T, A]): Traversal[S, A] = {
+    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    new TraversalImpl(traversal1.sources ++ traversal2.sources, traversal1.focusTerms ++ traversal2.focusTerms)
+  }
 
-  def apply[S, T, A](first: Traversal[S, T], second: Lens[T, A]): Traversal[S, A] =
-    apply(first.leafs, second.leafs)
+  def apply[S, T, A](first: Traversal[S, T], second: Lens[T, A]): Traversal[S, A] = {
+    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
+    val lens2      = second.asInstanceOf[Lens.LensImpl[_, _]]
+    new TraversalImpl(traversal1.sources ++ lens2.sources, traversal1.focusTerms ++ lens2.focusTerms)
+  }
 
-  def apply[S, T, A <: T](first: Traversal[S, T], second: Prism[T, A]): Traversal[S, A] =
-    apply(first.leafs, second.leafs)
+  def apply[S, T, A <: T](first: Traversal[S, T], second: Prism[T, A]): Traversal[S, A] = {
+    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
+    val prism2     = second.asInstanceOf[Prism.PrismImpl[_, _]]
+    new TraversalImpl(traversal1.sources ++ prism2.sources, traversal1.focusTerms ++ prism2.focusTerms)
+  }
 
-  def apply[S, T, A](first: Traversal[S, T], second: Optional[T, A]): Traversal[S, A] =
-    apply(first.leafs, second.leafs)
+  def apply[S, T, A](first: Traversal[S, T], second: Optional[T, A]): Traversal[S, A] = {
+    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
+    val optional2  = second.asInstanceOf[Optional.OptionalImpl[_, _]]
+    new TraversalImpl(traversal1.sources ++ optional2.sources, traversal1.focusTerms ++ optional2.focusTerms)
+  }
 
-  def apply[S, T, A](first: Lens[S, T], second: Traversal[T, A]): Traversal[S, A] =
-    apply(first.leafs, second.leafs)
+  def apply[S, T, A](first: Lens[S, T], second: Traversal[T, A]): Traversal[S, A] = {
+    val lens1      = first.asInstanceOf[Lens.LensImpl[_, _]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    new TraversalImpl(lens1.sources ++ traversal2.sources, lens1.focusTerms ++ traversal2.focusTerms)
+  }
 
-  def apply[S, T <: S, A](first: Prism[S, T], second: Traversal[T, A]): Traversal[S, A] =
-    apply(first.leafs, second.leafs)
+  def apply[S, T <: S, A](first: Prism[S, T], second: Traversal[T, A]): Traversal[S, A] = {
+    val prism1     = first.asInstanceOf[Prism.PrismImpl[_, _]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    new TraversalImpl(prism1.sources ++ traversal2.sources, prism1.focusTerms ++ traversal2.focusTerms)
+  }
 
-  def apply[S, T, A](first: Optional[S, T], second: Traversal[T, A]): Traversal[S, A] =
-    apply(first.leafs, second.leafs)
-
-  private[this] def apply[S, A](
-    leafs1: Array[Leaf[_, _]],
-    leafs2: Array[Leaf[_, _]]
-  ): Traversal[S, A] =
-    new TraversalMixed((leafs1.last, leafs2.head) match {
-      case (lens1: Lens[_, _], lens2: Lens[_, _]) =>
-        val lens = Lens.apply(lens1.asInstanceOf[Lens[Any, Any]], lens2.asInstanceOf[Lens[Any, Any]])
-        (leafs1.init :+ lens.asInstanceOf[Leaf[_, _]]) ++ leafs2.tail
-      case (prism1: Prism[_, _], prism2: Prism[_, _]) =>
-        val prism = Prism.apply(prism1.asInstanceOf[Prism[Any, Any]], prism2.asInstanceOf[Prism[Any, Any]])
-        (leafs1.init :+ prism.asInstanceOf[Leaf[_, _]]) ++ leafs2.tail
-      case _ =>
-        leafs1 ++ leafs2
-    })
+  def apply[S, T, A](first: Optional[S, T], second: Traversal[T, A]): Traversal[S, A] = {
+    val optional1  = first.asInstanceOf[Optional.OptionalImpl[_, _]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    new TraversalImpl(optional1.sources ++ traversal2.sources, optional1.focusTerms ++ traversal2.focusTerms)
+  }
 
   def arrayValues[A](reflect: Reflect.Bound[A]): Traversal[Array[A], A] = {
     require(reflect ne null)
@@ -831,19 +815,17 @@ object Traversal {
 
   def mapKeys[Key, Value, M[_, _]](map: Reflect.Map.Bound[Key, Value, M]): Traversal[M[Key, Value], Key] = {
     require(map ne null)
-    new MapKeys(map)
+    new TraversalImpl(Array(map), Array(map.key.asTerm("key")))
   }
 
-  def mapValues[Key, Value, M[_, _]](
-    map: Reflect.Map.Bound[Key, Value, M]
-  ): Traversal[M[Key, Value], Value] = {
+  def mapValues[Key, Value, M[_, _]](map: Reflect.Map.Bound[Key, Value, M]): Traversal[M[Key, Value], Value] = {
     require(map ne null)
-    new MapValues(map)
+    new TraversalImpl(Array(map), Array(map.value.asTerm("value")))
   }
 
   def seqValues[A, C[_]](seq: Reflect.Sequence.Bound[A, C]): Traversal[C[A], A] = {
     require(seq ne null)
-    new SeqValues(seq)
+    new TraversalImpl(Array(seq), Array(seq.element.asTerm("element")))
   }
 
   def setValues[A](reflect: Reflect.Bound[A]): Traversal[Set[A], A] = {
@@ -856,385 +838,69 @@ object Traversal {
     seqValues(Reflect.vector(reflect))
   }
 
-  private[schema] case class SeqValues[A, C[_]](source: Reflect.Sequence.Bound[A, C])
-      extends Traversal[C[A], A]
-      with Leaf[C[A], A] {
-    def check(s: C[A]): Option[OpticCheck] =
-      if (source.seqDeconstructor.deconstruct(s).nonEmpty) None
-      else Some(OpticCheck.emptySequence(toDynamic, DynamicOptic.root, s))
+  private[schema] case class TraversalImpl[S, A](
+    sources: Array[Reflect.Bound[_]],
+    focusTerms: Array[Term.Bound[_, _]]
+  ) extends Traversal[S, A] {
+    type Key
+    type Value
+    type Map[Key, Value]
+    type Elem
+    type Col[Elem]
 
-    def focus: Reflect.Bound[A] = source.element
+    private[this] var bindings: Array[OpticBinding] = null
+    private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-    def fold[Z](s: C[A])(zero: Z, f: (Z, A) => Z): Z = {
-      val deconstructor = source.seqDeconstructor
-      deconstructor match {
-        case indexed: SeqDeconstructor.SpecializedIndexed[C] =>
-          val len = indexed.length(s)
-          var idx = 0
-          indexed.elementType(s) match {
-            case _: RegisterType.Boolean.type =>
-              val ss = s.asInstanceOf[C[Boolean]]
-              val sf = f.asInstanceOf[(Z, Boolean) => Z]
-              var z  = zero
-              while (idx < len) {
-                z = sf(z, indexed.booleanAt(ss, idx))
-                idx += 1
-              }
-              z
-            case _: RegisterType.Byte.type =>
-              val ss = s.asInstanceOf[C[Byte]]
-              val sf = f.asInstanceOf[(Z, Byte) => Z]
-              var z  = zero
-              while (idx < len) {
-                z = sf(z, indexed.byteAt(ss, idx))
-                idx += 1
-              }
-              z
-            case _: RegisterType.Short.type =>
-              val ss = s.asInstanceOf[C[Short]]
-              val sf = f.asInstanceOf[(Z, Short) => Z]
-              var z  = zero
-              while (idx < len) {
-                z = sf(z, indexed.shortAt(ss, idx))
-                idx += 1
-              }
-              z
-            case _: RegisterType.Int.type =>
-              zero match {
-                case zi: Int =>
-                  val ss     = s.asInstanceOf[C[Int]]
-                  val sf     = f.asInstanceOf[(Int, Int) => Int]
-                  var z: Int = zi
-                  while (idx < len) {
-                    z = sf(z, indexed.intAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case zl: Long =>
-                  val ss      = s.asInstanceOf[C[Int]]
-                  val sf      = f.asInstanceOf[(Long, Int) => Long]
-                  var z: Long = zl
-                  while (idx < len) {
-                    z = sf(z, indexed.intAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case zd: Double =>
-                  val ss        = s.asInstanceOf[C[Int]]
-                  val sf        = f.asInstanceOf[(Double, Int) => Double]
-                  var z: Double = zd
-                  while (idx < len) {
-                    z = sf(z, indexed.intAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case _ =>
-                  val ss = s.asInstanceOf[C[Int]]
-                  val sf = f.asInstanceOf[(Z, Int) => Z]
-                  var z  = zero
-                  while (idx < len) {
-                    z = sf(z, indexed.intAt(ss, idx))
-                    idx += 1
-                  }
-                  z
-              }
-            case _: RegisterType.Long.type =>
-              zero match {
-                case zi: Int =>
-                  val ss     = s.asInstanceOf[C[Long]]
-                  val sf     = f.asInstanceOf[(Int, Long) => Int]
-                  var z: Int = zi
-                  while (idx < len) {
-                    z = sf(z, indexed.longAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case zl: Long =>
-                  val ss      = s.asInstanceOf[C[Long]]
-                  val sf      = f.asInstanceOf[(Long, Long) => Long]
-                  var z: Long = zl
-                  while (idx < len) {
-                    z = sf(z, indexed.longAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case zd: Double =>
-                  val ss        = s.asInstanceOf[C[Long]]
-                  val sf        = f.asInstanceOf[(Double, Long) => Double]
-                  var z: Double = zd
-                  while (idx < len) {
-                    z = sf(z, indexed.longAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case _ =>
-                  val ss = s.asInstanceOf[C[Long]]
-                  val sf = f.asInstanceOf[(Z, Long) => Z]
-                  var z  = zero
-                  while (idx < len) {
-                    z = sf(z, indexed.longAt(ss, idx))
-                    idx += 1
-                  }
-                  z
-              }
-            case _: RegisterType.Double.type =>
-              zero match {
-                case zi: Int =>
-                  val ss     = s.asInstanceOf[C[Double]]
-                  val sf     = f.asInstanceOf[(Int, Double) => Int]
-                  var z: Int = zi
-                  while (idx < len) {
-                    z = sf(z, indexed.doubleAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case zl: Long =>
-                  val ss      = s.asInstanceOf[C[Double]]
-                  val sf      = f.asInstanceOf[(Long, Double) => Long]
-                  var z: Long = zl
-                  while (idx < len) {
-                    z = sf(z, indexed.doubleAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case zd: Double =>
-                  val ss        = s.asInstanceOf[C[Double]]
-                  val sf        = f.asInstanceOf[(Double, Double) => Double]
-                  var z: Double = zd
-                  while (idx < len) {
-                    z = sf(z, indexed.doubleAt(ss, idx))
-                    idx += 1
-                  }
-                  z.asInstanceOf[Z]
-                case _ =>
-                  val ss = s.asInstanceOf[C[Double]]
-                  val sf = f.asInstanceOf[(Z, Double) => Z]
-                  var z  = zero
-                  while (idx < len) {
-                    z = sf(z, indexed.doubleAt(ss, idx))
-                    idx += 1
-                  }
-                  z
-              }
-            case _: RegisterType.Char.type =>
-              val ss = s.asInstanceOf[C[Char]]
-              val sf = f.asInstanceOf[(Z, Char) => Z]
-              var z  = zero
-              while (idx < len) {
-                z = sf(z, indexed.charAt(ss, idx))
-                idx += 1
-              }
-              z
-            case _ =>
-              var z = zero
-              while (idx < len) {
-                z = f(z, indexed.objectAt(s, idx))
-                idx += 1
-              }
-              z
+    {
+      val len      = sources.length
+      val bindings = new Array[OpticBinding](len)
+      var offset   = RegisterOffset.Zero
+      var idx      = 0
+      while (idx < len) {
+        val source        = sources(idx)
+        val focusTermName = focusTerms(idx).name
+        if (source.isRecord) {
+          val record = source.asInstanceOf[Reflect.Record.Bound[_]]
+          bindings(idx) = new LensBinding(
+            deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
+            constructor = record.constructor.asInstanceOf[Constructor[Any]],
+            register = record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+            offset = offset
+          )
+          offset = RegisterOffset.add(offset, record.usedRegisters)
+        } else if (source.isVariant) {
+          val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
+          bindings(idx) = PrismBinding(
+            matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
+            discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
+          )
+        } else if (source.isSequence) {
+          val sequence = source.asInstanceOf[Reflect.Sequence.Bound[Elem, Col]]
+          bindings(idx) = new SeqBinding[Col](
+            seqDeconstructor = sequence.seqDeconstructor,
+            seqConstructor = sequence.seqConstructor
+          )
+        } else {
+          val map = source.asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
+          if (focusTermName == "key") {
+            bindings(idx) = new MapKeyBinding[Map](
+              mapDeconstructor = map.mapDeconstructor,
+              mapConstructor = map.mapConstructor
+            )
+          } else {
+            bindings(idx) = new MapValueBinding[Map](
+              mapDeconstructor = map.mapDeconstructor,
+              mapConstructor = map.mapConstructor
+            )
           }
-        case _ =>
-          val it = deconstructor.deconstruct(s)
-          var z  = zero
-          while (it.hasNext) z = f(z, it.next())
-          z
+        }
+        idx += 1
       }
+      this.usedRegisters = offset
+      this.bindings = bindings
     }
 
-    def modify(s: C[A], f: A => A): C[A] = {
-      val constructor   = source.seqConstructor
-      val deconstructor = source.seqDeconstructor
-      deconstructor match {
-        case indexed: SeqDeconstructor.SpecializedIndexed[C] =>
-          val len = indexed.length(s)
-          indexed.elementType(s) match {
-            case _: RegisterType.Boolean.type =>
-              val builder = constructor.newBooleanBuilder(len)
-              val ss      = s.asInstanceOf[C[Boolean]]
-              val sf      = f.asInstanceOf[Boolean => Boolean]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addBoolean(builder, sf(indexed.booleanAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultBoolean(builder).asInstanceOf[C[A]]
-            case _: RegisterType.Byte.type =>
-              val builder = constructor.newByteBuilder(len)
-              val ss      = s.asInstanceOf[C[Byte]]
-              val sf      = f.asInstanceOf[Byte => Byte]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addByte(builder, sf(indexed.byteAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultByte(builder).asInstanceOf[C[A]]
-            case _: RegisterType.Short.type =>
-              val builder = constructor.newShortBuilder(len)
-              val ss      = s.asInstanceOf[C[Short]]
-              val sf      = f.asInstanceOf[Short => Short]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addShort(builder, sf(indexed.shortAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultShort(builder).asInstanceOf[C[A]]
-            case _: RegisterType.Int.type =>
-              val builder = constructor.newIntBuilder(len)
-              val ss      = s.asInstanceOf[C[Int]]
-              val sf      = f.asInstanceOf[Int => Int]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addInt(builder, sf(indexed.intAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultInt(builder).asInstanceOf[C[A]]
-            case _: RegisterType.Long.type =>
-              val builder = constructor.newLongBuilder(len)
-              val ss      = s.asInstanceOf[C[Long]]
-              val sf      = f.asInstanceOf[Long => Long]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addLong(builder, sf(indexed.longAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultLong(builder).asInstanceOf[C[A]]
-            case _: RegisterType.Float.type =>
-              val builder = constructor.newFloatBuilder(len)
-              val ss      = s.asInstanceOf[C[Float]]
-              val sf      = f.asInstanceOf[Float => Float]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addFloat(builder, sf(indexed.floatAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultFloat(builder).asInstanceOf[C[A]]
-            case _: RegisterType.Double.type =>
-              val builder = constructor.newDoubleBuilder(len)
-              val ss      = s.asInstanceOf[C[Double]]
-              val sf      = f.asInstanceOf[Double => Double]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addDouble(builder, sf(indexed.doubleAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultDouble(builder).asInstanceOf[C[A]]
-            case _: RegisterType.Char.type =>
-              val builder = constructor.newCharBuilder(len)
-              val ss      = s.asInstanceOf[C[Char]]
-              val sf      = f.asInstanceOf[Char => Char]
-              var idx     = 0
-              while (idx < len) {
-                constructor.addChar(builder, sf(indexed.charAt(ss, idx)))
-                idx += 1
-              }
-              constructor.resultChar(builder).asInstanceOf[C[A]]
-            case _ =>
-              val builder = constructor.newObjectBuilder[A](len)
-              var idx     = 0
-              while (idx < len) {
-                constructor.addObject(builder, f(indexed.objectAt(s, idx)))
-                idx += 1
-              }
-              constructor.resultObject(builder)
-          }
-        case _ =>
-          val builder = constructor.newObjectBuilder[A]()
-          val it      = deconstructor.deconstruct(s)
-          while (it.hasNext) constructor.addObject(builder, f(it.next()))
-          constructor.resultObject(builder)
-      }
-    }
-
-    override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.Elements))
-
-    override def hashCode: Int = source.hashCode
-
-    override def equals(obj: Any): Boolean = obj match {
-      case other: SeqValues[_, _] => other.source.equals(source)
-      case _                      => false
-    }
-  }
-
-  private[schema] case class MapKeys[Key, Value, M[_, _]](source: Reflect.Map.Bound[Key, Value, M])
-      extends Traversal[M[Key, Value], Key]
-      with Leaf[M[Key, Value], Key] {
-    def check(s: M[Key, Value]): Option[OpticCheck] =
-      if (source.mapDeconstructor.deconstruct(s).nonEmpty) None
-      else Some(OpticCheck.emptyMap(toDynamic, DynamicOptic.root, s))
-
-    def focus: Reflect.Bound[Key] = source.key
-
-    def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Key) => Z): Z = {
-      val deconstructor = source.mapDeconstructor
-      val it            = deconstructor.deconstruct(s)
-      var z             = zero
-      while (it.hasNext) z = f(z, deconstructor.getKey(it.next()))
-      z
-    }
-
-    def modify(s: M[Key, Value], f: Key => Key): M[Key, Value] = {
-      val deconstructor = source.mapDeconstructor
-      val constructor   = source.mapConstructor
-      val builder       = constructor.newObjectBuilder[Key, Value]()
-      val it            = deconstructor.deconstruct(s)
-      while (it.hasNext) {
-        val next = it.next()
-        constructor.addObject(builder, f(deconstructor.getKey(next)), deconstructor.getValue(next))
-      }
-      constructor.resultObject(builder)
-    }
-
-    override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapKeys))
-
-    override def hashCode: Int = source.hashCode
-
-    override def equals(obj: Any): Boolean = obj match {
-      case other: MapKeys[_, _, _] => other.source.equals(source)
-      case _                       => false
-    }
-  }
-
-  private[schema] case class MapValues[Key, Value, M[_, _]](source: Reflect.Map.Bound[Key, Value, M])
-      extends Traversal[M[Key, Value], Value]
-      with Leaf[M[Key, Value], Value] {
-    def focus: Reflect.Bound[Value] = source.value
-
-    def check(s: M[Key, Value]): Option[OpticCheck] =
-      if (source.mapDeconstructor.deconstruct(s).nonEmpty) None
-      else Some(OpticCheck.emptyMap(toDynamic, DynamicOptic.root, s))
-
-    def fold[Z](s: M[Key, Value])(zero: Z, f: (Z, Value) => Z): Z = {
-      val deconstructor = source.mapDeconstructor
-      val it            = deconstructor.deconstruct(s)
-      var z             = zero
-      while (it.hasNext) z = f(z, deconstructor.getValue(it.next()))
-      z
-    }
-
-    def modify(s: M[Key, Value], f: Value => Value): M[Key, Value] = {
-      val deconstructor = source.mapDeconstructor
-      val constructor   = source.mapConstructor
-      val builder       = constructor.newObjectBuilder[Key, Value]()
-      val it            = deconstructor.deconstruct(s)
-      while (it.hasNext) {
-        val next = it.next()
-        constructor.addObject(builder, deconstructor.getKey(next), f(deconstructor.getValue(next)))
-      }
-      constructor.resultObject(builder)
-    }
-
-    override lazy val toDynamic: DynamicOptic = DynamicOptic(Vector(DynamicOptic.Node.MapValues))
-
-    override def hashCode: Int = source.hashCode
-
-    override def equals(obj: Any): Boolean = obj match {
-      case other: MapValues[_, _, _] => other.source.equals(source)
-      case _                         => false
-    }
-  }
-
-  private[schema] case class TraversalMixed[S, A](leafs: Array[Leaf[_, _]]) extends Traversal[S, A] {
-    def check(s: S): Option[OpticCheck] = {
+    def check(s: S): Option[OpticCheck] = ??? /*{
       var xs    = Vector[Any](s)
       var check = Option.empty[OpticCheck]
       var idx   = 0
@@ -1272,65 +938,478 @@ object Traversal {
           acc.shift(optic.toDynamic)
         }
       }
-    }
+    }*/
 
-    def source: Reflect.Bound[S] = leafs(0).source.asInstanceOf[Reflect.Bound[S]]
+    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
 
-    def focus: Reflect.Bound[A] = leafs(leafs.length - 1).focus.asInstanceOf[Reflect.Bound[A]]
+    def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = {
-      var g   = f.asInstanceOf[(Any, Any) => Any]
-      var idx = leafs.length
-      while (idx > 0) {
-        idx -= 1
-        val leaf = leafs(idx)
-        val h    = g
-        if (leaf.isInstanceOf[Lens.LensImpl[_, _]]) {
-          val lens = leaf.asInstanceOf[Lens.LensImpl[Any, Any]]
-          g = (z: Any, t: Any) => h(z, lens.get(t))
-        } else if (leaf.isInstanceOf[Prism.PrismImpl[_, _]]) {
-          val prism = leaf.asInstanceOf[Prism.PrismImpl[Any, Any]]
-          g = (z: Any, t: Any) =>
-            prism.getOption(t) match {
-              case Some(a) => h(z, a)
-              case _       => z
+    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = foldRec(Registers(usedRegisters), 0, s, zero, f)
+
+    private[this] def foldRec[Z](registers: Registers, idx: Int, x: Any, zero: Z, f: (Z, A) => Z): Z =
+      if (idx < bindings.length) {
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            val x1 = lensBinding.register.get(registers, offset)
+            if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
+            else foldRec(registers, idx + 1, x1, zero, f)
+          case prismBinding: PrismBinding =>
+            val x1 = prismBinding.matcher.downcastOrNull(x)
+            if (x1 == null) zero
+            else if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
+            else foldRec(registers, idx + 1, x1, zero, f)
+          case seqBinding: SeqBinding[Col] @scala.unchecked =>
+            val deconstructor = seqBinding.seqDeconstructor
+            if (idx + 1 == bindings.length) foldCol(deconstructor, x.asInstanceOf[Col[A]], zero, f)
+            else {
+              val it = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
+              var z  = zero
+              while (it.hasNext) z = foldRec(registers, idx + 1, it.next(), z, f)
+              z
             }
-        } else if (leaf.isInstanceOf[Optional.OptionalImpl[_, _]]) {
-          val optional = leaf.asInstanceOf[Optional.OptionalImpl[Any, Any]]
-          g = (z: Any, t: Any) =>
-            optional.getOption(t) match {
-              case Some(a) => h(z, a)
-              case _       => z
+          case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
+            val deconstructor = mapKeyBinding.mapDeconstructor
+            var z             = zero
+            if (idx + 1 == bindings.length) {
+              val it = deconstructor.deconstruct(x.asInstanceOf[Map[A, Value]])
+              while (it.hasNext) z = f(z, deconstructor.getKey(it.next()))
+            } else {
+              val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+              while (it.hasNext) z = foldRec(registers, idx + 1, deconstructor.getKey(it.next()), z, f)
             }
-        } else {
-          val traversal = leaf.asInstanceOf[Traversal[Any, Any]]
-          g = (z: Any, t: Any) => traversal.fold(t)(z, h)
+            z
+          case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
+            val deconstructor = mapValueBinding.mapDeconstructor
+            var z             = zero
+            if (idx + 1 == bindings.length) {
+              val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, A]])
+              while (it.hasNext) z = f(z, deconstructor.getValue(it.next()))
+            } else {
+              val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+              while (it.hasNext) z = foldRec(registers, idx + 1, deconstructor.getValue(it.next()), z, f)
+            }
+            z
         }
+      } else zero
+
+    def foldCol[Z](deconstructor: SeqDeconstructor[Col], s: Col[A], zero: Z, f: (Z, A) => Z): Z = {
+      deconstructor match {
+        case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
+          val len = indexed.length(s)
+          var idx = 0
+          indexed.elementType(s) match {
+            case _: RegisterType.Boolean.type =>
+              val ss = s.asInstanceOf[Col[Boolean]]
+              val sf = f.asInstanceOf[(Z, Boolean) => Z]
+              var z  = zero
+              while (idx < len) {
+                z = sf(z, indexed.booleanAt(ss, idx))
+                idx += 1
+              }
+              z
+            case _: RegisterType.Byte.type =>
+              val ss = s.asInstanceOf[Col[Byte]]
+              val sf = f.asInstanceOf[(Z, Byte) => Z]
+              var z  = zero
+              while (idx < len) {
+                z = sf(z, indexed.byteAt(ss, idx))
+                idx += 1
+              }
+              z
+            case _: RegisterType.Short.type =>
+              val ss = s.asInstanceOf[Col[Short]]
+              val sf = f.asInstanceOf[(Z, Short) => Z]
+              var z  = zero
+              while (idx < len) {
+                z = sf(z, indexed.shortAt(ss, idx))
+                idx += 1
+              }
+              z
+            case _: RegisterType.Int.type =>
+              zero match {
+                case zi: Int =>
+                  val ss     = s.asInstanceOf[Col[Int]]
+                  val sf     = f.asInstanceOf[(Int, Int) => Int]
+                  var z: Int = zi
+                  while (idx < len) {
+                    z = sf(z, indexed.intAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case zl: Long =>
+                  val ss      = s.asInstanceOf[Col[Int]]
+                  val sf      = f.asInstanceOf[(Long, Int) => Long]
+                  var z: Long = zl
+                  while (idx < len) {
+                    z = sf(z, indexed.intAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case zd: Double =>
+                  val ss        = s.asInstanceOf[Col[Int]]
+                  val sf        = f.asInstanceOf[(Double, Int) => Double]
+                  var z: Double = zd
+                  while (idx < len) {
+                    z = sf(z, indexed.intAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case _ =>
+                  val ss = s.asInstanceOf[Col[Int]]
+                  val sf = f.asInstanceOf[(Z, Int) => Z]
+                  var z  = zero
+                  while (idx < len) {
+                    z = sf(z, indexed.intAt(ss, idx))
+                    idx += 1
+                  }
+                  z
+              }
+            case _: RegisterType.Long.type =>
+              zero match {
+                case zi: Int =>
+                  val ss     = s.asInstanceOf[Col[Long]]
+                  val sf     = f.asInstanceOf[(Int, Long) => Int]
+                  var z: Int = zi
+                  while (idx < len) {
+                    z = sf(z, indexed.longAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case zl: Long =>
+                  val ss      = s.asInstanceOf[Col[Long]]
+                  val sf      = f.asInstanceOf[(Long, Long) => Long]
+                  var z: Long = zl
+                  while (idx < len) {
+                    z = sf(z, indexed.longAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case zd: Double =>
+                  val ss        = s.asInstanceOf[Col[Long]]
+                  val sf        = f.asInstanceOf[(Double, Long) => Double]
+                  var z: Double = zd
+                  while (idx < len) {
+                    z = sf(z, indexed.longAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case _ =>
+                  val ss = s.asInstanceOf[Col[Long]]
+                  val sf = f.asInstanceOf[(Z, Long) => Z]
+                  var z  = zero
+                  while (idx < len) {
+                    z = sf(z, indexed.longAt(ss, idx))
+                    idx += 1
+                  }
+                  z
+              }
+            case _: RegisterType.Double.type =>
+              zero match {
+                case zi: Int =>
+                  val ss     = s.asInstanceOf[Col[Double]]
+                  val sf     = f.asInstanceOf[(Int, Double) => Int]
+                  var z: Int = zi
+                  while (idx < len) {
+                    z = sf(z, indexed.doubleAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case zl: Long =>
+                  val ss      = s.asInstanceOf[Col[Double]]
+                  val sf      = f.asInstanceOf[(Long, Double) => Long]
+                  var z: Long = zl
+                  while (idx < len) {
+                    z = sf(z, indexed.doubleAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case zd: Double =>
+                  val ss        = s.asInstanceOf[Col[Double]]
+                  val sf        = f.asInstanceOf[(Double, Double) => Double]
+                  var z: Double = zd
+                  while (idx < len) {
+                    z = sf(z, indexed.doubleAt(ss, idx))
+                    idx += 1
+                  }
+                  z.asInstanceOf[Z]
+                case _ =>
+                  val ss = s.asInstanceOf[Col[Double]]
+                  val sf = f.asInstanceOf[(Z, Double) => Z]
+                  var z  = zero
+                  while (idx < len) {
+                    z = sf(z, indexed.doubleAt(ss, idx))
+                    idx += 1
+                  }
+                  z
+              }
+            case _: RegisterType.Char.type =>
+              val ss = s.asInstanceOf[Col[Char]]
+              val sf = f.asInstanceOf[(Z, Char) => Z]
+              var z  = zero
+              while (idx < len) {
+                z = sf(z, indexed.charAt(ss, idx))
+                idx += 1
+              }
+              z
+            case _ =>
+              var z = zero
+              while (idx < len) {
+                z = f(z, indexed.objectAt(s, idx))
+                idx += 1
+              }
+              z
+          }
+        case _ =>
+          val it = deconstructor.deconstruct(s)
+          var z  = zero
+          while (it.hasNext) z = f(z, it.next())
+          z
       }
-      g(zero, s).asInstanceOf[Z]
     }
 
-    def modify(s: S, f: A => A): S = {
-      var g   = f.asInstanceOf[Any => Any]
-      var idx = leafs.length
-      while (idx > 0) {
-        idx -= 1
-        val leaf = leafs(idx).asInstanceOf[Leaf[Any, Any]]
-        val h    = g
-        g = (x: Any) => leaf.modify(x, h)
+    def modify(s: S, f: A => A): S = modifyRec(Registers(usedRegisters), 0, s, f).asInstanceOf[S]
+
+    private[this] def modifyRec(registers: Registers, idx: Int, x: Any, f: A => A): Any =
+      if (idx < bindings.length) {
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            var x1 = lensBinding.register.get(registers, offset)
+            if (idx + 1 == bindings.length) x1 = f(x1.asInstanceOf[A])
+            else x1 = modifyRec(registers, idx + 1, x1, f)
+            lensBinding.register.set(registers, offset, x1)
+            lensBinding.constructor.construct(registers, offset)
+          case prismBinding: PrismBinding =>
+            val x1 = prismBinding.matcher.downcastOrNull(x)
+            if (x1 == null) x
+            else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+            else modifyRec(registers, idx + 1, x1, f)
+          case seqBinding: SeqBinding[Col] @scala.unchecked =>
+            val deconstructor = seqBinding.seqDeconstructor
+            val constructor   = seqBinding.seqConstructor
+            if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, x.asInstanceOf[Col[A]], f)
+            else {
+              val builder = constructor.newObjectBuilder[Any]()
+              val it      = deconstructor.deconstruct(x.asInstanceOf[Col[Any]])
+              while (it.hasNext) constructor.addObject(builder, modifyRec(registers, idx + 1, it.next(), f))
+              constructor.resultObject(builder)
+            }
+          case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
+            val deconstructor = mapKeyBinding.mapDeconstructor
+            val constructor   = mapKeyBinding.mapConstructor
+            if (idx + 1 == bindings.length) {
+              val builder = constructor.newObjectBuilder[A, Value]()
+              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[A, Value]])
+              while (it.hasNext) {
+                val next = it.next()
+                constructor.addObject(builder, f(deconstructor.getKey(next)), deconstructor.getValue(next))
+              }
+              constructor.resultObject(builder)
+            } else {
+              val builder = constructor.newObjectBuilder[Any, Value]()
+              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Any, Value]])
+              while (it.hasNext) {
+                val next = it.next()
+                constructor.addObject(
+                  builder,
+                  modifyRec(registers, idx + 1, deconstructor.getKey(next), f),
+                  deconstructor.getValue(next)
+                )
+              }
+              constructor.resultObject(builder)
+            }
+          case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
+            val deconstructor = mapValueBinding.mapDeconstructor
+            val constructor   = mapValueBinding.mapConstructor
+            if (idx + 1 == bindings.length) {
+              val builder = constructor.newObjectBuilder[Key, A]()
+              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, A]])
+              while (it.hasNext) {
+                val next = it.next()
+                constructor.addObject(builder, deconstructor.getKey(next), f(deconstructor.getValue(next)))
+              }
+              constructor.resultObject(builder)
+            } else {
+              val builder = constructor.newObjectBuilder[Key, Any]()
+              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Any]])
+              while (it.hasNext) {
+                val next = it.next()
+                constructor.addObject(
+                  builder,
+                  deconstructor.getKey(next),
+                  modifyRec(registers, idx + 1, deconstructor.getValue(next), f)
+                )
+              }
+              constructor.resultObject(builder)
+            }
+        }
+      } else x
+
+    private[this] def modifySeq(
+      deconstructor: SeqDeconstructor[Col],
+      constructor: SeqConstructor[Col],
+      s: Col[A],
+      f: A => A
+    ): Col[A] =
+      deconstructor match {
+        case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
+          val len = indexed.length(s)
+          indexed.elementType(s) match {
+            case _: RegisterType.Boolean.type =>
+              val builder = constructor.newBooleanBuilder(len)
+              val ss      = s.asInstanceOf[Col[Boolean]]
+              val sf      = f.asInstanceOf[Boolean => Boolean]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addBoolean(builder, sf(indexed.booleanAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultBoolean(builder).asInstanceOf[Col[A]]
+            case _: RegisterType.Byte.type =>
+              val builder = constructor.newByteBuilder(len)
+              val ss      = s.asInstanceOf[Col[Byte]]
+              val sf      = f.asInstanceOf[Byte => Byte]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addByte(builder, sf(indexed.byteAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultByte(builder).asInstanceOf[Col[A]]
+            case _: RegisterType.Short.type =>
+              val builder = constructor.newShortBuilder(len)
+              val ss      = s.asInstanceOf[Col[Short]]
+              val sf      = f.asInstanceOf[Short => Short]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addShort(builder, sf(indexed.shortAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultShort(builder).asInstanceOf[Col[A]]
+            case _: RegisterType.Int.type =>
+              val builder = constructor.newIntBuilder(len)
+              val ss      = s.asInstanceOf[Col[Int]]
+              val sf      = f.asInstanceOf[Int => Int]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addInt(builder, sf(indexed.intAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultInt(builder).asInstanceOf[Col[A]]
+            case _: RegisterType.Long.type =>
+              val builder = constructor.newLongBuilder(len)
+              val ss      = s.asInstanceOf[Col[Long]]
+              val sf      = f.asInstanceOf[Long => Long]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addLong(builder, sf(indexed.longAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultLong(builder).asInstanceOf[Col[A]]
+            case _: RegisterType.Float.type =>
+              val builder = constructor.newFloatBuilder(len)
+              val ss      = s.asInstanceOf[Col[Float]]
+              val sf      = f.asInstanceOf[Float => Float]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addFloat(builder, sf(indexed.floatAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultFloat(builder).asInstanceOf[Col[A]]
+            case _: RegisterType.Double.type =>
+              val builder = constructor.newDoubleBuilder(len)
+              val ss      = s.asInstanceOf[Col[Double]]
+              val sf      = f.asInstanceOf[Double => Double]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addDouble(builder, sf(indexed.doubleAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultDouble(builder).asInstanceOf[Col[A]]
+            case _: RegisterType.Char.type =>
+              val builder = constructor.newCharBuilder(len)
+              val ss      = s.asInstanceOf[Col[Char]]
+              val sf      = f.asInstanceOf[Char => Char]
+              var idx     = 0
+              while (idx < len) {
+                constructor.addChar(builder, sf(indexed.charAt(ss, idx)))
+                idx += 1
+              }
+              constructor.resultChar(builder).asInstanceOf[Col[A]]
+            case _ =>
+              val builder = constructor.newObjectBuilder[A](len)
+              var idx     = 0
+              while (idx < len) {
+                constructor.addObject(builder, f(indexed.objectAt(s, idx)))
+                idx += 1
+              }
+              constructor.resultObject(builder)
+          }
+        case _ =>
+          val builder = constructor.newObjectBuilder[A]()
+          val it      = deconstructor.deconstruct(s)
+          while (it.hasNext) constructor.addObject(builder, f(it.next()))
+          constructor.resultObject(builder)
       }
-      g(s).asInstanceOf[S]
+
+    override lazy val toDynamic: DynamicOptic = DynamicOptic {
+      val nodes = Vector.newBuilder[DynamicOptic.Node]
+      val len   = sources.length
+      var idx   = 0
+      while (idx < len) {
+        val source        = sources(idx)
+        val focusTermName = focusTerms(idx).name
+        nodes.addOne {
+          if (source.isRecord) DynamicOptic.Node.Field(focusTermName)
+          else if (source.isVariant) DynamicOptic.Node.Case(focusTermName)
+          else if (source.isSequence) DynamicOptic.Node.Elements
+          else if (focusTermName == "key") DynamicOptic.Node.MapKeys
+          else DynamicOptic.Node.MapValues
+        }
+        idx += 1
+      }
+      nodes.result()
     }
 
-    override lazy val toDynamic: DynamicOptic = DynamicOptic(leafs.flatMap(_.toDynamic.nodes).toVector)
+    override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
+      java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
+
+    override def equals(obj: Any): Boolean = obj match {
+      case other: TraversalImpl[_, _] =>
+        java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
+        java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
+      case _ => false
+    }
   }
 }
 
-private[schema] case class OpticBinding(
+private[schema] sealed trait OpticBinding
+
+private[schema] case class LensBinding(
   offset: RegisterOffset = RegisterOffset.Zero,
   deconstructor: Deconstructor[Any] = null,
   constructor: Constructor[Any] = null,
-  register: Register[Any] = null,
+  register: Register[Any] = null
+) extends OpticBinding
+
+private[schema] case class PrismBinding(
   matcher: Matcher[Any] = null,
   discriminator: Discriminator[Any] = null
-)
+) extends OpticBinding
+
+private[schema] case class SeqBinding[C[_]](
+  seqDeconstructor: SeqDeconstructor[C] = null,
+  seqConstructor: SeqConstructor[C] = null
+) extends OpticBinding
+
+private[schema] case class MapKeyBinding[M[_, _]](
+  mapDeconstructor: MapDeconstructor[M] = null,
+  mapConstructor: MapConstructor[M] = null
+) extends OpticBinding
+
+private[schema] case class MapValueBinding[M[_, _]](
+  mapDeconstructor: MapDeconstructor[M] = null,
+  mapConstructor: MapConstructor[M] = null
+) extends OpticBinding
