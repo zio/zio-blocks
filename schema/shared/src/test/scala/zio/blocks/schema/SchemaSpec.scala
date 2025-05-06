@@ -837,7 +837,9 @@ object SchemaSpec extends ZIOSpecDefault {
           typeName = TypeName.map[Int, Long],
           mapBinding = null
         )
-        assert(Schema(map1).doc(Traversal.mapKeys(map1)): Doc)(equalTo(Doc("Int (positive)")))
+        assert(Schema(map1).doc(Traversal.mapKeys(Schema[Map[Int, Long]].reflect.asMap.get)): Doc)(
+          equalTo(Doc("Int (positive)"))
+        )
       },
       test("updates map documentation") {
         assert(Schema[Map[Int, Long]].doc("Map (updated)").doc)(equalTo(Doc("Map (updated)")))
@@ -855,7 +857,9 @@ object SchemaSpec extends ZIOSpecDefault {
           typeName = TypeName.map[Int, Long],
           mapBinding = null
         )
-        assert(Schema(map1).doc(Traversal.mapValues(map1)): Doc)(equalTo(Doc("Long (positive)")))
+        assert(Schema(map1).doc(Traversal.mapValues(Schema[Map[Int, Long]].reflect.asMap.get)): Doc)(
+          equalTo(Doc("Long (positive)"))
+        )
       },
       test("has access to map examples") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
@@ -887,7 +891,9 @@ object SchemaSpec extends ZIOSpecDefault {
           typeName = TypeName.map[Int, Long],
           mapBinding = null
         )
-        assert(Schema(map1).examples(Traversal.mapValues(map1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
+        assert(Schema(map1).examples(Traversal.mapValues(Schema[Map[Int, Long]].reflect.asMap.get)): Seq[_])(
+          equalTo(Seq(1L, 2L, 3L))
+        )
       },
       test("has access to sequence map value examples using traversal focus") {
         val int1 = Primitive(
@@ -901,7 +907,9 @@ object SchemaSpec extends ZIOSpecDefault {
           typeName = TypeName.map[Int, Long],
           mapBinding = null
         )
-        assert(Schema(map1).examples(Traversal.mapKeys(map1)): Seq[_])(equalTo(Seq(1, 2, 3)))
+        assert(Schema(map1).examples(Traversal.mapKeys(Schema[Map[Int, Long]].reflect.asMap.get)): Seq[_])(
+          equalTo(Seq(1, 2, 3))
+        )
       }
     ),
     suite("Reflect.Dynamic")(

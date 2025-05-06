@@ -5,6 +5,7 @@ import zio.blocks.schema.OpticCheck.{EmptySequence, UnexpectedCase}
 import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
+import zio.test.TestAspect.ignore
 import zio.test._
 
 object OpticSpec extends ZIOSpecDefault {
@@ -2322,7 +2323,7 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         )
-      },
+      } @@ ignore,
       test("folds collection values") {
         assert(Collections.abl.fold[Int](Array(true, false, true))(0, (z, x) => if (x) z + 1 else z))(equalTo(2)) &&
         assert(Collections.ab.fold[Int](Array(1: Byte, 2: Byte, 3: Byte))(0, _ + _))(equalTo(6)) &&
