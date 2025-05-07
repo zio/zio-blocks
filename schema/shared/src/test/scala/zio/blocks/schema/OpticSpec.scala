@@ -5,7 +5,6 @@ import zio.blocks.schema.OpticCheck.{EmptySequence, UnexpectedCase}
 import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
-import zio.test.TestAspect.ignore
 import zio.test._
 
 object OpticSpec extends ZIOSpecDefault {
@@ -2206,8 +2205,9 @@ object OpticSpec extends ZIOSpecDefault {
                     full = DynamicOptic(
                       Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
                     ),
-                    prefix =
-                      DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"))),
+                    prefix = DynamicOptic(
+                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                    ),
                     actualValue = Nil
                   ),
                   Nil
@@ -2254,7 +2254,7 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         )
-      } @@ ignore,
+      },
       test("modifies collection values") {
         assert(Collections.abl.modify(Array(true, false, true), x => !x).toList)(equalTo(List(false, true, false))) &&
         assert(Collections.ab.modify(Array(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte).toList)(
@@ -2365,8 +2365,9 @@ object OpticSpec extends ZIOSpecDefault {
                     full = DynamicOptic(
                       Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
                     ),
-                    prefix =
-                      DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"))),
+                    prefix = DynamicOptic(
+                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                    ),
                     actualValue = Nil
                   ),
                   Nil
@@ -2413,7 +2414,7 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         )
-      } @@ ignore,
+      },
       test("folds collection values") {
         assert(Collections.abl.fold[Int](Array(true, false, true))(0, (z, x) => if (x) z + 1 else z))(equalTo(2)) &&
         assert(Collections.ab.fold[Int](Array(1: Byte, 2: Byte, 3: Byte))(0, _ + _))(equalTo(6)) &&
@@ -2457,7 +2458,6 @@ object OpticSpec extends ZIOSpecDefault {
       }
     )
   )
-
 }
 
 object OpticSpecTypes {
