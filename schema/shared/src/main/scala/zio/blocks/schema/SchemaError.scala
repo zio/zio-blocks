@@ -1,9 +1,6 @@
 package zio.blocks.schema
 
-import zio.blocks.schema._
-
 import scala.util.control.NoStackTrace
-import zio.blocks.schema.binding.NoBinding
 
 final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception with NoStackTrace {
   def ++(other: SchemaError): SchemaError = SchemaError(::(errors.head, errors.tail ++ other.errors))

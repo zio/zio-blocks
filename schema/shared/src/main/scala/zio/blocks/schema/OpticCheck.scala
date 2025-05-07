@@ -15,7 +15,6 @@ final case class OpticCheck(errors: ::[OpticCheck.Single]) extends Exception wit
 
   def shift(prefix: DynamicOptic): OpticCheck =
     OpticCheck(errors.map(_.shift(prefix)).asInstanceOf[::[OpticCheck.Single]])
-
 }
 object OpticCheck {
   def emptyMap(full: DynamicOptic, prefix: DynamicOptic, actualValue: Any): OpticCheck =
@@ -48,7 +47,8 @@ object OpticCheck {
     def shift(prefix0: DynamicOptic): Single
   }
 
-  sealed trait Error   extends Single
+  sealed trait Error extends Single
+
   sealed trait Warning extends Single
 
   final case class UnexpectedCase(
