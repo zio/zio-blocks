@@ -53,23 +53,27 @@ object Patch {
   sealed trait Op[A]
 
   sealed trait LensOp[A] extends Op[A]
+
   object LensOp {
-    final case class Set[A](a: A) extends LensOp[A]
+    case class Set[A](a: A) extends LensOp[A]
   }
 
   sealed trait PrismOp[A] extends Op[A]
+
   object PrismOp {
-    final case class ReverseGet[A](a: A) extends PrismOp[A]
+    case class ReverseGet[A](a: A) extends PrismOp[A]
   }
 
   sealed trait OptionalOp[A] extends Op[A]
+
   object OptionalOp {
-    final case class Replace[A](a: A) extends OptionalOp[A]
+    case class Replace[A](a: A) extends OptionalOp[A]
   }
 
   sealed trait TraversalOp[A] extends Op[A]
+
   object TraversalOp {
-    final case class Replace[A](a: A) extends TraversalOp[A]
+    case class Replace[A](a: A) extends TraversalOp[A]
   }
 
   sealed trait Pair[S, A] {
@@ -77,8 +81,11 @@ object Patch {
     def op: Op[A]
   }
 
-  final case class LensPair[S, A](optic: Lens[S, A], op: LensOp[A])                extends Pair[S, A]
-  final case class PrismPair[S, A <: S](optic: Prism[S, A], op: PrismOp[A])        extends Pair[S, A]
-  final case class OptionalPair[S, A](optic: Optional[S, A], op: OptionalOp[A])    extends Pair[S, A]
-  final case class TraversalPair[S, A](optic: Traversal[S, A], op: TraversalOp[A]) extends Pair[S, A]
+  case class LensPair[S, A](optic: Lens[S, A], op: LensOp[A]) extends Pair[S, A]
+
+  case class PrismPair[S, A <: S](optic: Prism[S, A], op: PrismOp[A]) extends Pair[S, A]
+
+  case class OptionalPair[S, A](optic: Optional[S, A], op: OptionalOp[A]) extends Pair[S, A]
+
+  case class TraversalPair[S, A](optic: Traversal[S, A], op: TraversalOp[A]) extends Pair[S, A]
 }
