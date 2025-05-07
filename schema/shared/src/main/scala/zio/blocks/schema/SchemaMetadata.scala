@@ -1,7 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.binding._
-
 /**
  * A schema metadata structure can store arbitrary metadata attached to the
  * structure of a type.

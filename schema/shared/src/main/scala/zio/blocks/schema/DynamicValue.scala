@@ -1,7 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.binding._
-
 // TODO: Implement equals and hashCode in a lawful way
 sealed trait DynamicValue
 

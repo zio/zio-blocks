@@ -4,8 +4,8 @@ import zio.blocks.schema.binding._
 
 final case class Term[F[_, _], S, A](name: String, value: Reflect[F, A], doc: Doc, modifiers: Seq[Modifier.Term])
     extends Reflectable[A] { self =>
-  final type Source = S
-  final type Focus  = A
+  type Source = S
+  type Focus  = A
 
   def transform[G[_, _]](path: DynamicOptic, termType: Term.Type, f: ReflectTransformer[F, G]): Lazy[Term[G, S, A]] =
     for {
@@ -15,6 +15,7 @@ final case class Term[F[_, _], S, A](name: String, value: Reflect[F, A], doc: Do
 
 object Term {
   sealed trait Type
+
   object Type {
     case object Record  extends Type
     case object Variant extends Type
