@@ -3,6 +3,8 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 
+import scala.collection.mutable
+
 /**
  * Represents an optic that provides a generic interface for traversing,
  * selecting, and updating data structures in a functional way. The `Optic`
@@ -232,6 +234,7 @@ object Lens {
 
     override lazy val toDynamic: DynamicOptic =
       DynamicOptic(focusTerms.map(focusTerm => DynamicOptic.Node.Field(focusTerm.name)).toVector)
+
     override def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
 
     override def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
@@ -549,10 +552,13 @@ object Optional {
                   DynamicOptic(
                     focusTerms
                       .take(idx + 1)
-                      .zipWithIndex
-                      .map { case (term, index) =>
-                        if (bindings(index).isInstanceOf[LensBinding]) DynamicOptic.Node.Field(term.name)
-                        else DynamicOptic.Node.Case(term.name)
+                      .map {
+                        var idx = 0
+                        term =>
+                          val binding = bindings(idx)
+                          idx += 1
+                          if (binding.isInstanceOf[LensBinding]) DynamicOptic.Node.Field(term.name)
+                          else DynamicOptic.Node.Case(term.name)
                       }
                       .toVector
                   ),
@@ -834,9 +840,9 @@ object Traversal {
 
     type Key
     type Value
-    type Map[Key, Value]
+    type Map[_, _]
     type Elem
-    type Col[Elem]
+    type Col[_]
 
     {
       val len      = sources.length
@@ -887,11 +893,81 @@ object Traversal {
       this.bindings = bindings
     }
 
-    def check(s: S): Option[OpticCheck] = None
-
     def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
 
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
+
+    def check(s: S): Option[OpticCheck] = {
+      val errors = List.newBuilder[OpticCheck.Single]
+      checkRec(Registers(usedRegisters), 0, s, errors)
+      errors.result() match {
+        case errs: ::[OpticCheck.Single] => new Some(OpticCheck(errs))
+        case _                           => None
+      }
+    }
+
+    private[this] def checkRec(
+      registers: Registers,
+      idx: Int,
+      x: Any,
+      errors: mutable.Builder[OpticCheck.Single, List[OpticCheck.Single]]
+    ): Unit =
+      if (idx < bindings.length) {
+        bindings(idx) match {
+          case lensBinding: LensBinding =>
+            val offset = lensBinding.offset
+            lensBinding.deconstructor.deconstruct(registers, offset, x)
+            val x1 = lensBinding.register.get(registers, offset)
+            if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
+          case prismBinding: PrismBinding =>
+            val x1 = prismBinding.matcher.downcastOrNull(x)
+            if (x1 == null) {
+              val actualCaseIdx = prismBinding.discriminator.discriminate(x)
+              val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
+              val focusTermName = focusTerms(idx).name
+              errors.addOne(OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamicOptic(idx), x))
+            } else if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
+          case seqBinding: SeqBinding[Col] @scala.unchecked =>
+            val deconstructor = seqBinding.seqDeconstructor
+            val it            = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
+            if (it.isEmpty) errors.addOne(OpticCheck.EmptySequence(toDynamic, toDynamicOptic(idx), x))
+            else if (idx + 1 != bindings.length) {
+              while (it.hasNext) checkRec(registers, idx + 1, it.next(), errors)
+            }
+          case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
+            val deconstructor = mapKeyBinding.mapDeconstructor
+            val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+            if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
+            else if (idx + 1 != bindings.length) {
+              while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getKey(it.next()), errors)
+            }
+          case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
+            val deconstructor = mapValueBinding.mapDeconstructor
+            val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+            if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
+            else if (idx + 1 != bindings.length) {
+              while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getValue(it.next()), errors)
+            }
+        }
+      }
+
+    private[this] def toDynamicOptic(idx: Int): DynamicOptic = DynamicOptic(
+      focusTerms
+        .take(idx + 1)
+        .map {
+          var idx = -1
+          term =>
+            idx += 1
+            bindings(idx) match {
+              case _: LensBinding                         => DynamicOptic.Node.Field(term.name)
+              case _: PrismBinding                        => DynamicOptic.Node.Case(term.name)
+              case _: SeqBinding[Col] @scala.unchecked    => DynamicOptic.Node.Elements
+              case _: MapKeyBinding[Map] @scala.unchecked => DynamicOptic.Node.MapKeys
+              case _                                      => DynamicOptic.Node.MapValues
+            }
+        }
+        .toVector
+    )
 
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = foldRec(Registers(usedRegisters), 0, s, zero, f)
 
