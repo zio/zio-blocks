@@ -2455,6 +2455,46 @@ object OpticSpec extends ZIOSpecDefault {
       test("folds zero values for non-matching cases") {
         assert(Variant2.c3_v1_v2_c4_lr3.fold[Record3](Case4(Nil))(null, (_, x) => x))(equalTo(null)) &&
         assert(Variant2.c4_lr3.fold[Record3](Case3(Case1(0.1)))(null, (_, x) => x))(equalTo(null))
+      },
+      test("reduses collection values and wraps the result to right") {
+        assert(Collections.abl.reduceOrFail(Array(true, false, true))((x, y) => x | y))(isRight(equalTo(true))) &&
+        assert(Collections.ai.reduceOrFail(Array(1))(_ + _))(isRight(equalTo(1))) &&
+        assert(Collections.ai.reduceOrFail(Array(1, 2, 3))(_ + _))(isRight(equalTo(6))) &&
+        assert(Collections.al.reduceOrFail(Array(1L, 2L, 3L))(_ + _))(isRight(equalTo(6L))) &&
+        assert(Collections.ad.reduceOrFail(Array(1.0, 2.0, 3.0))(_ + _))(isRight(equalTo(6.0))) &&
+        assert(Collections.as.reduceOrFail(Array("1", "2", "3"))(_ + _))(isRight(equalTo("123"))) &&
+        assert(Collections.mvs.reduceOrFail(Map('a' -> "1", 'b' -> "2", 'c' -> "3"))(_ + _))(isRight(equalTo("123"))) &&
+        assert(Collections.lc1_d.reduceOrFail(List(Case1(0.1), Case1(0.4)))(_ + _))(isRight(equalTo(0.5)))
+      },
+      test("doesn't reduce for non-matching cases returnung an error") {
+        assert(Variant2.c3_v1_v2_c4_lr3.reduceOrFail(Case4(Nil))((_, x) => x))(isLeft(equalTo(
+            OpticCheck(
+              errors = ::(
+                UnexpectedCase(
+                  expectedCase = "Case3",
+                  actualCase = "Case4",
+                  full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)),
+                  prefix = DynamicOptic(Vector(Case("Case3"))),
+                  actualValue = Case4(Nil)
+                ),
+                Nil
+              )
+            )
+        ))) &&
+        assert(Variant2.c4_lr3.reduceOrFail(Case3(Case1(0.1)))((_, x) => x))(isLeft(equalTo(
+            OpticCheck(
+              errors = ::(
+                UnexpectedCase(
+                  expectedCase = "Case4",
+                  actualCase = "Case3",
+                  full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
+                  prefix = DynamicOptic(Vector(Case("Case4"))),
+                  actualValue = Case3(Case1(0.1))
+                ),
+                Nil
+              )
+            )
+        )))
       }
     )
   )
