@@ -510,6 +510,8 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record4.rs.focus.binding.defaultValue)(isNone) &&
         assert(Record4.mx.fold[Int](Record4(Array(Array(1, 2), Array(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
         assert(Record4.rs.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
+        assert(Record4.mx.reduceOrFail(Record4(Array(Array(1, 2), Array(3, 4)), Nil))(_ + _))(isRight(equalTo(10))) &&
+        assert(Record4.rs.reduceOrFail(Record4(null, List(Set(1, 2), Set(3, 4))))(_ + _))(isRight(equalTo(10))) &&
         assert(schema)(
           equalTo(
             new Schema[Record4](
