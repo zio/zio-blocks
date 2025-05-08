@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-
 import scala.collection.mutable
 
 /**
@@ -115,8 +114,6 @@ sealed trait Lens[S, A] extends Optic[S, A] {
 
   def replace(s: S, a: A): S
 
-  final def check(s: S): None.type = None
-
   // Compose this lens with a lens:
   override def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
 
@@ -170,6 +167,12 @@ object Lens {
       this.usedRegisters = offset
       this.bindings = bindings
     }
+
+    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
+
+    def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
+
+    def check(s: S): None.type = None
 
     override def get(s: S): A = {
       val registers = Registers(usedRegisters)
@@ -232,12 +235,7 @@ object Lens {
       x.asInstanceOf[S]
     }
 
-    override lazy val toDynamic: DynamicOptic =
-      DynamicOptic(focusTerms.map(focusTerm => DynamicOptic.Node.Field(focusTerm.name)).toVector)
-
-    override def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
-
-    override def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
+    lazy val toDynamic: DynamicOptic = DynamicOptic(focusTerms.map(term => DynamicOptic.Node.Field(term.name)).toVector)
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -321,6 +319,10 @@ object Prism {
       this.matchers = matchers
     }
 
+    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
+
+    def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
+
     def check(s: S): Option[OpticCheck] = {
       val len    = matchers.length
       var x: Any = s
@@ -346,10 +348,6 @@ object Prism {
       None
     }
 
-    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
-
-    def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
-
     def getOption(s: S): Option[A] = {
       val len    = matchers.length
       var x: Any = s
@@ -362,8 +360,7 @@ object Prism {
       new Some(x.asInstanceOf[A])
     }
 
-    override lazy val toDynamic: DynamicOptic =
-      DynamicOptic(focusTerms.map(focusTerm => DynamicOptic.Node.Case(focusTerm.name)).toVector)
+    lazy val toDynamic: DynamicOptic = DynamicOptic(focusTerms.map(term => DynamicOptic.Node.Case(term.name)).toVector)
 
     def reverseGet(a: A): S = a
 
@@ -527,6 +524,10 @@ object Optional {
       this.bindings = bindings
     }
 
+    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
+
+    def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
+
     def check(s: S): Option[OpticCheck] = {
       val registers = Registers(usedRegisters)
       var x: Any    = s
@@ -572,10 +573,6 @@ object Optional {
       }
       None
     }
-
-    def source: Reflect.Bound[S] = sources(0).asInstanceOf[Reflect.Bound[S]]
-
-    def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
     def getOption(s: S): Option[A] = {
       val registers = Registers(usedRegisters)
@@ -1384,14 +1381,14 @@ object Traversal {
       val len   = sources.length
       var idx   = 0
       while (idx < len) {
-        val source        = sources(idx)
-        val focusTermName = focusTerms(idx).name
         nodes.addOne {
-          if (source.isRecord) DynamicOptic.Node.Field(focusTermName)
-          else if (source.isVariant) DynamicOptic.Node.Case(focusTermName)
-          else if (source.isSequence) DynamicOptic.Node.Elements
-          else if (focusTermName == "key") DynamicOptic.Node.MapKeys
-          else DynamicOptic.Node.MapValues
+          bindings(idx) match {
+            case _: LensBinding                         => DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding                        => DynamicOptic.Node.Case(focusTerms(idx).name)
+            case _: SeqBinding[Col] @scala.unchecked    => DynamicOptic.Node.Elements
+            case _: MapKeyBinding[Map] @scala.unchecked => DynamicOptic.Node.MapKeys
+            case _                                      => DynamicOptic.Node.MapValues
+          }
         }
         idx += 1
       }
