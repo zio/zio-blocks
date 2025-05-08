@@ -909,48 +909,46 @@ object Traversal {
       x: Any,
       errors: mutable.Builder[OpticCheck.Single, List[OpticCheck.Single]]
     ): Unit =
-      if (idx < bindings.length) {
-        bindings(idx) match {
-          case lensBinding: LensBinding =>
-            val offset = lensBinding.offset
-            lensBinding.deconstructor.deconstruct(registers, offset, x)
-            val x1 = lensBinding.register.get(registers, offset)
-            if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
-          case prismBinding: PrismBinding =>
-            val x1 = prismBinding.matcher.downcastOrNull(x)
-            if (x1 == null) {
-              val actualCaseIdx = prismBinding.discriminator.discriminate(x)
-              val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
-              val focusTermName = focusTerms(idx).name
-              errors.addOne(OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamicOptic(idx), x))
-            } else if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
-          case seqBinding: SeqBinding[Col] @scala.unchecked =>
-            val deconstructor = seqBinding.seqDeconstructor
-            val it            = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
-            if (it.isEmpty) errors.addOne(OpticCheck.EmptySequence(toDynamic, toDynamicOptic(idx), x))
-            else if (idx + 1 != bindings.length) {
-              while (it.hasNext) checkRec(registers, idx + 1, it.next(), errors)
-            }
-          case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
-            val deconstructor = mapKeyBinding.mapDeconstructor
-            val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-            if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
-            else if (idx + 1 != bindings.length) {
-              while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getKey(it.next()), errors)
-            }
-          case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
-            val deconstructor = mapValueBinding.mapDeconstructor
-            val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-            if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
-            else if (idx + 1 != bindings.length) {
-              while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getValue(it.next()), errors)
-            }
-        }
+      bindings(idx) match {
+        case lensBinding: LensBinding =>
+          val offset = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          val x1 = lensBinding.register.get(registers, offset)
+          if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
+        case prismBinding: PrismBinding =>
+          val x1 = prismBinding.matcher.downcastOrNull(x)
+          if (x1 == null) {
+            val actualCaseIdx = prismBinding.discriminator.discriminate(x)
+            val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
+            val focusTermName = focusTerms(idx).name
+            errors.addOne(OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamicOptic(idx), x))
+          } else if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
+        case seqBinding: SeqBinding[Col] @scala.unchecked =>
+          val deconstructor = seqBinding.seqDeconstructor
+          val it            = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
+          if (it.isEmpty) errors.addOne(OpticCheck.EmptySequence(toDynamic, toDynamicOptic(idx), x))
+          else if (idx + 1 != bindings.length) {
+            while (it.hasNext) checkRec(registers, idx + 1, it.next(), errors)
+          }
+        case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
+          val deconstructor = mapKeyBinding.mapDeconstructor
+          val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
+          else if (idx + 1 != bindings.length) {
+            while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getKey(it.next()), errors)
+          }
+        case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
+          val deconstructor = mapValueBinding.mapDeconstructor
+          val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
+          else if (idx + 1 != bindings.length) {
+            while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getValue(it.next()), errors)
+          }
       }
 
-    private[this] def toDynamicOptic(idx: Int): DynamicOptic = DynamicOptic(
+    private[this] def toDynamicOptic(depth: Int): DynamicOptic = DynamicOptic(
       focusTerms
-        .take(idx + 1)
+        .take(depth + 1)
         .map {
           var idx = -1
           term =>
@@ -969,54 +967,52 @@ object Traversal {
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = foldRec(Registers(usedRegisters), 0, s, zero, f)
 
     private[this] def foldRec[Z](registers: Registers, idx: Int, x: Any, zero: Z, f: (Z, A) => Z): Z =
-      if (idx < bindings.length) {
-        bindings(idx) match {
-          case lensBinding: LensBinding =>
-            val offset = lensBinding.offset
-            lensBinding.deconstructor.deconstruct(registers, offset, x)
-            val x1 = lensBinding.register.get(registers, offset)
-            if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
-            else foldRec(registers, idx + 1, x1, zero, f)
-          case prismBinding: PrismBinding =>
-            val x1 = prismBinding.matcher.downcastOrNull(x)
-            if (x1 == null) zero
-            else if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
-            else foldRec(registers, idx + 1, x1, zero, f)
-          case seqBinding: SeqBinding[Col] @scala.unchecked =>
-            val deconstructor = seqBinding.seqDeconstructor
-            if (idx + 1 == bindings.length) foldCol(deconstructor, x.asInstanceOf[Col[A]], zero, f)
-            else {
-              val it = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
-              var z  = zero
-              while (it.hasNext) z = foldRec(registers, idx + 1, it.next(), z, f)
-              z
-            }
-          case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
-            val deconstructor = mapKeyBinding.mapDeconstructor
-            var z             = zero
-            if (idx + 1 == bindings.length) {
-              val it = deconstructor.deconstruct(x.asInstanceOf[Map[A, Value]])
-              while (it.hasNext) z = f(z, deconstructor.getKey(it.next()))
-            } else {
-              val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-              while (it.hasNext) z = foldRec(registers, idx + 1, deconstructor.getKey(it.next()), z, f)
-            }
+      bindings(idx) match {
+        case lensBinding: LensBinding =>
+          val offset = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          val x1 = lensBinding.register.get(registers, offset)
+          if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
+          else foldRec(registers, idx + 1, x1, zero, f)
+        case prismBinding: PrismBinding =>
+          val x1 = prismBinding.matcher.downcastOrNull(x)
+          if (x1 == null) zero
+          else if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
+          else foldRec(registers, idx + 1, x1, zero, f)
+        case seqBinding: SeqBinding[Col] @scala.unchecked =>
+          val deconstructor = seqBinding.seqDeconstructor
+          if (idx + 1 == bindings.length) foldCol(deconstructor, x.asInstanceOf[Col[A]], zero, f)
+          else {
+            val it = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
+            var z  = zero
+            while (it.hasNext) z = foldRec(registers, idx + 1, it.next(), z, f)
             z
-          case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
-            val deconstructor = mapValueBinding.mapDeconstructor
-            var z             = zero
-            if (idx + 1 == bindings.length) {
-              val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, A]])
-              while (it.hasNext) z = f(z, deconstructor.getValue(it.next()))
-            } else {
-              val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-              while (it.hasNext) z = foldRec(registers, idx + 1, deconstructor.getValue(it.next()), z, f)
-            }
-            z
-        }
-      } else zero
+          }
+        case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
+          val deconstructor = mapKeyBinding.mapDeconstructor
+          var z             = zero
+          if (idx + 1 == bindings.length) {
+            val it = deconstructor.deconstruct(x.asInstanceOf[Map[A, Value]])
+            while (it.hasNext) z = f(z, deconstructor.getKey(it.next()))
+          } else {
+            val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+            while (it.hasNext) z = foldRec(registers, idx + 1, deconstructor.getKey(it.next()), z, f)
+          }
+          z
+        case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
+          val deconstructor = mapValueBinding.mapDeconstructor
+          var z             = zero
+          if (idx + 1 == bindings.length) {
+            val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, A]])
+            while (it.hasNext) z = f(z, deconstructor.getValue(it.next()))
+          } else {
+            val it = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
+            while (it.hasNext) z = foldRec(registers, idx + 1, deconstructor.getValue(it.next()), z, f)
+          }
+          z
+      }
 
-    def foldCol[Z](deconstructor: SeqDeconstructor[Col], s: Col[A], zero: Z, f: (Z, A) => Z): Z = {
+    private[this] def foldCol[Z](deconstructor: SeqDeconstructor[Col], s: Col[A], zero: Z, f: (Z, A) => Z): Z =
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
           val len = indexed.length(s)
@@ -1189,86 +1185,83 @@ object Traversal {
           while (it.hasNext) z = f(z, it.next())
           z
       }
-    }
 
     def modify(s: S, f: A => A): S = modifyRec(Registers(usedRegisters), 0, s, f).asInstanceOf[S]
 
     private[this] def modifyRec(registers: Registers, idx: Int, x: Any, f: A => A): Any =
-      if (idx < bindings.length) {
-        bindings(idx) match {
-          case lensBinding: LensBinding =>
-            val offset = lensBinding.offset
-            lensBinding.deconstructor.deconstruct(registers, offset, x)
-            var x1 = lensBinding.register.get(registers, offset)
-            if (idx + 1 == bindings.length) x1 = f(x1.asInstanceOf[A])
-            else x1 = modifyRec(registers, idx + 1, x1, f)
-            lensBinding.register.set(registers, offset, x1)
-            lensBinding.constructor.construct(registers, offset)
-          case prismBinding: PrismBinding =>
-            val x1 = prismBinding.matcher.downcastOrNull(x)
-            if (x1 == null) x
-            else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
-            else modifyRec(registers, idx + 1, x1, f)
-          case seqBinding: SeqBinding[Col] @scala.unchecked =>
-            val deconstructor = seqBinding.seqDeconstructor
-            val constructor   = seqBinding.seqConstructor
-            if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, x.asInstanceOf[Col[A]], f)
-            else {
-              val builder = constructor.newObjectBuilder[Any]()
-              val it      = deconstructor.deconstruct(x.asInstanceOf[Col[Any]])
-              while (it.hasNext) constructor.addObject(builder, modifyRec(registers, idx + 1, it.next(), f))
-              constructor.resultObject(builder)
+      bindings(idx) match {
+        case lensBinding: LensBinding =>
+          val offset = lensBinding.offset
+          lensBinding.deconstructor.deconstruct(registers, offset, x)
+          var x1 = lensBinding.register.get(registers, offset)
+          if (idx + 1 == bindings.length) x1 = f(x1.asInstanceOf[A])
+          else x1 = modifyRec(registers, idx + 1, x1, f)
+          lensBinding.register.set(registers, offset, x1)
+          lensBinding.constructor.construct(registers, offset)
+        case prismBinding: PrismBinding =>
+          val x1 = prismBinding.matcher.downcastOrNull(x)
+          if (x1 == null) x
+          else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+          else modifyRec(registers, idx + 1, x1, f)
+        case seqBinding: SeqBinding[Col] @scala.unchecked =>
+          val deconstructor = seqBinding.seqDeconstructor
+          val constructor   = seqBinding.seqConstructor
+          if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, x.asInstanceOf[Col[A]], f)
+          else {
+            val builder = constructor.newObjectBuilder[Any]()
+            val it      = deconstructor.deconstruct(x.asInstanceOf[Col[Any]])
+            while (it.hasNext) constructor.addObject(builder, modifyRec(registers, idx + 1, it.next(), f))
+            constructor.resultObject(builder)
+          }
+        case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
+          val deconstructor = mapKeyBinding.mapDeconstructor
+          val constructor   = mapKeyBinding.mapConstructor
+          if (idx + 1 == bindings.length) {
+            val builder = constructor.newObjectBuilder[A, Value]()
+            val it      = deconstructor.deconstruct(x.asInstanceOf[Map[A, Value]])
+            while (it.hasNext) {
+              val next = it.next()
+              constructor.addObject(builder, f(deconstructor.getKey(next)), deconstructor.getValue(next))
             }
-          case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
-            val deconstructor = mapKeyBinding.mapDeconstructor
-            val constructor   = mapKeyBinding.mapConstructor
-            if (idx + 1 == bindings.length) {
-              val builder = constructor.newObjectBuilder[A, Value]()
-              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[A, Value]])
-              while (it.hasNext) {
-                val next = it.next()
-                constructor.addObject(builder, f(deconstructor.getKey(next)), deconstructor.getValue(next))
-              }
-              constructor.resultObject(builder)
-            } else {
-              val builder = constructor.newObjectBuilder[Any, Value]()
-              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Any, Value]])
-              while (it.hasNext) {
-                val next = it.next()
-                constructor.addObject(
-                  builder,
-                  modifyRec(registers, idx + 1, deconstructor.getKey(next), f),
-                  deconstructor.getValue(next)
-                )
-              }
-              constructor.resultObject(builder)
+            constructor.resultObject(builder)
+          } else {
+            val builder = constructor.newObjectBuilder[Any, Value]()
+            val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Any, Value]])
+            while (it.hasNext) {
+              val next = it.next()
+              constructor.addObject(
+                builder,
+                modifyRec(registers, idx + 1, deconstructor.getKey(next), f),
+                deconstructor.getValue(next)
+              )
             }
-          case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
-            val deconstructor = mapValueBinding.mapDeconstructor
-            val constructor   = mapValueBinding.mapConstructor
-            if (idx + 1 == bindings.length) {
-              val builder = constructor.newObjectBuilder[Key, A]()
-              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, A]])
-              while (it.hasNext) {
-                val next = it.next()
-                constructor.addObject(builder, deconstructor.getKey(next), f(deconstructor.getValue(next)))
-              }
-              constructor.resultObject(builder)
-            } else {
-              val builder = constructor.newObjectBuilder[Key, Any]()
-              val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Any]])
-              while (it.hasNext) {
-                val next = it.next()
-                constructor.addObject(
-                  builder,
-                  deconstructor.getKey(next),
-                  modifyRec(registers, idx + 1, deconstructor.getValue(next), f)
-                )
-              }
-              constructor.resultObject(builder)
+            constructor.resultObject(builder)
+          }
+        case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
+          val deconstructor = mapValueBinding.mapDeconstructor
+          val constructor   = mapValueBinding.mapConstructor
+          if (idx + 1 == bindings.length) {
+            val builder = constructor.newObjectBuilder[Key, A]()
+            val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, A]])
+            while (it.hasNext) {
+              val next = it.next()
+              constructor.addObject(builder, deconstructor.getKey(next), f(deconstructor.getValue(next)))
             }
-        }
-      } else x
+            constructor.resultObject(builder)
+          } else {
+            val builder = constructor.newObjectBuilder[Key, Any]()
+            val it      = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Any]])
+            while (it.hasNext) {
+              val next = it.next()
+              constructor.addObject(
+                builder,
+                deconstructor.getKey(next),
+                modifyRec(registers, idx + 1, deconstructor.getValue(next), f)
+              )
+            }
+            constructor.resultObject(builder)
+          }
+      }
 
     private[this] def modifySeq(
       deconstructor: SeqDeconstructor[Col],
