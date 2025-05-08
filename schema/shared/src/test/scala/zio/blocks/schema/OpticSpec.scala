@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.DynamicOptic.Node.{Case, Elements, Field}
-import zio.blocks.schema.OpticCheck.{EmptySequence, UnexpectedCase}
+import zio.blocks.schema.DynamicOptic.Node.{Case, Elements, Field, MapKeys, MapValues}
+import zio.blocks.schema.OpticCheck.{EmptyMap, EmptySequence, UnexpectedCase}
 import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
@@ -2191,11 +2191,45 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.lc1_d.check(List(Case1(0.1))))(isNone) &&
         assert(Collections.lc4_lr3.check(List(Case4(List(Record3(null, null, null))))))(isNone) &&
         assert(Collections.lr1.check(List(Record1(true, 0.1f))))(isNone) &&
+        assert(Collections.mkc1_d.check(Map(Case1(0.1) -> 1)))(isNone) &&
+        assert(Collections.mvc1_d.check(Map(1 -> Case1(0.1))))(isNone) &&
         assert(Record2.vi.check(Record2(2L, Vector(1, 2, 3), null)))(isNone) &&
         assert(Variant2.c4_lr3.check(Case4(List(Record3(null, null, null)))))(isNone) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(List(Record3(null, null, null))))))(isNone)
       },
       test("checks collection values and returns an error if they will not be modified") {
+        assert(Collections.mkc.check(Map.empty[Char, String]))(
+          isSome(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  EmptyMap(
+                    full = DynamicOptic(Vector(MapKeys)),
+                    prefix = DynamicOptic(Vector(MapKeys)),
+                    actualValue = Map.empty[Char, String]
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Collections.mvs.check(Map.empty[Char, String]))(
+          isSome(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  EmptyMap(
+                    full = DynamicOptic(Vector(MapValues)),
+                    prefix = DynamicOptic(Vector(MapValues)),
+                    actualValue = Map.empty[Char, String]
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(Nil))))(
           isSome(
             equalTo(
@@ -2277,6 +2311,8 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lc1.modify(List(Case1(0.1)), _.copy(d = 0.2)))(equalTo(List(Case1(0.2)))) &&
         assert(Collections.lc1_d.modify(List(Case1(0.1)), _ + 0.4))(equalTo(List(Case1(0.5)))) &&
+        assert(Collections.mkc1_d.modify(Map(Case1(0.1) -> 1), _ + 0.4))(equalTo(Map(Case1(0.5) -> 1))) &&
+        assert(Collections.mvc1_d.modify(Map(1 -> Case1(0.1)), _ + 0.4))(equalTo(Map(1 -> Case1(0.5)))) &&
         assert(
           Collections.lc4_lr3.modify(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
         )(
@@ -2304,6 +2340,8 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lc1.modifyOption(List(Case1(0.1)), _.copy(d = 0.2)))(isSome(equalTo(List(Case1(0.2))))) &&
         assert(Collections.lc1_d.modifyOption(List(Case1(0.1)), _ + 0.4))(isSome(equalTo(List(Case1(0.5))))) &&
+        assert(Collections.mkc1_d.modifyOption(Map(Case1(0.1) -> 1), _ + 0.4))(isSome(equalTo(Map(Case1(0.5) -> 1)))) &&
+        assert(Collections.mvc1_d.modifyOption(Map(1 -> Case1(0.1)), _ + 0.4))(isSome(equalTo(Map(1 -> Case1(0.5))))) &&
         assert(
           Collections.lc4_lr3
             .modifyOption(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
@@ -2336,6 +2374,12 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lc1.modifyOrFail(List(Case1(0.1)), _.copy(d = 0.2)))(isRight(equalTo(List(Case1(0.2))))) &&
         assert(Collections.lc1_d.modifyOrFail(List(Case1(0.1)), _ + 0.4))(isRight(equalTo(List(Case1(0.5))))) &&
+        assert(Collections.mkc1_d.modifyOrFail(Map(Case1(0.1) -> 1), _ + 0.4))(
+          isRight(equalTo(Map(Case1(0.5) -> 1)))
+        ) &&
+        assert(Collections.mvc1_d.modifyOrFail(Map(1 -> Case1(0.1)), _ + 0.4))(
+          isRight(equalTo(Map(1 -> Case1(0.5))))
+        ) &&
         assert(
           Collections.lc4_lr3
             .modifyOrFail(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
@@ -2440,6 +2484,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mvs.fold[String](Map('a' -> "1", 'b' -> "2", 'c' -> "3"))("", _ + _))(equalTo("123")) &&
         assert(Collections.lc1.fold[String](List(Case1(0.1)))("", _ + _.toString))(equalTo("Case1(0.1)")) &&
         assert(Collections.lc1_d.fold[Double](List(Case1(0.1), Case1(0.4)))(0.0, _ + _))(equalTo(0.5)) &&
+        assert(Collections.mkc1_d.fold[Double](Map(Case1(0.1) -> 1))(0.0, _ + _))(equalTo(0.1)) &&
+        assert(Collections.mvc1_d.fold[Double](Map(1 -> Case1(0.1)))(0.0, _ + _))(equalTo(0.1)) &&
         assert(Collections.lc4_lr3.fold[String](List(Case4(List(Record3(null, null, null)))))("", _ + _.toString))(
           equalTo("Record3(null,null,null)")
         ) &&
@@ -2673,5 +2719,11 @@ object OpticSpecTypes {
     lazy val lc1_d: Traversal[List[Variant1], Double] =
       Traversal.listValues(Variant1.reflect).apply(Variant1.c1_d)
     lazy val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
+    lazy val mkc1_d: Traversal[Map[Case1, Int], Double] =
+      Traversal.mapKeys(Schema[Map[Case1, Int]].reflect.asInstanceOf[Reflect.Map.Bound[Case1, Int, Map]]).apply(Case1.d)
+    lazy val mvc1_d: Traversal[Map[Int, Case1], Double] =
+      Traversal
+        .mapValues(Schema[Map[Int, Case1]].reflect.asInstanceOf[Reflect.Map.Bound[Int, Case1, Map]])
+        .apply(Case1.d)
   }
 }
