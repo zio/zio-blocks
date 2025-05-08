@@ -100,9 +100,9 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("modifies a focus value or fails with a error") {
-        assert(Record1.b.modifyOrFail(Record1(true, 1), x => !x))(equalTo(Right(Record1(false, 1)))) &&
+        assert(Record1.b.modifyOrFail(Record1(true, 1), x => !x))(isRight(equalTo(Record1(false, 1)))) &&
         assert(Record2.r1_b.modifyOrFail(Record2(2L, Vector.empty, Record1(true, 1)), x => !x))(
-          equalTo(Right(Record2(2L, Vector.empty, Record1(false, 1))))
+          isRight(equalTo(Record2(2L, Vector.empty, Record1(false, 1))))
         )
       }
     ),
@@ -353,23 +353,23 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_v3_c5_right.getOption(Case6(null)))(isNone)
       },
       test("gets an optional case wrapped to rigth") {
-        assert(Variant1.c1.getOrFail(Case1(0.1)))(equalTo(Right(Case1(0.1)))) &&
+        assert(Variant1.c1.getOrFail(Case1(0.1)))(isRight(equalTo(Case1(0.1)))) &&
         assert(Variant1.c2.getOrFail(Case2(Record3(null, null, null))))(
-          equalTo(Right(Case2(Record3(null, null, null))))
+          isRight(equalTo(Case2(Record3(null, null, null))))
         ) &&
-        assert(Variant1.v2.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case3(Case1(0.1)): Variant2))) &&
-        assert(Variant1.v2_c3.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case3(Case1(0.1))))) &&
-        assert(Variant2.c3.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case3(Case1(0.1))))) &&
+        assert(Variant1.v2.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case3(Case1(0.1)): Variant2))) &&
+        assert(Variant1.v2_c3.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case3(Case1(0.1))))) &&
+        assert(Variant2.c3.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case3(Case1(0.1))))) &&
         assert(Variant2.c4.getOrFail(Case4(List(Record3(null, null, null)))))(
-          equalTo(Right(Case4(List(Record3(null, null, null)))))
+          isRight(equalTo(Case4(List(Record3(null, null, null)))))
         ) &&
-        assert(Variant1.v2_v3_c5_left.getOrFail(Case5(null, null)))(equalTo(Right(Case5(null, null)))) &&
-        assert(Variant1.v2_v3_c5_right.getOrFail(Case5(null, null)))(equalTo(Right(Case5(null, null))))
+        assert(Variant1.v2_v3_c5_left.getOrFail(Case5(null, null)))(isRight(equalTo(Case5(null, null)))) &&
+        assert(Variant1.v2_v3_c5_right.getOrFail(Case5(null, null)))(isRight(equalTo(Case5(null, null))))
       },
       test("doesn't get other case class values") {
         assert(Variant1.c1.getOrFail(Case2(Record3(null, null, null))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -386,8 +386,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.c2.getOrFail(Case1(0.1)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -404,8 +404,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2.getOrFail(Case1(0.1)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -422,8 +422,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_c3.getOrFail(Case1(0.1)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -440,8 +440,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3.getOrFail(Case4(List(Record3(null, null, null)))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -458,8 +458,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c4.getOrFail(Case3(Case1(0.1))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -476,8 +476,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_v3_c5_left.getOrFail(Case6(null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -494,8 +494,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_v3_c5_right.getOrFail(Case6(null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -587,31 +587,31 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_v3_c5_right.replaceOption(Case4(Nil), Case5(Set.empty, null)))(isNone)
       },
       test("optionally replaces a case wrapping the result to right") {
-        assert(Variant1.c1.replaceOrFail(Case1(0.1), Case1(0.2)))(equalTo(Right(Case1(0.2): Variant1))) &&
+        assert(Variant1.c1.replaceOrFail(Case1(0.1), Case1(0.2)))(isRight(equalTo(Case1(0.2): Variant1))) &&
         assert(Variant1.c2.replaceOrFail(Case2(Record3(null, null, null)), Case2(null)))(
-          equalTo(Right(Case2(null): Variant1))
+          isRight(equalTo(Case2(null): Variant1))
         ) &&
-        assert(Variant1.v2.replaceOrFail(Case3(Case1(0.1)), Case4(Nil)))(equalTo(Right(Case4(Nil): Variant1))) &&
+        assert(Variant1.v2.replaceOrFail(Case3(Case1(0.1)), Case4(Nil)))(isRight(equalTo(Case4(Nil): Variant1))) &&
         assert(Variant1.v2_c3.replaceOrFail(Case3(Case1(0.1)), Case3(Case1(0.2))))(
-          equalTo(Right(Case3(Case1(0.2)): Variant1))
+          isRight(equalTo(Case3(Case1(0.2)): Variant1))
         ) &&
         assert(Variant2.c3.replaceOrFail(Case3(Case1(0.1)), Case3(Case1(0.2))))(
-          equalTo(Right(Case3(Case1(0.2)): Variant2))
+          isRight(equalTo(Case3(Case1(0.2)): Variant2))
         ) &&
         assert(Variant2.c4.replaceOrFail(Case4(List(Record3(null, null, null))), Case4(Nil)))(
-          equalTo(Right(Case4(Nil): Variant2))
+          isRight(equalTo(Case4(Nil): Variant2))
         ) &&
         assert(Variant1.v2_v3_c5_left.replaceOrFail(Case5(null, null), Case5(Set.empty, null)))(
-          equalTo(Right(Case5(Set.empty, null): Variant1))
+          isRight(equalTo(Case5(Set.empty, null): Variant1))
         ) &&
         assert(Variant1.v2_v3_c5_right.replaceOrFail(Case5(null, null), Case5(Set.empty, null)))(
-          equalTo(Right(Case5(Set.empty, null): Variant1))
+          isRight(equalTo(Case5(Set.empty, null): Variant1))
         )
       },
       test("optionally doesn't replace other case returning an error") {
         assert(Variant1.c1.replaceOrFail(Case2(null), Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -628,8 +628,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.c2.replaceOrFail(Case1(0.1), Case2(null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -646,8 +646,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2.replaceOrFail(Case2(null), Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -664,8 +664,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_c3.replaceOrFail(Case1(0.1), Case3(Case1(0.2))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -682,8 +682,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3.replaceOrFail(Case4(List(Record3(null, null, null))), Case3(Case1(0.2))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -700,8 +700,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c4.replaceOrFail(Case3(Case1(0.1)), Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -718,8 +718,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_v3_c5_left.replaceOrFail(Case4(Nil), Case5(Set.empty, null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -736,8 +736,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_v3_c5_right.replaceOrFail(Case4(Nil), Case5(Set.empty, null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -821,31 +821,31 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.v2_v3_c5_right.modifyOption(Case4(Nil), _ => Case5(Set.empty, null)))(isNone)
       },
       test("modifies an optional case class value wrapped to right") {
-        assert(Variant1.c1.modifyOrFail(Case1(0.1), _ => Case1(0.2)))(equalTo(Right(Case1(0.2): Variant1))) &&
+        assert(Variant1.c1.modifyOrFail(Case1(0.1), _ => Case1(0.2)))(isRight(equalTo(Case1(0.2): Variant1))) &&
         assert(Variant1.c2.modifyOrFail(Case2(Record3(null, null, null)), _ => Case2(null)))(
-          equalTo(Right(Case2(null): Variant1))
+          isRight(equalTo(Case2(null): Variant1))
         ) &&
-        assert(Variant1.v2.modifyOrFail(Case3(Case1(0.1)), _ => Case4(Nil)))(equalTo(Right(Case4(Nil): Variant1))) &&
+        assert(Variant1.v2.modifyOrFail(Case3(Case1(0.1)), _ => Case4(Nil)))(isRight(equalTo(Case4(Nil): Variant1))) &&
         assert(Variant1.v2_c3.modifyOrFail(Case3(Case1(0.1)), _ => Case3(Case1(0.2))))(
-          equalTo(Right(Case3(Case1(0.2)): Variant1))
+          isRight(equalTo(Case3(Case1(0.2)): Variant1))
         ) &&
         assert(Variant2.c3.modifyOrFail(Case3(Case1(0.1)), _ => Case3(Case1(0.2))))(
-          equalTo(Right(Case3(Case1(0.2)): Variant2))
+          isRight(equalTo(Case3(Case1(0.2)): Variant2))
         ) &&
         assert(Variant2.c4.modifyOrFail(Case4(List(Record3(null, null, null))), _ => Case4(Nil)))(
-          equalTo(Right(Case4(Nil): Variant2))
+          isRight(equalTo(Case4(Nil): Variant2))
         ) &&
         assert(Variant1.v2_v3_c5_left.modifyOrFail(Case5(null, null), _ => Case5(Set.empty, null)))(
-          equalTo(Right(Case5(Set.empty, null): Variant1))
+          isRight(equalTo(Case5(Set.empty, null): Variant1))
         ) &&
         assert(Variant1.v2_v3_c5_right.modifyOrFail(Case5(null, null), _ => Case5(Set.empty, null)))(
-          equalTo(Right(Case5(Set.empty, null): Variant1))
+          isRight(equalTo(Case5(Set.empty, null): Variant1))
         )
       },
       test("doesn't modify other case class values returning none") {
         assert(Variant1.c1.modifyOrFail(Case2(null), _ => Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -862,8 +862,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.c2.modifyOrFail(Case1(0.1), _ => Case2(null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -880,8 +880,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2.modifyOrFail(Case2(null), _ => Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -898,8 +898,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_c3.modifyOrFail(Case1(0.1), _ => Case3(Case1(0.2))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -916,8 +916,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3.modifyOrFail(Case4(List(Record3(null, null, null))), _ => Case3(Case1(0.2))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -934,8 +934,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c4.modifyOrFail(Case3(Case1(0.1)), _ => Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -952,8 +952,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_v3_c5_left.modifyOrFail(Case4(Nil), _ => Case5(Set.empty, null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -970,8 +970,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.v2_v3_c5_right.modifyOrFail(Case4(Nil), _ => Case5(Set.empty, null)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1349,23 +1349,23 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("gets an optional focus value wrapped to right") {
         assert(Variant1.c2_r3_r1.getOrFail(Case2(Record3(Record1(true, 0.1f), null, null))))(
-          equalTo(Right(Record1(true, 0.1f)))
+          isRight(equalTo(Record1(true, 0.1f)))
         ) &&
-        assert(Case2.r3_v1_c1.getOrFail(Case2(Record3(null, null, Case1(0.1)))))(equalTo(Right(Case1(0.1)))) &&
-        assert(Variant1.c2_r3_v1_c1.getOrFail(Case2(Record3(null, null, Case1(0.1)))))(equalTo(Right(Case1(0.1)))) &&
-        assert(Variant2.c3_v1_v2_c4.getOrFail(Case3(Case4(Nil))))(equalTo(Right(Case4(Nil)))) &&
-        assert(Variant2.c3_v1_c1_left.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case1(0.1)))) &&
-        assert(Variant2.c3_v1_c1_right.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case1(0.1)))) &&
-        assert(Variant2.c3_v1_c1_d_right.getOrFail(Case3(Case1(0.1))))(equalTo(Right(0.1))) &&
-        assert(Variant2.c3_v1.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case1(0.1)))) &&
-        assert(Case3.v1_c1_d_left.getOrFail(Case3(Case1(0.1))))(equalTo(Right(0.1))) &&
-        assert(Case3.v1_c1_d_right.getOrFail(Case3(Case1(0.1))))(equalTo(Right(0.1))) &&
-        assert(Case3.v1_c1.getOrFail(Case3(Case1(0.1))))(equalTo(Right(Case1(0.1))))
+        assert(Case2.r3_v1_c1.getOrFail(Case2(Record3(null, null, Case1(0.1)))))(isRight(equalTo(Case1(0.1)))) &&
+        assert(Variant1.c2_r3_v1_c1.getOrFail(Case2(Record3(null, null, Case1(0.1)))))(isRight(equalTo(Case1(0.1)))) &&
+        assert(Variant2.c3_v1_v2_c4.getOrFail(Case3(Case4(Nil))))(isRight(equalTo(Case4(Nil)))) &&
+        assert(Variant2.c3_v1_c1_left.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
+        assert(Variant2.c3_v1_c1_right.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
+        assert(Variant2.c3_v1_c1_d_right.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(0.1))) &&
+        assert(Variant2.c3_v1.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
+        assert(Case3.v1_c1_d_left.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(0.1))) &&
+        assert(Case3.v1_c1_d_right.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(0.1))) &&
+        assert(Case3.v1_c1.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case1(0.1))))
       },
       test("doesn't get a focus value if it's not possible and returns an error") {
         assert(Variant1.c2_r3_r1.getOrFail(Case3(Case1(0.1))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1382,8 +1382,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case2.r3_v1_c1.getOrFail(Case2(Record3(null, null, Case4(Nil)))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1400,8 +1400,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.getOrFail(Case2(Record3(null, null, Case4(Nil)))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1418,8 +1418,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4.getOrFail(Case3(Case1(0.1))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1436,8 +1436,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_left.getOrFail(Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1454,8 +1454,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_right.getOrFail(Case3(Case2(null))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1472,8 +1472,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_d_right.getOrFail(Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1490,8 +1490,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1.getOrFail(Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1508,8 +1508,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case3.v1_c1_d_left.getOrFail(Case3(Case4(Nil))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1526,8 +1526,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case3.v1_c1_d_right.getOrFail(Case3(Case4(Nil))))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1616,33 +1616,33 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("optionally replaces a focus value wrapped by right") {
         assert(Variant1.c2_r3_r1.replaceOrFail(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
-          equalTo(Right(Case2(Record3(Record1(false, 0.2f), null, null))))
+          isRight(equalTo(Case2(Record3(Record1(false, 0.2f), null, null))))
         ) &&
         assert(Case2.r3_v1_c1.replaceOrFail(Case2(Record3(null, null, Case1(0.1))), Case1(0.2)))(
-          equalTo(Right(Case2(Record3(null, null, Case1(0.2)))))
+          isRight(equalTo(Case2(Record3(null, null, Case1(0.2)))))
         ) &&
         assert(Variant1.c2_r3_v1_c1.replaceOrFail(Case2(Record3(null, null, Case1(0.1))), Case1(0.2)))(
-          equalTo(Right(Case2(Record3(null, null, Case1(0.2)))))
+          isRight(equalTo(Case2(Record3(null, null, Case1(0.2)))))
         ) &&
         assert(Variant2.c3_v1_v2_c4.replaceOrFail(Case3(Case4(Nil)), Case4(null)))(
-          equalTo(Right(Case3(Case4(null))))
+          isRight(equalTo(Case3(Case4(null))))
         ) &&
         assert(Variant2.c3_v1_c1_left.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(
-          equalTo(Right(Case3(Case1(0.2))))
+          isRight(equalTo(Case3(Case1(0.2))))
         ) &&
         assert(Variant2.c3_v1_c1_right.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(
-          equalTo(Right(Case3(Case1(0.2))))
+          isRight(equalTo(Case3(Case1(0.2))))
         ) &&
-        assert(Variant2.c3_v1_c1_d_right.replaceOrFail(Case3(Case1(0.1)), 0.2))(equalTo(Right(Case3(Case1(0.2))))) &&
-        assert(Variant2.c3_v1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Right(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1_d_left.replaceOrFail(Case3(Case1(0.1)), 0.2))(equalTo(Right(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1_d_right.replaceOrFail(Case3(Case1(0.1)), 0.2))(equalTo(Right(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Right(Case3(Case1(0.2)))))
+        assert(Variant2.c3_v1_c1_d_right.replaceOrFail(Case3(Case1(0.1)), 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Variant2.c3_v1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_left.replaceOrFail(Case3(Case1(0.1)), 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_right.replaceOrFail(Case3(Case1(0.1)), 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2)))))
       },
       test("optionally doesn't replace a focus value if it's not possible and returns an error") {
         assert(Variant1.c2_r3_r1.replaceOrFail(Case3(Case1(0.1)), Record1(false, 0.2f)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1659,8 +1659,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case2.r3_v1_c1.replaceOrFail(Case2(Record3(null, null, Case4(Nil))), Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1677,8 +1677,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.replaceOrFail(Case2(Record3(null, null, Case4(Nil))), Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1695,8 +1695,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4.replaceOrFail(Case3(Case1(0.1)), Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1713,8 +1713,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_left.replaceOrFail(Case4(Nil), Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1731,8 +1731,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_right.replaceOrFail(Case3(Case2(null)), Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1749,8 +1749,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_d_right.replaceOrFail(Case4(Nil), 0.2))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1767,8 +1767,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1.replaceOrFail(Case4(Nil), Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1785,8 +1785,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case3.v1_c1_d_left.replaceOrFail(Case3(Case4(Nil)), 0.2))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1803,8 +1803,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case3.v1_c1_d_right.replaceOrFail(Case3(Case4(Nil)), 0.2))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1899,35 +1899,35 @@ object OpticSpec extends ZIOSpecDefault {
         assert(
           Variant1.c2_r3_r1.modifyOrFail(Case2(Record3(Record1(true, 0.1f), null, null)), _ => Record1(false, 0.2f))
         )(
-          equalTo(Right(Case2(Record3(Record1(false, 0.2f), null, null))))
+          isRight(equalTo(Case2(Record3(Record1(false, 0.2f), null, null))))
         ) &&
         assert(Case2.r3_v1_c1.modifyOrFail(Case2(Record3(null, null, Case1(0.1))), _ => Case1(0.2)))(
-          equalTo(Right(Case2(Record3(null, null, Case1(0.2)))))
+          isRight(equalTo(Case2(Record3(null, null, Case1(0.2)))))
         ) &&
         assert(Variant1.c2_r3_v1_c1.modifyOrFail(Case2(Record3(null, null, Case1(0.1))), _ => Case1(0.2)))(
-          equalTo(Right(Case2(Record3(null, null, Case1(0.2)))))
+          isRight(equalTo(Case2(Record3(null, null, Case1(0.2)))))
         ) &&
         assert(Variant2.c3_v1_v2_c4.modifyOrFail(Case3(Case4(Nil)), _ => Case4(null)))(
-          equalTo(Right(Case3(Case4(null))))
+          isRight(equalTo(Case3(Case4(null))))
         ) &&
         assert(Variant2.c3_v1_c1_left.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(
-          equalTo(Right(Case3(Case1(0.2))))
+          isRight(equalTo(Case3(Case1(0.2))))
         ) &&
         assert(Variant2.c3_v1_c1_right.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(
-          equalTo(Right(Case3(Case1(0.2))))
+          isRight(equalTo(Case3(Case1(0.2))))
         ) &&
         assert(Variant2.c3_v1_c1_d_right.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(
-          equalTo(Right(Case3(Case1(0.2))))
+          isRight(equalTo(Case3(Case1(0.2))))
         ) &&
-        assert(Variant2.c3_v1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(equalTo(Right(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1_d_left.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(equalTo(Right(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1_d_right.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(equalTo(Right(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(equalTo(Right(Case3(Case1(0.2)))))
+        assert(Variant2.c3_v1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_left.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1_d_right.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Case3.v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2)))))
       },
       test("doesn't modify a focus value returning none") {
         assert(Variant1.c2_r3_r1.modifyOrFail(Case3(Case1(0.1)), _ => Record1(false, 0.2f)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1944,8 +1944,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case2.r3_v1_c1.modifyOrFail(Case2(Record3(null, null, Case4(Nil))), _ => Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1962,8 +1962,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1980,8 +1980,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4.modifyOrFail(Case3(Case1(0.1)), _ => Case4(Nil)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -1998,8 +1998,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_left.modifyOrFail(Case4(Nil), _ => Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2016,8 +2016,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_right.modifyOrFail(Case4(Nil), _ => Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2034,8 +2034,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_c1_d_right.modifyOrFail(Case4(Nil), _ => 0.2))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2052,8 +2052,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1.modifyOrFail(Case4(Nil), _ => Case1(0.2)))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2070,8 +2070,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case3.v1_c1_d_left.modifyOrFail(Case3(Case4(Nil)), _ => 0.2))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2088,8 +2088,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Case3.v1_c1_d_right.modifyOrFail(Case3(Case4(Nil)), _ => 0.2))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2329,36 +2329,36 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("modifies collection values and wraps result to right") {
         assert(Collections.mkc.modifyOrFail(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
-          equalTo(Right(Map('A' -> "1", 'B' -> "2", 'C' -> "3")))
+          isRight(equalTo(Map('A' -> "1", 'B' -> "2", 'C' -> "3")))
         ) &&
         assert(Collections.mvs.modifyOrFail(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _ + "x"))(
-          equalTo(Right(Map('a' -> "1x", 'b' -> "2x", 'c' -> "3x")))
+          isRight(equalTo(Map('a' -> "1x", 'b' -> "2x", 'c' -> "3x")))
         ) &&
-        assert(Collections.lc1.modifyOrFail(List(Case1(0.1)), _.copy(d = 0.2)))(equalTo(Right(List(Case1(0.2))))) &&
-        assert(Collections.lc1_d.modifyOrFail(List(Case1(0.1)), _ + 0.4))(equalTo(Right(List(Case1(0.5))))) &&
+        assert(Collections.lc1.modifyOrFail(List(Case1(0.1)), _.copy(d = 0.2)))(isRight(equalTo(List(Case1(0.2))))) &&
+        assert(Collections.lc1_d.modifyOrFail(List(Case1(0.1)), _ + 0.4))(isRight(equalTo(List(Case1(0.5))))) &&
         assert(
           Collections.lc4_lr3
             .modifyOrFail(List(Case4(List(Record3(null, null, null)))), _.copy(r1 = Record1(true, 0.1f)))
         )(
-          equalTo(Right(List(Case4(List(Record3(Record1(true, 0.1f), null, null))))))
+          isRight(equalTo(List(Case4(List(Record3(Record1(true, 0.1f), null, null))))))
         ) &&
         assert(Collections.lr1.modifyOrFail(List(Record1(true, 0.1f)), x => !x))(
-          equalTo(Right(List(Record1(false, 0.1f))))
+          isRight(equalTo(List(Record1(false, 0.1f))))
         ) &&
         assert(Record2.vi.modifyOrFail(Record2(2L, Vector(1, 2, 3), null), _ + 1))(
-          equalTo(Right(Record2(2L, Vector(2, 3, 4), null)))
+          isRight(equalTo(Record2(2L, Vector(2, 3, 4), null)))
         ) &&
         assert(Variant2.c4_lr3.modifyOrFail(Case4(List(Record3(null, null, null))), _ => null))(
-          equalTo(Right(Case4(List(null))))
+          isRight(equalTo(Case4(List(null))))
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
-          equalTo(Right(Case3(Case4(List(null)))))
+          isRight(equalTo(Case3(Case4(List(null)))))
         )
       },
       test("doesn't modify collection values for non-matching cases and returns an error") {
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case3(Case4(Nil)), _ => null))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   EmptySequence(
@@ -2377,8 +2377,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case4(Nil), _ => null))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2397,8 +2397,8 @@ object OpticSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(Variant2.c4_lr3.modifyOrFail(Case3(Case1(0.1)), _ => null))(
-          equalTo(
-            Left(
+          isLeft(
+            equalTo(
               OpticCheck(
                 errors = ::(
                   UnexpectedCase(
@@ -2467,34 +2467,44 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.lc1_d.reduceOrFail(List(Case1(0.1), Case1(0.4)))(_ + _))(isRight(equalTo(0.5)))
       },
       test("doesn't reduce for non-matching cases returnung an error") {
-        assert(Variant2.c3_v1_v2_c4_lr3.reduceOrFail(Case4(Nil))((_, x) => x))(isLeft(equalTo(
-            OpticCheck(
-              errors = ::(
-                UnexpectedCase(
-                  expectedCase = "Case3",
-                  actualCase = "Case4",
-                  full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)),
-                  prefix = DynamicOptic(Vector(Case("Case3"))),
-                  actualValue = Case4(Nil)
-                ),
-                Nil
+        assert(Variant2.c3_v1_v2_c4_lr3.reduceOrFail(Case4(Nil))((_, x) => x))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case3",
+                    actualCase = "Case4",
+                    full = DynamicOptic(
+                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
+                    ),
+                    prefix = DynamicOptic(Vector(Case("Case3"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
               )
             )
-        ))) &&
-        assert(Variant2.c4_lr3.reduceOrFail(Case3(Case1(0.1)))((_, x) => x))(isLeft(equalTo(
-            OpticCheck(
-              errors = ::(
-                UnexpectedCase(
-                  expectedCase = "Case4",
-                  actualCase = "Case3",
-                  full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
-                  prefix = DynamicOptic(Vector(Case("Case4"))),
-                  actualValue = Case3(Case1(0.1))
-                ),
-                Nil
+          )
+        ) &&
+        assert(Variant2.c4_lr3.reduceOrFail(Case3(Case1(0.1)))((_, x) => x))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case4",
+                    actualCase = "Case3",
+                    full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
+                    prefix = DynamicOptic(Vector(Case("Case4"))),
+                    actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
               )
             )
-        )))
+          )
+        )
       }
     )
   )
