@@ -22,16 +22,12 @@ sealed trait Optic[S, A] { self =>
 
   def focus: Reflect.Bound[A]
 
-  // Compose this optic with a lens:
   def apply[B](that: Lens[A, B]): Optic[S, B]
 
-  // Compose this optic with a prism:
   def apply[B <: A](that: Prism[A, B]): Optic[S, B]
 
-  // Compose this optic with an optional:
   def apply[B](that: Optional[A, B]): Optic[S, B]
 
-  // Compose this optic with a traversal:
   def apply[B](that: Traversal[A, B]): Traversal[S, B]
 
   def check(s: S): Option[OpticCheck]
@@ -114,17 +110,13 @@ sealed trait Lens[S, A] extends Optic[S, A] {
 
   def replace(s: S, a: A): S
 
-  // Compose this lens with a lens:
-  override def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
+  def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
 
-  // Compose this lens with a prism:
-  override def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
+  def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
 
-  // Compose this lens with an optional:
-  override def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
+  def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
 
-  // Compose this lens with a traversal:
-  override def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
+  def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
 object Lens {
@@ -174,7 +166,7 @@ object Lens {
 
     def check(s: S): None.type = None
 
-    override def get(s: S): A = {
+    def get(s: S): A = {
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -189,7 +181,7 @@ object Lens {
       x.asInstanceOf[A]
     }
 
-    override def replace(s: S, a: A): S = {
+    def replace(s: S, a: A): S = {
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -270,17 +262,13 @@ sealed trait Prism[S, A <: S] extends Optic[S, A] {
       case None    => Left(check(s).get)
     }
 
-  // Compose this prism with a prism:
-  override def apply[B <: A](that: Prism[A, B]): Prism[S, B] = Prism(this, that)
+  def apply[B <: A](that: Prism[A, B]): Prism[S, B] = Prism(this, that)
 
-  // Compose this prism with a lens:
-  override def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
+  def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
 
-  // Compose this prism with an optional:
-  override def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
+  def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
 
-  // Compose this prism with a traversal:
-  override def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
+  def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
 object Prism {
@@ -333,15 +321,8 @@ object Prism {
         if (x == null) {
           val actualCaseIdx = discriminators(idx).discriminate(lastX)
           val actualCase    = sources(idx).cases(actualCaseIdx).name
-          return Some(
-            OpticCheck.unexpectedCase(
-              focusTerms(idx).name,
-              actualCase,
-              toDynamic,
-              DynamicOptic(focusTerms.take(idx + 1).map(term => DynamicOptic.Node.Case(term.name)).toVector),
-              lastX
-            )
-          )
+          val prefix        = DynamicOptic(toDynamic.nodes.take(idx + 1))
+          return Some(OpticCheck.unexpectedCase(focusTerms(idx).name, actualCase, toDynamic, prefix, lastX))
         }
         idx += 1
       }
@@ -431,18 +412,13 @@ sealed trait Optional[S, A] extends Optic[S, A] {
       case None    => Left(check(s).get)
     }
 
-  // Compose this optional with a lens:
-  override def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
+  def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
 
-  // Compose this optional with a prism:
-  override def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
+  def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
 
-  // Compose this optional with an optional:
-  override def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
+  def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
 
-  // Compose this optional with a traversal:
-  override def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
-
+  def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
 object Optional {
@@ -513,7 +489,7 @@ object Optional {
           offset = RegisterOffset.add(offset, record.usedRegisters)
         } else {
           val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
-          bindings(idx) = PrismBinding(
+          bindings(idx) = new PrismBinding(
             matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
             discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
           )
@@ -545,27 +521,8 @@ object Optional {
             if (x == null) {
               val actualCaseIdx = prismBinding.discriminator.discriminate(lastX)
               val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
-              return Some(
-                OpticCheck.unexpectedCase(
-                  focusTerms(idx).name,
-                  actualCase,
-                  toDynamic,
-                  DynamicOptic(
-                    focusTerms
-                      .take(idx + 1)
-                      .map {
-                        var idx = 0
-                        term =>
-                          val binding = bindings(idx)
-                          idx += 1
-                          if (binding.isInstanceOf[LensBinding]) DynamicOptic.Node.Field(term.name)
-                          else DynamicOptic.Node.Case(term.name)
-                      }
-                      .toVector
-                  ),
-                  lastX
-                )
-              )
+              val prefix        = DynamicOptic(toDynamic.nodes.take(idx + 1))
+              return Some(OpticCheck.unexpectedCase(focusTerms(idx).name, actualCase, toDynamic, prefix, lastX))
             }
           case _ =>
         }
@@ -595,15 +552,15 @@ object Optional {
       new Some(x.asInstanceOf[A])
     }
 
-    override lazy val toDynamic: DynamicOptic = DynamicOptic {
+    lazy val toDynamic: DynamicOptic = DynamicOptic {
       val nodes = Vector.newBuilder[DynamicOptic.Node]
-      val len   = sources.length
+      val len   = bindings.length
       var idx   = 0
       while (idx < len) {
-        val source        = sources(idx)
+        val binding       = bindings(idx)
         val focusTermName = focusTerms(idx).name
         nodes.addOne {
-          if (source.isInstanceOf[Reflect.Record.Bound[_]]) DynamicOptic.Node.Field(focusTermName)
+          if (binding.isInstanceOf[LensBinding]) DynamicOptic.Node.Field(focusTermName)
           else DynamicOptic.Node.Case(focusTermName)
         }
         idx += 1
@@ -737,17 +694,13 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
     else Left(check(s).get)
   }
 
-  // Compose this traversal with a lens:
-  override def apply[B](that: Lens[A, B]): Traversal[S, B] = Traversal(this, that)
+  def apply[B](that: Lens[A, B]): Traversal[S, B] = Traversal(this, that)
 
-  // Compose this traversal with a prism:
-  override def apply[B <: A](that: Prism[A, B]): Traversal[S, B] = Traversal(this, that)
+  def apply[B <: A](that: Prism[A, B]): Traversal[S, B] = Traversal(this, that)
 
-  // Compose this traversal with an optional:
-  override def apply[B](that: Optional[A, B]): Traversal[S, B] = Traversal(this, that)
+  def apply[B](that: Optional[A, B]): Traversal[S, B] = Traversal(this, that)
 
-  // Compose this traversal with a traversal:
-  override def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
+  def apply[B](that: Traversal[A, B]): Traversal[S, B] = Traversal(this, that)
 }
 
 object Traversal {
@@ -849,7 +802,7 @@ object Traversal {
       while (idx < len) {
         val source        = sources(idx)
         val focusTermName = focusTerms(idx).name
-        if (source.isRecord) {
+        if (source.isInstanceOf[Reflect.Record.Bound[_]]) {
           val record = source.asInstanceOf[Reflect.Record.Bound[_]]
           bindings(idx) = new LensBinding(
             deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
@@ -858,9 +811,9 @@ object Traversal {
             offset = offset
           )
           offset = RegisterOffset.add(offset, record.usedRegisters)
-        } else if (source.isVariant) {
+        } else if (source.isInstanceOf[Reflect.Variant.Bound[_]]) {
           val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
-          bindings(idx) = PrismBinding(
+          bindings(idx) = new PrismBinding(
             matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
             discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
           )
@@ -921,48 +874,32 @@ object Traversal {
             val actualCaseIdx = prismBinding.discriminator.discriminate(x)
             val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
             val focusTermName = focusTerms(idx).name
-            errors.addOne(OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamicOptic(idx), x))
+            errors.addOne(OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, prefix(idx), x))
           } else if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
         case seqBinding: SeqBinding[Col] @scala.unchecked =>
           val deconstructor = seqBinding.seqDeconstructor
           val it            = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
-          if (it.isEmpty) errors.addOne(OpticCheck.EmptySequence(toDynamic, toDynamicOptic(idx), x))
+          if (it.isEmpty) errors.addOne(OpticCheck.EmptySequence(toDynamic, prefix(idx), x))
           else if (idx + 1 != bindings.length) {
             while (it.hasNext) checkRec(registers, idx + 1, it.next(), errors)
           }
         case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
           val deconstructor = mapKeyBinding.mapDeconstructor
           val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
+          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, prefix(idx), x))
           else if (idx + 1 != bindings.length) {
             while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getKey(it.next()), errors)
           }
         case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
           val deconstructor = mapValueBinding.mapDeconstructor
           val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, toDynamicOptic(idx), x))
+          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, prefix(idx), x))
           else if (idx + 1 != bindings.length) {
             while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getValue(it.next()), errors)
           }
       }
 
-    private[this] def toDynamicOptic(depth: Int): DynamicOptic = DynamicOptic(
-      focusTerms
-        .take(depth + 1)
-        .map {
-          var idx = -1
-          term =>
-            idx += 1
-            bindings(idx) match {
-              case _: LensBinding                         => DynamicOptic.Node.Field(term.name)
-              case _: PrismBinding                        => DynamicOptic.Node.Case(term.name)
-              case _: SeqBinding[Col] @scala.unchecked    => DynamicOptic.Node.Elements
-              case _: MapKeyBinding[Map] @scala.unchecked => DynamicOptic.Node.MapKeys
-              case _                                      => DynamicOptic.Node.MapValues
-            }
-        }
-        .toVector
-    )
+    private[this] def prefix(idx: Int) = DynamicOptic(toDynamic.nodes.take(idx + 1))
 
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = foldRec(Registers(usedRegisters), 0, s, zero, f)
 
@@ -1369,9 +1306,9 @@ object Traversal {
           constructor.resultObject(builder)
       }
 
-    override lazy val toDynamic: DynamicOptic = DynamicOptic {
+    lazy val toDynamic: DynamicOptic = DynamicOptic {
       val nodes = Vector.newBuilder[DynamicOptic.Node]
-      val len   = sources.length
+      val len   = bindings.length
       var idx   = 0
       while (idx < len) {
         nodes.addOne {
