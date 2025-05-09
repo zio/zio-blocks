@@ -22,59 +22,59 @@ class Registers private (userRegister: RegisterOffset) {
     bytes(RegisterOffset.getBytes(baseOffset) + relativeIndex)
 
   def getShort(baseOffset: RegisterOffset, relativeIndex: Int): Short = {
-    val index = RegisterOffset.getBytes(baseOffset) + relativeIndex
-    (bytes(index) & 0xff |
-      (bytes(index + 1) & 0xff) << 8).toShort
+    val idx = RegisterOffset.getBytes(baseOffset) + relativeIndex
+    (bytes(idx) & 0xff |
+      (bytes(idx + 1) & 0xff) << 8).toShort
   }
 
   def getInt(baseOffset: RegisterOffset, relativeIndex: Int): Int = {
-    val index = RegisterOffset.getBytes(baseOffset) + relativeIndex
-    bytes(index) & 0xff |
-      (bytes(index + 1) & 0xff) << 8 |
-      (bytes(index + 2) & 0xff) << 16 |
-      (bytes(index + 3) << 24)
+    val idx = RegisterOffset.getBytes(baseOffset) + relativeIndex
+    bytes(idx) & 0xff |
+      (bytes(idx + 1) & 0xff) << 8 |
+      (bytes(idx + 2) & 0xff) << 16 |
+      (bytes(idx + 3) << 24)
   }
 
   def getLong(baseOffset: RegisterOffset, relativeIndex: Int): Long = {
-    val index = RegisterOffset.getBytes(baseOffset) + relativeIndex
-    (bytes(index) & 0xff |
-      (bytes(index + 1) & 0xff) << 8 |
-      (bytes(index + 2) & 0xff) << 16).toLong |
-      (bytes(index + 3) & 0xff).toLong << 24 |
-      (bytes(index + 4) & 0xff).toLong << 32 |
-      (bytes(index + 5) & 0xff).toLong << 40 |
-      (bytes(index + 6) & 0xff).toLong << 48 |
-      (bytes(index + 7) & 0xff).toLong << 56
+    val idx = RegisterOffset.getBytes(baseOffset) + relativeIndex
+    (bytes(idx) & 0xff |
+      (bytes(idx + 1) & 0xff) << 8 |
+      (bytes(idx + 2) & 0xff) << 16).toLong |
+      (bytes(idx + 3) & 0xff).toLong << 24 |
+      (bytes(idx + 4) & 0xff).toLong << 32 |
+      (bytes(idx + 5) & 0xff).toLong << 40 |
+      (bytes(idx + 6) & 0xff).toLong << 48 |
+      (bytes(idx + 7) & 0xff).toLong << 56
   }
 
   def getFloat(baseOffset: RegisterOffset, relativeIndex: Int): Float = {
-    val index = RegisterOffset.getBytes(baseOffset) + relativeIndex
+    val idx = RegisterOffset.getBytes(baseOffset) + relativeIndex
     java.lang.Float.intBitsToFloat(
-      bytes(index) & 0xff |
-        (bytes(index + 1) & 0xff) << 8 |
-        (bytes(index + 2) & 0xff) << 16 |
-        (bytes(index + 3) << 24)
+      bytes(idx) & 0xff |
+        (bytes(idx + 1) & 0xff) << 8 |
+        (bytes(idx + 2) & 0xff) << 16 |
+        (bytes(idx + 3) << 24)
     )
   }
 
   def getDouble(baseOffset: RegisterOffset, relativeIndex: Int): Double = {
-    val index = RegisterOffset.getBytes(baseOffset) + relativeIndex
+    val idx = RegisterOffset.getBytes(baseOffset) + relativeIndex
     java.lang.Double.longBitsToDouble(
-      (bytes(index) & 0xff |
-        (bytes(index + 1) & 0xff) << 8 |
-        (bytes(index + 2) & 0xff) << 16).toLong |
-        (bytes(index + 3) & 0xff).toLong << 24 |
-        (bytes(index + 4) & 0xff).toLong << 32 |
-        (bytes(index + 5) & 0xff).toLong << 40 |
-        (bytes(index + 6) & 0xff).toLong << 48 |
-        (bytes(index + 7) & 0xff).toLong << 56
+      (bytes(idx) & 0xff |
+        (bytes(idx + 1) & 0xff) << 8 |
+        (bytes(idx + 2) & 0xff) << 16).toLong |
+        (bytes(idx + 3) & 0xff).toLong << 24 |
+        (bytes(idx + 4) & 0xff).toLong << 32 |
+        (bytes(idx + 5) & 0xff).toLong << 40 |
+        (bytes(idx + 6) & 0xff).toLong << 48 |
+        (bytes(idx + 7) & 0xff).toLong << 56
     )
   }
 
   def getChar(baseOffset: RegisterOffset, relativeIndex: Int): Char = {
-    val index = RegisterOffset.getBytes(baseOffset) + relativeIndex
-    (bytes(index) & 0xff |
-      (bytes(index + 1) & 0xff) << 8).toChar
+    val idx = RegisterOffset.getBytes(baseOffset) + relativeIndex
+    (bytes(idx) & 0xff |
+      (bytes(idx + 1) & 0xff) << 8).toChar
   }
 
   def getObject(baseOffset: RegisterOffset, relativeIndex: Int): AnyRef =

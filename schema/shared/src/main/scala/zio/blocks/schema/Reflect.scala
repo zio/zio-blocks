@@ -3,15 +3,11 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
-
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
-import scala.collection.mutable.HashMap
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
-
-  final type Structure = A
 
   type NodeBinding <: BindingType
   type ModifierType <: Modifier
@@ -19,78 +15,76 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def metadata: F[NodeBinding, A]
 
   def asDeferred: Option[Reflect.Deferred[F, A]] =
-    self match {
+    this match {
       case deferred: Reflect.Deferred[F, A] @scala.unchecked => new Some(deferred)
       case _                                                 => None
     }
 
   def asDynamic: Option[Reflect.Dynamic[F]] =
-    self match {
+    this match {
       case dynamic: Reflect.Dynamic[F] @scala.unchecked => new Some(dynamic)
+      case deferred: Reflect.Deferred[F, _]             => deferred.value.asDynamic
       case _                                            => None
     }
 
   def asMap(implicit ev: IsMap[A]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
-    if (isDeferred) asDeferred.get.value.asMap
-    else
-      self match {
-        case map: Reflect.Map[F, ev.Key, ev.Value, ev.Map] @scala.unchecked => new Some(map)
-        case _                                                              => None
-      }
+    this match {
+      case map: Reflect.Map[F, ev.Key, ev.Value, ev.Map] @scala.unchecked => new Some(map)
+      case deferred: Reflect.Deferred[F, _]                               => deferred.value.asMap
+      case _                                                              => None
+    }
 
   def asMapUnknown: Option[Reflect.Map.Unknown[F]] =
-    if (isMap) {
-      if (isDeferred) asDeferred.get.value.asMapUnknown
-      else
+    this match {
+      case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
         new Some(new Reflect.Map.Unknown[F] {
           def map: Reflect.Map[F, KeyType, ValueType, MapType] =
-            self.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
+            this.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
         })
-    } else None
+      case deferred: Reflect.Deferred[F, _] => deferred.value.asMapUnknown
+      case _                                => None
+    }
 
   def asPrimitive: Option[Reflect.Primitive[F, A]] =
-    if (isDeferred) asDeferred.get.value.asPrimitive
-    else
-      self match {
-        case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
-        case _                                                   => None
-      }
+    this match {
+      case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
+      case deferred: Reflect.Deferred[F, _]                    => deferred.value.asPrimitive
+      case _                                                   => None
+    }
 
   def asRecord: Option[Reflect.Record[F, A]] =
-    if (isDeferred) asDeferred.get.value.asRecord
-    else
-      self match {
-        case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
-        case _                                             => None
-      }
+    this match {
+      case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
+      case deferred: Reflect.Deferred[F, _]              => deferred.value.asRecord
+      case _                                             => None
+    }
 
   def asSequence(implicit ev: IsCollection[A]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
-    if (isDeferred) asDeferred.get.value.asSequence
-    else
-      self match {
-        case sequence: Reflect.Sequence[F, ev.Elem, ev.Collection] @scala.unchecked => new Some(sequence)
-        case _                                                                      => None
-      }
+    this match {
+      case sequence: Reflect.Sequence[F, ev.Elem, ev.Collection] @scala.unchecked => new Some(sequence)
+      case deferred: Reflect.Deferred[F, _]                                       => deferred.value.asSequence
+      case _                                                                      => None
+    }
 
   def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] =
-    if (isSequence) {
-      if (isDeferred) asDeferred.get.value.asSequenceUnknown
-      else
+    this match {
+      case sequence: Reflect.Sequence[F, _, _] @scala.unchecked =>
         new Some(new Reflect.Sequence.Unknown[F] {
           def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
-            self.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
+            this.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
         })
-    } else None
+      case deferred: Reflect.Deferred[F, _] => deferred.value.asSequenceUnknown
+      case _                                => None
+    }
 
-  def asTerm[S](name: String): Term[F, S, A] = Term(name, this, Doc.Empty, Nil)
+  def asTerm[S](name: String): Term[F, S, A] = new Term(name, this, Doc.Empty, Nil)
 
   def asVariant: Option[Reflect.Variant[F, A]] =
-    if (isDeferred) asDeferred.get.value.asVariant
-    else
-      self match {
-        case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
-        case _                                               => None
-      }
+    this match {
+      case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
+      case deferred: Reflect.Deferred[F, _]                => deferred.value.asVariant
+      case _                                               => None
+    }
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
 
@@ -166,41 +160,41 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   override def hashCode: Int = inner.hashCode
 
-  final def isDeferred: Boolean =
+  def isDeferred: Boolean =
     this match {
       case _: Reflect.Deferred[_, _] => true
       case _                         => false
     }
 
-  final def isMap: Boolean =
+  def isMap: Boolean =
     this match {
       case _: Reflect.Map[_, _, _, _] => true
       case d: Reflect.Deferred[_, _]  => d.value.isMap
       case _                          => false
     }
 
-  final def isPrimitive: Boolean =
+  def isPrimitive: Boolean =
     this match {
       case _: Reflect.Primitive[_, _] => true
       case d: Reflect.Deferred[_, _]  => d.value.isPrimitive
       case _                          => false
     }
 
-  final def isRecord: Boolean =
+  def isRecord: Boolean =
     this match {
       case _: Reflect.Record[_, _]   => true
       case d: Reflect.Deferred[_, _] => d.value.isRecord
       case _                         => false
     }
 
-  final def isSequence: Boolean =
+  def isSequence: Boolean =
     this match {
       case _: Reflect.Sequence[_, _, _] => true
       case d: Reflect.Deferred[_, _]    => d.value.isSequence
       case _                            => false
     }
 
-  final def isVariant: Boolean =
+  def isVariant: Boolean =
     this match {
       case _: Reflect.Variant[_, _]  => true
       case d: Reflect.Deferred[_, _] => d.value.isVariant
@@ -359,20 +353,20 @@ object Reflect {
           val registers                   = pool.allocate()
           try {
             var i = 0
-            while (i < self.registers.length) {
-              val field    = self.fields(i)
-              val register = self.registers(i).asInstanceOf[Register[Any]]
+            while (i < this.registers.length) {
+              val field    = this.fields(i)
+              val register = this.registers(i).asInstanceOf[Register[Any]]
               fields.find(_._1 == field.name) match {
                 case Some((_, fieldValue)) =>
                   field.value.fromDynamicValue(fieldValue) match {
                     case Left(error) => errors = errors.map(_ ++ error).orElse(Some(error))
                     case Right(_)    => register.set(registers, RegisterOffset.Zero, fieldValue)
                   }
-                case None =>
+                case _ =>
                   val newError = SchemaError.missingField(DynamicOptic.root, field.name, s"Missing field ${field.name}")
                   errors = errors.map(_ ++ newError).orElse(Some(newError))
               }
-              i = i + 1
+              i += 1
             }
             if (errors.isDefined) Left(errors.get)
             else Right(constructor.construct(registers, RegisterOffset.Zero))
@@ -384,10 +378,10 @@ object Reflect {
       }
 
     def lensByIndex(index: Int): Lens[A, ?] =
-      Lens(self.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, ?]])
+      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, ?]])
 
     def lensByName(name: String): Option[Lens[A, ?]] = fieldByName(name).map(term =>
-      Lens(self.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, ?]])
+      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, ?]])
     )
 
     val length: Int = fields.length
@@ -419,9 +413,9 @@ object Reflect {
         // Create vector builder:
         val builder = Vector.newBuilder[(String, DynamicValue)]
         var i       = 0
-        while (i < self.registers.length) {
+        while (i < this.registers.length) {
           val field                                 = fields(i)
-          val register                              = self.registers(i)
+          val register                              = this.registers(i)
           val fieldReflect: Reflect[F, field.Focus] = field.value.asInstanceOf[Reflect[F, field.Focus]]
           val value =
             fieldReflect.toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
@@ -491,7 +485,7 @@ object Reflect {
       RegisterOffset.add(acc, register.usedRegisters)
     }
 
-    override final val nodeType: Reflect.Type.Record.type = Reflect.Type.Record
+    val nodeType: Reflect.Type.Record.type = Reflect.Type.Record
   }
 
   object Record {
@@ -532,15 +526,13 @@ object Reflect {
       value match {
         case DynamicValue.Variant(discriminator, value) =>
           caseByName(discriminator) match {
-            case Some(case_) =>
-              val caseValue = case_.value.asInstanceOf[Reflect[F, A]]
-
-              caseValue.fromDynamicValue(value)
-
-            case None =>
-              Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case $discriminator"))
+            case Some(c) =>
+              c.value.asInstanceOf[Reflect[F, A]].fromDynamicValue(value)
+            case _ =>
+              new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case $discriminator"))
           }
-        case _ => Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a variant, got $value"))
+        case _ =>
+          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a variant, got $value"))
       }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
@@ -566,9 +558,9 @@ object Reflect {
     )
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
-      val index      = discriminator.discriminate(value)
-      val downcasted = matchers.matchers(index).downcastOrNull(value)
-      val caseValue  = cases(index).value.asInstanceOf[Reflect[F, downcasted.type]]
+      val idx        = discriminator.discriminate(value)
+      val downcasted = matchers.matchers(idx).downcastOrNull(value)
+      val caseValue  = cases(idx).value.asInstanceOf[Reflect[F, downcasted.type]]
       caseValue.toDynamicValue(downcasted)
     }
 
@@ -578,7 +570,7 @@ object Reflect {
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
 
-    override final val nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
+    val nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
   }
 
   object Variant {
@@ -592,8 +584,6 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Seq] = Vector()
   ) extends Reflect[F, C[A]] { self =>
-    type CollectionType[A] = C[A]
-    type ElementType       = A
     protected def inner: Any = (element, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Seq[C]
@@ -614,11 +604,10 @@ object Reflect {
       copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, C[A]] = {
-      val seqConstructor             = self.seqConstructor
+      val seqConstructor             = this.seqConstructor
       var error: Option[SchemaError] = None
 
-      def addError(e: SchemaError): Unit =
-        error = error.map(_ ++ e).orElse(Some(e))
+      def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
 
       value match {
         case DynamicValue.Sequence(elements) =>
@@ -626,7 +615,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Boolean) =>
               val builder = seqConstructor.newBooleanBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addBoolean(builder, value.asInstanceOf[Boolean])
                   case Left(error)  => addError(error)
                 }
@@ -635,7 +624,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Byte) =>
               val builder = seqConstructor.newByteBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addByte(builder, value.asInstanceOf[Byte])
                   case Left(error)  => addError(error)
                 }
@@ -644,7 +633,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Char) =>
               val builder = seqConstructor.newCharBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addChar(builder, value.asInstanceOf[Char])
                   case Left(error)  => addError(error)
                 }
@@ -653,7 +642,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Short) =>
               val builder = seqConstructor.newShortBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addShort(builder, value.asInstanceOf[Short])
                   case Left(error)  => addError(error)
                 }
@@ -662,7 +651,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Int) =>
               val builder = seqConstructor.newIntBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addInt(builder, value.asInstanceOf[Int])
                   case Left(error)  => addError(error)
                 }
@@ -671,7 +660,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Long) =>
               val builder = seqConstructor.newLongBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addLong(builder, value.asInstanceOf[Long])
                   case Left(error)  => addError(error)
                 }
@@ -680,7 +669,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Float) =>
               val builder = seqConstructor.newFloatBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addFloat(builder, value.asInstanceOf[Float])
                   case Left(error)  => addError(error)
                 }
@@ -689,7 +678,7 @@ object Reflect {
             case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Double) =>
               val builder = seqConstructor.newDoubleBuilder(elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addDouble(builder, value.asInstanceOf[Double])
                   case Left(error)  => addError(error)
                 }
@@ -698,7 +687,7 @@ object Reflect {
             case _ =>
               val builder = seqConstructor.newObjectBuilder[A](elements.size)
               elements.foreach { elem =>
-                self.element.fromDynamicValue(elem) match {
+                this.element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addObject(builder, value)
                   case Left(error)  => addError(error)
                 }
@@ -719,7 +708,7 @@ object Reflect {
     def toDynamicValue(value: C[A])(implicit F: HasBinding[F]): DynamicValue = {
       val iterator = seqDeconstructor.deconstruct(value)
       val builder  = Vector.newBuilder[DynamicValue]
-      while (iterator.hasNext) builder.addOne(self.element.toDynamicValue(iterator.next()))
+      while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
       DynamicValue.Sequence(builder.result())
     }
 
@@ -733,7 +722,7 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    override final val nodeType: Reflect.Type.Sequence[C] = Reflect.Type.Sequence[C]()
+    val nodeType: Reflect.Type.Sequence[C] = Reflect.Type.Sequence[C]()
   }
 
   object Sequence {
@@ -755,10 +744,6 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Map] = Vector()
   ) extends Reflect[F, M[Key, Value]] { self =>
-    type MapType[K, V] = M[K, V]
-    type KeyType       = Key
-    type ValueType     = Value
-
     protected def inner: Any = (key, value, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Map[M]
@@ -779,26 +764,25 @@ object Reflect {
       copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, M[Key, Value]] = {
-      val mapConstructor             = self.mapConstructor
+      val constructor                = mapConstructor
       var error: Option[SchemaError] = None
 
-      def addError(e: SchemaError): Unit =
-        error = error.map(_ ++ e).orElse(Some(e))
+      def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
 
       value match {
         case DynamicValue.Map(elements) =>
-          val builder = mapConstructor.newObjectBuilder[Key, Value](elements.size)
+          val builder = constructor.newObjectBuilder[Key, Value](elements.size)
           elements.foreach { case (key, value) =>
-            self.key.fromDynamicValue(key) match {
+            this.key.fromDynamicValue(key) match {
               case Right(keyValue) =>
-                self.value.fromDynamicValue(value) match {
-                  case Right(valueValue) => mapConstructor.addObject(builder, keyValue, valueValue)
+                this.value.fromDynamicValue(value) match {
+                  case Right(valueValue) => constructor.addObject(builder, keyValue, valueValue)
                   case Left(error)       => addError(error)
                 }
               case Left(error) => addError(error)
             }
           }
-          error.toLeft(mapConstructor.resultObject(builder))
+          error.toLeft(constructor.resultObject(builder))
         case _ =>
           Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a map, got $value"))
       }
@@ -816,12 +800,14 @@ object Reflect {
       copy(modifiers = this.modifiers ++ modifiers)
 
     def toDynamicValue(value: M[Key, Value])(implicit F: HasBinding[F]): DynamicValue = {
-      val d        = mapDeconstructor
-      val iterator = d.deconstruct(value)
-      val builder  = Vector.newBuilder[(DynamicValue, DynamicValue)]
-      while (iterator.hasNext) {
-        val next = iterator.next()
-        builder.addOne((self.key.toDynamicValue(d.getKey(next)), self.value.toDynamicValue(d.getValue(next))))
+      val deconstructor = mapDeconstructor
+      val it            = deconstructor.deconstruct(value)
+      val builder       = Vector.newBuilder[(DynamicValue, DynamicValue)]
+      while (it.hasNext) {
+        val next = it.next()
+        builder.addOne(
+          (this.key.toDynamicValue(deconstructor.getKey(next)), this.value.toDynamicValue(deconstructor.getValue(next)))
+        )
       }
       DynamicValue.Map(builder.result())
     }
@@ -833,7 +819,7 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
-    override final val nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
+    val nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
   }
 
   object Map {
@@ -889,7 +875,7 @@ object Reflect {
         dynamic <- f.transformDynamic(path, dynamicBinding, doc, modifiers)
       } yield dynamic
 
-    override final val nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
+    val nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
   }
 
   object Dynamic {
@@ -939,7 +925,7 @@ object Reflect {
         primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
       } yield primitive
 
-    override final val nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
+    val nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
   }
 
   object Primitive {
@@ -969,7 +955,7 @@ object Reflect {
       copy(_value = () => _value().examples(value, values: _*))
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
-      self.value.fromDynamicValue(value)
+      this.value.fromDynamicValue(value)
 
     def metadata: F[NodeBinding, A] = value.metadata
 
@@ -981,7 +967,7 @@ object Reflect {
 
     def doc: Doc = value.doc
 
-    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = self.value.toDynamicValue(value)
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = this.value.toDynamicValue(value)
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
       Lazy[Lazy[Reflect[G, A]]] {

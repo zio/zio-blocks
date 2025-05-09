@@ -30,7 +30,7 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
             case OptionalPair(optic, OptionalOp.Replace(a))   => Some(optic.replace(s, a))
             case TraversalPair(optic, TraversalOp.Replace(a)) => Some(optic.modify(s, _ => a))
           }
-        case None => None
+        case _ => None
       }
     }
   }

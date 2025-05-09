@@ -42,7 +42,6 @@ private object SchemaVersionSpecific {
         if (fromNudeChildTarg.typeSymbol.isTypeParam) { // TODO: check for paramRef instead ?
           val paramName = fromNudeChildTarg.typeSymbol.name
           binding.get(paramName) match {
-            case None => binding.updated(paramName, parentTarg)
             case Some(oldBinding) =>
               if (oldBinding =:= parentTarg) binding
               else
@@ -50,6 +49,7 @@ private object SchemaVersionSpecific {
                   s"Type parameter $paramName' in class '${child.name}' appeared in the constructor of " +
                     s"'${tpe.show}' two times differently, with '${oldBinding.show}' and '${parentTarg.show}'"
                 )
+            case _ => binding.updated(paramName, parentTarg)
           }
         } else if (fromNudeChildTarg <:< parentTarg) {
           binding // TODO: assure parentTag is covariant, get covariance from type parameters
