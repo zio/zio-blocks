@@ -8,6 +8,120 @@ import zio.test._
 
 object ReflectSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("ReflectSpec")(
+    suite("Reflect")(
+      test("has consistent asDynamic and isDynamic") {
+        assert(Reflect.dynamic[Binding].asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
+        assert(Reflect.dynamic[Binding].isDynamic)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
+        assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).isDynamic)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asDynamic)(isNone) &&
+        assert(Reflect.int[Binding].isDynamic)(equalTo(false)) &&
+        assert(Reflect.some(Reflect.int[Binding]).asDynamic)(isNone) &&
+        assert(Reflect.some(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
+        assert(Reflect.option(Reflect.int[Binding]).asDynamic)(isNone) &&
+        assert(Reflect.option(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asDynamic)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asDynamic)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isDynamic)(equalTo(false))
+      },
+      test("has consistent asMap, asMapUnknown and isMap") {
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asMap)(
+          isSome(equalTo(Reflect.map(Reflect.int[Binding], Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asMapUnknown.isDefined)(equalTo(true)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isMap)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).asMap)(
+          isSome(equalTo(Reflect.map(Reflect.int[Binding], Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).asMapUnknown.isDefined)(
+          equalTo(true)
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).isMap)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asMapUnknown)(isNone) &&
+        assert(Reflect.int[Binding].isMap)(equalTo(false)) &&
+        assert(Reflect.some(Reflect.int[Binding]).asMapUnknown)(isNone) &&
+        assert(Reflect.some(Reflect.int[Binding]).isMap)(equalTo(false)) &&
+        assert(Reflect.option(Reflect.int[Binding]).asMapUnknown)(isNone) &&
+        assert(Reflect.option(Reflect.int[Binding]).isMap)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asMapUnknown)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isMap)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asMapUnknown)(isNone) &&
+        assert(Reflect.dynamic[Binding].isMap)(equalTo(false))
+      },
+      test("has consistent asRecord and isRecord") {
+        assert(Reflect.some(Reflect.int[Binding]).asRecord)(isSome(equalTo(Reflect.some(Reflect.int[Binding])))) &&
+        assert(Reflect.some(Reflect.int[Binding]).isRecord)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.some(Reflect.int[Binding])).asRecord)(
+          isSome(equalTo(Reflect.some(Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.some(Reflect.int[Binding])).isRecord)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asRecord)(isNone) &&
+        assert(Reflect.int[Binding].isRecord)(equalTo(false)) &&
+        assert(Reflect.option(Reflect.int[Binding]).asRecord)(isNone) &&
+        assert(Reflect.option(Reflect.int[Binding]).isRecord)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asRecord)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isRecord)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asRecord)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isRecord)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asRecord)(isNone) &&
+        assert(Reflect.dynamic[Binding].isRecord)(equalTo(false))
+      },
+      test("has consistent asPrimitive and isPrimitive") {
+        assert(Reflect.int[Binding].asPrimitive)(isSome(equalTo(Reflect.int[Binding]))) &&
+        assert(Reflect.int[Binding].isPrimitive)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.int[Binding]).asPrimitive)(isSome(equalTo(Reflect.int[Binding]))) &&
+        assert(Reflect.Deferred(() => Reflect.int[Binding]).isPrimitive)(equalTo(true)) &&
+        assert(Reflect.some(Reflect.int[Binding]).asPrimitive)(isNone) &&
+        assert(Reflect.some(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(Reflect.option(Reflect.int[Binding]).asPrimitive)(isNone) &&
+        assert(Reflect.option(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asPrimitive)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asPrimitive)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asPrimitive)(isNone) &&
+        assert(Reflect.dynamic[Binding].isPrimitive)(equalTo(false))
+      },
+      test("has consistent asSequence, asSequenceUnknown and isSequence") {
+        assert(Reflect.set(Reflect.int[Binding]).asSequence)(isSome(equalTo(Reflect.set(Reflect.int[Binding])))) &&
+        assert(Reflect.set(Reflect.int[Binding]).asSequenceUnknown.isDefined)(equalTo(true)) &&
+        assert(Reflect.set(Reflect.int[Binding]).isSequence)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.set(Reflect.int[Binding])).asSequence)(
+          isSome(equalTo(Reflect.set(Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.set(Reflect.int[Binding])).asSequenceUnknown.isDefined)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.set(Reflect.int[Binding])).isSequence)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asSequenceUnknown)(isNone) &&
+        assert(Reflect.int[Binding].isSequence)(equalTo(false)) &&
+        assert(Reflect.some(Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
+        assert(Reflect.some(Reflect.int[Binding]).isSequence)(equalTo(false)) &&
+        assert(Reflect.option(Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
+        assert(Reflect.option(Reflect.int[Binding]).isSequence)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isSequence)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asSequenceUnknown)(isNone) &&
+        assert(Reflect.dynamic[Binding].isSequence)(equalTo(false))
+      },
+      test("has consistent asVariant and isVariant") {
+        assert(Reflect.option(Reflect.int[Binding]).asVariant)(isSome(equalTo(Reflect.option(Reflect.int[Binding])))) &&
+        assert(Reflect.option(Reflect.int[Binding]).isVariant)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.option(Reflect.int[Binding])).asVariant)(
+          isSome(equalTo(Reflect.option(Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.option(Reflect.int[Binding])).isVariant)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asVariant)(isNone) &&
+        assert(Reflect.int[Binding].isVariant)(equalTo(false)) &&
+        assert(Reflect.some(Reflect.int[Binding]).asVariant)(isNone) &&
+        assert(Reflect.some(Reflect.int[Binding]).isVariant)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asVariant)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isVariant)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asVariant)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isVariant)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asVariant)(isNone) &&
+        assert(Reflect.dynamic[Binding].isVariant)(equalTo(false))
+      }
+    ),
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
         val long1 = Primitive(

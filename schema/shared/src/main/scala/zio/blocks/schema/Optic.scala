@@ -821,12 +821,12 @@ object Traversal {
               matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
             )
-          case sequence: Reflect.Sequence.Bound[Elem, Col] =>
+          case sequence: Reflect.Sequence.Bound[Elem, Col] @scala.unchecked =>
             bindings(idx) = new SeqBinding[Col](
               seqDeconstructor = sequence.seqDeconstructor,
               seqConstructor = sequence.seqConstructor
             )
-          case map: Reflect.Map.Bound[Key, Value, Map] =>
+          case map: Reflect.Map.Bound[Key, Value, Map] @scala.unchecked =>
             if (focusTermName == "key") {
               bindings(idx) = new MapKeyBinding[Map](
                 mapDeconstructor = map.mapDeconstructor,
