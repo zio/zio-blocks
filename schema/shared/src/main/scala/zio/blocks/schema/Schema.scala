@@ -47,7 +47,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def encode[F <: codec.Format](format: F)(output: format.EncodeOutput)(value: A): Unit =
     getInstance(format).encode(value, output)
 
-  def examples: Seq[A] = reflect.binding.examples
+  def examples: Seq[A] = reflect.examples
 
   def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*))
 
