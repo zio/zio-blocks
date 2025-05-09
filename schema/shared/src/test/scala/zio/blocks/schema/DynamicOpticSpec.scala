@@ -27,9 +27,15 @@ object DynamicOpticSpec extends ZIOSpecDefault {
         assert(A.x.toDynamic.apply(Schema[A].reflect): Option[Any])(isSome(equalTo(Schema[X].reflect))) &&
         assert(A.x(X.y).toDynamic.apply(Schema[A].reflect): Option[Any])(isSome(equalTo(Schema[Y].reflect))) &&
         assert(A.x(X.y)(Y.z).toDynamic.apply(Schema[A].reflect): Option[Any])(isSome(equalTo(Reflect.int[Binding]))) &&
-        assert(DynamicOptic.elements.apply(Schema[List[Int]].reflect): Option[Any])(isSome(equalTo(Reflect.int[Binding]))) &&
-        assert(DynamicOptic.mapKeys.apply(Schema[Map[Int, Long]].reflect): Option[Any])(isSome(equalTo(Reflect.int[Binding]))) &&
-        assert(DynamicOptic.mapValues.apply(Schema[Map[Long, Int]].reflect): Option[Any])(isSome(equalTo(Reflect.int[Binding])))
+        assert(DynamicOptic.elements.apply(Schema[List[Int]].reflect): Option[Any])(
+          isSome(equalTo(Reflect.int[Binding]))
+        ) &&
+        assert(DynamicOptic.mapKeys.apply(Schema[Map[Int, Long]].reflect): Option[Any])(
+          isSome(equalTo(Reflect.int[Binding]))
+        ) &&
+        assert(DynamicOptic.mapValues.apply(Schema[Map[Long, Int]].reflect): Option[Any])(
+          isSome(equalTo(Reflect.int[Binding]))
+        )
       },
       test("doesn't get reflect using apply for wrong dynamic options") {
         assert(DynamicOptic.root.field("z").apply(Schema[A].reflect): Option[Any])(isNone) &&
