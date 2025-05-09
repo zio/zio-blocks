@@ -347,21 +347,21 @@ object Reflect {
           val pool                        = RegisterPool.get()
           val registers                   = pool.allocate()
           try {
-            var i = 0
-            while (i < this.registers.length) {
-              val field    = this.fields(i)
-              val register = this.registers(i).asInstanceOf[Register[Any]]
+            var idx = 0
+            while (idx < this.registers.length) {
+              val field    = this.fields(idx)
+              val register = this.registers(idx).asInstanceOf[Register[Any]]
               fields.find(_._1 == field.name) match {
                 case Some((_, fieldValue)) =>
                   field.value.fromDynamicValue(fieldValue) match {
                     case Left(error) => errors = errors.map(_ ++ error).orElse(Some(error))
-                    case Right(_)    => register.set(registers, RegisterOffset.Zero, fieldValue)
+                    case _           => register.set(registers, RegisterOffset.Zero, fieldValue)
                   }
                 case _ =>
                   val newError = SchemaError.missingField(DynamicOptic.root, field.name, s"Missing field ${field.name}")
                   errors = errors.map(_ ++ newError).orElse(Some(newError))
               }
-              i += 1
+              idx += 1
             }
             if (errors.isDefined) Left(errors.get)
             else Right(constructor.construct(registers, RegisterOffset.Zero))
@@ -372,11 +372,11 @@ object Reflect {
           Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a record, got $value"))
       }
 
-    def lensByIndex(index: Int): Lens[A, ?] =
-      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, ?]])
+    def lensByIndex[B](index: Int): Lens[A, B] =
+      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, B]])
 
-    def lensByName(name: String): Option[Lens[A, ?]] = fieldByName(name).map(term =>
-      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, ?]])
+    def lensByName[B](name: String): Option[Lens[A, B]] = fieldByName(name).map(term =>
+      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, B]])
     )
 
     val length: Int = fields.length
@@ -390,14 +390,8 @@ object Reflect {
     def modifyField(name: String)(f: Term.Updater[F]): Option[Record[F, A]] = {
       val i = fields.indexWhere(_.name == name)
       if (i >= 0) {
-        f.update(fields(i)).map(field => Record(fields.updated(i, field), typeName, recordBinding, doc, modifiers))
+        f.update(fields(i)).map(field => new Record(fields.updated(i, field), typeName, recordBinding, doc, modifiers))
       } else None
-    }
-
-    def registerByName(name: String): Option[Register[?]] = {
-      val i = fields.indexWhere(_.name == name)
-      if (i >= 0) new Some(registers(i))
-      else None
     }
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
@@ -405,17 +399,16 @@ object Reflect {
       val registers = pool.allocate()
       try {
         deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-        // Create vector builder:
         val builder = Vector.newBuilder[(String, DynamicValue)]
-        var i       = 0
-        while (i < this.registers.length) {
-          val field                                 = fields(i)
-          val register                              = this.registers(i)
+        var idx     = 0
+        while (idx < this.registers.length) {
+          val field                                 = fields(idx)
+          val register                              = this.registers(idx)
           val fieldReflect: Reflect[F, field.Focus] = field.value.asInstanceOf[Reflect[F, field.Focus]]
           val value =
             fieldReflect.toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
-          builder += (field.name -> value)
-          i += 1
+          builder.addOne((field.name, value))
+          idx += 1
         }
         DynamicValue.Record(builder.result())
       } finally {
@@ -432,46 +425,46 @@ object Reflect {
     val registers: IndexedSeq[Register[?]] = {
       val registers      = new Array[Register[?]](length)
       var registerOffset = RegisterOffset.Zero
-      var i              = 0
+      var idx            = 0
       fields.foreach { term =>
         term.value match {
           case Reflect.Primitive(primType, _, _, _, _) =>
             primType match {
               case PrimitiveType.Unit =>
-                registers(i) = Register.Unit
+                registers(idx) = Register.Unit
               case _: PrimitiveType.Boolean =>
-                registers(i) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
               case _: PrimitiveType.Byte =>
-                registers(i) = Register.Byte(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Byte(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
               case _: PrimitiveType.Char =>
-                registers(i) = Register.Char(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Char(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
               case _: PrimitiveType.Short =>
-                registers(i) = Register.Short(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Short(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
               case _: PrimitiveType.Float =>
-                registers(i) = Register.Float(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Float(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
               case _: PrimitiveType.Int =>
-                registers(i) = Register.Int(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Int(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
               case _: PrimitiveType.Double =>
-                registers(i) = Register.Double(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Double(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
               case _: PrimitiveType.Long =>
-                registers(i) = Register.Long(RegisterOffset.getBytes(registerOffset))
+                registers(idx) = Register.Long(RegisterOffset.getBytes(registerOffset))
                 registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
               case _ =>
-                registers(i) = Register.Object(RegisterOffset.getObjects(registerOffset))
+                registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
                 registerOffset = RegisterOffset.incrementObjects(registerOffset)
             }
           case _ =>
-            registers(i) = Register.Object(RegisterOffset.getObjects(registerOffset))
+            registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
             registerOffset = RegisterOffset.incrementObjects(registerOffset)
         }
-        i += 1
+        idx += 1
       }
       ArraySeq.unsafeWrapArray(registers)
     }
@@ -541,15 +534,15 @@ object Reflect {
     def modifyCase(name: String)(f: Term.Updater[F]): Option[Variant[F, A]] = {
       val i = cases.indexWhere(_.name == name)
       if (i >= 0) {
-        f.update(cases(i)).map(case_ => Variant(cases.updated(i, case_), typeName, variantBinding, doc, modifiers))
+        f.update(cases(i)).map(case_ => new Variant(cases.updated(i, case_), typeName, variantBinding, doc, modifiers))
       } else None
     }
 
-    def prismByIndex(index: Int): Prism[A, ? <: A] =
-      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, ? <: A]])
+    def prismByIndex[B <: A](index: Int): Prism[A, B] =
+      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, B]])
 
-    def prismByName(name: String): Option[Prism[A, ? <: A]] = caseByName(name).map(term =>
-      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], term.asInstanceOf[Term.Bound[A, ? <: A]])
+    def prismByName[B <: A](name: String): Option[Prism[A, B]] = caseByName(name).map(term =>
+      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], term.asInstanceOf[Term.Bound[A, B]])
     )
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
@@ -855,7 +848,7 @@ object Reflect {
       copy(dynamicBinding = F.updateBinding(dynamicBinding, _.examples(value, values: _*)))
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, DynamicValue] =
-      Right(value)
+      new Right(value)
 
     def metadata: F[NodeBinding, DynamicValue] = dynamicBinding
 
@@ -1010,10 +1003,10 @@ object Reflect {
   }
 
   def unit[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Unit] =
-    Primitive(PrimitiveType.Unit, F.fromBinding(Binding.Primitive.unit), TypeName.unit, Doc.Empty, Nil)
+    new Primitive(PrimitiveType.Unit, F.fromBinding(Binding.Primitive.unit), TypeName.unit, Doc.Empty, Nil)
 
   def boolean[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Boolean] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Boolean(Validation.None),
       F.fromBinding(Binding.Primitive.boolean),
       TypeName.boolean,
@@ -1022,10 +1015,16 @@ object Reflect {
     )
 
   def byte[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Byte] =
-    Primitive(PrimitiveType.Byte(Validation.None), F.fromBinding(Binding.Primitive.byte), TypeName.byte, Doc.Empty, Nil)
+    new Primitive(
+      PrimitiveType.Byte(Validation.None),
+      F.fromBinding(Binding.Primitive.byte),
+      TypeName.byte,
+      Doc.Empty,
+      Nil
+    )
 
   def short[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Short] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Short(Validation.None),
       F.fromBinding(Binding.Primitive.short),
       TypeName.short,
@@ -1034,7 +1033,7 @@ object Reflect {
     )
 
   def int[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Int] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Int(Validation.None),
       F.fromBinding(Binding.Primitive.int),
       TypeName.int,
@@ -1043,7 +1042,7 @@ object Reflect {
     )
 
   def long[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Long] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Long(Validation.None),
       F.fromBinding(Binding.Primitive.long),
       TypeName.long,
@@ -1052,7 +1051,7 @@ object Reflect {
     )
 
   def float[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Float] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Float(Validation.None),
       F.fromBinding(Binding.Primitive.float),
       TypeName.float,
@@ -1061,7 +1060,7 @@ object Reflect {
     )
 
   def double[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Double] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Double(Validation.None),
       F.fromBinding(Binding.Primitive.double),
       TypeName.double,
@@ -1070,7 +1069,7 @@ object Reflect {
     )
 
   def char[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Char] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Char(Validation.None),
       F.fromBinding(Binding.Primitive.char),
       TypeName.char,
@@ -1079,7 +1078,7 @@ object Reflect {
     )
 
   def string[F[_, _]](implicit F: FromBinding[F]): Reflect[F, String] =
-    Primitive(
+    new Primitive(
       PrimitiveType.String(Validation.None),
       F.fromBinding(Binding.Primitive.string),
       TypeName.string,
@@ -1088,7 +1087,7 @@ object Reflect {
     )
 
   def bigInt[F[_, _]](implicit F: FromBinding[F]): Reflect[F, BigInt] =
-    Primitive(
+    new Primitive(
       PrimitiveType.BigInt(Validation.None),
       F.fromBinding(Binding.Primitive.bigInt),
       TypeName.bigInt,
@@ -1097,7 +1096,7 @@ object Reflect {
     )
 
   def bigDecimal[F[_, _]](implicit F: FromBinding[F]): Reflect[F, BigDecimal] =
-    Primitive(
+    new Primitive(
       PrimitiveType.BigDecimal(Validation.None),
       F.fromBinding(Binding.Primitive.bigDecimal),
       TypeName.bigDecimal,
@@ -1106,7 +1105,7 @@ object Reflect {
     )
 
   def dayOfWeek[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.DayOfWeek] =
-    Primitive(
+    new Primitive(
       PrimitiveType.DayOfWeek(Validation.None),
       F.fromBinding(Binding.Primitive.dayOfWeek),
       TypeName.dayOfWeek,
@@ -1115,7 +1114,7 @@ object Reflect {
     )
 
   def duration[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Duration] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Duration(Validation.None),
       F.fromBinding(Binding.Primitive.duration),
       TypeName.duration,
@@ -1124,7 +1123,7 @@ object Reflect {
     )
 
   def instant[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Instant] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Instant(Validation.None),
       F.fromBinding(Binding.Primitive.instant),
       TypeName.instant,
@@ -1133,7 +1132,7 @@ object Reflect {
     )
 
   def localDate[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.LocalDate] =
-    Primitive(
+    new Primitive(
       PrimitiveType.LocalDate(Validation.None),
       F.fromBinding(Binding.Primitive.localDate),
       TypeName.localDate,
@@ -1142,7 +1141,7 @@ object Reflect {
     )
 
   def localDateTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.LocalDateTime] =
-    Primitive(
+    new Primitive(
       PrimitiveType.LocalDateTime(Validation.None),
       F.fromBinding(Binding.Primitive.localDateTime),
       TypeName.localDateTime,
@@ -1151,7 +1150,7 @@ object Reflect {
     )
 
   def localTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.LocalTime] =
-    Primitive(
+    new Primitive(
       PrimitiveType.LocalTime(Validation.None),
       F.fromBinding(Binding.Primitive.localTime),
       TypeName.localTime,
@@ -1160,7 +1159,7 @@ object Reflect {
     )
 
   def month[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Month] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Month(Validation.None),
       F.fromBinding(Binding.Primitive.month),
       TypeName.month,
@@ -1169,7 +1168,7 @@ object Reflect {
     )
 
   def monthDay[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.MonthDay] =
-    Primitive(
+    new Primitive(
       PrimitiveType.MonthDay(Validation.None),
       F.fromBinding(Binding.Primitive.monthDay),
       TypeName.monthDay,
@@ -1178,7 +1177,7 @@ object Reflect {
     )
 
   def offsetDateTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.OffsetDateTime] =
-    Primitive(
+    new Primitive(
       PrimitiveType.OffsetDateTime(Validation.None),
       F.fromBinding(Binding.Primitive.offsetDateTime),
       TypeName.offsetDateTime,
@@ -1187,7 +1186,7 @@ object Reflect {
     )
 
   def offsetTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.OffsetTime] =
-    Primitive(
+    new Primitive(
       PrimitiveType.OffsetTime(Validation.None),
       F.fromBinding(Binding.Primitive.offsetTime),
       TypeName.offsetTime,
@@ -1196,7 +1195,7 @@ object Reflect {
     )
 
   def period[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Period] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Period(Validation.None),
       F.fromBinding(Binding.Primitive.period),
       TypeName.period,
@@ -1205,7 +1204,7 @@ object Reflect {
     )
 
   def year[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Year] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Year(Validation.None),
       F.fromBinding(Binding.Primitive.year),
       TypeName.year,
@@ -1214,7 +1213,7 @@ object Reflect {
     )
 
   def yearMonth[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.YearMonth] =
-    Primitive(
+    new Primitive(
       PrimitiveType.YearMonth(Validation.None),
       F.fromBinding(Binding.Primitive.yearMonth),
       TypeName.yearMonth,
@@ -1223,7 +1222,7 @@ object Reflect {
     )
 
   def zoneId[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.ZoneId] =
-    Primitive(
+    new Primitive(
       PrimitiveType.ZoneId(Validation.None),
       F.fromBinding(Binding.Primitive.zoneId),
       TypeName.zoneId,
@@ -1232,7 +1231,7 @@ object Reflect {
     )
 
   def zoneOffset[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.ZoneOffset] =
-    Primitive(
+    new Primitive(
       PrimitiveType.ZoneOffset(Validation.None),
       F.fromBinding(Binding.Primitive.zoneOffset),
       TypeName.zoneOffset,
@@ -1241,7 +1240,7 @@ object Reflect {
     )
 
   def zonedDateTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.ZonedDateTime] =
-    Primitive(
+    new Primitive(
       PrimitiveType.ZonedDateTime(Validation.None),
       F.fromBinding(Binding.Primitive.zonedDateTime),
       TypeName.zonedDateTime,
@@ -1250,7 +1249,7 @@ object Reflect {
     )
 
   def currency[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.util.Currency] =
-    Primitive(
+    new Primitive(
       PrimitiveType.Currency(Validation.None),
       F.fromBinding(Binding.Primitive.currency),
       TypeName.currency,
@@ -1259,7 +1258,7 @@ object Reflect {
     )
 
   def uuid[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.util.UUID] =
-    Primitive(
+    new Primitive(
       PrimitiveType.UUID(Validation.None),
       F.fromBinding(Binding.Primitive.uuid),
       TypeName.uuid,
@@ -1268,27 +1267,27 @@ object Reflect {
     )
 
   def dynamic[F[_, _]](implicit F: FromBinding[F]): Dynamic[F] =
-    Dynamic(F.fromBinding(Binding.Dynamic()), Doc.Empty, Nil)
+    new Dynamic(F.fromBinding(Binding.Dynamic()), Doc.Empty, Nil)
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
-    Sequence(element, F.fromBinding(Binding.Seq.set), TypeName.set[A], Doc.Empty, Nil)
+    new Sequence(element, F.fromBinding(Binding.Seq.set), TypeName.set[A], Doc.Empty, Nil)
 
   def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, List] =
-    Sequence(element, F.fromBinding(Binding.Seq.list), TypeName.list[A], Doc.Empty, Nil)
+    new Sequence(element, F.fromBinding(Binding.Seq.list), TypeName.list[A], Doc.Empty, Nil)
 
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
-    Sequence(element, F.fromBinding(Binding.Seq.vector), TypeName.vector[A], Doc.Empty, Nil)
+    new Sequence(element, F.fromBinding(Binding.Seq.vector), TypeName.vector[A], Doc.Empty, Nil)
 
   def array[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Array] =
-    Sequence(element, F.fromBinding(Binding.Seq.array), TypeName.array[A], Doc.Empty, Nil)
+    new Sequence(element, F.fromBinding(Binding.Seq.array), TypeName.array[A], Doc.Empty, Nil)
 
   def map[F[_, _], A, B](key: Reflect[F, A], value: Reflect[F, B])(implicit
     F: FromBinding[F]
   ): Map[F, A, B, collection.immutable.Map] =
-    Map(key, value, F.fromBinding(Binding.Map.map), TypeName.map[A, B], Doc.Empty, Nil)
+    new Map(key, value, F.fromBinding(Binding.Map.map), TypeName.map[A, B], Doc.Empty, Nil)
 
   def some[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
-    Record(
+    new Record(
       Seq(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[A],
       F.fromBinding(Binding.Record.some[A]),
@@ -1297,10 +1296,10 @@ object Reflect {
     )
 
   def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
-    Record(Nil, TypeName.none, F.fromBinding(Binding.Record.none), Doc.Empty, Nil)
+    new Record(Nil, TypeName.none, F.fromBinding(Binding.Record.none), Doc.Empty, Nil)
 
   def option[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
-    Variant(
+    new Variant(
       Seq(
         Term("None", none, Doc.Empty, Nil),
         Term("Some", some[F, A](element), Doc.Empty, Nil)
@@ -1312,7 +1311,7 @@ object Reflect {
     )
 
   def left[F[_, _], A, B](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Left[A, B]] =
-    Record(
+    new Record(
       Seq(Term("value", element, Doc.Empty, Nil)),
       TypeName.left,
       F.fromBinding(Binding.Record.left),
@@ -1321,7 +1320,7 @@ object Reflect {
     )
 
   def right[F[_, _], A, B](element: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, Right[A, B]] =
-    Record(
+    new Record(
       Seq(Term("value", element, Doc.Empty, Nil)),
       TypeName.right,
       F.fromBinding(Binding.Record.right),
@@ -1332,7 +1331,7 @@ object Reflect {
   def either[F[_, _], L, R](l: Reflect[F, L], r: Reflect[F, R])(implicit
     F: FromBinding[F]
   ): Variant[F, scala.Either[L, R]] =
-    Variant(
+    new Variant(
       Seq(
         Term("Left", left(l), Doc.Empty, Nil),
         Term("Right", right(r), Doc.Empty, Nil)
@@ -1344,7 +1343,7 @@ object Reflect {
     )
 
   def tuple2[F[_, _], A, B](_1: Reflect[F, A], _2: Reflect[F, B])(implicit F: FromBinding[F]): Record[F, (A, B)] =
-    Record(
+    new Record(
       Seq(Term("_1", _1, Doc.Empty, Nil), Term("_2", _2, Doc.Empty, Nil)),
       TypeName.tuple2,
       F.fromBinding(Binding.Record.tuple2),
@@ -1355,7 +1354,7 @@ object Reflect {
   def tuple3[F[_, _], A, B, C](_1: Reflect[F, A], _2: Reflect[F, B], _3: Reflect[F, C])(implicit
     F: FromBinding[F]
   ): Record[F, (A, B, C)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1373,7 +1372,7 @@ object Reflect {
     _3: Reflect[F, C],
     _4: Reflect[F, D]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1393,7 +1392,7 @@ object Reflect {
     _4: Reflect[F, D],
     _5: Reflect[F, E]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1415,7 +1414,7 @@ object Reflect {
     _5: Reflect[F, E],
     _6: Reflect[F, G]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1439,7 +1438,7 @@ object Reflect {
     _6: Reflect[F, G],
     _7: Reflect[F, H]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1465,7 +1464,7 @@ object Reflect {
     _7: Reflect[F, H],
     _8: Reflect[F, I]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1493,7 +1492,7 @@ object Reflect {
     _8: Reflect[F, I],
     _9: Reflect[F, J]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1523,7 +1522,7 @@ object Reflect {
     _9: Reflect[F, J],
     _10: Reflect[F, K]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1555,7 +1554,7 @@ object Reflect {
     _10: Reflect[F, K],
     _11: Reflect[F, L]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1589,7 +1588,7 @@ object Reflect {
     _11: Reflect[F, L],
     _12: Reflect[F, M]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1625,7 +1624,7 @@ object Reflect {
     _12: Reflect[F, M],
     _13: Reflect[F, N]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1663,7 +1662,7 @@ object Reflect {
     _13: Reflect[F, N],
     _14: Reflect[F, O]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1703,7 +1702,7 @@ object Reflect {
     _14: Reflect[F, O],
     _15: Reflect[F, P]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1745,7 +1744,7 @@ object Reflect {
     _15: Reflect[F, P],
     _16: Reflect[F, Q]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1789,7 +1788,7 @@ object Reflect {
     _16: Reflect[F, Q],
     _17: Reflect[F, R]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1835,7 +1834,7 @@ object Reflect {
     _17: Reflect[F, R],
     _18: Reflect[F, S]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1883,7 +1882,7 @@ object Reflect {
     _18: Reflect[F, S],
     _19: Reflect[F, T]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1933,7 +1932,7 @@ object Reflect {
     _19: Reflect[F, T],
     _20: Reflect[F, U]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -1985,7 +1984,7 @@ object Reflect {
     _20: Reflect[F, U],
     _21: Reflect[F, V]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
@@ -2039,7 +2038,7 @@ object Reflect {
     _21: Reflect[F, V],
     _22: Reflect[F, W]
   )(implicit F: FromBinding[F]): Record[F, (A, B, C, D, E, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W)] =
-    Record(
+    new Record(
       ArraySeq(
         Term("_1", _1, Doc.Empty, Nil),
         Term("_2", _2, Doc.Empty, Nil),
