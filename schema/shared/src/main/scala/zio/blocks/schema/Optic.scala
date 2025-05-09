@@ -56,11 +56,13 @@ sealed trait Optic[S, A] { self =>
         f(a)
       }
     )
-    if (modified) Right(result)
-    else Left(check(s).get)
+    if (modified) new Right(result)
+    else new Left(check(s).get)
   }
 
   def toDynamic: DynamicOptic
+
+  private[schema] def toDynamic(index: Int): DynamicOptic = new DynamicOptic(toDynamic.nodes.take(index + 1))
 
   final def listValues[B](implicit ev: A =:= List[B]): Traversal[S, B] = {
     import Reflect.Extractors.List
@@ -246,8 +248,8 @@ sealed trait Prism[S, A <: S] extends Optic[S, A] {
 
   def getOrFail(s: S): Either[OpticCheck, A] =
     getOption(s) match {
-      case Some(a) => Right(a)
-      case None    => Left(check(s).get)
+      case Some(a) => new Right(a)
+      case _       => new Left(check(s).get)
     }
 
   def reverseGet(a: A): S
@@ -258,8 +260,8 @@ sealed trait Prism[S, A <: S] extends Optic[S, A] {
 
   def replaceOrFail(s: S, a: A): Either[OpticCheck, S] =
     replaceOption(s, a) match {
-      case Some(s) => Right(s)
-      case None    => Left(check(s).get)
+      case Some(s) => new Right(s)
+      case _       => new Left(check(s).get)
     }
 
   def apply[B <: A](that: Prism[A, B]): Prism[S, B] = Prism(this, that)
@@ -319,10 +321,11 @@ object Prism {
         val lastX = x
         x = matchers(idx).downcastOrNull(x)
         if (x == null) {
-          val actualCaseIdx = discriminators(idx).discriminate(lastX)
-          val actualCase    = sources(idx).cases(actualCaseIdx).name
-          val prefix        = DynamicOptic(toDynamic.nodes.take(idx + 1))
-          return Some(OpticCheck.unexpectedCase(focusTerms(idx).name, actualCase, toDynamic, prefix, lastX))
+          val actualCaseIdx  = discriminators(idx).discriminate(lastX)
+          val actualCase     = sources(idx).cases(actualCaseIdx).name
+          val focusTermName  = focusTerms(idx).name
+          val unexpectedCase = OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
+          return new Some(new OpticCheck(::(unexpectedCase, Nil)))
         }
         idx += 1
       }
@@ -398,8 +401,8 @@ sealed trait Optional[S, A] extends Optic[S, A] {
 
   def getOrFail(s: S): Either[OpticCheck, A] =
     getOption(s) match {
-      case Some(a) => Right(a)
-      case None    => Left(check(s).get)
+      case Some(a) => new Right(a)
+      case _       => new Left(check(s).get)
     }
 
   def replace(s: S, a: A): S
@@ -408,8 +411,8 @@ sealed trait Optional[S, A] extends Optic[S, A] {
 
   def replaceOrFail(s: S, a: A): Either[OpticCheck, S] =
     replaceOption(s, a) match {
-      case Some(s) => Right(s)
-      case None    => Left(check(s).get)
+      case Some(s) => new Right(s)
+      case _       => new Left(check(s).get)
     }
 
   def apply[B](that: Lens[A, B]): Optional[S, B] = Optional(this, that)
@@ -521,8 +524,10 @@ object Optional {
             if (x == null) {
               val actualCaseIdx = prismBinding.discriminator.discriminate(lastX)
               val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
-              val prefix        = DynamicOptic(toDynamic.nodes.take(idx + 1))
-              return Some(OpticCheck.unexpectedCase(focusTerms(idx).name, actualCase, toDynamic, prefix, lastX))
+              val focusTermName = focusTerms(idx).name
+              val unexpectedCase =
+                OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
+              return new Some(new OpticCheck(::(unexpectedCase, Nil)))
             }
           case _ =>
         }
@@ -690,8 +695,8 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
         } else f(acc, a)
       }
     )
-    if (one) Right(reduced)
-    else Left(check(s).get)
+    if (one) new Right(reduced)
+    else new Left(check(s).get)
   }
 
   def apply[B](that: Lens[A, B]): Traversal[S, B] = Traversal(this, that)
@@ -800,42 +805,40 @@ object Traversal {
       var offset   = RegisterOffset.Zero
       var idx      = 0
       while (idx < len) {
-        val source        = sources(idx)
         val focusTermName = focusTerms(idx).name
-        if (source.isInstanceOf[Reflect.Record.Bound[_]]) {
-          val record = source.asInstanceOf[Reflect.Record.Bound[_]]
-          bindings(idx) = new LensBinding(
-            deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
-            constructor = record.constructor.asInstanceOf[Constructor[Any]],
-            register = record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
-            offset = offset
-          )
-          offset = RegisterOffset.add(offset, record.usedRegisters)
-        } else if (source.isInstanceOf[Reflect.Variant.Bound[_]]) {
-          val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
-          bindings(idx) = new PrismBinding(
-            matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
-            discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
-          )
-        } else if (source.isSequence) {
-          val sequence = source.asInstanceOf[Reflect.Sequence.Bound[Elem, Col]]
-          bindings(idx) = new SeqBinding[Col](
-            seqDeconstructor = sequence.seqDeconstructor,
-            seqConstructor = sequence.seqConstructor
-          )
-        } else {
-          val map = source.asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
-          if (focusTermName == "key") {
-            bindings(idx) = new MapKeyBinding[Map](
-              mapDeconstructor = map.mapDeconstructor,
-              mapConstructor = map.mapConstructor
+        sources(idx) match {
+          case record: Reflect.Record.Bound[_] =>
+            bindings(idx) = new LensBinding(
+              deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
+              constructor = record.constructor.asInstanceOf[Constructor[Any]],
+              register =
+                record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+              offset = offset
             )
-          } else {
-            bindings(idx) = new MapValueBinding[Map](
-              mapDeconstructor = map.mapDeconstructor,
-              mapConstructor = map.mapConstructor
+            offset = RegisterOffset.add(offset, record.usedRegisters)
+          case variant: Reflect.Variant.Bound[_] =>
+            bindings(idx) = new PrismBinding(
+              matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
+              discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
             )
-          }
+          case sequence: Reflect.Sequence.Bound[Elem, Col] =>
+            bindings(idx) = new SeqBinding[Col](
+              seqDeconstructor = sequence.seqDeconstructor,
+              seqConstructor = sequence.seqConstructor
+            )
+          case map: Reflect.Map.Bound[Key, Value, Map] =>
+            if (focusTermName == "key") {
+              bindings(idx) = new MapKeyBinding[Map](
+                mapDeconstructor = map.mapDeconstructor,
+                mapConstructor = map.mapConstructor
+              )
+            } else {
+              bindings(idx) = new MapValueBinding[Map](
+                mapDeconstructor = map.mapDeconstructor,
+                mapConstructor = map.mapConstructor
+              )
+            }
+          case _ =>
         }
         idx += 1
       }
@@ -874,32 +877,30 @@ object Traversal {
             val actualCaseIdx = prismBinding.discriminator.discriminate(x)
             val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
             val focusTermName = focusTerms(idx).name
-            errors.addOne(OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, prefix(idx), x))
+            errors.addOne(new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), x))
           } else if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
         case seqBinding: SeqBinding[Col] @scala.unchecked =>
           val deconstructor = seqBinding.seqDeconstructor
           val it            = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
-          if (it.isEmpty) errors.addOne(OpticCheck.EmptySequence(toDynamic, prefix(idx), x))
+          if (it.isEmpty) errors.addOne(new OpticCheck.EmptySequence(toDynamic, toDynamic(idx), x))
           else if (idx + 1 != bindings.length) {
             while (it.hasNext) checkRec(registers, idx + 1, it.next(), errors)
           }
         case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
           val deconstructor = mapKeyBinding.mapDeconstructor
           val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, prefix(idx), x))
+          if (it.isEmpty) errors.addOne(new OpticCheck.EmptyMap(toDynamic, toDynamic(idx), x))
           else if (idx + 1 != bindings.length) {
             while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getKey(it.next()), errors)
           }
         case mapValueBinding: MapValueBinding[Map] @scala.unchecked =>
           val deconstructor = mapValueBinding.mapDeconstructor
           val it            = deconstructor.deconstruct(x.asInstanceOf[Map[Key, Value]])
-          if (it.isEmpty) errors.addOne(OpticCheck.EmptyMap(toDynamic, prefix(idx), x))
+          if (it.isEmpty) errors.addOne(new OpticCheck.EmptyMap(toDynamic, toDynamic(idx), x))
           else if (idx + 1 != bindings.length) {
             while (it.hasNext) checkRec(registers, idx + 1, deconstructor.getValue(it.next()), errors)
           }
       }
-
-    private[this] def prefix(idx: Int) = DynamicOptic(toDynamic.nodes.take(idx + 1))
 
     def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = foldRec(Registers(usedRegisters), 0, s, zero, f)
 

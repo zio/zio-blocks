@@ -20,7 +20,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
-  def getDefaultValue[B](optic: Optic[A, B]): Option[B] = getWith(optic)(_.getDefaultValue).flatten
+  def getDefaultValue[B](optic: Optic[A, B]): Option[B] = get(optic).flatMap(_.getDefaultValue)
 
   def defaultValue[B](optic: Optic[A, B], value: => B): Schema[A] =
     updated(optic)(_.defaultValue(value)).getOrElse(this)
@@ -40,7 +40,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def doc(value: String): Schema[A] = Schema(reflect.doc(value))
 
-  def doc[B](optic: Optic[A, B]): Doc = getWith(optic)(_.doc).getOrElse(Doc.Empty)
+  def doc[B](optic: Optic[A, B]): Doc = get(optic).fold[Doc](Doc.Empty)(_.doc)
 
   def doc[B](optic: Optic[A, B])(value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
 
@@ -51,7 +51,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def examples(value: A, values: A*): Schema[A] = Schema(reflect.examples(value, values: _*))
 
-  def examples[B](optic: Optic[A, B]): Seq[B] = getWith(optic)(_.examples).getOrElse(Nil)
+  def examples[B](optic: Optic[A, B]): Seq[B] = get(optic).fold[Seq[B]](Nil)(_.examples)
 
   def examples[B](optic: Optic[A, B])(value: B, values: B*): Schema[A] =
     updated(optic)(_.examples(value, values: _*)).getOrElse(this)
@@ -61,9 +61,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
   def get(dynamic: DynamicOptic): Option[Reflect.Bound[_]] = reflect.get(dynamic)
-
-  def getWith[B, C](optic: Optic[A, B])(f: Reflect.Bound[B] => C): Option[C] =
-    modify(optic)(b => (f(b), b)).map(_._1)
 
   def modify[B, C](optic: Optic[A, B])(f: Reflect.Bound[B] => (C, Reflect.Bound[B])): Option[(C, Schema[A])] = {
     var c: Option[C] = None

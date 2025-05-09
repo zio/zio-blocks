@@ -9,6 +9,7 @@ import zio.test._
 
 object OpticSpec extends ZIOSpecDefault {
   import OpticSpecTypes._
+
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
       test("path") {
@@ -1011,7 +1012,7 @@ object OpticSpec extends ZIOSpecDefault {
             hasField[OpticCheck, String](
               "message",
               _.message,
-              containsString("Expected Case1, but got Case2")
+              containsString("expected Case1, but got Case2")
             )
           )
         ) &&
@@ -1020,7 +1021,7 @@ object OpticSpec extends ZIOSpecDefault {
             hasField[OpticCheck, String](
               "message",
               _.message,
-              containsString("Expected Case1, but got Case2")
+              containsString("expected Case1, but got Case2")
             )
           )
         ) &&
@@ -1029,7 +1030,7 @@ object OpticSpec extends ZIOSpecDefault {
             hasField[OpticCheck, String](
               "message",
               _.message,
-              containsString("Expected Case3, but got Case4")
+              containsString("expected Case3, but got Case4")
             )
           )
         ) &&
@@ -1038,7 +1039,7 @@ object OpticSpec extends ZIOSpecDefault {
             hasField[OpticCheck, String](
               "message",
               _.message,
-              containsString("Expected Case1, but got Case2")
+              containsString("expected Case1, but got Case2")
             )
           )
         ) &&
@@ -1048,7 +1049,7 @@ object OpticSpec extends ZIOSpecDefault {
               "message",
               _.message,
               containsString(
-                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: Expected Case1, but got Variant2 (Case4(List()))"
+                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
               )
             )
           )
@@ -1058,7 +1059,7 @@ object OpticSpec extends ZIOSpecDefault {
             hasField[OpticCheck, String](
               "message",
               _.message,
-              containsString("Expected Case2, but got Case1")
+              containsString("expected Case2, but got Case1")
             )
           )
         )
