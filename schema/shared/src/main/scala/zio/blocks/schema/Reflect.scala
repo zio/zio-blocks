@@ -14,12 +14,6 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def metadata: F[NodeBinding, A]
 
-  def asDeferred: Option[Reflect.Deferred[F, A]] =
-    this match {
-      case deferred: Reflect.Deferred[F, A] @scala.unchecked => new Some(deferred)
-      case _                                                 => None
-    }
-
   def asDynamic: Option[Reflect.Dynamic[F]] =
     this match {
       case dynamic: Reflect.Dynamic[F] @scala.unchecked => new Some(dynamic)
@@ -160,9 +154,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   override def hashCode: Int = inner.hashCode
 
-  def isDeferred: Boolean =
+  def isDynamic: Boolean =
     this match {
-      case _: Reflect.Deferred[_, _] => true
+      case _: Reflect.Dynamic[_]     => true
+      case d: Reflect.Deferred[_, _] => d.value.isDynamic
       case _                         => false
     }
 
