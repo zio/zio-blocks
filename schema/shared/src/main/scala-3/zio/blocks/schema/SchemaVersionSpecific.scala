@@ -167,34 +167,31 @@ private object SchemaVersionSpecific {
               "Please add them or provide an implicitly accessible schema for the ADT base."
           )
         }
-        val cases = subTypes.map {
-          var i = -1
-          (sTpe: TypeRepr) =>
-            sTpe.asType match {
-              case '[st] =>
-                i += 1
-                val (_, sValues, sName) = typeName(sTpe)
-                val diffValues =
-                  values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
-                var termName = sName
-                if (termName.endsWith("$")) termName = termName.substring(0, termName.length - 1)
-                if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
-                val usingExpr = Expr.summon[Schema[st]].getOrElse {
-                  fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
-                }
-                '{
-                  Schema[st](using $usingExpr).reflect.asTerm[A](${ Expr(termName) })
-                }.asExprOf[zio.blocks.schema.Term[Binding, A, ? <: A]]
-            }
+        val cases = subTypes.map { sTpe =>
+          sTpe.asType match {
+            case '[st] =>
+              val (_, sValues, sName) = typeName(sTpe)
+              val diffValues =
+                values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
+              var termName = sName
+              if (termName.endsWith("$")) termName = termName.substring(0, termName.length - 1)
+              if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
+              val usingExpr = Expr.summon[Schema[st]].getOrElse {
+                fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
+              }
+              '{
+                Schema[st](using $usingExpr).reflect.asTerm[A](${ Expr(termName) })
+              }.asExprOf[zio.blocks.schema.Term[Binding, A, ? <: A]]
+          }
         }
 
         def discr(a: Expr[A]) = Match(
           '{ $a: @scala.unchecked }.asTerm,
           subTypes.map {
-            var i = -1
+            var idx = -1
             (sTpe: TypeRepr) =>
-              i += 1
-              CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Expr(i).asTerm)
+              idx += 1
+              CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Expr(idx).asTerm)
           }.toList
         ).asExprOf[Int]
 

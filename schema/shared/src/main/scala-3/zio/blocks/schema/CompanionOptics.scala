@@ -41,13 +41,7 @@ private object CompanionOptics {
               import zio.blocks.schema._
               import zio.blocks.schema.binding._
 
-              val reflect = $schema.reflect.asInstanceOf[Reflect.Record[Binding, S]]
-              val fields  = reflect.fields
-              Lens(
-                reflect,
-                fields(fields.indexWhere(_.name == ${ Expr(fieldName) }))
-                  .asInstanceOf[zio.blocks.schema.Term[Binding, S, ft]]
-              )
+              $schema.reflect.asInstanceOf[Reflect.Record[Binding, S]].lensByName[A](${ Expr(fieldName) }).get
             }.asExprOf[Lens[S, A]]
         }
       case pt =>
@@ -65,12 +59,7 @@ private object CompanionOptics {
       import zio.blocks.schema._
       import zio.blocks.schema.binding._
 
-      val reflect = $schema.reflect.asInstanceOf[Reflect.Variant[Binding, S]]
-      val cases   = reflect.cases
-      Prism(
-        reflect,
-        cases(cases.indexWhere(_.name == ${ Expr(caseName) })).asInstanceOf[zio.blocks.schema.Term[Binding, S, A]]
-      )
+      $schema.reflect.asInstanceOf[Reflect.Variant[Binding, S]].prismByName[A](${ Expr(caseName) }).get
     }.asExprOf[Prism[S, A]]
   }
 }

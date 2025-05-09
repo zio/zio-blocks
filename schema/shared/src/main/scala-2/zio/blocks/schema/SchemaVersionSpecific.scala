@@ -130,22 +130,19 @@ private object SchemaVersionSpecific {
               "Please add them or provide an implicitly accessible schema for the ADT base."
           )
         }
-        val cases = subTypes.map {
-          var i = -1
-          sTpe =>
-            i += 1
-            val (_, sValues, sName) = typeName(sTpe)
-            val diffValues =
-              values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
-            var termName = sName
-            if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
-            q"Schema[$sTpe].reflect.asTerm($termName)"
+        val cases = subTypes.map { sTpe =>
+          val (_, sValues, sName) = typeName(sTpe)
+          val diffValues =
+            values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
+          var termName = sName
+          if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
+          q"Schema[$sTpe].reflect.asTerm($termName)"
         }
         val discrCases = subTypes.map {
-          var i = -1
+          var idx = -1
           sTpe =>
-            i += 1
-            cq"_: $sTpe @_root_.scala.unchecked => $i"
+            idx += 1
+            cq"_: $sTpe @_root_.scala.unchecked => $idx"
         }
         val matcherCases = subTypes.map { sTpe =>
           q"""new Matcher[$sTpe] {
@@ -210,9 +207,9 @@ private object SchemaVersionSpecific {
         val tpeParams     = primaryConstructor.paramLists
         val tpeTypeArgs   = typeArgs(tpe)
         var registersUsed = RegisterOffset.Zero
-        var i             = 0
+        var idx           = 0
         val fieldInfos = tpeParams.map(_.map { param =>
-          i += 1
+          idx += 1
           val symbol = param.asTerm
           val name   = NameTransformer.decode(symbol.name.toString)
           var fTpe   = symbol.typeSignature.dealias
@@ -228,7 +225,7 @@ private object SchemaVersionSpecific {
               case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => (k, v)
             })
           val defaultValue =
-            if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + i)}")
+            if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
             else None
           var const: Tree   = null
           var deconst: Tree = null
