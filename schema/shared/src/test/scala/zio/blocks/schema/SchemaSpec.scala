@@ -753,6 +753,24 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
         assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
+      test("gets and updates default values of sequence elements using prism focus") {
+        val elements1 = Traversal.listValues(Reflect.int[Binding])
+        val elements2 = Traversal.setValues(Reflect.long[Binding])
+        assert(Schema[List[Int]].defaultValue(elements1, 1).getDefaultValue(elements1))(isSome(equalTo(1))) &&
+        assert(Schema[Set[Long]].defaultValue(elements2, 1L).getDefaultValue(elements2))(isSome(equalTo(1L)))
+      },
+      test("gets and updates documentation of sequence elements using prism focus") {
+        val elements1 = Traversal.listValues(Reflect.int[Binding])
+        val elements2 = Traversal.setValues(Reflect.long[Binding])
+        assert(Schema[List[Int]].doc(elements1, "Int").doc(elements1))(equalTo(Doc("Int"))) &&
+        assert(Schema[Set[Long]].doc(elements2, "Long").doc(elements2))(equalTo(Doc("Long")))
+      },
+      test("gets and updates examples of sequence elements using prism focus") {
+        val elements1 = Traversal.listValues(Reflect.int[Binding])
+        val elements2 = Traversal.setValues(Reflect.long[Binding])
+        assert(Schema[List[Int]].examples(elements1, 2).examples(elements1))(equalTo(Seq(2))) &&
+        assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
+      },
       test("has access to sequence value documentation using traversal focus") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
@@ -824,71 +842,23 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(Map(1 -> 2L, 2 -> 3L, 3 -> 4L) :: Nil)
         )
       },
-      test("has access to map key documentation using traversal focus") {
-        val int1 = Primitive(
-          primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Int](),
-          typeName = TypeName.int,
-          doc = Doc("Int (positive)")
-        )
-        val map1 = Reflect.Map[Binding, Int, Long, Map](
-          key = int1,
-          value = Reflect.long,
-          typeName = TypeName.map[Int, Long],
-          mapBinding = null
-        )
-        assert(Schema(map1).doc(Traversal.mapKeys(Schema[Map[Int, Long]].reflect.asMap.get)): Doc)(
-          equalTo(Doc("Int (positive)"))
-        )
+      test("gets and updates default values of sequence elements using prism focus") {
+        val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        assert(Schema[Map[Int, Long]].defaultValue(mapKeys, 1).getDefaultValue(mapKeys))(isSome(equalTo(1))) &&
+        assert(Schema[Map[Int, Long]].defaultValue(mapValues, 1L).getDefaultValue(mapValues))(isSome(equalTo(1L)))
       },
-      test("has access to map value documentation using traversal focus") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](),
-          typeName = TypeName.long,
-          doc = Doc("Long (positive)")
-        )
-        val map1 = Reflect.Map[Binding, Int, Long, Map](
-          key = Reflect.int,
-          value = long1,
-          typeName = TypeName.map[Int, Long],
-          mapBinding = null
-        )
-        assert(Schema(map1).doc(Traversal.mapValues(Schema[Map[Int, Long]].reflect.asMap.get)): Doc)(
-          equalTo(Doc("Long (positive)"))
-        )
+      test("gets and updates documentation of sequence elements using prism focus") {
+        val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        assert(Schema[Map[Int, Long]].doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
+        assert(Schema[Map[Int, Long]].doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
       },
-      test("has access to map key examples using traversal focus") {
-        val int1 = Primitive(
-          primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Int](examples = Seq(1, 2, 3)),
-          typeName = TypeName.int
-        )
-        val map1 = Reflect.Map[Binding, Int, Long, Map](
-          key = int1,
-          value = Reflect.long,
-          typeName = TypeName.map[Int, Long],
-          mapBinding = null
-        )
-        assert(Schema(map1).examples(Traversal.mapKeys(Schema[Map[Int, Long]].reflect.asMap.get)): Seq[_])(
-          equalTo(Seq(1, 2, 3))
-        )
-      },
-      test("has access to map value examples using traversal focus") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
-          typeName = TypeName.long
-        )
-        val map1 = Reflect.Map[Binding, Int, Long, Map](
-          key = Reflect.int,
-          value = long1,
-          typeName = TypeName.map[Int, Long],
-          mapBinding = null
-        )
-        assert(Schema(map1).examples(Traversal.mapValues(Schema[Map[Int, Long]].reflect.asMap.get)): Seq[_])(
-          equalTo(Seq(1L, 2L, 3L))
-        )
+      test("gets and updates examples of sequence elements using prism focus") {
+        val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        assert(Schema[Map[Int, Long]].examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
+        assert(Schema[Map[Int, Long]].examples(mapValues, 2L).examples(mapValues))(equalTo(Seq(2L)))
       }
     ),
     suite("Reflect.Dynamic")(
