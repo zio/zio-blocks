@@ -600,7 +600,7 @@ object Reflect {
       value match {
         case DynamicValue.Sequence(elements) =>
           element match {
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Boolean) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Boolean, _, _, _, _) =>
               val builder = seqConstructor.newBooleanBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -609,7 +609,7 @@ object Reflect {
                 }
               }
               error.toLeft(seqConstructor.resultBoolean(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Byte) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Byte, _, _, _, _) =>
               val builder = seqConstructor.newByteBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -618,7 +618,7 @@ object Reflect {
                 }
               }
               error.toLeft(seqConstructor.resultByte(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Char) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Char, _, _, _, _) =>
               val builder = seqConstructor.newCharBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -627,7 +627,7 @@ object Reflect {
                 }
               }
               error.toLeft(seqConstructor.resultChar(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Short) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Short, _, _, _, _) =>
               val builder = seqConstructor.newShortBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -636,7 +636,7 @@ object Reflect {
                 }
               }
               error.toLeft(seqConstructor.resultShort(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Int) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Int, _, _, _, _) =>
               val builder = seqConstructor.newIntBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -645,7 +645,7 @@ object Reflect {
                 }
               }
               error.toLeft(seqConstructor.resultInt(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Long) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Long, _, _, _, _) =>
               val builder = seqConstructor.newLongBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -654,7 +654,7 @@ object Reflect {
                 }
               }
               error.toLeft(seqConstructor.resultLong(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Float) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Float, _, _, _, _) =>
               val builder = seqConstructor.newFloatBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -663,7 +663,7 @@ object Reflect {
                 }
               }
               error.toLeft(seqConstructor.resultFloat(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(tpe, _, _, _, _) if tpe.equals(PrimitiveType.Double) =>
+            case Reflect.Primitive(tpe: PrimitiveType.Double, _, _, _, _) =>
               val builder = seqConstructor.newDoubleBuilder(elements.size)
               elements.foreach { elem =>
                 this.element.fromDynamicValue(elem) match {
@@ -675,7 +675,7 @@ object Reflect {
             case _ =>
               val builder = seqConstructor.newObjectBuilder[A](elements.size)
               elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
+                element.fromDynamicValue(elem) match {
                   case Right(value) => seqConstructor.addObject(builder, value)
                   case Left(error)  => addError(error)
                 }
