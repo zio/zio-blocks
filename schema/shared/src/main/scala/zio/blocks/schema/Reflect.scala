@@ -354,8 +354,8 @@ object Reflect {
               fields.find(_._1 == field.name) match {
                 case Some((_, fieldValue)) =>
                   field.value.fromDynamicValue(fieldValue) match {
-                    case Left(error) => errors = errors.map(_ ++ error).orElse(Some(error))
-                    case _           => register.set(registers, RegisterOffset.Zero, fieldValue)
+                    case Right(value) => register.set(registers, RegisterOffset.Zero, value)
+                    case Left(error)  => errors = errors.map(_ ++ error).orElse(Some(error))
                   }
                 case _ =>
                   val newError = SchemaError.missingField(DynamicOptic.root, field.name, s"Missing field ${field.name}")
@@ -369,7 +369,7 @@ object Reflect {
             pool.releaseLast()
           }
         case _ =>
-          Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a record, got $value"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a record"))
       }
 
     def lensByIndex[B](index: Int): Lens[A, B] =
@@ -520,7 +520,7 @@ object Reflect {
               new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case $discriminator"))
           }
         case _ =>
-          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a variant, got $value"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a variant"))
       }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
@@ -548,8 +548,8 @@ object Reflect {
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val idx        = discriminator.discriminate(value)
       val downcasted = matchers.matchers(idx).downcastOrNull(value)
-      val caseValue  = cases(idx).value.asInstanceOf[Reflect[F, downcasted.type]]
-      caseValue.toDynamicValue(downcasted)
+      val case_      = cases(idx)
+      DynamicValue.Variant(case_.name, case_.value.asInstanceOf[Reflect[F, downcasted.type]].toDynamicValue(downcasted))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
@@ -683,7 +683,7 @@ object Reflect {
               error.toLeft(seqConstructor.resultObject(builder))
           }
         case _ =>
-          Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a sequence, got $value"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a sequence"))
       }
     }
 
@@ -772,7 +772,7 @@ object Reflect {
           }
           error.toLeft(constructor.resultObject(builder))
         case _ =>
-          Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a map, got $value"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a map"))
       }
     }
 

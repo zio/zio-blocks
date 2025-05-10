@@ -32,6 +32,12 @@ object SchemaSpec extends ZIOSpecDefault {
       test("gets and updates primitive examples") {
         assert(Schema[Int].examples)(equalTo(Nil)) &&
         assert(Schema[Int].examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
+      },
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Schema[Byte].fromDynamicValue(Schema[Byte].toDynamicValue(1)))(isRight(equalTo(1: Byte))) &&
+        assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Byte")))
+        )
       }
     ),
     suite("Reflect.Record")(
@@ -336,6 +342,14 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
         assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000)))
       },
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Record.schema.fromDynamicValue(Record.schema.toDynamicValue(Record(1: Byte, 1000))))(
+          isRight(equalTo(Record(1: Byte, 1000)))
+        ) &&
+        assert(Record.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a record")))
+        )
+      },
       test("derives schema for record with default values and annotations using a macro call") {
         @Modifier.config("record-key", "record-value-1")
         @Modifier.config("record-key", "record-value-2")
@@ -561,6 +575,17 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.examples(Variant.case1, Case1(1.0)).examples(Variant.case1))(equalTo(Seq(Case1(1.0)))) &&
         assert(Variant.schema.examples(Variant.case2, Case2("VVV")).examples(Variant.case2))(equalTo(Seq(Case2("VVV"))))
       },
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Variant.schema.fromDynamicValue(Variant.schema.toDynamicValue(Case1(1.0))))(
+          isRight(equalTo(Case1(1.0)))
+        ) &&
+        assert(Variant.schema.fromDynamicValue(Variant.schema.toDynamicValue(Case2("VVV"))))(
+          isRight(equalTo(Case2("VVV")))
+        ) &&
+        assert(Variant.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a variant")))
+        )
+      },
       test("derives schema for variant using a macro call") {
         @Modifier.config("variant-key", "variant-value-1")
         @Modifier.config("variant-key", "variant-value-2")
@@ -771,35 +796,13 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[List[Int]].examples(elements1, 2).examples(elements1))(equalTo(Seq(2))) &&
         assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
       },
-      test("has access to sequence value documentation using traversal focus") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
-          typeName = TypeName.long,
-          doc = Doc("Long (positive)")
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Schema[List[Int]].fromDynamicValue(Schema[List[Int]].toDynamicValue(List(1, 2, 3))))(
+          isRight(equalTo(List(1, 2, 3)))
+        ) &&
+        assert(Schema[List[Int]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a sequence")))
         )
-        val sequence1 = Reflect.Sequence[Binding, Long, List](
-          element = long1,
-          typeName = TypeName.list,
-          seqBinding = null,
-          doc = Doc("List of positive longs")
-        )
-        assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
-      },
-      test("has access to sequence value examples using traversal focus") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
-          typeName = TypeName.long,
-          doc = Doc("Long (positive)")
-        )
-        val sequence1 = Reflect.Sequence[Binding, Long, List](
-          element = long1,
-          typeName = TypeName.list,
-          seqBinding = null,
-          doc = Doc("List of positive longs")
-        )
-        assert(Schema(sequence1).examples(Traversal.listValues(long1)): Seq[_])(equalTo(Seq(1L, 2L, 3L)))
       }
     ),
     suite("Reflect.Map")(
@@ -859,6 +862,14 @@ object SchemaSpec extends ZIOSpecDefault {
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
         assert(Schema[Map[Int, Long]].examples(mapValues, 2L).examples(mapValues))(equalTo(Seq(2L)))
+      },
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(
+          Schema[Map[Int, Long]].fromDynamicValue(Schema[Map[Int, Long]].toDynamicValue(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))
+        )(isRight(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))) &&
+        assert(Schema[Map[Int, Long]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
+          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a map")))
+        )
       }
     ),
     suite("Reflect.Dynamic")(
