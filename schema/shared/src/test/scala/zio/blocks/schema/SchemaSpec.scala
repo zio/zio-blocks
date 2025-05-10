@@ -797,8 +797,34 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Schema[List[Boolean]].fromDynamicValue(Schema[List[Boolean]].toDynamicValue(List(true, false))))(
+          isRight(equalTo(List(true, false)))
+        ) &&
+        assert(Schema[List[Byte]].fromDynamicValue(Schema[List[Byte]].toDynamicValue(List(1: Byte, 2: Byte, 3: Byte))))(
+          isRight(equalTo(List(1: Byte, 2: Byte, 3: Byte)))
+        ) &&
+        assert(Schema[List[Char]].fromDynamicValue(Schema[List[Char]].toDynamicValue(List('1', '2', '3'))))(
+          isRight(equalTo(List('1', '2', '3')))
+        ) &&
+        assert(
+          Schema[List[Short]].fromDynamicValue(Schema[List[Short]].toDynamicValue(List(1: Short, 2: Short, 3: Short)))
+        )(
+          isRight(equalTo(List(1: Short, 2: Short, 3: Short)))
+        ) &&
+        assert(Schema[List[Float]].fromDynamicValue(Schema[List[Float]].toDynamicValue(List(1.0f, 2.0f, 3.0f))))(
+          isRight(equalTo(List(1.0f, 2.0f, 3.0f)))
+        ) &&
         assert(Schema[List[Int]].fromDynamicValue(Schema[List[Int]].toDynamicValue(List(1, 2, 3))))(
           isRight(equalTo(List(1, 2, 3)))
+        ) &&
+        assert(Schema[List[Double]].fromDynamicValue(Schema[List[Double]].toDynamicValue(List(1.0, 2.0, 3.0))))(
+          isRight(equalTo(List(1.0, 2.0, 3.0)))
+        ) &&
+        assert(Schema[List[Long]].fromDynamicValue(Schema[List[Long]].toDynamicValue(List(1L, 2L, 3L))))(
+          isRight(equalTo(List(1L, 2L, 3L)))
+        ) &&
+        assert(Schema[List[String]].fromDynamicValue(Schema[List[String]].toDynamicValue(List("VVV", "WWW"))))(
+          isRight(equalTo(List("VVV", "WWW")))
         ) &&
         assert(Schema[List[Int]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a sequence")))
