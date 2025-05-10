@@ -1,9 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
-
 import java.util.concurrent.ConcurrentHashMap
-import derive.DerivationBuilder
 
 /**
  * A {{Schema}} is a data type that contains reified information on the
@@ -42,7 +40,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def doc[B](optic: Optic[A, B]): Doc = get(optic).fold[Doc](Doc.Empty)(_.doc)
 
-  def doc[B](optic: Optic[A, B])(value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
+  def doc[B](optic: Optic[A, B], value: String): Schema[A] = updated(optic)(_.doc(value)).getOrElse(this)
 
   def encode[F <: codec.Format](format: F)(output: format.EncodeOutput)(value: A): Unit =
     getInstance(format).encode(value, output)
@@ -53,7 +51,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def examples[B](optic: Optic[A, B]): Seq[B] = get(optic).fold[Seq[B]](Nil)(_.examples)
 
-  def examples[B](optic: Optic[A, B])(value: B, values: B*): Schema[A] =
+  def examples[B](optic: Optic[A, B], value: B, values: B*): Schema[A] =
     updated(optic)(_.examples(value, values: _*)).getOrElse(this)
 
   def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = reflect.fromDynamicValue(value)
@@ -61,19 +59,6 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
   def get(dynamic: DynamicOptic): Option[Reflect.Bound[_]] = reflect.get(dynamic)
-
-  def modify[B, C](optic: Optic[A, B])(f: Reflect.Bound[B] => (C, Reflect.Bound[B])): Option[(C, Schema[A])] = {
-    var c: Option[C] = None
-    val schema = updated(optic) { b =>
-      val (c1, b1) = f(b)
-      c = Some(c1)
-      b1
-    }
-    for {
-      schema <- schema
-      c      <- c
-    } yield (c, schema)
-  }
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 

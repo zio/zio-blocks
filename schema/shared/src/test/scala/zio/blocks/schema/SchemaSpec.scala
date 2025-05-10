@@ -29,17 +29,8 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Long].doc)(equalTo(Doc.Empty)) &&
         assert(Schema[Int].doc("Int (updated)").doc)(equalTo(Doc("Int (updated)")))
       },
-      test("has access to primitive examples") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
-          typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
-        )
-        assert(Schema(long1).examples)(equalTo(Seq(1L, 2L, 3L)))
-      },
-      test("updates primitive examples") {
+      test("gets and updates primitive examples") {
+        assert(Schema[Int].examples)(equalTo(Nil)) &&
         assert(Schema[Int].examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
       }
     ),
@@ -333,15 +324,17 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples)(equalTo(Nil)) &&
         assert(Record.schema.examples(Record(2, 2000)).examples)(equalTo(Record(2, 2000) :: Nil))
       },
-      test("has access to record term documentation using lens focus") {
-        val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
-        assert(Record.schema.doc(Record.b): Doc)(equalTo(record.fields(0).value.doc)) &&
-        assert(Record.schema.doc(Record.i): Doc)(equalTo(record.fields(1).value.doc))
+      test("gets and updates default values of record fields using prism focus") {
+        assert(Record.schema.defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
+        assert(Record.schema.defaultValue(Record.i, 1000).getDefaultValue(Record.i))(isSome(equalTo(1000)))
       },
-      test("has access to record term examples using lens focus") {
-        val record = Record.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record]]
-        assert(Record.schema.examples(Record.b): Seq[_])(equalTo(record.fields(0).value.examples)) &&
-        assert(Record.schema.examples(Record.i): Seq[_])(equalTo(record.fields(1).value.examples))
+      test("gets and updates documentation of record fields using prism focus") {
+        assert(Record.schema.doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
+        assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(Doc("i")))
+      },
+      test("gets and updates examples of record fields using prism focus") {
+        assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
+        assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000)))
       },
       test("derives schema for record with default values and annotations using a macro call") {
         @Modifier.config("record-key", "record-value-1")
@@ -550,17 +543,23 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates variant examples") {
         assert(Variant.schema.examples)(equalTo(Nil)) &&
-        assert(Variant.schema.examples(Case1(2.0), Case2("VVV")).examples)(equalTo(Case1(2.0) :: Case2("VVV") :: Nil))
+        assert(Variant.schema.examples(Case1(1.0), Case2("VVV")).examples)(equalTo(Case1(1.0) :: Case2("VVV") :: Nil))
       },
-      test("has access to variant case documentation using prism focus") {
-        val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
-        assert(Variant.schema.doc(Variant.case1): Doc)(equalTo(variant.cases(0).value.doc)) &&
-        assert(Variant.schema.doc(Variant.case2): Doc)(equalTo(variant.cases(1).value.doc))
+      test("gets and updates default values of variant cases using prism focus") {
+        assert(Variant.schema.defaultValue(Variant.case1, Case1(1.0)).getDefaultValue(Variant.case1))(
+          isSome(equalTo(Case1(1.0)))
+        ) &&
+        assert(Variant.schema.defaultValue(Variant.case2, Case2("VVV")).getDefaultValue(Variant.case2))(
+          isSome(equalTo(Case2("VVV")))
+        )
       },
-      test("has access to variant case examples using prism focus") {
-        val variant = Variant.schema.reflect.asInstanceOf[Reflect.Variant[Binding, Variant]]
-        assert(Variant.schema.examples(Variant.case1): Seq[_])(equalTo(variant.cases(0).value.examples)) &&
-        assert(Variant.schema.examples(Variant.case2): Seq[_])(equalTo(variant.cases(1).value.examples))
+      test("gets and updates documentation of variant cases using prism focus") {
+        assert(Variant.schema.doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(Doc("Case1"))) &&
+        assert(Variant.schema.doc(Variant.case2, "Case2").doc(Variant.case2))(equalTo(Doc("Case2")))
+      },
+      test("gets and updates examples of variant cases using prism focus") {
+        assert(Variant.schema.examples(Variant.case1, Case1(1.0)).examples(Variant.case1))(equalTo(Seq(Case1(1.0)))) &&
+        assert(Variant.schema.examples(Variant.case2, Case2("VVV")).examples(Variant.case2))(equalTo(Seq(Case2("VVV"))))
       },
       test("derives schema for variant using a macro call") {
         @Modifier.config("variant-key", "variant-value-1")
@@ -746,8 +745,13 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Vector[Int]].getDefaultValue)(isNone) &&
         assert(Schema[Vector[Int]].defaultValue(Vector.empty).getDefaultValue)(isSome(equalTo(Vector.empty)))
       },
-      test("has access to sequence documentation") {
-        assert(Schema[List[Double]].doc)(equalTo(Doc.Empty))
+      test("gets and updates sequence documentation") {
+        assert(Schema[List[Double]].doc)(equalTo(Doc.Empty)) &&
+        assert(Schema[Array[Int]].doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
+      },
+      test("gets and updates sequence examples") {
+        assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
+        assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
       test("has access to sequence value documentation using traversal focus") {
         val long1 = Primitive(
@@ -763,15 +767,6 @@ object SchemaSpec extends ZIOSpecDefault {
           doc = Doc("List of positive longs")
         )
         assert(Schema(sequence1).doc(Traversal.listValues(long1)): Doc)(equalTo(Doc("Long (positive)")))
-      },
-      test("updates sequence documentation") {
-        assert(Schema[Array[Int]].doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
-      },
-      test("has access to record examples") {
-        assert(Schema[List[Double]].examples)(equalTo(Seq.empty))
-      },
-      test("updates sequence examples") {
-        assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
       test("has access to sequence value examples using traversal focus") {
         val long1 = Primitive(
@@ -863,23 +858,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(Doc("Long (positive)"))
         )
       },
-      test("has access to sequence map value examples using traversal focus") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
-          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
-          typeName = TypeName.long
-        )
-        val map1 = Reflect.Map[Binding, Int, Long, Map](
-          key = Reflect.int,
-          value = long1,
-          typeName = TypeName.map[Int, Long],
-          mapBinding = null
-        )
-        assert(Schema(map1).examples(Traversal.mapValues(Schema[Map[Int, Long]].reflect.asMap.get)): Seq[_])(
-          equalTo(Seq(1L, 2L, 3L))
-        )
-      },
-      test("has access to sequence map value examples using traversal focus") {
+      test("has access to map key examples using traversal focus") {
         val int1 = Primitive(
           primitiveType = PrimitiveType.Int(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Int](examples = Seq(1, 2, 3)),
@@ -893,6 +872,22 @@ object SchemaSpec extends ZIOSpecDefault {
         )
         assert(Schema(map1).examples(Traversal.mapKeys(Schema[Map[Int, Long]].reflect.asMap.get)): Seq[_])(
           equalTo(Seq(1, 2, 3))
+        )
+      },
+      test("has access to map value examples using traversal focus") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
+          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
+          typeName = TypeName.long
+        )
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = Reflect.int,
+          value = long1,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = null
+        )
+        assert(Schema(map1).examples(Traversal.mapValues(Schema[Map[Int, Long]].reflect.asMap.get)): Seq[_])(
+          equalTo(Seq(1L, 2L, 3L))
         )
       }
     ),
@@ -970,7 +965,7 @@ object SchemaSpec extends ZIOSpecDefault {
   object Variant extends CompanionOptics[Variant] {
     implicit val schema: Schema[Variant] = Schema.derived
     val case1: Prism[Variant, Case1]     = caseOf
-    val case2: Prism[Variant, Case1]     = caseOf
+    val case2: Prism[Variant, Case2]     = caseOf
   }
 
   case class Case1(d: Double) extends Variant
