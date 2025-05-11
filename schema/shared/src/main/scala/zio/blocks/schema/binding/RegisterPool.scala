@@ -8,7 +8,7 @@ final class RegisterPool private () {
 
   def allocate(): Registers = {
     val idx = this.used
-    if (idx + 1 > registers.length) registers = java.util.Arrays.copyOf(registers, registers.length << 1)
+    if (idx == registers.length) registers = java.util.Arrays.copyOf(registers, registers.length << 1)
     var register = registers(idx)
     if (register eq null) {
       register = Registers(RegisterOffset.Zero)
