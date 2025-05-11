@@ -545,15 +545,15 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.hashCode)(equalTo(Variant.schema.hashCode)) &&
         assert(Schema[Either[Int, Long]])(equalTo(Schema[Either[Int, Long]])) &&
         assert(Schema[Either[Int, Long]].hashCode)(equalTo(Schema[Either[Int, Long]].hashCode)) &&
-        assert(Variant.schema.defaultValue(Case1(0.1)))(equalTo(Variant.schema)) &&
-        assert(Variant.schema.defaultValue(Case1(0.1)).hashCode)(equalTo(Variant.schema.hashCode)) &&
-        assert(Variant.schema.examples(Case1(0.1)))(equalTo(Variant.schema)) &&
-        assert(Variant.schema.examples(Case1(0.1)).hashCode)(equalTo(Variant.schema.hashCode)) &&
+        assert(Variant.schema.defaultValue(Case1('1')))(equalTo(Variant.schema)) &&
+        assert(Variant.schema.defaultValue(Case1('1')).hashCode)(equalTo(Variant.schema.hashCode)) &&
+        assert(Variant.schema.examples(Case1('1')))(equalTo(Variant.schema)) &&
+        assert(Variant.schema.examples(Case1('1')).hashCode)(equalTo(Variant.schema.hashCode)) &&
         assert(Variant.schema.doc("Variant (updated)"))(not(equalTo(Variant.schema)))
       },
       test("gets and updates variant default value") {
         assert(Variant.schema.getDefaultValue)(isNone) &&
-        assert(Variant.schema.defaultValue(Case1(1.0)).getDefaultValue)(isSome(equalTo(Case1(1.0))))
+        assert(Variant.schema.defaultValue(Case1('1')).getDefaultValue)(isSome(equalTo(Case1('1'))))
       },
       test("gets and updates variant documentation") {
         assert(Variant.schema.doc)(equalTo(Doc.Empty)) &&
@@ -561,11 +561,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates variant examples") {
         assert(Variant.schema.examples)(equalTo(Nil)) &&
-        assert(Variant.schema.examples(Case1(1.0), Case2("VVV")).examples)(equalTo(Case1(1.0) :: Case2("VVV") :: Nil))
+        assert(Variant.schema.examples(Case1('1'), Case2("VVV")).examples)(equalTo(Case1('1') :: Case2("VVV") :: Nil))
       },
       test("gets and updates default values of variant cases using prism focus") {
-        assert(Variant.schema.defaultValue(Variant.case1, Case1(1.0)).getDefaultValue(Variant.case1))(
-          isSome(equalTo(Case1(1.0)))
+        assert(Variant.schema.defaultValue(Variant.case1, Case1('1')).getDefaultValue(Variant.case1))(
+          isSome(equalTo(Case1('1')))
         ) &&
         assert(Variant.schema.defaultValue(Variant.case2, Case2("VVV")).getDefaultValue(Variant.case2))(
           isSome(equalTo(Case2("VVV")))
@@ -576,12 +576,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.doc(Variant.case2, "Case2").doc(Variant.case2))(equalTo(Doc("Case2")))
       },
       test("gets and updates examples of variant cases using prism focus") {
-        assert(Variant.schema.examples(Variant.case1, Case1(1.0)).examples(Variant.case1))(equalTo(Seq(Case1(1.0)))) &&
+        assert(Variant.schema.examples(Variant.case1, Case1('1')).examples(Variant.case1))(equalTo(Seq(Case1('1')))) &&
         assert(Variant.schema.examples(Variant.case2, Case2("VVV")).examples(Variant.case2))(equalTo(Seq(Case2("VVV"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
-        assert(Variant.schema.fromDynamicValue(Variant.schema.toDynamicValue(Case1(1.0))))(
-          isRight(equalTo(Case1(1.0)))
+        assert(Variant.schema.fromDynamicValue(Variant.schema.toDynamicValue(Case1('1'))))(
+          isRight(equalTo(Case1('1')))
         ) &&
         assert(Variant.schema.fromDynamicValue(Variant.schema.toDynamicValue(Case2("VVV"))))(
           isRight(equalTo(Case2("VVV")))
@@ -985,8 +985,8 @@ object SchemaSpec extends ZIOSpecDefault {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema(deferred1).defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
-        assert(Schema(deferred2).defaultValue(Variant.case1, Case1(1.0)).getDefaultValue(Variant.case1))(
-          isSome(equalTo(Case1(1.0)))
+        assert(Schema(deferred2).defaultValue(Variant.case1, Case1('1')).getDefaultValue(Variant.case1))(
+          isSome(equalTo(Case1('1')))
         ) &&
         assert(Schema(deferred3).defaultValue(elements, 1).getDefaultValue(elements))(isSome(equalTo(1))) &&
         assert(Schema(deferred4).defaultValue(mapKeys, 1).getDefaultValue(mapKeys))(isSome(equalTo(1))) &&
@@ -1015,7 +1015,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema(deferred1).examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
-        assert(Schema(deferred2).examples(Variant.case1, Case1(1.0)).examples(Variant.case1))(equalTo(Seq(Case1(1.0))))
+        assert(Schema(deferred2).examples(Variant.case1, Case1('1')).examples(Variant.case1))(equalTo(Seq(Case1('1'))))
         assert(Schema(deferred3).examples(elements, 2).examples(elements))(equalTo(Seq(2))) &&
         assert(Schema(deferred4).examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
         assert(Schema(deferred4).examples(mapValues, 2L).examples(mapValues))(equalTo(Seq(2L)))
@@ -1026,8 +1026,8 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred1).fromDynamicValue(Schema(deferred1).toDynamicValue(Record(1: Byte, 1000))))(
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
-        assert(Schema(deferred2).fromDynamicValue(Schema(deferred2).toDynamicValue(Case1(1.0))))(
-          isRight(equalTo(Case1(1.0)))
+        assert(Schema(deferred2).fromDynamicValue(Schema(deferred2).toDynamicValue(Case1('1'))))(
+          isRight(equalTo(Case1('1')))
         )
       },
       test("has consistent gets for typed and dynamic optics") {
@@ -1055,7 +1055,7 @@ object SchemaSpec extends ZIOSpecDefault {
     val case2: Prism[Variant, Case2]     = caseOf
   }
 
-  case class Case1(d: Double) extends Variant
+  case class Case1(c: Char) extends Variant
 
   object Case1 {
     implicit val schema: Schema[Case1] = Schema.derived

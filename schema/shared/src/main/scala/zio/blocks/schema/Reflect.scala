@@ -356,9 +356,12 @@ object Reflect {
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
       value match {
         case DynamicValue.Record(fields) =>
-          var errors: Option[SchemaError] = None
-          val pool                        = RegisterPool.get()
-          val registers                   = pool.allocate()
+          var error: Option[SchemaError] = None
+
+          def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
+
+          val pool      = RegisterPool.get()
+          val registers = pool.allocate()
           try {
             var idx = 0
             while (idx < this.registers.length) {
@@ -369,29 +372,29 @@ object Reflect {
                     case Right(value) =>
                       this.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
                     case Left(error) =>
-                      errors = errors.map(_ ++ error).orElse(Some(error))
+                      addError(error)
                   }
                 case _ =>
-                  val newError = SchemaError.missingField(DynamicOptic.root, field.name, s"Missing field ${field.name}")
-                  errors = errors.map(_ ++ newError).orElse(Some(newError))
+                  addError(SchemaError.missingField(DynamicOptic.root, field.name, s"Missing field ${field.name}"))
               }
               idx += 1
             }
-            if (errors.isDefined) Left(errors.get)
-            else Right(constructor.construct(registers, RegisterOffset.Zero))
+            if (error.isDefined) new Left(error.get)
+            else new Right(constructor.construct(registers, RegisterOffset.Zero))
           } finally {
             pool.releaseLast()
           }
         case _ =>
-          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a record"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a record"))
       }
 
     def lensByIndex[B](index: Int): Lens[A, B] =
       Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, B]])
 
-    def lensByName[B](name: String): Option[Lens[A, B]] = fieldByName(name).map(term =>
-      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, B]])
-    )
+    def lensByName[B](name: String): Option[Lens[A, B]] = fieldByName(name) match {
+      case Some(term) => new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, B]]))
+      case _          => None
+    }
 
     val length: Int = fields.length
 
@@ -537,7 +540,7 @@ object Reflect {
               new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case $discriminator"))
           }
         case _ =>
-          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a variant"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a variant"))
       }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
@@ -612,98 +615,107 @@ object Reflect {
       copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, C[A]] = {
-      val seqConstructor             = this.seqConstructor
       var error: Option[SchemaError] = None
 
       def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
 
       value match {
         case DynamicValue.Sequence(elements) =>
+          val constructor = seqConstructor
           element match {
             case Reflect.Primitive(_: PrimitiveType.Boolean, _, _, _, _) =>
-              val builder = seqConstructor.newBooleanBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addBoolean(builder, value.asInstanceOf[Boolean])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultBoolean(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Byte, _, _, _, _) =>
-              val builder = seqConstructor.newByteBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addByte(builder, value.asInstanceOf[Byte])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultByte(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Char, _, _, _, _) =>
-              val builder = seqConstructor.newCharBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addChar(builder, value.asInstanceOf[Char])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultChar(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Short, _, _, _, _) =>
-              val builder = seqConstructor.newShortBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addShort(builder, value.asInstanceOf[Short])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultShort(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Int, _, _, _, _) =>
-              val builder = seqConstructor.newIntBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addInt(builder, value.asInstanceOf[Int])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultInt(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Long, _, _, _, _) =>
-              val builder = seqConstructor.newLongBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addLong(builder, value.asInstanceOf[Long])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultLong(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Float, _, _, _, _) =>
-              val builder = seqConstructor.newFloatBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addFloat(builder, value.asInstanceOf[Float])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultFloat(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Double, _, _, _, _) =>
-              val builder = seqConstructor.newDoubleBuilder(elements.size)
-              elements.foreach { elem =>
-                this.element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addDouble(builder, value.asInstanceOf[Double])
-                  case Left(error)  => addError(error)
-                }
-              }
-              error.toLeft(seqConstructor.resultDouble(builder).asInstanceOf[C[A]])
-            case _ =>
-              val builder = seqConstructor.newObjectBuilder[A](elements.size)
+              val builder = constructor.newBooleanBuilder(elements.size)
               elements.foreach { elem =>
                 element.fromDynamicValue(elem) match {
-                  case Right(value) => seqConstructor.addObject(builder, value)
+                  case Right(value) => constructor.addBoolean(builder, value.asInstanceOf[Boolean])
                   case Left(error)  => addError(error)
                 }
               }
-              error.toLeft(seqConstructor.resultObject(builder))
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultBoolean(builder).asInstanceOf[C[A]])
+            case Reflect.Primitive(_: PrimitiveType.Byte, _, _, _, _) =>
+              val builder = constructor.newByteBuilder(elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addByte(builder, value.asInstanceOf[Byte])
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultByte(builder).asInstanceOf[C[A]])
+            case Reflect.Primitive(_: PrimitiveType.Char, _, _, _, _) =>
+              val builder = constructor.newCharBuilder(elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addChar(builder, value.asInstanceOf[Char])
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultChar(builder).asInstanceOf[C[A]])
+            case Reflect.Primitive(_: PrimitiveType.Short, _, _, _, _) =>
+              val builder = constructor.newShortBuilder(elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addShort(builder, value.asInstanceOf[Short])
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultShort(builder).asInstanceOf[C[A]])
+            case Reflect.Primitive(_: PrimitiveType.Int, _, _, _, _) =>
+              val builder = constructor.newIntBuilder(elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addInt(builder, value.asInstanceOf[Int])
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultInt(builder).asInstanceOf[C[A]])
+            case Reflect.Primitive(_: PrimitiveType.Long, _, _, _, _) =>
+              val builder = constructor.newLongBuilder(elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addLong(builder, value.asInstanceOf[Long])
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultLong(builder).asInstanceOf[C[A]])
+            case Reflect.Primitive(_: PrimitiveType.Float, _, _, _, _) =>
+              val builder = constructor.newFloatBuilder(elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addFloat(builder, value.asInstanceOf[Float])
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultFloat(builder).asInstanceOf[C[A]])
+            case Reflect.Primitive(_: PrimitiveType.Double, _, _, _, _) =>
+              val builder = constructor.newDoubleBuilder(elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addDouble(builder, value.asInstanceOf[Double])
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
+            case _ =>
+              val builder = constructor.newObjectBuilder[A](elements.size)
+              elements.foreach { elem =>
+                element.fromDynamicValue(elem) match {
+                  case Right(value) => constructor.addObject(builder, value)
+                  case Left(error)  => addError(error)
+                }
+              }
+              if (error.isDefined) new Left(error.get)
+              else new Right(constructor.resultObject(builder))
           }
         case _ =>
-          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a sequence"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a sequence"))
       }
     }
 
@@ -772,13 +784,13 @@ object Reflect {
       copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, M[Key, Value]] = {
-      val constructor                = mapConstructor
       var error: Option[SchemaError] = None
 
       def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
 
       value match {
         case DynamicValue.Map(elements) =>
+          val constructor = mapConstructor
           val builder = constructor.newObjectBuilder[Key, Value](elements.size)
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key) match {
@@ -790,9 +802,10 @@ object Reflect {
               case Left(error) => addError(error)
             }
           }
-          error.toLeft(constructor.resultObject(builder))
+          if (error.isDefined) new Left(error.get)
+          else new Right(constructor.resultObject(builder))
         case _ =>
-          new Left(SchemaError.invalidType(DynamicOptic.root, s"Expected a map"))
+          new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a map"))
       }
     }
 
