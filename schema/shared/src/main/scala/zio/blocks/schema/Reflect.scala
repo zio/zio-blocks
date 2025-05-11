@@ -791,7 +791,7 @@ object Reflect {
       value match {
         case DynamicValue.Map(elements) =>
           val constructor = mapConstructor
-          val builder = constructor.newObjectBuilder[Key, Value](elements.size)
+          val builder     = constructor.newObjectBuilder[Key, Value](elements.size)
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key) match {
               case Right(keyValue) =>
