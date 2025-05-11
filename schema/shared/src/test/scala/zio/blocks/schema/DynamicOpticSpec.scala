@@ -73,7 +73,7 @@ object DynamicOpticSpecTypes {
 
   object A extends CompanionOptics[A] {
     implicit val schema: Schema[A] = Schema.derived
-    val x: Prism[A, X]             = caseOf[X]
-    val y: Prism[A, Y]             = caseOf[Y]
+    val x: Prism[A, X]             = caseOf
+    val y: Prism[A, Y]             = caseOf
   }
 }

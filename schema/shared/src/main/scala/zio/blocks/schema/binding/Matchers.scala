@@ -1,7 +1,7 @@
 package zio.blocks.schema.binding
 
 final case class Matchers[+A](matchers: IndexedSeq[Matcher[? <: A]]) {
-  def apply(i: Int): Matcher[? <: A] = matchers(i)
+  def apply(index: Int): Matcher[? <: A] = matchers(index)
 }
 
 object Matchers {

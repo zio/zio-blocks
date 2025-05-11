@@ -350,6 +350,10 @@ object SchemaSpec extends ZIOSpecDefault {
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a record")))
         )
       },
+      test("has consistent gets for typed and dynamic optics") {
+        assert(Record.schema.get(Record.b.toDynamic))(equalTo(Record.schema.get(Record.b))) &&
+        assert(Record.schema.get(Record.i.toDynamic))(equalTo(Record.schema.get(Record.i)))
+      },
       test("derives schema for record with default values and annotations using a macro call") {
         @Modifier.config("record-key", "record-value-1")
         @Modifier.config("record-key", "record-value-2")
@@ -585,6 +589,10 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a variant")))
         )
+      },
+      test("has consistent gets for typed and dynamic optics") {
+        assert(Variant.schema.get(Variant.case1.toDynamic))(equalTo(Variant.schema.get(Variant.case1))) &&
+        assert(Variant.schema.get(Variant.case2.toDynamic))(equalTo(Variant.schema.get(Variant.case2)))
       },
       test("derives schema for variant using a macro call") {
         @Modifier.config("variant-key", "variant-value-1")
@@ -829,6 +837,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[List[Int]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a sequence")))
         )
+      },
+      test("has consistent gets for typed and dynamic optics") {
+        val elements1 = Traversal.listValues(Reflect.int[Binding])
+        val elements2 = Traversal.setValues(Reflect.long[Binding])
+        assert(Schema[List[Int]].get(elements1.toDynamic))(equalTo(Schema[List[Int]].get(elements1))) &&
+        assert(Schema[Set[Long]].get(elements2.toDynamic))(equalTo(Schema[Set[Long]].get(elements2)))
       }
     ),
     suite("Reflect.Map")(
@@ -896,6 +910,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Map[Int, Long]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a map")))
         )
+      },
+      test("has consistent gets for typed and dynamic optics") {
+        val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        assert(Schema[Map[Int, Long]].get(mapKeys.toDynamic))(equalTo(Schema[Map[Int, Long]].get(mapKeys))) &&
+        assert(Schema[Map[Int, Long]].get(mapValues.toDynamic))(equalTo(Schema[Map[Int, Long]].get(mapValues)))
       }
     ),
     suite("Reflect.Dynamic")(
@@ -935,7 +955,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred4))(not(equalTo(Schema(deferred1)))) &&
         assert(Schema(deferred5))(not(equalTo(Schema(deferred1))))
       },
-      test("updates deferred default value") {
+      test("gets and updates deferred default value") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         assert(Schema(deferred1).getDefaultValue)(isNone) &&
         assert(Schema(deferred1).defaultValue(1).getDefaultValue)(isSome(equalTo(1)))
@@ -955,6 +975,66 @@ object SchemaSpec extends ZIOSpecDefault {
         }
         assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3))) &&
         assert(Schema(deferred1).examples(1, 2).examples)(equalTo(Seq(1, 2)))
+      },
+      test("gets and updates default values of deferred value using optic focus") {
+        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
+        val deferred3 = Reflect.Deferred[Binding, List[Int]](() => Schema[List[Int]].reflect)
+        val deferred4 = Reflect.Deferred[Binding, Map[Int, Long]](() => Schema[Map[Int, Long]].reflect)
+        val elements  = Traversal.listValues(Reflect.int[Binding])
+        val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        assert(Schema(deferred1).defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
+        assert(Schema(deferred2).defaultValue(Variant.case1, Case1(1.0)).getDefaultValue(Variant.case1))(
+          isSome(equalTo(Case1(1.0)))
+        ) &&
+        assert(Schema(deferred3).defaultValue(elements, 1).getDefaultValue(elements))(isSome(equalTo(1))) &&
+        assert(Schema(deferred4).defaultValue(mapKeys, 1).getDefaultValue(mapKeys))(isSome(equalTo(1))) &&
+        assert(Schema(deferred4).defaultValue(mapValues, 1L).getDefaultValue(mapValues))(isSome(equalTo(1L)))
+      },
+      test("gets and updates documentation of deferred value using optic focus") {
+        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
+        val deferred3 = Reflect.Deferred[Binding, List[Int]](() => Schema[List[Int]].reflect)
+        val deferred4 = Reflect.Deferred[Binding, Map[Int, Long]](() => Schema[Map[Int, Long]].reflect)
+        val elements  = Traversal.listValues(Reflect.int[Binding])
+        val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        assert(Schema(deferred1).doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
+        assert(Schema(deferred2).doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(Doc("Case1")))
+        assert(Schema(deferred3).doc(elements, "Int").doc(elements))(equalTo(Doc("Int"))) &&
+        assert(Schema(deferred4).doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
+        assert(Schema(deferred4).doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
+      },
+      test("gets and updates examples of deferred value using optic focus") {
+        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
+        val deferred3 = Reflect.Deferred[Binding, List[Int]](() => Schema[List[Int]].reflect)
+        val deferred4 = Reflect.Deferred[Binding, Map[Int, Long]](() => Schema[Map[Int, Long]].reflect)
+        val elements  = Traversal.listValues(Reflect.int[Binding])
+        val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
+        assert(Schema(deferred1).examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
+        assert(Schema(deferred2).examples(Variant.case1, Case1(1.0)).examples(Variant.case1))(equalTo(Seq(Case1(1.0))))
+        assert(Schema(deferred3).examples(elements, 2).examples(elements))(equalTo(Seq(2))) &&
+        assert(Schema(deferred4).examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
+        assert(Schema(deferred4).examples(mapValues, 2L).examples(mapValues))(equalTo(Seq(2L)))
+      },
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
+        assert(Schema(deferred1).fromDynamicValue(Schema(deferred1).toDynamicValue(Record(1: Byte, 1000))))(
+          isRight(equalTo(Record(1: Byte, 1000)))
+        ) &&
+        assert(Schema(deferred2).fromDynamicValue(Schema(deferred2).toDynamicValue(Case1(1.0))))(
+          isRight(equalTo(Case1(1.0)))
+        )
+      },
+      test("has consistent gets for typed and dynamic optics") {
+        val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
+        val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
+        assert(Schema(deferred1).get(Record.b.toDynamic))(equalTo(Schema(deferred1).get(Record.b))) &&
+        assert(Schema(deferred2).get(Variant.case1.toDynamic))(equalTo(Schema(deferred2).get(Variant.case1)))
       }
     )
   )
