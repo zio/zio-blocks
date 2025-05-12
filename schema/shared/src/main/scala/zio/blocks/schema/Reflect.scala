@@ -3,6 +3,8 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
+
+import java.util
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
@@ -328,6 +330,16 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Record] = Vector()
   ) extends Reflect[F, A] { self =>
+    private[this] val fieldValues = fields.map(_.value).toArray
+    private[this] val fieldIndexByName = new java.util.HashMap[String, Int] {
+      fields.foreach {
+        var i = -1
+        term =>
+          i += 1
+          put(term.name, i)
+      }
+    }
+
     protected def inner: Any = (fields, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Record
@@ -351,7 +363,11 @@ object Reflect {
 
     def deconstructor(implicit F: HasBinding[F]): Deconstructor[A] = F.deconstructor(recordBinding)
 
-    def fieldByName(name: String): Option[Term[F, A, ?]] = fields.find(_.name == name)
+    def fieldByName(name: String): Option[Term[F, A, ?]] = {
+      val idx = fieldIndexByName.getOrDefault(name, -1)
+      if (idx >= 0) new Some(fields(idx))
+      else None
+    }
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
       value match {
@@ -360,23 +376,31 @@ object Reflect {
 
           def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
 
+          val fieldValues = java.util.Arrays.copyOf(this.fieldValues, this.fieldValues.length)
           // val pool      = RegisterPool.get()
           val constructor = this.constructor
           val registers   = Registers(constructor.usedRegisters) // pool.allocate()
           // try {
-          var idx = 0
-          while (idx < this.registers.length) {
-            val field = this.fields(idx)
-            fields.find(_._1 == field.name) match {
-              case Some((_, fieldValue)) =>
-                field.value.fromDynamicValue(fieldValue) match {
+          fields.foreach { case (name, value) =>
+            val idx = fieldIndexByName.getOrDefault(name, -1)
+            if (idx >= 0) {
+              val fieldValue = fieldValues(idx)
+              if (fieldValue ne null) {
+                fieldValues(idx) = null
+                fieldValue.fromDynamicValue(value) match {
                   case Right(value) =>
                     this.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
                   case Left(error) =>
                     addError(error)
                 }
-              case _ =>
-                addError(SchemaError.missingField(DynamicOptic.root, field.name, s"Missing field ${field.name}"))
+              } else addError(SchemaError.duplicatedField(DynamicOptic.root, name, s"Duplicated field $name"))
+            }
+          }
+          var idx = 0
+          while (idx < this.fields.length) {
+            if (fieldValues(idx) ne null) {
+              val name = this.fields(idx).name
+              addError(SchemaError.missingField(DynamicOptic.root, name, s"Missing field $name"))
             }
             idx += 1
           }
@@ -401,7 +425,7 @@ object Reflect {
     def modifiers(modifiers: Iterable[Modifier.Record]): Record[F, A] = copy(modifiers = this.modifiers ++ modifiers)
 
     def modifyField(name: String)(f: Term.Updater[F]): Option[Record[F, A]] = {
-      val idx = fields.indexWhere(_.name == name)
+      val idx = fieldIndexByName.getOrDefault(name, -1)
       if (idx >= 0) {
         f.update(fields(idx)) match {
           case Some(field) => new Some(copy(fields = fields.updated(idx, field)))
@@ -498,6 +522,15 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Variant] = Vector()
   ) extends Reflect[F, A] {
+    private[this] val caseIndexByName = new java.util.HashMap[String, Int] {
+      cases.foreach {
+        var i = -1
+        term =>
+          i += 1
+          put(term.name, i)
+      }
+    }
+
     protected def inner: Any = (cases, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Variant
@@ -517,7 +550,11 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
-    def caseByName(name: String): Option[Term[F, A, ? <: A]] = cases.find(_.name == name)
+    def caseByName(name: String): Option[Term[F, A, ? <: A]] = {
+      val idx = caseIndexByName.getOrDefault(name, -1)
+      if (idx >= 0) new Some(cases(idx))
+      else None
+    }
 
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
@@ -543,7 +580,7 @@ object Reflect {
     def modifiers(modifiers: Iterable[Modifier.Variant]): Variant[F, A] = copy(modifiers = this.modifiers ++ modifiers)
 
     def modifyCase(name: String)(f: Term.Updater[F]): Option[Variant[F, A]] = {
-      val idx = cases.indexWhere(_.name == name)
+      val idx = caseIndexByName.getOrDefault(name, -1)
       if (idx >= 0) {
         f.update(cases(idx)) match {
           case Some(case_) => new Some(copy(cases = cases.updated(idx, case_)))
