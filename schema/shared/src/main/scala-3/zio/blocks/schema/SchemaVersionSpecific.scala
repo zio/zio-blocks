@@ -253,8 +253,14 @@ private object SchemaVersionSpecific {
           if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
           fTpe.asType match {
             case '[ft] =>
-              val getter = tpeClassSymbol.fieldMember(name)
-              if (!getter.exists) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+              var getter = tpeClassSymbol.fieldMember(name)
+              if (!getter.exists) {
+                val getters = tpeClassSymbol
+                  .methodMember(name)
+                  .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
+                if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+                getter = getters.head
+              }
               val isDeferred  = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.deferred])
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
               val config = getter.annotations
