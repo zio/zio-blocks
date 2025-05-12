@@ -29,6 +29,9 @@ object SchemaError {
   def missingField[S, A](source: DynamicOptic, fieldName: String, message: String): SchemaError =
     SchemaError(::(MissingField(source, fieldName, message), Nil))
 
+  def duplicatedField[S, A](source: DynamicOptic, fieldName: String, message: String): SchemaError =
+    SchemaError(::(DuplicatedField(source, fieldName, message), Nil))
+
   def unknownField[S, A](source: DynamicOptic, fieldName: String, message: String): SchemaError =
     SchemaError(::(UnknownField(source, fieldName, message), Nil))
 
@@ -49,6 +52,8 @@ object SchemaError {
   ) extends Single
 
   case class MissingField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
+
+  case class DuplicatedField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
 
   case class UnknownField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
 
