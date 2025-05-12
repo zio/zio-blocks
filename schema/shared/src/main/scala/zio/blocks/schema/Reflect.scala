@@ -30,7 +30,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def asMapUnknown: Option[Reflect.Map.Unknown[F]] =
     this match {
-      case map: Reflect.Map[F, _, _, _] @scala.unchecked =>
+      case _: Reflect.Map[F, _, _, _] @scala.unchecked =>
         new Some(new Reflect.Map.Unknown[F] {
           def map: Reflect.Map[F, KeyType, ValueType, MapType] =
             self.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
@@ -62,7 +62,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] =
     this match {
-      case sequence: Reflect.Sequence[F, _, _] @scala.unchecked =>
+      case _: Reflect.Sequence[F, _, _] @scala.unchecked =>
         new Some(new Reflect.Sequence.Unknown[F] {
           def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
             self.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
@@ -99,10 +99,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A]
 
-  final def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] =
+  def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] =
     get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
 
-  final def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
+  def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
     @tailrec
     def loop(current: Reflect[F, _], idx: Int): Option[Reflect[F, _]] =
       if (idx == dynamic.nodes.length) new Some(current)
@@ -428,11 +428,9 @@ object Reflect {
         idx += 1
       }
       DynamicValue.Record(builder.result())
-      /*
-      } finally {
+      /*} finally {
         pool.releaseLast()
-      }
-       */
+      }*/
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
@@ -447,38 +445,32 @@ object Reflect {
       var idx            = 0
       fields.foreach { term =>
         term.value match {
-          case Reflect.Primitive(primType, _, _, _, _) =>
-            primType match {
-              case PrimitiveType.Unit =>
-                registers(idx) = Register.Unit
-              case _: PrimitiveType.Boolean =>
-                registers(idx) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
-              case _: PrimitiveType.Byte =>
-                registers(idx) = Register.Byte(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
-              case _: PrimitiveType.Char =>
-                registers(idx) = Register.Char(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
-              case _: PrimitiveType.Short =>
-                registers(idx) = Register.Short(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
-              case _: PrimitiveType.Float =>
-                registers(idx) = Register.Float(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
-              case _: PrimitiveType.Int =>
-                registers(idx) = Register.Int(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
-              case _: PrimitiveType.Double =>
-                registers(idx) = Register.Double(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
-              case _: PrimitiveType.Long =>
-                registers(idx) = Register.Long(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
-              case _ =>
-                registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
-                registerOffset = RegisterOffset.incrementObjects(registerOffset)
-            }
+          case Reflect.Primitive(PrimitiveType.Unit, _, _, _, _) =>
+            registers(idx) = Register.Unit
+          case Reflect.Primitive(_: PrimitiveType.Boolean, _, _, _, _) =>
+            registers(idx) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
+          case Reflect.Primitive(_: PrimitiveType.Byte, _, _, _, _) =>
+            registers(idx) = Register.Byte(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
+          case Reflect.Primitive(_: PrimitiveType.Char, _, _, _, _) =>
+            registers(idx) = Register.Char(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
+          case Reflect.Primitive(_: PrimitiveType.Short, _, _, _, _) =>
+            registers(idx) = Register.Short(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
+          case Reflect.Primitive(_: PrimitiveType.Float, _, _, _, _) =>
+            registers(idx) = Register.Float(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
+          case Reflect.Primitive(_: PrimitiveType.Int, _, _, _, _) =>
+            registers(idx) = Register.Int(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
+          case Reflect.Primitive(_: PrimitiveType.Double, _, _, _, _) =>
+            registers(idx) = Register.Double(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
+          case Reflect.Primitive(_: PrimitiveType.Long, _, _, _, _) =>
+            registers(idx) = Register.Long(RegisterOffset.getBytes(registerOffset))
+            registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
           case _ =>
             registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
             registerOffset = RegisterOffset.incrementObjects(registerOffset)
@@ -492,7 +484,7 @@ object Reflect {
       RegisterOffset.add(acc, register.usedRegisters)
     }
 
-    val nodeType: Reflect.Type.Record.type = Reflect.Type.Record
+    def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
   }
 
   object Record {
@@ -577,7 +569,7 @@ object Reflect {
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
 
-    val nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
+    def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
   }
 
   object Variant {
@@ -738,7 +730,7 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    val nodeType: Reflect.Type.Sequence[C] = Reflect.Type.Sequence[C]()
+    def nodeType: Reflect.Type.Sequence[C] = Reflect.Type.Sequence[C]()
   }
 
   object Sequence {
@@ -836,7 +828,7 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
-    val nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
+    def nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
   }
 
   object Map {
@@ -892,7 +884,7 @@ object Reflect {
         dynamic <- f.transformDynamic(path, dynamicBinding, doc, modifiers)
       } yield dynamic
 
-    val nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
+    def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
   }
 
   object Dynamic {
@@ -942,7 +934,7 @@ object Reflect {
         primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
       } yield primitive
 
-    val nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
+    def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
   }
 
   object Primitive {
@@ -954,8 +946,8 @@ object Reflect {
 
     final lazy val value: Reflect[F, A] = _value()
 
-    final type NodeBinding  = value.NodeBinding
-    final type ModifierType = value.ModifierType
+    type NodeBinding  = value.NodeBinding
+    type ModifierType = value.ModifierType
 
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 
