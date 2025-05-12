@@ -1,7 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.binding._
-
 trait CompanionOptics[S] {
   import scala.language.experimental.macros
 

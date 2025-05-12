@@ -134,7 +134,7 @@ object ReflectTransformer {
       } yield Reflect.Primitive(primitiveType, binding, typeName, doc, modifiers)
   }
 
-  private type Any2[A, B] = Any
+  private type Any2[_, _] = Any
 
   private[this] val _noBinding: ReflectTransformer[Any2, NoBinding] = new OnlyMetadata[Any2, NoBinding] {
     private val nb                                             = NoBinding[Any, Any]()

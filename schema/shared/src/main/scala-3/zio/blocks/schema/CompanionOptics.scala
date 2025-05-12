@@ -1,7 +1,5 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.binding._
-
 trait CompanionOptics[S] {
   inline def field[A](inline path: S => A)(using schema: Schema[S]): Lens[S, A] =
     ${ CompanionOptics.field('path, 'schema) }

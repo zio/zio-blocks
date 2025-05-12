@@ -8,22 +8,32 @@ object Validation {
   sealed trait Numeric[+A] extends Validation[A]
 
   object Numeric {
-    case object Positive                                extends Numeric[Nothing]
-    case object Negative                                extends Numeric[Nothing]
-    case object NonPositive                             extends Numeric[Nothing]
-    case object NonNegative                             extends Numeric[Nothing]
+    case object Positive extends Numeric[Nothing]
+
+    case object Negative extends Numeric[Nothing]
+
+    case object NonPositive extends Numeric[Nothing]
+
+    case object NonNegative extends Numeric[Nothing]
+
     case class Range[A](min: Option[A], max: Option[A]) extends Numeric[A]
-    case class Set[A](values: Set[A])                   extends Numeric[A]
+
+    case class Set[A](values: Set[A]) extends Numeric[A]
   }
 
   sealed trait String extends Validation[String]
 
   object String {
-    case object NonEmpty                                              extends String
-    case object Empty                                                 extends String
-    case object Blank                                                 extends String
-    case object NonBlank                                              extends String
+    case object NonEmpty extends String
+
+    case object Empty extends String
+
+    case object Blank extends String
+
+    case object NonBlank extends String
+
     case class Length(min: Option[scala.Int], max: Option[scala.Int]) extends String
-    case class Pattern(regex: String)                                 extends String
+
+    case class Pattern(regex: String) extends String
   }
 }

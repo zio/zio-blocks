@@ -150,7 +150,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.int[Binding].binding.defaultValue)(isNone) &&
         assert(Reflect.int[Binding].defaultValue(1).binding.defaultValue.get.apply())(equalTo(1))
       },
-      test("has access to primitive documentation") {
+      test("gets and updates primitive documentation") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.None),
           primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
@@ -158,12 +158,10 @@ object ReflectSpec extends ZIOSpecDefault {
           doc = Doc("Long (positive)"),
           modifiers = Nil
         )
-        assert(long1.doc)(equalTo(Doc("Long (positive)")))
-      },
-      test("updates primitive documentation") {
+        assert(long1.doc)(equalTo(Doc("Long (positive)"))) &&
         assert(Reflect.int[Binding].doc("Int (updated)").doc)(equalTo(Doc("Int (updated)")))
       },
-      test("has access to primitive examples") {
+      test("gets and updates primitive examples") {
         val long1 = Primitive(
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
@@ -171,9 +169,7 @@ object ReflectSpec extends ZIOSpecDefault {
           doc = Doc("Long (positive)"),
           modifiers = Nil
         )
-        assert(long1.examples)(equalTo(Seq(1L, 2L, 3L)))
-      },
-      test("updates primitive examples") {
+        assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
         assert(Reflect.int[Binding].binding.examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
       }
     ),
@@ -195,7 +191,6 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("has consistent fields, length, registers and usedRegisters") {
         val record1 = tuple4Reflect
-        assert(record1.length)(equalTo(4)) &&
         assert(record1.fields.length)(equalTo(4)) &&
         assert(record1.registers.length)(equalTo(4)) &&
         assert(record1.fields(0).value.asInstanceOf[Primitive[Binding, Byte]].primitiveType)(
@@ -247,15 +242,11 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates variant default value") {
         assert(eitherReflect.binding.defaultValue)(isNone) &&
-        assert(eitherReflect.binding.defaultValue(Left(0)).defaultValue.get.apply())(
-          equalTo(Left(0))
-        )
+        assert(eitherReflect.binding.defaultValue(Left(0)).defaultValue.get.apply())(equalTo(Left(0)))
       },
       test("gets and updates variant documentation") {
         assert(eitherReflect.doc)(equalTo(Doc.Empty)) &&
-        assert(eitherReflect.doc("Option[Int] (updated)").doc)(
-          equalTo(Doc("Option[Int] (updated)"))
-        )
+        assert(eitherReflect.doc("Option[Int] (updated)").doc)(equalTo(Doc("Option[Int] (updated)")))
       },
       test("gets and updates variant examples") {
         assert(eitherReflect.binding.examples)(equalTo(Seq.empty)) &&
@@ -284,13 +275,13 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(sequence4)(not(equalTo(sequence1))) &&
         assert(sequence5)(not(equalTo(sequence1)))
       },
-      test("updates sequence default value") {
+      test("gets and updates sequence default value") {
         assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue)(isNone) &&
         assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue(Vector.empty).defaultValue.get.apply())(
           equalTo(Vector.empty)
         )
       },
-      test("has access to sequence documentation") {
+      test("gets and updates sequence documentation") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
           element = Reflect.double,
           typeName = TypeName.list,
@@ -298,12 +289,10 @@ object ReflectSpec extends ZIOSpecDefault {
           doc = Doc("List of doubles"),
           modifiers = Nil
         )
-        assert(sequence1.doc)(equalTo(Doc("List of doubles")))
-      },
-      test("updates sequence documentation") {
+        assert(sequence1.doc)(equalTo(Doc("List of doubles"))) &&
         assert(Reflect.array(Reflect.int[Binding]).doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
       },
-      test("has access to record examples") {
+      test("gets and updates sequence examples") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
           element = Reflect.double,
           typeName = TypeName.list,
@@ -313,9 +302,7 @@ object ReflectSpec extends ZIOSpecDefault {
             examples = Seq(List(0.1, 0.2, 0.3))
           )
         )
-        assert(sequence1.binding.examples)(equalTo(Seq(List(0.1, 0.2, 0.3))))
-      },
-      test("updates sequence examples") {
+        assert(sequence1.binding.examples)(equalTo(Seq(List(0.1, 0.2, 0.3)))) &&
         assert(Reflect.set(Reflect.int[Binding]).binding.examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       }
     ),
@@ -350,7 +337,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(map5)(not(equalTo(map1))) &&
         assert(map6)(not(equalTo(map1)))
       },
-      test("updates map default value") {
+      test("gets and updates map default value") {
         assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).binding.defaultValue)(isNone) &&
         assert(
           Reflect
@@ -364,7 +351,7 @@ object ReflectSpec extends ZIOSpecDefault {
           equalTo(Map.empty[Int, Long])
         )
       },
-      test("has access to map documentation") {
+      test("gets and updates map documentation") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
@@ -373,14 +360,12 @@ object ReflectSpec extends ZIOSpecDefault {
           doc = Doc("Map of Int to Long"),
           modifiers = Nil
         )
-        assert(map1.doc)(equalTo(Doc("Map of Int to Long")))
-      },
-      test("updates map documentation") {
+        assert(map1.doc)(equalTo(Doc("Map of Int to Long"))) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).doc("Map (updated)").doc)(
           equalTo(Doc("Map (updated)"))
         )
       },
-      test("has access to map examples") {
+      test("gets and updates map examples") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
@@ -391,9 +376,7 @@ object ReflectSpec extends ZIOSpecDefault {
             examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
           )
         )
-        assert(map1.binding.examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
-      },
-      test("updates map examples") {
+        assert(map1.binding.examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)) &&
         assert(
           Reflect
             .map(Reflect.int[Binding], Reflect.long[Binding])
@@ -420,7 +403,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(dynamic3)(not(equalTo(dynamic1))) &&
         assert(dynamic4)(not(equalTo(dynamic1)))
       },
-      test("updates dynamic default value") {
+      test("gets and updates dynamic default value") {
         val dynamic1 = Reflect.dynamic[Binding]
         assert(dynamic1.binding.defaultValue)(isNone) &&
         assert(
@@ -431,25 +414,20 @@ object ReflectSpec extends ZIOSpecDefault {
             .apply()
         )(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
       },
-      test("has access to dynamic documentation") {
+      test("gets and updates dynamic documentation") {
         val dynamic1 = Reflect.Dynamic[Binding](
           dynamicBinding = Binding.Dynamic(),
           doc = Doc("Dynamic"),
           modifiers = Nil
         )
-        assert(dynamic1.doc)(equalTo(Doc("Dynamic")))
-      },
-      test("updates dynamic documentation") {
+        assert(dynamic1.doc)(equalTo(Doc("Dynamic"))) &&
         assert(Reflect.dynamic[Binding].doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
       },
-      test("has access to dynamic examples") {
+      test("gets and updates dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
           dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)
         )
-        assert(dynamic1.binding.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil))
-      },
-      test("updates dynamic examples") {
-        val dynamic1 = Reflect.dynamic[Binding]
+        assert(dynamic1.binding.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)) &&
         assert(dynamic1.binding.examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)) :: Nil)
         )
@@ -473,12 +451,12 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred4: Any)(not(equalTo(deferred1))) &&
         assert(deferred5)(not(equalTo(deferred1)))
       },
-      test("updates deferred default value") {
+      test("gets and updates deferred default value") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         assert(deferred1.binding.defaultValue)(isNone) &&
         assert(deferred1.binding.defaultValue(1).defaultValue.get.apply())(equalTo(1))
       },
-      test("has access to deferred documentation") {
+      test("gets and updates deferred documentation") {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
@@ -488,13 +466,10 @@ object ReflectSpec extends ZIOSpecDefault {
             Nil
           )
         }
-        assert(deferred1.doc)(equalTo(Doc("Int (positive)")))
-      },
-      test("updates sequence documentation") {
-        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        assert(deferred1.doc)(equalTo(Doc("Int (positive)"))) &&
         assert(deferred1.doc("Deferred (updated)").doc)(equalTo(Doc("Deferred (updated)")))
       },
-      test("has access to deferred examples") {
+      test("gets and updates deferred examples") {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
@@ -502,16 +477,7 @@ object ReflectSpec extends ZIOSpecDefault {
             TypeName.int
           )
         }
-        assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3)))
-      },
-      test("updates deferred examples") {
-        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
-          Primitive(
-            PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int
-          )
-        }
+        assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3))) &&
         assert(deferred1.binding.examples(1, 2).examples)(equalTo(Seq(1, 2)))
       }
     )
@@ -524,5 +490,4 @@ object ReflectSpec extends ZIOSpecDefault {
     implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
     Schema.derived[Either[Int, Long]].reflect.asVariant.get
   }
-
 }
