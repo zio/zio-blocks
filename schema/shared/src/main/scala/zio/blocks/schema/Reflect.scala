@@ -3,8 +3,6 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
-
-import java.util
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
@@ -333,10 +331,10 @@ object Reflect {
     private[this] val fieldValues = fields.map(_.value).toArray
     private[this] val fieldIndexByName = new java.util.HashMap[String, Int] {
       fields.foreach {
-        var i = -1
+        var i = 0
         term =>
-          i += 1
           put(term.name, i)
+          i += 1
       }
     }
 
@@ -376,7 +374,7 @@ object Reflect {
 
           def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
 
-          val fieldValues = java.util.Arrays.copyOf(this.fieldValues, this.fieldValues.length)
+          val fieldValues = this.fieldValues.clone
           // val pool      = RegisterPool.get()
           val constructor = this.constructor
           val registers   = Registers(constructor.usedRegisters) // pool.allocate()
@@ -413,9 +411,11 @@ object Reflect {
           new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a record"))
       }
 
-    def lensByName[B](name: String): Option[Lens[A, B]] = fieldByName(name) match {
-      case Some(term) => new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, B]]))
-      case _          => None
+    def lensByName[B](name: String): Option[Lens[A, B]] = {
+      val idx = fieldIndexByName.getOrDefault(name, -1)
+      if (idx >= 0) {
+        new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(idx).asInstanceOf[Term.Bound[A, B]]))
+      } else None
     }
 
     def metadata: F[NodeBinding, A] = recordBinding
@@ -464,11 +464,11 @@ object Reflect {
       } yield record
 
     val registers: IndexedSeq[Register[?]] = {
-      val registers      = new Array[Register[?]](fields.length)
+      val registers      = new Array[Register[?]](fieldValues.length)
       var registerOffset = RegisterOffset.Zero
       var idx            = 0
-      fields.foreach { term =>
-        term.value match {
+      fieldValues.foreach { fieldValue =>
+        fieldValue match {
           case Reflect.Primitive(PrimitiveType.Unit, _, _, _, _) =>
             registers(idx) = Register.Unit
           case Reflect.Primitive(_: PrimitiveType.Boolean, _, _, _, _) =>
@@ -524,10 +524,10 @@ object Reflect {
   ) extends Reflect[F, A] {
     private[this] val caseIndexByName = new java.util.HashMap[String, Int] {
       cases.foreach {
-        var i = -1
+        var i = 0
         term =>
-          i += 1
           put(term.name, i)
+          i += 1
       }
     }
 
@@ -589,9 +589,12 @@ object Reflect {
       } else None
     }
 
-    def prismByName[B <: A](name: String): Option[Prism[A, B]] = caseByName(name).map(term =>
-      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], term.asInstanceOf[Term.Bound[A, B]])
-    )
+    def prismByName[B <: A](name: String): Option[Prism[A, B]] = {
+      val idx = caseIndexByName.getOrDefault(name, -1)
+      if (idx >= 0) {
+        new Some(Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(idx).asInstanceOf[Term.Bound[A, B]]))
+      } else None
+    }
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val idx        = discriminator.discriminate(value)
