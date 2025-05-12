@@ -4,8 +4,6 @@ final class RegisterPool private () {
   private[this] var registers: Array[Registers] = Array.fill[Registers](8)(Registers(RegisterOffset.Zero))
   private[this] var used: Int                   = 0
 
-  def size: Int = used
-
   def allocate(): Registers = {
     val idx = this.used
     if (idx == registers.length) registers = java.util.Arrays.copyOf(registers, registers.length << 1)

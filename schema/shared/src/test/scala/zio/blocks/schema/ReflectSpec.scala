@@ -16,10 +16,10 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).isDynamic)(equalTo(true)) &&
         assert(Reflect.int[Binding].asDynamic)(isNone) &&
         assert(Reflect.int[Binding].isDynamic)(equalTo(false)) &&
-        assert(Reflect.some(Reflect.int[Binding]).asDynamic)(isNone) &&
-        assert(Reflect.some(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
-        assert(Reflect.option(Reflect.int[Binding]).asDynamic)(isNone) &&
-        assert(Reflect.option(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
+        assert(tuple4Reflect.asDynamic)(isNone) &&
+        assert(tuple4Reflect.isDynamic)(equalTo(false)) &&
+        assert(eitherReflect.asDynamic)(isNone) &&
+        assert(eitherReflect.isDynamic)(equalTo(false)) &&
         assert(Reflect.set(Reflect.int[Binding]).asDynamic)(isNone) &&
         assert(Reflect.set(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asDynamic)(isNone) &&
@@ -40,26 +40,26 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).isMap)(equalTo(true)) &&
         assert(Reflect.int[Binding].asMapUnknown)(isNone) &&
         assert(Reflect.int[Binding].isMap)(equalTo(false)) &&
-        assert(Reflect.some(Reflect.int[Binding]).asMapUnknown)(isNone) &&
-        assert(Reflect.some(Reflect.int[Binding]).isMap)(equalTo(false)) &&
-        assert(Reflect.option(Reflect.int[Binding]).asMapUnknown)(isNone) &&
-        assert(Reflect.option(Reflect.int[Binding]).isMap)(equalTo(false)) &&
+        assert(tuple4Reflect.asMapUnknown)(isNone) &&
+        assert(tuple4Reflect.isMap)(equalTo(false)) &&
+        assert(eitherReflect.asMapUnknown)(isNone) &&
+        assert(eitherReflect.isMap)(equalTo(false)) &&
         assert(Reflect.set(Reflect.int[Binding]).asMapUnknown)(isNone) &&
         assert(Reflect.set(Reflect.int[Binding]).isMap)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asMapUnknown)(isNone) &&
         assert(Reflect.dynamic[Binding].isMap)(equalTo(false))
       },
       test("has consistent asRecord and isRecord") {
-        assert(Reflect.some(Reflect.int[Binding]).asRecord)(isSome(equalTo(Reflect.some(Reflect.int[Binding])))) &&
-        assert(Reflect.some(Reflect.int[Binding]).isRecord)(equalTo(true)) &&
-        assert(Reflect.Deferred(() => Reflect.some(Reflect.int[Binding])).asRecord)(
-          isSome(equalTo(Reflect.some(Reflect.int[Binding])))
+        assert(tuple4Reflect.asRecord)(isSome(equalTo(tuple4Reflect))) &&
+        assert(tuple4Reflect.isRecord)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => tuple4Reflect).asRecord)(
+          isSome(equalTo(tuple4Reflect))
         ) &&
-        assert(Reflect.Deferred(() => Reflect.some(Reflect.int[Binding])).isRecord)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => tuple4Reflect).isRecord)(equalTo(true)) &&
         assert(Reflect.int[Binding].asRecord)(isNone) &&
         assert(Reflect.int[Binding].isRecord)(equalTo(false)) &&
-        assert(Reflect.option(Reflect.int[Binding]).asRecord)(isNone) &&
-        assert(Reflect.option(Reflect.int[Binding]).isRecord)(equalTo(false)) &&
+        assert(eitherReflect.asRecord)(isNone) &&
+        assert(eitherReflect.isRecord)(equalTo(false)) &&
         assert(Reflect.set(Reflect.int[Binding]).asRecord)(isNone) &&
         assert(Reflect.set(Reflect.int[Binding]).isRecord)(equalTo(false)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asRecord)(isNone) &&
@@ -72,10 +72,10 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.int[Binding].isPrimitive)(equalTo(true)) &&
         assert(Reflect.Deferred(() => Reflect.int[Binding]).asPrimitive)(isSome(equalTo(Reflect.int[Binding]))) &&
         assert(Reflect.Deferred(() => Reflect.int[Binding]).isPrimitive)(equalTo(true)) &&
-        assert(Reflect.some(Reflect.int[Binding]).asPrimitive)(isNone) &&
-        assert(Reflect.some(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
-        assert(Reflect.option(Reflect.int[Binding]).asPrimitive)(isNone) &&
-        assert(Reflect.option(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(tuple4Reflect.asPrimitive)(isNone) &&
+        assert(tuple4Reflect.isPrimitive)(equalTo(false)) &&
+        assert(eitherReflect.asPrimitive)(isNone) &&
+        assert(eitherReflect.isPrimitive)(equalTo(false)) &&
         assert(Reflect.set(Reflect.int[Binding]).asPrimitive)(isNone) &&
         assert(Reflect.set(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asPrimitive)(isNone) &&
@@ -94,26 +94,26 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.Deferred(() => Reflect.set(Reflect.int[Binding])).isSequence)(equalTo(true)) &&
         assert(Reflect.int[Binding].asSequenceUnknown)(isNone) &&
         assert(Reflect.int[Binding].isSequence)(equalTo(false)) &&
-        assert(Reflect.some(Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
-        assert(Reflect.some(Reflect.int[Binding]).isSequence)(equalTo(false)) &&
-        assert(Reflect.option(Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
-        assert(Reflect.option(Reflect.int[Binding]).isSequence)(equalTo(false)) &&
+        assert(tuple4Reflect.asSequenceUnknown)(isNone) &&
+        assert(tuple4Reflect.isSequence)(equalTo(false)) &&
+        assert(eitherReflect.asSequenceUnknown)(isNone) &&
+        assert(eitherReflect.isSequence)(equalTo(false)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isSequence)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asSequenceUnknown)(isNone) &&
         assert(Reflect.dynamic[Binding].isSequence)(equalTo(false))
       },
       test("has consistent asVariant and isVariant") {
-        assert(Reflect.option(Reflect.int[Binding]).asVariant)(isSome(equalTo(Reflect.option(Reflect.int[Binding])))) &&
-        assert(Reflect.option(Reflect.int[Binding]).isVariant)(equalTo(true)) &&
-        assert(Reflect.Deferred(() => Reflect.option(Reflect.int[Binding])).asVariant)(
-          isSome(equalTo(Reflect.option(Reflect.int[Binding])))
+        assert(eitherReflect.asVariant)(isSome(equalTo(eitherReflect))) &&
+        assert(eitherReflect.isVariant)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => eitherReflect).asVariant)(
+          isSome(equalTo(eitherReflect))
         ) &&
-        assert(Reflect.Deferred(() => Reflect.option(Reflect.int[Binding])).isVariant)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => eitherReflect).isVariant)(equalTo(true)) &&
         assert(Reflect.int[Binding].asVariant)(isNone) &&
         assert(Reflect.int[Binding].isVariant)(equalTo(false)) &&
-        assert(Reflect.some(Reflect.int[Binding]).asVariant)(isNone) &&
-        assert(Reflect.some(Reflect.int[Binding]).isVariant)(equalTo(false)) &&
+        assert(tuple4Reflect.asVariant)(isNone) &&
+        assert(tuple4Reflect.isVariant)(equalTo(false)) &&
         assert(Reflect.set(Reflect.int[Binding]).asVariant)(isNone) &&
         assert(Reflect.set(Reflect.int[Binding]).isVariant)(equalTo(false)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asVariant)(isNone) &&
@@ -179,8 +179,8 @@ object ReflectSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Record")(
       test("has consistent equals and hashCode") {
-        val record1 = Reflect.tuple2(Reflect.byte[Binding], Reflect.int[Binding])
-        val record2 = record1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Record2"))
+        val record1 = tuple4Reflect
+        val record2 = record1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Tuple4"))
         val record3 = record1.copy(fields = record1.fields.reverse)
         val record4 = record1.copy(doc = Doc("text"))
         val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
@@ -194,89 +194,72 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(record5)(not(equalTo(record1)))
       },
       test("has consistent fields, length, registers and usedRegisters") {
-        val record1 = Reflect.some(Reflect.int[Binding])
-        val record2 = Reflect.some(Reflect.double[Binding])
-        val record3 = Reflect.some(Reflect.string[Binding])
-        assert(record1.length)(equalTo(1)) &&
-        assert(record1.fields.length)(equalTo(1)) &&
-        assert(record1.registers.length)(equalTo(1)) &&
-        assert(record1.fields(0).value.asInstanceOf[Primitive[Binding, Int]].primitiveType)(
+        val record1 = tuple4Reflect
+        assert(record1.length)(equalTo(4)) &&
+        assert(record1.fields.length)(equalTo(4)) &&
+        assert(record1.registers.length)(equalTo(4)) &&
+        assert(record1.fields(0).value.asInstanceOf[Primitive[Binding, Byte]].primitiveType)(
+          equalTo(PrimitiveType.Byte(Validation.None))
+        ) &&
+        assert(record1.registers(0).usedRegisters)(equalTo(RegisterOffset(bytes = 1))) &&
+        assert(record1.fields(1).value.asInstanceOf[Primitive[Binding, Short]].primitiveType)(
+          equalTo(PrimitiveType.Short(Validation.None))
+        ) &&
+        assert(record1.registers(1).usedRegisters)(equalTo(RegisterOffset(shorts = 1))) &&
+        assert(record1.fields(2).value.asInstanceOf[Primitive[Binding, Int]].primitiveType)(
           equalTo(PrimitiveType.Int(Validation.None))
         ) &&
-        assert(record1.registers(0).usedRegisters)(equalTo(RegisterOffset(ints = 1))) &&
-        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters))) &&
-        assert(record2.length)(equalTo(1)) &&
-        assert(record2.fields.length)(equalTo(1)) &&
-        assert(record2.registers.length)(equalTo(1)) &&
-        assert(record2.fields(0).value.asInstanceOf[Primitive[Binding, Double]].primitiveType)(
-          equalTo(PrimitiveType.Double(Validation.None))
+        assert(record1.registers(2).usedRegisters)(equalTo(RegisterOffset(ints = 1))) &&
+        assert(record1.fields(3).value.asInstanceOf[Primitive[Binding, Long]].primitiveType)(
+          equalTo(PrimitiveType.Long(Validation.None))
         ) &&
-        assert(record2.registers(0).usedRegisters)(equalTo(RegisterOffset(doubles = 1))) &&
-        assert(record2.usedRegisters)(equalTo(record2.registers.foldLeft(0)(_ + _.usedRegisters))) &&
-        assert(record3.length)(equalTo(1)) &&
-        assert(record3.fields.length)(equalTo(1)) &&
-        assert(record3.registers.length)(equalTo(1)) &&
-        assert(record3.fields(0).value.asInstanceOf[Primitive[Binding, String]].primitiveType)(
-          equalTo(PrimitiveType.String(Validation.None))
-        ) &&
-        assert(record3.registers(0).usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
-        assert(record3.usedRegisters)(equalTo(record3.registers.foldLeft(0)(_ + _.usedRegisters)))
+        assert(record1.registers(3).usedRegisters)(equalTo(RegisterOffset(longs = 1))) &&
+        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters)))
       },
-      test("updates record default value") {
-        assert(Reflect.some(Reflect.int[Binding]).binding.defaultValue)(isNone) &&
-        assert(Reflect.some(Reflect.int[Binding]).binding.defaultValue(Some(0)).defaultValue.get.apply())(
-          equalTo(Some(0))
+      test("gets and updates record default value") {
+        assert(tuple4Reflect.binding.defaultValue)(isNone) &&
+        assert(tuple4Reflect.binding.defaultValue((1: Byte, 2: Short, 3, 4L)).defaultValue.get.apply())(
+          equalTo((1: Byte, 2: Short, 3, 4L))
         )
       },
-      test("has access to record documentation") {
-        assert(Reflect.some(Reflect.int[Binding]).doc)(equalTo(Doc.Empty))
+      test("gets and updates record documentation") {
+        assert(tuple4Reflect.doc)(equalTo(Doc.Empty)) &&
+        assert(tuple4Reflect.doc("Some[Int] (updated)").doc)(equalTo(Doc("Some[Int] (updated)")))
       },
-      test("updates record documentation") {
-        assert(Reflect.some(Reflect.int[Binding]).doc("Some[Int] (updated)").doc)(equalTo(Doc("Some[Int] (updated)")))
-      },
-      test("has access to record examples") {
-        assert(Reflect.some(Reflect.int[Binding]).binding.examples)(equalTo(Seq.empty))
-      },
-      test("updates record examples") {
-        assert(Reflect.some(Reflect.int[Binding]).binding.examples(Some(2)).examples)(equalTo(Some(2) :: Nil))
+      test("gets and updates record examples") {
+        assert(tuple4Reflect.binding.examples)(equalTo(Seq.empty)) &&
+        assert(tuple4Reflect.binding.examples((1: Byte, 2: Short, 3, 4L)).examples)(
+          equalTo((1: Byte, 2: Short, 3, 4L) :: Nil)
+        )
       }
     ),
     suite("Reflect.Variant")(
       test("has consistent equals and hashCode") {
-        val variant1 = Reflect.option(Reflect.int[Binding])
-        val variant2 = Reflect.either(Reflect.byte[Binding], Reflect.long[Binding])
+        val variant1 = eitherReflect
         assert(variant1)(equalTo(variant1)) &&
         assert(variant1.hashCode)(equalTo(variant1.hashCode)) &&
         assert(variant1.noBinding: Any)(equalTo(variant1)) &&
         assert(variant1.noBinding.hashCode)(equalTo(variant1.hashCode)) &&
-        assert(variant1.defaultValue(None))(equalTo(variant1)) &&
-        assert(variant1.defaultValue(None).hashCode)(equalTo(variant1.hashCode)) &&
-        assert(variant1.examples(Some(2)))(equalTo(variant1)) &&
-        assert(variant1.examples(Some(2)).hashCode)(equalTo(variant1.hashCode)) &&
-        assert(variant2)(equalTo(variant2)) &&
-        assert(variant2.hashCode)(equalTo(variant2.hashCode)) &&
-        assert(variant1.doc("Option[Int] (updated)"))(not(equalTo(variant1))) &&
-        assert(variant2: Any)(not(equalTo(variant1)))
+        assert(variant1.defaultValue(Right(0L)))(equalTo(variant1)) &&
+        assert(variant1.defaultValue(Right(0L)).hashCode)(equalTo(variant1.hashCode)) &&
+        assert(variant1.examples(Left(1)))(equalTo(variant1)) &&
+        assert(variant1.examples(Left(1)).hashCode)(equalTo(variant1.hashCode))
       },
-      test("updates variant default value") {
-        assert(Reflect.option(Reflect.int[Binding]).binding.defaultValue)(isNone) &&
-        assert(Reflect.option(Reflect.int[Binding]).binding.defaultValue(Some(0)).defaultValue.get.apply())(
-          equalTo(Some(0))
+      test("gets and updates variant default value") {
+        assert(eitherReflect.binding.defaultValue)(isNone) &&
+        assert(eitherReflect.binding.defaultValue(Left(0)).defaultValue.get.apply())(
+          equalTo(Left(0))
         )
       },
-      test("has access to variant documentation") {
-        assert(Reflect.either(Reflect.byte[Binding], Reflect.long[Binding]).doc)(equalTo(Doc.Empty))
-      },
-      test("updates variant documentation") {
-        assert(Reflect.option(Reflect.int[Binding]).doc("Option[Int] (updated)").doc)(
+      test("gets and updates variant documentation") {
+        assert(eitherReflect.doc)(equalTo(Doc.Empty)) &&
+        assert(eitherReflect.doc("Option[Int] (updated)").doc)(
           equalTo(Doc("Option[Int] (updated)"))
         )
       },
-      test("has access to variant examples") {
-        assert(Reflect.option(Reflect.int[Binding]).binding.examples)(equalTo(Seq.empty))
-      },
-      test("updates variant examples") {
-        assert(Reflect.option(Reflect.int[Binding]).binding.examples(Some(2)).examples)(equalTo(Seq(Some(2))))
+      test("gets and updates variant examples") {
+        assert(eitherReflect.binding.examples)(equalTo(Seq.empty)) &&
+        assert(eitherReflect.binding.examples(Left(1)).examples)(equalTo(Seq(Left(1))))
       }
     ),
     suite("Reflect.Sequence")(
@@ -533,4 +516,13 @@ object ReflectSpec extends ZIOSpecDefault {
       }
     )
   )
+
+  val tuple4Reflect: Reflect.Record[Binding, (Byte, Short, Int, Long)] =
+    Schema.derived[(Byte, Short, Int, Long)].reflect.asRecord.get
+  val eitherReflect: Reflect.Variant[Binding, Either[Int, Long]] = {
+    implicit val leftSchema: Schema[Left[Int, Long]]   = Schema.derived
+    implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
+    Schema.derived[Either[Int, Long]].reflect.asVariant.get
+  }
+
 }
