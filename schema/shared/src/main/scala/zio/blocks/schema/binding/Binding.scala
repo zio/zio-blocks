@@ -43,65 +43,65 @@ object Binding {
   }
 
   object Primitive {
-    val unit: Primitive[Unit] = Primitive[Unit]()
+    val unit: Primitive[Unit] = new Primitive[Unit]()
 
-    val boolean: Primitive[Boolean] = Primitive[Boolean]()
+    val boolean: Primitive[Boolean] = new Primitive[Boolean]()
 
-    val byte: Primitive[Byte] = Primitive[Byte]()
+    val byte: Primitive[Byte] = new Primitive[Byte]()
 
-    val short: Primitive[Short] = Primitive[Short]()
+    val short: Primitive[Short] = new Primitive[Short]()
 
-    val int: Primitive[Int] = Primitive[Int]()
+    val int: Primitive[Int] = new Primitive[Int]()
 
-    val long: Primitive[Long] = Primitive[Long]()
+    val long: Primitive[Long] = new Primitive[Long]()
 
-    val float: Primitive[Float] = Primitive[Float]()
+    val float: Primitive[Float] = new Primitive[Float]()
 
-    val double: Primitive[Double] = Primitive[Double]()
+    val double: Primitive[Double] = new Primitive[Double]()
 
-    val char: Primitive[Char] = Primitive[Char]()
+    val char: Primitive[Char] = new Primitive[Char]()
 
-    val string: Primitive[String] = Primitive[String]()
+    val string: Primitive[String] = new Primitive[String]()
 
-    val bigInt: Primitive[BigInt] = Primitive[BigInt]()
+    val bigInt: Primitive[BigInt] = new Primitive[BigInt]()
 
-    val bigDecimal: Primitive[BigDecimal] = Primitive[BigDecimal]()
+    val bigDecimal: Primitive[BigDecimal] = new Primitive[BigDecimal]()
 
-    val dayOfWeek: Primitive[java.time.DayOfWeek] = Primitive[java.time.DayOfWeek]()
+    val dayOfWeek: Primitive[java.time.DayOfWeek] = new Primitive[java.time.DayOfWeek]()
 
-    val duration: Primitive[java.time.Duration] = Primitive[java.time.Duration]()
+    val duration: Primitive[java.time.Duration] = new Primitive[java.time.Duration]()
 
-    val instant: Primitive[java.time.Instant] = Primitive[java.time.Instant]()
+    val instant: Primitive[java.time.Instant] = new Primitive[java.time.Instant]()
 
-    val localDate: Primitive[java.time.LocalDate] = Primitive[java.time.LocalDate]()
+    val localDate: Primitive[java.time.LocalDate] = new Primitive[java.time.LocalDate]()
 
-    val localDateTime: Primitive[java.time.LocalDateTime] = Primitive[java.time.LocalDateTime]()
+    val localDateTime: Primitive[java.time.LocalDateTime] = new Primitive[java.time.LocalDateTime]()
 
-    val localTime: Primitive[java.time.LocalTime] = Primitive[java.time.LocalTime]()
+    val localTime: Primitive[java.time.LocalTime] = new Primitive[java.time.LocalTime]()
 
-    val month: Primitive[java.time.Month] = Primitive[java.time.Month]()
+    val month: Primitive[java.time.Month] = new Primitive[java.time.Month]()
 
-    val monthDay: Primitive[java.time.MonthDay] = Primitive[java.time.MonthDay]()
+    val monthDay: Primitive[java.time.MonthDay] = new Primitive[java.time.MonthDay]()
 
-    val offsetDateTime: Primitive[java.time.OffsetDateTime] = Primitive[java.time.OffsetDateTime]()
+    val offsetDateTime: Primitive[java.time.OffsetDateTime] = new Primitive[java.time.OffsetDateTime]()
 
-    val offsetTime: Primitive[java.time.OffsetTime] = Primitive[java.time.OffsetTime]()
+    val offsetTime: Primitive[java.time.OffsetTime] = new Primitive[java.time.OffsetTime]()
 
-    val period: Primitive[java.time.Period] = Primitive[java.time.Period]()
+    val period: Primitive[java.time.Period] = new Primitive[java.time.Period]()
 
-    val year: Primitive[java.time.Year] = Primitive[java.time.Year]()
+    val year: Primitive[java.time.Year] = new Primitive[java.time.Year]()
 
-    val yearMonth: Primitive[java.time.YearMonth] = Primitive[java.time.YearMonth]()
+    val yearMonth: Primitive[java.time.YearMonth] = new Primitive[java.time.YearMonth]()
 
-    val zoneId: Primitive[java.time.ZoneId] = Primitive[java.time.ZoneId]()
+    val zoneId: Primitive[java.time.ZoneId] = new Primitive[java.time.ZoneId]()
 
-    val zoneOffset: Primitive[java.time.ZoneOffset] = Primitive[java.time.ZoneOffset]()
+    val zoneOffset: Primitive[java.time.ZoneOffset] = new Primitive[java.time.ZoneOffset]()
 
-    val zonedDateTime: Primitive[java.time.ZonedDateTime] = Primitive[java.time.ZonedDateTime]()
+    val zonedDateTime: Primitive[java.time.ZonedDateTime] = new Primitive[java.time.ZonedDateTime]()
 
-    val currency: Primitive[java.util.Currency] = Primitive[java.util.Currency]()
+    val currency: Primitive[java.util.Currency] = new Primitive[java.util.Currency]()
 
-    val uuid: Primitive[java.util.UUID] = Primitive[java.util.UUID]()
+    val uuid: Primitive[java.util.UUID] = new Primitive[java.util.UUID]()
   }
 
   case class Record[A](

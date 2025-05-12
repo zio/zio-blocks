@@ -1,7 +1,7 @@
 package zio.blocks.schema.binding
 
 trait MapDeconstructor[M[_, _]] {
-  type KeyValue[K, V]
+  type KeyValue[_, _]
 
   def deconstruct[K, V](m: M[K, V]): Iterator[KeyValue[K, V]]
 

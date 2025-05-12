@@ -1,7 +1,7 @@
 package zio.blocks.schema.binding
 
 trait MapConstructor[M[_, _]] {
-  type ObjectBuilder[K, V]
+  type ObjectBuilder[_, _]
 
   def newObjectBuilder[K, V](sizeHint: Int = -1): ObjectBuilder[K, V]
 

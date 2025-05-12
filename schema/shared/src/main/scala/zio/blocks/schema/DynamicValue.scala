@@ -4,10 +4,15 @@ package zio.blocks.schema
 sealed trait DynamicValue
 
 object DynamicValue {
-  final case class Record(fields: IndexedSeq[(String, DynamicValue)])     extends DynamicValue
-  final case class Variant(caseName: String, value: DynamicValue)         extends DynamicValue
-  final case class Sequence(elements: IndexedSeq[DynamicValue])           extends DynamicValue
-  final case class Map(entries: IndexedSeq[(DynamicValue, DynamicValue)]) extends DynamicValue
-  final case class Primitive(value: PrimitiveValue)                       extends DynamicValue
-  final case class Lazy(value: () => DynamicValue)                        extends DynamicValue
+  case class Record(fields: IndexedSeq[(String, DynamicValue)]) extends DynamicValue
+
+  case class Variant(caseName: String, value: DynamicValue) extends DynamicValue
+
+  case class Sequence(elements: IndexedSeq[DynamicValue]) extends DynamicValue
+
+  case class Map(entries: IndexedSeq[(DynamicValue, DynamicValue)]) extends DynamicValue
+
+  case class Primitive(value: PrimitiveValue) extends DynamicValue
+
+  case class Lazy(value: () => DynamicValue) extends DynamicValue
 }
