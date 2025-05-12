@@ -3,20 +3,20 @@ package zio.blocks.schema
 case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
   import DynamicOptic.Node
 
-  def apply(that: DynamicOptic): DynamicOptic = DynamicOptic(nodes ++ that.nodes)
+  def apply(that: DynamicOptic): DynamicOptic = new DynamicOptic(nodes ++ that.nodes)
 
   def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, A]] =
     reflect.get(this).asInstanceOf[Option[Reflect[F, A]]]
 
-  def field(name: String): DynamicOptic = DynamicOptic(nodes :+ Node.Field(name))
+  def field(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Field(name))
 
-  def caseOf(name: String): DynamicOptic = DynamicOptic(nodes :+ Node.Case(name))
+  def caseOf(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Case(name))
 
-  def elements: DynamicOptic = DynamicOptic(nodes :+ Node.Elements)
+  def elements: DynamicOptic = new DynamicOptic(nodes :+ Node.Elements)
 
-  def mapKeys: DynamicOptic = DynamicOptic(nodes :+ Node.MapKeys)
+  def mapKeys: DynamicOptic = new DynamicOptic(nodes :+ Node.MapKeys)
 
-  def mapValues: DynamicOptic = DynamicOptic(nodes :+ Node.MapValues)
+  def mapValues: DynamicOptic = new DynamicOptic(nodes :+ Node.MapValues)
 
   override lazy val toString: String = {
     val sb  = new StringBuilder
@@ -37,13 +37,13 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 }
 
 object DynamicOptic {
-  val root: DynamicOptic = DynamicOptic(Vector.empty)
+  val root: DynamicOptic = new DynamicOptic(Vector.empty)
 
-  val elements: DynamicOptic = DynamicOptic(Vector(Node.Elements))
+  val elements: DynamicOptic = new DynamicOptic(Vector(Node.Elements))
 
-  val mapKeys: DynamicOptic = DynamicOptic(Vector(Node.MapKeys))
+  val mapKeys: DynamicOptic = new DynamicOptic(Vector(Node.MapKeys))
 
-  val mapValues: DynamicOptic = DynamicOptic(Vector(Node.MapValues))
+  val mapValues: DynamicOptic = new DynamicOptic(Vector(Node.MapValues))
 
   sealed trait Node
 

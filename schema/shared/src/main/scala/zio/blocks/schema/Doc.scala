@@ -22,7 +22,7 @@ object Doc {
     def flatten: Seq[Leaf] = Nil
   }
 
-  final case class Text(value: String) extends Leaf {
+  case class Text(value: String) extends Leaf {
     lazy val flatten: Seq[Leaf] = ArraySeq(this)
 
     override def hashCode: Int = value.hashCode
@@ -34,10 +34,11 @@ object Doc {
     }
   }
 
-  final case class Concat(flatten: Vector[Leaf]) extends Doc
+  case class Concat(flatten: Vector[Leaf]) extends Doc
+
   object Concat {
     def apply(docs: Doc*): Concat = new Concat(docs.toVector.flatMap(_.flatten))
   }
 
-  def apply(value: String): Doc = Text(value)
+  def apply(value: String): Doc = new Text(value)
 }

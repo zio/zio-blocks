@@ -389,15 +389,10 @@ object Reflect {
           new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a record"))
       }
 
-    def lensByIndex[B](index: Int): Lens[A, B] =
-      Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, B]])
-
     def lensByName[B](name: String): Option[Lens[A, B]] = fieldByName(name) match {
       case Some(term) => new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], term.asInstanceOf[Term.Bound[A, B]]))
       case _          => None
     }
-
-    val length: Int = fields.length
 
     def metadata: F[NodeBinding, A] = recordBinding
 
@@ -447,7 +442,7 @@ object Reflect {
       } yield record
 
     val registers: IndexedSeq[Register[?]] = {
-      val registers      = new Array[Register[?]](length)
+      val registers      = new Array[Register[?]](fields.length)
       var registerOffset = RegisterOffset.Zero
       var idx            = 0
       fields.foreach { term =>
@@ -564,9 +559,6 @@ object Reflect {
         }
       } else None
     }
-
-    def prismByIndex[B <: A](index: Int): Prism[A, B] =
-      Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, B]])
 
     def prismByName[B <: A](name: String): Option[Prism[A, B]] = caseByName(name).map(term =>
       Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], term.asInstanceOf[Term.Bound[A, B]])

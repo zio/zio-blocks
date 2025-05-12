@@ -8,10 +8,6 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
   override def getMessage: String = message
 
   def message: String = errors.map(_.message).mkString("\n")
-
-  def shift(optic: DynamicOptic): SchemaError = SchemaError(
-    errors.map(_.shift(optic)).asInstanceOf[::[SchemaError.Single]]
-  )
 }
 
 object SchemaError {
@@ -42,8 +38,6 @@ object SchemaError {
   sealed trait Single {
     def message: String
 
-    def shift(optic: DynamicOptic): Single
-
     def source: DynamicOptic
   }
   case class InvalidData[A](
@@ -52,27 +46,15 @@ object SchemaError {
     expected: Validation[A],
     actual: A,
     message: String
-  ) extends Single {
-    def shift(optic: DynamicOptic): Single = copy(source = optic(source))
-  }
+  ) extends Single
 
-  case class MissingField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single {
-    def shift(optic: DynamicOptic): Single = copy(source = optic(source))
-  }
+  case class MissingField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
 
-  case class UnknownField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single {
-    def shift(optic: DynamicOptic): Single = copy(source = optic(source))
-  }
+  case class UnknownField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
 
-  case class InvalidType[A](source: DynamicOptic, message: String) extends Single {
-    def shift(optic: DynamicOptic): Single = copy(source = optic(source))
-  }
+  case class InvalidType[A](source: DynamicOptic, message: String) extends Single
 
-  case class MissingCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single {
-    def shift(optic: DynamicOptic): Single = copy(source = optic(source))
-  }
+  case class MissingCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single
 
-  case class UnknownCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single {
-    def shift(optic: DynamicOptic): Single = copy(source = optic(source))
-  }
+  case class UnknownCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single
 }
