@@ -171,6 +171,16 @@ object ReflectSpec extends ZIOSpecDefault {
         )
         assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
         assert(Reflect.int[Binding].binding.examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
+      },
+      test("gets and appends dynamic modifiers") {
+        val int1 = Reflect.int[Binding]
+        assert(int1.modifiers)(equalTo(Seq.empty)) &&
+        assert(int1.modifier(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]))
+        ) &&
+        assert(int1.modifiers(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType])).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]))
+        )
       }
     ),
     suite("Reflect.Record")(
@@ -226,6 +236,15 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(tuple4Reflect.binding.examples((1: Byte, 2: Short, 3, 4L)).examples)(
           equalTo((1: Byte, 2: Short, 3, 4L) :: Nil)
         )
+      },
+      test("gets and appends record modifiers") {
+        assert(tuple4Reflect.modifiers)(equalTo(Seq.empty)) &&
+        assert(tuple4Reflect.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(tuple4Reflect.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
       }
     ),
     suite("Reflect.Variant")(
@@ -251,6 +270,15 @@ object ReflectSpec extends ZIOSpecDefault {
       test("gets and updates variant examples") {
         assert(eitherReflect.binding.examples)(equalTo(Seq.empty)) &&
         assert(eitherReflect.binding.examples(Left(1)).examples)(equalTo(Seq(Left(1))))
+      },
+      test("gets and appends variant modifiers") {
+        assert(eitherReflect.modifiers)(equalTo(Seq.empty)) &&
+        assert(eitherReflect.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(eitherReflect.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
       }
     ),
     suite("Reflect.Sequence")(
@@ -304,6 +332,16 @@ object ReflectSpec extends ZIOSpecDefault {
         )
         assert(sequence1.binding.examples)(equalTo(Seq(List(0.1, 0.2, 0.3)))) &&
         assert(Reflect.set(Reflect.int[Binding]).binding.examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
+      },
+      test("gets and appends sequence modifiers") {
+        val sequence1 = Reflect.set(Reflect.char[Binding])
+        assert(sequence1.modifiers)(equalTo(Seq.empty)) &&
+        assert(sequence1.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(sequence1.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
       }
     ),
     suite("Reflect.Map")(
@@ -386,6 +424,16 @@ object ReflectSpec extends ZIOSpecDefault {
         )(
           equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)
         )
+      },
+      test("gets and appends map modifiers") {
+        val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
+        assert(map1.modifiers)(equalTo(Seq.empty)) &&
+        assert(map1.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(map1.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
       }
     ),
     suite("Reflect.Dynamic")(
@@ -430,6 +478,16 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(dynamic1.binding.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)) &&
         assert(dynamic1.binding.examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)) :: Nil)
+        )
+      },
+      test("gets and appends dynamic modifiers") {
+        val dynamic1 = Reflect.dynamic[Binding]
+        assert(dynamic1.modifiers)(equalTo(Seq.empty)) &&
+        assert(dynamic1.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(dynamic1.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
         )
       }
     ),
@@ -479,6 +537,10 @@ object ReflectSpec extends ZIOSpecDefault {
         }
         assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3))) &&
         assert(deferred1.binding.examples(1, 2).examples)(equalTo(Seq(1, 2)))
+      },
+      test("gets dynamic modifiers") {
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        assert(deferred1.modifiers)(equalTo(Seq.empty))
       }
     )
   )
