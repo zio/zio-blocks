@@ -685,6 +685,12 @@ object SchemaSpec extends ZIOSpecDefault {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
         assert(Schema[DynamicValue].examples)(equalTo(Seq.empty)) &&
         assert(Schema[DynamicValue].examples(value).examples)(equalTo(value :: Nil))
+      },
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
+        assert(Schema[DynamicValue].fromDynamicValue(Schema[DynamicValue].toDynamicValue(value)))(
+          isRight(equalTo(value))
+        )
       }
     ),
     suite("Reflect.Deferred")(
