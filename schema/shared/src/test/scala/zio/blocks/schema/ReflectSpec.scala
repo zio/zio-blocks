@@ -1,0 +1,555 @@
+package zio.blocks.schema
+
+import zio.Scope
+import zio.blocks.schema.Reflect.Primitive
+import zio.blocks.schema.binding._
+import zio.test.Assertion._
+import zio.test._
+
+object ReflectSpec extends ZIOSpecDefault {
+  def spec: Spec[TestEnvironment with Scope, Any] = suite("ReflectSpec")(
+    suite("Reflect")(
+      test("has consistent asDynamic and isDynamic") {
+        assert(Reflect.dynamic[Binding].asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
+        assert(Reflect.dynamic[Binding].isDynamic)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
+        assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).isDynamic)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asDynamic)(isNone) &&
+        assert(Reflect.int[Binding].isDynamic)(equalTo(false)) &&
+        assert(tuple4Reflect.asDynamic)(isNone) &&
+        assert(tuple4Reflect.isDynamic)(equalTo(false)) &&
+        assert(eitherReflect.asDynamic)(isNone) &&
+        assert(eitherReflect.isDynamic)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asDynamic)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asDynamic)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isDynamic)(equalTo(false))
+      },
+      test("has consistent asMap, asMapUnknown and isMap") {
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asMap)(
+          isSome(equalTo(Reflect.map(Reflect.int[Binding], Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asMapUnknown.isDefined)(equalTo(true)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isMap)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).asMap)(
+          isSome(equalTo(Reflect.map(Reflect.int[Binding], Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).asMapUnknown.isDefined)(
+          equalTo(true)
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).isMap)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asMapUnknown)(isNone) &&
+        assert(Reflect.int[Binding].isMap)(equalTo(false)) &&
+        assert(tuple4Reflect.asMapUnknown)(isNone) &&
+        assert(tuple4Reflect.isMap)(equalTo(false)) &&
+        assert(eitherReflect.asMapUnknown)(isNone) &&
+        assert(eitherReflect.isMap)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asMapUnknown)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isMap)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asMapUnknown)(isNone) &&
+        assert(Reflect.dynamic[Binding].isMap)(equalTo(false))
+      },
+      test("has consistent asRecord and isRecord") {
+        assert(tuple4Reflect.asRecord)(isSome(equalTo(tuple4Reflect))) &&
+        assert(tuple4Reflect.isRecord)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => tuple4Reflect).asRecord)(
+          isSome(equalTo(tuple4Reflect))
+        ) &&
+        assert(Reflect.Deferred(() => tuple4Reflect).isRecord)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asRecord)(isNone) &&
+        assert(Reflect.int[Binding].isRecord)(equalTo(false)) &&
+        assert(eitherReflect.asRecord)(isNone) &&
+        assert(eitherReflect.isRecord)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asRecord)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isRecord)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asRecord)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isRecord)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asRecord)(isNone) &&
+        assert(Reflect.dynamic[Binding].isRecord)(equalTo(false))
+      },
+      test("has consistent asPrimitive and isPrimitive") {
+        assert(Reflect.int[Binding].asPrimitive)(isSome(equalTo(Reflect.int[Binding]))) &&
+        assert(Reflect.int[Binding].isPrimitive)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.int[Binding]).asPrimitive)(isSome(equalTo(Reflect.int[Binding]))) &&
+        assert(Reflect.Deferred(() => Reflect.int[Binding]).isPrimitive)(equalTo(true)) &&
+        assert(tuple4Reflect.asPrimitive)(isNone) &&
+        assert(tuple4Reflect.isPrimitive)(equalTo(false)) &&
+        assert(eitherReflect.asPrimitive)(isNone) &&
+        assert(eitherReflect.isPrimitive)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asPrimitive)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asPrimitive)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asPrimitive)(isNone) &&
+        assert(Reflect.dynamic[Binding].isPrimitive)(equalTo(false))
+      },
+      test("has consistent asSequence, asSequenceUnknown and isSequence") {
+        assert(Reflect.set(Reflect.int[Binding]).asSequence)(isSome(equalTo(Reflect.set(Reflect.int[Binding])))) &&
+        assert(Reflect.set(Reflect.int[Binding]).asSequenceUnknown.isDefined)(equalTo(true)) &&
+        assert(Reflect.set(Reflect.int[Binding]).isSequence)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.set(Reflect.int[Binding])).asSequence)(
+          isSome(equalTo(Reflect.set(Reflect.int[Binding])))
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.set(Reflect.int[Binding])).asSequenceUnknown.isDefined)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => Reflect.set(Reflect.int[Binding])).isSequence)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asSequenceUnknown)(isNone) &&
+        assert(Reflect.int[Binding].isSequence)(equalTo(false)) &&
+        assert(tuple4Reflect.asSequenceUnknown)(isNone) &&
+        assert(tuple4Reflect.isSequence)(equalTo(false)) &&
+        assert(eitherReflect.asSequenceUnknown)(isNone) &&
+        assert(eitherReflect.isSequence)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isSequence)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asSequenceUnknown)(isNone) &&
+        assert(Reflect.dynamic[Binding].isSequence)(equalTo(false))
+      },
+      test("has consistent asVariant and isVariant") {
+        assert(eitherReflect.asVariant)(isSome(equalTo(eitherReflect))) &&
+        assert(eitherReflect.isVariant)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => eitherReflect).asVariant)(
+          isSome(equalTo(eitherReflect))
+        ) &&
+        assert(Reflect.Deferred(() => eitherReflect).isVariant)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asVariant)(isNone) &&
+        assert(Reflect.int[Binding].isVariant)(equalTo(false)) &&
+        assert(tuple4Reflect.asVariant)(isNone) &&
+        assert(tuple4Reflect.isVariant)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.int[Binding]).asVariant)(isNone) &&
+        assert(Reflect.set(Reflect.int[Binding]).isVariant)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asVariant)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isVariant)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asVariant)(isNone) &&
+        assert(Reflect.dynamic[Binding].isVariant)(equalTo(false))
+      }
+    ),
+    suite("Reflect.Primitive")(
+      test("has consistent equals and hashCode") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.None),
+          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]], // should be ignored in equals and hashCode
+          typeName = TypeName.long,
+          doc = Doc.Empty,
+          modifiers = Nil
+        )
+        val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
+        val long3 = long1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Long1"))
+        val long4 = long1.copy(doc = Doc("text"))
+        val long5 = long1.copy(modifiers = Seq(Modifier.config("key", "value")))
+        assert(long1)(equalTo(long1)) &&
+        assert(long1.hashCode)(equalTo(long1.hashCode)) &&
+        assert(long1.noBinding: Any)(equalTo(long1)) &&
+        assert(long1.noBinding.hashCode)(equalTo(long1.hashCode)) &&
+        assert(Reflect.long[Binding])(equalTo(long1)) &&
+        assert(Reflect.long[Binding].hashCode)(equalTo(long1.hashCode)) &&
+        assert(long2)(not(equalTo(long1))) &&
+        assert(long3)(not(equalTo(long1))) &&
+        assert(long4)(not(equalTo(long1))) &&
+        assert(long5)(not(equalTo(long1)))
+      },
+      test("updates primitive default value") {
+        assert(Reflect.int[Binding].binding.defaultValue)(isNone) &&
+        assert(Reflect.int[Binding].defaultValue(1).binding.defaultValue.get.apply())(equalTo(1))
+      },
+      test("gets and updates primitive documentation") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.None),
+          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
+          typeName = TypeName.long,
+          doc = Doc("Long (positive)"),
+          modifiers = Nil
+        )
+        assert(long1.doc)(equalTo(Doc("Long (positive)"))) &&
+        assert(Reflect.int[Binding].doc("Int (updated)").doc)(equalTo(Doc("Int (updated)")))
+      },
+      test("gets and updates primitive examples") {
+        val long1 = Primitive(
+          primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
+          primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
+          typeName = TypeName.long,
+          doc = Doc("Long (positive)"),
+          modifiers = Nil
+        )
+        assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
+        assert(Reflect.int[Binding].binding.examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
+      },
+      test("gets and appends dynamic modifiers") {
+        val int1 = Reflect.int[Binding]
+        assert(int1.modifiers)(equalTo(Seq.empty)) &&
+        assert(int1.modifier(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]))
+        ) &&
+        assert(int1.modifiers(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType])).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]))
+        )
+      }
+    ),
+    suite("Reflect.Record")(
+      test("has consistent equals and hashCode") {
+        val record1 = tuple4Reflect
+        val record2 = record1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Tuple4"))
+        val record3 = record1.copy(fields = record1.fields.reverse)
+        val record4 = record1.copy(doc = Doc("text"))
+        val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
+        assert(record1)(equalTo(record1)) &&
+        assert(record1.hashCode)(equalTo(record1.hashCode)) &&
+        assert(record1.noBinding: Any)(equalTo(record1)) &&
+        assert(record1.noBinding.hashCode)(equalTo(record1.hashCode)) &&
+        assert(record2)(not(equalTo(record1))) &&
+        assert(record3)(not(equalTo(record1))) &&
+        assert(record4)(not(equalTo(record1))) &&
+        assert(record5)(not(equalTo(record1)))
+      },
+      test("has consistent fields, length, registers and usedRegisters") {
+        val record1 = tuple4Reflect
+        assert(record1.fields.length)(equalTo(4)) &&
+        assert(record1.registers.length)(equalTo(4)) &&
+        assert(record1.fields(0).value.asInstanceOf[Primitive[Binding, Byte]].primitiveType)(
+          equalTo(PrimitiveType.Byte(Validation.None))
+        ) &&
+        assert(record1.registers(0).usedRegisters)(equalTo(RegisterOffset(bytes = 1))) &&
+        assert(record1.fields(1).value.asInstanceOf[Primitive[Binding, Short]].primitiveType)(
+          equalTo(PrimitiveType.Short(Validation.None))
+        ) &&
+        assert(record1.registers(1).usedRegisters)(equalTo(RegisterOffset(shorts = 1))) &&
+        assert(record1.fields(2).value.asInstanceOf[Primitive[Binding, Int]].primitiveType)(
+          equalTo(PrimitiveType.Int(Validation.None))
+        ) &&
+        assert(record1.registers(2).usedRegisters)(equalTo(RegisterOffset(ints = 1))) &&
+        assert(record1.fields(3).value.asInstanceOf[Primitive[Binding, Long]].primitiveType)(
+          equalTo(PrimitiveType.Long(Validation.None))
+        ) &&
+        assert(record1.registers(3).usedRegisters)(equalTo(RegisterOffset(longs = 1))) &&
+        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters)))
+      },
+      test("gets and updates record default value") {
+        assert(tuple4Reflect.binding.defaultValue)(isNone) &&
+        assert(tuple4Reflect.binding.defaultValue((1: Byte, 2: Short, 3, 4L)).defaultValue.get.apply())(
+          equalTo((1: Byte, 2: Short, 3, 4L))
+        )
+      },
+      test("gets and updates record documentation") {
+        assert(tuple4Reflect.doc)(equalTo(Doc.Empty)) &&
+        assert(tuple4Reflect.doc("Some[Int] (updated)").doc)(equalTo(Doc("Some[Int] (updated)")))
+      },
+      test("gets and updates record examples") {
+        assert(tuple4Reflect.binding.examples)(equalTo(Seq.empty)) &&
+        assert(tuple4Reflect.binding.examples((1: Byte, 2: Short, 3, 4L)).examples)(
+          equalTo((1: Byte, 2: Short, 3, 4L) :: Nil)
+        )
+      },
+      test("gets and appends record modifiers") {
+        assert(tuple4Reflect.modifiers)(equalTo(Seq.empty)) &&
+        assert(tuple4Reflect.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(tuple4Reflect.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
+      }
+    ),
+    suite("Reflect.Variant")(
+      test("has consistent equals and hashCode") {
+        val variant1 = eitherReflect
+        assert(variant1)(equalTo(variant1)) &&
+        assert(variant1.hashCode)(equalTo(variant1.hashCode)) &&
+        assert(variant1.noBinding: Any)(equalTo(variant1)) &&
+        assert(variant1.noBinding.hashCode)(equalTo(variant1.hashCode)) &&
+        assert(variant1.defaultValue(Right(0L)))(equalTo(variant1)) &&
+        assert(variant1.defaultValue(Right(0L)).hashCode)(equalTo(variant1.hashCode)) &&
+        assert(variant1.examples(Left(1)))(equalTo(variant1)) &&
+        assert(variant1.examples(Left(1)).hashCode)(equalTo(variant1.hashCode))
+      },
+      test("gets and updates variant default value") {
+        assert(eitherReflect.binding.defaultValue)(isNone) &&
+        assert(eitherReflect.binding.defaultValue(Left(0)).defaultValue.get.apply())(equalTo(Left(0)))
+      },
+      test("gets and updates variant documentation") {
+        assert(eitherReflect.doc)(equalTo(Doc.Empty)) &&
+        assert(eitherReflect.doc("Option[Int] (updated)").doc)(equalTo(Doc("Option[Int] (updated)")))
+      },
+      test("gets and updates variant examples") {
+        assert(eitherReflect.binding.examples)(equalTo(Seq.empty)) &&
+        assert(eitherReflect.binding.examples(Left(1)).examples)(equalTo(Seq(Left(1))))
+      },
+      test("gets and appends variant modifiers") {
+        assert(eitherReflect.modifiers)(equalTo(Seq.empty)) &&
+        assert(eitherReflect.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(eitherReflect.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
+      }
+    ),
+    suite("Reflect.Sequence")(
+      test("has consistent equals and hashCode") {
+        val sequence1 = Reflect.Sequence[Binding, Double, List](
+          element = Reflect.double,
+          typeName = TypeName.list,
+          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]] // should be ignored in equals and hashCode
+        )
+        val sequence2 = sequence1.copy(element =
+          Primitive(PrimitiveType.Double(Validation.None), Binding.Primitive.double, TypeName.double, Doc("text"), Nil)
+        )
+        val sequence3 = sequence1.copy(typeName = TypeName[List[Double]](Namespace("scala" :: Nil, Nil), "List2"))
+        val sequence4 = sequence1.copy(doc = Doc("text"))
+        val sequence5 = sequence1.copy(modifiers = Seq(Modifier.config("key", "value")))
+        assert(sequence1)(equalTo(sequence1)) &&
+        assert(sequence1.hashCode)(equalTo(sequence1.hashCode)) &&
+        assert(sequence1.noBinding: Any)(equalTo(sequence1)) &&
+        assert(sequence1.noBinding.hashCode)(equalTo(sequence1.hashCode)) &&
+        assert(sequence2)(not(equalTo(sequence1))) &&
+        assert(sequence3)(not(equalTo(sequence1))) &&
+        assert(sequence4)(not(equalTo(sequence1))) &&
+        assert(sequence5)(not(equalTo(sequence1)))
+      },
+      test("gets and updates sequence default value") {
+        assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue)(isNone) &&
+        assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue(Vector.empty).defaultValue.get.apply())(
+          equalTo(Vector.empty)
+        )
+      },
+      test("gets and updates sequence documentation") {
+        val sequence1 = Reflect.Sequence[Binding, Double, List](
+          element = Reflect.double,
+          typeName = TypeName.list,
+          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]],
+          doc = Doc("List of doubles"),
+          modifiers = Nil
+        )
+        assert(sequence1.doc)(equalTo(Doc("List of doubles"))) &&
+        assert(Reflect.array(Reflect.int[Binding]).doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
+      },
+      test("gets and updates sequence examples") {
+        val sequence1 = Reflect.Sequence[Binding, Double, List](
+          element = Reflect.double,
+          typeName = TypeName.list,
+          seqBinding = Binding.Seq[List, Double](
+            constructor = SeqConstructor.listConstructor,
+            deconstructor = SeqDeconstructor.listDeconstructor,
+            examples = Seq(List(0.1, 0.2, 0.3))
+          )
+        )
+        assert(sequence1.binding.examples)(equalTo(Seq(List(0.1, 0.2, 0.3)))) &&
+        assert(Reflect.set(Reflect.int[Binding]).binding.examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
+      },
+      test("gets and appends sequence modifiers") {
+        val sequence1 = Reflect.set(Reflect.char[Binding])
+        assert(sequence1.modifiers)(equalTo(Seq.empty)) &&
+        assert(sequence1.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(sequence1.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
+      }
+    ),
+    suite("Reflect.Map")(
+      test("has consistent equals and hashCode") {
+        val map1 = Reflect.Map[Binding, Short, Float, Map](
+          key = Reflect.short,
+          value = Reflect.float,
+          typeName = TypeName.map[Short, Float],
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Short, Float]] // should be ignored in equals and hashCode
+        )
+        val map2 = map1.copy(key =
+          Primitive(
+            PrimitiveType.Short(Validation.Numeric.Positive),
+            Binding.Primitive.short,
+            TypeName.short
+          )
+        )
+        val map3 = map1.copy(value =
+          Primitive(PrimitiveType.Float(Validation.None), Binding.Primitive.float, TypeName.float, Doc("text"), Nil)
+        )
+        val map4 = map1.copy(typeName = TypeName[Map[Short, Float]](Namespace("scala" :: Nil, Nil), "Map2"))
+        val map5 = map1.copy(doc = Doc("text"))
+        val map6 = map1.copy(modifiers = Seq(Modifier.config("key", "value")))
+        assert(map1)(equalTo(map1)) &&
+        assert(map1.hashCode)(equalTo(map1.hashCode)) &&
+        assert(map1.noBinding: Any)(equalTo(map1)) &&
+        assert(map1.noBinding.hashCode)(equalTo(map1.hashCode)) &&
+        assert(map2)(not(equalTo(map1))) &&
+        assert(map3)(not(equalTo(map1))) &&
+        assert(map4)(not(equalTo(map1))) &&
+        assert(map5)(not(equalTo(map1))) &&
+        assert(map6)(not(equalTo(map1)))
+      },
+      test("gets and updates map default value") {
+        assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).binding.defaultValue)(isNone) &&
+        assert(
+          Reflect
+            .map(Reflect.int[Binding], Reflect.long[Binding])
+            .defaultValue(Map.empty)
+            .binding
+            .defaultValue
+            .get
+            .apply()
+        )(
+          equalTo(Map.empty[Int, Long])
+        )
+      },
+      test("gets and updates map documentation") {
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = Reflect.int,
+          value = Reflect.long,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]], // should be ignored in equals and hashCode
+          doc = Doc("Map of Int to Long"),
+          modifiers = Nil
+        )
+        assert(map1.doc)(equalTo(Doc("Map of Int to Long"))) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).doc("Map (updated)").doc)(
+          equalTo(Doc("Map (updated)"))
+        )
+      },
+      test("gets and updates map examples") {
+        val map1 = Reflect.Map[Binding, Int, Long, Map](
+          key = Reflect.int,
+          value = Reflect.long,
+          typeName = TypeName.map[Int, Long],
+          mapBinding = Binding.Map[Map, Int, Long](
+            constructor = MapConstructor.map,
+            deconstructor = MapDeconstructor.map,
+            examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
+          )
+        )
+        assert(map1.binding.examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)) &&
+        assert(
+          Reflect
+            .map(Reflect.int[Binding], Reflect.long[Binding])
+            .binding
+            .examples(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))
+            .examples
+        )(
+          equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)
+        )
+      },
+      test("gets and appends map modifiers") {
+        val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
+        assert(map1.modifiers)(equalTo(Seq.empty)) &&
+        assert(map1.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(map1.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
+      }
+    ),
+    suite("Reflect.Dynamic")(
+      test("has consistent equals and hashCode") {
+        val dynamic1 = Reflect.dynamic[Binding]
+        val dynamic2 = dynamic1.copy(dynamicBinding = null.asInstanceOf[Binding.Dynamic])
+        val dynamic3 = dynamic1.copy(doc = Doc("text"))
+        val dynamic4 = dynamic1.copy(modifiers = Seq(Modifier.config("key", "value")))
+        assert(dynamic1)(equalTo(dynamic1)) &&
+        assert(dynamic1.hashCode)(equalTo(dynamic1.hashCode)) &&
+        assert(dynamic1.noBinding: Any)(equalTo(dynamic1)) &&
+        assert(dynamic1.noBinding.hashCode)(equalTo(dynamic1.hashCode)) &&
+        assert(dynamic2)(equalTo(dynamic1)) &&
+        assert(dynamic2.hashCode)(equalTo(dynamic1.hashCode)) &&
+        assert(dynamic3)(not(equalTo(dynamic1))) &&
+        assert(dynamic4)(not(equalTo(dynamic1)))
+      },
+      test("gets and updates dynamic default value") {
+        val dynamic1 = Reflect.dynamic[Binding]
+        assert(dynamic1.binding.defaultValue)(isNone) &&
+        assert(
+          dynamic1.binding
+            .defaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))
+            .defaultValue
+            .get
+            .apply()
+        )(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+      },
+      test("gets and updates dynamic documentation") {
+        val dynamic1 = Reflect.Dynamic[Binding](
+          dynamicBinding = Binding.Dynamic(),
+          doc = Doc("Dynamic"),
+          modifiers = Nil
+        )
+        assert(dynamic1.doc)(equalTo(Doc("Dynamic"))) &&
+        assert(Reflect.dynamic[Binding].doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+      },
+      test("gets and updates dynamic examples") {
+        val dynamic1 = Reflect.Dynamic[Binding](
+          dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)
+        )
+        assert(dynamic1.binding.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)) &&
+        assert(dynamic1.binding.examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
+          equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)) :: Nil)
+        )
+      },
+      test("gets and appends dynamic modifiers") {
+        val dynamic1 = Reflect.dynamic[Binding]
+        assert(dynamic1.modifiers)(equalTo(Seq.empty)) &&
+        assert(dynamic1.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(dynamic1.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
+      }
+    ),
+    suite("Reflect.Deferred")(
+      test("has consistent equals and hashCode") {
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        val deferred3 = Reflect.int[Binding]
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int)
+        val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
+        assert(deferred1)(equalTo(deferred1)) &&
+        assert(deferred1.hashCode)(equalTo(deferred1.hashCode)) &&
+        assert(deferred1.noBinding: Any)(equalTo(deferred1)) &&
+        assert(deferred1.noBinding.hashCode)(equalTo(deferred1.hashCode)) &&
+        assert(deferred2)(equalTo(deferred1)) &&
+        assert(deferred2.hashCode)(equalTo(deferred1.hashCode)) &&
+        assert(deferred3)(equalTo(deferred1)) &&
+        assert(deferred3.hashCode)(equalTo(deferred1.hashCode)) &&
+        assert(deferred4: Any)(not(equalTo(deferred1))) &&
+        assert(deferred5)(not(equalTo(deferred1)))
+      },
+      test("gets and updates deferred default value") {
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        assert(deferred1.binding.defaultValue)(isNone) &&
+        assert(deferred1.binding.defaultValue(1).defaultValue.get.apply())(equalTo(1))
+      },
+      test("gets and updates deferred documentation") {
+        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
+          Primitive(
+            PrimitiveType.Int(Validation.Numeric.Positive),
+            Binding.Primitive.int,
+            TypeName.int,
+            Doc("Int (positive)"),
+            Nil
+          )
+        }
+        assert(deferred1.doc)(equalTo(Doc("Int (positive)"))) &&
+        assert(deferred1.doc("Deferred (updated)").doc)(equalTo(Doc("Deferred (updated)")))
+      },
+      test("gets and updates deferred examples") {
+        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
+          Primitive(
+            PrimitiveType.Int(Validation.Numeric.Positive),
+            Binding.Primitive(examples = Seq(1, 2, 3)),
+            TypeName.int
+          )
+        }
+        assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3))) &&
+        assert(deferred1.binding.examples(1, 2).examples)(equalTo(Seq(1, 2)))
+      },
+      test("gets dynamic modifiers") {
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        assert(deferred1.modifiers)(equalTo(Seq.empty))
+      }
+    )
+  )
+
+  val tuple4Reflect: Reflect.Record[Binding, (Byte, Short, Int, Long)] =
+    Schema.derived[(Byte, Short, Int, Long)].reflect.asRecord.get
+  val eitherReflect: Reflect.Variant[Binding, Either[Int, Long]] = {
+    implicit val leftSchema: Schema[Left[Int, Long]]   = Schema.derived
+    implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
+    Schema.derived[Either[Int, Long]].reflect.asVariant.get
+  }
+}
