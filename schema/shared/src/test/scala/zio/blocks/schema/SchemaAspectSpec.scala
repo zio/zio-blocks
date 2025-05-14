@@ -25,20 +25,16 @@ object SchemaAspectSpec extends ZIOSpecDefault {
         val updatedSchema = schema @@ SchemaAspect.doc(doc)
 
         assert(updatedSchema.doc)(equalTo(Doc.Text(doc)))
+      },
+      test("example aspect") {
+        final case class Person(name: String, age: Int)
+        implicit val schema: Schema[Person] = Schema.derived
+
+        val p = Person("Jaro", 34)
+
+        val updatedSchema = schema @@ SchemaAspect.examples(p)
+
+        assert(updatedSchema.examples)(equalTo(Seq(p)))
       }
-    //   test("example aspect") {
-    //     final case class Person(name: String, age: Int)
-    //     implicit val schema: Schema[Person] = Schema.derived
-
-    //     val p = Person("Jaro", 34)
-
-    //     case class Hey(name: String)
-
-    //     val h = Hey("aaa")
-
-    //     val updatedSchema = schema @@ SchemaAspect.examples(h)
-
-    //     assert(updatedSchema.examples)(equalTo(Seq(p)))
-    //   }
     )
 }
