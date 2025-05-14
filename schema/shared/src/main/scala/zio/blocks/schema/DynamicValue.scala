@@ -3,7 +3,7 @@ import zio.blocks.schema.json.Serde
 
 // TODO: Implement equals and hashCode in a lawful way
 sealed trait DynamicValue {
-  final def toJson: String = Serde.toJson(this)
+  final def toJson: String = json.toJson(this)
 }
 
 object DynamicValue {
