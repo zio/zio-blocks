@@ -5,6 +5,8 @@ import zio.blocks.schema.Validation.None
 import zio.test.Assertion.{equalTo, isLeft, isRight}
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
 
+import java.time.DayOfWeek
+
 object PrimitiveTypeSpec extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment with Scope, Any] = suite("PrimitiveTypeSpec")(
@@ -132,6 +134,20 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected BigDecimal")))
         )
+      }
+    ),
+    suite("PrimitiveType.DayOfWeek")(
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        val tpe = PrimitiveType.DayOfWeek(None)
+        assert(tpe.toDynamicValue(DayOfWeek.MONDAY))(
+          equalTo(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY)))
+        ) &&
+          assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY))))(
+            isRight(equalTo(DayOfWeek.MONDAY))
+          ) &&
+          assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
+            isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected DayOfWeek")))
+          )
       }
     )
   )
