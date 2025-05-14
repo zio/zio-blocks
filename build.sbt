@@ -21,8 +21,7 @@ inThisBuild(
   )
 )
 
-addCommandAlias("build", "; fmt; root/test; coverageReport")
-// addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
+addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
 addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
 addCommandAlias(
