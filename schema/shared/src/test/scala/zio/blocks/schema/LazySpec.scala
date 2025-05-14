@@ -44,8 +44,8 @@ object LazySpec extends ZIOSpecDefault {
         assert(lazyValue.isEvaluated)(isTrue)
       },
       test("map") {
-        val lazyValue: Lazy[Int]   = Lazy(42)
-        val lazyMap: Lazy[String]  = lazyValue.map(_.toString)
+        val lazyValue: Lazy[Int]  = Lazy(42)
+        val lazyMap: Lazy[String] = lazyValue.map(_.toString)
         assert(lazyMap)(equalTo(Lazy("42")))
       },
       test("equals") {
@@ -55,10 +55,10 @@ object LazySpec extends ZIOSpecDefault {
         assert(Lazy(42).hashCode())(equalTo(Lazy(42).hashCode()))
       },
       test("zip") {
-        val lazyValue1: Lazy[Int]   = Lazy(42)
-        val lazyValue2: Lazy[Int]   = Lazy(43)
+        val lazyValue1: Lazy[Int]     = Lazy(42)
+        val lazyValue2: Lazy[Int]     = Lazy(43)
         val lazyZip: Lazy[(Int, Int)] = lazyValue1.zip(lazyValue2)
         assert(lazyZip)(equalTo(Lazy((42, 43))))
-      },
+      }
     )
 }
