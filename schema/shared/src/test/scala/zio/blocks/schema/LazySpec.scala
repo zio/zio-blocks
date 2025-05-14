@@ -10,6 +10,7 @@ object LazySpec extends ZIOSpecDefault {
       test("has consistent as") {
         assert(Lazy[Int](42).as[String]("42"))(equalTo(Lazy[String]("42")))
       },
+      // BOOOOMMM
       // test("catchAll") {
       //   val lazyValue: Lazy[Int]    = Lazy(throw new Exception("error"))
       //   val lazyCatchAll: Lazy[Int] = lazyValue.catchAll(_ => Lazy(42))
@@ -20,6 +21,21 @@ object LazySpec extends ZIOSpecDefault {
         // TODO test other values [Any]
         val lazyEnsuring: Lazy[Int] = lazyValue.ensuring(Lazy(42))
         assert(lazyEnsuring)(equalTo(Lazy(42)))
+      },
+      test("flatMap") {
+        val lazyValue: Lazy[Int]   = Lazy(42)
+        val lazyFlatMap: Lazy[Int] = lazyValue.flatMap(i => Lazy(i + 1))
+        assert(lazyFlatMap)(equalTo(Lazy(43)))
+      },
+      test("flatten") {
+        val lazyValue: Lazy[Lazy[Int]] = Lazy(Lazy(42))
+        val lazyFlatten: Lazy[Int]     = lazyValue.flatten
+        assert(lazyFlatten)(equalTo(Lazy(42)))
+      },
+      // TODO: test that force breaks graciously
+      test("force") {
+        val lazyValue: Lazy[Int] = Lazy(42)
+        assert(lazyValue.force)(equalTo(42))
       }
     )
 }
