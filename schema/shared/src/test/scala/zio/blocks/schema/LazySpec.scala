@@ -19,7 +19,7 @@ object LazySpec extends ZIOSpecDefault {
     ),
     suite("collectAll List")(
       test("should collect all Lazy values in a List") {
-        val lazyList = List(Lazy(1), Lazy(2), Lazy(3))
+        val lazyList      = List(Lazy(1), Lazy(2), Lazy(3))
         val collectedLazy = Lazy.collectAll(lazyList)
         val result        = collectedLazy.force
         assert(result)(equalTo(List(1, 2, 3)))
