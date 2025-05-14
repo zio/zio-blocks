@@ -18,8 +18,8 @@ object DynamicValueGen {
       Gen.long.map(PrimitiveValue.Long),
       Gen.short.map(PrimitiveValue.Short),
       Gen.char.map(PrimitiveValue.Char),
-      Gen.bigInt(BigInt(100), BigInt(1000)).map(PrimitiveValue.BigInt),
-      Gen.bigDecimal(BigDecimal(100), BigDecimal(1000)).map(PrimitiveValue.BigDecimal)
+      Gen.bigInt(BigInt.apply(100), BigInt.apply(1000)).map(PrimitiveValue.BigInt),
+      Gen.bigDecimal(BigDecimal.apply(100), BigDecimal.apply(1000)).map(PrimitiveValue.BigDecimal)
       // TODO: Add more here...
     )
 
