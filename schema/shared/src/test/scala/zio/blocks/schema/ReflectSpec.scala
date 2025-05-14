@@ -10,10 +10,12 @@ object ReflectSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("ReflectSpec")(
     suite("Reflect")(
       test("has consistent asDynamic and isDynamic") {
-        assert(Reflect.dynamic[Binding].asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
-        assert(Reflect.dynamic[Binding].isDynamic)(equalTo(true)) &&
-        assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
-        assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).isDynamic)(equalTo(true)) &&
+        assertTrue(
+          Reflect.dynamic[Binding].asDynamic.get == Reflect.dynamic[Binding],
+          Reflect.dynamic[Binding].isDynamic,
+          Reflect.Deferred(() => Reflect.dynamic[Binding]).asDynamic.get == Reflect.dynamic[Binding],
+          Reflect.Deferred(() => Reflect.dynamic[Binding]).isDynamic
+        ) &&
         assert(Reflect.int[Binding].asDynamic)(isNone) &&
         assert(Reflect.int[Binding].isDynamic)(equalTo(false)) &&
         assert(tuple4Reflect.asDynamic)(isNone) &&
