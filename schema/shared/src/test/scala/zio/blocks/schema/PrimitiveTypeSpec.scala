@@ -4,6 +4,7 @@ import zio.Scope
 import zio.blocks.schema.Validation.None
 import zio.test.Assertion.{equalTo, isLeft, isRight}
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert, assertTrue}
+import zio.test.TestAspect._
 
 import java.time.DayOfWeek
 
@@ -447,7 +448,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Currency")))
         )
-      }
+      } @@ jvmOnly // Only relevant when we have locale data, which is not available in Scala.js or Scala Native.
     )
   )
 }

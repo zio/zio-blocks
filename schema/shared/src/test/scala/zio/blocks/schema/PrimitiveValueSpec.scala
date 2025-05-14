@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.Scope
 import zio.test.Assertion._
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
+import zio.test.TestAspect._
 
 object PrimitiveValueSpec extends ZIOSpecDefault {
 
@@ -178,11 +179,11 @@ object PrimitiveValueSpec extends ZIOSpecDefault {
       test("has correct primitiveType") {
         val value = PrimitiveValue.Currency(java.util.Currency.getInstance("USD"))
         assert(value.primitiveType)(equalTo(PrimitiveType.Currency(Validation.None)))
-      }
+      } @@ jvmOnly
     ),
     suite("PrimitiveValue.UUID")(
       test("has correct primitiveType") {
-        val value = PrimitiveValue.UUID(java.util.UUID.randomUUID())
+        val value = PrimitiveValue.UUID(java.util.UUID.fromString("DAD945B7-64F4-4265-BB56-4557325F701C"))
         assert(value.primitiveType)(equalTo(PrimitiveType.UUID(Validation.None)))
       }
     )
