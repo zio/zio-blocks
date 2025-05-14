@@ -172,8 +172,10 @@ object SchemaSpec extends ZIOSpecDefault {
         }
 
         val record = `Record-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assertTrue(
+          record.constructor.usedRegisters == RegisterOffset(bytes = 1, ints = 1),
+          record.deconstructor.usedRegisters == RegisterOffset(bytes = 1, ints = 1)
+        ) &&
         assert(`Record-2`.b.focus.getDefaultValue)(isNone) &&
         assert(`Record-2`.i.focus.getDefaultValue.isDefined)(equalTo(true)) &&
         assert(`Record-2`.b.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&

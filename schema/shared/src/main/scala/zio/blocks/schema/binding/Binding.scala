@@ -33,7 +33,7 @@ sealed trait Binding[T, A] { self =>
 }
 
 object Binding {
-  case class Primitive[A](
+  final case class Primitive[A](
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Primitive, A] {
@@ -104,7 +104,7 @@ object Binding {
     val uuid: Primitive[java.util.UUID] = new Primitive[java.util.UUID]()
   }
 
-  case class Record[A](
+  final case class Record[A](
     constructor: Constructor[A],
     deconstructor: Deconstructor[A],
     defaultValue: Option[() => A] = None,
@@ -122,7 +122,7 @@ object Binding {
     def examples(value: A, values: A*): Record[A] = copy(examples = value :: values.toList)
   }
 
-  case class Variant[A](
+  final case class Variant[A](
     discriminator: Discriminator[A],
     matchers: Matchers[A],
     defaultValue: Option[() => A] = None,
@@ -133,7 +133,7 @@ object Binding {
     def examples(value: A, values: A*): Variant[A] = copy(examples = value :: values.toList)
   }
 
-  case class Seq[C[_], A](
+  final case class Seq[C[_], A](
     constructor: SeqConstructor[C],
     deconstructor: SeqDeconstructor[C],
     defaultValue: Option[() => C[A]] = None,
@@ -156,7 +156,7 @@ object Binding {
     def array[A]: Seq[Array, A] = Seq(SeqConstructor.arrayConstructor, SeqDeconstructor.arrayDeconstructor)
   }
 
-  case class Map[M[_, _], K, V](
+  final case class Map[M[_, _], K, V](
     constructor: MapConstructor[M],
     deconstructor: MapDeconstructor[M],
     defaultValue: Option[() => M[K, V]] = None,
@@ -171,7 +171,7 @@ object Binding {
     def map[K, V]: Map[Predef.Map, K, V] = Map(MapConstructor.map, MapDeconstructor.map)
   }
 
-  case class Dynamic(
+  final case class Dynamic(
     defaultValue: Option[() => DynamicValue] = None,
     examples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Binding[BindingType.Dynamic, DynamicValue] {
