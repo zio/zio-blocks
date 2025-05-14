@@ -71,7 +71,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def @@[Min, Max](aspect: SchemaAspect[Min, Max])(implicit ev1: Max <:< A, ev2: A <:< Min): Schema[A] =
     new Schema(reflect.aspect(aspect))
 
-  // def @@ (part: Optic[A, B], aspect: SchemaAspect[B, B]) = ???
+  def @@[B](part: Optic[A, B], aspect: SchemaAspect[B, B]) = new Schema(reflect.aspect(part, aspect))
 }
 
 object Schema extends SchemaVersionSpecific {
