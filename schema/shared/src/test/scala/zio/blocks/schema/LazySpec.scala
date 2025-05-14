@@ -36,6 +36,12 @@ object LazySpec extends ZIOSpecDefault {
       test("force") {
         val lazyValue: Lazy[Int] = Lazy(42)
         assert(lazyValue.force)(equalTo(42))
-      }
+      },
+      test("isEvaluated") {
+        val lazyValue: Lazy[Int] = Lazy(42)
+        assert(lazyValue.isEvaluated)(isFalse)
+        val _ = lazyValue.force
+        assert(lazyValue.isEvaluated)(isTrue)
+      },
     )
 }
