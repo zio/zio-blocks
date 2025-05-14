@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 // TODO: Implement equals and hashCode in a lawful way
 sealed trait DynamicValue {
-  final def toJson: String = json.toJson(this)
+  final def toJson: String = json.dynamicValueToJson(this)
 }
 
 object DynamicValue {
@@ -18,5 +18,5 @@ object DynamicValue {
 
   final case class Lazy(value: () => DynamicValue) extends DynamicValue
 
-  final def fromJson(rawJson: String): DynamicValue = json.fromJson(rawJson)
+  final def fromJson(rawJson: String): DynamicValue = json.dynamicValueFromJson(rawJson)
 }
