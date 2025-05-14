@@ -3,7 +3,9 @@ package zio.blocks.schema
 import zio.Scope
 import zio.blocks.schema.Validation.None
 import zio.test.Assertion.{equalTo, isLeft, isRight}
-import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
+import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert, assertTrue}
+
+import java.time.DayOfWeek
 
 object PrimitiveTypeSpec extends ZIOSpecDefault {
 
@@ -11,7 +13,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Unit")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Unit
-        assert(tpe.toDynamicValue(()))(equalTo(DynamicValue.Primitive(PrimitiveValue.Unit))) &&
+        assertTrue(tpe.toDynamicValue(()) == DynamicValue.Primitive(PrimitiveValue.Unit)) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Unit)))(isRight(equalTo(()))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Unit")))
@@ -21,7 +23,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Byte")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Byte(None)
-        assert(tpe.toDynamicValue(1))(equalTo(DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte)))) &&
+        assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte))))(isRight(equalTo(1: Byte))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Byte")))
@@ -31,7 +33,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Boolean")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Boolean(None)
-        assert(tpe.toDynamicValue(true))(equalTo(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))) &&
+        assertTrue(tpe.toDynamicValue(true) == DynamicValue.Primitive(PrimitiveValue.Boolean(true))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))(isRight(equalTo(true))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Boolean")))
@@ -41,7 +43,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Short")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Short(None)
-        assert(tpe.toDynamicValue(1))(equalTo(DynamicValue.Primitive(PrimitiveValue.Short(1)))) &&
+        assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Short(1))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1: Short))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Short")))
@@ -51,7 +53,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Char")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Char(None)
-        assert(tpe.toDynamicValue('1'))(equalTo(DynamicValue.Primitive(PrimitiveValue.Char('1')))) &&
+        assertTrue(tpe.toDynamicValue('1') == DynamicValue.Primitive(PrimitiveValue.Char('1'))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char('1'))))(isRight(equalTo('1'))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Char")))
@@ -61,7 +63,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Int")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Int(None)
-        assert(tpe.toDynamicValue(1))(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)))) &&
+        assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Int(1))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Int")))
@@ -71,7 +73,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Float")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Float(None)
-        assert(tpe.toDynamicValue(1))(equalTo(DynamicValue.Primitive(PrimitiveValue.Float(1.0f)))) &&
+        assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Float(1.0f))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1.0f))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Float")))
@@ -81,7 +83,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Long")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Long(None)
-        assert(tpe.toDynamicValue(1))(equalTo(DynamicValue.Primitive(PrimitiveValue.Long(1L)))) &&
+        assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Long(1L))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(1L))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Long")))
@@ -91,7 +93,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.Double")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Double(None)
-        assert(tpe.toDynamicValue(1))(equalTo(DynamicValue.Primitive(PrimitiveValue.Double(1.0)))) &&
+        assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Double(1.0))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1.0))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Double")))
@@ -101,7 +103,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.String")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.String(None)
-        assert(tpe.toDynamicValue("WWW"))(equalTo(DynamicValue.Primitive(PrimitiveValue.String("WWW")))) &&
+        assertTrue(tpe.toDynamicValue("WWW") == DynamicValue.Primitive(PrimitiveValue.String("WWW"))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("WWW"))))(isRight(equalTo("WWW"))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected String")))
@@ -111,7 +113,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.BigInt")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.BigInt(None)
-        assert(tpe.toDynamicValue(BigInt(1)))(equalTo(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1))))) &&
+        assertTrue(tpe.toDynamicValue(BigInt(1)) == DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))))(
           isRight(equalTo(BigInt(1)))
         ) &&
@@ -123,8 +125,8 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
     suite("PrimitiveType.BigDecimal")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.BigDecimal(None)
-        assert(tpe.toDynamicValue(BigDecimal(1.0)))(
-          equalTo(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0))))
+        assertTrue(
+          tpe.toDynamicValue(BigDecimal(1.0)) == DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0)))))(
           isRight(equalTo(BigDecimal(1.0)))
@@ -157,6 +159,20 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("123e4567-e89b-12d3-a456-426614174000")))
         )(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected UUID")))
+        )
+      }
+    ),
+    suite("PrimitiveType.DayOfWeek")(
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        val tpe = PrimitiveType.DayOfWeek(None)
+        assert(tpe.toDynamicValue(DayOfWeek.MONDAY))(
+          equalTo(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY)))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY))))(
+          isRight(equalTo(DayOfWeek.MONDAY))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
+          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected DayOfWeek")))
         )
       }
     )
