@@ -138,12 +138,24 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.UUID(None)
         assert(tpe.toDynamicValue(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")))(
-          equalTo(DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000"))))
+          equalTo(
+            DynamicValue.Primitive(
+              PrimitiveValue.UUID(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000"))
+            )
+          )
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.UUID(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")))))(
+        assert(
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(
+              PrimitiveValue.UUID(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000"))
+            )
+          )
+        )(
           isRight(equalTo(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("123e4567-e89b-12d3-a456-426614174000"))))(
+        assert(
+          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("123e4567-e89b-12d3-a456-426614174000")))
+        )(
           isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected UUID")))
         )
       }
