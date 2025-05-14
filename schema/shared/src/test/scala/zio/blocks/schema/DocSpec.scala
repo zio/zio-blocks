@@ -8,7 +8,7 @@ object DocSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("DocSpec")(
     suite("Doc.Empty")(
       test("has consistent equals and hashCode") {
-        assert(Doc.Empty)(equalTo(Doc.Empty)) &&
+        assertTrue(Doc.Empty == Doc.Empty) &&
         assert(Doc.Empty.hashCode)(equalTo(Doc.Empty.hashCode)) &&
         assert(Doc("text"))(not(equalTo(Doc.Empty))) &&
         assert(Doc("text") + Doc("text2"))(not(equalTo(Doc.Empty))) &&
