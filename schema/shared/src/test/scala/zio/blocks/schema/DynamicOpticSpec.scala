@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.Scope
 import zio.blocks.schema.binding.Binding
 import zio.test.Assertion.{equalTo, isNone, isSome}
-import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert, assertTrue}
+import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
 
 object DynamicOpticSpec extends ZIOSpecDefault {
   import DynamicOpticSpecTypes._
@@ -45,12 +45,10 @@ object DynamicOpticSpec extends ZIOSpecDefault {
         assert(DynamicOptic.mapValues.apply(Schema[A].reflect): Option[Any])(isNone)
       },
       test("toString returns a path") {
-        assertTrue(
-          A.x.toDynamic.toString == ".when[X]",
-          A.x(X.y).toDynamic.toString == ".when[X].y",
-          A.x(X.y)(Y.z).toDynamic.toString == ".when[X].y.z",
-          DynamicOptic.root.elements.mapKeys.mapValues.toString == ".each.eachKey.eachValue"
-        )
+        assert(A.x.toDynamic.toString)(equalTo(".when[X]")) &&
+        assert(A.x(X.y).toDynamic.toString)(equalTo(".when[X].y")) &&
+        assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo(".when[X].y.z")) &&
+        assert(DynamicOptic.root.elements.mapKeys.mapValues.toString)(equalTo(".each.eachKey.eachValue"))
       }
     )
   )
