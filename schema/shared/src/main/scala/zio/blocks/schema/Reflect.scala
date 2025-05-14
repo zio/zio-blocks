@@ -275,6 +275,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
     loop(this, 0).asInstanceOf[Option[Reflect[F, A]]]
   }
+
+  def aspect(aspect: SchemaAspect): Reflect.Bound[A] = aspect(self.asInstanceOf[Reflect.Bound[A]])
 }
 
 object Reflect {
