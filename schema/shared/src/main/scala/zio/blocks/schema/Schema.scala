@@ -34,6 +34,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[SchemaError, A] =
     getInstance(format).decode(decodeInput)
 
+  def diff(source: A, target: A): Patch[A] = Diff.diff(source, target)(this)
+
   def doc: Doc = reflect.doc
 
   def doc(value: String): Schema[A] = new Schema(reflect.doc(value))
