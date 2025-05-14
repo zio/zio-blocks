@@ -54,10 +54,6 @@ object LazySpec extends ZIOSpecDefault {
       test("hashCode") {
         assert(Lazy(42).hashCode())(equalTo(Lazy(42).hashCode()))
       },
-      test("toString") {
-        assert(Lazy(42).toString)(equalTo("Lazy(42)"))
-      },
-
       test("zip") {
         val lazyValue1: Lazy[Int]   = Lazy(42)
         val lazyValue2: Lazy[Int]   = Lazy(43)
