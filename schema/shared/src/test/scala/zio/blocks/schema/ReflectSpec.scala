@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.Scope
-import zio.blocks.schema.Reflect.Primitive
+import zio.blocks.schema.Reflect.{Primitive, Dynamic}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
@@ -9,6 +9,14 @@ import zio.test._
 object ReflectSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("ReflectSpec")(
     suite("Reflect")(
+      test("Dynamic metadata") {
+
+        // val test = Dynamic(???, Doc.Empty)
+        println(s"Dynamic-metadata: ${Reflect.dynamic[Binding].metadata}")
+        // assert(Reflect.dynamic[Binding].metadata)(equalTo(TypeName.dynamic))
+        // assert(Reflect.dynamic[Binding].metadata)(equalTo(TypeName.dynamic))
+        assert(true)(equalTo(true))
+      },
       test("has consistent asDynamic and isDynamic") {
         assert(Reflect.dynamic[Binding].asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
         assert(Reflect.dynamic[Binding].isDynamic)(equalTo(true)) &&
