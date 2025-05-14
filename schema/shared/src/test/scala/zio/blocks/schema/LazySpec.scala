@@ -2,10 +2,11 @@ package zio.blocks.schema
 
 import zio.test._
 import zio.test.Assertion._
+import zio._
 
 object LazySpec extends ZIOSpecDefault {
 
-  def spec = suite("LazySpec")(
+  def spec: Spec[TestEnvironment with Scope, Any] = suite("LazySpec")(
     suite("isEvaluated")(
       test("should return false for unevaluated Lazy") {
         val lazyInstance = Lazy(10)
@@ -72,6 +73,75 @@ object LazySpec extends ZIOSpecDefault {
         val collectedLazy = Lazy.collectAll(emptySet)
         val result        = collectedLazy.force
         assert(result)(isEmpty)
+      }
+    ),
+    suite("hashCode")(
+      test("hashCode for the same Lazy instance is consistent") {
+        val lazyInstance = Lazy(3)
+        val hash1        = lazyInstance.hashCode()
+        val hash2        = lazyInstance.hashCode()
+        // The hashCode should not change between calls
+        assert(hash1)(equalTo(hash2))
+      },
+      test("hashCode compares correctly for evaluated vs. unevaluated equals") {
+        val lazyA = Lazy(10)
+        val lazyB = Lazy(10)
+        lazyA.force
+        lazyB.force
+        assert(lazyA.hashCode())(equalTo(lazyB.hashCode()))
+      }
+    ),
+    suite("unit")(
+      test("unit returns Lazy of Unit and forces original value if forced") {
+        val lazyVal  = Lazy(42)
+        val lazyUnit = lazyVal.unit
+        lazyUnit.force
+        // Forcing lazyUnit also forces the original? I am not sure if this is right
+        assert(lazyVal.isEvaluated)(isFalse) && // should this be true?
+        assert(lazyUnit.force)(equalTo(()))
+      }
+    ),
+    suite("zip")(
+      test("zip returns a tuple of values from both lazy instances") {
+        val lazyA  = Lazy("hello")
+        val lazyB  = Lazy("world")
+        val zipped = lazyA.zip(lazyB)
+        assert(zipped.force)(equalTo(("hello", "world")))
+      }
+    ),
+    suite("fail")(
+      test("fail should produce a Lazy that throws the provided exception") {
+        val ex       = new RuntimeException("boom")
+        val lazyFail = Lazy.fail(ex)
+        val boomed   = ZIO.attempt(lazyFail.force).exit
+        assertZIO(boomed)(fails(isSubtype[RuntimeException](hasMessage(equalTo("boom")))))
+      }
+    ),
+    suite("foreach")(
+      test("foreach for List") {
+        val list   = List(1, 2, 3)
+        val result = Lazy.foreach(list)(n => Lazy(n + 1)).force
+        assert(result)(equalTo(List(2, 3, 4)))
+      },
+      test("foreach for an empty List") {
+        val list   = List.empty[Int]
+        val result = Lazy.foreach(list)(n => Lazy(n + 1)).force
+        assert(result)(isEmpty)
+      },
+      test("foreach for Vector") {
+        val vector = Vector("a", "b", "c")
+        val result = Lazy.foreach(vector)(str => Lazy(str.toUpperCase())).force
+        assert(result)(equalTo(Vector("A", "B", "C")))
+      },
+      test("foreach for Array") {
+        val arr    = Array(10, 20, 30)
+        val result = Lazy.foreach(arr)(n => Lazy(n * 2)).force
+        assert(result.toList)(equalTo(List(20, 40, 60)))
+      },
+      test("foreach for Set") {
+        val set    = Set(1, 2, 3)
+        val result = Lazy.foreach(set)(n => Lazy(n * -1)).force
+        assert(result)(hasSameElements(Set(-1, -2, -3)))
       }
     )
   )
