@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.DynamicValue.{Primitive, Record, Map, Sequence}
+import zio.blocks.schema.DynamicValue.{Primitive, Record}
 import zio.blocks.schema.json.DynamicValueGen._
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.test._
@@ -39,10 +39,10 @@ object DynamicValueJsonTest extends ZIOSpecDefault {
       // TODO: Equality for DynamicValue should be further improved
       assertTrue(dynamicValue.toJson == simpleRecord.toJson)
     },
-    test("sequence")(check(genAlphaNumericSequence) { seq: Sequence =>
+    test("sequence")(check(genAlphaNumericSequence) { seq =>
       assertTrue(seq == DynamicValue.fromJson(seq.toJson))
     }),
-    test("map")(check(genMap) { m: Map =>
+    test("map")(check(genMap) { m =>
       val mapJson  = m.toJson
       val mapJson2 = DynamicValue.fromJson(mapJson).toJson
       assertTrue(mapJson.nonEmpty && mapJson2.nonEmpty)
