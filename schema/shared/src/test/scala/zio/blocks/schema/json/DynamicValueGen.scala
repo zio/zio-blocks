@@ -42,6 +42,18 @@ object DynamicValueGen {
       .listOfBounded(0, 10)(genPrimitiveValue.map(Primitive(_)))
       .map(f => Sequence(f.toIndexedSeq))
 
+  def genAlphaNumericSequence: Gen[Any, Sequence] =
+    Gen
+      .listOfBounded(0, 10)(
+        Gen
+          .oneOf(
+            Gen.alphaNumericString.map(PrimitiveValue.String),
+            Gen.int.map(PrimitiveValue.Int)
+          )
+          .map(Primitive(_))
+      )
+      .map(f => Sequence(f.toIndexedSeq))
+
   def genMap: Gen[Any, DynamicValue.Map] =
     Gen
       .listOfBounded(0, 10) {
@@ -50,6 +62,7 @@ object DynamicValueGen {
           value <- genPrimitiveValue.map(Primitive(_))
         } yield key -> value
       }
+      .map(_.distinctBy(_._1.value))
       .map(list => DynamicValue.Map(list.toIndexedSeq))
 
   def genDynamicValue: Gen[Any, DynamicValue] =

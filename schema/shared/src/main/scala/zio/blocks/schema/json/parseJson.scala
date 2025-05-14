@@ -11,7 +11,9 @@ final case class JsonObject(fields: Map[String, Json]) extends Json
 private[json] final class Error(message: String) extends Exception(message)
 
 object parseJson extends (String => Either[Error, Json]) {
+  private final def rawError(message: String): Error            = new Error(message)
   private final def error[A](message: String): Either[Error, A] = Left(new Error(message))
+  private final def ok[A](value: A): Either[Error, A]           = Right(value)
 
   def apply(input: String): Either[Error, Json] = {
     val p = new Parser(input)
@@ -19,7 +21,7 @@ object parseJson extends (String => Either[Error, Json]) {
       case Right(json) =>
         p.skipWhitespace()
         if (p.hasNext) error(s"Unexpected character at position ${p.pos}: '${p.peek}'")
-        else Right(json)
+        else ok(json)
       case e => e
     }
   }
@@ -71,22 +73,46 @@ object parseJson extends (String => Either[Error, Json]) {
       }
       if (!hasNext || peek != '"') return error(s"Expected closing quote at position $pos")
       advance()
-      Right(sb.toString())
+      ok(sb.toString())
     }
 
     private def parseNumber(): Either[Error, JsonNumber] = {
       val start = pos
       if (peek == '-') advance()
-      while (hasNext && peek.isDigit) advance()
+      var hasDigits = false
+      while (hasNext && peek.isDigit) {
+        hasDigits = true
+        advance()
+      }
+
+      if (!hasDigits) return error(s"Invalid number format at position $start")
+
       if (hasNext && peek == '.') {
         advance()
-        while (hasNext && peek.isDigit) advance()
+        hasDigits = false
+        while (hasNext && peek.isDigit) {
+          hasDigits = true
+          advance()
+        }
+        if (!hasDigits) return error(s"Expected digits after decimal point at position ${pos - 1}")
       }
+
+      // Handle scientific notation
+      if (hasNext && (peek == 'e' || peek == 'E')) {
+        advance()
+        if (hasNext && (peek == '+' || peek == '-')) advance()
+        hasDigits = false
+        while (hasNext && peek.isDigit) {
+          hasDigits = true
+          advance()
+        }
+        if (!hasDigits) return error(s"Expected digits in exponent at position ${pos - 1}")
+      }
+
       val str = input.substring(start, pos)
-      str.toDoubleOption match {
-        case Some(n) => Right(JsonNumber(n))
-        case None    => error(s"Invalid number: $str")
-      }
+      str.toDoubleOption
+        .map(JsonNumber(_))
+        .toRight(rawError(s"Invalid number: $str"))
     }
 
     private def parseArray(): Either[Error, JsonArray] = {
@@ -109,10 +135,8 @@ object parseJson extends (String => Either[Error, Json]) {
           skipWhitespace()
         } else if (peek == ']') {
           advance()
-          return Right(JsonArray(items.toList))
-        } else {
-          return error(s"Expected ',' or ']' at position $pos")
-        }
+          return ok(JsonArray(items.toList))
+        } else return error(s"Expected ',' or ']' at position $pos")
       }
       error("Unreachable")
     }
@@ -123,10 +147,19 @@ object parseJson extends (String => Either[Error, Json]) {
       skipWhitespace()
       if (peek == '}') {
         advance()
-        return Right(JsonObject(Map.empty))
+        return ok(JsonObject(Map.empty))
       }
       val fields = scala.collection.mutable.Map.empty[String, Json]
+      var first  = true
       while (true) {
+        if (!first) {
+          if (peek != ',') return error(s"Expected ',' at position $pos")
+          advance()
+          skipWhitespace()
+        } else first = false
+
+        // Parse the key (must be a string)
+        if (peek != '"') return error(s"Expected string key at position $pos")
         parseString() match {
           case Right(key) =>
             skipWhitespace()
@@ -134,20 +167,20 @@ object parseJson extends (String => Either[Error, Json]) {
             advance()
             skipWhitespace()
             parseValue() match {
-              case Right(value) => fields += (key -> value)
-              case Left(err)    => return Left(err)
+              case Right(value) =>
+                // Check for duplicate keys and throw an error if found
+                if (fields.contains(key))
+                  return error(s"Duplicate key '$key' at position $pos")
+                fields += (key -> value)
+              case Left(err) => return Left(err)
             }
           case Left(err) => return Left(err)
         }
+
         skipWhitespace()
-        if (peek == ',') {
+        if (peek == '}') {
           advance()
-          skipWhitespace()
-        } else if (peek == '}') {
-          advance()
-          return Right(JsonObject(fields.toMap))
-        } else {
-          return error(s"Expected ',' or '}' at position $pos")
+          return ok(JsonObject(fields.toMap))
         }
       }
       error("Unreachable")
