@@ -3,6 +3,8 @@ import sbt.Keys.*
 import sbtbuildinfo.*
 import sbtbuildinfo.BuildInfoKeys.*
 import sbtcrossproject.CrossPlugin.autoImport.*
+import scoverage.ScoverageKeys.coverageEnabled
+import scoverage.ScoverageSbtPlugin
 
 import scala.scalanative.build.{GC, Mode}
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
@@ -98,10 +100,12 @@ object BuildHelper {
   )
 
   def nativeSettings: Seq[Def.Setting[?]] = Seq(
+    coverageEnabled := false,
     Test / fork := false
   )
 
   def jsSettings: Seq[Def.Setting[?]] = Seq(
+    coverageEnabled := false,
     Test / fork := false
   )
 }
