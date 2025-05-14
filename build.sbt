@@ -55,6 +55,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+  .disablePlugins(ScoverageSbtPlugin)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     scalacOptions ++=
