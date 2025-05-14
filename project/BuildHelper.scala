@@ -1,12 +1,9 @@
-import sbt.{Def, *}
 import sbt.Keys.*
+import sbt.{Def, *}
 import sbtbuildinfo.*
 import sbtbuildinfo.BuildInfoKeys.*
 import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys.coverageEnabled
-
-import scala.scalanative.build.{GC, Mode}
-import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
 
 object BuildHelper {
   val Scala213: String = "2.13.16"
