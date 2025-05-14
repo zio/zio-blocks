@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.DynamicValue.{Primitive, Record}
+import zio.blocks.schema.DynamicValue.{Primitive, Record, Map, Sequence}
 import zio.blocks.schema.json.DynamicValueGen._
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.test._
@@ -22,7 +22,7 @@ object DynamicValueJsonTest extends ZIOSpecDefault {
     test("variant")(check(genVariant)(verifyDynamicValueToJson)),
     test("sequence")(check(genSequence)(verifyDynamicValueToJson)),
     test("map")(check(genMap)(verifyDynamicValueToJson))
-  ) @@ TestAspect.exceptNative
+  )
 
   private def verifyDynamicValueToJson(dynamicValue: DynamicValue): TestResult = {
     val json = dynamicValue.toJson
@@ -36,10 +36,19 @@ object DynamicValueJsonTest extends ZIOSpecDefault {
     test("sample") {
       val jsonOfRecord = simpleRecord.toJson
       val dynamicValue = DynamicValue.fromJson(jsonOfRecord)
-      // TODO: Equality for DynamicValue should be improved
+      // TODO: Equality for DynamicValue should be further improved
       assertTrue(dynamicValue.toJson == simpleRecord.toJson)
-    }
+    },
+    test("sequence")(check(genAlphaNumericSequence) { seq: Sequence =>
+      assertTrue(seq == DynamicValue.fromJson(seq.toJson))
+    }),
+    test("map")(check(genMap) { m: Map =>
+      val mapJson  = m.toJson
+      val mapJson2 = DynamicValue.fromJson(mapJson).toJson
+      assertTrue(mapJson.nonEmpty && mapJson2.nonEmpty)
+    })
   )
 
-  def spec = suite("DynamicValueJsonTest")(toJsonSpec, fromJson)
+  def spec =
+    suite("DynamicValueJsonTest")(toJsonSpec, fromJson) @@ TestAspect.exceptNative
 }
