@@ -1,5 +1,4 @@
 package zio.blocks.schema
-import zio.blocks.schema.json.Serde
 
 // TODO: Implement equals and hashCode in a lawful way
 sealed trait DynamicValue {
@@ -19,5 +18,5 @@ object DynamicValue {
 
   final case class Lazy(value: () => DynamicValue) extends DynamicValue
 
-  def fromJson(json: String): DynamicValue = Serde.fromJson(json)
+  final def fromJson(rawJson: String): DynamicValue = json.fromJson(rawJson)
 }

@@ -2,7 +2,7 @@ package zio.blocks.schema.json
 
 object StringOps {
 
-  implicit class StringEx(val self: String) extends AnyVal {
+  implicit private[json] class StringEx(val self: String) extends AnyVal {
     final def escape: String = self.flatMap {
       case '"'          => "\\\""
       case '\\'         => "\\\\"

@@ -9,6 +9,4 @@ object Serde {
     override def getMessage: String =
       s"Unsupported primitive kind ${primitiveValue.getClass.getSimpleName} of value $primitiveValue"
   }
-
-  final def fromJson(json: String): DynamicValue = ???
 }
