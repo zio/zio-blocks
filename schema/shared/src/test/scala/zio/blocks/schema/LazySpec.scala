@@ -10,12 +10,6 @@ object LazySpec extends ZIOSpecDefault {
       test("has consistent as") {
         assert(Lazy[Int](42).as[String]("42"))(equalTo(Lazy[String]("42")))
       },
-      // BOOOOMMM
-      // test("catchAll") {
-      //   val lazyValue: Lazy[Int]    = Lazy(throw new Exception("error"))
-      //   val lazyCatchAll: Lazy[Int] = lazyValue.catchAll(_ => Lazy(42))
-      //   assert(Lazy(throw new Exception("error")).force)(equalTo(42))
-      // },
       test("ensuring") {
         val lazyValue: Lazy[Int] = Lazy(42)
         // TODO test other values [Any]
