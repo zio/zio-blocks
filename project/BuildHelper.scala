@@ -4,7 +4,6 @@ import sbtbuildinfo.*
 import sbtbuildinfo.BuildInfoKeys.*
 import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys.coverageEnabled
-import scoverage.ScoverageSbtPlugin
 
 import scala.scalanative.build.{GC, Mode}
 import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
