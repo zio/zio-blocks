@@ -290,7 +290,10 @@ private object SchemaVersionSpecific {
               val bytes                                                             = Expr(RegisterOffset.getBytes(registersUsed))
               val objects                                                           = Expr(RegisterOffset.getObjects(registersUsed))
               var offset                                                            = RegisterOffset.Zero
-              if (fTpe =:= TypeRepr.of[Boolean]) {
+              if (fTpe =:= TypeRepr.of[Unit]) {
+                const = (in, baseOffset) => '{ () }.asTerm
+                deconst = (out, baseOffset, in) => '{ () }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Boolean]) {
                 offset = RegisterOffset(booleans = 1)
                 const = (in, baseOffset) => '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
                 deconst = (out, baseOffset, in) =>

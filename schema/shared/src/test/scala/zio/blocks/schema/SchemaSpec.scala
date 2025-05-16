@@ -283,6 +283,44 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("derives schema for record with unit types") {
+        case class Record5(u: Unit, lu: List[Unit])
+
+        object Record5 extends CompanionOptics[Record5] {
+          implicit val schema: Schema[Record5] = Schema.derived
+          val u: Lens[Record5, Unit]           = field(_.u)
+          val lu: Traversal[Record5, Unit]     = field(_.lu).listValues
+        }
+
+        val schema = Schema.derived[Record5]
+        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
+        assert(Record5.u.focus.getDefaultValue)(isNone) &&
+        assert(Record5.lu.focus.getDefaultValue)(isNone) &&
+        assert(Record5.u.get(Record5((), Nil)))(equalTo(())) &&
+        assert(Record5.lu.fold[Int](Record5((), List((), (), ())))(0, (z, _) => z + 1))(equalTo(3)) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Record5](
+              reflect = Reflect.Record[Binding, Record5](
+                fields = Seq(
+                  Schema[Unit].reflect.asTerm("u"),
+                  Schema[List[Unit]].reflect.asTerm("lu")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record5"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Variant")(
