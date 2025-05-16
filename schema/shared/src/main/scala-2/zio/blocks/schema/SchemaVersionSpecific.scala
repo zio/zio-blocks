@@ -232,7 +232,10 @@ private object SchemaVersionSpecific {
           val bytes         = RegisterOffset.getBytes(registersUsed)
           val objects       = RegisterOffset.getObjects(registersUsed)
           var offset        = RegisterOffset.Zero
-          if (fTpe =:= typeOf[Boolean]) {
+          if (fTpe =:= typeOf[Unit]) {
+            const = q"()"
+            deconst = q"()"
+          } else if (fTpe =:= typeOf[Boolean]) {
             offset = RegisterOffset(booleans = 1)
             const = q"in.getBoolean(baseOffset, $bytes)"
             deconst = q"out.setBoolean(baseOffset, $bytes, in.$getter)"
