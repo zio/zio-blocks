@@ -116,7 +116,11 @@ private object SchemaVersionSpecific {
 
                       def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpe.typeSymbol.asClass.module}
                     },
-                    deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[$tpe]]
+                    deconstructor = new Deconstructor[$tpe] {
+                      def usedRegisters: RegisterOffset = 0
+
+                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = ()
+                    }
                   ),
                   modifiers = _root_.scala.Seq(..${modifiers(tpe)})
                 )

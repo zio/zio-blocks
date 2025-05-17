@@ -407,6 +407,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(`Variant-1`.case2.getOption(`Case-2`(0.2f)))(isSome(equalTo(`Case-2`(0.2f)))) &&
         assert(`Variant-1`.case1.replace(`Case-1`(0.1), `Case-1`(0.2)))(equalTo(`Case-1`(0.2))) &&
         assert(`Variant-1`.case2.replace(`Case-2`(0.2f), `Case-2`(0.3f)))(equalTo(`Case-2`(0.3f))) &&
+        assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-1`(0.1))))(
+          isRight(equalTo(`Case-1`(0.1)))
+        ) &&
+        assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-2`(0.2f))))(
+          isRight(equalTo(`Case-2`(0.2f)))
+        ) &&
         assert(`Variant-1`.schema)(
           equalTo(
             new Schema[Variant1](
@@ -474,6 +480,15 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant2OfString.value.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
         assert(Variant2OfString.value.replace(Value[String]("WWW"), Value[String]("VVV")))(
           equalTo(Value[String]("VVV"))
+        ) &&
+        assert(Variant2OfString.schema.fromDynamicValue(Variant2OfString.schema.toDynamicValue(MissingValue)))(
+          isRight(equalTo(MissingValue))
+        ) &&
+        assert(Variant2OfString.schema.fromDynamicValue(Variant2OfString.schema.toDynamicValue(NullValue)))(
+          isRight(equalTo(NullValue))
+        ) &&
+        assert(Variant2OfString.schema.fromDynamicValue(Variant2OfString.schema.toDynamicValue(Value[String]("WWW"))))(
+          isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(Variant2OfString.schema)(
           equalTo(
