@@ -26,12 +26,3 @@ abstract class Deconstructor[-A] { self =>
         self.deconstruct(out, baseOffset, f(in))
     }
 }
-
-object Deconstructor {
-  val unit: Deconstructor[Unit] =
-    new Deconstructor[Unit] {
-      def usedRegisters: RegisterOffset = RegisterOffset.Zero
-
-      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Unit): Unit = ()
-    }
-}
