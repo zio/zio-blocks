@@ -50,9 +50,19 @@ private object CompanionOptics {
   def caseOf[S: Type, A <: S: Type](schema: Expr[Schema[S]])(using q: Quotes): Expr[Prism[S, A]] = {
     import q.reflect._
 
+    def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
+
     val sTpe     = TypeRepr.of[A]
     var caseName = sTpe.typeSymbol.name.toString
-    if (sTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
+    if (sTpe.termSymbol.flags.is(Flags.Enum)) {
+      sTpe match {
+        case TermRef(_, n)                 => caseName = n
+        case TypeRef(_, n)                 => caseName = n
+        case AppliedType(TermRef(_, n), _) => caseName = n
+        case AppliedType(TypeRef(_, n), _) => caseName = n
+        case _                             => fail(s"Unsupported enum type: '${sTpe.show}', tree=$sTpe")
+      }
+    } else if (sTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
     '{
       import zio.blocks.schema._
       import zio.blocks.schema.binding._
