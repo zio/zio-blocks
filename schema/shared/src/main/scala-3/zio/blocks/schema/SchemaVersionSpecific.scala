@@ -153,7 +153,11 @@ private object SchemaVersionSpecific {
 
                   def construct(in: Registers, baseOffset: RegisterOffset): A = ${ Ref(tpe.termSymbol).asExprOf[A] }
                 },
-                deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[A]]
+                deconstructor = new Deconstructor[A] {
+                  def usedRegisters: RegisterOffset = 0
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ()
+                }
               ),
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
