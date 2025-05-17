@@ -126,6 +126,9 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(`Record-1`.`f-2`.get(`Record-1`()))(equalTo(0.0f)) &&
         assert(`Record-1`.`b-1`.replace(`Record-1`(), true))(equalTo(`Record-1`(`b-1` = true))) &&
         assert(`Record-1`.`f-2`.replace(`Record-1`(), 1.0f))(equalTo(`Record-1`(`b-1` = false, 1.0f))) &&
+        assert(`Record-1`.schema.fromDynamicValue(`Record-1`.schema.toDynamicValue(`Record-1`())))(
+          isRight(equalTo(`Record-1`()))
+        ) &&
         assert(`Record-1`.schema)(
           equalTo(
             new Schema[Record1](
@@ -184,6 +187,9 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(`Record-2`[`i-8`, `i-32`](3, 2))
         ) &&
         assert(`Record-2`.i.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3))(equalTo(`Record-2`[`i-8`, `i-32`](1, 3))) &&
+        assert(`Record-2`.schema.fromDynamicValue(`Record-2`.schema.toDynamicValue(`Record-2`[`i-8`, `i-32`](1, 2))))(
+          isRight(equalTo(`Record-2`[`i-8`, `i-32`](1, 2)))
+        ) &&
         assert(`Record-2`.schema)(
           equalTo(
             new Schema[Record2[`i-8`, `i-32`]](
@@ -206,7 +212,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
       test("derives schema for record with multi list constructor using a macro call") {
-        class Record3(val s: Short)(val l: Long)
+        case class Record3(val s: Short)(val l: Long)
 
         object Record3 extends CompanionOptics[Record3] {
           implicit val schema: Schema[Record3] = Schema.derived
@@ -223,6 +229,9 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record3.l.get(new Record3(1)(2L)))(equalTo(2L)) &&
         assert(Record3.s.replace(new Record3(1)(2L), 3: Short).s)(equalTo(3: Short)) &&
         assert(Record3.l.replace(new Record3(1)(2L), 3L).l)(equalTo(3L)) &&
+        assert(Record3.schema.fromDynamicValue(Record3.schema.toDynamicValue(new Record3(1)(2L))))(
+          isRight(equalTo(new Record3(1)(2L)))
+        ) &&
         assert(Record3.schema)(
           equalTo(
             new Schema[Record3](
@@ -245,30 +254,45 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with nested collections using a macro call") {
-        case class Record4(mx: Array[Array[Int]], rs: List[Set[Int]])
+        case class Record4(mx: Vector[Vector[Int]], rs: List[Set[Int]])
 
         object Record4 extends CompanionOptics[Record4] {
           implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = field((x: Record4) => x.mx).arrayValues.arrayValues
+          val mx: Traversal[Record4, Int]      = field((x: Record4) => x.mx).vectorValues.vectorValues
           val rs: Traversal[Record4, Int]      = field(_.rs).listValues.setValues
         }
 
-        val schema = Schema.derived[Record4]
-        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
+        val record = Record4.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
         assert(Record4.mx.focus.getDefaultValue)(isNone) &&
         assert(Record4.rs.focus.getDefaultValue)(isNone) &&
-        assert(Record4.mx.fold[Int](Record4(Array(Array(1, 2), Array(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
+        assert(Record4.mx.fold[Int](Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
         assert(Record4.rs.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
-        assert(Record4.mx.reduceOrFail(Record4(Array(Array(1, 2), Array(3, 4)), Nil))(_ + _))(isRight(equalTo(10))) &&
+        assert(Record4.mx.reduceOrFail(Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil))(_ + _))(
+          isRight(equalTo(10))
+        ) &&
         assert(Record4.rs.reduceOrFail(Record4(null, List(Set(1, 2), Set(3, 4))))(_ + _))(isRight(equalTo(10))) &&
-        assert(schema)(
+        assert(
+          Record4.schema.fromDynamicValue(
+            Record4.schema.toDynamicValue(Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil))
+          )
+        )(
+          isRight(equalTo(Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil)))
+        ) &&
+        assert(
+          Record4.schema.fromDynamicValue(
+            Record4.schema.toDynamicValue(Record4(Vector(Vector()), List(Set(1, 2), Set(3, 4))))
+          )
+        )(
+          isRight(equalTo(Record4(Vector(Vector()), List(Set(1, 2), Set(3, 4)))))
+        ) &&
+        assert(Record4.schema)(
           equalTo(
             new Schema[Record4](
               reflect = Reflect.Record[Binding, Record4](
                 fields = Seq(
-                  Schema[Array[Array[Int]]].reflect.asTerm("mx"),
+                  Schema[Vector[Vector[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
                 typeName = TypeName(
@@ -293,15 +317,17 @@ object SchemaSpec extends ZIOSpecDefault {
           val lu: Traversal[Record5, Unit]     = field(_.lu).listValues
         }
 
-        val schema = Schema.derived[Record5]
-        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]
+        val record = Record5.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
         assert(Record5.u.focus.getDefaultValue)(isNone) &&
         assert(Record5.lu.focus.getDefaultValue)(isNone) &&
         assert(Record5.u.get(Record5((), Nil)))(equalTo(())) &&
         assert(Record5.lu.fold[Int](Record5((), List((), (), ())))(0, (z, _) => z + 1))(equalTo(3)) &&
-        assert(schema)(
+        assert(Record5.schema.fromDynamicValue(Record5.schema.toDynamicValue(Record5((), List((), (), ())))))(
+          isRight(equalTo(Record5((), List((), (), ()))))
+        ) &&
+        assert(Record5.schema)(
           equalTo(
             new Schema[Record5](
               reflect = Reflect.Record[Binding, Record5](
@@ -544,6 +570,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(case2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
         assert(case1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
         assert(case2.replace(`Case-2`[Option](Some(0.2f)), `Case-2`[Option](None)))(equalTo(`Case-2`[Option](None))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(`Case-1`[Option](Some(0.1)))))(
+          isRight(equalTo(`Case-1`[Option](Some(0.1))))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(`Case-2`[Option](None))))(
+          isRight(equalTo(`Case-2`[Option](None)))
+        ) &&
         assert(schema)(
           equalTo(
             new Schema[`Variant-3`[Option]](
@@ -609,6 +641,18 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Schema[Array[Int]].fromDynamicValue(Schema[Array[Int]].toDynamicValue(Array(1, 2, 3))))(
+          isRight(equalTo(Array(1, 2, 3)))
+        ) &&
+        /* FIXME: throws java.lang.ClassCastException: class [Ljava.lang.Object; cannot be cast to class [[I
+        assert(
+          Schema[Array[Array[Int]]]
+            .fromDynamicValue(Schema[Array[Array[Int]]].toDynamicValue(Array(Array(1, 2), Array(3, 4))))
+            .map(_.map(_.toSeq).toSeq)
+        )(
+          isRight(equalTo(Seq(Seq(1, 2), Seq(3, 4))))
+        ) &&
+         */
         assert(Schema[List[Boolean]].fromDynamicValue(Schema[List[Boolean]].toDynamicValue(List(true, false))))(
           isRight(equalTo(List(true, false)))
         ) &&

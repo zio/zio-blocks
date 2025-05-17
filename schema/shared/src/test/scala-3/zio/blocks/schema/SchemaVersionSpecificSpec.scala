@@ -30,6 +30,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(Record1.d.get(Record1('1', 2.0)))(equalTo(2.0)) &&
         assert(Record1.c.replace(Record1('1', 2.0), '3'))(equalTo(Record1('3', 2.0))) &&
         assert(Record1.d.replace(Record1('1', 2.0), 3.0))(equalTo(Record1('1', 3.0))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Record1('1', 2.0))))(
+          isRight(equalTo(Record1('1', 2.0)))
+        ) &&
         assert(schema)(
           equalTo(
             new Schema[Record1](
@@ -70,6 +73,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(Variant1.case2.getOption(Case2(0.2f)))(isSome(equalTo(Case2(0.2f)))) &&
         assert(Variant1.case1.replace(Case1(0.1), Case1(0.2)))(equalTo(Case1(0.2))) &&
         assert(Variant1.case2.replace(Case2(0.2f), Case2(0.3f)))(equalTo(Case2(0.3f))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Case2(0.2f))))(isRight(equalTo(Case2(0.2f)))) &&
         assert(schema)(
           equalTo(
             new Schema[Variant1](
