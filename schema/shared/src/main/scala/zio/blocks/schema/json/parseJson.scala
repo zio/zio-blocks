@@ -38,7 +38,7 @@ object parseJson extends (String => Either[Error, Json]) {
       skipWhitespace()
       if (!hasNext) return error("Unexpected end of input")
       peek match {
-        case '"'                        => parseString().map(JsonString)
+        case '"'                        => parseString().map(JsonString.apply)
         case 't'                        => expect("true").map(_ => JsonBool(true))
         case 'f'                        => expect("false").map(_ => JsonBool(false))
         case 'n'                        => expect("null").map(_ => JsonNull)
