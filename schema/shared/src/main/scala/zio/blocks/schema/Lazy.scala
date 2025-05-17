@@ -63,11 +63,11 @@ sealed trait Lazy[+A] {
   final def map[B](f: A => B): Lazy[B] = flatMap(a => Lazy(f(a)))
 
   override final def equals(that: Any): Boolean = that match {
-    case other: Lazy[_] => force == other.force
-    case _              => false
+    case other: Lazy[A] @unchecked => other.force == force
+    case _                         => false
   }
 
-  override final def hashCode(): Int = force.hashCode()
+  override final def hashCode: Int = force.hashCode
 
   override final def toString: String =
     if (isEvaluated) s"Lazy($value)"
@@ -83,8 +83,7 @@ object Lazy {
     def erase: Cont[Any, Any] = this.asInstanceOf[Cont[Any, Any]]
   }
   private object Cont {
-    def apply[A, B](ifSuccess: A => Lazy[B]): Cont[A, B] =
-      Cont(ifSuccess, fail(_))
+    def apply[A, B](ifSuccess: A => Lazy[B]): Cont[A, B] = Cont(ifSuccess, fail)
   }
 
   private final case class Defer[+A](thunk: () => A)                        extends Lazy[A]
