@@ -8,18 +8,18 @@ object DynamicValueGen {
 
   private def genPrimitiveValue: Gen[Any, PrimitiveValue] =
     Gen.oneOf(
-      Gen.alphaNumericString.map(PrimitiveValue.String),
-      Gen.int.map(PrimitiveValue.Int),
-      Gen.boolean.map(PrimitiveValue.Boolean),
-      Gen.byte.map(PrimitiveValue.Byte),
-      Gen.boolean.map(PrimitiveValue.Boolean),
-      Gen.double.map(PrimitiveValue.Double),
-      Gen.float.map(PrimitiveValue.Float),
-      Gen.long.map(PrimitiveValue.Long),
-      Gen.short.map(PrimitiveValue.Short),
-      Gen.char.map(PrimitiveValue.Char),
-      Gen.bigInt(BigInt.apply(100), BigInt.apply(1000)).map(PrimitiveValue.BigInt),
-      Gen.bigDecimal(BigDecimal.apply(100), BigDecimal.apply(1000)).map(PrimitiveValue.BigDecimal)
+      Gen.alphaNumericString.map(PrimitiveValue.String.apply),
+      Gen.int.map(PrimitiveValue.Int.apply),
+      Gen.boolean.map(PrimitiveValue.Boolean.apply),
+      Gen.byte.map(PrimitiveValue.Byte.apply),
+      Gen.boolean.map(PrimitiveValue.Boolean.apply),
+      Gen.double.map(PrimitiveValue.Double.apply),
+      Gen.float.map(PrimitiveValue.Float.apply),
+      Gen.long.map(PrimitiveValue.Long.apply),
+      Gen.short.map(PrimitiveValue.Short.apply),
+      Gen.char.map(PrimitiveValue.Char.apply),
+      Gen.bigInt(BigInt.apply(100), BigInt.apply(1000)).map(PrimitiveValue.BigInt.apply),
+      Gen.bigDecimal(BigDecimal.apply(100), BigDecimal.apply(1000)).map(PrimitiveValue.BigDecimal.apply)
       // TODO: Add more here...
     )
 
@@ -47,8 +47,8 @@ object DynamicValueGen {
       .listOfBounded(0, 10)(
         Gen
           .oneOf(
-            Gen.alphaNumericString.map(PrimitiveValue.String),
-            Gen.int.map(PrimitiveValue.Int)
+            Gen.alphaNumericString.map(PrimitiveValue.String.apply),
+            Gen.int.map(PrimitiveValue.Int.apply)
           )
           .map(Primitive(_))
       )
