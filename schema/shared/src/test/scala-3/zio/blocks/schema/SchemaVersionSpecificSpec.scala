@@ -56,7 +56,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       }
     ),
     suite("Reflect.Variant")(
-      test("derives schema using 'derives' keyword") {
+      test("derives schema for sealed traits using 'derives' keyword") {
         sealed trait Variant1 derives Schema
 
         case class Case1(d: Double) extends Variant1 derives Schema
@@ -95,7 +95,60 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("derives schema for Scala 3 enums") {
+        val schema = Schema[Color]
+        assert(Color.red.getOption(Color.Red))(isSome(equalTo(Color.Red))) &&
+        assert(Color.mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(Color.Mix(0xffffff)))) &&
+        assert(Color.red.replace(Color.Red, Color.Red))(equalTo(Color.Red)) &&
+        assert(Color.mix.replace(Color.Mix(0xffffff), Color.Mix(0x000000)))(equalTo(Color.Mix(0x000000))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Red)))(isRight(equalTo(Color.Red))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Green)))(isRight(equalTo(Color.Green))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Blue)))(isRight(equalTo(Color.Blue))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Mix(0xff7733))))(
+          isRight(equalTo(Color.Mix(0xff7733)))
+        ) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Color](
+              reflect = Reflect.Variant[Binding, Color](
+                cases = Seq(
+                  Schema[Color.Red.type].reflect.asTerm("Red"),
+                  Schema[Color.Green.type].reflect.asTerm("Green"),
+                  Schema[Color.Blue.type].reflect.asTerm("Blue"),
+                  Schema[Color.Mix].reflect.asTerm("Mix")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Nil
+                  ),
+                  name = "Color"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
       }
     )
   )
+}
+
+enum Color(val rgb: Int):
+  case Red           extends Color(0xff0000)
+  case Green         extends Color(0x00ff00)
+  case Blue          extends Color(0x0000ff)
+  case Mix(mix: Int) extends Color(mix)
+
+object Color extends CompanionOptics[Color] {
+  implicit val redSchema: Schema[Color.Red.type]     = Schema.derived
+  implicit val greenSchema: Schema[Color.Green.type] = Schema.derived
+  implicit val blueSchema: Schema[Color.Blue.type]   = Schema.derived
+  implicit val mixSchema: Schema[Color.Mix]          = Schema.derived
+  implicit val schema: Schema[Color]                 = Schema.derived
+  val red: Prism[Color, Color.Red.type]              = caseOf
+  val green: Prism[Color, Color.Green.type]          = caseOf
+  val blue: Prism[Color, Color.Blue.type]            = caseOf
+  val mix: Prism[Color, Color.Mix]                   = caseOf
 }
