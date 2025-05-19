@@ -143,6 +143,32 @@ object LazySpec extends ZIOSpecDefault {
         val result = Lazy.foreach(set)(n => Lazy(n * -1)).force
         assert(result)(hasSameElements(Set(-1, -2, -3)))
       }
+    ),
+    suite("others")(
+      test("has consistent as") {
+        assert(Lazy[Int](42).as[String]("42"))(equalTo(Lazy[String]("42")))
+      },
+      test("ensuring") {
+        val lazyValue: Lazy[Int] = Lazy(42)
+        // TODO test other values [Any]
+        val lazyEnsuring: Lazy[Int] = lazyValue.ensuring(Lazy(42))
+        assert(lazyEnsuring)(equalTo(Lazy(42)))
+      },
+      test("flatMap") {
+        val lazyValue: Lazy[Int]   = Lazy(42)
+        val lazyFlatMap: Lazy[Int] = lazyValue.flatMap(i => Lazy(i + 1))
+        assert(lazyFlatMap)(equalTo(Lazy(43)))
+      },
+      test("flatten") {
+        val lazyValue: Lazy[Lazy[Int]] = Lazy(Lazy(42))
+        val lazyFlatten: Lazy[Int]     = lazyValue.flatten
+        assert(lazyFlatten)(equalTo(Lazy(42)))
+      },
+      test("map") {
+        val lazyValue: Lazy[Int]  = Lazy(42)
+        val lazyMap: Lazy[String] = lazyValue.map(_.toString)
+        assert(lazyMap)(equalTo(Lazy("42")))
+      }
     )
-  )
+  )  
 }

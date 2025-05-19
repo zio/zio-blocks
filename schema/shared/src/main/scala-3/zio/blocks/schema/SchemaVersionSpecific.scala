@@ -118,11 +118,19 @@ private object SchemaVersionSpecific {
     def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
       var packages = List.empty[String]
       var values   = List.empty[String]
-      val name     = tpe.typeSymbol.name.toString
+      var name     = tpe.typeSymbol.name.toString
       var owner    = tpe.typeSymbol.owner
       while (owner != defn.RootClass) {
         val ownerName = owner.name.toString
-        if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+        if (tpe.termSymbol.flags.is(Flags.Enum)) {
+          tpe match {
+            case TermRef(_, n)                 => name = n
+            case TypeRef(_, n)                 => name = n
+            case AppliedType(TermRef(_, n), _) => name = n
+            case AppliedType(TypeRef(_, n), _) => name = n
+            case _                             => fail(s"Unsupported enum type: '${tpe.show}', tree=$tpe")
+          }
+        } else if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
         else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
         else values = ownerName :: values
         owner = owner.owner
@@ -153,7 +161,11 @@ private object SchemaVersionSpecific {
 
                   def construct(in: Registers, baseOffset: RegisterOffset): A = ${ Ref(tpe.termSymbol).asExprOf[A] }
                 },
-                deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[A]]
+                deconstructor = new Deconstructor[A] {
+                  def usedRegisters: RegisterOffset = 0
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ()
+                }
               ),
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
@@ -176,6 +188,8 @@ private object SchemaVersionSpecific {
               var termName = sName
               if (termName.endsWith("$")) termName = termName.substring(0, termName.length - 1)
               if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
+              val namePrefix = name + "."
+              if (termName.startsWith(namePrefix)) termName = termName.substring(namePrefix.length)
               val usingExpr = Expr.summon[Schema[st]].getOrElse {
                 fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
               }
@@ -290,7 +304,10 @@ private object SchemaVersionSpecific {
               val bytes                                                             = Expr(RegisterOffset.getBytes(registersUsed))
               val objects                                                           = Expr(RegisterOffset.getObjects(registersUsed))
               var offset                                                            = RegisterOffset.Zero
-              if (fTpe =:= TypeRepr.of[Boolean]) {
+              if (fTpe =:= TypeRepr.of[Unit]) {
+                const = (in, baseOffset) => '{ () }.asTerm
+                deconst = (out, baseOffset, in) => '{ () }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Boolean]) {
                 offset = RegisterOffset(booleans = 1)
                 const = (in, baseOffset) => '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
                 deconst = (out, baseOffset, in) =>

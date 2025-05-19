@@ -9,6 +9,8 @@ import scala.collection.immutable.ArraySeq
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
 
+  final type Structure = A
+
   type NodeBinding <: BindingType
   type ModifierType <: Modifier
 

@@ -116,7 +116,11 @@ private object SchemaVersionSpecific {
 
                       def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpe.typeSymbol.asClass.module}
                     },
-                    deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[$tpe]]
+                    deconstructor = new Deconstructor[$tpe] {
+                      def usedRegisters: RegisterOffset = 0
+
+                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = ()
+                    }
                   ),
                   modifiers = _root_.scala.Seq(..${modifiers(tpe)})
                 )
@@ -232,7 +236,10 @@ private object SchemaVersionSpecific {
           val bytes         = RegisterOffset.getBytes(registersUsed)
           val objects       = RegisterOffset.getObjects(registersUsed)
           var offset        = RegisterOffset.Zero
-          if (fTpe =:= typeOf[Boolean]) {
+          if (fTpe =:= typeOf[Unit]) {
+            const = q"()"
+            deconst = q"()"
+          } else if (fTpe =:= typeOf[Boolean]) {
             offset = RegisterOffset(booleans = 1)
             const = q"in.getBoolean(baseOffset, $bytes)"
             deconst = q"out.setBoolean(baseOffset, $bytes, in.$getter)"

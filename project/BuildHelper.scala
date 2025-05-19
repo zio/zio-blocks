@@ -1,15 +1,13 @@
-import sbt.{Def, *}
 import sbt.Keys.*
+import sbt.{Def, *}
 import sbtbuildinfo.*
 import sbtbuildinfo.BuildInfoKeys.*
 import sbtcrossproject.CrossPlugin.autoImport.*
-
-import scala.scalanative.build.{GC, Mode}
-import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
+import scoverage.ScoverageKeys.coverageEnabled
 
 object BuildHelper {
   val Scala213: String = "2.13.16"
-  val Scala3: String   = "3.3.5"
+  val Scala3: String   = "3.3.6"
 
   val JdkReleaseVersion: String = "11"
 
@@ -97,11 +95,7 @@ object BuildHelper {
       )
   )
 
-  def nativeSettings: Seq[Def.Setting[?]] = Seq(
-    Test / fork := false
-  )
+  def nativeSettings: Seq[Def.Setting[?]] = Seq(coverageEnabled := false, Test / fork := false)
 
-  def jsSettings: Seq[Def.Setting[?]] = Seq(
-    Test / fork := false
-  )
+  def jsSettings: Seq[Def.Setting[?]] = Seq(coverageEnabled := false, Test / fork := false)
 }
