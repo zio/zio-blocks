@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 trait SchemaAspect[-Min, +Max] {
 
-  def apply[A](reflect: Reflect.Bound[A]): Reflect.Bound[A]
+  def apply[A >: Max <: Min](reflect: Reflect.Bound[A]): Reflect.Bound[A]
 }
 
 object SchemaAspect {
