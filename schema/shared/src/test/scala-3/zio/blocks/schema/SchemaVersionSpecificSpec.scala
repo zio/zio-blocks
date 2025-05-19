@@ -132,6 +132,37 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("derives schema for type recursive Scala 3 enums") {
+        implicit val appleSchema  = Schema.derived[FruitEnum.Apple]
+        implicit val bananaSchema = Schema.derived[FruitEnum.Banana]
+        val schema                = Schema.derived[FruitEnum[_]]
+        assert(schema.fromDynamicValue(schema.toDynamicValue(FruitEnum.Apple("red"))))(
+          isRight(equalTo(FruitEnum.Apple("red")))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(FruitEnum.Banana(0.5))))(
+          isRight(equalTo(FruitEnum.Banana(0.5)))
+        ) &&
+        assert(schema)(
+          equalTo(
+            new Schema[FruitEnum[_]](
+              reflect = Reflect.Variant[Binding, FruitEnum[_]](
+                cases = Seq(
+                  Schema[FruitEnum.Apple].reflect.asTerm("Apple"),
+                  Schema[FruitEnum.Banana].reflect.asTerm("Banana")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Nil
+                  ),
+                  name = "FruitEnum"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
       }
     )
   )
@@ -159,3 +190,7 @@ object Color extends CompanionOptics[Color] {
   val mix: Prism[Color, Color.Mix]          = caseOf
   val mix_mix: Optional[Color, Int]         = mix(Mix.mix)
 }
+
+enum FruitEnum[T <: FruitEnum[T]]:
+  case Apple(color: String)      extends FruitEnum[Apple]
+  case Banana(curvature: Double) extends FruitEnum[Banana]
