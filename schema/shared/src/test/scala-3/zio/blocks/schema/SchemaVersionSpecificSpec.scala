@@ -18,7 +18,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           val d = field(_.d)
         }
 
-        val schema = summon[Schema[Record1]]
+        val schema = Schema[Record1]
         val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
         val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Char]]
         val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Double]]
@@ -68,7 +68,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           val case2 = caseOf[Case2]
         }
 
-        val schema = Schema.derived[Variant1]
+        val schema = Schema[Variant1]
         assert(Variant1.case1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
         assert(Variant1.case2.getOption(Case2(0.2f)))(isSome(equalTo(Case2(0.2f)))) &&
         assert(Variant1.case1.replace(Case1(0.1), Case1(0.2)))(equalTo(Case1(0.2))) &&
@@ -96,12 +96,14 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("derives schema for Scala 3 enums") {
+      test("derives schema for Scala 3 enums using 'derives' keyword") {
         val schema = Schema[Color]
         assert(Color.red.getOption(Color.Red))(isSome(equalTo(Color.Red))) &&
         assert(Color.mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(Color.Mix(0xffffff)))) &&
+        assert(Color.mix_mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(0xffffff))) &&
         assert(Color.red.replace(Color.Red, Color.Red))(equalTo(Color.Red)) &&
         assert(Color.mix.replace(Color.Mix(0xffffff), Color.Mix(0x000000)))(equalTo(Color.Mix(0x000000))) &&
+        assert(Color.mix_mix.replace(Color.Mix(0xffffff), 0x000000))(equalTo(Color.Mix(0x000000))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Red)))(isRight(equalTo(Color.Red))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Green)))(isRight(equalTo(Color.Green))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Blue)))(isRight(equalTo(Color.Blue))) &&
@@ -135,7 +137,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   )
 }
 
-enum Color(val rgb: Int):
+enum Color(val rgb: Int) derives Schema:
   case Red           extends Color(0xff0000)
   case Green         extends Color(0x00ff00)
   case Blue          extends Color(0x0000ff)
@@ -145,10 +147,15 @@ object Color extends CompanionOptics[Color] {
   implicit val redSchema: Schema[Color.Red.type]     = Schema.derived
   implicit val greenSchema: Schema[Color.Green.type] = Schema.derived
   implicit val blueSchema: Schema[Color.Blue.type]   = Schema.derived
-  implicit val mixSchema: Schema[Color.Mix]          = Schema.derived
-  implicit val schema: Schema[Color]                 = Schema.derived
-  val red: Prism[Color, Color.Red.type]              = caseOf
-  val green: Prism[Color, Color.Green.type]          = caseOf
-  val blue: Prism[Color, Color.Blue.type]            = caseOf
-  val mix: Prism[Color, Color.Mix]                   = caseOf
+
+  object Mix extends CompanionOptics[Color.Mix] {
+    implicit val schema: Schema[Color.Mix] = Schema.derived
+    val mix: Lens[Color.Mix, Int]          = field(_.mix)
+  }
+
+  val red: Prism[Color, Color.Red.type]     = caseOf
+  val green: Prism[Color, Color.Green.type] = caseOf
+  val blue: Prism[Color, Color.Blue.type]   = caseOf
+  val mix: Prism[Color, Color.Mix]          = caseOf
+  val mix_mix: Optional[Color, Int]         = mix(Mix.mix)
 }
