@@ -124,11 +124,8 @@ private object SchemaVersionSpecific {
         val ownerName = owner.name.toString
         if (tpe.termSymbol.flags.is(Flags.Enum)) {
           tpe match {
-            case TermRef(_, n)                 => name = n
-            case TypeRef(_, n)                 => name = n
-            case AppliedType(TermRef(_, n), _) => name = n
-            case AppliedType(TypeRef(_, n), _) => name = n
-            case _                             => fail(s"Unsupported enum type: '${tpe.show}', tree=$tpe")
+            case TermRef(_, n) => name = n
+            case _             => fail(s"Unsupported enum type: '${tpe.show}', tree=$tpe")
           }
         } else if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
         else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values

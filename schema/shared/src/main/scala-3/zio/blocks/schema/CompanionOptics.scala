@@ -56,11 +56,8 @@ private object CompanionOptics {
     var caseName = sTpe.typeSymbol.name.toString
     if (sTpe.termSymbol.flags.is(Flags.Enum)) {
       sTpe match {
-        case TermRef(_, n)                 => caseName = n
-        case TypeRef(_, n)                 => caseName = n
-        case AppliedType(TermRef(_, n), _) => caseName = n
-        case AppliedType(TypeRef(_, n), _) => caseName = n
-        case _                             => fail(s"Unsupported enum type: '${sTpe.show}', tree=$sTpe")
+        case TermRef(_, n) => caseName = n
+        case _             => fail(s"Unsupported enum type: '${sTpe.show}', tree=$sTpe")
       }
     } else if (sTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
     '{
