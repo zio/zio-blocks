@@ -68,7 +68,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def updated[B](optic: Optic[A, B])(f: Reflect.Bound[B] => Reflect.Bound[B]): Option[Schema[A]] =
     reflect.updated(optic)(f).map(Schema(_))
 
-  def @@[Min, Max](aspect: SchemaAspect[Min, Max])(implicit ev1: Max <:< A, ev2: A <:< Min): Schema[A] =
+  def @@[Min >: A, Max <: A](aspect: SchemaAspect[Min, Max]): Schema[A] =
     new Schema(reflect.aspect(aspect))
 
   def @@[B](part: Optic[A, B], aspect: SchemaAspect[B, B]) = new Schema(reflect.aspect(part, aspect))
