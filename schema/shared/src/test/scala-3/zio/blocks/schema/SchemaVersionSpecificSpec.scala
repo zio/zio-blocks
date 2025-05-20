@@ -164,32 +164,60 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("derives schema for higher-kinded Scala 3 enums") {
-        import OptionSchemas._
-
-        implicit val case1Schema = Schema.derived[GenEnum.Case1[Option]]
-        implicit val case2Schema = Schema.derived[GenEnum.Case2[Option]]
-        val schema               = Schema.derived[GenEnum[Option]]
-        assert(schema.fromDynamicValue(schema.toDynamicValue(GenEnum.Case1(Some(1)))))(
-          isRight(equalTo(GenEnum.Case1(Some(1))))
-        ) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(GenEnum.Case2(Some("WWW")))))(
-          isRight(equalTo(GenEnum.Case2(Some("WWW"))))
+      test("derives schema for recursive generic Scala 3 enums") {
+        implicit val endSchema       = Schema.derived[LinkedList.End.type]
+        implicit lazy val nodeSchema = Schema.derived[LinkedList.Node[Int]]
+        implicit lazy val schema     = Schema.derived[LinkedList[Int]]
+        assert(schema.fromDynamicValue(schema.toDynamicValue(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End)))))(
+          isRight(equalTo(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End))))
         ) &&
         assert(schema)(
           equalTo(
-            new Schema[GenEnum[Option]](
-              reflect = Reflect.Variant[Binding, GenEnum[Option]](
+            new Schema[LinkedList[Int]](
+              reflect = Reflect.Variant[Binding, LinkedList[Int]](
                 cases = Seq(
-                  Schema[GenEnum.Case1[Option]].reflect.asTerm("Case1"),
-                  Schema[GenEnum.Case2[Option]].reflect.asTerm("Case2")
+                  Schema[LinkedList.End.type].reflect.asTerm("End"),
+                  Schema[LinkedList.Node[Int]].reflect.asTerm("Node")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
                     packages = Seq("zio", "blocks", "schema"),
                     values = Nil
                   ),
-                  name = "GenEnum"
+                  name = "LinkedList"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for higher-kinded Scala 3 enums") {
+        import OptionSchemas._
+
+        implicit val case1Schema = Schema.derived[HKEnum.Case1[Option]]
+        implicit val case2Schema = Schema.derived[HKEnum.Case2[Option]]
+        val schema               = Schema.derived[HKEnum[Option]]
+        assert(schema.fromDynamicValue(schema.toDynamicValue(HKEnum.Case1(Some(1)))))(
+          isRight(equalTo(HKEnum.Case1(Some(1))))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(HKEnum.Case2(Some("WWW")))))(
+          isRight(equalTo(HKEnum.Case2(Some("WWW"))))
+        ) &&
+        assert(schema)(
+          equalTo(
+            new Schema[HKEnum[Option]](
+              reflect = Reflect.Variant[Binding, HKEnum[Option]](
+                cases = Seq(
+                  Schema[HKEnum.Case1[Option]].reflect.asTerm("Case1"),
+                  Schema[HKEnum.Case2[Option]].reflect.asTerm("Case2")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Nil
+                  ),
+                  name = "HKEnum"
                 ),
                 variantBinding = null
               )
@@ -228,6 +256,10 @@ enum FruitEnum[T <: FruitEnum[T]]:
   case Apple(color: String)      extends FruitEnum[Apple]
   case Banana(curvature: Double) extends FruitEnum[Banana]
 
-enum GenEnum[A[_]]:
-  case Case1[A[_]](a: A[Int])    extends GenEnum[A]
-  case Case2[A[_]](a: A[String]) extends GenEnum[A]
+enum LinkedList[+T]:
+  case End
+  case Node(value: T, @Modifier.deferred next: LinkedList[T])
+
+enum HKEnum[A[_]]:
+  case Case1[A[_]](a: A[Int])    extends HKEnum[A]
+  case Case2[A[_]](a: A[String]) extends HKEnum[A]
