@@ -552,11 +552,8 @@ object SchemaSpec extends ZIOSpecDefault {
         case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
 
         object Variant3OfOption extends CompanionOptics[`Variant-3`[Option]] {
-          implicit val schemaNone: Schema[None.type]              = Schema.derived
-          implicit val schemaSomeFloat: Schema[Some[Float]]       = Schema.derived
-          implicit val schemaOptionFloat: Schema[Option[Float]]   = Schema.derived
-          implicit val schemaSomeDouble: Schema[Some[Double]]     = Schema.derived
-          implicit val schemaOptionDouble: Schema[Option[Double]] = Schema.derived
+          import OptionSchemas._
+
           implicit val schemaCase1: Schema[`Case-1`[Option]]      = Schema.derived
           implicit val schemaCase2: Schema[`Case-2`[Option]]      = Schema.derived
           implicit val schema: Schema[`Variant-3`[Option]]        = Schema.derived

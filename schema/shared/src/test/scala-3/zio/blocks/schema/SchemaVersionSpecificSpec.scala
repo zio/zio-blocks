@@ -164,15 +164,12 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("derives schema for generic Scala 3 enums") {
-        implicit val noneSchema         = Schema.derived[None.type]
-        implicit val intSomeSchema      = Schema.derived[Some[Int]]
-        implicit val stringSomeSchema   = Schema.derived[Some[String]]
-        implicit val intOptionSchema    = Schema.derived[Option[Int]]
-        implicit val stringOptionSchema = Schema.derived[Option[String]]
-        implicit val case1Schema        = Schema.derived[GenEnum.Case1[Option]]
-        implicit val case2Schema        = Schema.derived[GenEnum.Case2[Option]]
-        val schema                      = Schema.derived[GenEnum[Option]]
+      test("derives schema for higher-kinded Scala 3 enums") {
+        import OptionSchemas._
+
+        implicit val case1Schema = Schema.derived[GenEnum.Case1[Option]]
+        implicit val case2Schema = Schema.derived[GenEnum.Case2[Option]]
+        val schema               = Schema.derived[GenEnum[Option]]
         assert(schema.fromDynamicValue(schema.toDynamicValue(GenEnum.Case1(Some(1)))))(
           isRight(equalTo(GenEnum.Case1(Some(1))))
         ) &&
