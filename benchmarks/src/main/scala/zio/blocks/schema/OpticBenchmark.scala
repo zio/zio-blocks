@@ -3,17 +3,8 @@ package zio.blocks.schema
 import com.softwaremill.quicklens._
 import monocle.{Focus, PLens, POptional}
 import monocle.macros.GenPrism
-import org.openjdk.jmh.annotations.{Scope => JScope, _}
+import org.openjdk.jmh.annotations._
 import zio.blocks.schema.binding.Binding
-import java.util.concurrent.TimeUnit
-
-@State(JScope.Thread)
-@BenchmarkMode(Array(Mode.Throughput))
-@OutputTimeUnit(TimeUnit.SECONDS)
-@Warmup(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.SECONDS)
-@Fork(value = 1)
-abstract class BaseBenchmark
 
 class LensGetBenchmark extends BaseBenchmark {
   import LensDomain._
