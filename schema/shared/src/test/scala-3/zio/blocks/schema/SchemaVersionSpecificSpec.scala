@@ -163,6 +163,42 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("derives schema for generic Scala 3 enums") {
+        implicit val noneSchema         = Schema.derived[None.type]
+        implicit val intSomeSchema      = Schema.derived[Some[Int]]
+        implicit val stringSomeSchema   = Schema.derived[Some[String]]
+        implicit val intOptionSchema    = Schema.derived[Option[Int]]
+        implicit val stringOptionSchema = Schema.derived[Option[String]]
+        implicit val case1Schema        = Schema.derived[GenEnum.Case1[Option]]
+        implicit val case2Schema        = Schema.derived[GenEnum.Case2[Option]]
+        val schema                      = Schema.derived[GenEnum[Option]]
+        assert(schema.fromDynamicValue(schema.toDynamicValue(GenEnum.Case1(Some(1)))))(
+          isRight(equalTo(GenEnum.Case1(Some(1))))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(GenEnum.Case2(Some("WWW")))))(
+          isRight(equalTo(GenEnum.Case2(Some("WWW"))))
+        ) &&
+        assert(schema)(
+          equalTo(
+            new Schema[GenEnum[Option]](
+              reflect = Reflect.Variant[Binding, GenEnum[Option]](
+                cases = Seq(
+                  Schema[GenEnum.Case1[Option]].reflect.asTerm("Case1"),
+                  Schema[GenEnum.Case2[Option]].reflect.asTerm("Case2")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Nil
+                  ),
+                  name = "GenEnum"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
       }
     )
   )
@@ -194,3 +230,7 @@ object Color extends CompanionOptics[Color] {
 enum FruitEnum[T <: FruitEnum[T]]:
   case Apple(color: String)      extends FruitEnum[Apple]
   case Banana(curvature: Double) extends FruitEnum[Banana]
+
+enum GenEnum[A[_]]:
+  case Case1[A[_]](a: A[Int])    extends GenEnum[A]
+  case Case2[A[_]](a: A[String]) extends GenEnum[A]
