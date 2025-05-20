@@ -378,37 +378,32 @@ object Reflect {
 
           val fieldValues = this.fieldValues.clone
           val constructor = this.constructor
-          val pool        = RegisterPool.get()
-          val registers   = pool.acquire()
-          try {
-            fields.foreach { case (name, value) =>
-              val idx = fieldIndexByName.getOrDefault(name, -1)
-              if (idx >= 0) {
-                val fieldValue = fieldValues(idx)
-                if (fieldValue ne null) {
-                  fieldValues(idx) = null
-                  fieldValue.fromDynamicValue(value) match {
-                    case Right(value) =>
-                      this.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
-                    case Left(error) =>
-                      addError(error)
-                  }
-                } else addError(SchemaError.duplicatedField(DynamicOptic.root, name, s"Duplicated field $name"))
-              }
+          val registers   = Registers(constructor.usedRegisters)
+          fields.foreach { case (name, value) =>
+            val idx = fieldIndexByName.getOrDefault(name, -1)
+            if (idx >= 0) {
+              val fieldValue = fieldValues(idx)
+              if (fieldValue ne null) {
+                fieldValues(idx) = null
+                fieldValue.fromDynamicValue(value) match {
+                  case Right(value) =>
+                    this.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
+                  case Left(error) =>
+                    addError(error)
+                }
+              } else addError(SchemaError.duplicatedField(DynamicOptic.root, name, s"Duplicated field $name"))
             }
-            var idx = 0
-            while (idx < this.fields.length) {
-              if (fieldValues(idx) ne null) {
-                val name = this.fields(idx).name
-                addError(SchemaError.missingField(DynamicOptic.root, name, s"Missing field $name"))
-              }
-              idx += 1
-            }
-            if (error.isDefined) new Left(error.get)
-            else new Right(constructor.construct(registers, RegisterOffset.Zero))
-          } finally {
-            pool.release()
           }
+          var idx = 0
+          while (idx < this.fields.length) {
+            if (fieldValues(idx) ne null) {
+              val name = this.fields(idx).name
+              addError(SchemaError.missingField(DynamicOptic.root, name, s"Missing field $name"))
+            }
+            idx += 1
+          }
+          if (error.isDefined) new Left(error.get)
+          else new Right(constructor.construct(registers, RegisterOffset.Zero))
         case _ =>
           new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a record"))
       }
@@ -438,25 +433,20 @@ object Reflect {
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = this.deconstructor
-      val pool          = RegisterPool.get()
-      val registers     = pool.acquire()
-      try {
-        deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-        val builder = Vector.newBuilder[(String, DynamicValue)]
-        var idx     = 0
-        while (idx < this.registers.length) {
-          val field                                 = fields(idx)
-          val register                              = this.registers(idx)
-          val fieldReflect: Reflect[F, field.Focus] = field.value.asInstanceOf[Reflect[F, field.Focus]]
-          val value =
-            fieldReflect.toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
-          builder.addOne((field.name, value))
-          idx += 1
-        }
-        DynamicValue.Record(builder.result())
-      } finally {
-        pool.release()
+      val registers     = Registers(deconstructor.usedRegisters)
+      deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
+      val builder = Vector.newBuilder[(String, DynamicValue)]
+      var idx     = 0
+      while (idx < this.registers.length) {
+        val field                                 = fields(idx)
+        val register                              = this.registers(idx)
+        val fieldReflect: Reflect[F, field.Focus] = field.value.asInstanceOf[Reflect[F, field.Focus]]
+        val value =
+          fieldReflect.toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+        builder.addOne((field.name, value))
+        idx += 1
       }
+      new DynamicValue.Record(builder.result())
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
