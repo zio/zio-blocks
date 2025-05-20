@@ -96,6 +96,8 @@ class Registers private (userRegister: RegisterOffset) {
     objects(absoluteIndex) = value
   }
 
+//  private[schema] def resetObjects(): Unit = java.util.Arrays.fill(objects, null)
+
   private[this] def growBytes(absoluteIndex: RegisterOffset): Unit =
     bytes = util.Arrays.copyOf(bytes, Math.max(bytes.length << 1, absoluteIndex + 8))
 
@@ -104,9 +106,5 @@ class Registers private (userRegister: RegisterOffset) {
 }
 
 object Registers {
-  def apply(usedRegisters: RegisterOffset): Registers =
-    if (usedRegisters == RegisterOffset.Zero) zeroRegisters
-    else new Registers(usedRegisters)
-
-  private[this] val zeroRegisters = new Registers(RegisterOffset.Zero)
+  def apply(usedRegisters: RegisterOffset): Registers = new Registers(usedRegisters)
 }
