@@ -15,10 +15,10 @@ object SchemaAspect {
     def apply[A](reflect: Reflect.Bound[A]): Reflect.Bound[A] = reflect.doc(doc)
   }
 
-  def examples[A](value: A, values: A*): SchemaAspect[A, A] = new SchemaAspect[A, A] {
+  def examples[A0](value: A0, values: A0*): SchemaAspect[A0, A0] = new SchemaAspect[A0, A0] {
 
-    def apply[A](reflect: Reflect.Bound[A]): Reflect.Bound[A] =
-      reflect.examples(value.asInstanceOf[A], values.asInstanceOf[Seq[A]]: _*)
+    def apply[A >: A0 <: A0](reflect: Reflect.Bound[A]): Reflect.Bound[A] =
+      reflect.examples(value, values: _*)
   }
 
 }
