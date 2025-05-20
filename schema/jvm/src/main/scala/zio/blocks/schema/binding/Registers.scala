@@ -96,8 +96,6 @@ class Registers private (userRegister: RegisterOffset) {
     objects(absoluteIndex) = value
   }
 
-//  private[schema] def resetObjects(): Unit = java.util.Arrays.fill(objects, null)
-
   private[this] def growBytes(absoluteIndex: RegisterOffset): Unit =
     bytes = util.Arrays.copyOf(bytes, Math.max(bytes.length << 1, absoluteIndex + 8))
 

@@ -5,7 +5,7 @@ import zio.test.Assertion._
 import zio.test._
 
 object OpticBenchmarkSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
+  def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticBenchmarkSpec")(
     suite("LensGetBenchmark")(
       test("has consistent output") {
         assert((new LensGetBenchmark).direct)(equalTo("test")) &&
