@@ -6,37 +6,59 @@ package zio.blocks.schema
  * operations on specific types of optics, and values that can be serialized,
  * patches themselves can be serialized.
  *
- * ```scala
+ * {{{
  * val patch1 = Patch.replace(Person.name, "John")
  * val patch2 = Patch.replace(Person.age, 30)
  *
  * val patch3 = patch1 ++ patch2
  *
- * patch3(Person("Jane", 25)) // Some(Person("John", 30))
- * ```
+ * patch3(Person("Jane", 25)) // Person("John", 30)
+ * }}}
  */
 final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
+  import Patch._
+
   def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source)
 
-  def apply(s: S): Option[S] = {
-    import Patch._
+  def apply(s: S): S =
+    ops.foldLeft[S](s) { (s, single) =>
+      single match {
+        case LensPair(optic, LensOp.Set(a))               => optic.replace(s, a)
+        case PrismPair(optic, PrismOp.Replace(a))         => optic.replace(s, a)
+        case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replace(s, a)
+        case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modify(s, _ => a)
+      }
+    }
 
-    ops.foldLeft[Option[S]](Some(s)) { (acc, single) =>
+  def applyOption(s: S): Option[S] =
+    ops.foldLeft[Option[S]](new Some(s)) { (acc, single) =>
       acc match {
         case Some(s) =>
           single match {
-            case LensPair(optic, LensOp.Set(a))               => Some(optic.replace(s, a))
-            case PrismPair(optic, PrismOp.ReverseGet(a))      => Some(optic.reverseGet(a))
-            case OptionalPair(optic, OptionalOp.Replace(a))   => Some(optic.replace(s, a))
-            case TraversalPair(optic, TraversalOp.Replace(a)) => Some(optic.modify(s, _ => a))
+            case LensPair(optic, LensOp.Set(a))               => new Some(optic.replace(s, a))
+            case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOption(s, a)
+            case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOption(s, a)
+            case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modifyOption(s, _ => a)
           }
         case _ => None
       }
     }
-  }
 
-  def applyOrFail(s: S): Either[OpticCheck, S] = ???
+  def applyOrFail(s: S): Either[OpticCheck, S] =
+    ops.foldLeft[Either[OpticCheck, S]](new Right(s)) { (acc, single) =>
+      acc match {
+        case Right(s) =>
+          single match {
+            case LensPair(optic, LensOp.Set(a))               => new Right(optic.replace(s, a))
+            case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOrFail(s, a)
+            case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOrFail(s, a)
+            case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modifyOrFail(s, _ => a)
+          }
+        case left => left
+      }
+    }
 }
+
 object Patch {
   def replace[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
     Patch(Vector(LensPair(lens, LensOp.Set(a))), source)
@@ -48,7 +70,7 @@ object Patch {
     Patch(Vector(TraversalPair(traversal, TraversalOp.Replace(a))), source)
 
   def reverseGet[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(PrismPair(prism, PrismOp.ReverseGet(a))), source)
+    Patch(Vector(PrismPair(prism, PrismOp.Replace(a))), source)
 
   sealed trait Op[A]
 
@@ -61,7 +83,7 @@ object Patch {
   sealed trait PrismOp[A] extends Op[A]
 
   object PrismOp {
-    case class ReverseGet[A](a: A) extends PrismOp[A]
+    case class Replace[A](a: A) extends PrismOp[A]
   }
 
   sealed trait OptionalOp[A] extends Op[A]
@@ -78,6 +100,7 @@ object Patch {
 
   sealed trait Pair[S, A] {
     def optic: Optic[S, A]
+
     def op: Op[A]
   }
 

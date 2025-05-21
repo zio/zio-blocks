@@ -32,24 +32,24 @@ object PatchSpec extends ZIOSpecDefault {
       test("replace a field with a new value") {
         val person           = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
         val replaceNamePatch = Patch.replace(Person.name, "Piero")
-        assert(replaceNamePatch(person))(equalTo(Some(person.copy(name = "Piero"))))
+        assert(replaceNamePatch(person))(equalTo(person.copy(name = "Piero")))
       },
       test("combine two patches") {
         val person           = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
         val replaceNamePatch = Patch.replace(Person.name, "Piero")
         val replaceAgePatch  = Patch.replace(Person.age, 40)
         val combined         = replaceAgePatch ++ replaceNamePatch
-        assert(combined(person))(equalTo(Some(person.copy(name = "Piero", age = 40))))
+        assert(combined(person))(equalTo(person.copy(name = "Piero", age = 40)))
       },
       test("patch by focusing on one element of a list") {
         val person             = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
         val replace2ndChildAge = Patch.replace(Person.childrenAges, 15) // need to find a way to specify the index
-        assert(replace2ndChildAge(person))(equalTo(Some(person.copy(childrenAges = List(5, 15, 9)))))
+        assert(replace2ndChildAge(person))(equalTo(person.copy(childrenAges = List(5, 15, 9))))
       } @@ TestAspect.ignore,
       test("patch by adding one element to the children list") {
         val person            = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
         val appendNewChildAge = Patch.replace(Person.childrenAges, 11) // + way to add elements to traversable list?
-        assert(appendNewChildAge(person))(equalTo(Some(person.copy(childrenAges = List(5, 7, 9, 11)))))
+        assert(appendNewChildAge(person))(equalTo(person.copy(childrenAges = List(5, 7, 9, 11))))
       } @@ TestAspect.ignore
     )
   )
