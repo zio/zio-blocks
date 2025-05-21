@@ -1,8 +1,8 @@
 package zio.blocks.schema.binding
 
 /**
- * A {{Matcher}} is a typeclass that can match a value of type `A` with a
- * specific term of its sum type.
+ * A `Matcher` is a typeclass that can match a value of type `A` with a specific
+ * term of its sum type.
  */
 trait Matcher[+A] {
 

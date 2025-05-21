@@ -10,9 +10,9 @@ import java.nio.{ByteBuffer, CharBuffer}
  * which is used both for debugging purposes, and potentially in transport,
  * depending on the protocol.
  *
- * A format is associated with a specific type class, such as {{BinaryCodec}}
- * for binary formats, or {{TextCodec}} for text formats, and a deriver that can
- * be used to derive the codec for the format.
+ * A format is associated with a specific type class, such as `BinaryCodec` for
+ * binary formats, or `TextCodec` for text formats, and a deriver that can be
+ * used to derive the codec for the format.
  */
 sealed trait Format {
   type DecodeInput
