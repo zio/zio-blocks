@@ -186,144 +186,88 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c1.check(Case2(Record3(null, null, null))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
-                    actualValue = Case2(Record3(null, null, null))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case1], encountered an unexpected case at .when[Case1]: expected Case1, but got Case2"
               )
             )
           )
         ) &&
         assert(Variant1.c2.check(Case1(0.1)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case2"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case2], encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
               )
             )
           )
         ) &&
         assert(Variant1.v2.check(Case1(0.1)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Variant2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
               )
             )
           )
         ) &&
         assert(Variant1.v2_c3.check(Case1(0.1)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Variant2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2].when[Case3], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
               )
             )
           )
         ) &&
         assert(Variant2.c3.check(Case4(List(Record3(null, null, null)))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(List(Record3(null, null, null)))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Variant2.c4.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case4",
-                    actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
-                    actualValue = Case3(Case1(0.1))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case4], encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
               )
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_left.check(Case6(null)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case5",
-                    actualCase = "Case6",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    actualValue = Case6(null)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]"
               )
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_right.check(Case6(null)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case5",
-                    actualCase = "Case6",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    actualValue = Case6(null)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]: expected Case5, but got Case6"
               )
             )
           )
@@ -1142,180 +1086,102 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c2_r3_r1.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case2",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
-                    actualValue = Case3(Case1(0.1))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Variant2"
               )
             )
           )
         ) &&
         assert(Case2.r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("1")
             )
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("2")
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Variant2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("3")
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_left.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("4")
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_right.check(Case3(Case2(null))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    actualValue = Case2(null)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3].v1.when[Case1]: expected Case1, but got Case2"
               )
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_d_right.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Case1].d, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Variant2.c3_v1.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
               )
             )
           )
         ) &&
         assert(Case3.v1_c1_d_right.check(Case3(Case4(Nil))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
               )
             )
           )
@@ -2201,117 +2067,62 @@ object OpticSpec extends ZIOSpecDefault {
       test("checks collection values and returns an error if they will not be modified") {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Case2",
-                    full = DynamicOptic(Vector(MapKeys, Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(MapKeys, Case("Case1"))),
-                    actualValue = Case2(null)
-                  ),
-                  ::(
-                    UnexpectedCase(
-                      expectedCase = "Case1",
-                      actualCase = "Variant2",
-                      full = DynamicOptic(Vector(MapKeys, Case("Case1"), Field("d"))),
-                      prefix = DynamicOptic(Vector(MapKeys, Case("Case1"))),
-                      actualValue = Case6(null)
-                    ),
-                    Nil
-                  )
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Variant2"
               )
             )
           )
         ) &&
         assert(Collections.mkc.check(Map.empty[Char, String]))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  EmptyMap(
-                    full = DynamicOptic(Vector(MapKeys)),
-                    prefix = DynamicOptic(Vector(MapKeys)),
-                    actualValue = Map.empty[Char, String]
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("During attempted access at .eachKey, encountered an empty map at .eachKey")
             )
           )
         ) &&
         assert(Collections.mvs.check(Map.empty[Char, String]))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  EmptyMap(
-                    full = DynamicOptic(Vector(MapValues)),
-                    prefix = DynamicOptic(Vector(MapValues)),
-                    actualValue = Map.empty[Char, String]
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("During attempted access at .eachValue, encountered an empty map at .eachValue")
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(Nil))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  EmptySequence(
-                    full = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
-                    ),
-                    prefix = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
-                    ),
-                    actualValue = Nil
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an empty sequence at .when[Case3].v1.when[Variant2].when[Case4].lr3.each"
               )
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
-                    ),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Variant2.c4_lr3.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case4",
-                    actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
-                    actualValue = Case3(Case1(0.1))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case4].lr3.each, encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
               )
             )
           )
