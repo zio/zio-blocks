@@ -1,57 +1,151 @@
 package zio.blocks.schema
 
 import zio.Scope
-import zio.blocks.schema.DynamicOpticSpec.suite
-import zio.blocks.schema.example.Person
-import zio.blocks.schema.example.Person.field
+import zio.blocks.schema.DynamicOptic.Node.Case
+import zio.blocks.schema.OpticCheck.UnexpectedCase
 import zio.test._
 import zio.test.Assertion._
+import java.time.YearMonth
 
 object PatchSpec extends ZIOSpecDefault {
-
-  case class Person(
-    id: Long,
-    name: String,
-    age: Int,
-    address: String,
-    childrenAges: List[Int],
-    schools: Map[String, Int]
-  )
-  object Person extends CompanionOptics[Person] {
-    implicit val schema: Schema[Person]      = Schema.derived
-    val id: Lens[Person, Long]               = field(_.id)
-    val name: Lens[Person, String]           = field(_.name)
-    val age: Lens[Person, Int]               = field(_.age)
-    val address: Lens[Person, String]        = field(_.address)
-    val childrenAges: Traversal[Person, Int] = field(_.childrenAges).listValues
-
-  }
-
   def spec: Spec[TestEnvironment with Scope, Any] = suite("PatchSpec")(
     suite("Patch")(
       test("replace a field with a new value") {
-        val person           = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
-        val replaceNamePatch = Patch.replace(Person.name, "Piero")
-        assert(replaceNamePatch(person))(equalTo(person.copy(name = "Piero")))
+        val person1 = Person(12345678901L, "John", "123 Main St", Nil)
+        val patch   = Patch.replace(Person.name, "Piero")
+        val person2 = person1.copy(name = "Piero")
+        assert(patch(person1))(equalTo(person2)) &&
+        assert(patch.applyOption(person1))(isSome(equalTo(person2))) &&
+        assert(patch.applyOrFail(person1))(isRight(equalTo(person2)))
+      },
+      test("replace a case with a new value") {
+        val paymentMethod1 = PayPal("x@gmail.com")
+        val patch          = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
+        val paymentMethod2 = PayPal("y@gmail.com")
+        assert(patch(paymentMethod1))(equalTo(paymentMethod2)) &&
+        assert(patch.applyOption(paymentMethod1))(isSome(equalTo(paymentMethod2))) &&
+        assert(patch.applyOrFail(paymentMethod1))(isRight(equalTo(paymentMethod2)))
+      },
+      test("replace a case field with a new value") {
+        val paymentMathod1 = PayPal("x@gmail.com")
+        val patch          = Patch.replace(PaymentMethod.payPalEmail, "y@gmail.com")
+        val paymentMethod2 = PayPal("y@gmail.com")
+        assert(patch(paymentMathod1))(equalTo(paymentMethod2)) &&
+        assert(patch.applyOption(paymentMathod1))(isSome(equalTo(paymentMethod2))) &&
+        assert(patch.applyOrFail(paymentMathod1))(isRight(equalTo(paymentMethod2)))
+      },
+      test("replace selected list values") {
+        val person1 = Person(
+          12345678901L,
+          "John",
+          "123 Main St",
+          List(
+            PayPal("x@gmail.com"),
+            CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
+          )
+        )
+        val patch = Patch.replace(Person.payPalPaymentMethods, PayPal("y@gmail.com"))
+        val person2 = person1.copy(paymentMethods =
+          List(
+            PayPal("y@gmail.com"),
+            CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
+          )
+        )
+        assert(patch(person1))(equalTo(person2)) &&
+        assert(patch.applyOption(person1))(isSome(equalTo(person2))) &&
+        assert(patch.applyOrFail(person1))(isRight(equalTo(person2)))
+      },
+      test("don't replace non-matching case with a new value") {
+        val paymentMethod1 = CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
+        val patch          = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
+        assert(patch(paymentMethod1))(equalTo(paymentMethod1)) &&
+        assert(patch.applyOption(paymentMethod1))(isNone) &&
+        assert(patch.applyOrFail(paymentMethod1))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "PayPal",
+                    actualCase = "CreditCard",
+                    full = DynamicOptic(nodes = Vector(Case(name = "PayPal"))),
+                    prefix = DynamicOptic(nodes = Vector(Case(name = "PayPal"))),
+                    actualValue = CreditCard(
+                      cardNumber = 1234567812345678L,
+                      expiryDate = YearMonth.parse("2030-12"),
+                      cvv = 123,
+                      cardHolderName = "John"
+                    )
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
       },
       test("combine two patches") {
-        val person           = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
-        val replaceNamePatch = Patch.replace(Person.name, "Piero")
-        val replaceAgePatch  = Patch.replace(Person.age, 40)
-        val combined         = replaceAgePatch ++ replaceNamePatch
-        assert(combined(person))(equalTo(person.copy(name = "Piero", age = 40)))
-      },
-      test("patch by focusing on one element of a list") {
-        val person             = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
-        val replace2ndChildAge = Patch.replace(Person.childrenAges, 15) // need to find a way to specify the index
-        assert(replace2ndChildAge(person))(equalTo(person.copy(childrenAges = List(5, 15, 9))))
-      } @@ TestAspect.ignore,
-      test("patch by adding one element to the children list") {
-        val person            = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9), Map())
-        val appendNewChildAge = Patch.replace(Person.childrenAges, 11) // + way to add elements to traversable list?
-        assert(appendNewChildAge(person))(equalTo(person.copy(childrenAges = List(5, 7, 9, 11))))
-      } @@ TestAspect.ignore
+        val person1 = Person(12345678901L, "John", "123 Main St", Nil)
+        val patch   = Patch.replace(Person.name, "Piero") ++ Patch.replace(Person.address, "321 Main St")
+        val parson2 = person1.copy(name = "Piero", address = "321 Main St")
+        assert(patch(person1))(equalTo(parson2)) &&
+        assert(patch.applyOption(person1))(isSome(equalTo(parson2))) &&
+        assert(patch.applyOrFail(person1))(isRight(equalTo(parson2)))
+      }
     )
   )
+}
 
+sealed trait PaymentMethod
+
+object PaymentMethod extends CompanionOptics[PaymentMethod] {
+  implicit val schema: Schema[PaymentMethod]           = Schema.derived
+  val creditCard: Prism[PaymentMethod, CreditCard]     = caseOf
+  val bankTransfer: Prism[PaymentMethod, BankTransfer] = caseOf
+  val payPal: Prism[PaymentMethod, PayPal]             = caseOf
+  val payPalEmail: Optional[PaymentMethod, String]     = payPal(PayPal.email)
+}
+
+case class CreditCard(
+  cardNumber: Long,
+  expiryDate: YearMonth,
+  cvv: Int,
+  cardHolderName: String
+) extends PaymentMethod
+
+object CreditCard extends CompanionOptics[CreditCard] {
+  implicit val schema: Schema[CreditCard] = Schema.derived
+}
+
+case class BankTransfer(
+  accountNumber: String,
+  bankCode: String,
+  accountHolderName: String
+) extends PaymentMethod
+
+object BankTransfer extends CompanionOptics[BankTransfer] {
+  implicit val schema: Schema[BankTransfer] = Schema.derived
+}
+
+case class PayPal(email: String) extends PaymentMethod
+
+object PayPal extends CompanionOptics[PayPal] {
+  implicit val schema: Schema[PayPal] = Schema.derived
+  val email: Lens[PayPal, String]     = field(_.email)
+}
+
+case class Person(
+  id: Long,
+  name: String,
+  address: String,
+  paymentMethods: List[PaymentMethod]
+)
+
+object Person extends CompanionOptics[Person] {
+  implicit val schema: Schema[Person]                  = Schema.derived
+  val id: Lens[Person, Long]                           = field(_.id)
+  val name: Lens[Person, String]                       = field(_.name)
+  val address: Lens[Person, String]                    = field(_.address)
+  val paymentMethods: Traversal[Person, PaymentMethod] = field(_.paymentMethods).listValues
+  val payPalPaymentMethods: Traversal[Person, PayPal]  = paymentMethods(PaymentMethod.payPal)
 }

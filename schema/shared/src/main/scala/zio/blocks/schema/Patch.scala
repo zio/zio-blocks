@@ -23,7 +23,7 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
   def apply(s: S): S =
     ops.foldLeft[S](s) { (s, single) =>
       single match {
-        case LensPair(optic, LensOp.Set(a))               => optic.replace(s, a)
+        case LensPair(optic, LensOp.Replace(a))           => optic.replace(s, a)
         case PrismPair(optic, PrismOp.Replace(a))         => optic.replace(s, a)
         case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replace(s, a)
         case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modify(s, _ => a)
@@ -35,12 +35,12 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
       acc match {
         case Some(s) =>
           single match {
-            case LensPair(optic, LensOp.Set(a))               => new Some(optic.replace(s, a))
+            case LensPair(optic, LensOp.Replace(a))           => new Some(optic.replace(s, a))
             case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOption(s, a)
             case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOption(s, a)
             case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modifyOption(s, _ => a)
           }
-        case _ => None
+        case _ => return None
       }
     }
 
@@ -49,19 +49,19 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
       acc match {
         case Right(s) =>
           single match {
-            case LensPair(optic, LensOp.Set(a))               => new Right(optic.replace(s, a))
+            case LensPair(optic, LensOp.Replace(a))           => new Right(optic.replace(s, a))
             case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOrFail(s, a)
             case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOrFail(s, a)
             case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modifyOrFail(s, _ => a)
           }
-        case left => left
+        case left => return left
       }
     }
 }
 
 object Patch {
   def replace[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(LensPair(lens, LensOp.Set(a))), source)
+    Patch(Vector(LensPair(lens, LensOp.Replace(a))), source)
 
   def replace[S, A](optional: Optional[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
     Patch(Vector(OptionalPair(optional, OptionalOp.Replace(a))), source)
@@ -69,7 +69,7 @@ object Patch {
   def replace[S, A](traversal: Traversal[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
     Patch(Vector(TraversalPair(traversal, TraversalOp.Replace(a))), source)
 
-  def reverseGet[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
+  def replace[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
     Patch(Vector(PrismPair(prism, PrismOp.Replace(a))), source)
 
   sealed trait Op[A]
@@ -77,7 +77,7 @@ object Patch {
   sealed trait LensOp[A] extends Op[A]
 
   object LensOp {
-    case class Set[A](a: A) extends LensOp[A]
+    case class Replace[A](a: A) extends LensOp[A]
   }
 
   sealed trait PrismOp[A] extends Op[A]
