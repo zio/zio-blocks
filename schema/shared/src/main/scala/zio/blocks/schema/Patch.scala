@@ -30,11 +30,14 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
       }
     }
 
-  def applyOption(s: S): Option[S] =
-    ops.foldLeft[Option[S]](new Some(s)) { (acc, single) =>
-      acc match {
+  def applyOption(s: S): Option[S] = {
+    var res: Option[S] = new Some(s)
+    val len            = ops.length
+    var idx            = 0
+    while (idx < len) {
+      res = res match {
         case Some(s) =>
-          single match {
+          ops(idx) match {
             case LensPair(optic, LensOp.Replace(a))           => new Some(optic.replace(s, a))
             case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOption(s, a)
             case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOption(s, a)
@@ -42,13 +45,19 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
           }
         case _ => return None
       }
+      idx += 1
     }
+    res
+  }
 
-  def applyOrFail(s: S): Either[OpticCheck, S] =
-    ops.foldLeft[Either[OpticCheck, S]](new Right(s)) { (acc, single) =>
-      acc match {
+  def applyOrFail(s: S): Either[OpticCheck, S] = {
+    var res: Either[OpticCheck, S] = new Right(s)
+    val len                        = ops.length
+    var idx                        = 0
+    while (idx < len) {
+      res = res match {
         case Right(s) =>
-          single match {
+          ops(idx) match {
             case LensPair(optic, LensOp.Replace(a))           => new Right(optic.replace(s, a))
             case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOrFail(s, a)
             case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOrFail(s, a)
@@ -56,7 +65,10 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
           }
         case left => return left
       }
+      idx += 1
     }
+    res
+  }
 }
 
 object Patch {
