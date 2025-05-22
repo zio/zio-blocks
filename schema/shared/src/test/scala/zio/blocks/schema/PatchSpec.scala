@@ -56,29 +56,45 @@ object PatchSpec extends ZIOSpecDefault {
         assert(patch.applyOrFail(person1))(isRight(equalTo(person2)))
       },
       test("don't replace non-matching case with a new value") {
+        val person1        = Person(12345678901L, "John", "123 Main St", Nil)
         val paymentMethod1 = CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
-        val patch          = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
-        assert(patch(paymentMethod1))(equalTo(paymentMethod1)) &&
-        assert(patch.applyOption(paymentMethod1))(isNone) &&
-        assert(patch.applyOrFail(paymentMethod1))(
+        val patch1         = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
+        val patch2         = Patch.replace(PaymentMethod.payPalEmail, "y@gmail.com")
+        val patch3         = Patch.replace(Person.paymentMethods(PaymentMethod.payPalEmail), "y@gmail.com")
+        assert(patch1(paymentMethod1))(equalTo(paymentMethod1)) &&
+        assert(patch1.applyOption(paymentMethod1))(isNone) &&
+        assert(patch1.applyOrFail(paymentMethod1))(
           isLeft(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "PayPal",
-                    actualCase = "CreditCard",
-                    full = DynamicOptic(nodes = Vector(Case(name = "PayPal"))),
-                    prefix = DynamicOptic(nodes = Vector(Case(name = "PayPal"))),
-                    actualValue = CreditCard(
-                      cardNumber = 1234567812345678L,
-                      expiryDate = YearMonth.parse("2030-12"),
-                      cvv = 123,
-                      cardHolderName = "John"
-                    )
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[PayPal], encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
+              )
+            )
+          )
+        ) &&
+        assert(patch2(paymentMethod1))(equalTo(paymentMethod1)) &&
+        assert(patch2.applyOption(paymentMethod1))(isNone) &&
+        assert(patch2.applyOrFail(paymentMethod1))(
+          isLeft(
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[PayPal].email, encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
+              )
+            )
+          )
+        ) &&
+        assert(patch3.applyOption(person1))(isNone) &&
+        assert(patch3.applyOrFail(person1))(
+          isLeft(
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .paymentMethods.each.when[PayPal].email, encountered an empty sequence at .paymentMethods.each"
               )
             )
           )
