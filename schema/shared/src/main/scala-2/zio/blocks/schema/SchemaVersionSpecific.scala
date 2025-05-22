@@ -109,7 +109,7 @@ private object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
                   fields = _root_.scala.Nil,
-                  typeName = TypeName(Namespace(Seq(..$packages), Seq(..$values)), $name),
+                  typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = 0
@@ -150,11 +150,11 @@ private object SchemaVersionSpecific {
         }
         val matcherCases = subTypes.map { sTpe =>
           q"""new Matcher[$sTpe] {
-              def downcastOrNull(a: Any): $sTpe = a match {
-                case x: $sTpe @_root_.scala.unchecked => x
-                case _ => null.asInstanceOf[$sTpe]
-              }
-            }"""
+                def downcastOrNull(a: Any): $sTpe = a match {
+                  case x: $sTpe @_root_.scala.unchecked => x
+                  case _ => null.asInstanceOf[$sTpe]
+                }
+              }"""
         }
         q"""{
               import _root_.zio.blocks.schema._
@@ -163,14 +163,14 @@ private object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Variant[Binding, $tpe](
                   cases = _root_.scala.Seq(..$cases),
-                  typeName = TypeName(Namespace(Seq(..$packages), Seq(..$values)), $name),
+                  typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
                   variantBinding = Binding.Variant(
                     discriminator = new Discriminator[$tpe] {
                       def discriminate(a: $tpe): Int = a match {
                         case ..$discrCases
                       }
                     },
-                    matchers = Matchers(_root_.scala.Vector(..$matcherCases)),
+                    matchers = Matchers(..$matcherCases),
                   ),
                   modifiers = _root_.scala.Seq(..${modifiers(tpe)})
                 )
@@ -295,7 +295,7 @@ private object SchemaVersionSpecific {
           var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
           if (fieldInfo.isDeferred) modifiers = modifiers :+ q"Modifier.deferred()"
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
-          if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = Seq(..$modifiers))"
+          if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
           fieldTermTree
         })
         val const   = q"new $tpe(...${fieldInfos.map(_.map(fieldInfo => q"${fieldInfo.symbol} = ${fieldInfo.const}"))})"
@@ -308,7 +308,7 @@ private object SchemaVersionSpecific {
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
                   fields = _root_.scala.Seq(..$fields),
-                  typeName = TypeName(Namespace(Seq(..$packages), Seq(..$values)), $name),
+                  typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
                       def usedRegisters: RegisterOffset = $registersUsed
