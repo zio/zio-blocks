@@ -31,43 +31,61 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
     }
 
   def applyOption(s: S): Option[S] = {
-    var res: Option[S] = new Some(s)
-    val len            = ops.length
-    var idx            = 0
+    var x   = s
+    val len = ops.length
+    var idx = 0
     while (idx < len) {
-      res = res match {
-        case Some(s) =>
-          ops(idx) match {
-            case LensPair(optic, LensOp.Replace(a))           => new Some(optic.replace(s, a))
-            case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOption(s, a)
-            case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOption(s, a)
-            case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modifyOption(s, _ => a)
+      ops(idx) match {
+        case LensPair(optic, LensOp.Replace(a)) =>
+          x = optic.replace(x, a)
+        case PrismPair(optic, PrismOp.Replace(a)) =>
+          optic.replaceOption(x, a) match {
+            case Some(r) => x = r
+            case _       => return None
           }
-        case _ => return None
+        case OptionalPair(optic, OptionalOp.Replace(a)) =>
+          optic.replaceOption(x, a) match {
+            case Some(r) => x = r
+            case _       => return None
+          }
+        case TraversalPair(optic, TraversalOp.Replace(a)) =>
+          optic.modifyOption(x, _ => a) match {
+            case Some(r) => x = r
+            case _       => return None
+          }
       }
       idx += 1
     }
-    res
+    new Some(x)
   }
 
   def applyOrFail(s: S): Either[OpticCheck, S] = {
-    var res: Either[OpticCheck, S] = new Right(s)
-    val len                        = ops.length
-    var idx                        = 0
+    var x   = s
+    val len = ops.length
+    var idx = 0
     while (idx < len) {
-      res = res match {
-        case Right(s) =>
-          ops(idx) match {
-            case LensPair(optic, LensOp.Replace(a))           => new Right(optic.replace(s, a))
-            case PrismPair(optic, PrismOp.Replace(a))         => optic.replaceOrFail(s, a)
-            case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replaceOrFail(s, a)
-            case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modifyOrFail(s, _ => a)
+      ops(idx) match {
+        case LensPair(optic, LensOp.Replace(a)) =>
+          x = optic.replace(x, a)
+        case PrismPair(optic, PrismOp.Replace(a)) =>
+          optic.replaceOrFail(x, a) match {
+            case Right(r) => x = r
+            case left     => return left
           }
-        case left => return left
+        case OptionalPair(optic, OptionalOp.Replace(a)) =>
+          optic.replaceOrFail(x, a) match {
+            case Right(r) => x = r
+            case left     => return left
+          }
+        case TraversalPair(optic, TraversalOp.Replace(a)) =>
+          optic.modifyOrFail(x, _ => a) match {
+            case Right(r) => x = r
+            case left     => return left
+          }
       }
       idx += 1
     }
-    res
+    new Right(x)
   }
 }
 
