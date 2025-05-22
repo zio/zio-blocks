@@ -10,10 +10,4 @@ trait Matcher[+A] {
    * Downcasts a value of type `Any` to a value of type `A` or return `null`.
    */
   def downcastOrNull(any: Any): A
-
-  /**
-   * Downcasts a value of type `Any` to a value of type `A` and box it to `Some`
-   * or return `None`.
-   */
-  final def downcastOption(any: Any): Option[A] = Option(downcastOrNull(any))
 }

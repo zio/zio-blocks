@@ -109,13 +109,6 @@ object Binding {
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Record, A] {
-    def transform[B](f: A => B)(g: B => A): Record[B] = Record(
-      constructor.map(f),
-      deconstructor.contramap(g),
-      defaultValue.map(thunk => () => f(thunk())),
-      examples.map(f)
-    )
-
     def defaultValue(value: => A): Record[A] = copy(defaultValue = Some(() => value))
 
     def examples(value: A, values: A*): Record[A] = copy(examples = value :: values.toList)
