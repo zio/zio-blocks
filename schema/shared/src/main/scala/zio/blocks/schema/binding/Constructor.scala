@@ -3,8 +3,8 @@ package zio.blocks.schema.binding
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
- * A {{Constructor}} is a typeclass that can construct a value of type `A` from
- * a set of registers.
+ * A `Constructor` is a typeclass that can construct a value of type `A` from a
+ * set of registers.
  */
 abstract class Constructor[+A] { self =>
 

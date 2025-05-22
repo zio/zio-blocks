@@ -4,9 +4,9 @@ import zio.blocks.schema.binding.Binding
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * A {{Schema}} is a data type that contains reified information on the
- * structure of a Scala data type, together with the ability to tear down and
- * build up values of that type.
+ * A `Schema` is a data type that contains reified information on the structure
+ * of a Scala data type, together with the ability to tear down and build up
+ * values of that type.
  */
 final case class Schema[A](reflect: Reflect.Bound[A]) {
   private[this] val cache: ConcurrentHashMap[codec.Format, _] = new ConcurrentHashMap
