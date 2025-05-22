@@ -557,7 +557,7 @@ object Reflect {
             case Some(c) =>
               c.value.asInstanceOf[Reflect[F, A]].fromDynamicValue(value)
             case _ =>
-              new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case $discriminator"))
+              new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case"))
           }
         case _ =>
           new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a variant"))
