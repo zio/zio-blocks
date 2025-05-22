@@ -3,7 +3,7 @@ package zio.blocks.schema.binding
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
- * A {{Deconstructor}} is a typeclass that can deconstruct a value of type `A`
+ * A `Deconstructor` is a typeclass that can deconstruct a value of type `A`
  * into a set of registers.
  */
 abstract class Deconstructor[-A] { self =>

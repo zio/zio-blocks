@@ -6,9 +6,8 @@ import zio.blocks.schema.DynamicValue
  * A binding is used to attach non-serializable Scala functions, such as
  * constructors, deconstructors, and matchers, to a reflection type.
  *
- * The {{Binding}} type is indexed by `T`, which is a phantom type that
- * represents the type of binding. The type `A` represents the type of the
- * reflection type.
+ * The `Binding` type is indexed by `T`, which is a phantom type that represents
+ * the type of binding. The type `A` represents the type of the reflection type.
  *
  * So, for example, `Binding[BindingType.Record, Int]` represents a binding for
  * the reflection type `Int` that has a record binding (and therefore, both a
