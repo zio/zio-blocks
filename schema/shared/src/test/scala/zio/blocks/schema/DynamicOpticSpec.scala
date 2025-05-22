@@ -40,6 +40,8 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       test("doesn't get reflect using apply for wrong dynamic options") {
         assert(DynamicOptic.root.field("z").apply(Schema[A].reflect): Option[Any])(isNone) &&
         assert(DynamicOptic.root.caseOf("z").apply(Schema[X].reflect): Option[Any])(isNone) &&
+        assert(DynamicOptic.root.caseOf("Z").apply(Schema[A].reflect): Option[Any])(isNone) &&
+        assert(DynamicOptic.root.caseOf("X").field("x").apply(Schema[A].reflect): Option[Any])(isNone) &&
         assert(DynamicOptic.elements.apply(Schema[A].reflect): Option[Any])(isNone) &&
         assert(DynamicOptic.mapKeys.apply(Schema[A].reflect): Option[Any])(isNone) &&
         assert(DynamicOptic.mapValues.apply(Schema[A].reflect): Option[Any])(isNone)
