@@ -114,19 +114,17 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
             case DynamicOptic.Node.Field(name) =>
               current.asRecord match {
                 case Some(record) =>
-                  record.fieldByName(name) match {
-                    case Some(term) => term.value
-                    case _          => return None
-                  }
+                  val fieldIdx = record.fieldIndexByName(name)
+                  if (fieldIdx >= 0) record.fields(fieldIdx).value
+                  else return None
                 case _ => return None
               }
             case DynamicOptic.Node.Case(name) =>
               current.asVariant match {
                 case Some(variant) =>
-                  variant.caseByName(name) match {
-                    case Some(term) => term.value
-                    case _          => return None
-                  }
+                  val caseIdx = variant.caseIndexByName(name)
+                  if (caseIdx >= 0) variant.cases(caseIdx).value
+                  else return None
                 case _ => return None
               }
             case DynamicOptic.Node.Elements =>
@@ -363,13 +361,7 @@ object Reflect {
 
     def deconstructor(implicit F: HasBinding[F]): Deconstructor[A] = F.deconstructor(recordBinding)
 
-    def fieldByName(name: String): Option[Term[F, A, ?]] = {
-      val idx = fieldIndexByName.getOrDefault(name, -1)
-      if (idx >= 0) new Some(fields(idx))
-      else None
-    }
-
-    def fieldIndexByName(name: String): Int = fieldIndexByName.getOrDefault(name, -1)
+    private[schema] def fieldIndexByName(name: String): Int = fieldIndexByName.getOrDefault(name, -1)
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
       value match {
@@ -393,14 +385,14 @@ object Reflect {
                   case Left(error) =>
                     addError(error)
                 }
-              } else addError(SchemaError.duplicatedField(DynamicOptic.root, name, s"Duplicated field $name"))
+              } else addError(SchemaError.duplicatedField(DynamicOptic.root, name))
             }
           }
           var idx = 0
           while (idx < this.fields.length) {
             if (fieldValues(idx) ne null) {
               val name = this.fields(idx).name
-              addError(SchemaError.missingField(DynamicOptic.root, name, s"Missing field $name"))
+              addError(SchemaError.missingField(DynamicOptic.root, name))
             }
             idx += 1
           }
@@ -544,23 +536,16 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
-    def caseByName(name: String): Option[Term[F, A, ? <: A]] = {
-      val idx = caseIndexByName.getOrDefault(name, -1)
-      if (idx >= 0) new Some(cases(idx))
-      else None
-    }
-
-    def caseIndexByName(name: String): Int = caseIndexByName.getOrDefault(name, -1)
+    private[schema] def caseIndexByName(name: String): Int = caseIndexByName.getOrDefault(name, -1)
 
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
       value match {
         case DynamicValue.Variant(discriminator, value) =>
-          caseByName(discriminator) match {
-            case Some(c) => c.value.asInstanceOf[Reflect[F, A]].fromDynamicValue(value)
-            case _       => new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case"))
-          }
+          val idx = caseIndexByName(discriminator)
+          if (idx >= 0) cases(idx).value.asInstanceOf[Reflect[F, A]].fromDynamicValue(value)
+          else new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator))
         case _ => new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a variant"))
       }
 

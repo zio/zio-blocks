@@ -3,7 +3,7 @@ package zio.blocks.schema
 import scala.util.control.NoStackTrace
 
 final case class OpticCheck(errors: ::[OpticCheck.Single]) extends Exception with NoStackTrace {
-  def ++(other: OpticCheck): OpticCheck = OpticCheck(::(errors.head, errors.tail ++ other.errors))
+  def ++(other: OpticCheck): OpticCheck = new OpticCheck(new ::(errors.head, errors.tail ++ other.errors))
 
   def hasWarning: Boolean = errors.exists(_.isWarning)
 
