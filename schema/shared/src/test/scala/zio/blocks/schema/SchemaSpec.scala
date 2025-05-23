@@ -116,13 +116,13 @@ object SchemaSpec extends ZIOSpecDefault {
                     DuplicatedField(
                       source = DynamicOptic(nodes = IndexedSeq.empty),
                       fieldName = "i",
-                      message = "Duplicated field i"
+                      message = "Duplicated field"
                     ),
                     ::(
                       MissingField(
                         source = DynamicOptic(nodes = IndexedSeq.empty),
                         fieldName = "b",
-                        message = "Missing field b"
+                        message = "Missing field"
                       ),
                       Nil
                     )
@@ -442,7 +442,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Variant.schema.fromDynamicValue(
             DynamicValue.Variant("Unknown", DynamicValue.Primitive(PrimitiveValue.Long(1000)))
           )
-        )(isLeft(equalTo(SchemaError.unknownCase(DynamicOptic.root, "Unknown", "Unknown case"))))
+        )(isLeft(equalTo(SchemaError.unknownCase(DynamicOptic.root, "Unknown"))))
       },
       test("has consistent gets for typed and dynamic optics") {
         assert(Variant.schema.get(Variant.case1.toDynamic))(equalTo(Variant.schema.get(Variant.case1))) &&
