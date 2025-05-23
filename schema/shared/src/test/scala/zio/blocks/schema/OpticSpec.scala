@@ -12,7 +12,7 @@ object OpticSpec extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
-      test("path") {
+      test("toDynamic") {
         assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("b"))))) &&
         assert(Record2.r1_b.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("r1"), DynamicOptic.Node.Field("b"))))
@@ -22,13 +22,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("v1")))))
       },
       test("checks prerequisites for creation") {
-        ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
-        ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
-        ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Lens(null, Case4.reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("has consistent equals and hashCode") {
         assert(Record1.b)(equalTo(Record1.b)) &&
@@ -131,16 +131,16 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("checks prerequisites for creation") {
-        ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
-        ZIO.attempt(Prism(Variant1.c1, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO.attempt(Prism(Variant1.c1, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Prism(Variant1.reflect, null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Prism(null, Variant1.reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]]))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1)(equalTo(Variant1.c1)) &&
@@ -935,7 +935,7 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Optional")(
-      test("path") {
+      test("toDynamic") {
         assert(Variant1.c1_d.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"), DynamicOptic.Node.Field("d"))))
         ) &&
@@ -949,6 +949,32 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("checks prerequisites for creation") {
+        ZIO
+          .attempt(Optional(null: Prism[Variant1, Case1], Case1.d))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Optional(Variant1.c1, null: Lens[Case1, Int]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Optional(null: Optional[Variant1, Case1], Case1.d))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Optional(Variant1.c2_r3_v1_c1, null: Lens[Case1, Int]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        ZIO
+          .attempt(Optional(Variant1.c2_r3_v1_c1, null: Optional[Case1, Int]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        ZIO
+          .attempt(Optional(null: Optional[Variant1, Variant1], Variant1.c1_d))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("check") {
         assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
@@ -1975,7 +2001,7 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Traversal")(
-      test("path") {
+      test("toDynamic") {
         assert(Record2.vi.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("vi"), DynamicOptic.Node.Elements)))
         ) &&
@@ -1990,19 +2016,31 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO
           .attempt(Traversal.arrayValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Traversal.listValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Traversal.setValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.seqValues(null))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Traversal.vectorValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        ZIO
+          .attempt(Traversal.mapKeys(null))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.mapValues(null))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("has consistent equals and hashCode") {
         assert(Record2.vi)(equalTo(Record2.vi)) &&
