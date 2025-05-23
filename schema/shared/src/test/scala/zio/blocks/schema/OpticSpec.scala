@@ -2018,6 +2018,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.r1_f: Any)(not(equalTo(Record2.vi))) &&
         assert(Variant2.c4_lr3: Any)(not(equalTo(Case4.lr3))) &&
         assert(Case4.lr3_r2_r1: Any)(not(equalTo(Case4.lr3))) &&
+        assert(Traversal.mapKeys(Reflect.map(Reflect.int, Reflect.int)))(
+          not(equalTo(Traversal.mapValues(Reflect.map(Reflect.int, Reflect.int))))
+        ) &&
         assert(Case4.lr3_r2_r1: Any)(not(equalTo(""))) &&
         assert(Collections.lb: Any)(not(equalTo(""))) &&
         assert(Collections.mkc: Any)(not(equalTo(""))) &&
