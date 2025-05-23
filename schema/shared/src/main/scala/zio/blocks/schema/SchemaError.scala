@@ -11,55 +11,29 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
 }
 
 object SchemaError {
-  def invalidData[A](
-    source: DynamicOptic,
-    focus: DynamicOptic,
-    expected: Validation[A],
-    actual: A,
-    message: String
-  ): SchemaError =
-    SchemaError(::(InvalidData(source, focus, expected, actual, message), Nil))
+  def invalidType(source: DynamicOptic, message: String): SchemaError =
+    new SchemaError(new ::(new InvalidType(source, message), Nil))
 
-  def invalidType[A](source: DynamicOptic, message: String): SchemaError =
-    SchemaError(::(InvalidType(source, message), Nil))
+  def missingField(source: DynamicOptic, fieldName: String): SchemaError =
+    new SchemaError(new ::(new MissingField(source, fieldName, "Missing field"), Nil))
 
-  def missingCase[S, A](source: DynamicOptic, caseName: String, message: String): SchemaError =
-    SchemaError(::(MissingCase(source, caseName, message), Nil))
+  def duplicatedField(source: DynamicOptic, fieldName: String): SchemaError =
+    new SchemaError(new ::(new DuplicatedField(source, fieldName, "Duplicated field"), Nil))
 
-  def missingField[S, A](source: DynamicOptic, fieldName: String, message: String): SchemaError =
-    SchemaError(::(MissingField(source, fieldName, message), Nil))
-
-  def duplicatedField[S, A](source: DynamicOptic, fieldName: String, message: String): SchemaError =
-    SchemaError(::(DuplicatedField(source, fieldName, message), Nil))
-
-  def unknownField[S, A](source: DynamicOptic, fieldName: String, message: String): SchemaError =
-    SchemaError(::(UnknownField(source, fieldName, message), Nil))
-
-  def unknownCase[S, A](source: DynamicOptic, caseName: String, message: String): SchemaError =
-    SchemaError(::(UnknownCase(source, caseName, message), Nil))
+  def unknownCase(source: DynamicOptic, caseName: String): SchemaError =
+    new SchemaError(new ::(new UnknownCase(source, caseName, "Unknown case"), Nil))
 
   sealed trait Single {
     def message: String
 
     def source: DynamicOptic
   }
-  case class InvalidData[A](
-    source: DynamicOptic,
-    focus: DynamicOptic,
-    expected: Validation[A],
-    actual: A,
-    message: String
-  ) extends Single
 
   case class MissingField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
 
   case class DuplicatedField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
 
-  case class UnknownField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
-
   case class InvalidType[A](source: DynamicOptic, message: String) extends Single
-
-  case class MissingCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single
 
   case class UnknownCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single
 }
