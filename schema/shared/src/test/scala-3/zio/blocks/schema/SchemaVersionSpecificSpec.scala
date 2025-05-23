@@ -97,7 +97,25 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for Scala 3 enums using 'derives' keyword") {
-        val schema = Schema[Color]
+        val schema  = Schema[Color]
+        val record1 = Schema[Color.Red.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Red.type]]
+        val record2 = Schema[Color.Mix].reflect.asInstanceOf[Reflect.Record[Binding, Color.Mix]]
+        assert(record1.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("term-key", "term-value-1"),
+              Modifier.config("term-key", "term-value-2")
+            )
+          )
+        ) &&
+        assert(record2.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("type-key", "type-value-1"),
+              Modifier.config("type-key", "type-value-2")
+            )
+          )
+        ) &&
         assert(Color.red.getOption(Color.Red))(isSome(equalTo(Color.Red))) &&
         assert(Color.mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(Color.Mix(0xffffff)))) &&
         assert(Color.mix_mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(0xffffff))) &&
@@ -230,10 +248,12 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 }
 
 enum Color(val rgb: Int) derives Schema:
-  case Red           extends Color(0xff0000)
-  case Green         extends Color(0x00ff00)
-  case Blue          extends Color(0x0000ff)
-  case Mix(mix: Int) extends Color(mix)
+  @Modifier.config("term-key", "term-value-1") @Modifier.config("term-key", "term-value-2") case Red
+      extends Color(0xff0000)
+  case Green extends Color(0x00ff00)
+  case Blue  extends Color(0x0000ff)
+  @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2") case Mix(mix: Int)
+      extends Color(mix)
 
 object Color extends CompanionOptics[Color] {
   implicit val redSchema: Schema[Color.Red.type]     = Schema.derived
