@@ -369,6 +369,8 @@ object Reflect {
       else None
     }
 
+    def fieldIndexByName(name: String): Int = fieldIndexByName.getOrDefault(name, -1)
+
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
       value match {
         case DynamicValue.Record(fields) =>
@@ -548,19 +550,18 @@ object Reflect {
       else None
     }
 
+    def caseIndexByName(name: String): Int = caseIndexByName.getOrDefault(name, -1)
+
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
     def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
       value match {
         case DynamicValue.Variant(discriminator, value) =>
           caseByName(discriminator) match {
-            case Some(c) =>
-              c.value.asInstanceOf[Reflect[F, A]].fromDynamicValue(value)
-            case _ =>
-              new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case"))
+            case Some(c) => c.value.asInstanceOf[Reflect[F, A]].fromDynamicValue(value)
+            case _       => new Left(SchemaError.unknownCase(DynamicOptic.root, discriminator, s"Unknown case"))
           }
-        case _ =>
-          new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a variant"))
+        case _ => new Left(SchemaError.invalidType(DynamicOptic.root, "Expected a variant"))
       }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
