@@ -151,7 +151,7 @@ object Lens {
         bindings(idx) = new LensBinding(
           deconstructor = source.deconstructor.asInstanceOf[Deconstructor[Any]],
           constructor = source.constructor.asInstanceOf[Constructor[Any]],
-          register = source.registers(source.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+          register = source.registers(source.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
           offset = offset
         )
         offset = RegisterOffset.add(offset, source.usedRegisters)
@@ -300,7 +300,7 @@ object Prism {
       while (idx < len) {
         val source        = sources(idx)
         val focusTermName = focusTerms(idx).name
-        matchers(idx) = source.matchers.apply(source.cases.indexWhere(_.name == focusTermName))
+        matchers(idx) = source.matchers.apply(source.caseIndexByName(focusTermName))
         discriminators(idx) = source.discriminator.asInstanceOf[Discriminator[Any]]
         idx += 1
       }
@@ -324,7 +324,7 @@ object Prism {
           val actualCase     = sources(idx).cases(actualCaseIdx).name
           val focusTermName  = focusTerms(idx).name
           val unexpectedCase = OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
-          return new Some(new OpticCheck(::(unexpectedCase, Nil)))
+          return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
         }
         idx += 1
       }
@@ -486,14 +486,14 @@ object Optional {
           bindings(idx) = new LensBinding(
             deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
             constructor = record.constructor.asInstanceOf[Constructor[Any]],
-            register = record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+            register = record.registers(record.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
             offset = offset
           )
           offset = RegisterOffset.add(offset, record.usedRegisters)
         } else {
           val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
           bindings(idx) = new PrismBinding(
-            matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
+            matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
             discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
           )
         }
@@ -528,7 +528,7 @@ object Optional {
               val focusTermName = focusTerms(idx).name
               val unexpectedCase =
                 OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
-              return new Some(new OpticCheck(::(unexpectedCase, Nil)))
+              return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
             }
         }
         idx += 1
@@ -808,14 +808,13 @@ object Traversal {
             bindings(idx) = new LensBinding(
               deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
               constructor = record.constructor.asInstanceOf[Constructor[Any]],
-              register =
-                record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+              register = record.registers(record.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
               offset = offset
             )
             offset = RegisterOffset.add(offset, record.usedRegisters)
           case variant: Reflect.Variant.Bound[_] =>
             bindings(idx) = new PrismBinding(
-              matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
+              matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
             )
           case sequence: Reflect.Sequence.Bound[Elem, Col] @scala.unchecked =>
