@@ -513,8 +513,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         type Variant2[A] = `Variant-2`[A]
 
-        @Modifier.config("record-key", "record-value-1")
-        @Modifier.config("record-key", "record-value-2")
+        @Modifier.config("variant-key", "variant-value-1")
+        @Modifier.config("variant-key", "variant-value-2")
         case object MissingValue extends Variant2[Nothing] {
           implicit val schema: Schema[MissingValue.type] = Schema.derived
         }
@@ -540,8 +540,8 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record.modifiers)(
           equalTo(
             Seq(
-              Modifier.config("record-key", "record-value-1"),
-              Modifier.config("record-key", "record-value-2")
+              Modifier.config("variant-key", "variant-value-1"),
+              Modifier.config("variant-key", "variant-value-2")
             )
           )
         ) &&

@@ -118,16 +118,12 @@ private object SchemaVersionSpecific {
     def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
       var packages = List.empty[String]
       var values   = List.empty[String]
-      var name     = tpe.typeSymbol.name.toString
+      var name     = tpe.typeSymbol.name
       var owner    = tpe.typeSymbol.owner
       while (owner != defn.RootClass) {
-        val ownerName = owner.name.toString
-        if (tpe.termSymbol.flags.is(Flags.Enum)) {
-          tpe match {
-            case TermRef(_, n) => name = n
-            case _             => fail(s"Unsupported enum type: '${tpe.show}', tree=$tpe")
-          }
-        } else if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+        val ownerName = owner.name
+        if (tpe.termSymbol.flags.is(Flags.Enum)) name = tpe.termSymbol.name
+        else if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
         else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
         else values = ownerName :: values
         owner = owner.owner
@@ -136,7 +132,7 @@ private object SchemaVersionSpecific {
     }
 
     def modifiers(tpe: TypeRepr): Seq[Expr[Modifier.config]] =
-      tpe.typeSymbol.annotations
+      (if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol else tpe.typeSymbol).annotations
         .filter(_.tpe =:= TypeRepr.of[Modifier.config])
         .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
           '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
