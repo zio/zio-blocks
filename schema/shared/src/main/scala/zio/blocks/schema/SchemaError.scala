@@ -15,13 +15,13 @@ object SchemaError {
     new SchemaError(new ::(new InvalidType(source, message), Nil))
 
   def missingField(source: DynamicOptic, fieldName: String): SchemaError =
-    new SchemaError(new ::(new MissingField(source, fieldName, "Missing field"), Nil))
+    new SchemaError(new ::(new MissingField(source, fieldName), Nil))
 
   def duplicatedField(source: DynamicOptic, fieldName: String): SchemaError =
-    new SchemaError(new ::(new DuplicatedField(source, fieldName, "Duplicated field"), Nil))
+    new SchemaError(new ::(new DuplicatedField(source, fieldName), Nil))
 
   def unknownCase(source: DynamicOptic, caseName: String): SchemaError =
-    new SchemaError(new ::(new UnknownCase(source, caseName, "Unknown case"), Nil))
+    new SchemaError(new ::(new UnknownCase(source, caseName), Nil))
 
   sealed trait Single {
     def message: String
@@ -29,11 +29,17 @@ object SchemaError {
     def source: DynamicOptic
   }
 
-  case class MissingField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
+  case class MissingField(source: DynamicOptic, fieldName: String) extends Single {
+    override def message: String = s"Missing field $fieldName"
+  }
 
-  case class DuplicatedField[S, A](source: DynamicOptic, fieldName: String, message: String) extends Single
+  case class DuplicatedField(source: DynamicOptic, fieldName: String) extends Single {
+    override def message: String = s"Duplicated field $fieldName"
+  }
 
-  case class InvalidType[A](source: DynamicOptic, message: String) extends Single
+  case class InvalidType(source: DynamicOptic, message: String) extends Single
 
-  case class UnknownCase[S, A](source: DynamicOptic, caseName: String, message: String) extends Single
+  case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
+    override def message: String = s"Unknown case $caseName"
+  }
 }
