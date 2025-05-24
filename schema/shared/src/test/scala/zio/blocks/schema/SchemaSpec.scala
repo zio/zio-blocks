@@ -115,14 +115,12 @@ object SchemaSpec extends ZIOSpecDefault {
                   ::(
                     DuplicatedField(
                       source = DynamicOptic(nodes = IndexedSeq.empty),
-                      fieldName = "i",
-                      message = "Duplicated field"
+                      fieldName = "i"
                     ),
                     ::(
                       MissingField(
                         source = DynamicOptic(nodes = IndexedSeq.empty),
-                        fieldName = "b",
-                        message = "Missing field"
+                        fieldName = "b"
                       ),
                       Nil
                     )
