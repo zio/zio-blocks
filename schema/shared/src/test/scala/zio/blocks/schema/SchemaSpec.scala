@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.Scope
+import zio.blocks.schema.DynamicOptic.Node.{Elements, Field, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{DuplicatedField, InvalidType, MissingField}
 import zio.blocks.schema.binding._
@@ -37,7 +38,7 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Byte].fromDynamicValue(Schema[Byte].toDynamicValue(1)))(isRight(equalTo(1: Byte))) &&
         assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Byte")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Byte")))
         )
       }
     ),
@@ -92,7 +93,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
         assert(Record.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a record")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a record")))
         ) &&
         assert(
           Record.schema.fromDynamicValue(
@@ -109,7 +110,7 @@ object SchemaSpec extends ZIOSpecDefault {
               SchemaError(
                 errors = ::(
                   InvalidType(
-                    source = DynamicOptic(nodes = IndexedSeq.empty),
+                    source = DynamicOptic(nodes = Vector(Field(name = "i"))),
                     message = "Expected Int"
                   ),
                   ::(
@@ -434,13 +435,13 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Case2("VVV")))
         ) &&
         assert(Variant.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a variant")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a variant")))
         ) &&
         assert(
           Variant.schema.fromDynamicValue(
             DynamicValue.Variant("Unknown", DynamicValue.Primitive(PrimitiveValue.Long(1000)))
           )
-        )(isLeft(equalTo(SchemaError.unknownCase(DynamicOptic.root, "Unknown"))))
+        )(isLeft(equalTo(SchemaError.unknownCase(Nil, "Unknown"))))
       },
       test("has consistent gets for typed and dynamic optics") {
         assert(Variant.schema.get(Variant.case1.toDynamic))(equalTo(Variant.schema.get(Variant.case1))) &&
@@ -722,7 +723,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(List("VVV", "WWW")))
         ) &&
         assert(Schema[List[Int]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a sequence")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a sequence")))
         ) &&
         assert(
           Schema[List[Boolean]].fromDynamicValue(
@@ -739,12 +740,12 @@ object SchemaSpec extends ZIOSpecDefault {
               SchemaError(
                 errors = ::(
                   InvalidType(
-                    source = DynamicOptic(nodes = IndexedSeq.empty),
+                    source = DynamicOptic(nodes = Vector(Elements)),
                     message = "Expected Boolean"
                   ),
                   ::(
                     InvalidType(
-                      source = DynamicOptic(nodes = IndexedSeq.empty),
+                      source = DynamicOptic(nodes = Vector(Elements)),
                       message = "Expected Boolean"
                     ),
                     Nil
@@ -758,42 +759,42 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[List[Byte]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Byte")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Byte")))) &&
         assert(
           Schema[List[Char]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Char")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Char")))) &&
         assert(
           Schema[List[Short]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Short")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Short")))) &&
         assert(
           Schema[List[Int]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Long(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Int")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Int")))) &&
         assert(
           Schema[List[Float]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Float")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Float")))) &&
         assert(
           Schema[List[Long]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Long")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Long")))) &&
         assert(
           Schema[List[Double]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Double")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Double")))) &&
         assert(
           Schema[List[String]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected String"))))
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected String"))))
       },
       test("has consistent gets for typed and dynamic optics") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
@@ -865,7 +866,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[Map[Int, Long]].fromDynamicValue(Schema[Map[Int, Long]].toDynamicValue(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))
         )(isRight(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))) &&
         assert(Schema[Map[Int, Long]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a map")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a map")))
         ) &&
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
@@ -875,7 +876,7 @@ object SchemaSpec extends ZIOSpecDefault {
               )
             )
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Int")))) &&
+        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.Node.MapKeys :: Nil, "Expected Int")))) &&
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
@@ -891,12 +892,12 @@ object SchemaSpec extends ZIOSpecDefault {
               SchemaError(
                 errors = ::(
                   InvalidType(
-                    source = DynamicOptic(nodes = IndexedSeq.empty),
+                    source = DynamicOptic(nodes = Vector(MapValues)),
                     message = "Expected Long"
                   ),
                   ::(
                     InvalidType(
-                      source = DynamicOptic(nodes = IndexedSeq.empty),
+                      source = DynamicOptic(nodes = Vector(MapValues)),
                       message = "Expected Long"
                     ),
                     Nil
