@@ -49,8 +49,6 @@ object Register {
   }
 
   case class Int(relativeIndex: scala.Int) extends Register[scala.Int] {
-    def registerType: RegisterType[scala.Int] = RegisterType.Int
-
     def get(registers: Registers, base: RegisterOffset): scala.Int = registers.getInt(base, relativeIndex)
 
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Int): Unit =
@@ -69,8 +67,6 @@ object Register {
   }
 
   case class Float(relativeIndex: scala.Int) extends Register[scala.Float] {
-    def registerType: RegisterType[scala.Float] = RegisterType.Float
-
     def get(registers: Registers, base: RegisterOffset): scala.Float = registers.getFloat(base, relativeIndex)
 
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Float): Unit =
