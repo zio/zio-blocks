@@ -11,17 +11,17 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
 }
 
 object SchemaError {
-  def invalidType(source: DynamicOptic, message: String): SchemaError =
-    new SchemaError(new ::(new InvalidType(source, message), Nil))
+  def invalidType(trace: List[DynamicOptic.Node], message: String): SchemaError =
+    new SchemaError(new ::(new InvalidType(DynamicOptic(trace.toVector.reverse), message), Nil))
 
-  def missingField(source: DynamicOptic, fieldName: String): SchemaError =
-    new SchemaError(new ::(new MissingField(source, fieldName), Nil))
+  def missingField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
+    new SchemaError(new ::(new MissingField(DynamicOptic(trace.toVector.reverse), fieldName), Nil))
 
-  def duplicatedField(source: DynamicOptic, fieldName: String): SchemaError =
-    new SchemaError(new ::(new DuplicatedField(source, fieldName), Nil))
+  def duplicatedField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
+    new SchemaError(new ::(new DuplicatedField(DynamicOptic(trace.toVector.reverse), fieldName), Nil))
 
-  def unknownCase(source: DynamicOptic, caseName: String): SchemaError =
-    new SchemaError(new ::(new UnknownCase(source, caseName), Nil))
+  def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
+    new SchemaError(new ::(new UnknownCase(DynamicOptic(trace.toVector.reverse), caseName), Nil))
 
   sealed trait Single {
     def message: String
