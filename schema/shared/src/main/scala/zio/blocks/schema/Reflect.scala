@@ -99,7 +99,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     case _                   => false
   }
 
-  def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+  def fromDynamicValue(value: DynamicValue)(implicit F: HasBinding[F]): Either[SchemaError, A] =
+    fromDynamicValue(value, Nil)
+
+  private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
     F: HasBinding[F]
   ): Either[SchemaError, A]
 
@@ -365,7 +368,7 @@ object Reflect {
 
     private[schema] def fieldIndexByName(name: String): Int = fieldIndexByName.getOrDefault(name, -1)
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
     ): Either[SchemaError, A] =
       value match {
@@ -544,7 +547,7 @@ object Reflect {
 
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
     ): Either[SchemaError, A] =
       value match {
@@ -628,7 +631,7 @@ object Reflect {
     def examples(value: C[A], values: C[A]*)(implicit F: HasBinding[F]): Sequence[F, A, C] =
       copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
     ): Either[SchemaError, C[A]] = {
       var error: Option[SchemaError] = None
@@ -800,7 +803,7 @@ object Reflect {
     def examples(value: M[Key, Value], values: M[Key, Value]*)(implicit F: HasBinding[F]): Map[F, Key, Value, M] =
       copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
     ): Either[SchemaError, M[Key, Value]] = {
       var error: Option[SchemaError] = None
@@ -901,10 +904,9 @@ object Reflect {
     def examples(value: DynamicValue, values: DynamicValue*)(implicit F: HasBinding[F]): Dynamic[F] =
       copy(dynamicBinding = F.updateBinding(dynamicBinding, _.examples(value, values: _*)))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
-    ): Either[SchemaError, DynamicValue] =
-      new Right(value)
+    ): Either[SchemaError, DynamicValue] = new Right(value)
 
     def metadata: F[NodeBinding, DynamicValue] = dynamicBinding
 
@@ -952,10 +954,9 @@ object Reflect {
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Primitive[F, A] =
       copy(primitiveBinding = F.updateBinding(primitiveBinding, _.examples(value, values: _*)))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
-    ): Either[SchemaError, A] =
-      primitiveType.fromDynamicValue(value, trace)
+    ): Either[SchemaError, A] = primitiveType.fromDynamicValue(value, trace)
 
     def metadata: F[NodeBinding, A] = primitiveBinding
 
@@ -1000,10 +1001,9 @@ object Reflect {
     def examples(value: A, values: A*)(implicit F: HasBinding[F]): Deferred[F, A] =
       copy(_value = () => _value().examples(value, values: _*))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
-    ): Either[SchemaError, A] =
-      this.value.fromDynamicValue(value, trace)
+    ): Either[SchemaError, A] = this.value.fromDynamicValue(value, trace)
 
     def metadata: F[NodeBinding, A] = value.metadata
 

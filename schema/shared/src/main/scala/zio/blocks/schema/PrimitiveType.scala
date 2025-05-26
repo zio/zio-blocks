@@ -1,7 +1,9 @@
 package zio.blocks.schema
 
 sealed trait PrimitiveType[A] {
-  def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, A]
+  def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = fromDynamicValue(value, Nil)
+
+  private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, A]
 
   def toDynamicValue(value: A): DynamicValue
 
@@ -14,7 +16,10 @@ object PrimitiveType {
 
     def toDynamicValue(value: scala.Unit): DynamicValue = new DynamicValue.Primitive(PrimitiveValue.Unit)
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Unit] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Unit] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Unit) => new Right(())
         case _                                           => new Left(SchemaError.invalidType(trace, "Expected Unit"))
@@ -25,7 +30,10 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Boolean): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Boolean] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Boolean] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => new Right(b)
         case _                                                 => new Left(SchemaError.invalidType(trace, "Expected Boolean"))
@@ -35,7 +43,10 @@ object PrimitiveType {
   case class Byte(validation: Validation[scala.Byte]) extends PrimitiveType[scala.Byte] {
     def toDynamicValue(value: scala.Byte): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Byte(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Byte] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Byte] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(b)) => new Right(b)
         case _                                              => new Left(SchemaError.invalidType(trace, "Expected Byte"))
@@ -45,7 +56,10 @@ object PrimitiveType {
   case class Short(validation: Validation[scala.Short]) extends PrimitiveType[scala.Short] {
     def toDynamicValue(value: scala.Short): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Short(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Short] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Short] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(s)) => new Right(s)
         case _                                               => new Left(SchemaError.invalidType(trace, "Expected Short"))
@@ -55,7 +69,10 @@ object PrimitiveType {
   case class Int(validation: Validation[scala.Int]) extends PrimitiveType[scala.Int] {
     def toDynamicValue(value: scala.Int): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Int(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Int] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Int] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(i)) => new Right(i)
         case _                                             => new Left(SchemaError.invalidType(trace, "Expected Int"))
@@ -65,7 +82,10 @@ object PrimitiveType {
   case class Long(validation: Validation[scala.Long]) extends PrimitiveType[scala.Long] {
     def toDynamicValue(value: scala.Long): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Long(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Long] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Long] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(l)) => new Right(l)
         case _                                              => new Left(SchemaError.invalidType(trace, "Expected Long"))
@@ -75,7 +95,10 @@ object PrimitiveType {
   case class Float(validation: Validation[scala.Float]) extends PrimitiveType[scala.Float] {
     def toDynamicValue(value: scala.Float): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Float(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Float] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Float] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(f)) => Right(f)
         case _                                               => Left(SchemaError.invalidType(trace, "Expected Float"))
@@ -85,7 +108,10 @@ object PrimitiveType {
   case class Double(validation: Validation[scala.Double]) extends PrimitiveType[scala.Double] {
     def toDynamicValue(value: scala.Double): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Double(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Double] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Double] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(d)) => new Right(d)
         case _                                                => new Left(SchemaError.invalidType(trace, "Expected Double"))
@@ -95,7 +121,10 @@ object PrimitiveType {
   case class Char(validation: Validation[scala.Char]) extends PrimitiveType[scala.Char] {
     def toDynamicValue(value: scala.Char): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Char(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.Char] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.Char] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Char(c)) => new Right(c)
         case _                                              => new Left(SchemaError.invalidType(trace, "Expected Char"))
@@ -106,7 +135,10 @@ object PrimitiveType {
     def toDynamicValue(value: Predef.String): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.String(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, Predef.String] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, Predef.String] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.String(s)) => new Right(s)
         case _                                                => new Left(SchemaError.invalidType(trace, "Expected String"))
@@ -116,7 +148,10 @@ object PrimitiveType {
   case class BigInt(validation: Validation[scala.BigInt]) extends PrimitiveType[scala.BigInt] {
     def toDynamicValue(value: scala.BigInt): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.BigInt(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.BigInt] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.BigInt] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.BigInt(b)) => new Right(b)
         case _                                                => new Left(SchemaError.invalidType(trace, "Expected BigInt"))
@@ -127,7 +162,10 @@ object PrimitiveType {
     def toDynamicValue(value: scala.BigDecimal): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, scala.BigDecimal] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, scala.BigDecimal] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.BigDecimal(b)) => new Right(b)
         case _                                                    => new Left(SchemaError.invalidType(trace, "Expected BigDecimal"))
@@ -138,7 +176,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.DayOfWeek): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.DayOfWeek(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.DayOfWeek] = value match {
@@ -151,7 +189,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Duration): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Duration(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.time.Duration] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.time.Duration] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Duration(d)) => new Right(d)
         case _                                                  => new Left(SchemaError.invalidType(trace, "Expected Duration"))
@@ -162,7 +203,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Instant): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Instant(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.time.Instant] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.time.Instant] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Instant(i)) => new Right(i)
         case _                                                 => new Left(SchemaError.invalidType(trace, "Expected Instant"))
@@ -173,7 +217,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.LocalDate): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalDate(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.LocalDate] = value match {
@@ -187,7 +231,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.LocalDateTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalDateTime(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.LocalDateTime] =
@@ -201,7 +245,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.LocalTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalTime(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.LocalTime] = value match {
@@ -214,7 +258,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Month): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Month(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.time.Month] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.time.Month] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Month(m)) => new Right(m)
         case _                                               => new Left(SchemaError.invalidType(trace, "Expected Month"))
@@ -225,7 +272,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.MonthDay): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.MonthDay(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.time.MonthDay] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.time.MonthDay] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.MonthDay(m)) => new Right(m)
         case _                                                  => new Left(SchemaError.invalidType(trace, "Expected MonthDay"))
@@ -237,7 +287,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.OffsetDateTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.OffsetDateTime(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.OffsetDateTime] =
@@ -251,7 +301,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.OffsetTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.OffsetTime(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.OffsetTime] = value match {
@@ -264,7 +314,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Period): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Period(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.time.Period] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.time.Period] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Period(p)) => new Right(p)
         case _                                                => new Left(SchemaError.invalidType(trace, "Expected Period"))
@@ -274,7 +327,10 @@ object PrimitiveType {
   case class Year(validation: Validation[java.time.Year]) extends PrimitiveType[java.time.Year] {
     def toDynamicValue(value: java.time.Year): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Year(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.time.Year] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.time.Year] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Year(y)) => new Right(y)
         case _                                              => new Left(SchemaError.invalidType(trace, "Expected Year"))
@@ -285,7 +341,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.YearMonth): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.YearMonth(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.YearMonth] = value match {
@@ -298,7 +354,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.ZoneId): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZoneId(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.time.ZoneId] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.time.ZoneId] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.ZoneId(z)) => new Right(z)
         case _                                                => new Left(SchemaError.invalidType(trace, "Expected ZoneId"))
@@ -309,7 +368,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.ZoneOffset): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZoneOffset(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.ZoneOffset] = value match {
@@ -323,7 +382,7 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.ZonedDateTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZonedDateTime(value))
 
-    def fromDynamicValue(
+    private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.ZonedDateTime] =
@@ -337,7 +396,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.util.UUID): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.UUID(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.util.UUID] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.util.UUID] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.UUID(u)) => new Right(u)
         case _                                              => new Left(SchemaError.invalidType(trace, "Expected UUID"))
@@ -348,7 +410,10 @@ object PrimitiveType {
     def toDynamicValue(value: java.util.Currency): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Currency(value))
 
-    def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node]): Either[SchemaError, java.util.Currency] =
+    private[schema] def fromDynamicValue(
+      value: DynamicValue,
+      trace: List[DynamicOptic.Node]
+    ): Either[SchemaError, java.util.Currency] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Currency(c)) => new Right(c)
         case _                                                  => new Left(SchemaError.invalidType(trace, "Expected Currency"))
