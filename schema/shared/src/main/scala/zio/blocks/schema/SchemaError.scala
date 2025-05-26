@@ -11,16 +11,16 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
 }
 
 object SchemaError {
-  def invalidType(trace: List[DynamicOptic.Node], message: String): SchemaError =
-    new SchemaError(new ::(new InvalidType(DynamicOptic(trace.toVector.reverse), message), Nil))
+  private[schema] def invalidType(trace: List[DynamicOptic.Node], expectation: String): SchemaError =
+    new SchemaError(new ::(new InvalidType(DynamicOptic(trace.toVector.reverse), expectation), Nil))
 
-  def missingField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
+  private[schema] def missingField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
     new SchemaError(new ::(new MissingField(DynamicOptic(trace.toVector.reverse), fieldName), Nil))
 
-  def duplicatedField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
+  private[schema] def duplicatedField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
     new SchemaError(new ::(new DuplicatedField(DynamicOptic(trace.toVector.reverse), fieldName), Nil))
 
-  def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
+  private[schema] def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
     new SchemaError(new ::(new UnknownCase(DynamicOptic(trace.toVector.reverse), caseName), Nil))
 
   sealed trait Single {
@@ -30,16 +30,18 @@ object SchemaError {
   }
 
   case class MissingField(source: DynamicOptic, fieldName: String) extends Single {
-    override def message: String = s"Missing field $fieldName"
+    override def message: String = s"Missing field $fieldName at: $source"
   }
 
   case class DuplicatedField(source: DynamicOptic, fieldName: String) extends Single {
-    override def message: String = s"Duplicated field $fieldName"
+    override def message: String = s"Duplicated field $fieldName at: $source"
   }
 
-  case class InvalidType(source: DynamicOptic, message: String) extends Single
+  case class InvalidType(source: DynamicOptic, expectation: String) extends Single {
+    override def message: String = s"$expectation at: $source"
+  }
 
   case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
-    override def message: String = s"Unknown case $caseName"
+    override def message: String = s"Unknown case $caseName at: $source"
   }
 }

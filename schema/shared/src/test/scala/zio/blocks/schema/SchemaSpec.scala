@@ -1,9 +1,9 @@
 package zio.blocks.schema
 
 import zio.Scope
-import zio.blocks.schema.DynamicOptic.Node.{Elements, Field, MapValues}
+import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
-import zio.blocks.schema.SchemaError.{DuplicatedField, InvalidType, MissingField}
+import zio.blocks.schema.SchemaError.InvalidType
 import zio.blocks.schema.binding._
 import zio.test._
 import zio.test.Assertion._
@@ -106,28 +106,10 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )(
           isLeft(
-            equalTo(
-              SchemaError(
-                errors = ::(
-                  InvalidType(
-                    source = DynamicOptic(nodes = Vector(Field(name = "i"))),
-                    message = "Expected Int"
-                  ),
-                  ::(
-                    DuplicatedField(
-                      source = DynamicOptic(nodes = IndexedSeq.empty),
-                      fieldName = "i"
-                    ),
-                    ::(
-                      MissingField(
-                        source = DynamicOptic(nodes = IndexedSeq.empty),
-                        fieldName = "b"
-                      ),
-                      Nil
-                    )
-                  )
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected Int at: .i\nDuplicated field i at: .\nMissing field b at: .")
             )
           )
         )
@@ -736,22 +718,10 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )(
           isLeft(
-            equalTo(
-              SchemaError(
-                errors = ::(
-                  InvalidType(
-                    source = DynamicOptic(nodes = Vector(Elements)),
-                    message = "Expected Boolean"
-                  ),
-                  ::(
-                    InvalidType(
-                      source = DynamicOptic(nodes = Vector(Elements)),
-                      message = "Expected Boolean"
-                    ),
-                    Nil
-                  )
-                )
-              )
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected Boolean at: .each\nExpected Boolean at: .each")
             )
           )
         ) &&
@@ -893,12 +863,12 @@ object SchemaSpec extends ZIOSpecDefault {
                 errors = ::(
                   InvalidType(
                     source = DynamicOptic(nodes = Vector(MapValues)),
-                    message = "Expected Long"
+                    expectation = "Expected Long"
                   ),
                   ::(
                     InvalidType(
                       source = DynamicOptic(nodes = Vector(MapValues)),
-                      message = "Expected Long"
+                      expectation = "Expected Long"
                     ),
                     Nil
                   )
