@@ -15,23 +15,24 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Unit
         assertTrue(tpe.toDynamicValue(()) == DynamicValue.Primitive(PrimitiveValue.Unit)) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Unit)))(isRight(equalTo(()))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Unit")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Unit), Nil))(isRight(equalTo(()))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Unit")))
         )
       },
       test("Validation is set to None") {
-        val tpe = PrimitiveType.Unit
-        assert(tpe.validation)(equalTo(None))
+        assert(PrimitiveType.Unit.validation)(equalTo(None))
       }
     ),
     suite("PrimitiveType.Byte")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Byte(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte))))(isRight(equalTo(1: Byte))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Byte")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte)), Nil))(
+          isRight(equalTo(1: Byte))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Byte")))
         )
       }
     ),
@@ -39,9 +40,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Boolean(None)
         assertTrue(tpe.toDynamicValue(true) == DynamicValue.Primitive(PrimitiveValue.Boolean(true))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))(isRight(equalTo(true))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Boolean")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Boolean(true)), Nil))(
+          isRight(equalTo(true))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Boolean")))
         )
       }
     ),
@@ -49,9 +52,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Short(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Short(1))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1))))(isRight(equalTo(1: Short))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Short")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Short(1)), Nil))(
+          isRight(equalTo(1: Short))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Short")))
         )
       }
     ),
@@ -59,9 +64,9 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Char(None)
         assertTrue(tpe.toDynamicValue('1') == DynamicValue.Primitive(PrimitiveValue.Char('1'))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char('1'))))(isRight(equalTo('1'))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Char")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char('1')), Nil))(isRight(equalTo('1'))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Char")))
         )
       }
     ),
@@ -69,9 +74,9 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Int(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Int(1))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Int")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1)), Nil))(isRight(equalTo(1))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Int")))
         )
       }
     ),
@@ -79,9 +84,9 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Float(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Float(1.0f))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1.0f))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Float")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f)), Nil))(isRight(equalTo(1.0f))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Float")))
         )
       }
     ),
@@ -89,9 +94,9 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Long(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Long(1L))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(1L))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Long")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(isRight(equalTo(1L))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Long")))
         )
       }
     ),
@@ -99,9 +104,9 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Double(None)
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Double(1.0))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1.0))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Double")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0)), Nil))(isRight(equalTo(1.0))) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Double")))
         )
       }
     ),
@@ -109,9 +114,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.String(None)
         assertTrue(tpe.toDynamicValue("WWW") == DynamicValue.Primitive(PrimitiveValue.String("WWW"))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("WWW"))))(isRight(equalTo("WWW"))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected String")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("WWW")), Nil))(
+          isRight(equalTo("WWW"))
+        ) &&
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected String")))
         )
       }
     ),
@@ -119,11 +126,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.BigInt(None)
         assertTrue(tpe.toDynamicValue(BigInt(1)) == DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1)))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigInt(BigInt(1))), Nil))(
           isRight(equalTo(BigInt(1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected BigInt")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected BigInt")))
         )
       }
     ),
@@ -133,11 +140,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(
           tpe.toDynamicValue(BigDecimal(1.0)) == DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0)))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.BigDecimal(BigDecimal(1.0))), Nil))(
           isRight(equalTo(BigDecimal(1.0)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected BigDecimal")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected BigDecimal")))
         )
       }
     ),
@@ -155,15 +162,19 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           tpe.fromDynamicValue(
             DynamicValue.Primitive(
               PrimitiveValue.UUID(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000"))
-            )
+            ),
+            Nil
           )
         )(
           isRight(equalTo(java.util.UUID.fromString("123e4567-e89b-12d3-a456-426614174000")))
         ) &&
         assert(
-          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("123e4567-e89b-12d3-a456-426614174000")))
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(PrimitiveValue.String("123e4567-e89b-12d3-a456-426614174000")),
+            Nil
+          )
         )(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected UUID")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected UUID")))
         )
       }
     ),
@@ -173,11 +184,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(DayOfWeek.MONDAY))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY)), Nil))(
           isRight(equalTo(DayOfWeek.MONDAY))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected DayOfWeek")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected DayOfWeek")))
         )
       }
     ),
@@ -187,11 +198,13 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.Duration.ofSeconds(1)))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Duration(java.time.Duration.ofSeconds(1))))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Duration(java.time.Duration.ofSeconds(1)))))(
+        assert(
+          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Duration(java.time.Duration.ofSeconds(1))), Nil)
+        )(
           isRight(equalTo(java.time.Duration.ofSeconds(1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Duration")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Duration")))
         )
       }
     ),
@@ -201,11 +214,13 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.Instant.ofEpochMilli(1)))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Instant(java.time.Instant.ofEpochMilli(1))))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Instant(java.time.Instant.ofEpochMilli(1)))))(
+        assert(
+          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Instant(java.time.Instant.ofEpochMilli(1))), Nil)
+        )(
           isRight(equalTo(java.time.Instant.ofEpochMilli(1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Instant")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Instant")))
         )
       }
     ),
@@ -216,12 +231,15 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           equalTo(DynamicValue.Primitive(PrimitiveValue.LocalDate(java.time.LocalDate.of(2023, 1, 1))))
         ) &&
         assert(
-          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.LocalDate(java.time.LocalDate.of(2023, 1, 1))))
+          tpe.fromDynamicValue(
+            DynamicValue.Primitive(PrimitiveValue.LocalDate(java.time.LocalDate.of(2023, 1, 1))),
+            Nil
+          )
         )(
           isRight(equalTo(java.time.LocalDate.of(2023, 1, 1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected LocalDate")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected LocalDate")))
         )
       }
     ),
@@ -233,13 +251,14 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         ) &&
         assert(
           tpe.fromDynamicValue(
-            DynamicValue.Primitive(PrimitiveValue.LocalDateTime(java.time.LocalDateTime.of(2023, 1, 1, 1, 1)))
+            DynamicValue.Primitive(PrimitiveValue.LocalDateTime(java.time.LocalDateTime.of(2023, 1, 1, 1, 1))),
+            Nil
           )
         )(
           isRight(equalTo(java.time.LocalDateTime.of(2023, 1, 1, 1, 1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected LocalDateTime")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected LocalDateTime")))
         )
       }
     ),
@@ -249,11 +268,13 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.LocalTime.of(1, 1)))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.LocalTime(java.time.LocalTime.of(1, 1))))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.LocalTime(java.time.LocalTime.of(1, 1)))))(
+        assert(
+          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.LocalTime(java.time.LocalTime.of(1, 1))), Nil)
+        )(
           isRight(equalTo(java.time.LocalTime.of(1, 1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected LocalTime")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected LocalTime")))
         )
       }
     ),
@@ -263,11 +284,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.Month.JANUARY))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Month(java.time.Month.JANUARY)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Month(java.time.Month.JANUARY))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Month(java.time.Month.JANUARY)), Nil))(
           isRight(equalTo(java.time.Month.JANUARY))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Month")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Month")))
         )
       }
     ),
@@ -279,13 +300,14 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         ) &&
         assert(
           tpe.fromDynamicValue(
-            DynamicValue.Primitive(PrimitiveValue.MonthDay(java.time.MonthDay.of(java.time.Month.JANUARY, 1)))
+            DynamicValue.Primitive(PrimitiveValue.MonthDay(java.time.MonthDay.of(java.time.Month.JANUARY, 1))),
+            Nil
           )
         )(
           isRight(equalTo(java.time.MonthDay.of(java.time.Month.JANUARY, 1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected MonthDay")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected MonthDay")))
         )
       }
     ),
@@ -307,13 +329,14 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
               PrimitiveValue.OffsetDateTime(
                 java.time.OffsetDateTime.of(2023, 1, 1, 1, 1, 0, 0, java.time.ZoneOffset.UTC)
               )
-            )
+            ),
+            Nil
           )
         )(
           isRight(equalTo(java.time.OffsetDateTime.of(2023, 1, 1, 1, 1, 0, 0, java.time.ZoneOffset.UTC)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected OffsetDateTime")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected OffsetDateTime")))
         )
       }
     ),
@@ -331,13 +354,14 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           tpe.fromDynamicValue(
             DynamicValue.Primitive(
               PrimitiveValue.OffsetTime(java.time.OffsetTime.of(1, 1, 0, 0, java.time.ZoneOffset.UTC))
-            )
+            ),
+            Nil
           )
         )(
           isRight(equalTo(java.time.OffsetTime.of(1, 1, 0, 0, java.time.ZoneOffset.UTC)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected OffsetTime")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected OffsetTime")))
         )
       }
     ),
@@ -347,11 +371,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.Period.ofDays(1)))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Period(java.time.Period.ofDays(1))))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Period(java.time.Period.ofDays(1)))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Period(java.time.Period.ofDays(1))), Nil))(
           isRight(equalTo(java.time.Period.ofDays(1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Period")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Period")))
         )
       }
     ),
@@ -361,11 +385,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.Year.of(2023)))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Year(java.time.Year.of(2023))))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Year(java.time.Year.of(2023)))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Year(java.time.Year.of(2023))), Nil))(
           isRight(equalTo(java.time.Year.of(2023)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Year")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Year")))
         )
       }
     ),
@@ -375,11 +399,13 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.YearMonth.of(2023, 1)))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.YearMonth(java.time.YearMonth.of(2023, 1))))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.YearMonth(java.time.YearMonth.of(2023, 1)))))(
+        assert(
+          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.YearMonth(java.time.YearMonth.of(2023, 1))), Nil)
+        )(
           isRight(equalTo(java.time.YearMonth.of(2023, 1)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected YearMonth")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected YearMonth")))
         )
       }
     ),
@@ -389,11 +415,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.ZoneId.of("UTC")))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.ZoneId(java.time.ZoneId.of("UTC"))))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.ZoneId(java.time.ZoneId.of("UTC")))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.ZoneId(java.time.ZoneId.of("UTC"))), Nil))(
           isRight(equalTo(java.time.ZoneId.of("UTC")))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected ZoneId")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected ZoneId")))
         )
       }
     ),
@@ -403,11 +429,11 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.toDynamicValue(java.time.ZoneOffset.UTC))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.ZoneOffset(java.time.ZoneOffset.UTC)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.ZoneOffset(java.time.ZoneOffset.UTC))))(
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.ZoneOffset(java.time.ZoneOffset.UTC)), Nil))(
           isRight(equalTo(java.time.ZoneOffset.UTC))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected ZoneOffset")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected ZoneOffset")))
         )
       }
     ),
@@ -425,13 +451,14 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           tpe.fromDynamicValue(
             DynamicValue.Primitive(
               PrimitiveValue.ZonedDateTime(java.time.ZonedDateTime.of(2023, 1, 1, 1, 1, 0, 0, java.time.ZoneOffset.UTC))
-            )
+            ),
+            Nil
           )
         )(
           isRight(equalTo(java.time.ZonedDateTime.of(2023, 1, 1, 1, 1, 0, 0, java.time.ZoneOffset.UTC)))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected ZonedDateTime")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected ZonedDateTime")))
         )
       }
     ),
@@ -449,13 +476,14 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           tpe.fromDynamicValue(
             DynamicValue.Primitive(
               PrimitiveValue.UUID(java.util.UUID.fromString("DAD945B7-64F4-4265-BB56-4557325F701C"))
-            )
+            ),
+            Nil
           )
         )(
           isRight(equalTo(java.util.UUID.fromString("DAD945B7-64F4-4265-BB56-4557325F701C")))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected UUID")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected UUID")))
         )
       }
     ),
@@ -467,12 +495,12 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           equalTo(DynamicValue.Primitive(PrimitiveValue.Currency(testCurrency)))
         ) &&
         assert(
-          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Currency(testCurrency)))
+          tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Currency(testCurrency)), Nil)
         )(
           isRight(equalTo(testCurrency))
         ) &&
-        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Currency")))
+        assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L)), Nil))(
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Currency")))
         )
       } @@ jvmOnly // Only relevant when we have locale data, which is not available in Scala.js or Scala Native.
     )
