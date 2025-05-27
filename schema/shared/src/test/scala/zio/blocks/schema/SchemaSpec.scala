@@ -423,7 +423,22 @@ object SchemaSpec extends ZIOSpecDefault {
           Variant.schema.fromDynamicValue(
             DynamicValue.Variant("Unknown", DynamicValue.Primitive(PrimitiveValue.Long(1000)))
           )
-        )(isLeft(equalTo(SchemaError.unknownCase(Nil, "Unknown"))))
+        )(isLeft(equalTo(SchemaError.unknownCase(Nil, "Unknown")))) &&
+        assert(
+          Variant.schema.fromDynamicValue(
+            DynamicValue
+              .Variant("Case2", DynamicValue.Record(Vector(("s", DynamicValue.Primitive(PrimitiveValue.Int(1))))))
+          )
+        )(
+          isLeft(
+            equalTo(
+              SchemaError.invalidType(
+                List(DynamicOptic.Node.Field("s"), DynamicOptic.Node.Case("Case2")),
+                "Expected String"
+              )
+            )
+          )
+        )
       },
       test("has consistent gets for typed and dynamic optics") {
         assert(Variant.schema.get(Variant.case1.toDynamic))(equalTo(Variant.schema.get(Variant.case1))) &&
