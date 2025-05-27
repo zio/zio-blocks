@@ -1,12 +1,14 @@
-package zio.blocks.schema.json
+package zio.blocks.schema
 
-import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.blocks.schema.DynamicValue.{Primitive, Record, Sequence, Variant}
+
 import zio.test.Gen
+
+import scala.annotation.tailrec
 
 object DynamicValueGen {
 
-  private def genPrimitiveValue: Gen[Any, PrimitiveValue] =
+  protected def genPrimitiveValue: Gen[Any, PrimitiveValue] =
     Gen.oneOf(
       Gen.alphaNumericString.map(PrimitiveValue.String.apply),
       Gen.int.map(PrimitiveValue.Int.apply),
@@ -72,4 +74,19 @@ object DynamicValueGen {
       genSequence,
       genMap
     )
+
+  @tailrec
+  final def mkLazy(value: DynamicValue, depth: Int = 0): DynamicValue.Lazy =
+    if (depth <= 0) DynamicValue.Lazy(() => value)
+    else mkLazy(DynamicValue.Lazy(() => value), depth - 1)
+
+
+  protected def genLazyWithValue: Gen[Any, (DynamicValue.Lazy, DynamicValue)] =
+    for {
+      value <- Gen.oneOf(genDynamicValue, genPrimitiveValue.map(Primitive(_)))
+      lazyVal <- Gen.const(mkLazy(value))
+    } yield (lazyVal, value)
+
+  def genLazy: Gen[Any, DynamicValue.Lazy] =
+    genLazyWithValue.map(_._1)
 }
