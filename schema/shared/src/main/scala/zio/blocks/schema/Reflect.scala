@@ -1062,6 +1062,10 @@ object Reflect {
     def nodeType = value.nodeType
   }
 
+  object Deferred {
+    type Bound[A] = Deferred[Binding, A]
+  }
+
   def unit[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Unit] =
     new Primitive(PrimitiveType.Unit, F.fromBinding(Binding.Primitive.unit), TypeName.unit, Doc.Empty, Nil)
 
