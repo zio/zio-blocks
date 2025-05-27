@@ -16,12 +16,7 @@ object RegisterType {
 
   def Object[A <: AnyRef](): Object[A] = _object.asInstanceOf[Object[A]]
 
-  private[this] val _object =
-    new Object[AnyRef] {
-      override def toString: String = "Object"
-
-      override def equals(obj: Any): Boolean = obj.isInstanceOf[Object[_]]
-
-      override def hashCode: Int = 31
-    }
+  private[this] val _object = new Object[AnyRef] {
+    override def toString: String = "Object"
+  }
 }
