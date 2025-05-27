@@ -2568,17 +2568,17 @@ object OpticSpecTypes {
 
   object Variant3 extends CompanionOptics[Variant3] {
     val reflect: Reflect.Deferred.Bound[Variant3] = Reflect.Deferred(() => Schema.derived[Variant3].reflect)
-    implicit val schema: Schema[Variant3]        = Schema(reflect) // to test prism derivation for Reflect.Deferred
-    val c5: Prism[Variant3, Case5]               = caseOf
+    implicit val schema: Schema[Variant3]         = Schema(reflect) // to test prism derivation for Reflect.Deferred
+    val c5: Prism[Variant3, Case5]                = caseOf
   }
 
   case class Case5(si: Set[Int], as: Array[String]) extends Variant3
 
   object Case5 extends CompanionOptics[Case5] {
     val reflect: Reflect.Deferred.Bound[Case5] = Reflect.Deferred(() => Schema.derived[Case5].reflect)
-    implicit val schema: Schema[Case5]       = Schema(reflect) // to test lens derivation for Reflect.Deferred
-    val si: Traversal[Case5, Int]            = field(_.si).setValues
-    val as: Traversal[Case5, String]         = field(_.as).arrayValues
+    implicit val schema: Schema[Case5]         = Schema(reflect) // to test lens derivation for Reflect.Deferred
+    val si: Traversal[Case5, Int]              = field(_.si).setValues
+    val as: Traversal[Case5, String]           = field(_.as).arrayValues
   }
 
   case class Case6(@Modifier.deferred v2: Variant2) extends Variant3
