@@ -39,7 +39,7 @@ private object CompanionOptics {
               import zio.blocks.schema._
               import zio.blocks.schema.binding._
 
-              $schema.reflect.asInstanceOf[Reflect.Record[Binding, S]].lensByName[A](${ Expr(fieldName) }).get
+              $schema.reflect.asRecord.flatMap(_.lensByName[A](${ Expr(fieldName) })).get
             }.asExprOf[Lens[S, A]]
         }
       case pt =>
@@ -64,7 +64,7 @@ private object CompanionOptics {
       import zio.blocks.schema._
       import zio.blocks.schema.binding._
 
-      $schema.reflect.asInstanceOf[Reflect.Variant[Binding, S]].prismByName[A](${ Expr(caseName) }).get
+      $schema.reflect.asVariant.flatMap(_.prismByName[A](${ Expr(caseName) })).get
     }.asExprOf[Prism[S, A]]
   }
 }

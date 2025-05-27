@@ -19,7 +19,6 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
-    val sTpe = weakTypeOf[S].dealias
     val aTpe = weakTypeOf[A].dealias
     path.tree match {
       case Function(List(valDef @ ValDef(_, _, _, _)), Select(id @ Ident(_), TermName(name)))
@@ -30,7 +29,7 @@ private object CompanionOptics {
                 import _root_.zio.blocks.schema._
                 import _root_.zio.blocks.schema.binding._
 
-                $schema.reflect.asInstanceOf[Reflect.Record[Binding, $sTpe]].lensByName[$aTpe]($fieldName).get
+                $schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get
               }"""
         }
       case pt =>
@@ -43,7 +42,6 @@ private object CompanionOptics {
   )(schema: c.Expr[Schema[S]]): c.Expr[Prism[S, A]] = {
     import c.universe._
 
-    val sTpe     = weakTypeOf[S].dealias
     val aTpe     = weakTypeOf[A].dealias
     val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
     c.Expr[Prism[S, A]] {
@@ -51,7 +49,7 @@ private object CompanionOptics {
             import _root_.zio.blocks.schema._
             import _root_.zio.blocks.schema.binding._
 
-            $schema.reflect.asInstanceOf[Reflect.Variant[Binding, $sTpe]].prismByName[$aTpe]($caseName).get
+            $schema.reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get
           }"""
     }
   }
