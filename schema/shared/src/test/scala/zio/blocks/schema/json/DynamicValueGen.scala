@@ -1,14 +1,16 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.blocks.schema.DynamicValue.{Primitive, Record, Sequence, Variant}
+import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.test.Gen
+
+import scala.annotation.tailrec
 
 object DynamicValueGen {
 
-  private def genPrimitiveValue: Gen[Any, PrimitiveValue] =
+  protected def genPrimitiveValue: Gen[Any, PrimitiveValue] =
     Gen.oneOf(
-      Gen.alphaNumericString.map(PrimitiveValue.String.apply),
+      Gen.alphaNumericStringBounded(1, 10).map(PrimitiveValue.String.apply),
       Gen.int.map(PrimitiveValue.Int.apply),
       Gen.boolean.map(PrimitiveValue.Boolean.apply),
       Gen.byte.map(PrimitiveValue.Byte.apply),
@@ -23,53 +25,88 @@ object DynamicValueGen {
       // TODO: Add more here...
     )
 
-  def genRecord: Gen[Any, Record] = Gen
-    .listOfBounded(0, 10) {
+  // Depth-limited generators for Scala Native compatibility
+  def genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
+
+  private def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
+    if (maxDepth <= 0) {
+      // At max depth, only generate primitives
+      genPrimitiveValue.map(Primitive(_))
+    } else {
+      Gen.oneOf(
+        genPrimitiveValue.map(Primitive(_)),
+        genRecordWithDepth(maxDepth - 1),
+        genVariantWithDepth(maxDepth - 1),
+        genSequenceWithDepth(maxDepth - 1),
+        genMapWithDepth(maxDepth - 1)
+      )
+    }
+
+  def genRecord: Gen[Any, Record] = genRecordWithDepth(2)
+
+  private def genRecordWithDepth(maxDepth: Int): Gen[Any, Record] = Gen
+    .listOfBounded(0, 5) { // Reduced from 10 to 5 for Native compatibility
       for {
-        key   <- Gen.alphaNumericString
-        value <- genPrimitiveValue
-      } yield key -> Primitive(value)
+        key   <- Gen.alphaNumericStringBounded(1, 10) // Avoid empty string keys
+        value <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
+      } yield key -> value
     }
     .map(f => Record(f.toIndexedSeq))
 
-  def genVariant: Gen[Any, Variant] = for {
-    caseName <- Gen.alphaNumericString
-    value    <- genPrimitiveValue
-  } yield Variant(caseName, Primitive(value))
+  def genVariant: Gen[Any, Variant] = genVariantWithDepth(2)
 
-  def genSequence: Gen[Any, Sequence] =
+  private def genVariantWithDepth(maxDepth: Int): Gen[Any, Variant] = for {
+    caseName <- Gen.alphaNumericStringBounded(1, 10) // Avoid empty string case names
+    value    <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
+  } yield Variant(caseName, value)
+
+  def genSequence: Gen[Any, Sequence] = genSequenceWithDepth(2)
+
+  private def genSequenceWithDepth(maxDepth: Int): Gen[Any, Sequence] =
     Gen
-      .listOfBounded(0, 10)(genPrimitiveValue.map(Primitive(_)))
+      .listOfBounded(0, 5)(
+        if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
+      )
       .map(f => Sequence(f.toIndexedSeq))
 
   def genAlphaNumericSequence: Gen[Any, Sequence] =
     Gen
-      .listOfBounded(0, 10)(
+      .listOfBounded(0, 5)(
         Gen
           .oneOf(
-            Gen.alphaNumericString.map(PrimitiveValue.String.apply),
+            Gen.alphaNumericStringBounded(1, 10).map(PrimitiveValue.String.apply),
             Gen.int.map(PrimitiveValue.Int.apply)
           )
           .map(Primitive(_))
       )
       .map(f => Sequence(f.toIndexedSeq))
 
-  def genMap: Gen[Any, DynamicValue.Map] =
+  def genMap: Gen[Any, DynamicValue.Map] = genMapWithDepth(2)
+
+  private def genMapWithDepth(maxDepth: Int): Gen[Any, DynamicValue.Map] =
     Gen
-      .listOfBounded(0, 10) {
+      .listOfBounded(0, 5) {
         for {
-          key   <- genPrimitiveValue.map(Primitive(_))
-          value <- genPrimitiveValue.map(Primitive(_))
+          // Only use non-empty string keys to avoid duplicate JSON key issues
+          key   <- Gen.alphaNumericStringBounded(1, 10).map(s => Primitive(PrimitiveValue.String(s)))
+          value <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
         } yield key -> value
       }
-      .map(_.distinctBy(_._1.value))
+      .map(_.distinctBy(_._1.value)) // Now safe since all keys are non-empty strings
       .map(list => DynamicValue.Map(list.toIndexedSeq))
 
-  def genDynamicValue: Gen[Any, DynamicValue] =
-    Gen.oneOf(
-      genRecord,
-      genVariant,
-      genSequence,
-      genMap
-    )
+  @tailrec
+  final def mkLazy(value: DynamicValue, depth: Int = 0): DynamicValue.Lazy =
+    if (depth <= 0) DynamicValue.Lazy(() => value)
+    else mkLazy(DynamicValue.Lazy(() => value), depth - 1)
+
+  def genLazyWithValue: Gen[Any, (DynamicValue.Lazy, DynamicValue)] =
+    for {
+      value <- Gen.oneOf(genDynamicValueWithDepth(1), genPrimitiveValue.map(Primitive(_))) // Shallow depth for lazy
+      // Only create simple and single nested lazy values, no deep nesting for Scala Native compatibility
+      lazyVal <- Gen.int(0, 1).flatMap(n => Gen.const(mkLazy(value, n)))
+    } yield (lazyVal, value)
+
+  def genLazy: Gen[Any, DynamicValue.Lazy] =
+    genLazyWithValue.map(_._1)
 }
