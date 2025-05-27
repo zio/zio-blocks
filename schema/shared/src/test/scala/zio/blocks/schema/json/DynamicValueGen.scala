@@ -27,8 +27,8 @@ object DynamicValueGen {
 
   // Depth-limited generators for Scala Native compatibility
   def genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
-  
-  private def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] = {
+
+  private def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
     if (maxDepth <= 0) {
       // At max depth, only generate primitives
       genPrimitiveValue.map(Primitive(_))
@@ -41,10 +41,9 @@ object DynamicValueGen {
         genMapWithDepth(maxDepth - 1)
       )
     }
-  }
 
   def genRecord: Gen[Any, Record] = genRecordWithDepth(2)
-  
+
   private def genRecordWithDepth(maxDepth: Int): Gen[Any, Record] = Gen
     .listOfBounded(0, 5) { // Reduced from 10 to 5 for Native compatibility
       for {
@@ -55,14 +54,14 @@ object DynamicValueGen {
     .map(f => Record(f.toIndexedSeq))
 
   def genVariant: Gen[Any, Variant] = genVariantWithDepth(2)
-  
+
   private def genVariantWithDepth(maxDepth: Int): Gen[Any, Variant] = for {
     caseName <- Gen.alphaNumericStringBounded(1, 10) // Avoid empty string case names
     value    <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
   } yield Variant(caseName, value)
 
   def genSequence: Gen[Any, Sequence] = genSequenceWithDepth(2)
-  
+
   private def genSequenceWithDepth(maxDepth: Int): Gen[Any, Sequence] =
     Gen
       .listOfBounded(0, 5)(
@@ -83,7 +82,7 @@ object DynamicValueGen {
       .map(f => Sequence(f.toIndexedSeq))
 
   def genMap: Gen[Any, DynamicValue.Map] = genMapWithDepth(2)
-  
+
   private def genMapWithDepth(maxDepth: Int): Gen[Any, DynamicValue.Map] =
     Gen
       .listOfBounded(0, 5) {

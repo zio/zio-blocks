@@ -56,7 +56,7 @@ object DynamicValueSpec extends ZIOSpecDefault {
           check(genLazy, genLazy) { (lazy1, lazy2) =>
             // Different lazy instances are never equal, even if they wrap the same value
             assertTrue(
-              (lazy1 eq lazy2) == (lazy1 == lazy2), // Only equal if same instance
+              (lazy1 eq lazy2) == (lazy1 == lazy2),                  // Only equal if same instance
               (lazy1 == lazy2) == (lazy1.hashCode == lazy2.hashCode) // Hash code consistency
             )
           } &&
