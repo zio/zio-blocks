@@ -1,79 +1,87 @@
 package zio.blocks.schema
 
-import scala.util.control.NonFatal
-
 sealed trait DynamicValue {
   final def toJson: String = json.dynamicValueToJson(this)
-
-  final override def equals(that: Any): Boolean = that match {
-    case dv: DynamicValue => this.internalEquals(dv)
-    case _                => false
-  }
-
-  protected def internalEquals(that: DynamicValue): Boolean
 }
 
 object DynamicValue {
-
-  final case class Record(fields: IndexedSeq[(String, DynamicValue)]) extends DynamicValue {
-    protected def internalEquals(that: DynamicValue): Boolean = that match {
+  case class Record(fields: IndexedSeq[(String, DynamicValue)]) extends DynamicValue {
+    override def equals(that: Any): Boolean = that match {
       case Record(thatFields) =>
-        fields.length == thatFields.length &&
-        fields.zip(thatFields).forall { case ((k1, v1), (k2, v2)) =>
-          k1 == k2 && v1.internalEquals(v2)
+        val len = fields.length
+        if (len != thatFields.length) return false
+        var idx = 0
+        while (idx < len) {
+          val kv1 = fields(idx)
+          val kv2 = thatFields(idx)
+          if (kv1._1 != kv2._1 || kv1._2 != kv2._2) return false
+          idx += 1
         }
+        true
       case _ => false
     }
-    override def hashCode: Int = fields.map { case (k, v) =>
-      31 * k.hashCode + v.hashCode
-    }.hashCode
+
+    override def hashCode: Int = fields.hashCode
   }
 
-  final case class Variant(caseName: String, value: DynamicValue) extends DynamicValue {
-    protected def internalEquals(that: DynamicValue): Boolean = that match {
-      case Variant(thatCaseName, thatValue) =>
-        caseName == thatCaseName && value.internalEquals(thatValue)
-      case _ => false
+  case class Variant(caseName: String, value: DynamicValue) extends DynamicValue {
+    override def equals(that: Any): Boolean = that match {
+      case Variant(thatCaseName, thatValue) => caseName == thatCaseName && value == thatValue
+      case _                                => false
     }
+
     override def hashCode: Int = 31 * caseName.hashCode + value.hashCode
   }
 
-  final case class Sequence(elements: IndexedSeq[DynamicValue]) extends DynamicValue {
-    protected def internalEquals(that: DynamicValue): Boolean = that match {
+  case class Sequence(elements: IndexedSeq[DynamicValue]) extends DynamicValue {
+    override def equals(that: Any): Boolean = that match {
       case Sequence(thatElements) =>
-        elements.length == thatElements.length &&
-        elements.zip(thatElements).forall { case (e1, e2) =>
-          e1.internalEquals(e2)
+        val len = elements.length
+        if (len != thatElements.length) return false
+        var idx = 0
+        while (idx < len) {
+          val v1 = elements(idx)
+          val v2 = thatElements(idx)
+          if (v1 != v2) return false
+          idx += 1
         }
+        true
       case _ => false
     }
-    override def hashCode: Int = elements.map(_.hashCode).hashCode
+
+    override def hashCode: Int = elements.hashCode
   }
 
-  final case class Map(entries: IndexedSeq[(DynamicValue, DynamicValue)]) extends DynamicValue {
-    protected def internalEquals(that: DynamicValue): Boolean = that match {
+  case class Map(entries: IndexedSeq[(DynamicValue, DynamicValue)]) extends DynamicValue {
+    override def equals(that: Any): Boolean = that match {
       case Map(thatEntries) =>
-        entries.length == thatEntries.length &&
-        entries.zip(thatEntries).forall { case ((k1, v1), (k2, v2)) =>
-          k1.internalEquals(k2) && v1.internalEquals(v2)
+        val len = entries.length
+        if (len != thatEntries.length) return false
+        var idx = 0
+        while (idx < len) {
+          val kv1 = entries(idx)
+          val kv2 = thatEntries(idx)
+          if (kv1._1 != kv2._1 || kv1._2 != kv2._2) return false
+          idx += 1
         }
+        true
       case _ => false
     }
-    override def hashCode: Int = entries.map { case (k, v) =>
-      31 * k.hashCode + v.hashCode
-    }.hashCode
+
+    override def hashCode: Int = entries.hashCode
   }
 
-  final case class Primitive(value: PrimitiveValue) extends DynamicValue {
-    protected def internalEquals(that: DynamicValue): Boolean = that match {
+  case class Primitive(value: PrimitiveValue) extends DynamicValue {
+    override def equals(that: Any): Boolean = that match {
       case Primitive(thatValue) => value == thatValue
       case _                    => false
     }
+
     override def hashCode: Int = value.hashCode
   }
 
-  final case class Lazy(value: () => DynamicValue) extends DynamicValue {
-    protected def internalEquals(that: DynamicValue): Boolean = that match {
+  case class Lazy(value: () => DynamicValue) extends DynamicValue {
+    override def equals(that: Any): Boolean = that match {
       case other: Lazy => this eq other // Pure identity comparison
       case _           => false         // Lazy values are never equal to non-lazy values
     }
