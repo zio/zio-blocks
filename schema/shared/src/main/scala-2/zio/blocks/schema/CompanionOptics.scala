@@ -19,20 +19,12 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
-    val sTpe = weakTypeOf[S].dealias
     val aTpe = weakTypeOf[A].dealias
     path.tree match {
       case Function(List(valDef @ ValDef(_, _, _, _)), Select(id @ Ident(_), TermName(name)))
           if id.symbol == valDef.symbol =>
         val fieldName = NameTransformer.decode(name)
-        c.Expr[Lens[S, A]] {
-          q"""{
-                import _root_.zio.blocks.schema._
-                import _root_.zio.blocks.schema.binding._
-
-                $schema.reflect.asInstanceOf[Reflect.Record[Binding, $sTpe]].lensByName[$aTpe]($fieldName).get
-              }"""
-        }
+        c.Expr[Lens[S, A]](q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get")
       case pt =>
         fail(s"Expected a lambda expression that returns a field value, got: ${showRaw(pt)}")
     }
@@ -43,16 +35,8 @@ private object CompanionOptics {
   )(schema: c.Expr[Schema[S]]): c.Expr[Prism[S, A]] = {
     import c.universe._
 
-    val sTpe     = weakTypeOf[S].dealias
     val aTpe     = weakTypeOf[A].dealias
     val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
-    c.Expr[Prism[S, A]] {
-      q"""{
-            import _root_.zio.blocks.schema._
-            import _root_.zio.blocks.schema.binding._
-
-            $schema.reflect.asInstanceOf[Reflect.Variant[Binding, $sTpe]].prismByName[$aTpe]($caseName).get
-          }"""
-    }
+    c.Expr[Prism[S, A]](q"$schema.reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get")
   }
 }
