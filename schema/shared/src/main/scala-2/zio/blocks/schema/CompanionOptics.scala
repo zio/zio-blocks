@@ -19,14 +19,18 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
-    val aTpe = weakTypeOf[A].dealias
-    path.tree match {
-      case Function(List(valDef @ ValDef(_, _, _, _)), Select(id @ Ident(_), TermName(name)))
-          if id.symbol == valDef.symbol =>
-        val fieldName = NameTransformer.decode(name)
+    def toPathBody(tree: c.Tree): c.Tree = tree match {
+      case q"($_) => $pathBody" => pathBody
+      case _                    => fail(s"Expected a lambda expression, got: ${showRaw(tree)}")
+    }
+
+    toPathBody(path.tree) match {
+      case q"$_.$child" =>
+        val aTpe      = weakTypeOf[A].dealias
+        val fieldName = NameTransformer.decode(child.toString)
         c.Expr[Lens[S, A]](q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get")
-      case pt =>
-        fail(s"Expected a lambda expression that returns a field value, got: ${showRaw(pt)}")
+      case tree =>
+        fail(s"Expected a path element, got: ${showRaw(tree)}")
     }
   }
 

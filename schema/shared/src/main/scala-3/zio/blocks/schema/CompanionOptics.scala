@@ -16,25 +16,17 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
-    path.asTerm match {
-      case Inlined(
-            _,
-            _,
-            Block(
-              List(
-                DefDef(
-                  _,
-                  List(TermParamClause(List(valDef @ ValDef(_, _, _)))),
-                  _,
-                  Some(body @ Select(id @ Ident(_), fieldName))
-                )
-              ),
-              _
-            )
-          ) if id.symbol == valDef.symbol =>
+    def toPathBody(term: Term): Term = term match {
+      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
+      case _                                               => fail(s"Expected a lambda expression, got: ${term.show(using Printer.TreeStructure)}")
+    }
+
+    toPathBody(path.asTerm) match {
+      case Select(Ident(_), fieldName) =>
         '{ $schema.reflect.asRecord.flatMap(_.lensByName[A](${ Expr(fieldName) })).get }.asExprOf[Lens[S, A]]
-      case pt =>
-        fail(s"Expected a lambda expression that returns a field value, got: ${pt.show(using Printer.TreeStructure)}")
+      case term =>
+        fail(s"Expected a path element, got: ${term.show(using Printer.TreeStructure)}")
     }
   }
 
