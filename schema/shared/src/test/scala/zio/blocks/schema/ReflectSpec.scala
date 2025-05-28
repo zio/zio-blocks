@@ -267,6 +267,14 @@ object ReflectSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(tuple4Reflect.lensByName("_5"))(isNone)
+      },
+      test("finds field term by name") {
+        assert(tuple4Reflect.fieldByName("_3"): Option[Any])(
+          isSome(
+            equalTo(Reflect.int[Binding].asTerm("_3").asInstanceOf[Term[Binding, (Byte, Short, Int, Long), Int]])
+          )
+        ) &&
+        assert(tuple4Reflect.fieldByName("_5"))(isNone)
       }
     ),
     suite("Reflect.Variant")(
@@ -318,6 +326,14 @@ object ReflectSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(eitherReflect.prismByName("Middle"))(isNone)
+      },
+      test("finds case term by name") {
+        assert(eitherReflect.caseByName("Left"): Option[Any])(
+          isSome(
+            equalTo(leftSchema.reflect.asTerm("Left").asInstanceOf[Term[Binding, Either[Int, Long], Left[Int, Long]]])
+          )
+        ) &&
+        assert(eitherReflect.caseByName("Middle"))(isNone)
       }
     ),
     suite("Reflect.Sequence")(
