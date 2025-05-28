@@ -80,16 +80,5 @@ object DynamicValue {
     override def hashCode: Int = value.hashCode
   }
 
-  case class Lazy(value: () => DynamicValue) extends DynamicValue {
-    override def equals(that: Any): Boolean = that match {
-      case other: Lazy => this eq other // Pure identity comparison
-      case _           => false         // Lazy values are never equal to non-lazy values
-    }
-
-    override def hashCode: Int = System.identityHashCode(this)
-
-    override def toString: String = s"Lazy(value = $value)"
-  }
-
   final def fromJson(rawJson: String): DynamicValue = json.dynamicValueFromJson(rawJson)
 }
