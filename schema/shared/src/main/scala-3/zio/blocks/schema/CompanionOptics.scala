@@ -32,43 +32,60 @@ private object CompanionOptics {
       case _                                               => fail(s"Expected a lambda expression, got: ${term.show(using Printer.TreeStructure)}")
     }
 
-    def toOptic(term: Term): Expr[Any] = term match {
+    def toOptic(term: Term): Option[Expr[Any]] = term match {
       case Select(parent, fieldName) =>
         val sTpe = parent.tpe.dealias.widen
         val aTpe = term.tpe.dealias.widen
-        sTpe.asType match {
+        Some(sTpe.asType match {
           case '[s] =>
-            val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[s]]
             aTpe.asType match {
               case '[a] =>
-                '{ $reflect.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get }.asExprOf[Any]
+                toOptic(parent).fold('{
+                  ${ '{ $schema.reflect }.asExprOf[Reflect.Bound[s]] }.asRecord
+                    .flatMap(_.lensByName[a](${ Expr(fieldName) }))
+                    .get
+                }.asExprOf[Any]) { x =>
+                  '{
+                    ${ x.asExprOf[Optic[?, s]] }.apply(${
+                      '{ ${ x.asExprOf[Optic[?, s]] }.focus }.asExprOf[Reflect.Bound[s]]
+                    }.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get)
+                  }.asExprOf[Any]
+                }
             }
-        }
-      case TypeApply(Apply(TypeApply(extensionTerm, _), idents), typeTrees) if extensionTerm.toString.endsWith("when)") =>
+        })
+      case TypeApply(Apply(TypeApply(extensionTerm, _), idents), typeTrees)
+          if extensionTerm.toString.endsWith("when)") =>
         val parent   = idents.head
         val sTpe     = parent.tpe.dealias.widen
         val aTpe     = typeTrees.head.tpe.dealias
         var caseName = aTpe.typeSymbol.name
         if (aTpe.termSymbol.flags.is(Flags.Enum)) caseName = aTpe.termSymbol.name
         else if (aTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
-        sTpe.asType match {
+        Some(sTpe.asType match {
           case '[s] =>
-            val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[s]]
             aTpe.asType match {
               case '[
                   type a <: s; a] =>
-                '{ $reflect.asVariant.flatMap(_.prismByName[a](${ Expr(caseName) })).get }.asExprOf[Any]
-/*
-              case _ =>
-                fail(s"Expected $aTpe to be a subtype of $sTpe")
-*/
+                toOptic(parent).fold('{
+                  ${ '{ $schema.reflect }.asExprOf[Reflect.Bound[s]] }.asVariant
+                    .flatMap(_.prismByName[a](${ Expr(caseName) }))
+                    .get
+                }.asExprOf[Any]) { x =>
+                  '{
+                    ${ x.asExprOf[Optic[?, s]] }.apply(${
+                      '{ ${ x.asExprOf[Optic[?, s]] }.focus }.asExprOf[Reflect.Bound[s]]
+                    }.asVariant.flatMap(_.prismByName[a](${ Expr(caseName) })).get)
+                  }.asExprOf[Any]
+                }
             }
-        }
+        })
+      case _: Ident =>
+        None
       case term =>
         fail(s"Expected a path element, got: ${term.show(using Printer.TreeStructure)}")
     }
 
-    toOptic(toPathBody(path.asTerm))
+    toOptic(toPathBody(path.asTerm)).get
   }
 
   def field[S: Type, A: Type](path: Expr[S => A], schema: Expr[Schema[S]])(using q: Quotes): Expr[Lens[S, A]] = {

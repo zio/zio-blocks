@@ -36,19 +36,19 @@ private object CompanionOptics {
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
       case q"$parent.$child" =>
-        val sTpe      = parent.tpe.dealias.widen
         val aTpe      = tree.tpe.dealias
         val fieldName = NameTransformer.decode(child.toString)
-        val reflect = q"$schema.reflect"
-        q"$reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
+        val optic     = toOptic(parent)
+        if (optic.isEmpty) q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
+        else q"$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get)"
       case q"$extentionTree[..$_]($parent).when[$caseTree]" if extentionTree.toString.endsWith(".When") =>
-        val sTpe     = parent.tpe.dealias.widen
         val aTpe     = caseTree.tpe.dealias
         val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
-        val reflect = q"$schema.reflect"
-        //if (aTpe <:< sTpe) {
-        q"$reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get"
-        //} else fail(s"Expected $aTpe to be a subtype of $sTpe")
+        val optic    = toOptic(parent)
+        if (optic.isEmpty) q"$schema.reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get"
+        else q"$optic.apply($optic.focus.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get)"
+      case _: Ident =>
+        q""
       case tree =>
         fail(s"Expected a path element, got: ${showRaw(tree)}")
     }
