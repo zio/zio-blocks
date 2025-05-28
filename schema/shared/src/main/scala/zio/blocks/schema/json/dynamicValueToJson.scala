@@ -1,7 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
-import zio.blocks.schema.DynamicValue.{Lazy, Map, Primitive, Record, Sequence, Variant}
+import zio.blocks.schema.DynamicValue._
 
 private[json] final case class UnsupportedPrimitiveValue(primitiveValue: PrimitiveValue) extends Throwable {
   override def getMessage: String =
@@ -46,7 +46,6 @@ object dynamicValueToJson extends (DynamicValue => String) {
       s"{${encodedEntries.mkString(",")}}"
 
     case Primitive(value) => encodePrimitiveValue(value)
-    case Lazy(value)      => encodeDynamicValue(value())
   }
 
   private final def encodePrimitiveValue(value: PrimitiveValue): String = value match {

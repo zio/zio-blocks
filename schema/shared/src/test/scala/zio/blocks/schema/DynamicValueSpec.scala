@@ -8,12 +8,6 @@ import zio.test.Assertion.{equalTo, not}
 object DynamicValueSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] =
     suite("DynamicValueSpec")(
-      suite("Simple DynamicValue equals and hashCode properties")(
-        test("self-referential lazy equality should not overflow") {
-          lazy val lazySelf: DynamicValue.Lazy = DynamicValue.Lazy(() => lazySelf)
-          assertTrue(lazySelf == lazySelf)
-        }
-      ),
       suite("DynamicValue equals and hashCode properties with Generators")(
         test("symmetry") {
           check(genDynamicValue, genDynamicValue) { (value1, value2) =>
@@ -66,28 +60,7 @@ object DynamicValueSpec extends ZIOSpecDefault {
             val map2 = DynamicValue.Map(Vector((key, value2)))
             assertTrue(!(map1 == map2) || (map1.hashCode == map2.hashCode))
           }
-        },
-        test("lazy equality and hashCode behaves correctly") {
-          // Test that lazy values use identity-based equality and hash codes
-          check(genLazy, genLazy) { (lazy1, lazy2) =>
-            // Different lazy instances are never equal, even if they wrap the same value
-            assertTrue(
-              (lazy1 eq lazy2) == (lazy1 == lazy2),                  // Only equal if same instance
-              (lazy1 == lazy2) == (lazy1.hashCode == lazy2.hashCode) // Hash code consistency
-            )
-          } &&
-          check(genLazyWithValue) { case (lazyValue, _) =>
-            // A lazy value is always equal to itself
-            assertTrue(
-              lazyValue == lazyValue,
-              lazyValue.hashCode == lazyValue.hashCode
-            )
-          } &&
-          check(genLazyWithValue, genDynamicValue) { case ((lazyValue, _), otherValue) =>
-            // Lazy values are never equal to non-lazy values
-            assertTrue(!(lazyValue == otherValue))
-          }
         }
-      ) @@ TestAspect.exceptNative
+      )
     )
 }
