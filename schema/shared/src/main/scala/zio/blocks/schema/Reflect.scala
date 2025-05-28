@@ -403,10 +403,7 @@ object Reflect {
           }
           var idx = 0
           while (idx < this.fields.length) {
-            if (fieldValues(idx) ne null) {
-              val name = this.fields(idx).name
-              addError(SchemaError.missingField(trace, name))
-            }
+            if (fieldValues(idx) ne null) addError(SchemaError.missingField(trace, this.fields(idx).name))
             idx += 1
           }
           if (error.isDefined) new Left(error.get)
