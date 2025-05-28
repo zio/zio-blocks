@@ -72,7 +72,7 @@ class OptionalGetOptionBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s_monocle.getOption(a1)
+  def monocle: Option[String] = A1_.b_b1_c_c1_d_d1_e_e1_s_monocle.getOption(a1)
 
   @Benchmark
   def zioBlocks: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s.getOption(a1)
@@ -106,10 +106,10 @@ class OptionalReplaceBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_monocle.replace("test2").apply(a1)
+  def monocle: A1 = A1_.b_b1_c_c1_d_d1_e_e1_s_monocle.replace("test2").apply(a1)
 
   @Benchmark
-  def quicklens: A1 = A1.b_b1_c_c1_d_d1_e_e1_s_quicklens.apply(a1).setTo("test2")
+  def quicklens: A1 = A1_.b_b1_c_c1_d_d1_e_e1_s_quicklens.apply(a1).setTo("test2")
 
   @Benchmark
   def zioBlocks: A1 = A1.b_b1_c_c1_d_d1_e_e1_s.replace(a1, "test2")
@@ -308,11 +308,18 @@ object OptionalDomain {
     val b: Lens[A1, B]              = field(_.b)
     val b_b1_c_c1_d_d1_e_e1_s: Optional[A1, String] =
       b(B.b1)(B1.c)(C.c1)(C1.d)(D.d1)(D1.e)(E.e1)(E1.s)
+  }
+
+  object A1_ {
     val b_b1_c_c1_d_d1_e_e1_s_quicklens: A1 => PathModify[A1, String] =
-      (modify(_: A1)(_.b.when[B1]))
-        .andThenModify(modify(_: B1)(_.c.when[C1]))
-        .andThenModify(modify(_: C1)(_.d.when[D1]))
-        .andThenModify(modify(_: D1)(_.e.when[E1]))
+      (modify(_: A1)(_.b))
+        .andThenModify(modify(_: B)(_.when[B1]))
+        .andThenModify(modify(_: B1)(_.c))
+        .andThenModify(modify(_: C)(_.when[C1]))
+        .andThenModify(modify(_: C1)(_.d))
+        .andThenModify(modify(_: D)(_.when[D1]))
+        .andThenModify(modify(_: D1)(_.e))
+        .andThenModify(modify(_: E)(_.when[E1]))
         .andThenModify(modify(_: E1)(_.s))
     val b_b1_c_c1_d_d1_e_e1_s_monocle: POptional[A1, A1, String, String] =
       Focus[A1](_.b)

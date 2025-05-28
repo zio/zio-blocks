@@ -1,7 +1,16 @@
 package zio.blocks.schema
 
+import scala.annotation.compileTimeOnly
+
 trait CompanionOptics[S] {
   import scala.language.experimental.macros
+
+  implicit class When[A](a: A) {
+    @compileTimeOnly("Can only be used inside `optic(_)` macro")
+    def when[B <: A]: B = sys.error("")
+  }
+
+  def optic[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 
   def field[A](path: S => A)(implicit schema: Schema[S]): Lens[S, A] = macro CompanionOptics.field[S, A]
 
@@ -9,8 +18,37 @@ trait CompanionOptics[S] {
 }
 
 private object CompanionOptics {
+  import scala.reflect.macros.whitebox
   import scala.reflect.macros.blackbox
   import scala.reflect.NameTransformer
+
+  def optic[S: c.WeakTypeTag, A: c.WeakTypeTag](
+    c: whitebox.Context
+  )(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
+    import c.universe._
+
+    def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
+
+    def toPathBody(tree: c.Tree): c.Tree = tree match {
+      case q"($_) => $pathBody" => pathBody
+      case _                    => fail(s"Expected a lambda expression, got: ${showRaw(tree)}")
+    }
+
+    def toOptic(tree: c.Tree): c.Tree = tree match {
+      case q"$_.$child" =>
+        val aTpe      = weakTypeOf[A].dealias
+        val fieldName = NameTransformer.decode(child.toString)
+        q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
+      case q"$tpname[..$_]($_).when[$tp]" if tpname.toString.endsWith(".When") =>
+        val aTpe     = tp.tpe
+        val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
+        q"$schema.reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get"
+      case tree =>
+        fail(s"Expected a path element, got: ${showRaw(tree)}")
+    }
+
+    toOptic(toPathBody(path.tree))
+  }
 
   def field[S: c.WeakTypeTag, A: c.WeakTypeTag](
     c: blackbox.Context
