@@ -262,14 +262,14 @@ object Color extends CompanionOptics[Color] {
 
   object Mix extends CompanionOptics[Color.Mix] {
     implicit val schema: Schema[Color.Mix] = Schema.derived
-    val mix: Lens[Color.Mix, Int]          = optic(_.mix)
+    val mix: Lens[Color.Mix, Int]          = $(_.mix)
   }
 
-  val red: Prism[Color, Color.Red.type]     = optic(_.when[Color.Red.type])
-  val green: Prism[Color, Color.Green.type] = optic(_.when[Color.Green.type])
-  val blue: Prism[Color, Color.Blue.type]   = optic(_.when[Color.Blue.type])
-  val mix: Prism[Color, Color.Mix]          = optic(_.when[Color.Mix])
-  val mix_mix: Optional[Color, Int]         = mix(Mix.mix)
+  val red: Prism[Color, Color.Red.type]     = $(_.when[Color.Red.type])
+  val green: Prism[Color, Color.Green.type] = $(_.when[Color.Green.type])
+  val blue: Prism[Color, Color.Blue.type]   = $(_.when[Color.Blue.type])
+  val mix: Prism[Color, Color.Mix]          = $(_.when[Color.Mix])
+  val mix_mix: Optional[Color, Int]         = $(_.when[Color.Mix].mix)
 }
 
 enum FruitEnum[T <: FruitEnum[T]]:

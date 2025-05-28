@@ -1038,16 +1038,16 @@ object SchemaSpec extends ZIOSpecDefault {
 
   object Record extends CompanionOptics[Record] {
     implicit val schema: Schema[Record] = Schema.derived
-    val b: Lens[Record, Byte]           = optic(_.b)
-    val i: Lens[Record, Int]            = optic(_.i)
+    val b: Lens[Record, Byte]           = $(_.b)
+    val i: Lens[Record, Int]            = $(_.i)
   }
 
   sealed trait Variant
 
   object Variant extends CompanionOptics[Variant] {
     implicit val schema: Schema[Variant] = Schema.derived
-    val case1: Prism[Variant, Case1]     = optic(_.when[Case1])
-    val case2: Prism[Variant, Case2]     = optic(_.when[Case2])
+    val case1: Prism[Variant, Case1]     = $(_.when[Case1])
+    val case2: Prism[Variant, Case2]     = $(_.when[Case2])
   }
 
   case class Case1(c: Char) extends Variant

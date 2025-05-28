@@ -10,6 +10,8 @@ trait CompanionOptics[S] {
     def when[B <: A]: B = sys.error("")
   }
 
+  def $[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
+
   def optic[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 
   def field[A](path: S => A)(implicit schema: Schema[S]): Lens[S, A] = macro CompanionOptics.field[S, A]

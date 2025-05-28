@@ -8,6 +8,9 @@ trait CompanionOptics[S] {
     def when[B <: A]: B = ???
   }
 
+  transparent inline def $[A](inline path: S => A)(using schema: Schema[S]): Any =
+    ${ CompanionOptics.optic('path, 'schema) }
+
   transparent inline def optic[A](inline path: S => A)(using schema: Schema[S]): Any =
     ${ CompanionOptics.optic('path, 'schema) }
 
