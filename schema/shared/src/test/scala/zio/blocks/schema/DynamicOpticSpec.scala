@@ -63,19 +63,19 @@ object DynamicOpticSpecTypes {
 
   object X extends CompanionOptics[X] {
     implicit val schema: Schema[X] = Schema.derived
-    val y: Lens[X, Y]              = field(_.y)
+    val y: Lens[X, Y]              = optic(_.y)
   }
 
   case class Y(z: Int) extends A
 
   object Y extends CompanionOptics[Y] {
     implicit val schema: Schema[Y] = Schema.derived
-    val z: Lens[Y, Int]            = field(_.z)
+    val z: Lens[Y, Int]            = optic(_.z)
   }
 
   object A extends CompanionOptics[A] {
     implicit val schema: Schema[A] = Schema.derived
-    val x: Prism[A, X]             = caseOf
-    val y: Prism[A, Y]             = caseOf
+    val x: Prism[A, X]             = optic(_.when[X])
+    val y: Prism[A, Y]             = optic(_.when[Y])
   }
 }

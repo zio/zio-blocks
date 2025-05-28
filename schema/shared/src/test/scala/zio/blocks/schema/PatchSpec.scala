@@ -116,9 +116,9 @@ sealed trait PaymentMethod
 
 object PaymentMethod extends CompanionOptics[PaymentMethod] {
   implicit val schema: Schema[PaymentMethod]           = Schema.derived
-  val creditCard: Prism[PaymentMethod, CreditCard]     = caseOf
-  val bankTransfer: Prism[PaymentMethod, BankTransfer] = caseOf
-  val payPal: Prism[PaymentMethod, PayPal]             = caseOf
+  val creditCard: Prism[PaymentMethod, CreditCard]     = optic(_.when[CreditCard])
+  val bankTransfer: Prism[PaymentMethod, BankTransfer] = optic(_.when[BankTransfer])
+  val payPal: Prism[PaymentMethod, PayPal]             = optic(_.when[PayPal])
   val payPalEmail: Optional[PaymentMethod, String]     = payPal(PayPal.email)
 }
 
@@ -147,7 +147,7 @@ case class PayPal(email: String) extends PaymentMethod
 
 object PayPal extends CompanionOptics[PayPal] {
   implicit val schema: Schema[PayPal] = Schema.derived
-  val email: Lens[PayPal, String]     = field(_.email)
+  val email: Lens[PayPal, String]     = optic(_.email)
 }
 
 case class Person(
@@ -159,9 +159,9 @@ case class Person(
 
 object Person extends CompanionOptics[Person] {
   implicit val schema: Schema[Person]                  = Schema.derived
-  val id: Lens[Person, Long]                           = field(_.id)
-  val name: Lens[Person, String]                       = field(_.name)
-  val address: Lens[Person, String]                    = field(_.address)
-  val paymentMethods: Traversal[Person, PaymentMethod] = field(_.paymentMethods).listValues
+  val id: Lens[Person, Long]                           = optic(_.id)
+  val name: Lens[Person, String]                       = optic(_.name)
+  val address: Lens[Person, String]                    = optic(_.address)
+  val paymentMethods: Traversal[Person, PaymentMethod] = optic(_.paymentMethods).listValues
   val payPalPaymentMethods: Traversal[Person, PayPal]  = paymentMethods(PaymentMethod.payPal)
 }

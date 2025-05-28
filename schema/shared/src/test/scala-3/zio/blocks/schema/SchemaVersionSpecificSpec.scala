@@ -14,8 +14,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         case class Record1(c: Char, d: Double) derives Schema
 
         object Record1 extends CompanionOptics[Record1] {
-          val c = field(x => x.c)
-          val d = field(_.d)
+          val c = optic(x => x.c)
+          val d = optic(_.d)
         }
 
         val schema = Schema[Record1]
@@ -64,8 +64,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         case class Case2(f: Float) extends Variant1 derives Schema
 
         object Variant1 extends CompanionOptics[Variant1] {
-          val case1 = caseOf[Case1]
-          val case2 = caseOf[Case2]
+          val case1 = optic(_.when[Case1])
+          val case2 = optic(_.when[Case2])
         }
 
         val schema = Schema[Variant1]
@@ -262,13 +262,13 @@ object Color extends CompanionOptics[Color] {
 
   object Mix extends CompanionOptics[Color.Mix] {
     implicit val schema: Schema[Color.Mix] = Schema.derived
-    val mix: Lens[Color.Mix, Int]          = field(_.mix)
+    val mix: Lens[Color.Mix, Int]          = optic(_.mix)
   }
 
-  val red: Prism[Color, Color.Red.type]     = caseOf
-  val green: Prism[Color, Color.Green.type] = caseOf
-  val blue: Prism[Color, Color.Blue.type]   = caseOf
-  val mix: Prism[Color, Color.Mix]          = caseOf
+  val red: Prism[Color, Color.Red.type]     = optic(_.when[Color.Red.type])
+  val green: Prism[Color, Color.Green.type] = optic(_.when[Color.Green.type])
+  val blue: Prism[Color, Color.Blue.type]   = optic(_.when[Color.Blue.type])
+  val mix: Prism[Color, Color.Mix]          = optic(_.when[Color.Mix])
   val mix_mix: Optional[Color, Int]         = mix(Mix.mix)
 }
 

@@ -2454,8 +2454,8 @@ object OpticSpecTypes {
   object Record1 extends CompanionOptics[Record1] {
     implicit val schema: Schema[Record1]       = Schema.derived
     val reflect: Reflect.Record.Bound[Record1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record1]]
-    val b: Lens[Record1, Boolean]              = field(_.b)
-    val f: Lens[Record1, Float]                = field(_.f)
+    val b: Lens[Record1, Boolean]              = optic(_.b)
+    val f: Lens[Record1, Float]                = optic(_.f)
   }
 
   case class Record2(l: Long, vi: Vector[Int], r1: Record1)
@@ -2463,9 +2463,9 @@ object OpticSpecTypes {
   object Record2 extends CompanionOptics[Record2] {
     implicit val schema: Schema[Record2]       = Schema.derived
     val reflect: Reflect.Record.Bound[Record2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record2]]
-    val l: Lens[Record2, Long]                 = field(_.l)
-    val vi: Traversal[Record2, Int]            = field(_.vi).vectorValues
-    val r1: Lens[Record2, Record1]             = field(_.r1)
+    val l: Lens[Record2, Long]                 = optic(_.l)
+    val vi: Traversal[Record2, Int]            = optic(_.vi).vectorValues
+    val r1: Lens[Record2, Record1]             = optic(_.r1)
     lazy val r1_b: Lens[Record2, Boolean]      = r1(Record1.b)
     lazy val r1_f: Lens[Record2, Float]        = r1(Record1.f)
   }
@@ -2475,9 +2475,9 @@ object OpticSpecTypes {
   object Record3 extends CompanionOptics[Record3] {
     implicit val schema: Schema[Record3]           = Schema.derived
     val reflect: Reflect.Record.Bound[Record3]     = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record3]]
-    val r1: Lens[Record3, Record1]                 = field(_.r1)
-    val r2: Lens[Record3, Record2]                 = field(_.r2)
-    val v1: Lens[Record3, Variant1]                = field(_.v1)
+    val r1: Lens[Record3, Record1]                 = optic(_.r1)
+    val r2: Lens[Record3, Record2]                 = optic(_.r2)
+    val v1: Lens[Record3, Variant1]                = optic(_.v1)
     lazy val r2_r1_b_left: Lens[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
     lazy val r2_r1_b_right: Lens[Record3, Boolean] = r2(Record2.r1(Record1.b))
     lazy val v1_c1: Optional[Record3, Case1]       = v1(Variant1.c1)
@@ -2488,9 +2488,9 @@ object OpticSpecTypes {
   object Variant1 extends CompanionOptics[Variant1] {
     implicit val schema: Schema[Variant1]                     = Schema.derived
     val reflect: Reflect.Variant.Bound[Variant1]              = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
-    val c1: Prism[Variant1, Case1]                            = caseOf
-    val c2: Prism[Variant1, Case2]                            = caseOf
-    val v2: Prism[Variant1, Variant2]                         = caseOf
+    val c1: Prism[Variant1, Case1]                            = optic(_.when[Case1])
+    val c2: Prism[Variant1, Case2]                            = optic(_.when[Case2])
+    val v2: Prism[Variant1, Variant2]                         = optic(_.when[Variant2])
     lazy val v2_c3: Prism[Variant1, Case3]                    = v2(Variant2.c3)
     lazy val v2_c4: Prism[Variant1, Case4]                    = v2(Variant2.c4)
     lazy val v2_v3_c5_left: Prism[Variant1, Case5]            = v2(Variant2.v3)(Variant3.c5)
@@ -2510,7 +2510,7 @@ object OpticSpecTypes {
   object Case1 extends CompanionOptics[Case1] {
     implicit val schema: Schema[Case1]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case1]]
-    val d: Lens[Case1, Double]               = field(_.d)
+    val d: Lens[Case1, Double]               = optic(_.d)
   }
 
   case class Case2(r3: Record3) extends Variant1
@@ -2518,7 +2518,7 @@ object OpticSpecTypes {
   object Case2 extends CompanionOptics[Case2] {
     implicit val schema: Schema[Case2]        = Schema.derived
     val reflect: Reflect.Record.Bound[Case2]  = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case2]]
-    val r3: Lens[Case2, Record3]              = field(_.r3)
+    val r3: Lens[Case2, Record3]              = optic(_.r3)
     lazy val r3_v1_c1: Optional[Case2, Case1] = r3(Record3.v1_c1)
   }
 
@@ -2527,9 +2527,9 @@ object OpticSpecTypes {
   object Variant2 extends CompanionOptics[Variant2] {
     implicit val schema: Schema[Variant2]                  = Schema.derived
     val reflect: Reflect.Variant.Bound[Variant2]           = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant2]]
-    val c3: Prism[Variant2, Case3]                         = caseOf
-    val c4: Prism[Variant2, Case4]                         = caseOf
-    val v3: Prism[Variant2, Variant3]                      = caseOf
+    val c3: Prism[Variant2, Case3]                         = optic(_.when[Case3])
+    val c4: Prism[Variant2, Case4]                         = optic(_.when[Case4])
+    val v3: Prism[Variant2, Variant3]                      = optic(_.when[Variant3])
     lazy val c3_v1: Optional[Variant2, Variant1]           = c3(Case3.v1)
     lazy val c3_v1_c1_left: Optional[Variant2, Case1]      = c3(Case3.v1)(Variant1.c1)
     lazy val c3_v1_c1_right: Optional[Variant2, Case1]     = c3(Case3.v1_c1)
@@ -2546,7 +2546,7 @@ object OpticSpecTypes {
   object Case3 extends CompanionOptics[Case3] {
     implicit val schema: Schema[Case3]                 = Schema.derived
     val reflect: Reflect.Record.Bound[Case3]           = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case3]]
-    val v1: Lens[Case3, Variant1]                      = field(_.v1)
+    val v1: Lens[Case3, Variant1]                      = optic(_.v1)
     lazy val v1_c1: Optional[Case3, Case1]             = v1(Variant1.c1)
     lazy val v1_c1_d_left: Optional[Case3, Double]     = v1(Variant1.c1)(Case1.d)
     lazy val v1_c1_d_right: Optional[Case3, Double]    = v1(Variant1.c1_d)
@@ -2559,7 +2559,7 @@ object OpticSpecTypes {
   object Case4 extends CompanionOptics[Case4] {
     implicit val schema: Schema[Case4]            = Schema.derived
     val reflect: Reflect.Record.Bound[Case4]      = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case4]]
-    val lr3: Traversal[Case4, Record3]            = field(_.lr3).listValues
+    val lr3: Traversal[Case4, Record3]            = optic(_.lr3).listValues
     lazy val lr3_r2: Traversal[Case4, Record2]    = lr3(Record3.r2)
     lazy val lr3_r2_r1: Traversal[Case4, Record1] = lr3_r2(Record2.r1)
   }

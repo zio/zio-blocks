@@ -35,7 +35,7 @@ private object CompanionOptics {
     def toOptic(term: Term): Expr[Any] = term match {
       case Select(Ident(_), fieldName) =>
         '{ $schema.reflect.asRecord.flatMap(_.lensByName[A](${ Expr(fieldName) })).get }.asExprOf[Any]
-      case x @ TypeApply(Apply(TypeApply(Ident("when"), _), _), typeTrees) =>
+      case TypeApply(Apply(TypeApply(when, _), _), typeTrees) if when.toString.endsWith("when)") =>
         val aTpe     = typeTrees.head.tpe
         var caseName = aTpe.typeSymbol.name
         if (aTpe.termSymbol.flags.is(Flags.Enum)) caseName = aTpe.termSymbol.name

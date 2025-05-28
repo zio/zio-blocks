@@ -11,7 +11,7 @@ object SchemaMetadataSpec extends ZIOSpecDefault {
 
       object Record extends CompanionOptics[Record] {
         implicit val schema: Schema[Record] = Schema.derived
-        val s: Lens[Record, String]         = field(_.s)
+        val s: Lens[Record, String]         = optic(_.s)
       }
 
       test("reports accurate size") {

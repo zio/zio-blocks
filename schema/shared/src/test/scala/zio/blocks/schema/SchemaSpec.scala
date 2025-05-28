@@ -133,8 +133,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object `Record-1` extends CompanionOptics[`Record-1`] {
           implicit val schema: Schema[Record1] = Schema.derived
-          val `b-1`: Lens[Record1, Boolean]    = field(x => x.`b-1`)
-          val `f-2`: Lens[Record1, Float]      = field(_.`f-2`)
+          val `b-1`: Lens[Record1, Boolean]    = optic(x => x.`b-1`)
+          val `f-2`: Lens[Record1, Float]      = optic(_.`f-2`)
         }
 
         val record = `Record-1`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
@@ -190,8 +190,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object `Record-2` extends CompanionOptics[Record2[`i-8`, `i-32`]] {
           implicit val schema: Schema[Record2[`i-8`, `i-32`]] = Schema.derived
-          val b: Lens[Record2[`i-8`, `i-32`], `i-8`]          = field(_.b)
-          val i: Lens[Record2[`i-8`, `i-32`], `i-32`]         = field(_.i)
+          val b: Lens[Record2[`i-8`, `i-32`], `i-8`]          = optic(_.b)
+          val i: Lens[Record2[`i-8`, `i-32`], `i-32`]         = optic(_.i)
         }
 
         val record = `Record-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
@@ -236,8 +236,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object Record3 extends CompanionOptics[Record3] {
           implicit val schema: Schema[Record3] = Schema.derived
-          val s: Lens[Record3, Short]          = field(_.s)
-          val l: Lens[Record3, Long]           = field(_.l)
+          val s: Lens[Record3, Short]          = optic(_.s)
+          val l: Lens[Record3, Long]           = optic(_.l)
         }
 
         val record = Record3.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
@@ -278,8 +278,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object Record4 extends CompanionOptics[Record4] {
           implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = field((x: Record4) => x.mx).vectorValues.vectorValues
-          val rs: Traversal[Record4, Int]      = field(_.rs).listValues.setValues
+          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx).vectorValues.vectorValues
+          val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
         }
 
         val record = Record4.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
@@ -333,8 +333,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object Record5 extends CompanionOptics[Record5] {
           implicit val schema: Schema[Record5] = Schema.derived
-          val u: Lens[Record5, Unit]           = field(_.u)
-          val lu: Traversal[Record5, Unit]     = field(_.lu).listValues
+          val u: Lens[Record5, Unit]           = optic(_.u)
+          val lu: Traversal[Record5, Unit]     = optic(_.lu).listValues
         }
 
         val record = Record5.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]
@@ -465,8 +465,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object `Variant-1` extends CompanionOptics[Variant1] {
           implicit val schema: Schema[Variant1] = Schema.derived
-          val case1: Prism[Variant1, `Case-1`]  = caseOf
-          val case2: Prism[Variant1, `Case-2`]  = caseOf
+          val case1: Prism[Variant1, `Case-1`]  = optic(_.when[`Case-1`])
+          val case2: Prism[Variant1, `Case-2`]  = optic(_.when[`Case-2`])
         }
 
         assert(`Variant-1`.case1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
@@ -527,9 +527,9 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object Variant2OfString extends CompanionOptics[Variant2[String]] {
           implicit val schema: Schema[Variant2[String]]                = Schema.derived
-          val missingValue: Prism[Variant2[String], MissingValue.type] = caseOf
-          val nullValue: Prism[Variant2[String], NullValue.type]       = caseOf
-          val value: Prism[Variant2[String], Value[String]]            = caseOf
+          val missingValue: Prism[Variant2[String], MissingValue.type] = optic(_.when[MissingValue.type])
+          val nullValue: Prism[Variant2[String], NullValue.type]       = optic(_.when[NullValue.type])
+          val value: Prism[Variant2[String], Value[String]]            = optic(_.when[Value[String]])
         }
 
         val record = Schema[MissingValue.type].reflect.asInstanceOf[Reflect.Record[Binding, MissingValue.type]]
@@ -597,8 +597,8 @@ object SchemaSpec extends ZIOSpecDefault {
           implicit val schemaCase1: Schema[`Case-1`[Option]]      = Schema.derived
           implicit val schemaCase2: Schema[`Case-2`[Option]]      = Schema.derived
           implicit val schema: Schema[`Variant-3`[Option]]        = Schema.derived
-          val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = caseOf
-          val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = caseOf
+          val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = optic(_.when[`Case-1`[Option]])
+          val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = optic(_.when[`Case-2`[Option]])
         }
 
         import Variant3OfOption._
@@ -1038,16 +1038,16 @@ object SchemaSpec extends ZIOSpecDefault {
 
   object Record extends CompanionOptics[Record] {
     implicit val schema: Schema[Record] = Schema.derived
-    val b: Lens[Record, Byte]           = field(_.b)
-    val i: Lens[Record, Int]            = field(_.i)
+    val b: Lens[Record, Byte]           = optic(_.b)
+    val i: Lens[Record, Int]            = optic(_.i)
   }
 
   sealed trait Variant
 
   object Variant extends CompanionOptics[Variant] {
     implicit val schema: Schema[Variant] = Schema.derived
-    val case1: Prism[Variant, Case1]     = caseOf
-    val case2: Prism[Variant, Case2]     = caseOf
+    val case1: Prism[Variant, Case1]     = optic(_.when[Case1])
+    val case2: Prism[Variant, Case2]     = optic(_.when[Case2])
   }
 
   case class Case1(c: Char) extends Variant
