@@ -64,17 +64,16 @@ private object CompanionOptics {
         Some(sTpe.asType match {
           case '[s] =>
             aTpe.asType match {
-              case '[
-                  type a <: s; a] =>
+              case '[a] =>
                 toOptic(parent).fold('{
                   ${ '{ $schema.reflect }.asExprOf[Reflect.Bound[s]] }.asVariant
-                    .flatMap(_.prismByName[a](${ Expr(caseName) }))
+                    .flatMap(_.prismByName[a & s](${ Expr(caseName) }))
                     .get
                 }.asExprOf[Any]) { x =>
                   '{
                     ${ x.asExprOf[Optic[?, s]] }.apply(${
                       '{ ${ x.asExprOf[Optic[?, s]] }.focus }.asExprOf[Reflect.Bound[s]]
-                    }.asVariant.flatMap(_.prismByName[a](${ Expr(caseName) })).get)
+                    }.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get)
                   }.asExprOf[Any]
                 }
             }
