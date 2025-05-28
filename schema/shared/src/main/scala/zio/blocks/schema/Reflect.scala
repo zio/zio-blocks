@@ -366,6 +366,12 @@ object Reflect {
 
     def deconstructor(implicit F: HasBinding[F]): Deconstructor[A] = F.deconstructor(recordBinding)
 
+    def fieldByName(name: String): Option[Term[F, A, ?]] = {
+      val idx = fieldIndexByName.getOrDefault(name, -1)
+      if (idx >= 0) new Some(fields(idx))
+      else None
+    }
+
     private[schema] def fieldIndexByName(name: String): Int = fieldIndexByName.getOrDefault(name, -1)
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
@@ -542,6 +548,12 @@ object Reflect {
       copy(variantBinding = F.updateBinding(variantBinding, _.examples(value, values: _*)))
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
+
+    def caseByName(name: String): Option[Term[F, A, ? <: A]] = {
+      val idx = caseIndexByName.getOrDefault(name, -1)
+      if (idx >= 0) new Some(cases(idx))
+      else None
+    }
 
     private[schema] def caseIndexByName(name: String): Int = caseIndexByName.getOrDefault(name, -1)
 
