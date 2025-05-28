@@ -35,14 +35,20 @@ private object CompanionOptics {
     }
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
-      case q"$_.$child" =>
+      case q"$parent.$child" =>
+        val sTpe      = parent.tpe.dealias.widen
         val aTpe      = tree.tpe.dealias
         val fieldName = NameTransformer.decode(child.toString)
-        q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
-      case q"$extentionTree[..$_]($_).when[$caseTree]" if extentionTree.toString.endsWith(".When") =>
+        val reflect = q"$schema.reflect"
+        q"$reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
+      case q"$extentionTree[..$_]($parent).when[$caseTree]" if extentionTree.toString.endsWith(".When") =>
+        val sTpe     = parent.tpe.dealias.widen
         val aTpe     = caseTree.tpe.dealias
         val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
-        q"$schema.reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get"
+        val reflect = q"$schema.reflect"
+        //if (aTpe <:< sTpe) {
+        q"$reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get"
+        //} else fail(s"Expected $aTpe to be a subtype of $sTpe")
       case tree =>
         fail(s"Expected a path element, got: ${showRaw(tree)}")
     }

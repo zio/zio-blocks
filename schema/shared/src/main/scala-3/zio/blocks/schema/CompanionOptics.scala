@@ -33,23 +33,36 @@ private object CompanionOptics {
     }
 
     def toOptic(term: Term): Expr[Any] = term match {
-      case Select(Ident(_), fieldName) =>
+      case Select(parent, fieldName) =>
+        val sTpe = parent.tpe.dealias.widen
         val aTpe = term.tpe.dealias.widen
-        aTpe.asType match {
-          case '[a] =>
-            '{ $schema.reflect.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get }.asExprOf[Any]
+        sTpe.asType match {
+          case '[s] =>
+            val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[s]]
+            aTpe.asType match {
+              case '[a] =>
+                '{ $reflect.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get }.asExprOf[Any]
+            }
         }
-      case TypeApply(Apply(TypeApply(extensionTerm, _), _), typeTrees) if extensionTerm.toString.endsWith("when)") =>
+      case TypeApply(Apply(TypeApply(extensionTerm, _), idents), typeTrees) if extensionTerm.toString.endsWith("when)") =>
+        val parent   = idents.head
+        val sTpe     = parent.tpe.dealias.widen
         val aTpe     = typeTrees.head.tpe.dealias
         var caseName = aTpe.typeSymbol.name
         if (aTpe.termSymbol.flags.is(Flags.Enum)) caseName = aTpe.termSymbol.name
         else if (aTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
-        aTpe.asType match {
-          case '[
-              type a <: S; a] =>
-            '{ $schema.reflect.asVariant.flatMap(_.prismByName[a](${ Expr(caseName) })).get }.asExprOf[Any]
-          case _ =>
-            fail(s"Expected $aTpe to be a subtype of ${TypeRepr.of[S]}")
+        sTpe.asType match {
+          case '[s] =>
+            val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[s]]
+            aTpe.asType match {
+              case '[
+                  type a <: s; a] =>
+                '{ $reflect.asVariant.flatMap(_.prismByName[a](${ Expr(caseName) })).get }.asExprOf[Any]
+/*
+              case _ =>
+                fail(s"Expected $aTpe to be a subtype of $sTpe")
+*/
+            }
         }
       case term =>
         fail(s"Expected a path element, got: ${term.show(using Printer.TreeStructure)}")
