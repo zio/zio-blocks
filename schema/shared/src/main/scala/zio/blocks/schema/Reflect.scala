@@ -543,6 +543,12 @@ object Reflect {
 
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
+    def caseByName(name: String): Option[Term[F, A, ? <: A]] = {
+      val idx = caseIndexByName.getOrDefault(name, -1)
+      if (idx >= 0) new Some(cases(idx))
+      else None
+    }
+
     private[schema] def caseIndexByName(name: String): Int = caseIndexByName.getOrDefault(name, -1)
 
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)

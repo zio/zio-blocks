@@ -318,6 +318,22 @@ object ReflectSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(eitherReflect.prismByName("Middle"))(isNone)
+      },
+      test("finds case by name") {
+        val found = PaymentMethod.reflect.caseByName("CreditCard")
+        assert(found)(
+          isSome(
+            equalTo(
+              CreditCard.schema.reflect
+                .asTerm("CreditCard")
+                .asInstanceOf[Term[Binding, PaymentMethod, PaymentMethod]]
+            )
+          )
+        )
+      },
+      test("does not find case by name") {
+        val found = PaymentMethod.reflect.caseByName("DoesNotExist")
+        assert(found)(isNone)
       }
     ),
     suite("Reflect.Sequence")(
@@ -619,4 +635,18 @@ object ReflectSpec extends ZIOSpecDefault {
   implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
   val eitherReflect: Reflect.Variant[Binding, Either[Int, Long]] =
     Schema.derived[Either[Int, Long]].reflect.asVariant.get
+  sealed trait PaymentMethod
+  case object Cash extends PaymentMethod {
+    lazy implicit val schema: Schema[Cash.type] = Schema.derived
+  }
+  case object CreditCard extends PaymentMethod {
+    lazy implicit val schema: Schema[CreditCard.type] = Schema.derived
+  }
+  PaymentMethod
+  object PaymentMethod extends CompanionOptics[PaymentMethod] {
+    val cash: Prism[PaymentMethod, Cash.type]             = caseOf
+    val creditCard: Prism[PaymentMethod, CreditCard.type] = caseOf
+    lazy implicit val schema: Schema[PaymentMethod]       = Schema.derived
+    def reflect: Reflect.Variant[Binding, PaymentMethod]  = Schema.derived[PaymentMethod].reflect.asVariant.get
+  }
 }
