@@ -1,8 +1,6 @@
 package zio.blocks.schema
 
 import zio.Scope
-import zio.blocks.schema.DynamicOptic.Node.Case
-import zio.blocks.schema.OpticCheck.UnexpectedCase
 import zio.test._
 import zio.test.Assertion._
 import java.time.YearMonth
@@ -119,7 +117,7 @@ object PaymentMethod extends CompanionOptics[PaymentMethod] {
   val creditCard: Prism[PaymentMethod, CreditCard]     = optic(_.when[CreditCard])
   val bankTransfer: Prism[PaymentMethod, BankTransfer] = optic(_.when[BankTransfer])
   val payPal: Prism[PaymentMethod, PayPal]             = optic(_.when[PayPal])
-  val payPalEmail: Optional[PaymentMethod, String]     = payPal(PayPal.email)
+  val payPalEmail: Optional[PaymentMethod, String]     = optic(_.when[PayPal].email)
 }
 
 case class CreditCard(
@@ -162,6 +160,6 @@ object Person extends CompanionOptics[Person] {
   val id: Lens[Person, Long]                           = optic(_.id)
   val name: Lens[Person, String]                       = optic(_.name)
   val address: Lens[Person, String]                    = optic(_.address)
-  val paymentMethods: Traversal[Person, PaymentMethod] = optic(_.paymentMethods).listValues
-  val payPalPaymentMethods: Traversal[Person, PayPal]  = paymentMethods(PaymentMethod.payPal)
+  val paymentMethods: Traversal[Person, PaymentMethod] = optic(_.paymentMethods.each)
+  val payPalPaymentMethods: Traversal[Person, PayPal]  = optic(_.paymentMethods.each.when[PayPal])
 }

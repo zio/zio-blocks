@@ -22,7 +22,6 @@ object SchemaMetadataSpec extends ZIOSpecDefault {
       test("metadata can be added") {
         val metadata  = SchemaMetadata[Record, IndexedSeq](Map(Record.s -> IndexedSeq("foo")))
         val metadata2 = metadata.add(Record.s, IndexedSeq("bar"))
-
         assert(metadata.getAll(Record.s).length)(equalTo(1)) &&
         assert(metadata2.getAll(Record.s).length)(equalTo(2))
       }
@@ -30,7 +29,6 @@ object SchemaMetadataSpec extends ZIOSpecDefault {
       test("metadata can be removed") {
         val metadata  = SchemaMetadata[Record, IndexedSeq](Map(Record.s -> IndexedSeq("foo")))
         val metadata2 = metadata.removeAll(Record.s)
-
         assert(metadata.getAll(Record.s).length)(equalTo(1)) &&
         assert(metadata2.getAll(Record.s).length)(equalTo(0))
       }

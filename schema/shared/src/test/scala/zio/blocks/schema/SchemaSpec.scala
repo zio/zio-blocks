@@ -278,8 +278,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object Record4 extends CompanionOptics[Record4] {
           implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx).vectorValues.vectorValues
-          val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
+          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx.each.each)
+          val rs: Traversal[Record4, Int]      = optic(_.rs.each.each)
         }
 
         val record = Record4.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
@@ -334,7 +334,7 @@ object SchemaSpec extends ZIOSpecDefault {
         object Record5 extends CompanionOptics[Record5] {
           implicit val schema: Schema[Record5] = Schema.derived
           val u: Lens[Record5, Unit]           = optic(_.u)
-          val lu: Traversal[Record5, Unit]     = optic(_.lu).listValues
+          val lu: Traversal[Record5, Unit]     = optic(_.lu.each)
         }
 
         val record = Record5.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]

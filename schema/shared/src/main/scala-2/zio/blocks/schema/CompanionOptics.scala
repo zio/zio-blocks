@@ -6,8 +6,13 @@ trait CompanionOptics[S] {
   import scala.language.experimental.macros
 
   implicit class When[A](a: A) {
-    @compileTimeOnly("Can only be used inside `optic(_)` macro")
-    def when[B <: A]: B = sys.error("")
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def when[B <: A]: B = ???
+  }
+
+  implicit class Each[C[_], A](a: C[A]) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def each: A = ???
   }
 
   def $[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
@@ -29,6 +34,8 @@ private object CompanionOptics {
   )(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
     import c.universe._
 
+    val sTpe = weakTypeOf[S].dealias
+
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
@@ -37,13 +44,29 @@ private object CompanionOptics {
     }
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
+      case q"$_[..$_]($parent).each" =>
+        val cTpe           = parent.tpe.dealias.widen
+        val collectionName = cTpe.typeSymbol.fullName
+        val optic          = toOptic(parent)
+        if (optic.isEmpty) fail("Expected a path element preceding `.each`")
+        else {
+          if (collectionName == "scala.collection.immutable.List") {
+            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].listValues"
+          } else if (collectionName == "scala.collection.immutable.Vector") {
+            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].vectorValues"
+          } else if (collectionName == "scala.collection.immutable.Set") {
+            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].setValues"
+          } else if (collectionName == "scala.Array") {
+            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].arrayValues"
+          } else fail(s"Unsupported sequence type: $cTpe")
+        }
       case q"$parent.$child" =>
         val aTpe      = tree.tpe.dealias
         val fieldName = NameTransformer.decode(child.toString)
         val optic     = toOptic(parent)
         if (optic.isEmpty) q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
         else q"$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get)"
-      case q"$extentionTree[..$_]($parent).when[$caseTree]" if extentionTree.toString.endsWith(".When") =>
+      case q"$_[..$_]($parent).when[$caseTree]" =>
         val aTpe     = caseTree.tpe.dealias
         val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
         val optic    = toOptic(parent)

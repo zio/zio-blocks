@@ -9,7 +9,7 @@ object example {
     val name: Lens[Person, String]           = optic(_.name)
     val age: Lens[Person, Int]               = optic(_.age)
     val address: Lens[Person, String]        = optic(_.address)
-    val childrenAges: Traversal[Person, Int] = optic(_.childrenAges).listValues
+    val childrenAges: Traversal[Person, Int] = optic(_.childrenAges.each)
   }
 
   def main(args: Array[String]): Unit = {

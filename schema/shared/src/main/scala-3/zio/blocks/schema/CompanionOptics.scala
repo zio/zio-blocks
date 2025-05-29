@@ -4,8 +4,13 @@ import scala.annotation.compileTimeOnly
 
 trait CompanionOptics[S] {
   extension [A](a: A) {
-    @compileTimeOnly("Can only be used inside `optic(_)` macro")
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def when[B <: A]: B = ???
+  }
+
+  extension [C[_], A](a: C[A]) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def each: A = ???
   }
 
   transparent inline def $[A](inline path: S => A)(using schema: Schema[S]): Any =
@@ -36,6 +41,28 @@ private object CompanionOptics {
     }
 
     def toOptic(term: Term): Option[Expr[Any]] = term match {
+      case Apply(TypeApply(extensionTerm, _), idents) if extensionTerm.toString.endsWith("each)") =>
+        val parent         = idents.head
+        val cTpe           = parent.tpe.dealias.widen
+        val collectionName = cTpe.typeSymbol.fullName
+        val aTpe           = term.tpe.dealias.widen
+        Some(cTpe.asType match {
+          case '[c] =>
+            aTpe.asType match {
+              case '[a] =>
+                toOptic(parent).map { x =>
+                  if (collectionName == "scala.collection.immutable.List") {
+                    '{ ${ x.asExprOf[Optic[?, List[a]]] }.listValues }.asExprOf[Any]
+                  } else if (collectionName == "scala.collection.immutable.Vector") {
+                    '{ ${ x.asExprOf[Optic[?, Vector[a]]] }.vectorValues }.asExprOf[Any]
+                  } else if (collectionName == "scala.collection.immutable.Set") {
+                    '{ ${ x.asExprOf[Optic[?, Set[a]]] }.setValues }.asExprOf[Any]
+                  } else if (collectionName == "scala.Array") {
+                    '{ ${ x.asExprOf[Optic[?, Array[a]]] }.arrayValues }.asExprOf[Any]
+                  } else fail(s"Unsupported sequence type: $cTpe")
+                }.getOrElse(fail("Expected a path element preceding `.each`"))
+            }
+        })
       case Select(parent, fieldName) =>
         val sTpe = parent.tpe.dealias.widen
         val aTpe = term.tpe.dealias.widen
