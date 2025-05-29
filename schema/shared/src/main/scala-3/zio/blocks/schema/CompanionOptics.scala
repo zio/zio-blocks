@@ -35,13 +35,16 @@ private object CompanionOptics {
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
     def toPathBody(term: Term): Term = term match {
-      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
-      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
-      case _                                               => fail(s"Expected a lambda expression, got: ${term.show(using Printer.TreeStructure)}")
+      case Inlined(_, _, inlinedBlock) =>
+        toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) =>
+        pathBody
+      case _ =>
+        fail(s"Expected a lambda expression, got: ${term.show(using Printer.TreeStructure)}")
     }
 
     def toOptic(term: Term): Option[Expr[Any]] = term match {
-      case Apply(TypeApply(extensionTerm, _), idents) if extensionTerm.toString.endsWith("each)") =>
+      case Apply(TypeApply(extTerm, _), idents) if extTerm.toString.endsWith("each)") =>
         val parent         = idents.head
         val cTpe           = parent.tpe.dealias.widen
         val collectionName = cTpe.typeSymbol.fullName
@@ -51,15 +54,15 @@ private object CompanionOptics {
             aTpe.asType match {
               case '[a] =>
                 toOptic(parent).map { x =>
-                  if (collectionName == "scala.collection.immutable.List") {
-                    '{ ${ x.asExprOf[Optic[?, List[a]]] }.listValues }.asExprOf[Any]
-                  } else if (collectionName == "scala.collection.immutable.Vector") {
-                    '{ ${ x.asExprOf[Optic[?, Vector[a]]] }.vectorValues }.asExprOf[Any]
-                  } else if (collectionName == "scala.collection.immutable.Set") {
-                    '{ ${ x.asExprOf[Optic[?, Set[a]]] }.setValues }.asExprOf[Any]
-                  } else if (collectionName == "scala.Array") {
-                    '{ ${ x.asExprOf[Optic[?, Array[a]]] }.arrayValues }.asExprOf[Any]
-                  } else fail(s"Unsupported sequence type: $cTpe")
+                  val optic = x.asExprOf[Optic[?, c]]
+                  '{
+                    $optic.apply(
+                      $optic.focus.asSequenceUnknown
+                        .map(x => Traversal.seqValues(x.sequence))
+                        .get
+                        .asInstanceOf[Traversal[c, a]]
+                    )
+                  }.asExprOf[Any]
                 }.getOrElse(fail("Expected a path element preceding `.each`"))
             }
         })
@@ -70,21 +73,17 @@ private object CompanionOptics {
           case '[s] =>
             aTpe.asType match {
               case '[a] =>
-                toOptic(parent).fold('{
-                  ${ '{ $schema.reflect }.asExprOf[Reflect.Bound[s]] }.asRecord
-                    .flatMap(_.lensByName[a](${ Expr(fieldName) }))
-                    .get
-                }.asExprOf[Any]) { x =>
+                toOptic(parent).fold {
+                  '{ $schema.reflect.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get }.asExprOf[Any]
+                } { x =>
+                  val optic = x.asExprOf[Optic[?, s]]
                   '{
-                    ${ x.asExprOf[Optic[?, s]] }.apply(${
-                      '{ ${ x.asExprOf[Optic[?, s]] }.focus }.asExprOf[Reflect.Bound[s]]
-                    }.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get)
+                    $optic.apply($optic.focus.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get)
                   }.asExprOf[Any]
                 }
             }
         })
-      case TypeApply(Apply(TypeApply(extensionTerm, _), idents), typeTrees)
-          if extensionTerm.toString.endsWith("when)") =>
+      case TypeApply(Apply(TypeApply(extTerm, _), idents), typeTrees) if extTerm.toString.endsWith("when)") =>
         val parent   = idents.head
         val sTpe     = parent.tpe.dealias.widen
         val aTpe     = typeTrees.head.tpe.dealias
@@ -95,15 +94,13 @@ private object CompanionOptics {
           case '[s] =>
             aTpe.asType match {
               case '[a] =>
-                toOptic(parent).fold('{
-                  ${ '{ $schema.reflect }.asExprOf[Reflect.Bound[s]] }.asVariant
-                    .flatMap(_.prismByName[a & s](${ Expr(caseName) }))
-                    .get
-                }.asExprOf[Any]) { x =>
+                toOptic(parent).fold {
+                  val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[s]]
+                  '{ $reflect.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get }.asExprOf[Any]
+                } { x =>
+                  val optic = x.asExprOf[Optic[?, s]]
                   '{
-                    ${ x.asExprOf[Optic[?, s]] }.apply(${
-                      '{ ${ x.asExprOf[Optic[?, s]] }.focus }.asExprOf[Reflect.Bound[s]]
-                    }.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get)
+                    $optic.apply($optic.focus.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get)
                   }.asExprOf[Any]
                 }
             }
@@ -123,9 +120,12 @@ private object CompanionOptics {
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
     def toPathBody(term: Term): Term = term match {
-      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
-      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
-      case _                                               => fail(s"Expected a lambda expression, got: ${term.show(using Printer.TreeStructure)}")
+      case Inlined(_, _, inlinedBlock) =>
+        toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) =>
+        pathBody
+      case _ =>
+        fail(s"Expected a lambda expression, got: ${term.show(using Printer.TreeStructure)}")
     }
 
     toPathBody(path.asTerm) match {

@@ -45,21 +45,15 @@ private object CompanionOptics {
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
       case q"$_[..$_]($parent).each" =>
-        val cTpe           = parent.tpe.dealias.widen
-        val collectionName = cTpe.typeSymbol.fullName
-        val optic          = toOptic(parent)
+        val cTpe  = parent.tpe.dealias.widen
+        val aTpe  = tree.tpe.dealias
+        val optic = toOptic(parent)
         if (optic.isEmpty) fail("Expected a path element preceding `.each`")
-        else {
-          if (collectionName == "scala.collection.immutable.List") {
-            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].listValues"
-          } else if (collectionName == "scala.collection.immutable.Vector") {
-            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].vectorValues"
-          } else if (collectionName == "scala.collection.immutable.Set") {
-            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].setValues"
-          } else if (collectionName == "scala.Array") {
-            q"$optic.asInstanceOf[Optic[$sTpe, $cTpe]].arrayValues"
-          } else fail(s"Unsupported sequence type: $cTpe")
-        }
+        else
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $cTpe]]
+                .apply($optic.focus.asSequenceUnknown.map { x =>
+                  _root_.zio.blocks.schema.Traversal.seqValues(x.sequence)
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$cTpe, $aTpe]])"""
       case q"$parent.$child" =>
         val aTpe      = tree.tpe.dealias
         val fieldName = NameTransformer.decode(child.toString)
