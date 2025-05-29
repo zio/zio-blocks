@@ -53,97 +53,97 @@ private object CompanionOptics {
 
     def toOptic(term: Term): Option[Expr[Any]] = term match {
       case Apply(TypeApply(extTerm, _), idents) if extTerm.toString.endsWith("each)") =>
-        val parent         = idents.head
-        val cTpe           = parent.tpe.dealias.widen
-        val aTpe           = term.tpe.dealias.widen
-        Some(cTpe.asType match {
-          case '[c] =>
-            aTpe.asType match {
-              case '[a] =>
+        val parent     = idents.head
+        val parentTpe  = parent.tpe.dealias.widen
+        val elementTpe = term.tpe.dealias.widen
+        Some(parentTpe.asType match {
+          case '[p] =>
+            elementTpe.asType match {
+              case '[e] =>
                 toOptic(parent).map { x =>
-                  val optic = x.asExprOf[Optic[S, c]]
+                  val optic = x.asExprOf[Optic[S, p]]
                   '{
                     $optic.apply(
                       $optic.focus.asSequenceUnknown
                         .map(x => Traversal.seqValues(x.sequence))
                         .get
-                        .asInstanceOf[Traversal[c, a]]
+                        .asInstanceOf[Traversal[p, e]]
                     )
                   }.asExprOf[Any]
                 }.getOrElse(fail("Expected a path element preceding `.each`"))
             }
         })
       case Apply(TypeApply(extTerm, _), idents) if extTerm.toString.endsWith("eachKey)") =>
-        val parent         = idents.head
-        val cTpe           = parent.tpe.dealias.widen
-        val aTpe           = term.tpe.dealias.widen
-        Some(cTpe.asType match {
-          case '[c] =>
-            aTpe.asType match {
-              case '[a] =>
+        val parent    = idents.head
+        val parentTpe = parent.tpe.dealias.widen
+        val keyTpe    = term.tpe.dealias.widen
+        Some(parentTpe.asType match {
+          case '[p] =>
+            keyTpe.asType match {
+              case '[k] =>
                 toOptic(parent).map { x =>
-                  val optic = x.asExprOf[Optic[S, c]]
+                  val optic = x.asExprOf[Optic[S, p]]
                   '{
                     $optic.apply(
-                      $optic.focus.asMapUnknown.map(x => Traversal.mapKeys(x.map)).get.asInstanceOf[Traversal[c, a]]
+                      $optic.focus.asMapUnknown.map(x => Traversal.mapKeys(x.map)).get.asInstanceOf[Traversal[p, k]]
                     )
                   }.asExprOf[Any]
                 }.getOrElse(fail("Expected a path element preceding `.eachKey`"))
             }
         })
       case Apply(TypeApply(extTerm, _), idents) if extTerm.toString.endsWith("eachValue)") =>
-        val parent         = idents.head
-        val cTpe           = parent.tpe.dealias.widen
-        val aTpe           = term.tpe.dealias.widen
-        Some(cTpe.asType match {
+        val parent    = idents.head
+        val parentTpe = parent.tpe.dealias.widen
+        val valueTpe  = term.tpe.dealias.widen
+        Some(parentTpe.asType match {
           case '[c] =>
-            aTpe.asType match {
-              case '[a] =>
+            valueTpe.asType match {
+              case '[v] =>
                 toOptic(parent).map { x =>
                   val optic = x.asExprOf[Optic[S, c]]
                   '{
                     $optic.apply(
-                      $optic.focus.asMapUnknown.map(x => Traversal.mapValues(x.map)).get.asInstanceOf[Traversal[c, a]]
+                      $optic.focus.asMapUnknown.map(x => Traversal.mapValues(x.map)).get.asInstanceOf[Traversal[c, v]]
                     )
                   }.asExprOf[Any]
                 }.getOrElse(fail("Expected a path element preceding `.eachValue`"))
             }
         })
-      case Select(parent, fieldName) =>
-        val sTpe = parent.tpe.dealias.widen
-        val aTpe = term.tpe.dealias.widen
-        Some(sTpe.asType match {
-          case '[s] =>
-            aTpe.asType match {
-              case '[a] =>
+      case TypeApply(Apply(TypeApply(extTerm, _), idents), typeTrees) if extTerm.toString.endsWith("when)") =>
+        val parent    = idents.head
+        val parentTpe = parent.tpe.dealias.widen
+        val caseTpe   = typeTrees.head.tpe.dealias
+        var caseName  = caseTpe.typeSymbol.name
+        if (caseTpe.termSymbol.flags.is(Flags.Enum)) caseName = caseTpe.termSymbol.name
+        else if (caseTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
+        Some(parentTpe.asType match {
+          case '[p] =>
+            caseTpe.asType match {
+              case '[c] =>
                 toOptic(parent).fold {
-                  '{ $schema.reflect.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get }.asExprOf[Any]
+                  val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[p]]
+                  '{ $reflect.asVariant.flatMap(_.prismByName[c & p](${ Expr(caseName) })).get }.asExprOf[Any]
                 } { x =>
-                  val optic = x.asExprOf[Optic[S, s]]
+                  val optic = x.asExprOf[Optic[S, p]]
                   '{
-                    $optic.apply($optic.focus.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get)
+                    $optic.apply($optic.focus.asVariant.flatMap(_.prismByName[c & p](${ Expr(caseName) })).get)
                   }.asExprOf[Any]
                 }
             }
         })
-      case TypeApply(Apply(TypeApply(extTerm, _), idents), typeTrees) if extTerm.toString.endsWith("when)") =>
-        val parent   = idents.head
-        val sTpe     = parent.tpe.dealias.widen
-        val aTpe     = typeTrees.head.tpe.dealias
-        var caseName = aTpe.typeSymbol.name
-        if (aTpe.termSymbol.flags.is(Flags.Enum)) caseName = aTpe.termSymbol.name
-        else if (aTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
-        Some(sTpe.asType match {
-          case '[s] =>
-            aTpe.asType match {
-              case '[a] =>
+      case Select(parent, fieldName) =>
+        val parentTpe = parent.tpe.dealias.widen
+        val childTpe  = term.tpe.dealias.widen
+        Some(parentTpe.asType match {
+          case '[p] =>
+            childTpe.asType match {
+              case '[c] =>
                 toOptic(parent).fold {
-                  val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[s]]
-                  '{ $reflect.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get }.asExprOf[Any]
+                  '{ $schema.reflect.asRecord.flatMap(_.lensByName[c](${ Expr(fieldName) })).get }.asExprOf[Any]
                 } { x =>
-                  val optic = x.asExprOf[Optic[S, s]]
+                  val optic = x.asExprOf[Optic[S, p]]
                   '{
-                    $optic.apply($optic.focus.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get)
+                    $optic.apply($optic.focus.asRecord.flatMap(_.lensByName[c](${ Expr(fieldName) })).get)
                   }.asExprOf[Any]
                 }
             }

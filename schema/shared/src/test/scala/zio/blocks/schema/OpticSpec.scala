@@ -2484,7 +2484,7 @@ object OpticSpecTypes {
     val v1: Lens[Record3, Variant1]                = optic(_.v1)
     lazy val r2_r1_b_left: Lens[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
     lazy val r2_r1_b_right: Lens[Record3, Boolean] = r2(Record2.r1(Record1.b))
-    lazy val v1_c1: Optional[Record3, Case1]       = v1(Variant1.c1)
+    lazy val v1_c1: Optional[Record3, Case1]       = optic(_.v1.when[Case1])
   }
 
   sealed trait Variant1
@@ -2523,7 +2523,7 @@ object OpticSpecTypes {
     implicit val schema: Schema[Case2]        = Schema.derived
     val reflect: Reflect.Record.Bound[Case2]  = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case2]]
     val r3: Lens[Case2, Record3]              = optic(_.r3)
-    lazy val r3_v1_c1: Optional[Case2, Case1] = r3(Record3.v1_c1)
+    lazy val r3_v1_c1: Optional[Case2, Case1] = optic(_.r3.v1.when[Case1])
   }
 
   sealed trait Variant2 extends Variant1
@@ -2551,11 +2551,11 @@ object OpticSpecTypes {
     implicit val schema: Schema[Case3]                 = Schema.derived
     val reflect: Reflect.Record.Bound[Case3]           = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case3]]
     val v1: Lens[Case3, Variant1]                      = optic(_.v1)
-    lazy val v1_c1: Optional[Case3, Case1]             = v1(Variant1.c1)
+    lazy val v1_c1: Optional[Case3, Case1]             = optic(_.v1.when[Case1])
     lazy val v1_c1_d_left: Optional[Case3, Double]     = v1(Variant1.c1)(Case1.d)
     lazy val v1_c1_d_right: Optional[Case3, Double]    = v1(Variant1.c1_d)
-    lazy val v1_v2: Optional[Case3, Variant2]          = v1(Variant1.v2)
-    lazy val v1_v2_c3_v1_v2: Optional[Case3, Variant2] = v1_v2(Variant2.c3(Case3.v1_v2))
+    lazy val v1_v2: Optional[Case3, Variant2]          = optic(_.v1.when[Variant2])
+    lazy val v1_v2_c3_v1_v2: Optional[Case3, Variant2] = optic(_.v1.when[Variant2].when[Case3].v1.when[Variant2])
   }
 
   case class Case4(lr3: List[Record3]) extends Variant2
@@ -2611,11 +2611,10 @@ object OpticSpecTypes {
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
     val mvs: Traversal[Predef.Map[Char, String], String] =
       Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
-    lazy val lr1: Traversal[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
-    lazy val lc1: Traversal[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
-    lazy val lc1_d: Traversal[List[Variant1], Double] =
-      Traversal.listValues(Variant1.reflect).apply(Variant1.c1_d)
-    lazy val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
+    lazy val lr1: Traversal[List[Record1], Boolean]   = Traversal.listValues(Record1.reflect)(Record1.b)
+    lazy val lc1: Traversal[List[Variant1], Case1]    = Traversal.listValues(Variant1.reflect)(Variant1.c1)
+    lazy val lc1_d: Traversal[List[Variant1], Double] = Traversal.listValues(Variant1.reflect)(Variant1.c1_d)
+    lazy val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect)(Case4.lr3)
     lazy val mkv1_c1_d: Traversal[Map[Variant1, Int], Double] =
       Traversal.mapKeys(Schema[Map[Variant1, Int]].reflect.asInstanceOf[Reflect.Map.Bound[Variant1, Int, Map]])(
         Variant1.c1

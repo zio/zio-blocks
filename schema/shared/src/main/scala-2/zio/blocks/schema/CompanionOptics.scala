@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-
 trait CompanionOptics[S] {
   import scala.annotation.compileTimeOnly
   import scala.language.experimental.macros
@@ -53,47 +52,47 @@ private object CompanionOptics {
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
       case q"$_[..$_]($parent).each" =>
-        val cTpe  = parent.tpe.dealias.widen
-        val aTpe  = tree.tpe.dealias.widen
-        val optic = toOptic(parent)
+        val parentTpe  = parent.tpe.dealias.widen
+        val elementTpe = tree.tpe.dealias.widen
+        val optic      = toOptic(parent)
         if (optic.isEmpty) fail("Expected a path element preceding `.each`")
         else
-          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $cTpe]]
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $parentTpe]]
                 .apply($optic.focus.asSequenceUnknown.map { x =>
                   _root_.zio.blocks.schema.Traversal.seqValues(x.sequence)
-                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$cTpe, $aTpe]])"""
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]])"""
       case q"$_[..$_]($parent).eachKey" =>
-        val cTpe  = parent.tpe.dealias.widen
-        val aTpe  = tree.tpe.dealias.widen
-        val optic = toOptic(parent)
+        val parentTpe = parent.tpe.dealias.widen
+        val keyTpe    = tree.tpe.dealias.widen
+        val optic     = toOptic(parent)
         if (optic.isEmpty) fail("Expected a path element preceding `.eachKey`")
         else
-          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $cTpe]]
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $parentTpe]]
                 .apply($optic.focus.asMapUnknown.map { x =>
                   _root_.zio.blocks.schema.Traversal.mapKeys(x.map)
-                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$cTpe, $aTpe]])"""
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $keyTpe]])"""
       case q"$_[..$_]($parent).eachValue" =>
-        val cTpe  = parent.tpe.dealias.widen
-        val aTpe  = tree.tpe.dealias.widen
-        val optic = toOptic(parent)
+        val parentTpe = parent.tpe.dealias.widen
+        val valueTpe  = tree.tpe.dealias.widen
+        val optic     = toOptic(parent)
         if (optic.isEmpty) fail("Expected a path element preceding `.eachValue`")
         else
-          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $cTpe]]
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $parentTpe]]
                 .apply($optic.focus.asMapUnknown.map { x =>
                   _root_.zio.blocks.schema.Traversal.mapValues(x.map)
-                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$cTpe, $aTpe]])"""
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
+      case q"$_[..$_]($parent).when[$caseTree]" =>
+        val caseTpe  = caseTree.tpe.dealias
+        val caseName = NameTransformer.decode(caseTpe.typeSymbol.name.toString)
+        val optic    = toOptic(parent)
+        if (optic.isEmpty) q"$schema.reflect.asVariant.flatMap(_.prismByName[$caseTpe]($caseName)).get"
+        else q"$optic.apply($optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName)).get)"
       case q"$parent.$child" =>
-        val aTpe      = tree.tpe.dealias.widen
+        val childTpe  = tree.tpe.dealias.widen
         val fieldName = NameTransformer.decode(child.toString)
         val optic     = toOptic(parent)
-        if (optic.isEmpty) q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
-        else q"$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get)"
-      case q"$_[..$_]($parent).when[$caseTree]" =>
-        val aTpe     = caseTree.tpe.dealias
-        val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
-        val optic    = toOptic(parent)
-        if (optic.isEmpty) q"$schema.reflect.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get"
-        else q"$optic.apply($optic.focus.asVariant.flatMap(_.prismByName[$aTpe]($caseName)).get)"
+        if (optic.isEmpty) q"$schema.reflect.asRecord.flatMap(_.lensByName[$childTpe]($fieldName)).get"
+        else q"$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$childTpe]($fieldName)).get)"
       case _: Ident =>
         q""
       case tree =>
