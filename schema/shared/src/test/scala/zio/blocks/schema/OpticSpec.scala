@@ -2102,6 +2102,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mkv1_c1_d.check(Map(Case1(0.1) -> 1)))(isNone) &&
         assert(Collections.mvv1_c1_d.check(Map(1 -> Case1(0.1))))(isNone) &&
         assert(Record2.vi.check(Record2(2L, Vector(1, 2, 3), null)))(isNone) &&
+        assert(Case6.milk.check(Case6(Map(1 -> 2L))))(isNone) &&
+        assert(Case6.milv.check(Case6(Map(1 -> 2L))))(isNone) &&
         assert(Variant2.c4_lr3.check(Case4(List(Record3(null, null, null)))))(isNone) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(List(Record3(null, null, null))))))(isNone)
       },
@@ -2204,6 +2206,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.vi.modify(Record2(2L, Vector(1, 2, 3), null), _ + 1))(
           equalTo(Record2(2L, Vector(2, 3, 4), null))
         ) &&
+        assert(Case6.milk.modify(Case6(Map(1 -> 2L)), _ + 1))(equalTo(Case6(Map(2 -> 2L)))) &&
+        assert(Case6.milv.modify(Case6(Map(1 -> 2L)), _ + 1L))(equalTo(Case6(Map(1 -> 3L)))) &&
         assert(Variant2.c4_lr3.modify(Case4(List(Record3(null, null, null))), _ => null))(equalTo(Case4(List(null)))) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modify(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
           equalTo(Case3(Case4(List(null))))
@@ -2581,12 +2585,13 @@ object OpticSpecTypes {
     val as: Traversal[Case5, String]           = optic(_.as.each)
   }
 
-  case class Case6(@Modifier.deferred v2: Variant2) extends Variant3
+  case class Case6(mil: Map[Int, Long]) extends Variant3
 
   object Case6 extends CompanionOptics[Case6] {
     implicit val schema: Schema[Case6]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case6] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case6]]
-    val v2: Optic[Case6, Variant2]           = optic(_.v2)
+    val milk: Traversal[Case6, Int]          = optic(_.mil.eachKey)
+    val milv: Traversal[Case6, Long]         = optic(_.mil.eachValue)
   }
 
   object Collections {

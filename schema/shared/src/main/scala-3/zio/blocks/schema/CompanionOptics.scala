@@ -1,8 +1,8 @@
 package zio.blocks.schema
 
-import scala.annotation.compileTimeOnly
-
 trait CompanionOptics[S] {
+  import scala.annotation.compileTimeOnly
+
   extension [A](a: A) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def when[B <: A]: B = ???
@@ -11,6 +11,14 @@ trait CompanionOptics[S] {
   extension [C[_], A](a: C[A]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
+  }
+
+  extension [M[_, _], K, V](a: M[K, V]) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def eachKey: K = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def eachValue: V = ???
   }
 
   transparent inline def $[A](inline path: S => A)(using schema: Schema[S]): Any =
@@ -47,14 +55,13 @@ private object CompanionOptics {
       case Apply(TypeApply(extTerm, _), idents) if extTerm.toString.endsWith("each)") =>
         val parent         = idents.head
         val cTpe           = parent.tpe.dealias.widen
-        val collectionName = cTpe.typeSymbol.fullName
         val aTpe           = term.tpe.dealias.widen
         Some(cTpe.asType match {
           case '[c] =>
             aTpe.asType match {
               case '[a] =>
                 toOptic(parent).map { x =>
-                  val optic = x.asExprOf[Optic[?, c]]
+                  val optic = x.asExprOf[Optic[S, c]]
                   '{
                     $optic.apply(
                       $optic.focus.asSequenceUnknown
@@ -64,6 +71,42 @@ private object CompanionOptics {
                     )
                   }.asExprOf[Any]
                 }.getOrElse(fail("Expected a path element preceding `.each`"))
+            }
+        })
+      case Apply(TypeApply(extTerm, _), idents) if extTerm.toString.endsWith("eachKey)") =>
+        val parent         = idents.head
+        val cTpe           = parent.tpe.dealias.widen
+        val aTpe           = term.tpe.dealias.widen
+        Some(cTpe.asType match {
+          case '[c] =>
+            aTpe.asType match {
+              case '[a] =>
+                toOptic(parent).map { x =>
+                  val optic = x.asExprOf[Optic[S, c]]
+                  '{
+                    $optic.apply(
+                      $optic.focus.asMapUnknown.map(x => Traversal.mapKeys(x.map)).get.asInstanceOf[Traversal[c, a]]
+                    )
+                  }.asExprOf[Any]
+                }.getOrElse(fail("Expected a path element preceding `.eachKey`"))
+            }
+        })
+      case Apply(TypeApply(extTerm, _), idents) if extTerm.toString.endsWith("eachValue)") =>
+        val parent         = idents.head
+        val cTpe           = parent.tpe.dealias.widen
+        val aTpe           = term.tpe.dealias.widen
+        Some(cTpe.asType match {
+          case '[c] =>
+            aTpe.asType match {
+              case '[a] =>
+                toOptic(parent).map { x =>
+                  val optic = x.asExprOf[Optic[S, c]]
+                  '{
+                    $optic.apply(
+                      $optic.focus.asMapUnknown.map(x => Traversal.mapValues(x.map)).get.asInstanceOf[Traversal[c, a]]
+                    )
+                  }.asExprOf[Any]
+                }.getOrElse(fail("Expected a path element preceding `.eachValue`"))
             }
         })
       case Select(parent, fieldName) =>
@@ -76,7 +119,7 @@ private object CompanionOptics {
                 toOptic(parent).fold {
                   '{ $schema.reflect.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get }.asExprOf[Any]
                 } { x =>
-                  val optic = x.asExprOf[Optic[?, s]]
+                  val optic = x.asExprOf[Optic[S, s]]
                   '{
                     $optic.apply($optic.focus.asRecord.flatMap(_.lensByName[a](${ Expr(fieldName) })).get)
                   }.asExprOf[Any]
@@ -98,7 +141,7 @@ private object CompanionOptics {
                   val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[s]]
                   '{ $reflect.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get }.asExprOf[Any]
                 } { x =>
-                  val optic = x.asExprOf[Optic[?, s]]
+                  val optic = x.asExprOf[Optic[S, s]]
                   '{
                     $optic.apply($optic.focus.asVariant.flatMap(_.prismByName[a & s](${ Expr(caseName) })).get)
                   }.asExprOf[Any]

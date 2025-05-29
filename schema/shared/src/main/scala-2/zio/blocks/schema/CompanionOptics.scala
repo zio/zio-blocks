@@ -1,18 +1,26 @@
 package zio.blocks.schema
 
-import scala.annotation.compileTimeOnly
 
 trait CompanionOptics[S] {
+  import scala.annotation.compileTimeOnly
   import scala.language.experimental.macros
 
-  implicit class When[A](a: A) {
+  implicit class VariantExtension[A](a: A) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def when[B <: A]: B = ???
   }
 
-  implicit class Each[C[_], A](a: C[A]) {
+  implicit class SequenceExtension[C[_], A](a: C[A]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
+  }
+
+  implicit class MapExtension[M[_, _], K, V](a: M[K, V]) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def eachKey: K = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def eachValue: V = ???
   }
 
   def $[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
@@ -46,7 +54,7 @@ private object CompanionOptics {
     def toOptic(tree: c.Tree): c.Tree = tree match {
       case q"$_[..$_]($parent).each" =>
         val cTpe  = parent.tpe.dealias.widen
-        val aTpe  = tree.tpe.dealias
+        val aTpe  = tree.tpe.dealias.widen
         val optic = toOptic(parent)
         if (optic.isEmpty) fail("Expected a path element preceding `.each`")
         else
@@ -54,8 +62,28 @@ private object CompanionOptics {
                 .apply($optic.focus.asSequenceUnknown.map { x =>
                   _root_.zio.blocks.schema.Traversal.seqValues(x.sequence)
                 }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$cTpe, $aTpe]])"""
+      case q"$_[..$_]($parent).eachKey" =>
+        val cTpe  = parent.tpe.dealias.widen
+        val aTpe  = tree.tpe.dealias.widen
+        val optic = toOptic(parent)
+        if (optic.isEmpty) fail("Expected a path element preceding `.eachKey`")
+        else
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $cTpe]]
+                .apply($optic.focus.asMapUnknown.map { x =>
+                  _root_.zio.blocks.schema.Traversal.mapKeys(x.map)
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$cTpe, $aTpe]])"""
+      case q"$_[..$_]($parent).eachValue" =>
+        val cTpe  = parent.tpe.dealias.widen
+        val aTpe  = tree.tpe.dealias.widen
+        val optic = toOptic(parent)
+        if (optic.isEmpty) fail("Expected a path element preceding `.eachValue`")
+        else
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $cTpe]]
+                .apply($optic.focus.asMapUnknown.map { x =>
+                  _root_.zio.blocks.schema.Traversal.mapValues(x.map)
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$cTpe, $aTpe]])"""
       case q"$parent.$child" =>
-        val aTpe      = tree.tpe.dealias
+        val aTpe      = tree.tpe.dealias.widen
         val fieldName = NameTransformer.decode(child.toString)
         val optic     = toOptic(parent)
         if (optic.isEmpty) q"$schema.reflect.asRecord.flatMap(_.lensByName[$aTpe]($fieldName)).get"
