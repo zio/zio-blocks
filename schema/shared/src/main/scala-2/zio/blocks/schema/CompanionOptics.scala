@@ -9,12 +9,12 @@ trait CompanionOptics[S] {
     def when[B <: A]: B = ???
   }
 
-  implicit class SequenceExtension[C[_], A](a: C[A]) {
+  implicit class SequenceExtension[C[_], A](c: C[A]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
   }
 
-  implicit class MapExtension[M[_, _], K, V](a: M[K, V]) {
+  implicit class MapExtension[M[_, _], K, V](m: M[K, V]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def eachKey: K = ???
 

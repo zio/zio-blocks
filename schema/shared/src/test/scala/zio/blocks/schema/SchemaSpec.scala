@@ -66,15 +66,15 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples)(equalTo(Nil)) &&
         assert(Record.schema.examples(Record(2, 2000)).examples)(equalTo(Record(2, 2000) :: Nil))
       },
-      test("gets and updates default values of record fields using prism focus") {
+      test("gets and updates default values of record fields using optic focus") {
         assert(Record.schema.defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
         assert(Record.schema.defaultValue(Record.i, 1000).getDefaultValue(Record.i))(isSome(equalTo(1000)))
       },
-      test("gets and updates documentation of record fields using prism focus") {
+      test("gets and updates documentation of record fields using optic focus") {
         assert(Record.schema.doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
         assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(Doc("i")))
       },
-      test("gets and updates examples of record fields using prism focus") {
+      test("gets and updates examples of record fields using optic focus") {
         assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
         assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000)))
       },
@@ -393,7 +393,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.examples)(equalTo(Nil)) &&
         assert(Variant.schema.examples(Case1('1'), Case2("VVV")).examples)(equalTo(Case1('1') :: Case2("VVV") :: Nil))
       },
-      test("gets and updates default values of variant cases using prism focus") {
+      test("gets and updates default values of variant cases using optic focus") {
         assert(Variant.schema.defaultValue(Variant.case1, Case1('1')).getDefaultValue(Variant.case1))(
           isSome(equalTo(Case1('1')))
         ) &&
@@ -401,11 +401,11 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(equalTo(Case2("VVV")))
         )
       },
-      test("gets and updates documentation of variant cases using prism focus") {
+      test("gets and updates documentation of variant cases using optic focus") {
         assert(Variant.schema.doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(Doc("Case1"))) &&
         assert(Variant.schema.doc(Variant.case2, "Case2").doc(Variant.case2))(equalTo(Doc("Case2")))
       },
-      test("gets and updates examples of variant cases using prism focus") {
+      test("gets and updates examples of variant cases using optic focus") {
         assert(Variant.schema.examples(Variant.case1, Case1('1')).examples(Variant.case1))(equalTo(Seq(Case1('1')))) &&
         assert(Variant.schema.examples(Variant.case2, Case2("VVV")).examples(Variant.case2))(equalTo(Seq(Case2("VVV"))))
       },
@@ -659,19 +659,19 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
         assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
-      test("gets and updates default values of sequence elements using prism focus") {
+      test("gets and updates default values of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
         val elements2 = Traversal.setValues(Reflect.long[Binding])
         assert(Schema[List[Int]].defaultValue(elements1, 1).getDefaultValue(elements1))(isSome(equalTo(1))) &&
         assert(Schema[Set[Long]].defaultValue(elements2, 1L).getDefaultValue(elements2))(isSome(equalTo(1L)))
       },
-      test("gets and updates documentation of sequence elements using prism focus") {
+      test("gets and updates documentation of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
         val elements2 = Traversal.setValues(Reflect.long[Binding])
         assert(Schema[List[Int]].doc(elements1, "Int").doc(elements1))(equalTo(Doc("Int"))) &&
         assert(Schema[Set[Long]].doc(elements2, "Long").doc(elements2))(equalTo(Doc("Long")))
       },
-      test("gets and updates examples of sequence elements using prism focus") {
+      test("gets and updates examples of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
         val elements2 = Traversal.setValues(Reflect.long[Binding])
         assert(Schema[List[Int]].examples(elements1, 2).examples(elements1))(equalTo(Seq(2))) &&
@@ -828,19 +828,19 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(Map(1 -> 2L, 2 -> 3L, 3 -> 4L) :: Nil)
         )
       },
-      test("gets and updates default values of sequence elements using prism focus") {
+      test("gets and updates default values of sequence elements using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].defaultValue(mapKeys, 1).getDefaultValue(mapKeys))(isSome(equalTo(1))) &&
         assert(Schema[Map[Int, Long]].defaultValue(mapValues, 1L).getDefaultValue(mapValues))(isSome(equalTo(1L)))
       },
-      test("gets and updates documentation of sequence elements using prism focus") {
+      test("gets and updates documentation of sequence elements using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
         assert(Schema[Map[Int, Long]].doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
       },
-      test("gets and updates examples of sequence elements using prism focus") {
+      test("gets and updates examples of sequence elements using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
