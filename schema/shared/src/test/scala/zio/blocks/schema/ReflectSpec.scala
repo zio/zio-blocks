@@ -632,7 +632,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3))) &&
         assert(deferred1.binding.examples(1, 2).examples)(equalTo(Seq(1, 2)))
       },
-      test("gets dynamic modifiers") {
+      test("gets and updates modifiers") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         assert(deferred1.modifiers)(equalTo(Seq.empty)) &&
         assert(deferred1.modifier(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]).modifiers: Any)(

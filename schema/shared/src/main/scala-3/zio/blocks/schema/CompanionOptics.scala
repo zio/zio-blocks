@@ -8,12 +8,12 @@ trait CompanionOptics[S] {
     def when[B <: A]: B = ???
   }
 
-  extension [C[_], A](a: C[A]) {
+  extension [C[_], A](c: C[A]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
   }
 
-  extension [M[_, _], K, V](a: M[K, V]) {
+  extension [M[_, _], K, V](m: M[K, V]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def eachKey: K = ???
 
@@ -90,14 +90,14 @@ private object CompanionOptics {
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
         Some(parentTpe.asType match {
-          case '[c] =>
+          case '[p] =>
             valueTpe.asType match {
               case '[v] =>
                 toOptic(parent).map { x =>
-                  val optic = x.asExprOf[Optic[S, c]]
+                  val optic = x.asExprOf[Optic[S, p]]
                   '{
                     $optic.apply(
-                      $optic.focus.asMapUnknown.map(x => Traversal.mapValues(x.map)).get.asInstanceOf[Traversal[c, v]]
+                      $optic.focus.asMapUnknown.map(x => Traversal.mapValues(x.map)).get.asInstanceOf[Traversal[p, v]]
                     )
                   }.asExprOf[Any]
                 }.getOrElse(fail("Expected a path element preceding `.eachValue`"))
