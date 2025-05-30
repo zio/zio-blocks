@@ -2540,7 +2540,7 @@ object OpticSpecTypes {
     lazy val c3_v1_c1_d_left: Optional[Variant2, Double]   = c3(Case3.v1)(Variant1.c1_d)
     lazy val c3_v1_c1_d_right: Optional[Variant2, Double]  = c3_v1(Variant1.c1_d)
     lazy val c3_v1_v2: Optional[Variant2, Variant2]        = optic(_.when[Case3].v1.when[Variant2])
-    lazy val c4_lr3: Traversal[Variant2, Record3]          = optic(_.when[Case4].lr3.each)
+    lazy val c4_lr3: Traversal[Variant2, Record3]          = c4(Case4.lr3)
     lazy val c3_v1_v2_c4_lr3: Traversal[Variant2, Record3] = optic(_.when[Case3].v1.when[Variant2].when[Case4].lr3.each)
     lazy val c3_v1_v2_c4: Optional[Variant2, Case4]        = optic(_.when[Case3].v1.when[Variant2].when[Case4])
   }
@@ -2582,7 +2582,7 @@ object OpticSpecTypes {
     val reflect: Reflect.Deferred.Bound[Case5] = Reflect.Deferred(() => Schema.derived[Case5].reflect)
     implicit val schema: Schema[Case5]         = Schema(reflect) // to test lens derivation for Reflect.Deferred
     val si: Traversal[Case5, Int]              = optic(_.si.each)
-    val as: Traversal[Case5, String]           = optic(_.as.each)
+    val as: Traversal[Case5, String]           = optic(_.as).arrayValues
   }
 
   case class Case6(mil: Map[Int, Long]) extends Variant3
