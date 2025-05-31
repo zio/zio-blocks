@@ -1,24 +1,34 @@
 package zio.blocks.schema
 
-trait SchemaAspect[-Min, +Max] {
+import zio.blocks.schema.binding.Binding
 
-  def apply[A >: Max <: Min](reflect: Reflect.Bound[A]): Reflect.Bound[A]
+trait SchemaAspect[-Min, +Max, F[_, _]] {
+
+  def apply[A >: Max <: Min](reflect: Reflect[F, A]): Reflect[F, A]
+
+  def recursive(implicit ev1: Any <:< Min, ev2: Max <:< Nothing): SchemaAspect[Min, Max, F]
 }
 
 object SchemaAspect {
 
-  val identity: SchemaAspect[Any, Nothing] = new SchemaAspect[Any, Nothing] {
+  val identity: SchemaAspect[Any, Nothing, Binding] = new SchemaAspect[Any, Nothing, Binding] {
     def apply[A](reflect: Reflect.Bound[A]): Reflect.Bound[A] = reflect
+
+    def recursive(implicit ev1: Any <:< Any, ev2: Nothing <:< Nothing): SchemaAspect[Any, Nothing, Binding] = identity
   }
 
-  def doc(doc: String): SchemaAspect[Any, Nothing] = new SchemaAspect[Any, Nothing] {
-    def apply[A](reflect: Reflect.Bound[A]): Reflect.Bound[A] = reflect.doc(doc)
+  def doc(value: String): SchemaAspect[Any, Nothing, Binding] = new SchemaAspect[Any, Nothing, Binding] {
+    def apply[A](reflect: Reflect.Bound[A]): Reflect.Bound[A] = reflect.doc(value)
+
+    def recursive(implicit ev1: Any <:< Any, ev2: Nothing <:< Nothing): SchemaAspect[Any, Nothing, Binding] = doc(value)
   }
 
-  def examples[A0](value: A0, values: A0*): SchemaAspect[A0, A0] = new SchemaAspect[A0, A0] {
+  def examples[A0](value: A0, values: A0*): SchemaAspect[A0, A0, Binding] = new SchemaAspect[A0, A0, Binding] {
 
     def apply[A >: A0 <: A0](reflect: Reflect.Bound[A]): Reflect.Bound[A] =
       reflect.examples(value, values: _*)
-  }
 
+    def recursive(implicit ev1: Any <:< A0, ev2: A0 <:< Nothing): SchemaAspect[A0, A0, Binding] =
+      examples(value, values)
+  }
 }
