@@ -140,7 +140,7 @@ object Lens {
     private[this] var bindings: Array[LensBinding]  = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-    {
+    private[this] def init(): Unit = {
       var offset   = RegisterOffset.Zero
       val len      = sources.length
       val bindings = new Array[LensBinding](len)
@@ -168,6 +168,7 @@ object Lens {
     def check(s: S): None.type = None
 
     def get(s: S): A = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -183,6 +184,7 @@ object Lens {
     }
 
     def replace(s: S, a: A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -206,6 +208,7 @@ object Lens {
     }
 
     def modify(s: S, f: A => A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -473,7 +476,7 @@ object Optional {
     private[this] var bindings: Array[OpticBinding] = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-    {
+    private[this] def init(): Unit = {
       val len      = sources.length
       val bindings = new Array[OpticBinding](len)
       var offset   = RegisterOffset.Zero
@@ -508,6 +511,7 @@ object Optional {
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
     def check(s: S): Option[OpticCheck] = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -537,6 +541,7 @@ object Optional {
     }
 
     def getOption(s: S): Option[A] = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -557,6 +562,7 @@ object Optional {
     }
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
+      if (bindings eq null) init()
       val nodes = Vector.newBuilder[DynamicOptic.Node]
       val len   = bindings.length
       var idx   = 0
@@ -573,6 +579,7 @@ object Optional {
     })
 
     def replace(s: S, a: A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -604,6 +611,7 @@ object Optional {
     }
 
     def replaceOption(s: S, a: A): Option[S] = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -635,6 +643,7 @@ object Optional {
     }
 
     def modify(s: S, f: A => A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -796,7 +805,7 @@ object Traversal {
     type Elem
     type Col[_]
 
-    {
+    private[this] def init(): Unit = {
       val len      = sources.length
       val bindings = new Array[OpticBinding](len)
       var offset   = RegisterOffset.Zero
@@ -847,6 +856,7 @@ object Traversal {
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
     def check(s: S): Option[OpticCheck] = {
+      if (bindings eq null) init()
       val errors = List.newBuilder[OpticCheck.Single]
       checkRec(Registers(usedRegisters), 0, s, errors)
       errors.result() match {
@@ -898,7 +908,10 @@ object Traversal {
           }
       }
 
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = foldRec(Registers(usedRegisters), 0, s, zero, f)
+    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = {
+      if (bindings eq null) init()
+      foldRec(Registers(usedRegisters), 0, s, zero, f)
+    }
 
     private[this] def foldRec[Z](registers: Registers, idx: Int, x: Any, zero: Z, f: (Z, A) => Z): Z =
       bindings(idx) match {
@@ -1120,7 +1133,10 @@ object Traversal {
           z
       }
 
-    def modify(s: S, f: A => A): S = modifyRec(Registers(usedRegisters), 0, s, f).asInstanceOf[S]
+    def modify(s: S, f: A => A): S = {
+      if (bindings eq null) init()
+      modifyRec(Registers(usedRegisters), 0, s, f).asInstanceOf[S]
+    }
 
     private[this] def modifyRec(registers: Registers, idx: Int, x: Any, f: A => A): Any =
       bindings(idx) match {
@@ -1304,6 +1320,7 @@ object Traversal {
       }
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
+      if (bindings eq null) init()
       val nodes = Vector.newBuilder[DynamicOptic.Node]
       val len   = bindings.length
       var idx   = 0
