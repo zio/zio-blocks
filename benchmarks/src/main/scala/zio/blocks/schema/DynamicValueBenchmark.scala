@@ -20,7 +20,7 @@ object DynamicValueDomain {
 
   object End extends LinkedList
 
-  case class Node(value: String, @Modifier.deferred next: LinkedList) extends LinkedList
+  case class Node(value: String, next: LinkedList) extends LinkedList
 
   implicit val endSchema: Schema[End.type]     = Schema.derived
   implicit lazy val nodeSchema: Schema[Node]   = Schema.derived

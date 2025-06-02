@@ -278,7 +278,7 @@ enum FruitEnum[T <: FruitEnum[T]]:
 
 enum LinkedList[+T]:
   case End
-  case Node(value: T, @Modifier.deferred next: LinkedList[T])
+  case Node(value: T, next: LinkedList[T])
 
 enum HKEnum[A[_]]:
   case Case1[A[_]](a: A[Int])    extends HKEnum[A]

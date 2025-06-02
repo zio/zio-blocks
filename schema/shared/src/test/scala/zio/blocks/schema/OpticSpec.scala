@@ -2474,7 +2474,7 @@ object OpticSpecTypes {
     lazy val r1_f: Lens[Record2, Float]        = optic(_.r1.f)
   }
 
-  case class Record3(r1: Record1, r2: Record2, @Modifier.deferred v1: Variant1)
+  case class Record3(r1: Record1, r2: Record2, v1: Variant1)
 
   object Record3 extends CompanionOptics[Record3] {
     implicit val schema: Schema[Record3]           = Schema.derived
@@ -2545,7 +2545,7 @@ object OpticSpecTypes {
     lazy val c3_v1_v2_c4: Optional[Variant2, Case4]        = optic(_.when[Case3].v1.when[Variant2].when[Case4])
   }
 
-  case class Case3(@Modifier.deferred v1: Variant1) extends Variant2
+  case class Case3(v1: Variant1) extends Variant2
 
   object Case3 extends CompanionOptics[Case3] {
     implicit val schema: Schema[Case3]                 = Schema.derived
