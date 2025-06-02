@@ -1479,33 +1479,33 @@ object Reflect {
   object Extractors {
     object List {
       def unapply[F[_, _], A](reflect: Reflect[F, List[A]]): Option[Reflect[F, A]] =
-        reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.list => new Some(element)
-          case _                                                     => None
+        reflect.asSequenceUnknown.collect {
+          case x if x.sequence.typeName == TypeName.list =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Vector {
       def unapply[F[_, _], A](reflect: Reflect[F, Vector[A]]): Option[Reflect[F, A]] =
-        reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.vector => new Some(element)
-          case _                                                       => None
+        reflect.asSequenceUnknown.collect {
+          case x if x.sequence.typeName == TypeName.vector =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Set {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
-        reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.set => new Some(element)
-          case _                                                    => None
+        reflect.asSequenceUnknown.collect {
+          case x if x.sequence.typeName == TypeName.set =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Array {
       def unapply[F[_, _], A](reflect: Reflect[F, Array[A]]): Option[Reflect[F, A]] =
-        reflect match {
-          case Sequence(element, _, tn, _, _) if tn == TypeName.array => new Some(element)
-          case _                                                      => None
+        reflect.asSequenceUnknown.collect {
+          case x if x.sequence.typeName == TypeName.array =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
   }

@@ -370,6 +370,25 @@ object ReflectSpec extends ZIOSpecDefault {
         val sequence1 = Reflect.vector(Reflect.int[Binding])
         assert(sequence1.fromDynamicValue(sequence1.toDynamicValue(Vector(1, 2, 3))))(isRight(equalTo(Vector(1, 2, 3))))
       },
+      test("has extractors for lists, vactors, sets, and arrays") {
+        import Reflect.Extractors._
+
+        val int1 = Reflect.int[Binding]
+        assert(Option(Reflect.list(int1)).collect { case List(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.vector(int1)).collect { case Vector(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.set(int1)).collect { case Set(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.array(int1)).collect { case Array(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.Deferred(() => Reflect.list(int1))).collect { case List(e) => e })(
+          isSome(equalTo(int1))
+        ) &&
+        assert(Option(Reflect.Deferred(() => Reflect.vector(int1))).collect { case Vector(e) => e })(
+          isSome(equalTo(int1))
+        ) &&
+        assert(Option(Reflect.Deferred(() => Reflect.set(int1))).collect { case Set(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.Deferred(() => Reflect.array(int1))).collect { case Array(e) => e })(
+          isSome(equalTo(int1))
+        )
+      },
       test("gets and updates sequence default value") {
         assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue)(isNone) &&
         assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue(Vector.empty).defaultValue.get.apply())(
