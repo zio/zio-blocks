@@ -16,71 +16,23 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def metadata: F[NodeBinding, A]
 
-  def asDynamic: Option[Reflect.Dynamic[F]] =
-    this match {
-      case dynamic: Reflect.Dynamic[F] @scala.unchecked => new Some(dynamic)
-      case deferred: Reflect.Deferred[F, _]             => deferred.value.asDynamic
-      case _                                            => None
-    }
+  def asDynamic: Option[Reflect.Dynamic[F]] = None
 
-  def asMap(implicit ev: IsMap[A]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
-    this match {
-      case map: Reflect.Map[F, ev.Key, ev.Value, ev.Map] @scala.unchecked => new Some(map)
-      case deferred: Reflect.Deferred[F, _]                               => deferred.value.asMap
-      case _                                                              => None
-    }
+  def asMap(implicit ev: IsMap[A]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] = None
 
-  def asMapUnknown: Option[Reflect.Map.Unknown[F]] =
-    this match {
-      case _: Reflect.Map[F, _, _, _] @scala.unchecked =>
-        new Some(new Reflect.Map.Unknown[F] {
-          def map: Reflect.Map[F, KeyType, ValueType, MapType] =
-            self.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
-        })
-      case deferred: Reflect.Deferred[F, _] => deferred.value.asMapUnknown
-      case _                                => None
-    }
+  def asMapUnknown: Option[Reflect.Map.Unknown[F]] = None
 
-  def asPrimitive: Option[Reflect.Primitive[F, A]] =
-    this match {
-      case primitive: Reflect.Primitive[F, A] @scala.unchecked => new Some(primitive)
-      case deferred: Reflect.Deferred[F, _]                    => deferred.value.asPrimitive
-      case _                                                   => None
-    }
+  def asPrimitive: Option[Reflect.Primitive[F, A]] = None
 
-  def asRecord: Option[Reflect.Record[F, A]] =
-    this match {
-      case record: Reflect.Record[F, A] @scala.unchecked => new Some(record)
-      case deferred: Reflect.Deferred[F, _]              => deferred.value.asRecord
-      case _                                             => None
-    }
+  def asRecord: Option[Reflect.Record[F, A]] = None
 
-  def asSequence(implicit ev: IsCollection[A]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
-    this match {
-      case sequence: Reflect.Sequence[F, ev.Elem, ev.Collection] @scala.unchecked => new Some(sequence)
-      case deferred: Reflect.Deferred[F, _]                                       => deferred.value.asSequence
-      case _                                                                      => None
-    }
+  def asSequence(implicit ev: IsCollection[A]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] = None
 
-  def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] =
-    this match {
-      case _: Reflect.Sequence[F, _, _] @scala.unchecked =>
-        new Some(new Reflect.Sequence.Unknown[F] {
-          def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
-            self.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
-        })
-      case deferred: Reflect.Deferred[F, _] => deferred.value.asSequenceUnknown
-      case _                                => None
-    }
+  def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] = None
 
   def asTerm[S](name: String): Term[F, S, A] = new Term(name, this, Doc.Empty, Nil)
 
-  def asVariant: Option[Reflect.Variant[F, A]] =
-    this match {
-      case variant: Reflect.Variant[F, A] @scala.unchecked => new Some(variant)
-      case deferred: Reflect.Deferred[F, _]                => deferred.value.asVariant
-      case _                                               => None
-    }
+  def asVariant: Option[Reflect.Variant[F, A]] = None
 
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
 
@@ -156,47 +108,17 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   override def hashCode: Int = inner.hashCode
 
-  def isDynamic: Boolean =
-    this match {
-      case _: Reflect.Dynamic[_]     => true
-      case d: Reflect.Deferred[_, _] => d.value.isDynamic
-      case _                         => false
-    }
+  def isDynamic: Boolean = false
 
-  def isMap: Boolean =
-    this match {
-      case _: Reflect.Map[_, _, _, _] => true
-      case d: Reflect.Deferred[_, _]  => d.value.isMap
-      case _                          => false
-    }
+  def isMap: Boolean = false
 
-  def isPrimitive: Boolean =
-    this match {
-      case _: Reflect.Primitive[_, _] => true
-      case d: Reflect.Deferred[_, _]  => d.value.isPrimitive
-      case _                          => false
-    }
+  def isPrimitive: Boolean = false
 
-  def isRecord: Boolean =
-    this match {
-      case _: Reflect.Record[_, _]   => true
-      case d: Reflect.Deferred[_, _] => d.value.isRecord
-      case _                         => false
-    }
+  def isRecord: Boolean = false
 
-  def isSequence: Boolean =
-    this match {
-      case _: Reflect.Sequence[_, _, _] => true
-      case d: Reflect.Deferred[_, _]    => d.value.isSequence
-      case _                            => false
-    }
+  def isSequence: Boolean = false
 
-  def isVariant: Boolean =
-    this match {
-      case _: Reflect.Variant[_, _]  => true
-      case d: Reflect.Deferred[_, _] => d.value.isVariant
-      case _                         => false
-    }
+  def isVariant: Boolean = false
 
   def modifiers: Seq[ModifierType]
 
@@ -402,7 +324,7 @@ object Reflect {
             }
           }
           var idx = 0
-          while (idx < this.fields.length) {
+          while (idx < fieldValues.length) {
             if (fieldValues(idx) ne null) addError(SchemaError.missingField(trace, this.fields(idx).name))
             idx += 1
           }
@@ -459,38 +381,44 @@ object Reflect {
         record <- f.transformRecord(path, fields, typeName, recordBinding, doc, modifiers)
       } yield record
 
-    val registers: IndexedSeq[Register[?]] = {
+    lazy val registers: IndexedSeq[Register[?]] = {
       val registers      = new Array[Register[?]](fieldValues.length)
       var registerOffset = RegisterOffset.Zero
       var idx            = 0
       fieldValues.foreach { fieldValue =>
-        fieldValue match {
-          case Reflect.Primitive(PrimitiveType.Unit, _, _, _, _) =>
-            registers(idx) = Register.Unit
-          case Reflect.Primitive(_: PrimitiveType.Boolean, _, _, _, _) =>
-            registers(idx) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
-          case Reflect.Primitive(_: PrimitiveType.Byte, _, _, _, _) =>
-            registers(idx) = Register.Byte(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
-          case Reflect.Primitive(_: PrimitiveType.Char, _, _, _, _) =>
-            registers(idx) = Register.Char(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
-          case Reflect.Primitive(_: PrimitiveType.Short, _, _, _, _) =>
-            registers(idx) = Register.Short(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
-          case Reflect.Primitive(_: PrimitiveType.Float, _, _, _, _) =>
-            registers(idx) = Register.Float(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
-          case Reflect.Primitive(_: PrimitiveType.Int, _, _, _, _) =>
-            registers(idx) = Register.Int(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
-          case Reflect.Primitive(_: PrimitiveType.Double, _, _, _, _) =>
-            registers(idx) = Register.Double(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
-          case Reflect.Primitive(_: PrimitiveType.Long, _, _, _, _) =>
-            registers(idx) = Register.Long(RegisterOffset.getBytes(registerOffset))
-            registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
+        fieldValue.asPrimitive match {
+          case Some(primitive) =>
+            primitive.primitiveType match {
+              case PrimitiveType.Unit =>
+                registers(idx) = Register.Unit
+              case _: PrimitiveType.Boolean =>
+                registers(idx) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
+              case _: PrimitiveType.Byte =>
+                registers(idx) = Register.Byte(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
+              case _: PrimitiveType.Char =>
+                registers(idx) = Register.Char(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
+              case _: PrimitiveType.Short =>
+                registers(idx) = Register.Short(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
+              case _: PrimitiveType.Float =>
+                registers(idx) = Register.Float(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
+              case _: PrimitiveType.Int =>
+                registers(idx) = Register.Int(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
+              case _: PrimitiveType.Double =>
+                registers(idx) = Register.Double(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
+              case _: PrimitiveType.Long =>
+                registers(idx) = Register.Long(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
+              case _ =>
+                registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
+                registerOffset = RegisterOffset.incrementObjects(registerOffset)
+            }
           case _ =>
             registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
             registerOffset = RegisterOffset.incrementObjects(registerOffset)
@@ -500,11 +428,15 @@ object Reflect {
       ArraySeq.unsafeWrapArray(registers)
     }
 
-    val usedRegisters: RegisterOffset = registers.foldLeft(RegisterOffset.Zero) { (acc, register) =>
+    lazy val usedRegisters: RegisterOffset = registers.foldLeft(RegisterOffset.Zero) { (acc, register) =>
       RegisterOffset.add(acc, register.usedRegisters)
     }
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
+
+    override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
+
+    override def isRecord: Boolean = true
   }
 
   object Record {
@@ -608,6 +540,10 @@ object Reflect {
       } yield variant
 
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
+
+    override def asVariant: Option[Reflect.Variant[F, A]] = new Some(this)
+
+    override def isVariant: Boolean = true
   }
 
   object Variant {
@@ -651,87 +587,100 @@ object Reflect {
         case DynamicValue.Sequence(elements) =>
           val seqTrace    = DynamicOptic.Node.Elements :: trace
           val constructor = seqConstructor
-          element match {
-            case Reflect.Primitive(_: PrimitiveType.Boolean, _, _, _, _) =>
-              val builder = constructor.newBooleanBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addBoolean(builder, value.asInstanceOf[Boolean])
-                  case Left(error)  => addError(error)
-                }
+          element.asPrimitive match {
+            case Some(primitive) =>
+              primitive.primitiveType match {
+                case _: PrimitiveType.Boolean =>
+                  val builder = constructor.newBooleanBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addBoolean(builder, value.asInstanceOf[Boolean])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultBoolean(builder).asInstanceOf[C[A]])
+                case _: PrimitiveType.Byte =>
+                  val builder = constructor.newByteBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addByte(builder, value.asInstanceOf[Byte])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultByte(builder).asInstanceOf[C[A]])
+                case _: PrimitiveType.Char =>
+                  val builder = constructor.newCharBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addChar(builder, value.asInstanceOf[Char])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultChar(builder).asInstanceOf[C[A]])
+                case _: PrimitiveType.Short =>
+                  val builder = constructor.newShortBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addShort(builder, value.asInstanceOf[Short])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultShort(builder).asInstanceOf[C[A]])
+                case _: PrimitiveType.Int =>
+                  val builder = constructor.newIntBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addInt(builder, value.asInstanceOf[Int])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultInt(builder).asInstanceOf[C[A]])
+                case _: PrimitiveType.Long =>
+                  val builder = constructor.newLongBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addLong(builder, value.asInstanceOf[Long])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultLong(builder).asInstanceOf[C[A]])
+                case _: PrimitiveType.Float =>
+                  val builder = constructor.newFloatBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addFloat(builder, value.asInstanceOf[Float])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultFloat(builder).asInstanceOf[C[A]])
+                case _: PrimitiveType.Double =>
+                  val builder = constructor.newDoubleBuilder(elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addDouble(builder, value.asInstanceOf[Double])
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
+                case _ =>
+                  val builder = constructor.newObjectBuilder[A](elements.size)
+                  elements.foreach { elem =>
+                    element.fromDynamicValue(elem, seqTrace) match {
+                      case Right(value) => constructor.addObject(builder, value)
+                      case Left(error)  => addError(error)
+                    }
+                  }
+                  if (error.isDefined) new Left(error.get)
+                  else new Right(constructor.resultObject(builder))
               }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultBoolean(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Byte, _, _, _, _) =>
-              val builder = constructor.newByteBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addByte(builder, value.asInstanceOf[Byte])
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultByte(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Char, _, _, _, _) =>
-              val builder = constructor.newCharBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addChar(builder, value.asInstanceOf[Char])
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultChar(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Short, _, _, _, _) =>
-              val builder = constructor.newShortBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addShort(builder, value.asInstanceOf[Short])
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultShort(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Int, _, _, _, _) =>
-              val builder = constructor.newIntBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addInt(builder, value.asInstanceOf[Int])
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultInt(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Long, _, _, _, _) =>
-              val builder = constructor.newLongBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addLong(builder, value.asInstanceOf[Long])
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultLong(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Float, _, _, _, _) =>
-              val builder = constructor.newFloatBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addFloat(builder, value.asInstanceOf[Float])
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultFloat(builder).asInstanceOf[C[A]])
-            case Reflect.Primitive(_: PrimitiveType.Double, _, _, _, _) =>
-              val builder = constructor.newDoubleBuilder(elements.size)
-              elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
-                  case Right(value) => constructor.addDouble(builder, value.asInstanceOf[Double])
-                  case Left(error)  => addError(error)
-                }
-              }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
             case _ =>
               val builder = constructor.newObjectBuilder[A](elements.size)
               elements.foreach { elem =>
@@ -772,6 +721,16 @@ object Reflect {
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
     def nodeType: Reflect.Type.Sequence[C] = Reflect.Type.Sequence[C]()
+
+    override def asSequence(implicit ev: IsCollection[C[A]]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
+      new Some(this.asInstanceOf[Reflect.Sequence[F, ev.Elem, ev.Collection]])
+
+    override def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] = new Some(new Reflect.Sequence.Unknown[F] {
+      def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
+        self.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
+    })
+
+    override def isSequence: Boolean = true
   }
 
   object Sequence {
@@ -874,6 +833,16 @@ object Reflect {
       } yield map
 
     def nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
+
+    override def asMap(implicit ev: IsMap[M[Key, Value]]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
+      new Some(this.asInstanceOf[Reflect.Map[F, ev.Key, ev.Value, ev.Map]])
+
+    override def asMapUnknown: Option[Reflect.Map.Unknown[F]] = new Some(new Reflect.Map.Unknown[F] {
+      def map: Reflect.Map[F, KeyType, ValueType, MapType] =
+        self.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
+    })
+
+    override def isMap: Boolean = true
   }
 
   object Map {
@@ -931,6 +900,10 @@ object Reflect {
       } yield dynamic
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
+
+    override def asDynamic: Option[Reflect.Dynamic[F]] = new Some(this)
+
+    override def isDynamic: Boolean = true
   }
 
   object Dynamic {
@@ -982,6 +955,10 @@ object Reflect {
       } yield primitive
 
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
+
+    override def asPrimitive: Option[Reflect.Primitive[F, A]] = new Some(this)
+
+    override def isPrimitive: Boolean = true
   }
 
   object Primitive {
@@ -1060,6 +1037,146 @@ object Reflect {
           }
         }
       case _ => false
+    }
+
+    override def asDynamic: Option[Reflect.Dynamic[F]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asDynamic
+        finally v.remove(this)
+      }
+    }
+
+    override def asMap(implicit ev: IsMap[A]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asMap(ev)
+        finally v.remove(this)
+      }
+    }
+
+    override def asMapUnknown: Option[Reflect.Map.Unknown[F]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asMapUnknown
+        finally v.remove(this)
+      }
+    }
+
+    override def asPrimitive: Option[Reflect.Primitive[F, A]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asPrimitive
+        finally v.remove(this)
+      }
+    }
+
+    override def asRecord: Option[Reflect.Record[F, A]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asRecord
+        finally v.remove(this)
+      }
+    }
+
+    override def asSequence(implicit ev: IsCollection[A]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asSequence(ev)
+        finally v.remove(this)
+      }
+    }
+
+    override def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asSequenceUnknown
+        finally v.remove(this)
+      }
+    }
+
+    override def asVariant: Option[Reflect.Variant[F, A]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asVariant
+        finally v.remove(this)
+      }
+    }
+
+    override def isDynamic: Boolean = {
+      val v = visited.get
+      if (v.containsKey(this)) false // exit from recursion
+      else {
+        v.put(this, ())
+        try value.isDynamic
+        finally v.remove(this)
+      }
+    }
+
+    override def isMap: Boolean = {
+      val v = visited.get
+      if (v.containsKey(this)) false // exit from recursion
+      else {
+        v.put(this, ())
+        try value.isMap
+        finally v.remove(this)
+      }
+    }
+
+    override def isPrimitive: Boolean = {
+      val v = visited.get
+      if (v.containsKey(this)) false // exit from recursion
+      else {
+        v.put(this, ())
+        try value.isPrimitive
+        finally v.remove(this)
+      }
+    }
+
+    override def isRecord: Boolean = {
+      val v = visited.get
+      if (v.containsKey(this)) false // exit from recursion
+      else {
+        v.put(this, ())
+        try value.isRecord
+        finally v.remove(this)
+      }
+    }
+
+    override def isSequence: Boolean = {
+      val v = visited.get
+      if (v.containsKey(this)) false // exit from recursion
+      else {
+        v.put(this, ())
+        try value.isSequence
+        finally v.remove(this)
+      }
+    }
+
+    override def isVariant: Boolean = {
+      val v = visited.get
+      if (v.containsKey(this)) false // exit from recursion
+      else {
+        v.put(this, ())
+        try value.isVariant
+        finally v.remove(this)
+      }
     }
 
     private[this] val visited =
