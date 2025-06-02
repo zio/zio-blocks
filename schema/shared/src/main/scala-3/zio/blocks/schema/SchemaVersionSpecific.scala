@@ -27,6 +27,10 @@ private object SchemaVersionSpecific {
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
+    def isCollection(tpe: TypeRepr): Boolean =
+      tpe <:< TypeRepr.of[Iterable[_]] || tpe <:< TypeRepr.of[Iterator[_]] || tpe <:< TypeRepr.of[Array[_]] ||
+        tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
+
     def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
       case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
       case _                        => Nil
@@ -238,7 +242,6 @@ private object SchemaVersionSpecific {
           defaultValue: Option[Term],
           const: (Expr[Registers], Expr[RegisterOffset]) => Term,
           deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term,
-          isDeferred: Boolean,
           isTransient: Boolean,
           config: List[(String, String)]
         )
@@ -268,7 +271,6 @@ private object SchemaVersionSpecific {
                 if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
                 getter = getters.head
               }
-              val isDeferred  = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.deferred])
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
               val config = getter.annotations
                 .filter(_.tpe =:= TypeRepr.of[Modifier.config])
@@ -347,19 +349,20 @@ private object SchemaVersionSpecific {
                   '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
               }
               registersUsed = RegisterOffset.add(registersUsed, offset)
-              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isDeferred, isTransient, config)
+              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
           }
         })
         val fields =
           fieldInfos.flatMap(_.map { fieldInfo =>
-            fieldInfo.tpe.asType match {
+            val fTpe = fieldInfo.tpe
+            fTpe.asType match {
               case '[ft] =>
                 val nameExpr = Expr(fieldInfo.name)
                 val usingExpr = Expr.summon[Schema[ft]].getOrElse {
-                  fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
+                  fail(s"Cannot find implicitly accessible schema for '${fTpe.show}'")
                 }
                 val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
-                var fieldTermExpr = if (fieldInfo.isDeferred) {
+                var fieldTermExpr = if (isSealedTraitOrAbstractClass(fTpe) || isCollection(fTpe)) {
                   fieldInfo.defaultValue
                     .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
                       '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
@@ -373,7 +376,6 @@ private object SchemaVersionSpecific {
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
-                if (fieldInfo.isDeferred) modifiers = modifiers :+ '{ Modifier.deferred() }.asExprOf[Modifier.Term]
                 if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
                 if (modifiers.nonEmpty) {
                   val modifiersExpr = Expr.ofSeq(modifiers)

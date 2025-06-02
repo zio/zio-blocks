@@ -27,6 +27,9 @@ private object SchemaVersionSpecific {
     def isNonAbstractScalaClass(tpe: Type): Boolean =
       tpe.typeSymbol.isClass && !tpe.typeSymbol.isAbstract && !tpe.typeSymbol.isJava
 
+    def isCollection(tpe: Type): Boolean =
+      tpe <:< typeOf[Iterable[_]] || tpe <:< typeOf[Iterator[_]] || tpe <:< typeOf[Array[_]]
+
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
     def companion(tpe: Type): Symbol = {
@@ -184,7 +187,6 @@ private object SchemaVersionSpecific {
           defaultValue: Option[Tree],
           const: Tree,
           deconst: Tree,
-          isDeferred: Boolean,
           isTransient: Boolean,
           config: Seq[(String, String)]
         )
@@ -221,7 +223,6 @@ private object SchemaVersionSpecific {
           val getter =
             getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
           val anns        = annotations.getOrElse(name, Nil)
-          val isDeferred  = anns.exists(_.tree.tpe =:= typeOf[Modifier.deferred])
           val isTransient = anns.exists(_.tree.tpe =:= typeOf[Modifier.transient])
           val config = anns
             .filter(_.tree.tpe =:= typeOf[Modifier.config])
@@ -277,13 +278,13 @@ private object SchemaVersionSpecific {
             deconst = q"out.setObject(baseOffset, $objects, in.$getter)"
           }
           registersUsed = RegisterOffset.add(registersUsed, offset)
-          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isDeferred, isTransient, config)
+          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe        = fieldInfo.tpe
           val name        = fieldInfo.name
           val reflectTree = q"Schema[$fTpe].reflect"
-          var fieldTermTree = if (fieldInfo.isDeferred) {
+          var fieldTermTree = if (isSealedTraitOrAbstractClass(fTpe) || isCollection(fTpe)) {
             fieldInfo.defaultValue.fold(q"Reflect.Deferred(() => $reflectTree).asTerm($name)") { dv =>
               q"Reflect.Deferred(() => $reflectTree.defaultValue($dv)).asTerm($name)"
             }
@@ -293,7 +294,6 @@ private object SchemaVersionSpecific {
             }
           }
           var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
-          if (fieldInfo.isDeferred) modifiers = modifiers :+ q"Modifier.deferred()"
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
           fieldTermTree
