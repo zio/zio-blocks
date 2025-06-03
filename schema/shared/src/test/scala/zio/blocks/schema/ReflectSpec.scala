@@ -280,6 +280,20 @@ object ReflectSpec extends ZIOSpecDefault {
       test("finds field term by name") {
         assert(tuple4Reflect.fieldByName("_3"): Option[Any])(isSome(equalTo(Reflect.int[Binding].asTerm("_3")))) &&
         assert(tuple4Reflect.fieldByName("_5"))(isNone)
+      },
+      test("modifies field term by name") {
+        assert(
+          tuple4Reflect
+            .modifyField("_3")(new Term.Updater[Binding] {
+              override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] =
+                new Some(input.copy(doc = Doc("updated")))
+            })
+            .flatMap(_.fieldByName("_3")): Option[Any]
+        )(isSome(equalTo(Reflect.int[Binding].asTerm("_3").copy(doc = Doc("updated"))))) &&
+        assert(tuple4Reflect.modifyField("_3")(new Term.Updater[Binding] {
+          override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] = None
+        }): Option[Any])(isNone) &&
+        assert(tuple4Reflect.modifyField("_5")(null))(isNone)
       }
     ),
     suite("Reflect.Variant")(
@@ -338,6 +352,20 @@ object ReflectSpec extends ZIOSpecDefault {
       test("finds case term by name") {
         assert(eitherReflect.caseByName("Left"): Option[Any])(isSome(equalTo(leftSchema.reflect.asTerm("Left")))) &&
         assert(eitherReflect.caseByName("Middle"))(isNone)
+      },
+      test("modifies case term by name") {
+        assert(
+          eitherReflect
+            .modifyCase("Left")(new Term.Updater[Binding] {
+              override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] =
+                new Some(input.copy(doc = Doc("updated")))
+            })
+            .flatMap(_.caseByName("Left").map(_.doc)): Option[Any]
+        )(isSome(equalTo(Doc("updated")))) &&
+        assert(eitherReflect.modifyCase("Left")(new Term.Updater[Binding] {
+          override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] = None
+        }): Option[Any])(isNone) &&
+        assert(eitherReflect.modifyCase("Middle")(null))(isNone)
       }
     ),
     suite("Reflect.Sequence")(
