@@ -43,6 +43,9 @@ lazy val root = project
     schema.jvm,
     schema.js,
     schema.native,
+    streams.jvm,
+    streams.js,
+    streams.native,
     benchmarks
   )
 
@@ -79,6 +82,35 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         )
       case _ => Seq()
     }),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+  )
+
+lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-streams"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    scalacOptions ++=
+      (CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, _)) =>
+          Seq(
+            "-opt:l:method"
+          )
+        case _ =>
+          Seq(
+            "-explain",
+            "-explain-cyclic"
+          )
+      }),
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.18" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.18" % Test
+    ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
 
