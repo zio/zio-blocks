@@ -27,9 +27,6 @@ private object SchemaVersionSpecific {
     def isNonAbstractScalaClass(tpe: Type): Boolean =
       tpe.typeSymbol.isClass && !tpe.typeSymbol.isAbstract && !tpe.typeSymbol.isJava
 
-    def isCollection(tpe: Type): Boolean =
-      tpe <:< typeOf[Iterable[_]] || tpe <:< typeOf[Iterator[_]] || tpe <:< typeOf[Array[_]]
-
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
     def companion(tpe: Type): Symbol = {
@@ -284,15 +281,10 @@ private object SchemaVersionSpecific {
           val fTpe        = fieldInfo.tpe
           val name        = fieldInfo.name
           val reflectTree = q"Schema[$fTpe].reflect"
-          var fieldTermTree = if (isSealedTraitOrAbstractClass(fTpe) || isCollection(fTpe)) {
+          var fieldTermTree =
             fieldInfo.defaultValue.fold(q"Reflect.Deferred(() => $reflectTree).asTerm($name)") { dv =>
               q"Reflect.Deferred(() => $reflectTree.defaultValue($dv)).asTerm($name)"
             }
-          } else {
-            fieldInfo.defaultValue.fold(q"$reflectTree.asTerm($name)") { dv =>
-              q"$reflectTree.defaultValue($dv).asTerm($name)"
-            }
-          }
           var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
