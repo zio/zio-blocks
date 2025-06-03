@@ -27,10 +27,6 @@ private object SchemaVersionSpecific {
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
-    def isCollection(tpe: TypeRepr): Boolean =
-      tpe <:< TypeRepr.of[Iterable[_]] || tpe <:< TypeRepr.of[Iterator[_]] || tpe <:< TypeRepr.of[Array[_]] ||
-        tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
-
     def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
       case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
       case _                        => Nil
@@ -362,17 +358,11 @@ private object SchemaVersionSpecific {
                   fail(s"Cannot find implicitly accessible schema for '${fTpe.show}'")
                 }
                 val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
-                var fieldTermExpr = if (isSealedTraitOrAbstractClass(fTpe) || isCollection(fTpe)) {
+                var fieldTermExpr =
                   fieldInfo.defaultValue
                     .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
                       '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
                     }
-                } else {
-                  fieldInfo.defaultValue
-                    .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { dv =>
-                      '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }).asTerm[A]($nameExpr) }
-                    }
-                }
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
