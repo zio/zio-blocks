@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.Scope
 import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
-import zio.blocks.schema.SchemaError.InvalidType
+import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
 import zio.blocks.schema.binding._
 import zio.test._
 import zio.test.Assertion._
@@ -779,7 +779,30 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[List[String]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected String"))))
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected String")))) &&
+        assert(
+          Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
+        )(
+          isLeft(
+            equalTo(
+              SchemaError(
+                errors = ::(
+                  MissingField(
+                    source = DynamicOptic(nodes = Vector(Elements)),
+                    fieldName = "b"
+                  ),
+                  ::(
+                    MissingField(
+                      source = DynamicOptic(nodes = Vector(Elements)),
+                      fieldName = "i"
+                    ),
+                    Nil
+                  )
+                )
+              )
+            )
+          )
+        )
       },
       test("has consistent gets for typed and dynamic optics") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
