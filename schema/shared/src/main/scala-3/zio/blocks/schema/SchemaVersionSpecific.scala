@@ -32,6 +32,23 @@ private object SchemaVersionSpecific {
       case _                        => Nil
     }
 
+    def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[_]]
+
+    def isEither(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Either[_, _]]
+
+    def isCollection(tpe: TypeRepr): Boolean =
+      tpe <:< TypeRepr.of[Iterable[_]] || tpe <:< TypeRepr.of[Iterator[_]] || tpe <:< TypeRepr.of[Array[_]] ||
+        tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
+
+    def isNonRecursive(tpe: TypeRepr): Boolean =
+      tpe =:= TypeRepr.of[String] || tpe =:= TypeRepr.of[Boolean] || tpe =:= TypeRepr.of[Byte] ||
+        tpe =:= TypeRepr.of[Char] || tpe =:= TypeRepr.of[Short] || tpe =:= TypeRepr.of[Float] ||
+        tpe =:= TypeRepr.of[Int] || tpe =:= TypeRepr.of[Double] || tpe =:= TypeRepr.of[Long] ||
+        tpe =:= TypeRepr.of[BigDecimal] || tpe =:= TypeRepr.of[BigInt] || tpe =:= TypeRepr.of[Unit] ||
+        tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
+        tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] ||
+        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive))
+
     def directSubTypes(tpe: TypeRepr): Seq[TypeRepr] = {
       def resolveParentTypeArg(
         child: Symbol,
@@ -358,11 +375,17 @@ private object SchemaVersionSpecific {
                   fail(s"Cannot find implicitly accessible schema for '${fTpe.show}'")
                 }
                 val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
-                var fieldTermExpr =
+                var fieldTermExpr = if (isNonRecursive(fTpe)) {
+                  fieldInfo.defaultValue
+                    .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { dv =>
+                      '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }).asTerm[A]($nameExpr) }
+                    }
+                } else {
                   fieldInfo.defaultValue
                     .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
                       '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
                     }
+                }
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
