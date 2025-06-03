@@ -29,6 +29,21 @@ private object SchemaVersionSpecific {
 
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
+    def isOption(tpe: Type): Boolean = tpe <:< typeOf[Option[_]]
+
+    def isEither(tpe: Type): Boolean = tpe <:< typeOf[Either[_, _]]
+
+    def isCollection(tpe: Type): Boolean =
+      tpe <:< typeOf[Iterable[_]] || tpe <:< typeOf[Iterator[_]] || tpe <:< typeOf[Array[_]]
+
+    def isNonRecursive(tpe: Type): Boolean =
+      tpe =:= typeOf[String] || tpe =:= typeOf[Boolean] || tpe =:= typeOf[Byte] || tpe =:= typeOf[Char] ||
+        tpe =:= typeOf[Short] || tpe =:= typeOf[Float] || tpe =:= typeOf[Int] || tpe =:= typeOf[Double] ||
+        tpe =:= typeOf[Long] || tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= typeOf[Unit] ||
+        tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
+        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] ||
+        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive))
+
     def companion(tpe: Type): Symbol = {
       val comp = tpe.typeSymbol.companion
       if (comp.isModule) comp
@@ -281,10 +296,15 @@ private object SchemaVersionSpecific {
           val fTpe        = fieldInfo.tpe
           val name        = fieldInfo.name
           val reflectTree = q"Schema[$fTpe].reflect"
-          var fieldTermTree =
+          var fieldTermTree = if (isNonRecursive(fTpe)) {
+            fieldInfo.defaultValue.fold(q"$reflectTree.asTerm($name)") { dv =>
+              q"$reflectTree.defaultValue($dv).asTerm($name)"
+            }
+          } else {
             fieldInfo.defaultValue.fold(q"Reflect.Deferred(() => $reflectTree).asTerm($name)") { dv =>
               q"Reflect.Deferred(() => $reflectTree.defaultValue($dv)).asTerm($name)"
             }
+          }
           var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
