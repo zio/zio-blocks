@@ -61,7 +61,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         case class Case1(d: Double) extends Variant1 derives Schema
 
-        case class Case2(f: Float) extends Variant1 derives Schema
+        case class Case2() extends Variant1 derives Schema
 
         object Variant1 extends CompanionOptics[Variant1] {
           val case1 = optic(_.when[Case1])
@@ -70,11 +70,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         val schema = Schema[Variant1]
         assert(Variant1.case1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
-        assert(Variant1.case2.getOption(Case2(0.2f)))(isSome(equalTo(Case2(0.2f)))) &&
+        assert(Variant1.case2.getOption(Case2()))(isSome(equalTo(Case2()))) &&
         assert(Variant1.case1.replace(Case1(0.1), Case1(0.2)))(equalTo(Case1(0.2))) &&
-        assert(Variant1.case2.replace(Case2(0.2f), Case2(0.3f)))(equalTo(Case2(0.3f))) &&
+        assert(Variant1.case2.replace(Case2(), Case2()))(equalTo(Case2())) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(Case2(0.2f))))(isRight(equalTo(Case2(0.2f)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Case2())))(isRight(equalTo(Case2()))) &&
         assert(schema)(
           equalTo(
             new Schema[Variant1](
