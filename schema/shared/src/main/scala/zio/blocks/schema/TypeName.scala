@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import scala.collection.immutable.ArraySeq
+
 final case class TypeName[A](namespace: Namespace, name: String)
 
 object TypeName {
@@ -76,11 +78,14 @@ object TypeName {
 
   def vector[A]: TypeName[Vector[A]] = _vector.asInstanceOf[TypeName[Vector[A]]]
 
+  def arraySeq[A]: TypeName[ArraySeq[A]] = _arraySeq.asInstanceOf[TypeName[ArraySeq[A]]]
+
   def array[A]: TypeName[Array[A]] = _array.asInstanceOf[TypeName[Array[A]]]
 
-  private[this] val _list   = new TypeName(new Namespace("scala" :: Nil, Nil), "List")
-  private[this] val _map    = new TypeName(new Namespace("scala" :: "collection" :: "immutable" :: Nil, Nil), "Map")
-  private[this] val _set    = new TypeName(new Namespace("scala" :: "collection" :: "immutable" :: Nil, Nil), "Set")
-  private[this] val _vector = new TypeName(new Namespace("scala" :: Nil, Nil), "Vector")
-  private[this] val _array  = new TypeName(new Namespace("scala" :: Nil, Nil), "Array")
+  private[this] val _list     = new TypeName(new Namespace(List("scala"), Nil), "List")
+  private[this] val _map      = new TypeName(new Namespace(List("scala", "collection", "immutable"), Nil), "Map")
+  private[this] val _set      = new TypeName(new Namespace(List("scala", "collection", "immutable"), Nil), "Set")
+  private[this] val _vector   = new TypeName(new Namespace(List("scala"), Nil), "Vector")
+  private[this] val _arraySeq = new TypeName(new Namespace(List("scala", "collection", "immutable"), Nil), "ArraySeq")
+  private[this] val _array    = new TypeName(new Namespace(List("scala"), Nil), "Array")
 }

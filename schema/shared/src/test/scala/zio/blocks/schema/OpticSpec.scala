@@ -6,6 +6,7 @@ import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
+import scala.collection.immutable.ArraySeq
 
 object OpticSpec extends ZIOSpecDefault {
   import OpticSpecTypes._
@@ -2185,6 +2186,19 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.af.modify(Array(1.0f, 2.0f, 3.0f), _ + 1.0f).toList)(equalTo(List(2.0f, 3.0f, 4.0f))) &&
         assert(Collections.ac.modify(Array('a', 'b', 'c'), _.toUpper).toList)(equalTo(List('A', 'B', 'C'))) &&
         assert(Collections.as.modify(Array("1", "2", "3"), _ + "x").toList)(equalTo(List("1x", "2x", "3x"))) &&
+        assert(Collections.asbl.modify(ArraySeq(true, false, true), x => !x))(equalTo(ArraySeq(false, true, false))) &&
+        assert(Collections.asb.modify(ArraySeq(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte))(
+          equalTo(ArraySeq(2: Byte, 3: Byte, 4: Byte))
+        ) &&
+        assert(Collections.assh.modify(ArraySeq(1: Short, 2: Short, 3: Short), x => (x + 1).toShort))(
+          equalTo(ArraySeq(2: Short, 3: Short, 4: Short))
+        ) &&
+        assert(Collections.asi.modify(ArraySeq(1, 2, 3), _ + 1))(equalTo(ArraySeq(2, 3, 4))) &&
+        assert(Collections.asl.modify(ArraySeq(1L, 2L, 3L), _ + 1L))(equalTo(ArraySeq(2L, 3L, 4L))) &&
+        assert(Collections.asd.modify(ArraySeq(1.0, 2.0, 3.0), _ + 1.0))(equalTo(ArraySeq(2.0, 3.0, 4.0))) &&
+        assert(Collections.asf.modify(ArraySeq(1.0f, 2.0f, 3.0f), _ + 1.0f))(equalTo(ArraySeq(2.0f, 3.0f, 4.0f))) &&
+        assert(Collections.asc.modify(ArraySeq('a', 'b', 'c'), _.toUpper))(equalTo(ArraySeq('A', 'B', 'C'))) &&
+        assert(Collections.ass.modify(ArraySeq("1", "2", "3"), _ + "x"))(equalTo(ArraySeq("1x", "2x", "3x"))) &&
         assert(Collections.mkc.modify(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
           equalTo(Map('A' -> "1", 'B' -> "2", 'C' -> "3"))
         ) &&
@@ -2595,18 +2609,27 @@ object OpticSpecTypes {
   }
 
   object Collections {
-    val lb: Traversal[List[Byte], Byte]         = Traversal.listValues(Reflect.byte)
-    val vs: Traversal[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
-    val abl: Traversal[Array[Boolean], Boolean] = Traversal.arrayValues(Reflect.boolean)
-    val ab: Traversal[Array[Byte], Byte]        = Traversal.arrayValues(Reflect.byte)
-    val ash: Traversal[Array[Short], Short]     = Traversal.arrayValues(Reflect.short)
-    val ai: Traversal[Array[Int], Int]          = Traversal.arrayValues(Reflect.int)
-    val al: Traversal[Array[Long], Long]        = Traversal.arrayValues(Reflect.long)
-    val ad: Traversal[Array[Double], Double]    = Traversal.arrayValues(Reflect.double)
-    val af: Traversal[Array[Float], Float]      = Traversal.arrayValues(Reflect.float)
-    val ac: Traversal[Array[Char], Char]        = Traversal.arrayValues(Reflect.char)
-    val as: Traversal[Array[String], String]    = Traversal.arrayValues(Reflect.string)
-    val sf: Traversal[Set[Float], Float]        = Traversal.setValues(Reflect.float)
+    val lb: Traversal[List[Byte], Byte]             = Traversal.listValues(Reflect.byte)
+    val vs: Traversal[Vector[Short], Short]         = Traversal.vectorValues(Reflect.short)
+    val abl: Traversal[Array[Boolean], Boolean]     = Traversal.arrayValues(Reflect.boolean)
+    val ab: Traversal[Array[Byte], Byte]            = Traversal.arrayValues(Reflect.byte)
+    val ash: Traversal[Array[Short], Short]         = Traversal.arrayValues(Reflect.short)
+    val ai: Traversal[Array[Int], Int]              = Traversal.arrayValues(Reflect.int)
+    val al: Traversal[Array[Long], Long]            = Traversal.arrayValues(Reflect.long)
+    val ad: Traversal[Array[Double], Double]        = Traversal.arrayValues(Reflect.double)
+    val af: Traversal[Array[Float], Float]          = Traversal.arrayValues(Reflect.float)
+    val ac: Traversal[Array[Char], Char]            = Traversal.arrayValues(Reflect.char)
+    val as: Traversal[Array[String], String]        = Traversal.arrayValues(Reflect.string)
+    val asbl: Traversal[ArraySeq[Boolean], Boolean] = Traversal.arraySeqValues(Reflect.boolean)
+    val asb: Traversal[ArraySeq[Byte], Byte]        = Traversal.arraySeqValues(Reflect.byte)
+    val assh: Traversal[ArraySeq[Short], Short]     = Traversal.arraySeqValues(Reflect.short)
+    val asi: Traversal[ArraySeq[Int], Int]          = Traversal.arraySeqValues(Reflect.int)
+    val asl: Traversal[ArraySeq[Long], Long]        = Traversal.arraySeqValues(Reflect.long)
+    val asd: Traversal[ArraySeq[Double], Double]    = Traversal.arraySeqValues(Reflect.double)
+    val asf: Traversal[ArraySeq[Float], Float]      = Traversal.arraySeqValues(Reflect.float)
+    val asc: Traversal[ArraySeq[Char], Char]        = Traversal.arraySeqValues(Reflect.char)
+    val ass: Traversal[ArraySeq[String], String]    = Traversal.arraySeqValues(Reflect.string)
+    val sf: Traversal[Set[Float], Float]            = Traversal.setValues(Reflect.float)
     val mkc: Traversal[Predef.Map[Char, String], Char] =
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
     val mvs: Traversal[Predef.Map[Char, String], String] =

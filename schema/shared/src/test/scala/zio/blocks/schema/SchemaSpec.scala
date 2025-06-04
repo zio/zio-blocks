@@ -8,6 +8,7 @@ import zio.blocks.schema.binding._
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
+import scala.collection.immutable.ArraySeq
 
 object SchemaSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
@@ -274,11 +275,11 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with nested collections using a macro call") {
-        case class Record4(mx: Vector[Vector[Int]], rs: List[Set[Int]])
+        case class Record4(mx: Vector[ArraySeq[Int]], rs: List[Set[Int]])
 
         object Record4 extends CompanionOptics[Record4] {
           implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx.each).vectorValues
+          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx).vectorValues.arraySeqValues
           val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
         }
 
@@ -287,32 +288,32 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
         assert(Record4.mx.focus.getDefaultValue)(isNone) &&
         assert(Record4.rs.focus.getDefaultValue)(isNone) &&
-        assert(Record4.mx.fold[Int](Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
+        assert(Record4.mx.fold[Int](Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
         assert(Record4.rs.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
-        assert(Record4.mx.reduceOrFail(Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil))(_ + _))(
+        assert(Record4.mx.reduceOrFail(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))(_ + _))(
           isRight(equalTo(10))
         ) &&
         assert(Record4.rs.reduceOrFail(Record4(null, List(Set(1, 2), Set(3, 4))))(_ + _))(isRight(equalTo(10))) &&
         assert(
           Record4.schema.fromDynamicValue(
-            Record4.schema.toDynamicValue(Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil))
+            Record4.schema.toDynamicValue(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))
           )
         )(
-          isRight(equalTo(Record4(Vector(Vector(1, 2), Vector(3, 4)), Nil)))
+          isRight(equalTo(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil)))
         ) &&
         assert(
           Record4.schema.fromDynamicValue(
-            Record4.schema.toDynamicValue(Record4(Vector(Vector()), List(Set(1, 2), Set(3, 4))))
+            Record4.schema.toDynamicValue(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4))))
           )
         )(
-          isRight(equalTo(Record4(Vector(Vector()), List(Set(1, 2), Set(3, 4)))))
+          isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))
         ) &&
         assert(Record4.schema)(
           equalTo(
             new Schema[Record4](
               reflect = Reflect.Record[Binding, Record4](
                 fields = Seq(
-                  Schema[Vector[Vector[Int]]].reflect.asTerm("mx"),
+                  Schema[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
                 typeName = TypeName(
