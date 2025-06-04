@@ -142,11 +142,12 @@ private object SchemaVersionSpecific {
       var packages = List.empty[String]
       var values   = List.empty[String]
       var name     = tpe.typeSymbol.name
-      var owner    = tpe.typeSymbol.owner
+      if (tpe.termSymbol.flags.is(Flags.Enum)) name = tpe.termSymbol.name
+      else if (tpe.typeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+      var owner = tpe.typeSymbol.owner
       while (owner != defn.RootClass) {
         val ownerName = owner.name
-        if (tpe.termSymbol.flags.is(Flags.Enum)) name = tpe.termSymbol.name
-        else if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+        if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
         else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
         else values = ownerName :: values
         owner = owner.owner
@@ -199,13 +200,12 @@ private object SchemaVersionSpecific {
           sTpe.asType match {
             case '[st] =>
               val (_, sValues, sName) = typeName(sTpe)
-              val diffValues =
-                values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
-              var termName = sName
-              if (termName.endsWith("$")) termName = termName.substring(0, termName.length - 1)
-              if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
-              val namePrefix = name + "."
-              if (termName.startsWith(namePrefix)) termName = termName.substring(namePrefix.length)
+              val termName = (values :+ name)
+                .zipAll(sValues :+ sName, "", "")
+                .dropWhile(x => x._1 == x._2)
+                .map(_._2)
+                .takeWhile(_ != "")
+                .mkString(".")
               val usingExpr = Expr.summon[Schema[st]].getOrElse {
                 fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
               }
