@@ -412,8 +412,10 @@ private object SchemaVersionSpecific {
 
         def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[A])(using Quotes): Expr[Unit] = {
           val terms = fieldInfos.flatMap(_.map(_.deconst(out, baseOffset, in)))
-          if (terms.size > 1) Block(terms.init, terms.last)
-          else terms.head
+          val size  = terms.size
+          if (size > 1) Block(terms.init, terms.last)
+          else if (size > 0) terms.head
+          else Literal(UnitConstant())
         }.asExprOf[Unit]
 
         '{
