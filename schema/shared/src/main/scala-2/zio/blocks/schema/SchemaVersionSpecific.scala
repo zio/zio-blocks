@@ -156,10 +156,12 @@ private object SchemaVersionSpecific {
         }
         val cases = subTypes.map { sTpe =>
           val (_, sValues, sName) = typeName(sTpe)
-          val diffValues =
-            values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
-          var termName = sName
-          if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
+          val termName = (values :+ name)
+            .zipAll(sValues :+ sName, "", "")
+            .dropWhile(x => x._1 == x._2)
+            .map(_._2)
+            .takeWhile(_ != "")
+            .mkString(".")
           q"Schema[$sTpe].reflect.asTerm($termName)"
         }
         val discrCases = subTypes.map {
