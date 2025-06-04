@@ -1,16 +1,19 @@
 package zio.blocks.schema
 
+import scala.collection.concurrent.TrieMap
+import scala.quoted._
+import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.RegisterOffset._
+
 trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecific.derived }
 }
 
 private object SchemaVersionSpecific {
-  import scala.quoted._
+  private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
 
   def derived[A: Type](using Quotes): Expr[Schema[A]] = {
     import quotes.reflect._
-    import zio.blocks.schema.binding._
-    import zio.blocks.schema.binding.RegisterOffset._
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
@@ -39,15 +42,6 @@ private object SchemaVersionSpecific {
     def isCollection(tpe: TypeRepr): Boolean =
       tpe <:< TypeRepr.of[Iterable[_]] || tpe <:< TypeRepr.of[Iterator[_]] || tpe <:< TypeRepr.of[Array[_]] ||
         tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
-
-    def isNonRecursive(tpe: TypeRepr): Boolean =
-      tpe =:= TypeRepr.of[String] || tpe =:= TypeRepr.of[Boolean] || tpe =:= TypeRepr.of[Byte] ||
-        tpe =:= TypeRepr.of[Char] || tpe =:= TypeRepr.of[Short] || tpe =:= TypeRepr.of[Float] ||
-        tpe =:= TypeRepr.of[Int] || tpe =:= TypeRepr.of[Double] || tpe =:= TypeRepr.of[Long] ||
-        tpe =:= TypeRepr.of[BigDecimal] || tpe =:= TypeRepr.of[BigInt] || tpe =:= TypeRepr.of[Unit] ||
-        tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
-        tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] ||
-        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive))
 
     def directSubTypes(tpe: TypeRepr): Seq[TypeRepr] = {
       def resolveParentTypeArg(
@@ -131,6 +125,18 @@ private object SchemaVersionSpecific {
         }
       }
     }
+
+    def isNonRecursive(tpe: TypeRepr): Boolean = isNonRecursiveCache.getOrElseUpdate(
+      tpe,
+      tpe =:= TypeRepr.of[String] || tpe =:= TypeRepr.of[Boolean] || tpe =:= TypeRepr.of[Byte] ||
+        tpe =:= TypeRepr.of[Char] || tpe =:= TypeRepr.of[Short] || tpe =:= TypeRepr.of[Float] ||
+        tpe =:= TypeRepr.of[Int] || tpe =:= TypeRepr.of[Double] || tpe =:= TypeRepr.of[Long] ||
+        tpe =:= TypeRepr.of[BigDecimal] || tpe =:= TypeRepr.of[BigInt] || tpe =:= TypeRepr.of[Unit] ||
+        tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
+        tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) ||
+        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive)) ||
+        (isSealedTraitOrAbstractClass(tpe) && directSubTypes(tpe).forall(isNonRecursive))
+    )
 
     def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
       var packages = List.empty[String]
