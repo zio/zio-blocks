@@ -1,5 +1,7 @@
 package zio.blocks.schema.binding
 
+import scala.collection.immutable.ArraySeq
+
 trait SeqDeconstructor[C[_]] {
   def deconstruct[A](c: C[A]): Iterator[A]
 }
@@ -41,6 +43,42 @@ object SeqDeconstructor {
 
   implicit val vectorDeconstructor: SeqDeconstructor[Vector] = new SeqDeconstructor[Vector] {
     def deconstruct[A](c: Vector[A]): Iterator[A] = c.iterator
+  }
+
+  implicit val arraySeqDeconstructor: SpecializedIndexed[ArraySeq] = new SpecializedIndexed[ArraySeq] {
+    def deconstruct[A](c: ArraySeq[A]): Iterator[A] = c.iterator
+
+    def elementType[A](c: ArraySeq[A]): RegisterType[A] = (c.unsafeArray match {
+      case _: Array[Boolean] => RegisterType.Boolean
+      case _: Array[Byte]    => RegisterType.Byte
+      case _: Array[Short]   => RegisterType.Short
+      case _: Array[Int]     => RegisterType.Int
+      case _: Array[Long]    => RegisterType.Long
+      case _: Array[Float]   => RegisterType.Float
+      case _: Array[Double]  => RegisterType.Double
+      case _: Array[Char]    => RegisterType.Char
+      case _                 => RegisterType.Object()
+    }).asInstanceOf[RegisterType[A]]
+
+    def length[A](c: ArraySeq[A]): Int = c.unsafeArray.length
+
+    def objectAt[A](c: ArraySeq[A], index: Int): A = c(index)
+
+    def booleanAt(c: ArraySeq[Boolean], index: Int): Boolean = c(index)
+
+    def byteAt(c: ArraySeq[Byte], index: Int): Byte = c(index)
+
+    def shortAt(c: ArraySeq[Short], index: Int): Short = c(index)
+
+    def intAt(c: ArraySeq[Int], index: Int): Int = c(index)
+
+    def longAt(c: ArraySeq[Long], index: Int): Long = c(index)
+
+    def floatAt(c: ArraySeq[Float], index: Int): Float = c(index)
+
+    def doubleAt(c: ArraySeq[Double], index: Int): Double = c(index)
+
+    def charAt(c: ArraySeq[Char], index: Int): Char = c(index)
   }
 
   implicit val arrayDeconstructor: SpecializedIndexed[Array] = new SpecializedIndexed[Array] {
