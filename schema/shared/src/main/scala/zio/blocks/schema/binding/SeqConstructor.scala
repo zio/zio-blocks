@@ -1,5 +1,6 @@
 package zio.blocks.schema.binding
 
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ListBuffer
 
 trait SeqConstructor[C[_]] {
@@ -157,6 +158,201 @@ object SeqConstructor {
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
     def resultObject[A](builder: ObjectBuilder[A]): Vector[A] = builder.result()
+  }
+
+  implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new SeqConstructor[ArraySeq] {
+    case class Builder[A](var buffer: Array[A], var size: Int)
+
+    type ObjectBuilder[A] = Builder[A]
+    type BooleanBuilder   = Builder[Boolean]
+    type ByteBuilder      = Builder[Byte]
+    type ShortBuilder     = Builder[Short]
+    type IntBuilder       = Builder[Int]
+    type LongBuilder      = Builder[Long]
+    type FloatBuilder     = Builder[Float]
+    type DoubleBuilder    = Builder[Double]
+    type CharBuilder      = Builder[Char]
+
+    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+      new Builder(new Array[AnyRef](Math.max(sizeHint, 8)).asInstanceOf[Array[A]], 0)
+
+    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](Math.max(sizeHint, 8)), 0)
+
+    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](Math.max(sizeHint, 8)), 0)
+
+    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](Math.max(sizeHint, 8)), 0)
+
+    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](Math.max(sizeHint, 8)), 0)
+
+    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](Math.max(sizeHint, 8)), 0)
+
+    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](Math.max(sizeHint, 8)), 0)
+
+    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 8)), 0)
+
+    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 8)), 0)
+
+    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addByte(builder: ByteBuilder, a: Byte): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addShort(builder: ShortBuilder, a: Short): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addInt(builder: IntBuilder, a: Int): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addLong(builder: LongBuilder, a: Long): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addFloat(builder: FloatBuilder, a: Float): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addDouble(builder: DoubleBuilder, a: Double): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def addChar(builder: CharBuilder, a: Char): Unit = {
+      var buf = builder.buffer
+      val idx = builder.size
+      if (buf.length == idx) {
+        buf = java.util.Arrays.copyOf(buf, idx << 1)
+        builder.buffer = buf
+      }
+      buf(idx) = a
+      builder.size = idx + 1
+    }
+
+    def resultObject[A](builder: ObjectBuilder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
+    }
+
+    def resultBoolean(builder: BooleanBuilder): ArraySeq[Boolean] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
+
+    def resultByte(builder: ByteBuilder): ArraySeq[Byte] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
+
+    def resultShort(builder: ShortBuilder): ArraySeq[Short] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
+
+    def resultInt(builder: IntBuilder): ArraySeq[Int] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
+
+    def resultLong(builder: LongBuilder): ArraySeq[Long] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
+
+    def resultFloat(builder: FloatBuilder): ArraySeq[Float] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
+
+    def resultDouble(builder: DoubleBuilder): ArraySeq[Double] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
+
+    def resultChar(builder: CharBuilder): ArraySeq[Char] = ArraySeq.unsafeWrapArray {
+      val buf  = builder.buffer
+      val size = builder.size
+      if (buf.length == size) buf
+      else java.util.Arrays.copyOf(buf, size)
+    }
   }
 
   implicit val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] {

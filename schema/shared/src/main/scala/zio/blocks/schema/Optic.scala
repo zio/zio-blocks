@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 /**
@@ -91,6 +92,16 @@ sealed trait Optic[S, A] { self =>
     set.focus match {
       case Set(element) => set(Traversal.setValues(element))
       case _            => sys.error("Expected Set")
+    }
+  }
+
+  final def arraySeqValues[B](implicit ev: A =:= ArraySeq[B]): Traversal[S, B] = {
+    import Reflect.Extractors.ArraySeq
+
+    val arraySeq = self.asEquivalent[ArraySeq[B]]
+    arraySeq.focus match {
+      case ArraySeq(element) => arraySeq(Traversal.arraySeqValues(element))
+      case _                 => sys.error("Expected ArraySeq")
     }
   }
 
@@ -755,6 +766,11 @@ object Traversal {
     val optional1  = first.asInstanceOf[Optional.OptionalImpl[_, _]]
     val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
     new TraversalImpl(optional1.sources ++ traversal2.sources, optional1.focusTerms ++ traversal2.focusTerms)
+  }
+
+  def arraySeqValues[A](reflect: Reflect.Bound[A]): Traversal[ArraySeq[A], A] = {
+    require(reflect ne null)
+    seqValues(Reflect.arraySeq(reflect))
   }
 
   def arrayValues[A](reflect: Reflect.Bound[A]): Traversal[Array[A], A] = {
