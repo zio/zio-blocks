@@ -1,19 +1,21 @@
 package zio.blocks.schema
 
-trait SchemaVersionSpecific {
-  import scala.language.experimental.macros
+import zio.blocks.schema.binding._
+import scala.collection.concurrent.TrieMap
+import scala.language.experimental.macros
+import scala.reflect.macros.blackbox
+import scala.reflect.NameTransformer
 
+trait SchemaVersionSpecific {
   def derived[A]: Schema[A] = macro SchemaVersionSpecific.derived[A]
 }
 
 private object SchemaVersionSpecific {
-  import scala.reflect.macros.blackbox
-  import scala.reflect.NameTransformer
+  private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
 
   def derived[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Schema[A]] = {
     import c.universe._
     import c.internal._
-    import zio.blocks.schema.binding._
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
@@ -35,14 +37,6 @@ private object SchemaVersionSpecific {
 
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[_]] || tpe <:< typeOf[Iterator[_]] || tpe <:< typeOf[Array[_]]
-
-    def isNonRecursive(tpe: Type): Boolean =
-      tpe =:= typeOf[String] || tpe =:= typeOf[Boolean] || tpe =:= typeOf[Byte] || tpe =:= typeOf[Char] ||
-        tpe =:= typeOf[Short] || tpe =:= typeOf[Float] || tpe =:= typeOf[Int] || tpe =:= typeOf[Double] ||
-        tpe =:= typeOf[Long] || tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= typeOf[Unit] ||
-        tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
-        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] ||
-        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive))
 
     def companion(tpe: Type): Symbol = {
       val comp = tpe.typeSymbol.companion
@@ -83,6 +77,17 @@ private object SchemaVersionSpecific {
         }
       }
     }
+
+    def isNonRecursive(tpe: Type): Boolean = isNonRecursiveCache.getOrElseUpdate(
+      tpe,
+      tpe =:= typeOf[String] || tpe =:= typeOf[Boolean] || tpe =:= typeOf[Byte] || tpe =:= typeOf[Char] ||
+        tpe =:= typeOf[Short] || tpe =:= typeOf[Float] || tpe =:= typeOf[Int] || tpe =:= typeOf[Double] ||
+        tpe =:= typeOf[Long] || tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= typeOf[Unit] ||
+        tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
+        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
+        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive)) ||
+        (isSealedTraitOrAbstractClass(tpe) && directSubTypes(tpe).forall(isNonRecursive))
+    )
 
     def modifiers(tpe: Type): Seq[Tree] = tpe.typeSymbol.annotations
       .filter(_.tree.tpe =:= typeOf[Modifier.config])
