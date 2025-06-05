@@ -1393,6 +1393,9 @@ object Reflect {
       Nil
     )
 
+  def primitive[F[_, _], A](primitiveType: PrimitiveType[A])(implicit F: FromBinding[F]): Reflect[F, A] =
+    new Primitive(primitiveType, F.fromBinding(primitiveType.binding), primitiveType.typeName, Doc.Empty, Nil)
+
   def year[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Year] =
     new Primitive(
       PrimitiveType.Year(Validation.None),

@@ -135,6 +135,8 @@ object Schema extends SchemaVersionSpecific {
 
   implicit val uuid: Schema[java.util.UUID] = new Schema(Reflect.uuid[Binding])
 
+  def fromPrimitiveType[A](primitiveType: PrimitiveType[A]): Schema[A] = new Schema(Reflect.primitive(primitiveType))
+
   implicit def set[A](implicit element: Schema[A]): Schema[Set[A]] = new Schema(Reflect.set(element.reflect))
 
   implicit def list[A](implicit element: Schema[A]): Schema[List[A]] = new Schema(Reflect.list(element.reflect))
