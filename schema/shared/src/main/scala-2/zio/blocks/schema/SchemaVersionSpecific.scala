@@ -43,12 +43,12 @@ private object SchemaVersionSpecific {
       if (comp.isModule) comp
       else {
         val ownerChainOf = (s: Symbol) =>
-          Iterator.iterate(s)(_.owner).takeWhile(x => x != NoSymbol).toVector.reverseIterator
+          Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
         val path = ownerChainOf(tpe.typeSymbol)
           .zipAll(ownerChainOf(enclosingOwner), NoSymbol, NoSymbol)
-          .dropWhile { case (x, y) => x == y }
-          .takeWhile { case (x, _) => x != NoSymbol }
-          .map { case (x, _) => x.name.toTermName }
+          .dropWhile(x => x._1 == x._2)
+          .takeWhile(x => x._1 != NoSymbol)
+          .map(x => x._1.name.toTermName)
         if (path.isEmpty) NoSymbol
         else c.typecheck(path.foldLeft[Tree](Ident(path.next()))(Select(_, _)), silent = true).symbol
       }
@@ -108,13 +108,13 @@ private object SchemaVersionSpecific {
         } else comp
       while ({
         owner = owner.owner
-        owner != NoSymbol
+        owner.owner != NoSymbol
       }) {
         val ownerName = NameTransformer.decode(owner.name.toString)
         if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
         else values = ownerName :: values
       }
-      (packages.tail, values, name)
+      (packages, values, name)
     }
 
     val tpe                      = weakTypeOf[A].dealias
