@@ -156,7 +156,8 @@ private object SchemaVersionSpecific {
         tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
         tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) ||
         ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive)) ||
-        (isSealedTraitOrAbstractClass(tpe) && directSubTypes(tpe).forall(isNonRecursive))
+        (isSealedTraitOrAbstractClass(tpe) && directSubTypes(tpe).forall(isNonRecursive)) ||
+        (isUnion(tpe) && allUnionTypes(tpe).forall(isNonRecursive))
     )
 
     def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
@@ -197,8 +198,8 @@ private object SchemaVersionSpecific {
     def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
       var minFullName = typesWithFullNames.head._2
       var maxFullName = typesWithFullNames.last._2
-      val tpeFullName = packages.toArray ++ values.toArray :+ name
-      if (name != "<none>") { // not a union type
+      if (!isUnion(tpe)) {
+        val tpeFullName = packages.toArray ++ values.toArray :+ name
         if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
         if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
       }
