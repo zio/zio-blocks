@@ -219,6 +219,9 @@ sealed trait Optic[S, A] { self =>
     isNumeric
   )
 
+  final def length(implicit ev: A =:= String): SchemaExpr[S, Int] =
+    SchemaExpr.StringLength(SchemaExpr.Optic(this.asFocus[String]))
+
   final def asSource[T](implicit ev: A =:= T): Optic[T, A] = self.asInstanceOf[Optic[T, A]]
 
   final def asFocus[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]

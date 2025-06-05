@@ -180,4 +180,14 @@ object SchemaExpr {
       eval(input).map(_.map(Schema[Boolean].toDynamicValue(_)))
   }
 
+  final case class StringLength[A](string: SchemaExpr[A, String]) extends SchemaExpr[A, Int] {
+    def eval(input: A): Either[OpticCheck, Seq[Int]] =
+      for {
+        string <- string.eval(input)
+      } yield string.map(_.length)
+
+    def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
+      eval(input).map(_.map(Schema[Int].toDynamicValue(_)))
+  }
+
 }
