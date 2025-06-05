@@ -184,4 +184,6 @@ object Binding {
   implicit val bindingFromBinding: FromBinding[Binding] = new FromBinding[Binding] {
     def fromBinding[T, A](binding: Binding[T, A]): Binding[T, A] = binding
   }
+
+  def primitive[A]: Primitive[A] = Primitive()
 }
