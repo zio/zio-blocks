@@ -37,6 +37,16 @@ private object SchemaVersionSpecific {
       flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
     }
 
+    def isUnion(tpe: TypeRepr): Boolean = tpe match {
+      case OrType(_, _) => true
+      case _            => false
+    }
+
+    def allUnionTypes(tpe: TypeRepr): Set[TypeRepr] = tpe.dealias match {
+      case OrType(left, right) => allUnionTypes(left) ++ allUnionTypes(right)
+      case dealiased           => Set(dealiased)
+    }
+
     def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
@@ -150,22 +160,25 @@ private object SchemaVersionSpecific {
     )
 
     def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
-      var packages = List.empty[String]
-      var values   = List.empty[String]
-      var name     = tpe.typeSymbol.name
+      var packages  = List.empty[String]
+      var values    = List.empty[String]
+      var tpeSymbol = tpe.typeSymbol
+      var name      = tpeSymbol.name
       if (tpe.termSymbol.flags.is(Flags.Enum)) {
         name = tpe.termSymbol.name
-        var ownerName = tpe.typeSymbol.name
-        if (tpe.typeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
+        var ownerName = tpeSymbol.name
+        if (tpeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
         values = ownerName :: values
-      } else if (tpe.typeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-      var owner = tpe.typeSymbol.owner
-      while (owner != defn.RootClass) {
-        val ownerName = owner.name
-        if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
-        else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
-        else values = ownerName :: values
-        owner = owner.owner
+      } else if (tpeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+      if (tpeSymbol != Symbol.noSymbol) {
+        var owner = tpeSymbol.owner
+        while (owner != defn.RootClass) {
+          val ownerName = owner.name
+          if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+          else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
+          else values = ownerName :: values
+          owner = owner.owner
+        }
       }
       (packages, values, name)
     }
@@ -181,12 +194,14 @@ private object SchemaVersionSpecific {
     val tpe                      = TypeRepr.of[A].dealias
     val (packages, values, name) = typeName(tpe)
 
-    def maxCommonPrefixLength(subTypesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
-      var minFullName = subTypesWithFullNames.head._2
-      var maxFullName = subTypesWithFullNames.last._2
+    def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
+      var minFullName = typesWithFullNames.head._2
+      var maxFullName = typesWithFullNames.last._2
       val tpeFullName = packages.toArray ++ values.toArray :+ name
-      if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
-      if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+      if (name != "<none>") { // not a union type
+        if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+        if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+      }
       val minLength = Math.min(minFullName.length, maxFullName.length)
       var idx       = 0
       while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
@@ -216,8 +231,10 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else if (isSealedTraitOrAbstractClass(tpe)) {
-        val subTypes = directSubTypes(tpe)
+      } else if (isSealedTraitOrAbstractClass(tpe) || isUnion(tpe)) {
+        val subTypes =
+          if (isUnion(tpe)) allUnionTypes(tpe).toSeq
+          else directSubTypes(tpe)
         if (subTypes.isEmpty) {
           fail(
             s"Cannot find sub-types for ADT base '$tpe'. " +
@@ -320,9 +337,7 @@ private object SchemaVersionSpecific {
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
               val config = getter.annotations
                 .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-                .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
-                  (k, v)
-                }
+                .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
                 .reverse
               val defaultValue =
                 if (symbol.flags.is(Flags.HasDefault)) {

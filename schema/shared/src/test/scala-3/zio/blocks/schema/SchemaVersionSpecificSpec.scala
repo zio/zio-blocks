@@ -182,6 +182,44 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for Scala 3 unions") {
+        type Value = Int | Boolean
+
+        implicit val schema = Schema.derived[Value]
+
+        object Value extends CompanionOptics[Value] {
+          val int     = $(_.when[Int])
+          val boolean = $(_.when[Boolean])
+        }
+
+        assert(Value.int.getOption(123))(isSome(equalTo(123))) &&
+        assert(Value.boolean.getOption(true))(isSome(equalTo(true))) &&
+        assert(Value.int.replace(123, 321))(equalTo(321)) &&
+        assert(Value.boolean.replace(true, false))(equalTo(false)) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(123)))(isRight(equalTo(123))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
+        assert(schema)(equalTo(Schema.derived[Boolean | Int])) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Value](
+              reflect = Reflect.Variant[Binding, Value](
+                cases = Seq(
+                  Schema[Boolean].reflect.asTerm("Boolean"),
+                  Schema[Int].reflect.asTerm("Int")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Nil,
+                    values = Nil
+                  ),
+                  name = "<none>"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
+      },
       test("derives schema for recursive generic Scala 3 enums") {
         implicit val endSchema       = Schema.derived[LinkedList.End.type]
         implicit lazy val nodeSchema = Schema.derived[LinkedList.Node[Int]]
