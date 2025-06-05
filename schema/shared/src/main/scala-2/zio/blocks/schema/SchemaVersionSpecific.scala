@@ -107,15 +107,16 @@ private object SchemaVersionSpecific {
       })
 
     def typeName(tpe: Type): (Seq[String], Seq[String], String) = {
-      var packages = List.empty[String]
-      var values   = List.empty[String]
-      var name     = NameTransformer.decode(tpe.typeSymbol.name.toString)
-      val comp     = companion(tpe)
+      var packages  = List.empty[String]
+      var values    = List.empty[String]
+      val tpeSymbol = tpe.typeSymbol
+      var name      = NameTransformer.decode(tpeSymbol.name.toString)
+      val comp      = companion(tpe)
       var owner =
-        if (comp == null) tpe.typeSymbol
+        if (comp == null) tpeSymbol
         else if (comp == NoSymbol) {
           name += ".type"
-          tpe.typeSymbol.asClass.module
+          tpeSymbol.asClass.module
         } else comp
       while ({
         owner = owner.owner
@@ -131,9 +132,9 @@ private object SchemaVersionSpecific {
     val tpe                      = weakTypeOf[A].dealias
     val (packages, values, name) = typeName(tpe)
 
-    def maxCommonPrefixLength(subTypesWithFullNames: Seq[(Type, Array[String])]): Int = {
-      var minFullName = subTypesWithFullNames.head._2
-      var maxFullName = subTypesWithFullNames.last._2
+    def maxCommonPrefixLength(typesWithFullNames: Seq[(Type, Array[String])]): Int = {
+      var minFullName = typesWithFullNames.head._2
+      var maxFullName = typesWithFullNames.last._2
       val tpeFullName = packages.toArray ++ values.toArray :+ name
       if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
       if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
