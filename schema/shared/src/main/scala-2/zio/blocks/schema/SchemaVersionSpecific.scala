@@ -12,6 +12,18 @@ trait SchemaVersionSpecific {
 
 private object SchemaVersionSpecific {
   private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
+  private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
+    override def compare(x: Array[String], y: Array[String]): Int = {
+      val minLen = math.min(x.length, y.length)
+      var idx    = 0
+      while (idx < minLen) {
+        val cmp = x(idx).compareTo(y(idx))
+        if (cmp != 0) return cmp
+        idx += 1
+      }
+      x.length.compare(y.length)
+    }
+  }
 
   def derived[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Schema[A]] = {
     import c.universe._
@@ -42,26 +54,25 @@ private object SchemaVersionSpecific {
       val comp = tpe.typeSymbol.companion
       if (comp.isModule) comp
       else {
-        val ownerChainOf = (s: Symbol) =>
-          Iterator.iterate(s)(_.owner).takeWhile(x => x != NoSymbol).toVector.reverseIterator
+        val ownerChainOf = (s: Symbol) => Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
         val path = ownerChainOf(tpe.typeSymbol)
           .zipAll(ownerChainOf(enclosingOwner), NoSymbol, NoSymbol)
-          .dropWhile { case (x, y) => x == y }
-          .takeWhile { case (x, _) => x != NoSymbol }
-          .map { case (x, _) => x.name.toTermName }
+          .dropWhile(x => x._1 == x._2)
+          .takeWhile(x => x._1 != NoSymbol)
+          .map(x => x._1.name.toTermName)
         if (path.isEmpty) NoSymbol
         else c.typecheck(path.foldLeft[Tree](Ident(path.next()))(Select(_, _)), silent = true).symbol
       }
     }
 
     def directSubTypes(tpe: Type): Seq[Type] = {
-      val tpeClass = tpe.typeSymbol.asClass
-      tpeClass.knownDirectSubclasses.toSeq.sortBy(_.fullName).map { symbol =>
+      val tpeClass               = tpe.typeSymbol.asClass
+      lazy val typeParamsAndArgs = tpeClass.typeParams.map(_.toString).zip(tpe.typeArgs).toMap
+      tpeClass.knownDirectSubclasses.toSeq.map { symbol =>
         val classSymbol = symbol.asClass
         val typeParams  = classSymbol.typeParams
         if (typeParams.isEmpty) classSymbol.toType
         else {
-          val typeParamsAndArgs = tpeClass.typeParams.map(_.toString).zip(tpe.typeArgs).toMap
           classSymbol.toType.substituteTypes(
             typeParams,
             typeParams.map { s =>
@@ -96,29 +107,43 @@ private object SchemaVersionSpecific {
       })
 
     def typeName(tpe: Type): (Seq[String], Seq[String], String) = {
-      var packages = List.empty[String]
-      var values   = List.empty[String]
-      var name     = NameTransformer.decode(tpe.typeSymbol.name.toString)
-      val comp     = companion(tpe)
+      var packages  = List.empty[String]
+      var values    = List.empty[String]
+      val tpeSymbol = tpe.typeSymbol
+      var name      = NameTransformer.decode(tpeSymbol.name.toString)
+      val comp      = companion(tpe)
       var owner =
-        if (comp == null) tpe.typeSymbol
+        if (comp == null) tpeSymbol
         else if (comp == NoSymbol) {
           name += ".type"
-          tpe.typeSymbol.asClass.module
+          tpeSymbol.asClass.module
         } else comp
       while ({
         owner = owner.owner
-        owner != NoSymbol
+        owner.owner != NoSymbol
       }) {
         val ownerName = NameTransformer.decode(owner.name.toString)
         if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
         else values = ownerName :: values
       }
-      (packages.tail, values, name)
+      (packages, values, name)
     }
 
     val tpe                      = weakTypeOf[A].dealias
     val (packages, values, name) = typeName(tpe)
+
+    def maxCommonPrefixLength(typesWithFullNames: Seq[(Type, Array[String])]): Int = {
+      var minFullName = typesWithFullNames.head._2
+      var maxFullName = typesWithFullNames.last._2
+      val tpeFullName = packages.toArray ++ values.toArray :+ name
+      if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+      if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+      val minLength = Math.min(minFullName.length, maxFullName.length)
+      var idx       = 0
+      while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+      idx
+    }
+
     val schema =
       if (isEnumOrModuleValue(tpe)) {
         q"""{
@@ -154,23 +179,22 @@ private object SchemaVersionSpecific {
               "Please add them or provide an implicitly accessible schema for the ADT base."
           )
         }
-        val cases = subTypes.map { sTpe =>
-          val (_, sValues, sName) = typeName(sTpe)
-          val termName = (values :+ name)
-            .zipAll(sValues :+ sName, "", "")
-            .dropWhile(x => x._1 == x._2)
-            .map(_._2)
-            .takeWhile(_ != "")
-            .mkString(".")
+        val subTypesWithFullNames = subTypes.map { sTpe =>
+          val (packages, values, name) = typeName(sTpe)
+          (sTpe, packages.toArray ++ values.toArray :+ name)
+        }.sortBy(_._2)
+        val length = maxCommonPrefixLength(subTypesWithFullNames)
+        val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
+          val termName = fullName.drop(length).mkString(".")
           q"Schema[$sTpe].reflect.asTerm($termName)"
         }
-        val discrCases = subTypes.map {
+        val discrCases = subTypesWithFullNames.map {
           var idx = -1
-          sTpe =>
+          x =>
             idx += 1
-            cq"_: $sTpe @_root_.scala.unchecked => $idx"
+            cq"_: ${x._1} @_root_.scala.unchecked => $idx"
         }
-        val matcherCases = subTypes.map { sTpe =>
+        val matcherCases = subTypesWithFullNames.map { case (sTpe, _) =>
           q"""new Matcher[$sTpe] {
                 def downcastOrNull(a: Any): $sTpe = a match {
                   case x: $sTpe @_root_.scala.unchecked => x

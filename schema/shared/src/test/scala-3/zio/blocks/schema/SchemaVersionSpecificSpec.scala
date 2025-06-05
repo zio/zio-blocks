@@ -133,10 +133,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             new Schema[Color](
               reflect = Reflect.Variant[Binding, Color](
                 cases = Seq(
-                  Schema[Color.Red.type].reflect.asTerm("Red"),
-                  Schema[Color.Green.type].reflect.asTerm("Green"),
                   Schema[Color.Blue.type].reflect.asTerm("Blue"),
-                  Schema[Color.Mix].reflect.asTerm("Mix")
+                  Schema[Color.Green.type].reflect.asTerm("Green"),
+                  Schema[Color.Mix].reflect.asTerm("Mix"),
+                  Schema[Color.Red.type].reflect.asTerm("Red")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
@@ -175,6 +175,44 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                     values = Nil
                   ),
                   name = "FruitEnum"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for Scala 3 unions") {
+        type Value = Int | Boolean
+
+        implicit val schema = Schema.derived[Value]
+
+        object Value extends CompanionOptics[Value] {
+          val int     = $(_.when[Int])
+          val boolean = $(_.when[Boolean])
+        }
+
+        assert(Value.int.getOption(123))(isSome(equalTo(123))) &&
+        assert(Value.boolean.getOption(true))(isSome(equalTo(true))) &&
+        assert(Value.int.replace(123, 321))(equalTo(321)) &&
+        assert(Value.boolean.replace(true, false))(equalTo(false)) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(123)))(isRight(equalTo(123))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
+        assert(schema)(equalTo(Schema.derived[Boolean | Int])) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Value](
+              reflect = Reflect.Variant[Binding, Value](
+                cases = Seq(
+                  Schema[Boolean].reflect.asTerm("Boolean"),
+                  Schema[Int].reflect.asTerm("Int")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Nil,
+                    values = Nil
+                  ),
+                  name = "<none>"
                 ),
                 variantBinding = null
               )
