@@ -585,6 +585,41 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for a variant with cases on different levels using a macro call") {
+        val schema: Schema[Level1.MultiLevel] = Schema.derived
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Level2.Case)))(
+          isRight(equalTo(Level1.Level2.Case))
+        ) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Level1.MultiLevel](
+              reflect = Reflect.Variant[Binding, Level1.MultiLevel](
+                cases = Seq(
+                  Schema[Case.type].reflect
+                    .asTerm("Case")
+                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]],
+                  Schema[Level1.Case.type].reflect
+                    .asTerm("Level1.Case")
+                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]],
+                  Schema[Level1.Level2.Case.type].reflect
+                    .asTerm("Level1.Level2.Case")
+                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]]
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "Level1")
+                  ),
+                  name = "MultiLevel"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
+      },
       test("derives schema for higher-kinded variant using a macro call") {
         sealed trait `Variant-3`[F[_]]
 
@@ -1084,5 +1119,23 @@ object SchemaSpec extends ZIOSpecDefault {
 
   object Case2 {
     implicit val schema: Schema[Case2] = Schema.derived
+  }
+
+  object Level1 {
+    sealed trait MultiLevel
+
+    case object Case extends MultiLevel {
+      implicit val schema: Schema[Case.type] = Schema.derived
+    }
+
+    object Level2 {
+      case object Case extends MultiLevel {
+        implicit val schema: Schema[Case.type] = Schema.derived
+      }
+    }
+  }
+
+  case object Case extends Level1.MultiLevel {
+    implicit val schema: Schema[Case.type] = Schema.derived
   }
 }

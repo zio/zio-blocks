@@ -11,6 +11,18 @@ trait SchemaVersionSpecific {
 
 private object SchemaVersionSpecific {
   private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
+  private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
+    override def compare(x: Array[String], y: Array[String]): Int = {
+      val minLen = math.min(x.length, y.length)
+      var idx    = 0
+      while (idx < minLen) {
+        val cmp = x(idx).compareTo(y(idx))
+        if (cmp != 0) return cmp
+        idx += 1
+      }
+      x.length.compare(y.length)
+    }
+  }
 
   def derived[A: Type](using Quotes): Expr[Schema[A]] = {
     import quotes.reflect._
@@ -86,12 +98,11 @@ private object SchemaVersionSpecific {
                 "custom implicitly accessible schema"
             )
           }
-          val nudeSubtype      = TypeIdent(sym).tpe
-          val tpeArgsFromChild = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
+          val nudeSubtype = TypeIdent(sym).tpe
           nudeSubtype.memberType(sym.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
             case PolyType(names, bounds, resPolyTp) =>
-              val tpBinding = tpeArgsFromChild
+              val tpBinding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
                 .zip(typeArgs(tpe))
                 .foldLeft(Map.empty[String, TypeRepr])((s, e) => resolveParentTypeArg(sym, e._1, e._2, s))
               val ctArgs = names.map { name =>
@@ -142,8 +153,12 @@ private object SchemaVersionSpecific {
       var packages = List.empty[String]
       var values   = List.empty[String]
       var name     = tpe.typeSymbol.name
-      if (tpe.termSymbol.flags.is(Flags.Enum)) name = tpe.termSymbol.name
-      else if (tpe.typeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+      if (tpe.termSymbol.flags.is(Flags.Enum)) {
+        name = tpe.termSymbol.name
+        var ownerName = tpe.typeSymbol.name
+        if (tpe.typeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
+        values = ownerName :: values
+      } else if (tpe.typeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
       var owner = tpe.typeSymbol.owner
       while (owner != defn.RootClass) {
         val ownerName = owner.name
@@ -165,6 +180,19 @@ private object SchemaVersionSpecific {
 
     val tpe                      = TypeRepr.of[A].dealias
     val (packages, values, name) = typeName(tpe)
+
+    def maxCommonPrefixLength(subTypesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
+      var minFullName = subTypesWithFullNames.head._2
+      var maxFullName = subTypesWithFullNames.last._2
+      val tpeFullName = packages.toArray ++ values.toArray :+ name
+      if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+      if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+      val minLength = Math.min(minFullName.length, maxFullName.length)
+      var idx       = 0
+      while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+      idx
+    }
+
     val schema =
       if (isEnumOrModuleValue(tpe)) {
         '{
@@ -196,16 +224,15 @@ private object SchemaVersionSpecific {
               "Please add them or provide an implicitly accessible schema for the ADT base."
           )
         }
-        val cases = subTypes.map { sTpe =>
+        val subTypesWithFullNames = subTypes.map { sTpe =>
+          val (packages, values, name) = typeName(sTpe)
+          (sTpe, packages.toArray ++ values.toArray :+ name)
+        }.sortBy(_._2)
+        val length = maxCommonPrefixLength(subTypesWithFullNames)
+        val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
-              val (_, sValues, sName) = typeName(sTpe)
-              val termName = (values :+ name)
-                .zipAll(sValues :+ sName, "", "")
-                .dropWhile(x => x._1 == x._2)
-                .map(_._2)
-                .takeWhile(_ != "")
-                .mkString(".")
+              val termName = fullName.drop(length).mkString(".")
               val usingExpr = Expr.summon[Schema[st]].getOrElse {
                 fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
               }
@@ -217,15 +244,15 @@ private object SchemaVersionSpecific {
 
         def discr(a: Expr[A]) = Match(
           '{ $a: @scala.unchecked }.asTerm,
-          subTypes.map {
+          subTypesWithFullNames.map {
             var idx = -1
-            (sTpe: TypeRepr) =>
+            x =>
               idx += 1
-              CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Expr(idx).asTerm)
+              CaseDef(Typed(Wildcard(), Inferred(x._1)), None, Expr(idx).asTerm)
           }.toList
         ).asExprOf[Int]
 
-        val matcherCases = subTypes.map { (sTpe: TypeRepr) =>
+        val matcherCases = subTypesWithFullNames.map { case (sTpe, _) =>
           sTpe.asType match {
             case '[st] =>
               '{
