@@ -133,10 +133,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             new Schema[Color](
               reflect = Reflect.Variant[Binding, Color](
                 cases = Seq(
-                  Schema[Color.Red.type].reflect.asTerm("Red"),
-                  Schema[Color.Green.type].reflect.asTerm("Green"),
                   Schema[Color.Blue.type].reflect.asTerm("Blue"),
-                  Schema[Color.Mix].reflect.asTerm("Mix")
+                  Schema[Color.Green.type].reflect.asTerm("Green"),
+                  Schema[Color.Mix].reflect.asTerm("Mix"),
+                  Schema[Color.Red.type].reflect.asTerm("Red")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
