@@ -89,16 +89,35 @@ private object SchemaVersionSpecific {
       }
     }
 
-    def isNonRecursive(tpe: Type): Boolean = isNonRecursiveCache.getOrElseUpdate(
+    def isNonRecursive(tpe: Type, nestedTpes: List[Type] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
       tpe =:= typeOf[String] || tpe =:= typeOf[Boolean] || tpe =:= typeOf[Byte] || tpe =:= typeOf[Char] ||
         tpe =:= typeOf[Short] || tpe =:= typeOf[Float] || tpe =:= typeOf[Int] || tpe =:= typeOf[Double] ||
         tpe =:= typeOf[Long] || tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= typeOf[Unit] ||
         tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
         tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) || {
-          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive)
-          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive)
-          else false
+          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else {
+            isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
+              tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m } match {
+                case Some(primaryConstructor) =>
+                  val tpeParams   = primaryConstructor.paramLists
+                  val nestedTpes_ = tpe :: nestedTpes
+                  val tpeTypeArgs = typeArgs(tpe)
+                  if (tpeTypeArgs.isEmpty) {
+                    tpeParams.forall(_.forall(param => isNonRecursive(param.asTerm.typeSignature.dealias, nestedTpes_)))
+                  } else {
+                    val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
+                    tpeParams.forall(_.forall { param =>
+                      val fTpe = param.asTerm.typeSignature.dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                      isNonRecursive(fTpe, nestedTpes_)
+                    })
+                  }
+                case _ => false
+              }
+            }
+          }
         }
     )
 
