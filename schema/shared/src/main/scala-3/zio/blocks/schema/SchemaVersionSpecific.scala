@@ -147,7 +147,7 @@ private object SchemaVersionSpecific {
       }
     }
 
-    def isNonRecursive(tpe: TypeRepr): Boolean = isNonRecursiveCache.getOrElseUpdate(
+    def isNonRecursive(tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
       tpe =:= TypeRepr.of[String] || tpe =:= TypeRepr.of[Boolean] || tpe =:= TypeRepr.of[Byte] ||
         tpe =:= TypeRepr.of[Char] || tpe =:= TypeRepr.of[Short] || tpe =:= TypeRepr.of[Float] ||
@@ -155,10 +155,30 @@ private object SchemaVersionSpecific {
         tpe =:= TypeRepr.of[BigDecimal] || tpe =:= TypeRepr.of[BigInt] || tpe =:= TypeRepr.of[Unit] ||
         tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
         tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) || {
-          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive)
-          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive)
-          else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive)
-          else false
+          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else {
+            isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
+              val primaryConstructor = tpe.classSymbol.get.primaryConstructor
+              primaryConstructor.exists && {
+                val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
+                  case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
+                  case ps                                     => (Nil, ps)
+                }
+                val nestedTpes_ = tpe :: nestedTpes
+                val tpeTypeArgs = typeArgs(tpe)
+                if (tpeTypeArgs.isEmpty) {
+                  tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
+                } else {
+                  tpeParams.forall(_.forall { symbol =>
+                    val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                    isNonRecursive(fTpe, nestedTpes_)
+                  })
+                }
+              }
+            }
+          }
         }
     )
 
