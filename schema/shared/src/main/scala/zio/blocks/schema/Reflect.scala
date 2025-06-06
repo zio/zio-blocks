@@ -202,6 +202,14 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
     loop(this, 0).asInstanceOf[Option[Reflect[F, A]]]
   }
+
+  def aspect[Min >: A, Max <: A](aspect: SchemaAspect[Min, Max, F]): Reflect[F, A] =
+    aspect(self)
+
+  def aspect[B, Min >: B, Max <: B](part: Optic[A, B], aspect: SchemaAspect[Min, Max, F]): Reflect[F, A] =
+    self
+      .updated[B](part)(innerReflect => aspect(innerReflect))
+      .get
 }
 
 object Reflect {
