@@ -95,9 +95,11 @@ private object SchemaVersionSpecific {
         tpe =:= typeOf[Short] || tpe =:= typeOf[Float] || tpe =:= typeOf[Int] || tpe =:= typeOf[Double] ||
         tpe =:= typeOf[Long] || tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= typeOf[Unit] ||
         tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
-        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
-        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive)) ||
-        (isSealedTraitOrAbstractClass(tpe) && directSubTypes(tpe).forall(isNonRecursive))
+        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) || {
+          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive)
+          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive)
+          else false
+        }
     )
 
     def modifiers(tpe: Type): Seq[Tree] = tpe.typeSymbol.annotations
