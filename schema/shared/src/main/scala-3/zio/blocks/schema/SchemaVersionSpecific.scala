@@ -154,10 +154,12 @@ private object SchemaVersionSpecific {
         tpe =:= TypeRepr.of[Int] || tpe =:= TypeRepr.of[Double] || tpe =:= TypeRepr.of[Long] ||
         tpe =:= TypeRepr.of[BigDecimal] || tpe =:= TypeRepr.of[BigInt] || tpe =:= TypeRepr.of[Unit] ||
         tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
-        tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) ||
-        ((isOption(tpe) || isEither(tpe) || isCollection(tpe)) && typeArgs(tpe).forall(isNonRecursive)) ||
-        (isSealedTraitOrAbstractClass(tpe) && directSubTypes(tpe).forall(isNonRecursive)) ||
-        (isUnion(tpe) && allUnionTypes(tpe).forall(isNonRecursive))
+        tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) || {
+          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive)
+          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive)
+          else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive)
+          else false
+        }
     )
 
     def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
