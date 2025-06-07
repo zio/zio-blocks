@@ -1,7 +1,7 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.DynamicValue.{Primitive, Record}
-import zio.blocks.schema.json.DynamicValueGen._
+import zio.blocks.schema.DynamicValueGen._
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.test._
 
