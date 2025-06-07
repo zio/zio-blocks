@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import scala.annotation.switch
+
 sealed trait PrimitiveValue {
   type Type
 
@@ -268,43 +270,46 @@ object PrimitiveValue {
   }
 
   implicit def ordering: Ordering[PrimitiveValue] = new Ordering[PrimitiveValue] {
-    def period2Days(p: java.time.Period): scala.Int = (p.getYears() * 12 + p.getMonths()) * 30 + p.getDays()
-
-    def currencyCompare(x: java.util.Currency, y: java.util.Currency): scala.Int =
-      x.getCurrencyCode().compareTo(y.getCurrencyCode())
-
-    def compare(x: PrimitiveValue, y: PrimitiveValue): scala.Int = (x, y) match {
-      case (Unit, Unit)                           => 0
-      case (Boolean(x), Boolean(y))               => x.compare(y)
-      case (Byte(x), Byte(y))                     => x.compare(y)
-      case (Short(x), Short(y))                   => x.compare(y)
-      case (Int(x), Int(y))                       => x.compare(y)
-      case (Long(x), Long(y))                     => x.compare(y)
-      case (Float(x), Float(y))                   => x.compare(y)
-      case (Double(x), Double(y))                 => x.compare(y)
-      case (Char(x), Char(y))                     => x.compare(y)
-      case (String(x), String(y))                 => x.compare(y)
-      case (BigInt(x), BigInt(y))                 => x.compare(y)
-      case (BigDecimal(x), BigDecimal(y))         => x.compare(y)
-      case (DayOfWeek(x), DayOfWeek(y))           => x.compareTo(y)
-      case (Duration(x), Duration(y))             => x.compareTo(y)
-      case (Instant(x), Instant(y))               => x.compareTo(y)
-      case (LocalDate(x), LocalDate(y))           => x.compareTo(y)
-      case (LocalDateTime(x), LocalDateTime(y))   => x.compareTo(y)
-      case (LocalTime(x), LocalTime(y))           => x.compareTo(y)
-      case (Month(x), Month(y))                   => x.compareTo(y)
-      case (MonthDay(x), MonthDay(y))             => x.compareTo(y)
-      case (OffsetDateTime(x), OffsetDateTime(y)) => x.compareTo(y)
-      case (OffsetTime(x), OffsetTime(y))         => x.compareTo(y)
-      case (Period(x), Period(y))                 => period2Days(x).compareTo(period2Days(y))
-      case (Year(x), Year(y))                     => x.compareTo(y)
-      case (YearMonth(x), YearMonth(y))           => x.compareTo(y)
-      case (ZoneId(x), ZoneId(y))                 => x.toString().compareTo(y.toString())
-      case (ZoneOffset(x), ZoneOffset(y))         => x.compareTo(y)
-      case (ZonedDateTime(x), ZonedDateTime(y))   => x.compareTo(y)
-      case (Currency(x), Currency(y))             => currencyCompare(x, y)
-      case (UUID(x), UUID(y))                     => x.compareTo(y)
-      case (x, y)                                 => x.typeIndex.compareTo(y.typeIndex)
+    def compare(x: PrimitiveValue, y: PrimitiveValue): scala.Int = {
+      val xTypeIndex = x.typeIndex
+      val cmp        = xTypeIndex.compareTo(y.typeIndex)
+      if (cmp != 0) return cmp
+      (xTypeIndex: @switch) match {
+        case 0  => 0
+        case 1  => x.asInstanceOf[Boolean].value.compareTo(y.asInstanceOf[Boolean].value)
+        case 2  => x.asInstanceOf[Byte].value.compareTo(y.asInstanceOf[Byte].value)
+        case 3  => x.asInstanceOf[Short].value.compareTo(y.asInstanceOf[Short].value)
+        case 4  => x.asInstanceOf[Int].value.compareTo(y.asInstanceOf[Int].value)
+        case 5  => x.asInstanceOf[Long].value.compareTo(y.asInstanceOf[Long].value)
+        case 6  => x.asInstanceOf[Float].value.compareTo(y.asInstanceOf[Float].value)
+        case 7  => x.asInstanceOf[Double].value.compareTo(y.asInstanceOf[Double].value)
+        case 8  => x.asInstanceOf[Char].value.compareTo(y.asInstanceOf[Char].value)
+        case 9  => x.asInstanceOf[String].value.compareTo(y.asInstanceOf[String].value)
+        case 10 => x.asInstanceOf[BigInt].value.compareTo(y.asInstanceOf[BigInt].value)
+        case 11 => x.asInstanceOf[BigDecimal].value.compareTo(y.asInstanceOf[BigDecimal].value)
+        case 12 => x.asInstanceOf[DayOfWeek].value.compareTo(y.asInstanceOf[DayOfWeek].value)
+        case 13 => x.asInstanceOf[Duration].value.compareTo(y.asInstanceOf[Duration].value)
+        case 14 => x.asInstanceOf[Instant].value.compareTo(y.asInstanceOf[Instant].value)
+        case 15 => x.asInstanceOf[LocalDate].value.compareTo(y.asInstanceOf[LocalDate].value)
+        case 16 => x.asInstanceOf[LocalDateTime].value.compareTo(y.asInstanceOf[LocalDateTime].value)
+        case 17 => x.asInstanceOf[LocalTime].value.compareTo(y.asInstanceOf[LocalTime].value)
+        case 18 => x.asInstanceOf[Month].value.compareTo(y.asInstanceOf[Month].value)
+        case 19 => x.asInstanceOf[MonthDay].value.compareTo(y.asInstanceOf[MonthDay].value)
+        case 20 => x.asInstanceOf[OffsetDateTime].value.compareTo(y.asInstanceOf[OffsetDateTime].value)
+        case 21 => x.asInstanceOf[OffsetTime].value.compareTo(y.asInstanceOf[OffsetTime].value)
+        case 22 => // The mean month-length in the Gregorian calendar is 30.436875 days
+          val xv = x.asInstanceOf[Period].value
+          val yv = y.asInstanceOf[Period].value
+          (xv.toTotalMonths * 30.436875 + xv.getDays).compareTo(yv.toTotalMonths * 30.436875 + yv.getDays)
+        case 23 => x.asInstanceOf[Year].value.compareTo(y.asInstanceOf[Year].value)
+        case 24 => x.asInstanceOf[YearMonth].value.compareTo(y.asInstanceOf[YearMonth].value)
+        case 25 => x.asInstanceOf[ZoneId].value.getId.compareTo(y.asInstanceOf[ZoneId].value.getId)
+        case 26 => x.asInstanceOf[ZoneOffset].value.compareTo(y.asInstanceOf[ZoneOffset].value)
+        case 27 => x.asInstanceOf[ZonedDateTime].value.compareTo(y.asInstanceOf[ZonedDateTime].value)
+        case 28 =>
+          x.asInstanceOf[Currency].value.getCurrencyCode.compareTo(y.asInstanceOf[Currency].value.getCurrencyCode)
+        case 29 => x.asInstanceOf[UUID].value.compareTo(y.asInstanceOf[UUID].value)
+      }
     }
   }
 }

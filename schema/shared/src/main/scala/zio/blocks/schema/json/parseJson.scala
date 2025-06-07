@@ -168,9 +168,11 @@ object parseJson extends (String => Either[Error, Json]) {
             skipWhitespace()
             parseValue() match {
               case Right(value) =>
+                /*
                 // Check for duplicate keys and throw an error if found
                 if (fields.contains(key))
                   return error(s"Duplicate key '$key' at position $pos")
+                 */
                 fields += (key -> value)
               case Left(err) => return Left(err)
             }
