@@ -11,8 +11,8 @@ object SchemaAspectSpec extends ZIOSpecDefault {
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
 
-    val nameLens: Lens[Person, String] = field(_.name)
-    val ageLens: Lens[Person, Int]     = field(_.age)
+    val nameLens: Lens[Person, String] = optic(_.name)
+    val ageLens: Lens[Person, Int]     = optic(_.age)
   }
   import Person._
 
