@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 
 /**
@@ -43,7 +44,7 @@ sealed trait Optic[S, A] { self =>
         f(a)
       }
     )
-    if (modified) Some(result)
+    if (modified) new Some(result)
     else None
   }
 
@@ -94,6 +95,16 @@ sealed trait Optic[S, A] { self =>
     }
   }
 
+  final def arraySeqValues[B](implicit ev: A =:= ArraySeq[B]): Traversal[S, B] = {
+    import Reflect.Extractors.ArraySeq
+
+    val arraySeq = self.asEquivalent[ArraySeq[B]]
+    arraySeq.focus match {
+      case ArraySeq(element) => arraySeq(Traversal.arraySeqValues(element))
+      case _                 => sys.error("Expected ArraySeq")
+    }
+  }
+
   final def arrayValues[B](implicit ev: A =:= Array[B]): Traversal[S, B] = {
     import Reflect.Extractors.Array
 
@@ -105,6 +116,115 @@ sealed trait Optic[S, A] { self =>
   }
 
   final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
+
+  final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
+    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Literal(that, schema), SchemaExpr.RelationalOperator.Equal)
+
+  final def ===(that: Optic[S, A]): SchemaExpr[S, Boolean] =
+    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.Equal)
+
+  final def >(that: Optic[S, A]): SchemaExpr[S, Boolean] =
+    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.GreaterThan)
+
+  final def >(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Literal(that, schema),
+    SchemaExpr.RelationalOperator.GreaterThan
+  )
+
+  final def >=(that: Optic[S, A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Optic(that),
+    SchemaExpr.RelationalOperator.GreaterThanOrEqual
+  )
+
+  final def >=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Literal(that, schema),
+    SchemaExpr.RelationalOperator.GreaterThanOrEqual
+  )
+
+  final def <(that: Optic[S, A]): SchemaExpr[S, Boolean] =
+    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.LessThan)
+
+  final def <(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Literal(that, schema),
+    SchemaExpr.RelationalOperator.LessThan
+  )
+
+  final def <=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
+    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.LessThanOrEqual)
+
+  final def <=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Relational(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Literal(that, schema),
+    SchemaExpr.RelationalOperator.LessThanOrEqual
+  )
+
+  final def !=(that: Optic[S, A]): SchemaExpr[S, Boolean] = SchemaExpr.Not(this === that)
+
+  final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Not(this === that)
+
+  final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.Logical(
+    SchemaExpr.Optic(this.asFocus[Boolean]),
+    SchemaExpr.Optic(that.asFocus[Boolean]),
+    SchemaExpr.LogicalOperator.And
+  )
+
+  final def &&(that: Boolean)(implicit schema: Schema[A], ev: A =:= Boolean): SchemaExpr[S, Boolean] =
+    SchemaExpr.Logical(
+      SchemaExpr.Optic(this.asFocus[Boolean]),
+      SchemaExpr.Literal(that, Schema[Boolean]),
+      SchemaExpr.LogicalOperator.And
+    )
+
+  final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.Logical(
+    SchemaExpr.Optic(this.asFocus[Boolean]),
+    SchemaExpr.Optic(that.asFocus[Boolean]),
+    SchemaExpr.LogicalOperator.Or
+  )
+
+  final def ||(that: Boolean)(implicit schema: Schema[A], ev: A =:= Boolean): SchemaExpr[S, Boolean] =
+    SchemaExpr.Logical(
+      SchemaExpr.Optic(this.asFocus[Boolean]),
+      SchemaExpr.Literal(that, Schema[Boolean]),
+      SchemaExpr.LogicalOperator.Or
+    )
+
+  final def unary_!(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
+    SchemaExpr.Not(SchemaExpr.Optic(this.asFocus[Boolean]))
+
+  final def +(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
+    SchemaExpr.StringConcat(SchemaExpr.Optic(this.asFocus[String]), SchemaExpr.Literal(that, Schema[String]))
+
+  final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Literal(that, isNumeric.schema),
+    SchemaExpr.ArithmeticOperator.Add,
+    isNumeric
+  )
+
+  final def -(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Literal(that, isNumeric.schema),
+    SchemaExpr.ArithmeticOperator.Subtract,
+    isNumeric
+  )
+
+  final def *(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
+    SchemaExpr.Optic(this),
+    SchemaExpr.Literal(that, isNumeric.schema),
+    SchemaExpr.ArithmeticOperator.Multiply,
+    isNumeric
+  )
+
+  final def length(implicit ev: A =:= String): SchemaExpr[S, Int] =
+    SchemaExpr.StringLength(SchemaExpr.Optic(this.asFocus[String]))
+
+  final def asSource[T](implicit ev: A =:= T): Optic[T, A] = self.asInstanceOf[Optic[T, A]]
+
+  final def asFocus[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
 }
 
 sealed trait Lens[S, A] extends Optic[S, A] {
@@ -128,7 +248,6 @@ object Lens {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
-    require((first ne null) && (second ne null))
     val lens1 = first.asInstanceOf[LensImpl[_, _]]
     val lens2 = second.asInstanceOf[LensImpl[_, _]]
     new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
@@ -141,7 +260,7 @@ object Lens {
     private[this] var bindings: Array[LensBinding]  = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-    {
+    private[this] def init(): Unit = {
       var offset   = RegisterOffset.Zero
       val len      = sources.length
       val bindings = new Array[LensBinding](len)
@@ -152,7 +271,7 @@ object Lens {
         bindings(idx) = new LensBinding(
           deconstructor = source.deconstructor.asInstanceOf[Deconstructor[Any]],
           constructor = source.constructor.asInstanceOf[Constructor[Any]],
-          register = source.registers(source.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+          register = source.registers(source.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
           offset = offset
         )
         offset = RegisterOffset.add(offset, source.usedRegisters)
@@ -169,6 +288,7 @@ object Lens {
     def check(s: S): None.type = None
 
     def get(s: S): A = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -184,6 +304,7 @@ object Lens {
     }
 
     def replace(s: S, a: A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -207,6 +328,7 @@ object Lens {
     }
 
     def modify(s: S, f: A => A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -229,7 +351,8 @@ object Lens {
       x.asInstanceOf[S]
     }
 
-    lazy val toDynamic: DynamicOptic = DynamicOptic(focusTerms.map(term => DynamicOptic.Node.Field(term.name)).toVector)
+    lazy val toDynamic: DynamicOptic =
+      new DynamicOptic(focusTerms.map(term => new DynamicOptic.Node.Field(term.name)).toVector)
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -280,7 +403,6 @@ object Prism {
   }
 
   def apply[S, T <: S, A <: T](first: Prism[S, T], second: Prism[T, A]): Prism[S, A] = {
-    require((first ne null) && (second ne null))
     val prism1 = first.asInstanceOf[PrismImpl[_, _]]
     val prism2 = second.asInstanceOf[PrismImpl[_, _]]
     new PrismImpl(prism1.sources ++ prism2.sources, prism1.focusTerms ++ prism2.focusTerms)
@@ -301,7 +423,7 @@ object Prism {
       while (idx < len) {
         val source        = sources(idx)
         val focusTermName = focusTerms(idx).name
-        matchers(idx) = source.matchers.apply(source.cases.indexWhere(_.name == focusTermName))
+        matchers(idx) = source.matchers.apply(source.caseIndexByName(focusTermName))
         discriminators(idx) = source.discriminator.asInstanceOf[Discriminator[Any]]
         idx += 1
       }
@@ -325,7 +447,7 @@ object Prism {
           val actualCase     = sources(idx).cases(actualCaseIdx).name
           val focusTermName  = focusTerms(idx).name
           val unexpectedCase = OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
-          return new Some(new OpticCheck(::(unexpectedCase, Nil)))
+          return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
         }
         idx += 1
       }
@@ -344,7 +466,8 @@ object Prism {
       new Some(x.asInstanceOf[A])
     }
 
-    lazy val toDynamic: DynamicOptic = DynamicOptic(focusTerms.map(term => DynamicOptic.Node.Case(term.name)).toVector)
+    lazy val toDynamic: DynamicOptic =
+      new DynamicOptic(focusTerms.map(term => new DynamicOptic.Node.Case(term.name)).toVector)
 
     def reverseGet(a: A): S = a
 
@@ -473,7 +596,7 @@ object Optional {
     private[this] var bindings: Array[OpticBinding] = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-    {
+    private[this] def init(): Unit = {
       val len      = sources.length
       val bindings = new Array[OpticBinding](len)
       var offset   = RegisterOffset.Zero
@@ -486,14 +609,14 @@ object Optional {
           bindings(idx) = new LensBinding(
             deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
             constructor = record.constructor.asInstanceOf[Constructor[Any]],
-            register = record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+            register = record.registers(record.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
             offset = offset
           )
           offset = RegisterOffset.add(offset, record.usedRegisters)
         } else {
           val variant = source.asInstanceOf[Reflect.Variant.Bound[_]]
           bindings(idx) = new PrismBinding(
-            matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
+            matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
             discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
           )
         }
@@ -508,6 +631,7 @@ object Optional {
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
     def check(s: S): Option[OpticCheck] = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -518,8 +642,9 @@ object Optional {
             val offset = lensBinding.offset
             lensBinding.deconstructor.deconstruct(registers, offset, x)
             x = lensBinding.register.get(registers, offset)
-          case prismBinding: PrismBinding =>
-            val lastX = x
+          case binding =>
+            val prismBinding = binding.asInstanceOf[PrismBinding]
+            val lastX        = x
             x = prismBinding.matcher.downcastOrNull(x)
             if (x == null) {
               val actualCaseIdx = prismBinding.discriminator.discriminate(lastX)
@@ -527,9 +652,8 @@ object Optional {
               val focusTermName = focusTerms(idx).name
               val unexpectedCase =
                 OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
-              return new Some(new OpticCheck(::(unexpectedCase, Nil)))
+              return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
             }
-          case _ =>
         }
         idx += 1
       }
@@ -537,6 +661,7 @@ object Optional {
     }
 
     def getOption(s: S): Option[A] = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -547,17 +672,17 @@ object Optional {
             val offset = lensBinding.offset
             lensBinding.deconstructor.deconstruct(registers, offset, x)
             x = lensBinding.register.get(registers, offset)
-          case prismBinding: PrismBinding =>
-            x = prismBinding.matcher.downcastOrNull(x)
+          case binding =>
+            x = binding.asInstanceOf[PrismBinding].matcher.downcastOrNull(x)
             if (x == null) return None
-          case _ =>
         }
         idx += 1
       }
       new Some(x.asInstanceOf[A])
     }
 
-    lazy val toDynamic: DynamicOptic = DynamicOptic {
+    lazy val toDynamic: DynamicOptic = new DynamicOptic({
+      if (bindings eq null) init()
       val nodes = Vector.newBuilder[DynamicOptic.Node]
       val len   = bindings.length
       var idx   = 0
@@ -565,15 +690,16 @@ object Optional {
         val binding       = bindings(idx)
         val focusTermName = focusTerms(idx).name
         nodes.addOne {
-          if (binding.isInstanceOf[LensBinding]) DynamicOptic.Node.Field(focusTermName)
-          else DynamicOptic.Node.Case(focusTermName)
+          if (binding.isInstanceOf[LensBinding]) new DynamicOptic.Node.Field(focusTermName)
+          else new DynamicOptic.Node.Case(focusTermName)
         }
         idx += 1
       }
       nodes.result()
-    }
+    })
 
     def replace(s: S, a: A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -584,10 +710,9 @@ object Optional {
             val offset = lensBinding.offset
             lensBinding.deconstructor.deconstruct(registers, offset, x)
             if (idx <= len) x = lensBinding.register.get(registers, offset)
-          case prismBinding: PrismBinding =>
-            x = prismBinding.matcher.downcastOrNull(x)
+          case binding =>
+            x = binding.asInstanceOf[PrismBinding].matcher.downcastOrNull(x)
             if (x == null) return s
-          case _ =>
         }
         idx += 1
       }
@@ -606,6 +731,7 @@ object Optional {
     }
 
     def replaceOption(s: S, a: A): Option[S] = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -616,10 +742,9 @@ object Optional {
             val offset = lensBinding.offset
             lensBinding.deconstructor.deconstruct(registers, offset, x)
             if (idx <= len) x = lensBinding.register.get(registers, offset)
-          case prismBinding: PrismBinding =>
-            x = prismBinding.matcher.downcastOrNull(x)
+          case binding =>
+            x = binding.asInstanceOf[PrismBinding].matcher.downcastOrNull(x)
             if (x == null) return None
-          case _ =>
         }
         idx += 1
       }
@@ -638,6 +763,7 @@ object Optional {
     }
 
     def modify(s: S, f: A => A): S = {
+      if (bindings eq null) init()
       val registers = Registers(usedRegisters)
       var x: Any    = s
       val len       = bindings.length
@@ -648,10 +774,9 @@ object Optional {
             val offset = lensBinding.offset
             lensBinding.deconstructor.deconstruct(registers, offset, x)
             x = lensBinding.register.get(registers, offset)
-          case prismBinding: PrismBinding =>
-            x = prismBinding.matcher.downcastOrNull(x)
+          case binding =>
+            x = binding.asInstanceOf[PrismBinding].matcher.downcastOrNull(x)
             if (x == null) return s
-          case _ =>
         }
         idx += 1
       }
@@ -689,10 +814,11 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
     val reduced = fold[A](s)(
       null.asInstanceOf[A],
       (acc, a) => {
-        if (!one) {
+        if (one) f(acc, a)
+        else {
           one = true
           a
-        } else f(acc, a)
+        }
       }
     )
     if (one) new Right(reduced)
@@ -751,6 +877,11 @@ object Traversal {
     new TraversalImpl(optional1.sources ++ traversal2.sources, optional1.focusTerms ++ traversal2.focusTerms)
   }
 
+  def arraySeqValues[A](reflect: Reflect.Bound[A]): Traversal[ArraySeq[A], A] = {
+    require(reflect ne null)
+    seqValues(Reflect.arraySeq(reflect))
+  }
+
   def arrayValues[A](reflect: Reflect.Bound[A]): Traversal[Array[A], A] = {
     require(reflect ne null)
     seqValues(Reflect.array(reflect))
@@ -799,7 +930,7 @@ object Traversal {
     type Elem
     type Col[_]
 
-    {
+    private[this] def init(): Unit = {
       val len      = sources.length
       val bindings = new Array[OpticBinding](len)
       var offset   = RegisterOffset.Zero
@@ -811,14 +942,13 @@ object Traversal {
             bindings(idx) = new LensBinding(
               deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
               constructor = record.constructor.asInstanceOf[Constructor[Any]],
-              register =
-                record.registers(record.fields.indexWhere(_.name == focusTermName)).asInstanceOf[Register[Any]],
+              register = record.registers(record.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
               offset = offset
             )
             offset = RegisterOffset.add(offset, record.usedRegisters)
           case variant: Reflect.Variant.Bound[_] =>
             bindings(idx) = new PrismBinding(
-              matcher = variant.matchers.apply(variant.cases.indexWhere(_.name == focusTermName)),
+              matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
             )
           case sequence: Reflect.Sequence.Bound[Elem, Col] @scala.unchecked =>
@@ -826,7 +956,8 @@ object Traversal {
               seqDeconstructor = sequence.seqDeconstructor,
               seqConstructor = sequence.seqConstructor
             )
-          case map: Reflect.Map.Bound[Key, Value, Map] @scala.unchecked =>
+          case source =>
+            val map = source.asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
             if (focusTermName == "key") {
               bindings(idx) = new MapKeyBinding[Map](
                 mapDeconstructor = map.mapDeconstructor,
@@ -838,7 +969,6 @@ object Traversal {
                 mapConstructor = map.mapConstructor
               )
             }
-          case _ =>
         }
         idx += 1
       }
@@ -851,10 +981,11 @@ object Traversal {
     def focus: Reflect.Bound[A] = focusTerms(focusTerms.length - 1).value.asInstanceOf[Reflect.Bound[A]]
 
     def check(s: S): Option[OpticCheck] = {
+      if (bindings eq null) init()
       val errors = List.newBuilder[OpticCheck.Single]
       checkRec(Registers(usedRegisters), 0, s, errors)
       errors.result() match {
-        case errs: ::[OpticCheck.Single] => new Some(OpticCheck(errs))
+        case errs: ::[OpticCheck.Single] => new Some(new OpticCheck(errs))
         case _                           => None
       }
     }
@@ -902,7 +1033,10 @@ object Traversal {
           }
       }
 
-    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = foldRec(Registers(usedRegisters), 0, s, zero, f)
+    def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z = {
+      if (bindings eq null) init()
+      foldRec(Registers(usedRegisters), 0, s, zero, f)
+    }
 
     private[this] def foldRec[Z](registers: Registers, idx: Int, x: Any, zero: Z, f: (Z, A) => Z): Z =
       bindings(idx) match {
@@ -1124,7 +1258,10 @@ object Traversal {
           z
       }
 
-    def modify(s: S, f: A => A): S = modifyRec(Registers(usedRegisters), 0, s, f).asInstanceOf[S]
+    def modify(s: S, f: A => A): S = {
+      if (bindings eq null) init()
+      modifyRec(Registers(usedRegisters), 0, s, f).asInstanceOf[S]
+    }
 
     private[this] def modifyRec(registers: Registers, idx: Int, x: Any, f: A => A): Any =
       bindings(idx) match {
@@ -1307,15 +1444,16 @@ object Traversal {
           constructor.resultObject(builder)
       }
 
-    lazy val toDynamic: DynamicOptic = DynamicOptic {
+    lazy val toDynamic: DynamicOptic = new DynamicOptic({
+      if (bindings eq null) init()
       val nodes = Vector.newBuilder[DynamicOptic.Node]
       val len   = bindings.length
       var idx   = 0
       while (idx < len) {
         nodes.addOne {
           bindings(idx) match {
-            case _: LensBinding                         => DynamicOptic.Node.Field(focusTerms(idx).name)
-            case _: PrismBinding                        => DynamicOptic.Node.Case(focusTerms(idx).name)
+            case _: LensBinding                         => new DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding                        => new DynamicOptic.Node.Case(focusTerms(idx).name)
             case _: SeqBinding[Col] @scala.unchecked    => DynamicOptic.Node.Elements
             case _: MapKeyBinding[Map] @scala.unchecked => DynamicOptic.Node.MapKeys
             case _                                      => DynamicOptic.Node.MapValues
@@ -1324,7 +1462,7 @@ object Traversal {
         idx += 1
       }
       nodes.result()
-    }
+    })
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])

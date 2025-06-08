@@ -144,7 +144,16 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(long2)(not(equalTo(long1))) &&
         assert(long3)(not(equalTo(long1))) &&
         assert(long4)(not(equalTo(long1))) &&
-        assert(long5)(not(equalTo(long1)))
+        assert(long5)(not(equalTo(long1))) &&
+        assert(long5: Any)(not(equalTo("String")))
+      },
+      test("has consistent metadata and nodeType") {
+        assert(Reflect.int[Binding].metadata: Any)(equalTo(Reflect.int[Binding].binding)) &&
+        assert(Reflect.int[Binding].nodeType: Any)(equalTo(Reflect.Type.Primitive))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        val int1 = Reflect.int[Binding]
+        assert(int1.fromDynamicValue(int1.toDynamicValue(1)))(isRight(equalTo(1)))
       },
       test("updates primitive default value") {
         assert(Reflect.int[Binding].binding.defaultValue)(isNone) &&
@@ -199,27 +208,36 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(record4)(not(equalTo(record1))) &&
         assert(record5)(not(equalTo(record1)))
       },
+      test("has consistent metadata and nodeType") {
+        assert(tuple4Reflect.metadata: Any)(equalTo(tuple4Reflect.binding)) &&
+        assert(tuple4Reflect.nodeType)(equalTo(Reflect.Type.Record))
+      },
       test("has consistent fields, length, registers and usedRegisters") {
         val record1 = tuple4Reflect
         assert(record1.fields.length)(equalTo(4)) &&
         assert(record1.registers.length)(equalTo(4)) &&
-        assert(record1.fields(0).value.asInstanceOf[Primitive[Binding, Byte]].primitiveType)(
-          equalTo(PrimitiveType.Byte(Validation.None))
+        assert(record1.fields(0).value.asPrimitive.map(_.primitiveType): Option[Any])(
+          isSome(equalTo(PrimitiveType.Byte(Validation.None)))
         ) &&
         assert(record1.registers(0).usedRegisters)(equalTo(RegisterOffset(bytes = 1))) &&
-        assert(record1.fields(1).value.asInstanceOf[Primitive[Binding, Short]].primitiveType)(
-          equalTo(PrimitiveType.Short(Validation.None))
+        assert(record1.fields(1).value.asPrimitive.map(_.primitiveType): Option[Any])(
+          isSome(equalTo(PrimitiveType.Short(Validation.None)))
         ) &&
         assert(record1.registers(1).usedRegisters)(equalTo(RegisterOffset(shorts = 1))) &&
-        assert(record1.fields(2).value.asInstanceOf[Primitive[Binding, Int]].primitiveType)(
-          equalTo(PrimitiveType.Int(Validation.None))
+        assert(record1.fields(2).value.asPrimitive.map(_.primitiveType): Option[Any])(
+          isSome(equalTo(PrimitiveType.Int(Validation.None)))
         ) &&
         assert(record1.registers(2).usedRegisters)(equalTo(RegisterOffset(ints = 1))) &&
-        assert(record1.fields(3).value.asInstanceOf[Primitive[Binding, Long]].primitiveType)(
-          equalTo(PrimitiveType.Long(Validation.None))
+        assert(record1.fields(3).value.asPrimitive.map(_.primitiveType): Option[Any])(
+          isSome(equalTo(PrimitiveType.Long(Validation.None)))
         ) &&
         assert(record1.registers(3).usedRegisters)(equalTo(RegisterOffset(longs = 1))) &&
         assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters)))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        assert(tuple4Reflect.fromDynamicValue(tuple4Reflect.toDynamicValue((1: Byte, 2: Short, 3, 4L))))(
+          isRight(equalTo((1: Byte, 2: Short, 3, 4L)))
+        )
       },
       test("gets and updates record default value") {
         assert(tuple4Reflect.binding.defaultValue)(isNone) &&
@@ -245,6 +263,37 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(tuple4Reflect.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
           equalTo(Seq(Modifier.config("key", "value")))
         )
+      },
+      test("creates lens by name") {
+        assert(tuple4Reflect.lensByName("_3"): Option[Any])(
+          isSome(
+            equalTo(
+              Lens(
+                tuple4Reflect,
+                Reflect.int[Binding].asTerm("_3").asInstanceOf[Term[Binding, (Byte, Short, Int, Long), Int]]
+              )
+            )
+          )
+        ) &&
+        assert(tuple4Reflect.lensByName("_5"))(isNone)
+      },
+      test("finds field term by name") {
+        assert(tuple4Reflect.fieldByName("_3"): Option[Any])(isSome(equalTo(Reflect.int[Binding].asTerm("_3")))) &&
+        assert(tuple4Reflect.fieldByName("_5"))(isNone)
+      },
+      test("modifies field term by name") {
+        assert(
+          tuple4Reflect
+            .modifyField("_3")(new Term.Updater[Binding] {
+              override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] =
+                new Some(input.copy(doc = Doc("updated")))
+            })
+            .flatMap(_.fieldByName("_3")): Option[Any]
+        )(isSome(equalTo(Reflect.int[Binding].asTerm("_3").copy(doc = Doc("updated"))))) &&
+        assert(tuple4Reflect.modifyField("_3")(new Term.Updater[Binding] {
+          override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] = None
+        }): Option[Any])(isNone) &&
+        assert(tuple4Reflect.modifyField("_5")(null))(isNone)
       }
     ),
     suite("Reflect.Variant")(
@@ -258,6 +307,13 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(variant1.defaultValue(Right(0L)).hashCode)(equalTo(variant1.hashCode)) &&
         assert(variant1.examples(Left(1)))(equalTo(variant1)) &&
         assert(variant1.examples(Left(1)).hashCode)(equalTo(variant1.hashCode))
+      },
+      test("has consistent metadata and nodeType") {
+        assert(eitherReflect.metadata: Any)(equalTo(eitherReflect.binding)) &&
+        assert(eitherReflect.nodeType)(equalTo(Reflect.Type.Variant))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        assert(eitherReflect.fromDynamicValue(eitherReflect.toDynamicValue(Left(0))))(isRight(equalTo(Left(0))))
       },
       test("gets and updates variant default value") {
         assert(eitherReflect.binding.defaultValue)(isNone) &&
@@ -279,6 +335,37 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(eitherReflect.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
           equalTo(Seq(Modifier.config("key", "value")))
         )
+      },
+      test("creates prism by name") {
+        assert(eitherReflect.prismByName("Left"): Option[Any])(
+          isSome(
+            equalTo(
+              Prism(
+                eitherReflect,
+                leftSchema.reflect.asTerm("Left").asInstanceOf[Term[Binding, Either[Int, Long], Left[Int, Long]]]
+              )
+            )
+          )
+        ) &&
+        assert(eitherReflect.prismByName("Middle"))(isNone)
+      },
+      test("finds case term by name") {
+        assert(eitherReflect.caseByName("Left"): Option[Any])(isSome(equalTo(leftSchema.reflect.asTerm("Left")))) &&
+        assert(eitherReflect.caseByName("Middle"))(isNone)
+      },
+      test("modifies case term by name") {
+        assert(
+          eitherReflect
+            .modifyCase("Left")(new Term.Updater[Binding] {
+              override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] =
+                new Some(input.copy(doc = Doc("updated")))
+            })
+            .flatMap(_.caseByName("Left").map(_.doc)): Option[Any]
+        )(isSome(equalTo(Doc("updated")))) &&
+        assert(eitherReflect.modifyCase("Left")(new Term.Updater[Binding] {
+          override def update[S, A](input: Term[Binding, S, A]): Option[Term[Binding, S, A]] = None
+        }): Option[Any])(isNone) &&
+        assert(eitherReflect.modifyCase("Middle")(null))(isNone)
       }
     ),
     suite("Reflect.Sequence")(
@@ -302,6 +389,33 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(sequence3)(not(equalTo(sequence1))) &&
         assert(sequence4)(not(equalTo(sequence1))) &&
         assert(sequence5)(not(equalTo(sequence1)))
+      },
+      test("has consistent metadata and nodeType") {
+        assert(Reflect.set(Reflect.int[Binding]).metadata: Any)(equalTo(Reflect.set(Reflect.int[Binding]).binding)) &&
+        assert(Reflect.set(Reflect.int[Binding]).nodeType)(equalTo(Reflect.Type.Sequence[Set]()))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        val sequence1 = Reflect.vector(Reflect.int[Binding])
+        assert(sequence1.fromDynamicValue(sequence1.toDynamicValue(Vector(1, 2, 3))))(isRight(equalTo(Vector(1, 2, 3))))
+      },
+      test("has extractors for lists, vactors, sets, and arrays") {
+        import Reflect.Extractors._
+
+        val int1 = Reflect.int[Binding]
+        assert(Option(Reflect.list(int1)).collect { case List(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.vector(int1)).collect { case Vector(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.set(int1)).collect { case Set(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.array(int1)).collect { case Array(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.Deferred(() => Reflect.list(int1))).collect { case List(e) => e })(
+          isSome(equalTo(int1))
+        ) &&
+        assert(Option(Reflect.Deferred(() => Reflect.vector(int1))).collect { case Vector(e) => e })(
+          isSome(equalTo(int1))
+        ) &&
+        assert(Option(Reflect.Deferred(() => Reflect.set(int1))).collect { case Set(e) => e })(isSome(equalTo(int1))) &&
+        assert(Option(Reflect.Deferred(() => Reflect.array(int1))).collect { case Array(e) => e })(
+          isSome(equalTo(int1))
+        )
       },
       test("gets and updates sequence default value") {
         assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue)(isNone) &&
@@ -375,6 +489,18 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(map5)(not(equalTo(map1))) &&
         assert(map6)(not(equalTo(map1)))
       },
+      test("has consistent metadata and nodeType") {
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).metadata: Any)(
+          equalTo(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).binding)
+        ) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).nodeType)(equalTo(Reflect.Type.Map[Map]()))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
+        assert(map1.fromDynamicValue(map1.toDynamicValue(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(
+          isRight(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))
+        )
+      },
       test("gets and updates map default value") {
         assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).binding.defaultValue)(isNone) &&
         assert(
@@ -385,9 +511,7 @@ object ReflectSpec extends ZIOSpecDefault {
             .defaultValue
             .get
             .apply()
-        )(
-          equalTo(Map.empty[Int, Long])
-        )
+        )(equalTo(Map.empty[Int, Long]))
       },
       test("gets and updates map documentation") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
@@ -421,9 +545,7 @@ object ReflectSpec extends ZIOSpecDefault {
             .binding
             .examples(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))
             .examples
-        )(
-          equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)
-        )
+        )(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
       },
       test("gets and appends map modifiers") {
         val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
@@ -450,6 +572,16 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(dynamic2.hashCode)(equalTo(dynamic1.hashCode)) &&
         assert(dynamic3)(not(equalTo(dynamic1))) &&
         assert(dynamic4)(not(equalTo(dynamic1)))
+      },
+      test("has consistent metadata and nodeType") {
+        assert(Reflect.dynamic[Binding].metadata: Any)(equalTo(Reflect.dynamic[Binding].binding)) &&
+        assert(Reflect.dynamic[Binding].nodeType)(equalTo(Reflect.Type.Dynamic))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        val dynamic1 = Reflect.dynamic[Binding]
+        assert(dynamic1.fromDynamicValue(dynamic1.toDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))))(
+          isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        )
       },
       test("gets and updates dynamic default value") {
         val dynamic1 = Reflect.dynamic[Binding]
@@ -507,7 +639,16 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred3)(equalTo(deferred1)) &&
         assert(deferred3.hashCode)(equalTo(deferred1.hashCode)) &&
         assert(deferred4: Any)(not(equalTo(deferred1))) &&
-        assert(deferred5)(not(equalTo(deferred1)))
+        assert(deferred5)(not(equalTo(deferred1))) &&
+        assert(deferred5: Any)(not(equalTo("String")))
+      },
+      test("has consistent metadata and nodeType") {
+        assert(Reflect.Deferred(() => Reflect.int[Binding]).metadata: Any)(equalTo(Reflect.int[Binding].binding)) &&
+        assert(Reflect.Deferred(() => Reflect.int[Binding]).nodeType: Any)(equalTo(Reflect.Type.Primitive))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        assert(deferred1.fromDynamicValue(deferred1.toDynamicValue(0)))(isRight(equalTo(0)))
       },
       test("gets and updates deferred default value") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
@@ -538,18 +679,25 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3))) &&
         assert(deferred1.binding.examples(1, 2).examples)(equalTo(Seq(1, 2)))
       },
-      test("gets dynamic modifiers") {
+      test("gets and updates modifiers") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
-        assert(deferred1.modifiers)(equalTo(Seq.empty))
+        assert(deferred1.modifiers)(equalTo(Seq.empty)) &&
+        assert(deferred1.modifier(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]).modifiers: Any)(
+          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]))
+        ) &&
+        assert(
+          deferred1
+            .modifiers(Seq(Modifier.config("key", "value")).asInstanceOf[Seq[deferred1.ModifierType]])
+            .modifiers: Any
+        )(equalTo(Seq(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType])))
       }
     )
   )
 
   val tuple4Reflect: Reflect.Record[Binding, (Byte, Short, Int, Long)] =
     Schema.derived[(Byte, Short, Int, Long)].reflect.asRecord.get
-  val eitherReflect: Reflect.Variant[Binding, Either[Int, Long]] = {
-    implicit val leftSchema: Schema[Left[Int, Long]]   = Schema.derived
-    implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
+  implicit val leftSchema: Schema[Left[Int, Long]]   = Schema.derived
+  implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
+  val eitherReflect: Reflect.Variant[Binding, Either[Int, Long]] =
     Schema.derived[Either[Int, Long]].reflect.asVariant.get
-  }
 }

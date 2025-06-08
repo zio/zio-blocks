@@ -1,11 +1,14 @@
 package zio.blocks.schema
 
 import zio.Scope
+import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
+import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
 import zio.blocks.schema.binding._
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
+import scala.collection.immutable.ArraySeq
 
 object SchemaSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
@@ -36,7 +39,7 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Byte].fromDynamicValue(Schema[Byte].toDynamicValue(1)))(isRight(equalTo(1: Byte))) &&
         assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected Byte")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Byte")))
         )
       }
     ),
@@ -64,15 +67,15 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples)(equalTo(Nil)) &&
         assert(Record.schema.examples(Record(2, 2000)).examples)(equalTo(Record(2, 2000) :: Nil))
       },
-      test("gets and updates default values of record fields using prism focus") {
+      test("gets and updates default values of record fields using optic focus") {
         assert(Record.schema.defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
         assert(Record.schema.defaultValue(Record.i, 1000).getDefaultValue(Record.i))(isSome(equalTo(1000)))
       },
-      test("gets and updates documentation of record fields using prism focus") {
+      test("gets and updates documentation of record fields using optic focus") {
         assert(Record.schema.doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
         assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(Doc("i")))
       },
-      test("gets and updates examples of record fields using prism focus") {
+      test("gets and updates examples of record fields using optic focus") {
         assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
         assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000)))
       },
@@ -91,7 +94,25 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
         assert(Record.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a record")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a record")))
+        ) &&
+        assert(
+          Record.schema.fromDynamicValue(
+            DynamicValue.Record(
+              Vector(
+                ("i", DynamicValue.Primitive(PrimitiveValue.Long(1000))),
+                ("i", DynamicValue.Primitive(PrimitiveValue.Int(2000)))
+              )
+            )
+          )
+        )(
+          isLeft(
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected Int at: .i\nDuplicated field i at: .\nMissing field b at: .")
+            )
+          )
         )
       },
       test("has consistent gets for typed and dynamic optics") {
@@ -113,8 +134,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object `Record-1` extends CompanionOptics[`Record-1`] {
           implicit val schema: Schema[Record1] = Schema.derived
-          val `b-1`: Lens[Record1, Boolean]    = field(x => x.`b-1`)
-          val `f-2`: Lens[Record1, Float]      = field(_.`f-2`)
+          val `b-1`: Lens[Record1, Boolean]    = optic(x => x.`b-1`)
+          val `f-2`: Lens[Record1, Float]      = optic(_.`f-2`)
         }
 
         val record = `Record-1`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
@@ -126,6 +147,9 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(`Record-1`.`f-2`.get(`Record-1`()))(equalTo(0.0f)) &&
         assert(`Record-1`.`b-1`.replace(`Record-1`(), true))(equalTo(`Record-1`(`b-1` = true))) &&
         assert(`Record-1`.`f-2`.replace(`Record-1`(), 1.0f))(equalTo(`Record-1`(`b-1` = false, 1.0f))) &&
+        assert(`Record-1`.schema.fromDynamicValue(`Record-1`.schema.toDynamicValue(`Record-1`())))(
+          isRight(equalTo(`Record-1`()))
+        ) &&
         assert(`Record-1`.schema)(
           equalTo(
             new Schema[Record1](
@@ -167,13 +191,15 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object `Record-2` extends CompanionOptics[Record2[`i-8`, `i-32`]] {
           implicit val schema: Schema[Record2[`i-8`, `i-32`]] = Schema.derived
-          val b: Lens[Record2[`i-8`, `i-32`], `i-8`]          = field(_.b)
-          val i: Lens[Record2[`i-8`, `i-32`], `i-32`]         = field(_.i)
+          val b: Lens[Record2[`i-8`, `i-32`], `i-8`]          = optic(_.b)
+          val i: Lens[Record2[`i-8`, `i-32`], `i-32`]         = optic(_.i)
         }
 
         val record = `Record-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(bytes = 1, ints = 1))) &&
+        assertTrue(
+          record.constructor.usedRegisters == RegisterOffset(bytes = 1, ints = 1),
+          record.deconstructor.usedRegisters == RegisterOffset(bytes = 1, ints = 1)
+        ) &&
         assert(`Record-2`.b.focus.getDefaultValue)(isNone) &&
         assert(`Record-2`.i.focus.getDefaultValue.isDefined)(equalTo(true)) &&
         assert(`Record-2`.b.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
@@ -182,6 +208,9 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(`Record-2`[`i-8`, `i-32`](3, 2))
         ) &&
         assert(`Record-2`.i.replace(`Record-2`[`i-8`, `i-32`](1, 2), 3))(equalTo(`Record-2`[`i-8`, `i-32`](1, 3))) &&
+        assert(`Record-2`.schema.fromDynamicValue(`Record-2`.schema.toDynamicValue(`Record-2`[`i-8`, `i-32`](1, 2))))(
+          isRight(equalTo(`Record-2`[`i-8`, `i-32`](1, 2)))
+        ) &&
         assert(`Record-2`.schema)(
           equalTo(
             new Schema[Record2[`i-8`, `i-32`]](
@@ -204,12 +233,12 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
       test("derives schema for record with multi list constructor using a macro call") {
-        class Record3(val s: Short)(val l: Long)
+        case class Record3(val s: Short)(val l: Long)
 
         object Record3 extends CompanionOptics[Record3] {
           implicit val schema: Schema[Record3] = Schema.derived
-          val s: Lens[Record3, Short]          = field(_.s)
-          val l: Lens[Record3, Long]           = field(_.l)
+          val s: Lens[Record3, Short]          = optic(_.s)
+          val l: Lens[Record3, Long]           = optic(_.l)
         }
 
         val record = Record3.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
@@ -221,6 +250,9 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record3.l.get(new Record3(1)(2L)))(equalTo(2L)) &&
         assert(Record3.s.replace(new Record3(1)(2L), 3: Short).s)(equalTo(3: Short)) &&
         assert(Record3.l.replace(new Record3(1)(2L), 3L).l)(equalTo(3L)) &&
+        assert(Record3.schema.fromDynamicValue(Record3.schema.toDynamicValue(new Record3(1)(2L))))(
+          isRight(equalTo(new Record3(1)(2L)))
+        ) &&
         assert(Record3.schema)(
           equalTo(
             new Schema[Record3](
@@ -243,30 +275,45 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with nested collections using a macro call") {
-        case class Record4(mx: Array[Array[Int]], rs: List[Set[Int]])
+        case class Record4(mx: Vector[ArraySeq[Int]], rs: List[Set[Int]])
 
         object Record4 extends CompanionOptics[Record4] {
           implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = field((x: Record4) => x.mx).arrayValues.arrayValues
-          val rs: Traversal[Record4, Int]      = field(_.rs).listValues.setValues
+          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx).vectorValues.arraySeqValues
+          val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
         }
 
-        val schema = Schema.derived[Record4]
-        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
+        val record = Record4.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
         assert(Record4.mx.focus.getDefaultValue)(isNone) &&
         assert(Record4.rs.focus.getDefaultValue)(isNone) &&
-        assert(Record4.mx.fold[Int](Record4(Array(Array(1, 2), Array(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
+        assert(Record4.mx.fold[Int](Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
         assert(Record4.rs.fold[Int](Record4(null, List(Set(1, 2), Set(3, 4))))(0, _ + _))(equalTo(10)) &&
-        assert(Record4.mx.reduceOrFail(Record4(Array(Array(1, 2), Array(3, 4)), Nil))(_ + _))(isRight(equalTo(10))) &&
+        assert(Record4.mx.reduceOrFail(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))(_ + _))(
+          isRight(equalTo(10))
+        ) &&
         assert(Record4.rs.reduceOrFail(Record4(null, List(Set(1, 2), Set(3, 4))))(_ + _))(isRight(equalTo(10))) &&
-        assert(schema)(
+        assert(
+          Record4.schema.fromDynamicValue(
+            Record4.schema.toDynamicValue(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))
+          )
+        )(
+          isRight(equalTo(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil)))
+        ) &&
+        assert(
+          Record4.schema.fromDynamicValue(
+            Record4.schema.toDynamicValue(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4))))
+          )
+        )(
+          isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))
+        ) &&
+        assert(Record4.schema)(
           equalTo(
             new Schema[Record4](
               reflect = Reflect.Record[Binding, Record4](
                 fields = Seq(
-                  Schema[Array[Array[Int]]].reflect.asTerm("mx"),
+                  Schema[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
                 typeName = TypeName(
@@ -275,6 +322,46 @@ object SchemaSpec extends ZIOSpecDefault {
                     values = Seq("SchemaSpec", "spec")
                   ),
                   name = "Record4"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for record with unit types") {
+        case class Record5(u: Unit, lu: List[Unit])
+
+        object Record5 extends CompanionOptics[Record5] {
+          implicit val schema: Schema[Record5] = Schema.derived
+          val u: Lens[Record5, Unit]           = optic(_.u)
+          val lu: Traversal[Record5, Unit]     = optic(_.lu.each)
+        }
+
+        val record = Record5.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
+        assert(Record5.u.focus.getDefaultValue)(isNone) &&
+        assert(Record5.lu.focus.getDefaultValue)(isNone) &&
+        assert(Record5.u.get(Record5((), Nil)))(equalTo(())) &&
+        assert(Record5.lu.fold[Int](Record5((), List((), (), ())))(0, (z, _) => z + 1))(equalTo(3)) &&
+        assert(Record5.schema.fromDynamicValue(Record5.schema.toDynamicValue(Record5((), List((), (), ())))))(
+          isRight(equalTo(Record5((), List((), (), ()))))
+        ) &&
+        assert(Record5.schema)(
+          equalTo(
+            new Schema[Record5](
+              reflect = Reflect.Record[Binding, Record5](
+                fields = Seq(
+                  Schema[Unit].reflect.asTerm("u"),
+                  Schema[List[Unit]].reflect.asTerm("lu")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record5"
                 ),
                 recordBinding = null
               )
@@ -307,7 +394,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.examples)(equalTo(Nil)) &&
         assert(Variant.schema.examples(Case1('1'), Case2("VVV")).examples)(equalTo(Case1('1') :: Case2("VVV") :: Nil))
       },
-      test("gets and updates default values of variant cases using prism focus") {
+      test("gets and updates default values of variant cases using optic focus") {
         assert(Variant.schema.defaultValue(Variant.case1, Case1('1')).getDefaultValue(Variant.case1))(
           isSome(equalTo(Case1('1')))
         ) &&
@@ -315,11 +402,11 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(equalTo(Case2("VVV")))
         )
       },
-      test("gets and updates documentation of variant cases using prism focus") {
+      test("gets and updates documentation of variant cases using optic focus") {
         assert(Variant.schema.doc(Variant.case1, "Case1").doc(Variant.case1))(equalTo(Doc("Case1"))) &&
         assert(Variant.schema.doc(Variant.case2, "Case2").doc(Variant.case2))(equalTo(Doc("Case2")))
       },
-      test("gets and updates examples of variant cases using prism focus") {
+      test("gets and updates examples of variant cases using optic focus") {
         assert(Variant.schema.examples(Variant.case1, Case1('1')).examples(Variant.case1))(equalTo(Seq(Case1('1')))) &&
         assert(Variant.schema.examples(Variant.case2, Case2("VVV")).examples(Variant.case2))(equalTo(Seq(Case2("VVV"))))
       },
@@ -331,7 +418,27 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Case2("VVV")))
         ) &&
         assert(Variant.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a variant")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a variant")))
+        ) &&
+        assert(
+          Variant.schema.fromDynamicValue(
+            DynamicValue.Variant("Unknown", DynamicValue.Primitive(PrimitiveValue.Long(1000)))
+          )
+        )(isLeft(equalTo(SchemaError.unknownCase(Nil, "Unknown")))) &&
+        assert(
+          Variant.schema.fromDynamicValue(
+            DynamicValue
+              .Variant("Case2", DynamicValue.Record(Vector(("s", DynamicValue.Primitive(PrimitiveValue.Int(1))))))
+          )
+        )(
+          isLeft(
+            equalTo(
+              SchemaError.invalidType(
+                List(DynamicOptic.Node.Field("s"), DynamicOptic.Node.Case("Case2")),
+                "Expected String"
+              )
+            )
+          )
         )
       },
       test("has consistent gets for typed and dynamic optics") {
@@ -359,14 +466,20 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object `Variant-1` extends CompanionOptics[Variant1] {
           implicit val schema: Schema[Variant1] = Schema.derived
-          val case1: Prism[Variant1, `Case-1`]  = caseOf
-          val case2: Prism[Variant1, `Case-2`]  = caseOf
+          val case1: Prism[Variant1, `Case-1`]  = optic(_.when[`Case-1`])
+          val case2: Prism[Variant1, `Case-2`]  = optic(_.when[`Case-2`])
         }
 
         assert(`Variant-1`.case1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
         assert(`Variant-1`.case2.getOption(`Case-2`(0.2f)))(isSome(equalTo(`Case-2`(0.2f)))) &&
         assert(`Variant-1`.case1.replace(`Case-1`(0.1), `Case-1`(0.2)))(equalTo(`Case-1`(0.2))) &&
         assert(`Variant-1`.case2.replace(`Case-2`(0.2f), `Case-2`(0.3f)))(equalTo(`Case-2`(0.3f))) &&
+        assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-1`(0.1))))(
+          isRight(equalTo(`Case-1`(0.1)))
+        ) &&
+        assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-2`(0.2f))))(
+          isRight(equalTo(`Case-2`(0.2f)))
+        ) &&
         assert(`Variant-1`.schema)(
           equalTo(
             new Schema[Variant1](
@@ -397,8 +510,8 @@ object SchemaSpec extends ZIOSpecDefault {
 
         type Variant2[A] = `Variant-2`[A]
 
-        @Modifier.config("record-key", "record-value-1")
-        @Modifier.config("record-key", "record-value-2")
+        @Modifier.config("variant-key", "variant-value-1")
+        @Modifier.config("variant-key", "variant-value-2")
         case object MissingValue extends Variant2[Nothing] {
           implicit val schema: Schema[MissingValue.type] = Schema.derived
         }
@@ -415,17 +528,17 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object Variant2OfString extends CompanionOptics[Variant2[String]] {
           implicit val schema: Schema[Variant2[String]]                = Schema.derived
-          val missingValue: Prism[Variant2[String], MissingValue.type] = caseOf
-          val nullValue: Prism[Variant2[String], NullValue.type]       = caseOf
-          val value: Prism[Variant2[String], Value[String]]            = caseOf
+          val missingValue: Prism[Variant2[String], MissingValue.type] = optic(_.when[MissingValue.type])
+          val nullValue: Prism[Variant2[String], NullValue.type]       = optic(_.when[NullValue.type])
+          val value: Prism[Variant2[String], Value[String]]            = optic(_.when[Value[String]])
         }
 
         val record = Schema[MissingValue.type].reflect.asInstanceOf[Reflect.Record[Binding, MissingValue.type]]
         assert(record.modifiers)(
           equalTo(
             Seq(
-              Modifier.config("record-key", "record-value-1"),
-              Modifier.config("record-key", "record-value-2")
+              Modifier.config("variant-key", "variant-value-1"),
+              Modifier.config("variant-key", "variant-value-2")
             )
           )
         ) &&
@@ -434,6 +547,15 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant2OfString.value.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
         assert(Variant2OfString.value.replace(Value[String]("WWW"), Value[String]("VVV")))(
           equalTo(Value[String]("VVV"))
+        ) &&
+        assert(Variant2OfString.schema.fromDynamicValue(Variant2OfString.schema.toDynamicValue(MissingValue)))(
+          isRight(equalTo(MissingValue))
+        ) &&
+        assert(Variant2OfString.schema.fromDynamicValue(Variant2OfString.schema.toDynamicValue(NullValue)))(
+          isRight(equalTo(NullValue))
+        ) &&
+        assert(Variant2OfString.schema.fromDynamicValue(Variant2OfString.schema.toDynamicValue(Value[String]("WWW"))))(
+          isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(Variant2OfString.schema)(
           equalTo(
@@ -463,6 +585,41 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for a variant with cases on different levels using a macro call") {
+        val schema: Schema[Level1.MultiLevel] = Schema.derived
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Level2.Case)))(
+          isRight(equalTo(Level1.Level2.Case))
+        ) &&
+        assert(schema)(
+          equalTo(
+            new Schema[Level1.MultiLevel](
+              reflect = Reflect.Variant[Binding, Level1.MultiLevel](
+                cases = Seq(
+                  Schema[Case.type].reflect
+                    .asTerm("Case")
+                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]],
+                  Schema[Level1.Case.type].reflect
+                    .asTerm("Level1.Case")
+                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]],
+                  Schema[Level1.Level2.Case.type].reflect
+                    .asTerm("Level1.Level2.Case")
+                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]]
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "Level1")
+                  ),
+                  name = "MultiLevel"
+                ),
+                variantBinding = null
+              )
+            )
+          )
+        )
+      },
       test("derives schema for higher-kinded variant using a macro call") {
         sealed trait `Variant-3`[F[_]]
 
@@ -471,16 +628,13 @@ object SchemaSpec extends ZIOSpecDefault {
         case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
 
         object Variant3OfOption extends CompanionOptics[`Variant-3`[Option]] {
-          implicit val schemaNone: Schema[None.type]              = Schema.derived
-          implicit val schemaSomeFloat: Schema[Some[Float]]       = Schema.derived
-          implicit val schemaOptionFloat: Schema[Option[Float]]   = Schema.derived
-          implicit val schemaSomeDouble: Schema[Some[Double]]     = Schema.derived
-          implicit val schemaOptionDouble: Schema[Option[Double]] = Schema.derived
+          import OptionSchemas._
+
           implicit val schemaCase1: Schema[`Case-1`[Option]]      = Schema.derived
           implicit val schemaCase2: Schema[`Case-2`[Option]]      = Schema.derived
           implicit val schema: Schema[`Variant-3`[Option]]        = Schema.derived
-          val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = caseOf
-          val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = caseOf
+          val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = optic(_.when[`Case-1`[Option]])
+          val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = optic(_.when[`Case-2`[Option]])
         }
 
         import Variant3OfOption._
@@ -489,6 +643,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(case2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
         assert(case1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
         assert(case2.replace(`Case-2`[Option](Some(0.2f)), `Case-2`[Option](None)))(equalTo(`Case-2`[Option](None))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(`Case-1`[Option](Some(0.1)))))(
+          isRight(equalTo(`Case-1`[Option](Some(0.1))))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(`Case-2`[Option](None))))(
+          isRight(equalTo(`Case-2`[Option](None)))
+        ) &&
         assert(schema)(
           equalTo(
             new Schema[`Variant-3`[Option]](
@@ -535,25 +695,37 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
         assert(Schema[Set[Int]].examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
-      test("gets and updates default values of sequence elements using prism focus") {
+      test("gets and updates default values of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
         val elements2 = Traversal.setValues(Reflect.long[Binding])
         assert(Schema[List[Int]].defaultValue(elements1, 1).getDefaultValue(elements1))(isSome(equalTo(1))) &&
         assert(Schema[Set[Long]].defaultValue(elements2, 1L).getDefaultValue(elements2))(isSome(equalTo(1L)))
       },
-      test("gets and updates documentation of sequence elements using prism focus") {
+      test("gets and updates documentation of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
         val elements2 = Traversal.setValues(Reflect.long[Binding])
         assert(Schema[List[Int]].doc(elements1, "Int").doc(elements1))(equalTo(Doc("Int"))) &&
         assert(Schema[Set[Long]].doc(elements2, "Long").doc(elements2))(equalTo(Doc("Long")))
       },
-      test("gets and updates examples of sequence elements using prism focus") {
+      test("gets and updates examples of sequence elements using optic focus") {
         val elements1 = Traversal.listValues(Reflect.int[Binding])
         val elements2 = Traversal.setValues(Reflect.long[Binding])
         assert(Schema[List[Int]].examples(elements1, 2).examples(elements1))(equalTo(Seq(2))) &&
         assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Schema[Array[Int]].fromDynamicValue(Schema[Array[Int]].toDynamicValue(Array(1, 2, 3))))(
+          isRight(equalTo(Array(1, 2, 3)))
+        ) &&
+        /* FIXME: throws java.lang.ClassCastException: class [Ljava.lang.Object; cannot be cast to class [[I
+        assert(
+          Schema[Array[Array[Int]]]
+            .fromDynamicValue(Schema[Array[Array[Int]]].toDynamicValue(Array(Array(1, 2), Array(3, 4))))
+            .map(_.map(_.toSeq).toSeq)
+        )(
+          isRight(equalTo(Seq(Seq(1, 2), Seq(3, 4))))
+        ) &&
+         */
         assert(Schema[List[Boolean]].fromDynamicValue(Schema[List[Boolean]].toDynamicValue(List(true, false))))(
           isRight(equalTo(List(true, false)))
         ) &&
@@ -584,7 +756,88 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(List("VVV", "WWW")))
         ) &&
         assert(Schema[List[Int]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a sequence")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a sequence")))
+        ) &&
+        assert(
+          Schema[List[Boolean]].fromDynamicValue(
+            DynamicValue.Sequence(
+              Vector(
+                DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                DynamicValue.Primitive(PrimitiveValue.Int(1))
+              )
+            )
+          )
+        )(
+          isLeft(
+            hasField[SchemaError, String](
+              "getMessage",
+              _.getMessage,
+              containsString("Expected Boolean at: .each\nExpected Boolean at: .each")
+            )
+          )
+        ) &&
+        assert(
+          Schema[List[Byte]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Byte")))) &&
+        assert(
+          Schema[List[Char]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Char")))) &&
+        assert(
+          Schema[List[Short]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Short")))) &&
+        assert(
+          Schema[List[Int]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Long(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Int")))) &&
+        assert(
+          Schema[List[Float]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Float")))) &&
+        assert(
+          Schema[List[Long]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Long")))) &&
+        assert(
+          Schema[List[Double]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Double")))) &&
+        assert(
+          Schema[List[String]].fromDynamicValue(
+            DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected String")))) &&
+        assert(
+          Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
+        )(
+          isLeft(
+            equalTo(
+              SchemaError(
+                errors = ::(
+                  MissingField(
+                    source = DynamicOptic(nodes = Vector(Elements)),
+                    fieldName = "b"
+                  ),
+                  ::(
+                    MissingField(
+                      source = DynamicOptic(nodes = Vector(Elements)),
+                      fieldName = "i"
+                    ),
+                    Nil
+                  )
+                )
+              )
+            )
+          )
         )
       },
       test("has consistent gets for typed and dynamic optics") {
@@ -634,19 +887,19 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(Map(1 -> 2L, 2 -> 3L, 3 -> 4L) :: Nil)
         )
       },
-      test("gets and updates default values of sequence elements using prism focus") {
+      test("gets and updates default values of sequence elements using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].defaultValue(mapKeys, 1).getDefaultValue(mapKeys))(isSome(equalTo(1))) &&
         assert(Schema[Map[Int, Long]].defaultValue(mapValues, 1L).getDefaultValue(mapValues))(isSome(equalTo(1L)))
       },
-      test("gets and updates documentation of sequence elements using prism focus") {
+      test("gets and updates documentation of sequence elements using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
         assert(Schema[Map[Int, Long]].doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
       },
-      test("gets and updates examples of sequence elements using prism focus") {
+      test("gets and updates examples of sequence elements using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
@@ -657,7 +910,46 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[Map[Int, Long]].fromDynamicValue(Schema[Map[Int, Long]].toDynamicValue(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))
         )(isRight(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))) &&
         assert(Schema[Map[Int, Long]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(DynamicOptic.root, "Expected a map")))
+          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a map")))
+        ) &&
+        assert(
+          Schema[Map[Int, Long]].fromDynamicValue(
+            DynamicValue.Map(
+              Vector(
+                (DynamicValue.Primitive(PrimitiveValue.Long(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+              )
+            )
+          )
+        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.Node.MapKeys :: Nil, "Expected Int")))) &&
+        assert(
+          Schema[Map[Int, Long]].fromDynamicValue(
+            DynamicValue.Map(
+              Vector(
+                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+                (DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1)))
+              )
+            )
+          )
+        )(
+          isLeft(
+            equalTo(
+              SchemaError(
+                errors = ::(
+                  InvalidType(
+                    source = DynamicOptic(nodes = Vector(MapValues)),
+                    expectation = "Expected Long"
+                  ),
+                  ::(
+                    InvalidType(
+                      source = DynamicOptic(nodes = Vector(MapValues)),
+                      expectation = "Expected Long"
+                    ),
+                    Nil
+                  )
+                )
+              )
+            )
+          )
         )
       },
       test("has consistent gets for typed and dynamic optics") {
@@ -805,16 +1097,16 @@ object SchemaSpec extends ZIOSpecDefault {
 
   object Record extends CompanionOptics[Record] {
     implicit val schema: Schema[Record] = Schema.derived
-    val b: Lens[Record, Byte]           = field(_.b)
-    val i: Lens[Record, Int]            = field(_.i)
+    val b: Lens[Record, Byte]           = $(_.b)
+    val i: Lens[Record, Int]            = $(_.i)
   }
 
   sealed trait Variant
 
   object Variant extends CompanionOptics[Variant] {
     implicit val schema: Schema[Variant] = Schema.derived
-    val case1: Prism[Variant, Case1]     = caseOf
-    val case2: Prism[Variant, Case2]     = caseOf
+    val case1: Prism[Variant, Case1]     = $(_.when[Case1])
+    val case2: Prism[Variant, Case2]     = $(_.when[Case2])
   }
 
   case class Case1(c: Char) extends Variant
@@ -827,5 +1119,23 @@ object SchemaSpec extends ZIOSpecDefault {
 
   object Case2 {
     implicit val schema: Schema[Case2] = Schema.derived
+  }
+
+  object Level1 {
+    sealed trait MultiLevel
+
+    case object Case extends MultiLevel {
+      implicit val schema: Schema[Case.type] = Schema.derived
+    }
+
+    object Level2 {
+      case object Case extends MultiLevel {
+        implicit val schema: Schema[Case.type] = Schema.derived
+      }
+    }
+  }
+
+  case object Case extends Level1.MultiLevel {
+    implicit val schema: Schema[Case.type] = Schema.derived
   }
 }

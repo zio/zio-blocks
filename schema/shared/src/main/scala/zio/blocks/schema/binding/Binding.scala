@@ -1,14 +1,14 @@
 package zio.blocks.schema.binding
 
 import zio.blocks.schema.DynamicValue
+import scala.collection.immutable.ArraySeq
 
 /**
  * A binding is used to attach non-serializable Scala functions, such as
  * constructors, deconstructors, and matchers, to a reflection type.
  *
- * The {{Binding}} type is indexed by `T`, which is a phantom type that
- * represents the type of binding. The type `A` represents the type of the
- * reflection type.
+ * The `Binding` type is indexed by `T`, which is a phantom type that represents
+ * the type of binding. The type `A` represents the type of the reflection type.
  *
  * So, for example, `Binding[BindingType.Record, Int]` represents a binding for
  * the reflection type `Int` that has a record binding (and therefore, both a
@@ -33,7 +33,7 @@ sealed trait Binding[T, A] { self =>
 }
 
 object Binding {
-  case class Primitive[A](
+  final case class Primitive[A](
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Primitive, A] {
@@ -104,25 +104,18 @@ object Binding {
     val uuid: Primitive[java.util.UUID] = new Primitive[java.util.UUID]()
   }
 
-  case class Record[A](
+  final case class Record[A](
     constructor: Constructor[A],
     deconstructor: Deconstructor[A],
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Record, A] {
-    def transform[B](f: A => B)(g: B => A): Record[B] = Record(
-      constructor.map(f),
-      deconstructor.contramap(g),
-      defaultValue.map(thunk => () => f(thunk())),
-      examples.map(f)
-    )
-
     def defaultValue(value: => A): Record[A] = copy(defaultValue = Some(() => value))
 
     def examples(value: A, values: A*): Record[A] = copy(examples = value :: values.toList)
   }
 
-  case class Variant[A](
+  final case class Variant[A](
     discriminator: Discriminator[A],
     matchers: Matchers[A],
     defaultValue: Option[() => A] = None,
@@ -133,7 +126,7 @@ object Binding {
     def examples(value: A, values: A*): Variant[A] = copy(examples = value :: values.toList)
   }
 
-  case class Seq[C[_], A](
+  final case class Seq[C[_], A](
     constructor: SeqConstructor[C],
     deconstructor: SeqDeconstructor[C],
     defaultValue: Option[() => C[A]] = None,
@@ -153,10 +146,12 @@ object Binding {
 
     def vector[A]: Seq[Vector, A] = Seq(SeqConstructor.vectorConstructor, SeqDeconstructor.vectorDeconstructor)
 
+    def arraySeq[A]: Seq[ArraySeq, A] = Seq(SeqConstructor.arraySeqConstructor, SeqDeconstructor.arraySeqDeconstructor)
+
     def array[A]: Seq[Array, A] = Seq(SeqConstructor.arrayConstructor, SeqDeconstructor.arrayDeconstructor)
   }
 
-  case class Map[M[_, _], K, V](
+  final case class Map[M[_, _], K, V](
     constructor: MapConstructor[M],
     deconstructor: MapDeconstructor[M],
     defaultValue: Option[() => M[K, V]] = None,
@@ -171,7 +166,7 @@ object Binding {
     def map[K, V]: Map[Predef.Map, K, V] = Map(MapConstructor.map, MapDeconstructor.map)
   }
 
-  case class Dynamic(
+  final case class Dynamic(
     defaultValue: Option[() => DynamicValue] = None,
     examples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Binding[BindingType.Dynamic, DynamicValue] {
@@ -189,4 +184,6 @@ object Binding {
   implicit val bindingFromBinding: FromBinding[Binding] = new FromBinding[Binding] {
     def fromBinding[T, A](binding: Binding[T, A]): Binding[T, A] = binding
   }
+
+  def primitive[A]: Primitive[A] = Primitive()
 }
