@@ -7,7 +7,7 @@ sealed trait PrimitiveValue {
 
   def typeIndex: scala.Int
 
-  final def compare(that: PrimitiveValue): Int = PrimitiveValue.ordering.compare(this, that)
+  def compare(that: PrimitiveValue): scala.Int
 
   final def >(that: PrimitiveValue): Boolean = compare(that) > 0
 
@@ -33,6 +33,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Unit] = PrimitiveType.Unit
 
     def typeIndex: scala.Int = 0
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case _: Unit.type => 0
+      case _            => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Boolean(value: scala.Boolean) extends Val {
@@ -41,6 +46,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Boolean] = PrimitiveType.Boolean(Validation.None)
 
     def typeIndex: scala.Int = 1
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Boolean => value.compareTo(x.value)
+      case _          => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Byte(value: scala.Byte) extends Val {
@@ -49,6 +59,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Byte] = PrimitiveType.Byte(Validation.None)
 
     def typeIndex: scala.Int = 2
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Byte => value.compareTo(x.value)
+      case _       => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Short(value: scala.Short) extends Val {
@@ -57,6 +72,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Short] = PrimitiveType.Short(Validation.None)
 
     def typeIndex: scala.Int = 3
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Short => value.compareTo(x.value)
+      case _        => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Int(value: scala.Int) extends Val {
@@ -65,6 +85,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Int] = PrimitiveType.Int(Validation.None)
 
     def typeIndex: scala.Int = 4
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Int => value.compareTo(x.value)
+      case _      => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Long(value: scala.Long) extends Val {
@@ -73,6 +98,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Long] = PrimitiveType.Long(Validation.None)
 
     def typeIndex: scala.Int = 5
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Long => value.compareTo(x.value)
+      case _       => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Float(value: scala.Float) extends Val {
@@ -81,6 +111,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Float] = PrimitiveType.Float(Validation.None)
 
     def typeIndex: scala.Int = 6
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Float => value.compareTo(x.value)
+      case _        => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Double(value: scala.Double) extends Val {
@@ -89,6 +124,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Double] = PrimitiveType.Double(Validation.None)
 
     def typeIndex: scala.Int = 7
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Double => value.compareTo(x.value)
+      case _         => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Char(value: scala.Char) extends Val {
@@ -97,6 +137,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.Char] = PrimitiveType.Char(Validation.None)
 
     def typeIndex: scala.Int = 8
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Char => value.compareTo(x.value)
+      case _       => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class String(value: Predef.String) extends Ref {
@@ -105,6 +150,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[Predef.String] = PrimitiveType.String(Validation.None)
 
     def typeIndex: scala.Int = 9
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: String => value.compareTo(x.value)
+      case _         => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class BigInt(value: scala.BigInt) extends Ref {
@@ -113,6 +163,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.BigInt] = PrimitiveType.BigInt(Validation.None)
 
     def typeIndex: scala.Int = 10
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: BigInt => value.compareTo(x.value)
+      case _         => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class BigDecimal(value: scala.BigDecimal) extends Ref {
@@ -121,6 +176,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[scala.BigDecimal] = PrimitiveType.BigDecimal(Validation.None)
 
     def typeIndex: scala.Int = 11
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: BigDecimal => value.compareTo(x.value)
+      case _             => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class DayOfWeek(value: java.time.DayOfWeek) extends Ref {
@@ -129,6 +189,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.DayOfWeek] = PrimitiveType.DayOfWeek(Validation.None)
 
     def typeIndex: scala.Int = 12
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: DayOfWeek => value.compareTo(x.value)
+      case _            => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Duration(value: java.time.Duration) extends Ref {
@@ -137,6 +202,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.Duration] = PrimitiveType.Duration(Validation.None)
 
     def typeIndex: scala.Int = 13
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Duration => value.compareTo(x.value)
+      case _           => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Instant(value: java.time.Instant) extends Ref {
@@ -145,6 +215,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.Instant] = PrimitiveType.Instant(Validation.None)
 
     def typeIndex: scala.Int = 14
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Instant => value.compareTo(x.value)
+      case _          => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class LocalDate(value: java.time.LocalDate) extends Ref {
@@ -153,6 +228,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.LocalDate] = PrimitiveType.LocalDate(Validation.None)
 
     def typeIndex: scala.Int = 15
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: LocalDate => value.compareTo(x.value)
+      case _            => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class LocalDateTime(value: java.time.LocalDateTime) extends Ref {
@@ -161,6 +241,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.LocalDateTime] = PrimitiveType.LocalDateTime(Validation.None)
 
     def typeIndex: scala.Int = 16
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: LocalDateTime => value.compareTo(x.value)
+      case _                => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class LocalTime(value: java.time.LocalTime) extends Ref {
@@ -169,6 +254,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.LocalTime] = PrimitiveType.LocalTime(Validation.None)
 
     def typeIndex: scala.Int = 17
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: LocalTime => value.compareTo(x.value)
+      case _            => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Month(value: java.time.Month) extends Ref {
@@ -177,6 +267,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.Month] = PrimitiveType.Month(Validation.None)
 
     def typeIndex: scala.Int = 18
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Month => value.compareTo(x.value)
+      case _        => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class MonthDay(value: java.time.MonthDay) extends Ref {
@@ -185,6 +280,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.MonthDay] = PrimitiveType.MonthDay(Validation.None)
 
     def typeIndex: scala.Int = 19
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: MonthDay => value.compareTo(x.value)
+      case _           => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class OffsetDateTime(value: java.time.OffsetDateTime) extends Ref {
@@ -193,6 +293,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.OffsetDateTime] = PrimitiveType.OffsetDateTime(Validation.None)
 
     def typeIndex: scala.Int = 20
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: OffsetDateTime => value.compareTo(x.value)
+      case _                 => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class OffsetTime(value: java.time.OffsetTime) extends Ref {
@@ -201,6 +306,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.OffsetTime] = PrimitiveType.OffsetTime(Validation.None)
 
     def typeIndex: scala.Int = 21
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: OffsetTime => value.compareTo(x.value)
+      case _             => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Period(value: java.time.Period) extends Ref {
@@ -209,6 +319,13 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.Period] = PrimitiveType.Period(Validation.None)
 
     def typeIndex: scala.Int = 22
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Period =>
+        val xv = x.value
+        (value.toTotalMonths * 30.436875 + value.getDays).compareTo(xv.toTotalMonths * 30.436875 + xv.getDays)
+      case _ => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Year(value: java.time.Year) extends Ref {
@@ -217,6 +334,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.Year] = PrimitiveType.Year(Validation.None)
 
     def typeIndex: scala.Int = 23
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Year => value.compareTo(x.value)
+      case _       => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class YearMonth(value: java.time.YearMonth) extends Ref {
@@ -225,6 +347,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.YearMonth] = PrimitiveType.YearMonth(Validation.None)
 
     def typeIndex: scala.Int = 24
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: YearMonth => value.compareTo(x.value)
+      case _            => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class ZoneId(value: java.time.ZoneId) extends Ref {
@@ -233,6 +360,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.ZoneId] = PrimitiveType.ZoneId(Validation.None)
 
     def typeIndex: scala.Int = 25
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: ZoneId => value.getId.compareTo(x.value.getId)
+      case _         => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class ZoneOffset(value: java.time.ZoneOffset) extends Ref {
@@ -241,6 +373,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.ZoneOffset] = PrimitiveType.ZoneOffset(Validation.None)
 
     def typeIndex: scala.Int = 26
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: ZoneOffset => value.compareTo(x.value)
+      case _             => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class ZonedDateTime(value: java.time.ZonedDateTime) extends Ref {
@@ -249,6 +386,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.time.ZonedDateTime] = PrimitiveType.ZonedDateTime(Validation.None)
 
     def typeIndex: scala.Int = 27
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: ZonedDateTime => value.compareTo(x.value)
+      case _                => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class Currency(value: java.util.Currency) extends Ref {
@@ -257,6 +399,11 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.util.Currency] = PrimitiveType.Currency(Validation.None)
 
     def typeIndex: scala.Int = 28
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: Currency => value.getCurrencyCode.compareTo(x.value.getCurrencyCode)
+      case _           => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   case class UUID(value: java.util.UUID) extends Ref {
@@ -265,46 +412,14 @@ object PrimitiveValue {
     def primitiveType: PrimitiveType[java.util.UUID] = PrimitiveType.UUID(Validation.None)
 
     def typeIndex: scala.Int = 29
+
+    def compare(that: PrimitiveValue): scala.Int = that match {
+      case x: UUID => value.compareTo(x.value)
+      case _       => typeIndex.compareTo(that.typeIndex)
+    }
   }
 
   implicit def ordering: Ordering[PrimitiveValue] = new Ordering[PrimitiveValue] {
-    def period2Days(p: java.time.Period): scala.Int = (p.getYears() * 12 + p.getMonths()) * 30 + p.getDays()
-
-    def currencyCompare(x: java.util.Currency, y: java.util.Currency): scala.Int =
-      x.getCurrencyCode().compareTo(y.getCurrencyCode())
-
-    def compare(x: PrimitiveValue, y: PrimitiveValue): scala.Int = (x, y) match {
-      case (Unit, Unit)                           => 0
-      case (Boolean(x), Boolean(y))               => x.compare(y)
-      case (Byte(x), Byte(y))                     => x.compare(y)
-      case (Short(x), Short(y))                   => x.compare(y)
-      case (Int(x), Int(y))                       => x.compare(y)
-      case (Long(x), Long(y))                     => x.compare(y)
-      case (Float(x), Float(y))                   => x.compare(y)
-      case (Double(x), Double(y))                 => x.compare(y)
-      case (Char(x), Char(y))                     => x.compare(y)
-      case (String(x), String(y))                 => x.compare(y)
-      case (BigInt(x), BigInt(y))                 => x.compare(y)
-      case (BigDecimal(x), BigDecimal(y))         => x.compare(y)
-      case (DayOfWeek(x), DayOfWeek(y))           => x.compareTo(y)
-      case (Duration(x), Duration(y))             => x.compareTo(y)
-      case (Instant(x), Instant(y))               => x.compareTo(y)
-      case (LocalDate(x), LocalDate(y))           => x.compareTo(y)
-      case (LocalDateTime(x), LocalDateTime(y))   => x.compareTo(y)
-      case (LocalTime(x), LocalTime(y))           => x.compareTo(y)
-      case (Month(x), Month(y))                   => x.compareTo(y)
-      case (MonthDay(x), MonthDay(y))             => x.compareTo(y)
-      case (OffsetDateTime(x), OffsetDateTime(y)) => x.compareTo(y)
-      case (OffsetTime(x), OffsetTime(y))         => x.compareTo(y)
-      case (Period(x), Period(y))                 => period2Days(x).compareTo(period2Days(y))
-      case (Year(x), Year(y))                     => x.compareTo(y)
-      case (YearMonth(x), YearMonth(y))           => x.compareTo(y)
-      case (ZoneId(x), ZoneId(y))                 => x.toString().compareTo(y.toString())
-      case (ZoneOffset(x), ZoneOffset(y))         => x.compareTo(y)
-      case (ZonedDateTime(x), ZonedDateTime(y))   => x.compareTo(y)
-      case (Currency(x), Currency(y))             => currencyCompare(x, y)
-      case (UUID(x), UUID(y))                     => x.compareTo(y)
-      case (x, y)                                 => x.typeIndex.compareTo(y.typeIndex)
-    }
+    def compare(x: PrimitiveValue, y: PrimitiveValue): scala.Int = x.compare(y)
   }
 }

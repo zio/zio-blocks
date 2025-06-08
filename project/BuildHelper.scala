@@ -95,7 +95,13 @@ object BuildHelper {
       )
   )
 
-  def nativeSettings: Seq[Def.Setting[?]] = Seq(coverageEnabled := false, Test / fork := false)
+  def nativeSettings: Seq[Def.Setting[?]] = Seq(
+    coverageEnabled := false,
+    Test / fork     := false
+  )
 
-  def jsSettings: Seq[Def.Setting[?]] = Seq(coverageEnabled := false, Test / fork := false)
+  def jsSettings: Seq[Def.Setting[?]] = Seq(
+    coverageEnabled := false,
+    Test / fork     := false
+  )
 }
