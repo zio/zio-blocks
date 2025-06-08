@@ -5,7 +5,7 @@ sealed trait DynamicValue {
 
   def typeIndex: Int
 
-  final def compare(that: DynamicValue): Int = DynamicValue.ordering.compare(this, that)
+  def compare(that: DynamicValue): Int
 
   final def >(that: DynamicValue): Boolean = compare(that) > 0
 
@@ -27,11 +27,9 @@ object DynamicValue {
 
     def typeIndex: Int = 0
 
-    def compare(that: Primitive): Int = Primitive.ordering.compare(this, that)
-  }
-  object Primitive {
-    implicit val ordering: Ordering[Primitive] = new Ordering[Primitive] {
-      def compare(x: Primitive, y: Primitive): Int = x.value.compare(y.value)
+    def compare(that: DynamicValue): Int = that match {
+      case thatPrimitive: Primitive => value.compare(thatPrimitive.value)
+      case _                        => typeIndex.compareTo(that.typeIndex)
     }
   }
 
@@ -55,23 +53,25 @@ object DynamicValue {
 
     def typeIndex: Int = 1
 
-    def compare(that: Record): Int = Record.ordering.compare(this, that)
-  }
-  object Record {
-    implicit val ordering: Ordering[Record] = new Ordering[Record] {
-      def compare(x: Record, y: Record): Int = {
-        val len = x.fields.length
-        if (len != y.fields.length) return len.compareTo(y.fields.length)
-        var idx = 0
-        while (idx < len) {
-          val kv1 = x.fields(idx)
-          val kv2 = y.fields(idx)
-          if (kv1._1 != kv2._1) return kv1._1.compare(kv2._1)
-          if (kv1._2 != kv2._2) return kv1._2.compare(kv2._2)
+    def compare(that: DynamicValue): Int = that match {
+      case thatRecord: Record =>
+        val xs     = fields
+        val ys     = thatRecord.fields
+        val xLen   = xs.length
+        val yLen   = ys.length
+        val minLen = Math.min(xLen, yLen)
+        var idx    = 0
+        while (idx < minLen) {
+          val kv1 = xs(idx)
+          val kv2 = ys(idx)
+          var cmp = kv1._1.compare(kv2._1)
+          if (cmp != 0) return cmp
+          cmp = kv1._2.compare(kv2._2)
+          if (cmp != 0) return cmp
           idx += 1
         }
-        0
-      }
+        xLen.compareTo(yLen)
+      case _ => typeIndex.compareTo(that.typeIndex)
     }
   }
 
@@ -85,16 +85,12 @@ object DynamicValue {
 
     def typeIndex: Int = 2
 
-    def compare(that: Variant): Int = Variant.ordering.compare(this, that)
-  }
-
-  object Variant {
-    implicit val ordering: Ordering[Variant] = new Ordering[Variant] {
-      def compare(x: Variant, y: Variant): Int = {
-        val cmp = x.caseName.compare(y.caseName)
+    def compare(that: DynamicValue): Int = that match {
+      case thatVariant: Variant =>
+        val cmp = caseName.compare(thatVariant.caseName)
         if (cmp != 0) return cmp
-        x.value.compare(y.value)
-      }
+        value.compare(thatVariant.value)
+      case _ => typeIndex.compareTo(that.typeIndex)
     }
   }
 
@@ -105,9 +101,7 @@ object DynamicValue {
         if (len != thatElements.length) return false
         var idx = 0
         while (idx < len) {
-          val v1 = elements(idx)
-          val v2 = thatElements(idx)
-          if (v1 != v2) return false
+          if (elements(idx) != thatElements(idx)) return false
           idx += 1
         }
         true
@@ -118,23 +112,21 @@ object DynamicValue {
 
     def typeIndex: Int = 3
 
-    def compare(that: Sequence): Int = Sequence.ordering.compare(this, that)
-  }
-
-  object Sequence {
-    implicit val ordering: Ordering[Sequence] = new Ordering[Sequence] {
-      def compare(x: Sequence, y: Sequence): Int = {
-        val len = x.elements.length
-        if (len != y.elements.length) return len.compareTo(y.elements.length)
-        var idx = 0
-        while (idx < len) {
-          val v1 = x.elements(idx)
-          val v2 = y.elements(idx)
-          if (v1 != v2) return v1.compare(v2)
+    def compare(that: DynamicValue): Int = that match {
+      case thatSequence: Sequence =>
+        val xs     = elements
+        val ys     = thatSequence.elements
+        val xLen   = xs.length
+        val yLen   = ys.length
+        val minLen = Math.min(xLen, yLen)
+        var idx    = 0
+        while (idx < minLen) {
+          val cmp = xs(idx).compare(ys(idx))
+          if (cmp != 0) return cmp
           idx += 1
         }
-        0
-      }
+        xLen.compareTo(yLen)
+      case _ => typeIndex.compareTo(that.typeIndex)
     }
   }
 
@@ -158,37 +150,31 @@ object DynamicValue {
 
     def typeIndex: Int = 4
 
-    def compare(that: Map): Int = Map.ordering.compare(this, that)
-  }
-
-  object Map {
-    implicit val ordering: Ordering[Map] = new Ordering[Map] {
-      def compare(x: Map, y: Map): Int = {
-        val len = x.entries.length
-        if (len != y.entries.length) return len.compareTo(y.entries.length)
-        var idx = 0
-        while (idx < len) {
-          val kv1 = x.entries(idx)
-          val kv2 = y.entries(idx)
-          if (kv1._1 != kv2._1) return kv1._1.compare(kv2._1)
-          if (kv1._2 != kv2._2) return kv1._2.compare(kv2._2)
+    def compare(that: DynamicValue): Int = that match {
+      case thatMap: Map =>
+        val xs     = entries
+        val ys     = thatMap.entries
+        val xLen   = xs.length
+        val yLen   = ys.length
+        val minLen = Math.min(xLen, yLen)
+        var idx    = 0
+        while (idx < minLen) {
+          val kv1 = xs(idx)
+          val kv2 = ys(idx)
+          var cmp = kv1._1.compare(kv2._1)
+          if (cmp != 0) return cmp
+          cmp = kv1._2.compare(kv2._2)
+          if (cmp != 0) return cmp
           idx += 1
         }
-        0
-      }
+        xLen.compareTo(yLen)
+      case _ => typeIndex.compareTo(that.typeIndex)
     }
   }
 
   final def fromJson(rawJson: String): DynamicValue = json.dynamicValueFromJson(rawJson)
 
   implicit def ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {
-    def compare(x: DynamicValue, y: DynamicValue): Int = (x, y) match {
-      case (x @ Primitive(_), y @ Primitive(_))   => x.compare(y)
-      case (x @ Record(_), y @ Record(_))         => x.compare(y)
-      case (x @ Variant(_, _), y @ Variant(_, _)) => x.compare(y)
-      case (x @ Sequence(_), y @ Sequence(_))     => x.compare(y)
-      case (x @ Map(_), y @ Map(_))               => x.compare(y)
-      case (x, y)                                 => x.typeIndex.compareTo(y.typeIndex)
-    }
+    def compare(x: DynamicValue, y: DynamicValue): Int = x.compare(y)
   }
 }
