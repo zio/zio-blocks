@@ -29,7 +29,7 @@ object DynamicValue {
 
     def compare(that: DynamicValue): Int = that match {
       case thatPrimitive: Primitive => value.compare(thatPrimitive.value)
-      case _                        => typeIndex.compareTo(that.typeIndex)
+      case _                        => -that.typeIndex
     }
   }
 
@@ -71,7 +71,7 @@ object DynamicValue {
           idx += 1
         }
         xLen.compareTo(yLen)
-      case _ => typeIndex.compareTo(that.typeIndex)
+      case _ => 1 - that.typeIndex
     }
   }
 
@@ -90,7 +90,7 @@ object DynamicValue {
         val cmp = caseName.compare(thatVariant.caseName)
         if (cmp != 0) return cmp
         value.compare(thatVariant.value)
-      case _ => typeIndex.compareTo(that.typeIndex)
+      case _ => 2 - that.typeIndex
     }
   }
 
@@ -126,7 +126,7 @@ object DynamicValue {
           idx += 1
         }
         xLen.compareTo(yLen)
-      case _ => typeIndex.compareTo(that.typeIndex)
+      case _ => 3 - that.typeIndex
     }
   }
 
@@ -168,7 +168,7 @@ object DynamicValue {
           idx += 1
         }
         xLen.compareTo(yLen)
-      case _ => typeIndex.compareTo(that.typeIndex)
+      case _ => 4 - that.typeIndex
     }
   }
 
