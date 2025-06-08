@@ -32,7 +32,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
       }
       idx += 1
     }
-    sb.toString
+    if (sb.isEmpty) "."
+    else sb.toString
   }
 }
 

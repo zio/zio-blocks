@@ -1,16 +1,31 @@
 package zio.blocks.schema
 
+import scala.collection.concurrent.TrieMap
+import scala.quoted._
+import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.RegisterOffset._
+
 trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecific.derived }
 }
 
 private object SchemaVersionSpecific {
-  import scala.quoted._
+  private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
+  private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
+    override def compare(x: Array[String], y: Array[String]): Int = {
+      val minLen = math.min(x.length, y.length)
+      var idx    = 0
+      while (idx < minLen) {
+        val cmp = x(idx).compareTo(y(idx))
+        if (cmp != 0) return cmp
+        idx += 1
+      }
+      x.length.compare(y.length)
+    }
+  }
 
   def derived[A: Type](using Quotes): Expr[Schema[A]] = {
     import quotes.reflect._
-    import zio.blocks.schema.binding._
-    import zio.blocks.schema.binding.RegisterOffset._
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
@@ -22,6 +37,16 @@ private object SchemaVersionSpecific {
       flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
     }
 
+    def isUnion(tpe: TypeRepr): Boolean = tpe match {
+      case OrType(_, _) => true
+      case _            => false
+    }
+
+    def allUnionTypes(tpe: TypeRepr): Set[TypeRepr] = tpe.dealias match {
+      case OrType(left, right) => allUnionTypes(left) ++ allUnionTypes(right)
+      case dealiased           => Set(dealiased)
+    }
+
     def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
@@ -31,6 +56,14 @@ private object SchemaVersionSpecific {
       case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
       case _                        => Nil
     }
+
+    def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[_]]
+
+    def isEither(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Either[_, _]]
+
+    def isCollection(tpe: TypeRepr): Boolean =
+      tpe <:< TypeRepr.of[Iterable[_]] || tpe <:< TypeRepr.of[Iterator[_]] || tpe <:< TypeRepr.of[Array[_]] ||
+        tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
     def directSubTypes(tpe: TypeRepr): Seq[TypeRepr] = {
       def resolveParentTypeArg(
@@ -75,12 +108,11 @@ private object SchemaVersionSpecific {
                 "custom implicitly accessible schema"
             )
           }
-          val nudeSubtype      = TypeIdent(sym).tpe
-          val tpeArgsFromChild = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
+          val nudeSubtype = TypeIdent(sym).tpe
           nudeSubtype.memberType(sym.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
             case PolyType(names, bounds, resPolyTp) =>
-              val tpBinding = tpeArgsFromChild
+              val tpBinding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
                 .zip(typeArgs(tpe))
                 .foldLeft(Map.empty[String, TypeRepr])((s, e) => resolveParentTypeArg(sym, e._1, e._2, s))
               val ctArgs = names.map { name =>
@@ -115,23 +147,67 @@ private object SchemaVersionSpecific {
       }
     }
 
+    def isNonRecursive(tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
+      tpe,
+      tpe =:= TypeRepr.of[String] || tpe =:= TypeRepr.of[Boolean] || tpe =:= TypeRepr.of[Byte] ||
+        tpe =:= TypeRepr.of[Char] || tpe =:= TypeRepr.of[Short] || tpe =:= TypeRepr.of[Float] ||
+        tpe =:= TypeRepr.of[Int] || tpe =:= TypeRepr.of[Double] || tpe =:= TypeRepr.of[Long] ||
+        tpe =:= TypeRepr.of[BigDecimal] || tpe =:= TypeRepr.of[BigInt] || tpe =:= TypeRepr.of[Unit] ||
+        tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
+        tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) || {
+          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else {
+            isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
+              val primaryConstructor = tpe.classSymbol.get.primaryConstructor
+              primaryConstructor.exists && {
+                val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
+                  case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
+                  case ps                                     => (Nil, ps)
+                }
+                val nestedTpes_ = tpe :: nestedTpes
+                val tpeTypeArgs = typeArgs(tpe)
+                if (tpeTypeArgs.isEmpty) {
+                  tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
+                } else {
+                  tpeParams.forall(_.forall { symbol =>
+                    val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                    isNonRecursive(fTpe, nestedTpes_)
+                  })
+                }
+              }
+            }
+          }
+        }
+    )
+
     def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
-      var packages = List.empty[String]
-      var values   = List.empty[String]
-      val name     = tpe.typeSymbol.name.toString
-      var owner    = tpe.typeSymbol.owner
-      while (owner != defn.RootClass) {
-        val ownerName = owner.name.toString
-        if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
-        else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
-        else values = ownerName :: values
-        owner = owner.owner
+      var packages  = List.empty[String]
+      var values    = List.empty[String]
+      var tpeSymbol = tpe.typeSymbol
+      var name      = tpeSymbol.name
+      if (tpe.termSymbol.flags.is(Flags.Enum)) {
+        name = tpe.termSymbol.name
+        var ownerName = tpeSymbol.name
+        if (tpeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
+        values = ownerName :: values
+      } else if (tpeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+      if (tpeSymbol != Symbol.noSymbol) {
+        var owner = tpeSymbol.owner
+        while (owner != defn.RootClass) {
+          val ownerName = owner.name
+          if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+          else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
+          else values = ownerName :: values
+          owner = owner.owner
+        }
       }
       (packages, values, name)
     }
 
     def modifiers(tpe: TypeRepr): Seq[Expr[Modifier.config]] =
-      tpe.typeSymbol.annotations
+      (if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol else tpe.typeSymbol).annotations
         .filter(_.tpe =:= TypeRepr.of[Modifier.config])
         .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
           '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
@@ -140,6 +216,21 @@ private object SchemaVersionSpecific {
 
     val tpe                      = TypeRepr.of[A].dealias
     val (packages, values, name) = typeName(tpe)
+
+    def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
+      var minFullName = typesWithFullNames.head._2
+      var maxFullName = typesWithFullNames.last._2
+      if (!isUnion(tpe)) {
+        val tpeFullName = packages.toArray ++ values.toArray :+ name
+        if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+        if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+      }
+      val minLength = Math.min(minFullName.length, maxFullName.length)
+      var idx       = 0
+      while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+      idx
+    }
+
     val schema =
       if (isEnumOrModuleValue(tpe)) {
         '{
@@ -153,29 +244,35 @@ private object SchemaVersionSpecific {
 
                   def construct(in: Registers, baseOffset: RegisterOffset): A = ${ Ref(tpe.termSymbol).asExprOf[A] }
                 },
-                deconstructor = Deconstructor.unit.asInstanceOf[Deconstructor[A]]
+                deconstructor = new Deconstructor[A] {
+                  def usedRegisters: RegisterOffset = 0
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ()
+                }
               ),
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
         }
-      } else if (isSealedTraitOrAbstractClass(tpe)) {
-        val subTypes = directSubTypes(tpe)
+      } else if (isSealedTraitOrAbstractClass(tpe) || isUnion(tpe)) {
+        val subTypes =
+          if (isUnion(tpe)) allUnionTypes(tpe).toSeq
+          else directSubTypes(tpe)
         if (subTypes.isEmpty) {
           fail(
             s"Cannot find sub-types for ADT base '$tpe'. " +
               "Please add them or provide an implicitly accessible schema for the ADT base."
           )
         }
-        val cases = subTypes.map { sTpe =>
+        val subTypesWithFullNames = subTypes.map { sTpe =>
+          val (packages, values, name) = typeName(sTpe)
+          (sTpe, packages.toArray ++ values.toArray :+ name)
+        }.sortBy(_._2)
+        val length = maxCommonPrefixLength(subTypesWithFullNames)
+        val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
-              val (_, sValues, sName) = typeName(sTpe)
-              val diffValues =
-                values.zipAll(sValues, "", "").dropWhile { case (x, y) => x == y }.map(_._2).takeWhile(_ != "")
-              var termName = sName
-              if (termName.endsWith("$")) termName = termName.substring(0, termName.length - 1)
-              if (diffValues.nonEmpty) termName = diffValues.mkString("", ".", "." + termName)
+              val termName = fullName.drop(length).mkString(".")
               val usingExpr = Expr.summon[Schema[st]].getOrElse {
                 fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
               }
@@ -187,15 +284,15 @@ private object SchemaVersionSpecific {
 
         def discr(a: Expr[A]) = Match(
           '{ $a: @scala.unchecked }.asTerm,
-          subTypes.map {
+          subTypesWithFullNames.map {
             var idx = -1
-            (sTpe: TypeRepr) =>
+            x =>
               idx += 1
-              CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Expr(idx).asTerm)
+              CaseDef(Typed(Wildcard(), Inferred(x._1)), None, Expr(idx).asTerm)
           }.toList
         ).asExprOf[Int]
 
-        val matcherCases = subTypes.map { (sTpe: TypeRepr) =>
+        val matcherCases = subTypesWithFullNames.map { case (sTpe, _) =>
           sTpe.asType match {
             case '[st] =>
               '{
@@ -231,7 +328,6 @@ private object SchemaVersionSpecific {
           defaultValue: Option[Term],
           const: (Expr[Registers], Expr[RegisterOffset]) => Term,
           deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term,
-          isDeferred: Boolean,
           isTransient: Boolean,
           config: List[(String, String)]
         )
@@ -261,13 +357,10 @@ private object SchemaVersionSpecific {
                 if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
                 getter = getters.head
               }
-              val isDeferred  = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.deferred])
               val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
               val config = getter.annotations
                 .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-                .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
-                  (k, v)
-                }
+                .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
                 .reverse
               val defaultValue =
                 if (symbol.flags.is(Flags.HasDefault)) {
@@ -290,7 +383,10 @@ private object SchemaVersionSpecific {
               val bytes                                                             = Expr(RegisterOffset.getBytes(registersUsed))
               val objects                                                           = Expr(RegisterOffset.getObjects(registersUsed))
               var offset                                                            = RegisterOffset.Zero
-              if (fTpe =:= TypeRepr.of[Boolean]) {
+              if (fTpe =:= TypeRepr.of[Unit]) {
+                const = (in, baseOffset) => '{ () }.asTerm
+                deconst = (out, baseOffset, in) => '{ () }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Boolean]) {
                 offset = RegisterOffset(booleans = 1)
                 const = (in, baseOffset) => '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
                 deconst = (out, baseOffset, in) =>
@@ -337,33 +433,33 @@ private object SchemaVersionSpecific {
                   '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
               }
               registersUsed = RegisterOffset.add(registersUsed, offset)
-              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isDeferred, isTransient, config)
+              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
           }
         })
         val fields =
           fieldInfos.flatMap(_.map { fieldInfo =>
-            fieldInfo.tpe.asType match {
+            val fTpe = fieldInfo.tpe
+            fTpe.asType match {
               case '[ft] =>
                 val nameExpr = Expr(fieldInfo.name)
                 val usingExpr = Expr.summon[Schema[ft]].getOrElse {
-                  fail(s"Cannot find implicitly accessible schema for '${fieldInfo.tpe.show}'")
+                  fail(s"Cannot find implicitly accessible schema for '${fTpe.show}'")
                 }
                 val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
-                var fieldTermExpr = if (fieldInfo.isDeferred) {
-                  fieldInfo.defaultValue
-                    .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
-                      '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
-                    }
-                } else {
+                var fieldTermExpr = if (isNonRecursive(fTpe)) {
                   fieldInfo.defaultValue
                     .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { dv =>
                       '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }).asTerm[A]($nameExpr) }
+                    }
+                } else {
+                  fieldInfo.defaultValue
+                    .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
+                      '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
                     }
                 }
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
-                if (fieldInfo.isDeferred) modifiers = modifiers :+ '{ Modifier.deferred() }.asExprOf[Modifier.Term]
                 if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
                 if (modifiers.nonEmpty) {
                   val modifiersExpr = Expr.ofSeq(modifiers)
@@ -387,8 +483,10 @@ private object SchemaVersionSpecific {
 
         def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[A])(using Quotes): Expr[Unit] = {
           val terms = fieldInfos.flatMap(_.map(_.deconst(out, baseOffset, in)))
-          if (terms.size > 1) Block(terms.init, terms.last)
-          else terms.head
+          val size  = terms.size
+          if (size > 1) Block(terms.init, terms.last)
+          else if (size > 0) terms.head
+          else Literal(UnitConstant())
         }.asExprOf[Unit]
 
         '{

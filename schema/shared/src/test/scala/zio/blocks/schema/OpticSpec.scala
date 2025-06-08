@@ -1,18 +1,19 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.DynamicOptic.Node.{Case, Elements, Field, MapKeys, MapValues}
-import zio.blocks.schema.OpticCheck.{EmptyMap, EmptySequence, UnexpectedCase}
+import zio.blocks.schema.DynamicOptic.Node.{Case, Elements, Field}
+import zio.blocks.schema.OpticCheck.{EmptySequence, UnexpectedCase}
 import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
+import scala.collection.immutable.ArraySeq
 
 object OpticSpec extends ZIOSpecDefault {
   import OpticSpecTypes._
 
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
-      test("path") {
+      test("toDynamic") {
         assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("b"))))) &&
         assert(Record2.r1_b.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("r1"), DynamicOptic.Node.Field("b"))))
@@ -22,13 +23,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("v1")))))
       },
       test("checks prerequisites for creation") {
-        ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
-        ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
-        ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Lens(null, Case4.reflect.fields(0).asInstanceOf[Term.Bound[Case4, List[Record3]]]))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("has consistent equals and hashCode") {
         assert(Record1.b)(equalTo(Record1.b)) &&
@@ -131,16 +132,16 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("checks prerequisites for creation") {
-        ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
-        ZIO.attempt(Prism(Variant1.c1, null)).flip.map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+        ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO.attempt(Prism(Variant1.c1, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Prism(Variant1.reflect, null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Prism(null, Variant1.reflect.cases(0).asInstanceOf[Term.Bound[Variant1, Case1]]))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1)(equalTo(Variant1.c1)) &&
@@ -186,144 +187,88 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c1.check(Case2(Record3(null, null, null))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case1"))),
-                    actualValue = Case2(Record3(null, null, null))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case1], encountered an unexpected case at .when[Case1]: expected Case1, but got Case2"
               )
             )
           )
         ) &&
         assert(Variant1.c2.check(Case1(0.1)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case2"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case2], encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
               )
             )
           )
         ) &&
         assert(Variant1.v2.check(Case1(0.1)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Variant2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
               )
             )
           )
         ) &&
         assert(Variant1.v2_c3.check(Case1(0.1)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Variant2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2].when[Case3], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
               )
             )
           )
         ) &&
         assert(Variant2.c3.check(Case4(List(Record3(null, null, null)))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(List(Record3(null, null, null)))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Variant2.c4.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case4",
-                    actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
-                    actualValue = Case3(Case1(0.1))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case4], encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
               )
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_left.check(Case6(null)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case5",
-                    actualCase = "Case6",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    actualValue = Case6(null)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]"
               )
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_right.check(Case6(null)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case5",
-                    actualCase = "Case6",
-                    full = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    prefix = DynamicOptic(Vector(Case("Variant2"), Case("Variant3"), Case("Case5"))),
-                    actualValue = Case6(null)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]: expected Case5, but got Case6"
               )
             )
           )
@@ -991,7 +936,7 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Optional")(
-      test("path") {
+      test("toDynamic") {
         assert(Variant1.c1_d.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"), DynamicOptic.Node.Field("d"))))
         ) &&
@@ -1005,6 +950,32 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("checks prerequisites for creation") {
+        ZIO
+          .attempt(Optional(null: Prism[Variant1, Case1], Case1.d))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Optional(Variant1.c1, null: Lens[Case1, Int]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Optional(null: Optional[Variant1, Case1], Case1.d))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Optional(Variant1.c2_r3_v1_c1, null: Lens[Case1, Int]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        ZIO
+          .attempt(Optional(Variant1.c2_r3_v1_c1, null: Optional[Case1, Int]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        ZIO
+          .attempt(Optional(null: Optional[Variant1, Variant1], Variant1.c1_d))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("check") {
         assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
@@ -1142,180 +1113,102 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c2_r3_r1.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case2",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"))),
-                    actualValue = Case3(Case1(0.1))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Variant2"
               )
             )
           )
         ) &&
         assert(Case2.r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("1")
             )
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("2")
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Variant2",
-                    actualCase = "Case1",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Variant2"))),
-                    actualValue = Case1(0.1)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("3")
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_left.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("4")
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_right.check(Case3(Case2(null))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Case2",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"))),
-                    actualValue = Case2(null)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3].v1.when[Case1]: expected Case1, but got Case2"
               )
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_d_right.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Case1].d, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Variant2.c3_v1.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(Vector(Case("Case3"), Field("v1"))),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
               )
             )
           )
         ) &&
         assert(Case3.v1_c1_d_right.check(Case3(Case4(Nil))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Variant2",
-                    full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
               )
             )
           )
@@ -2109,7 +2002,7 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Traversal")(
-      test("path") {
+      test("toDynamic") {
         assert(Record2.vi.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("vi"), DynamicOptic.Node.Elements)))
         ) &&
@@ -2124,19 +2017,31 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO
           .attempt(Traversal.arrayValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Traversal.listValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Traversal.setValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException])) &&
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.seqValues(null))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Traversal.vectorValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[IllegalArgumentException]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        ZIO
+          .attempt(Traversal.mapKeys(null))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.mapValues(null))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
       test("has consistent equals and hashCode") {
         assert(Record2.vi)(equalTo(Record2.vi)) &&
@@ -2152,6 +2057,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.r1_f: Any)(not(equalTo(Record2.vi))) &&
         assert(Variant2.c4_lr3: Any)(not(equalTo(Case4.lr3))) &&
         assert(Case4.lr3_r2_r1: Any)(not(equalTo(Case4.lr3))) &&
+        assert(Traversal.mapKeys(Reflect.map(Reflect.int, Reflect.int)))(
+          not(equalTo(Traversal.mapValues(Reflect.map(Reflect.int, Reflect.int))))
+        ) &&
         assert(Case4.lr3_r2_r1: Any)(not(equalTo(""))) &&
         assert(Collections.lb: Any)(not(equalTo(""))) &&
         assert(Collections.mkc: Any)(not(equalTo(""))) &&
@@ -2195,123 +2103,70 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mkv1_c1_d.check(Map(Case1(0.1) -> 1)))(isNone) &&
         assert(Collections.mvv1_c1_d.check(Map(1 -> Case1(0.1))))(isNone) &&
         assert(Record2.vi.check(Record2(2L, Vector(1, 2, 3), null)))(isNone) &&
+        assert(Case6.milk.check(Case6(Map(1 -> 2L))))(isNone) &&
+        assert(Case6.milv.check(Case6(Map(1 -> 2L))))(isNone) &&
         assert(Variant2.c4_lr3.check(Case4(List(Record3(null, null, null)))))(isNone) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(List(Record3(null, null, null))))))(isNone)
       },
       test("checks collection values and returns an error if they will not be modified") {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case1",
-                    actualCase = "Case2",
-                    full = DynamicOptic(Vector(MapKeys, Case("Case1"), Field("d"))),
-                    prefix = DynamicOptic(Vector(MapKeys, Case("Case1"))),
-                    actualValue = Case2(null)
-                  ),
-                  ::(
-                    UnexpectedCase(
-                      expectedCase = "Case1",
-                      actualCase = "Variant2",
-                      full = DynamicOptic(Vector(MapKeys, Case("Case1"), Field("d"))),
-                      prefix = DynamicOptic(Vector(MapKeys, Case("Case1"))),
-                      actualValue = Case6(null)
-                    ),
-                    Nil
-                  )
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Variant2"
               )
             )
           )
         ) &&
         assert(Collections.mkc.check(Map.empty[Char, String]))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  EmptyMap(
-                    full = DynamicOptic(Vector(MapKeys)),
-                    prefix = DynamicOptic(Vector(MapKeys)),
-                    actualValue = Map.empty[Char, String]
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("During attempted access at .eachKey, encountered an empty map at .eachKey")
             )
           )
         ) &&
         assert(Collections.mvs.check(Map.empty[Char, String]))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  EmptyMap(
-                    full = DynamicOptic(Vector(MapValues)),
-                    prefix = DynamicOptic(Vector(MapValues)),
-                    actualValue = Map.empty[Char, String]
-                  ),
-                  Nil
-                )
-              )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString("During attempted access at .eachValue, encountered an empty map at .eachValue")
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(Nil))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  EmptySequence(
-                    full = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
-                    ),
-                    prefix = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
-                    ),
-                    actualValue = Nil
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an empty sequence at .when[Case3].v1.when[Variant2].when[Case4].lr3.each"
               )
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case4(Nil)))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case3",
-                    actualCase = "Case4",
-                    full = DynamicOptic(
-                      Vector(Case("Case3"), Field("v1"), Case("Variant2"), Case("Case4"), Field("lr3"), Elements)
-                    ),
-                    prefix = DynamicOptic(Vector(Case("Case3"))),
-                    actualValue = Case4(Nil)
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
               )
             )
           )
         ) &&
         assert(Variant2.c4_lr3.check(Case3(Case1(0.1))))(
           isSome(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  UnexpectedCase(
-                    expectedCase = "Case4",
-                    actualCase = "Case3",
-                    full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
-                    prefix = DynamicOptic(Vector(Case("Case4"))),
-                    actualValue = Case3(Case1(0.1))
-                  ),
-                  Nil
-                )
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .when[Case4].lr3.each, encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
               )
             )
           )
@@ -2331,6 +2186,19 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.af.modify(Array(1.0f, 2.0f, 3.0f), _ + 1.0f).toList)(equalTo(List(2.0f, 3.0f, 4.0f))) &&
         assert(Collections.ac.modify(Array('a', 'b', 'c'), _.toUpper).toList)(equalTo(List('A', 'B', 'C'))) &&
         assert(Collections.as.modify(Array("1", "2", "3"), _ + "x").toList)(equalTo(List("1x", "2x", "3x"))) &&
+        assert(Collections.asbl.modify(ArraySeq(true, false, true), x => !x))(equalTo(ArraySeq(false, true, false))) &&
+        assert(Collections.asb.modify(ArraySeq(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte))(
+          equalTo(ArraySeq(2: Byte, 3: Byte, 4: Byte))
+        ) &&
+        assert(Collections.assh.modify(ArraySeq(1: Short, 2: Short, 3: Short), x => (x + 1).toShort))(
+          equalTo(ArraySeq(2: Short, 3: Short, 4: Short))
+        ) &&
+        assert(Collections.asi.modify(ArraySeq(1, 2, 3), _ + 1))(equalTo(ArraySeq(2, 3, 4))) &&
+        assert(Collections.asl.modify(ArraySeq(1L, 2L, 3L), _ + 1L))(equalTo(ArraySeq(2L, 3L, 4L))) &&
+        assert(Collections.asd.modify(ArraySeq(1.0, 2.0, 3.0), _ + 1.0))(equalTo(ArraySeq(2.0, 3.0, 4.0))) &&
+        assert(Collections.asf.modify(ArraySeq(1.0f, 2.0f, 3.0f), _ + 1.0f))(equalTo(ArraySeq(2.0f, 3.0f, 4.0f))) &&
+        assert(Collections.asc.modify(ArraySeq('a', 'b', 'c'), _.toUpper))(equalTo(ArraySeq('A', 'B', 'C'))) &&
+        assert(Collections.ass.modify(ArraySeq("1", "2", "3"), _ + "x"))(equalTo(ArraySeq("1x", "2x", "3x"))) &&
         assert(Collections.mkc.modify(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
           equalTo(Map('A' -> "1", 'B' -> "2", 'C' -> "3"))
         ) &&
@@ -2352,6 +2220,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.vi.modify(Record2(2L, Vector(1, 2, 3), null), _ + 1))(
           equalTo(Record2(2L, Vector(2, 3, 4), null))
         ) &&
+        assert(Case6.milk.modify(Case6(Map(1 -> 2L)), _ + 1))(equalTo(Case6(Map(2 -> 2L)))) &&
+        assert(Case6.milv.modify(Case6(Map(1 -> 2L)), _ + 1L))(equalTo(Case6(Map(1 -> 3L)))) &&
         assert(Variant2.c4_lr3.modify(Case4(List(Record3(null, null, null))), _ => null))(equalTo(Case4(List(null)))) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modify(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
           equalTo(Case3(Case4(List(null))))
@@ -2602,8 +2472,8 @@ object OpticSpecTypes {
   object Record1 extends CompanionOptics[Record1] {
     implicit val schema: Schema[Record1]       = Schema.derived
     val reflect: Reflect.Record.Bound[Record1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record1]]
-    val b: Lens[Record1, Boolean]              = field(_.b)
-    val f: Lens[Record1, Float]                = field(_.f)
+    val b: Lens[Record1, Boolean]              = optic(_.b)
+    val f: Lens[Record1, Float]                = optic(_.f)
   }
 
   case class Record2(l: Long, vi: Vector[Int], r1: Record1)
@@ -2611,46 +2481,46 @@ object OpticSpecTypes {
   object Record2 extends CompanionOptics[Record2] {
     implicit val schema: Schema[Record2]       = Schema.derived
     val reflect: Reflect.Record.Bound[Record2] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record2]]
-    val l: Lens[Record2, Long]                 = field(_.l)
-    val vi: Traversal[Record2, Int]            = field(_.vi).vectorValues
-    val r1: Lens[Record2, Record1]             = field(_.r1)
-    lazy val r1_b: Lens[Record2, Boolean]      = r1(Record1.b)
-    lazy val r1_f: Lens[Record2, Float]        = r1(Record1.f)
+    val l: Lens[Record2, Long]                 = optic(_.l)
+    val vi: Traversal[Record2, Int]            = optic(_.vi.each)
+    val r1: Lens[Record2, Record1]             = optic(_.r1)
+    val r1_b: Lens[Record2, Boolean]           = optic(_.r1.b)
+    val r1_f: Lens[Record2, Float]             = optic(_.r1.f)
   }
 
-  case class Record3(r1: Record1, r2: Record2, @Modifier.deferred v1: Variant1)
+  case class Record3(r1: Record1, r2: Record2, v1: Variant1)
 
   object Record3 extends CompanionOptics[Record3] {
-    implicit val schema: Schema[Record3]           = Schema.derived
-    val reflect: Reflect.Record.Bound[Record3]     = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record3]]
-    val r1: Lens[Record3, Record1]                 = field(_.r1)
-    val r2: Lens[Record3, Record2]                 = field(_.r2)
-    val v1: Lens[Record3, Variant1]                = field(_.v1)
-    lazy val r2_r1_b_left: Lens[Record3, Boolean]  = r2(Record2.r1)(Record1.b)
-    lazy val r2_r1_b_right: Lens[Record3, Boolean] = r2(Record2.r1(Record1.b))
-    lazy val v1_c1: Optional[Record3, Case1]       = v1(Variant1.c1)
+    implicit val schema: Schema[Record3]       = Schema.derived
+    val reflect: Reflect.Record.Bound[Record3] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Record3]]
+    val r1: Lens[Record3, Record1]             = optic(_.r1)
+    val r2: Lens[Record3, Record2]             = optic(_.r2)
+    val v1: Lens[Record3, Variant1]            = optic(_.v1)
+    val r2_r1_b_left: Lens[Record3, Boolean]   = r2(Record2.r1)(Record1.b)
+    val r2_r1_b_right: Lens[Record3, Boolean]  = r2(Record2.r1(Record1.b))
+    lazy val v1_c1: Optional[Record3, Case1]   = optic(_.v1.when[Case1])
   }
 
   sealed trait Variant1
 
   object Variant1 extends CompanionOptics[Variant1] {
-    implicit val schema: Schema[Variant1]                     = Schema.derived
-    val reflect: Reflect.Variant.Bound[Variant1]              = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
-    val c1: Prism[Variant1, Case1]                            = caseOf
-    val c2: Prism[Variant1, Case2]                            = caseOf
-    val v2: Prism[Variant1, Variant2]                         = caseOf
-    lazy val v2_c3: Prism[Variant1, Case3]                    = v2(Variant2.c3)
-    lazy val v2_c4: Prism[Variant1, Case4]                    = v2(Variant2.c4)
-    lazy val v2_v3_c5_left: Prism[Variant1, Case5]            = v2(Variant2.v3)(Variant3.c5)
-    lazy val v2_v3_c5_right: Prism[Variant1, Case5]           = v2(Variant2.v3(Variant3.c5))
-    lazy val v2_c4_lr3: Traversal[Variant1, Record3]          = v2(Variant2.c4(Case4.lr3))
-    lazy val v2_c3_v1: Optional[Variant1, Variant1]           = v2(Variant2.c3_v1)
-    lazy val c1_d: Optional[Variant1, Double]                 = c1(Case1.d)
-    lazy val c2_r3: Optional[Variant1, Record3]               = c2(Case2.r3)
-    lazy val c2_r3_r1: Optional[Variant1, Record1]            = c2_r3(Record3.r1)
-    lazy val c2_r3_r2_r1_b_left: Optional[Variant1, Boolean]  = c2_r3(Record3.r2_r1_b_left)
-    lazy val c2_r3_r2_r1_b_right: Optional[Variant1, Boolean] = c2_r3(Record3.r2_r1_b_right)
-    lazy val c2_r3_v1_c1: Optional[Variant1, Case1]           = c2_r3(Record3.v1_c1)
+    implicit val schema: Schema[Variant1]                = Schema.derived
+    val reflect: Reflect.Variant.Bound[Variant1]         = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant1]]
+    val c1: Prism[Variant1, Case1]                       = optic(_.when[Case1])
+    val c2: Prism[Variant1, Case2]                       = optic(_.when[Case2])
+    val v2: Prism[Variant1, Variant2]                    = optic(_.when[Variant2])
+    val v2_c3: Prism[Variant1, Case3]                    = optic(_.when[Variant2].when[Case3])
+    val v2_c4: Prism[Variant1, Case4]                    = optic(_.when[Variant2].when[Case4])
+    val v2_v3_c5_left: Prism[Variant1, Case5]            = v2(Variant2.v3)(Variant3.c5)
+    val v2_v3_c5_right: Prism[Variant1, Case5]           = v2(Variant2.v3(Variant3.c5))
+    val v2_c4_lr3: Traversal[Variant1, Record3]          = optic(_.when[Variant2].when[Case4].lr3.each)
+    val v2_c3_v1: Optional[Variant1, Variant1]           = optic(_.when[Variant2].when[Case3].v1)
+    val c1_d: Optional[Variant1, Double]                 = optic(_.when[Case1].d)
+    val c2_r3: Optional[Variant1, Record3]               = optic(_.when[Case2].r3)
+    val c2_r3_r1: Optional[Variant1, Record1]            = optic(_.when[Case2].r3.r1)
+    val c2_r3_r2_r1_b_left: Optional[Variant1, Boolean]  = c2_r3(Record3.r2_r1_b_left)
+    val c2_r3_r2_r1_b_right: Optional[Variant1, Boolean] = c2_r3(Record3.r2_r1_b_right)
+    lazy val c2_r3_v1_c1: Optional[Variant1, Case1]      = optic(_.when[Case2].r3.v1.when[Case1])
   }
 
   case class Case1(d: Double) extends Variant1
@@ -2658,7 +2528,7 @@ object OpticSpecTypes {
   object Case1 extends CompanionOptics[Case1] {
     implicit val schema: Schema[Case1]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case1] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case1]]
-    val d: Lens[Case1, Double]               = field(_.d)
+    val d: Lens[Case1, Double]               = optic(_.d)
   }
 
   case class Case2(r3: Record3) extends Variant1
@@ -2666,8 +2536,8 @@ object OpticSpecTypes {
   object Case2 extends CompanionOptics[Case2] {
     implicit val schema: Schema[Case2]        = Schema.derived
     val reflect: Reflect.Record.Bound[Case2]  = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case2]]
-    val r3: Lens[Case2, Record3]              = field(_.r3)
-    lazy val r3_v1_c1: Optional[Case2, Case1] = r3(Record3.v1_c1)
+    val r3: Lens[Case2, Record3]              = optic(_.r3)
+    lazy val r3_v1_c1: Optional[Case2, Case1] = optic(_.r3.v1.when[Case1])
   }
 
   sealed trait Variant2 extends Variant1
@@ -2675,94 +2545,104 @@ object OpticSpecTypes {
   object Variant2 extends CompanionOptics[Variant2] {
     implicit val schema: Schema[Variant2]                  = Schema.derived
     val reflect: Reflect.Variant.Bound[Variant2]           = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant2]]
-    val c3: Prism[Variant2, Case3]                         = caseOf
-    val c4: Prism[Variant2, Case4]                         = caseOf
-    val v3: Prism[Variant2, Variant3]                      = caseOf
-    lazy val c3_v1: Optional[Variant2, Variant1]           = c3(Case3.v1)
+    val c3: Prism[Variant2, Case3]                         = optic(_.when[Case3])
+    val c4: Prism[Variant2, Case4]                         = optic(_.when[Case4])
+    val v3: Prism[Variant2, Variant3]                      = optic(_.when[Variant3])
+    val c4_lr3: Traversal[Variant2, Record3]               = c4(Case4.lr3)
+    lazy val c3_v1: Optional[Variant2, Variant1]           = optic(_.when[Case3].v1)
     lazy val c3_v1_c1_left: Optional[Variant2, Case1]      = c3(Case3.v1)(Variant1.c1)
     lazy val c3_v1_c1_right: Optional[Variant2, Case1]     = c3(Case3.v1_c1)
     lazy val c3_v1_c1_d_left: Optional[Variant2, Double]   = c3(Case3.v1)(Variant1.c1_d)
     lazy val c3_v1_c1_d_right: Optional[Variant2, Double]  = c3_v1(Variant1.c1_d)
-    lazy val c3_v1_v2: Optional[Variant2, Variant2]        = c3(Case3.v1)(Variant1.v2)
-    lazy val c4_lr3: Traversal[Variant2, Record3]          = c4(Case4.lr3)
-    lazy val c3_v1_v2_c4_lr3: Traversal[Variant2, Record3] = c3_v1_v2(c4_lr3)
-    lazy val c3_v1_v2_c4: Optional[Variant2, Case4]        = c3_v1_v2(c4)
+    lazy val c3_v1_v2: Optional[Variant2, Variant2]        = optic(_.when[Case3].v1.when[Variant2])
+    lazy val c3_v1_v2_c4_lr3: Traversal[Variant2, Record3] = optic(_.when[Case3].v1.when[Variant2].when[Case4].lr3.each)
+    lazy val c3_v1_v2_c4: Optional[Variant2, Case4]        = optic(_.when[Case3].v1.when[Variant2].when[Case4])
   }
 
-  case class Case3(@Modifier.deferred v1: Variant1) extends Variant2
+  case class Case3(v1: Variant1) extends Variant2
 
   object Case3 extends CompanionOptics[Case3] {
     implicit val schema: Schema[Case3]                 = Schema.derived
     val reflect: Reflect.Record.Bound[Case3]           = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case3]]
-    val v1: Lens[Case3, Variant1]                      = field(_.v1)
-    lazy val v1_c1: Optional[Case3, Case1]             = v1(Variant1.c1)
+    val v1: Lens[Case3, Variant1]                      = optic(_.v1)
+    lazy val v1_c1: Optional[Case3, Case1]             = optic(_.v1.when[Case1])
     lazy val v1_c1_d_left: Optional[Case3, Double]     = v1(Variant1.c1)(Case1.d)
     lazy val v1_c1_d_right: Optional[Case3, Double]    = v1(Variant1.c1_d)
-    lazy val v1_v2: Optional[Case3, Variant2]          = v1(Variant1.v2)
-    lazy val v1_v2_c3_v1_v2: Optional[Case3, Variant2] = v1_v2(Variant2.c3(Case3.v1_v2))
+    lazy val v1_v2: Optional[Case3, Variant2]          = optic(_.v1.when[Variant2])
+    lazy val v1_v2_c3_v1_v2: Optional[Case3, Variant2] = optic(_.v1.when[Variant2].when[Case3].v1.when[Variant2])
   }
 
   case class Case4(lr3: List[Record3]) extends Variant2
 
   object Case4 extends CompanionOptics[Case4] {
-    implicit val schema: Schema[Case4]            = Schema.derived
-    val reflect: Reflect.Record.Bound[Case4]      = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case4]]
-    val lr3: Traversal[Case4, Record3]            = field(_.lr3).listValues
-    lazy val lr3_r2: Traversal[Case4, Record2]    = lr3(Record3.r2)
-    lazy val lr3_r2_r1: Traversal[Case4, Record1] = lr3_r2(Record2.r1)
+    implicit val schema: Schema[Case4]       = Schema.derived
+    val reflect: Reflect.Record.Bound[Case4] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case4]]
+    val lr3: Traversal[Case4, Record3]       = optic(_.lr3.each)
+    val lr3_r2: Traversal[Case4, Record2]    = optic(_.lr3.each.r2)
+    val lr3_r2_r1: Traversal[Case4, Record1] = optic(_.lr3.each.r2.r1)
   }
 
   sealed trait Variant3 extends Variant2
 
   object Variant3 extends CompanionOptics[Variant3] {
-    implicit val schema: Schema[Variant3]        = Schema.derived
-    val reflect: Reflect.Variant.Bound[Variant3] = schema.reflect.asInstanceOf[Reflect.Variant.Bound[Variant3]]
-    val c5: Prism[Variant3, Case5]               = caseOf
+    val reflect: Reflect.Deferred.Bound[Variant3] = Reflect.Deferred(() => Schema.derived[Variant3].reflect)
+    implicit val schema: Schema[Variant3]         = Schema(reflect) // to test prism derivation for Reflect.Deferred
+    val c5: Prism[Variant3, Case5]                = optic(_.when[Case5])
   }
 
   case class Case5(si: Set[Int], as: Array[String]) extends Variant3
 
   object Case5 extends CompanionOptics[Case5] {
-    implicit val schema: Schema[Case5]       = Schema.derived
-    val reflect: Reflect.Record.Bound[Case5] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case5]]
-    val si: Traversal[Case5, Int]            = field(_.si).setValues
-    val as: Traversal[Case5, String]         = field(_.as).arrayValues
+    val reflect: Reflect.Deferred.Bound[Case5] = Reflect.Deferred(() => Schema.derived[Case5].reflect)
+    implicit val schema: Schema[Case5]         = Schema(reflect) // to test lens derivation for Reflect.Deferred
+    val si: Traversal[Case5, Int]              = optic(_.si.each)
+    val as: Traversal[Case5, String]           = optic(_.as).arrayValues
   }
 
-  case class Case6(@Modifier.deferred v2: Variant2) extends Variant3
+  case class Case6(mil: Map[Int, Long]) extends Variant3
 
-  object Case6 {
+  object Case6 extends CompanionOptics[Case6] {
     implicit val schema: Schema[Case6]       = Schema.derived
     val reflect: Reflect.Record.Bound[Case6] = schema.reflect.asInstanceOf[Reflect.Record.Bound[Case6]]
+    val milk: Traversal[Case6, Int]          = optic(_.mil.eachKey)
+    val milv: Traversal[Case6, Long]         = optic(_.mil.eachValue)
   }
 
   object Collections {
-    val lb: Traversal[List[Byte], Byte]         = Traversal.listValues(Reflect.byte)
-    val vs: Traversal[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
-    val abl: Traversal[Array[Boolean], Boolean] = Traversal.arrayValues(Reflect.boolean)
-    val ab: Traversal[Array[Byte], Byte]        = Traversal.arrayValues(Reflect.byte)
-    val ash: Traversal[Array[Short], Short]     = Traversal.arrayValues(Reflect.short)
-    val ai: Traversal[Array[Int], Int]          = Traversal.arrayValues(Reflect.int)
-    val al: Traversal[Array[Long], Long]        = Traversal.arrayValues(Reflect.long)
-    val ad: Traversal[Array[Double], Double]    = Traversal.arrayValues(Reflect.double)
-    val af: Traversal[Array[Float], Float]      = Traversal.arrayValues(Reflect.float)
-    val ac: Traversal[Array[Char], Char]        = Traversal.arrayValues(Reflect.char)
-    val as: Traversal[Array[String], String]    = Traversal.arrayValues(Reflect.string)
-    val sf: Traversal[Set[Float], Float]        = Traversal.setValues(Reflect.float)
+    val lb: Traversal[List[Byte], Byte]             = Traversal.listValues(Reflect.byte)
+    val vs: Traversal[Vector[Short], Short]         = Traversal.vectorValues(Reflect.short)
+    val abl: Traversal[Array[Boolean], Boolean]     = Traversal.arrayValues(Reflect.boolean)
+    val ab: Traversal[Array[Byte], Byte]            = Traversal.arrayValues(Reflect.byte)
+    val ash: Traversal[Array[Short], Short]         = Traversal.arrayValues(Reflect.short)
+    val ai: Traversal[Array[Int], Int]              = Traversal.arrayValues(Reflect.int)
+    val al: Traversal[Array[Long], Long]            = Traversal.arrayValues(Reflect.long)
+    val ad: Traversal[Array[Double], Double]        = Traversal.arrayValues(Reflect.double)
+    val af: Traversal[Array[Float], Float]          = Traversal.arrayValues(Reflect.float)
+    val ac: Traversal[Array[Char], Char]            = Traversal.arrayValues(Reflect.char)
+    val as: Traversal[Array[String], String]        = Traversal.arrayValues(Reflect.string)
+    val asbl: Traversal[ArraySeq[Boolean], Boolean] = Traversal.arraySeqValues(Reflect.boolean)
+    val asb: Traversal[ArraySeq[Byte], Byte]        = Traversal.arraySeqValues(Reflect.byte)
+    val assh: Traversal[ArraySeq[Short], Short]     = Traversal.arraySeqValues(Reflect.short)
+    val asi: Traversal[ArraySeq[Int], Int]          = Traversal.arraySeqValues(Reflect.int)
+    val asl: Traversal[ArraySeq[Long], Long]        = Traversal.arraySeqValues(Reflect.long)
+    val asd: Traversal[ArraySeq[Double], Double]    = Traversal.arraySeqValues(Reflect.double)
+    val asf: Traversal[ArraySeq[Float], Float]      = Traversal.arraySeqValues(Reflect.float)
+    val asc: Traversal[ArraySeq[Char], Char]        = Traversal.arraySeqValues(Reflect.char)
+    val ass: Traversal[ArraySeq[String], String]    = Traversal.arraySeqValues(Reflect.string)
+    val sf: Traversal[Set[Float], Float]            = Traversal.setValues(Reflect.float)
     val mkc: Traversal[Predef.Map[Char, String], Char] =
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
     val mvs: Traversal[Predef.Map[Char, String], String] =
       Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
-    lazy val lr1: Traversal[List[Record1], Boolean] = Traversal.listValues(Record1.reflect).apply(Record1.b)
-    lazy val lc1: Traversal[List[Variant1], Case1]  = Traversal.listValues(Variant1.reflect).apply(Variant1.c1)
-    lazy val lc1_d: Traversal[List[Variant1], Double] =
-      Traversal.listValues(Variant1.reflect).apply(Variant1.c1_d)
-    lazy val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect).apply(Case4.lr3)
-    lazy val mkv1_c1_d: Traversal[Map[Variant1, Int], Double] =
+    val lr1: Traversal[List[Record1], Boolean]   = Traversal.listValues(Record1.reflect)(Record1.b)
+    val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect)(Case4.lr3)
+    val lc1: Traversal[List[Variant1], Case1]    = Traversal.listValues(Variant1.reflect)(Variant1.c1)
+    val lc1_d: Traversal[List[Variant1], Double] = Traversal.listValues(Variant1.reflect)(Variant1.c1_d)
+    val mkv1_c1_d: Traversal[Map[Variant1, Int], Double] =
       Traversal.mapKeys(Schema[Map[Variant1, Int]].reflect.asInstanceOf[Reflect.Map.Bound[Variant1, Int, Map]])(
         Variant1.c1
       )(Case1.d)
-    lazy val mvv1_c1_d: Traversal[Map[Int, Variant1], Double] =
+    val mvv1_c1_d: Traversal[Map[Int, Variant1], Double] =
       Traversal.mapValues(Schema[Map[Int, Variant1]].reflect.asInstanceOf[Reflect.Map.Bound[Int, Variant1, Map]])(
         Variant1.c1
       )(Case1.d)

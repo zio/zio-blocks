@@ -5,12 +5,12 @@ import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
 import scala.collection.immutable.{Map => ScalaMap}
 
 /**
- * A {{DerivationBuilder}} is capable of deriving a type class instance for any
+ * A `DerivationBuilder` is capable of deriving a type class instance for any
  * data type that has a schema. Though instances for all substructures can be
  * derived automatically, you can also specify instances for specific
  * substructures using the `withOverride` method.
  *
- * ```scala
+ * {{{
  * val personSchema = Schema.derive[Person]
  *
  * val personEq: Eq[Person] = personSchema
@@ -18,7 +18,7 @@ import scala.collection.immutable.{Map => ScalaMap}
  *   .instance(Person.age, Eq[Int])
  *   .modifier(Person.name, Term.transient)
  *   .derive
- * ```
+ * }}}
  */
 final case class DerivationBuilder[TC[_], A](
   schema: Schema[A],

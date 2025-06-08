@@ -1,58 +1,99 @@
 package zio.blocks.schema
 
 trait CompanionOptics[S] {
+  import scala.annotation.compileTimeOnly
   import scala.language.experimental.macros
 
-  def field[A](path: S => A)(implicit schema: Schema[S]): Lens[S, A] = macro CompanionOptics.field[S, A]
+  implicit class VariantExtension[A](a: A) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def when[B <: A]: B = ???
+  }
 
-  def caseOf[A <: S](implicit schema: Schema[S]): Prism[S, A] = macro CompanionOptics.caseOf[S, A]
+  implicit class SequenceExtension[C[_], A](c: C[A]) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def each: A = ???
+  }
+
+  implicit class MapExtension[M[_, _], K, V](m: M[K, V]) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def eachKey: K = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def eachValue: V = ???
+  }
+
+  def $[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
+
+  def optic[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 }
 
 private object CompanionOptics {
-  import scala.reflect.macros.blackbox
+  import scala.reflect.macros.whitebox
   import scala.reflect.NameTransformer
 
-  def field[S: c.WeakTypeTag, A: c.WeakTypeTag](
-    c: blackbox.Context
-  )(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Expr[Lens[S, A]] = {
+  def optic[S: c.WeakTypeTag, A: c.WeakTypeTag](
+    c: whitebox.Context
+  )(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
     import c.universe._
+
+    val sTpe = weakTypeOf[S].dealias
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
-    val sTpe = weakTypeOf[S].dealias
-    val aTpe = weakTypeOf[A].dealias
-    path.tree match {
-      case Function(List(valDef @ ValDef(_, _, _, _)), Select(id @ Ident(_), TermName(name)))
-          if id.symbol == valDef.symbol =>
-        val fieldName = NameTransformer.decode(name)
-        c.Expr[Lens[S, A]] {
-          q"""{
-                import _root_.zio.blocks.schema._
-                import _root_.zio.blocks.schema.binding._
-
-                $schema.reflect.asInstanceOf[Reflect.Record[Binding, $sTpe]].lensByName[$aTpe]($fieldName).get
-              }"""
-        }
-      case pt =>
-        fail(s"Expected a lambda expression that returns a field value, got: ${showRaw(pt)}")
+    def toPathBody(tree: c.Tree): c.Tree = tree match {
+      case q"($_) => $pathBody" => pathBody
+      case _                    => fail(s"Expected a lambda expression, got: ${showRaw(tree)}")
     }
-  }
 
-  def caseOf[S: c.WeakTypeTag, A <: S: c.WeakTypeTag](
-    c: blackbox.Context
-  )(schema: c.Expr[Schema[S]]): c.Expr[Prism[S, A]] = {
-    import c.universe._
-
-    val sTpe     = weakTypeOf[S].dealias
-    val aTpe     = weakTypeOf[A].dealias
-    val caseName = NameTransformer.decode(aTpe.typeSymbol.name.toString)
-    c.Expr[Prism[S, A]] {
-      q"""{
-            import _root_.zio.blocks.schema._
-            import _root_.zio.blocks.schema.binding._
-
-            $schema.reflect.asInstanceOf[Reflect.Variant[Binding, $sTpe]].prismByName[$aTpe]($caseName).get
-          }"""
+    def toOptic(tree: c.Tree): c.Tree = tree match {
+      case q"$_[..$_]($parent).each" =>
+        val parentTpe  = parent.tpe.dealias.widen
+        val elementTpe = tree.tpe.dealias.widen
+        val optic      = toOptic(parent)
+        if (optic.isEmpty) fail("Expected a path element preceding `.each`")
+        else
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $parentTpe]]
+                .apply($optic.focus.asSequenceUnknown.map { x =>
+                  _root_.zio.blocks.schema.Traversal.seqValues(x.sequence)
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]])"""
+      case q"$_[..$_]($parent).eachKey" =>
+        val parentTpe = parent.tpe.dealias.widen
+        val keyTpe    = tree.tpe.dealias.widen
+        val optic     = toOptic(parent)
+        if (optic.isEmpty) fail("Expected a path element preceding `.eachKey`")
+        else
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $parentTpe]]
+                .apply($optic.focus.asMapUnknown.map { x =>
+                  _root_.zio.blocks.schema.Traversal.mapKeys(x.map)
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $keyTpe]])"""
+      case q"$_[..$_]($parent).eachValue" =>
+        val parentTpe = parent.tpe.dealias.widen
+        val valueTpe  = tree.tpe.dealias.widen
+        val optic     = toOptic(parent)
+        if (optic.isEmpty) fail("Expected a path element preceding `.eachValue`")
+        else
+          q"""$optic.asInstanceOf[_root_.zio.blocks.schema.Optic[$sTpe, $parentTpe]]
+                .apply($optic.focus.asMapUnknown.map { x =>
+                  _root_.zio.blocks.schema.Traversal.mapValues(x.map)
+                }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
+      case q"$_[..$_]($parent).when[$caseTree]" =>
+        val caseTpe  = caseTree.tpe.dealias
+        val caseName = NameTransformer.decode(caseTpe.typeSymbol.name.toString)
+        val optic    = toOptic(parent)
+        if (optic.isEmpty) q"$schema.reflect.asVariant.flatMap(_.prismByName[$caseTpe]($caseName)).get"
+        else q"$optic.apply($optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName)).get)"
+      case q"$parent.$child" =>
+        val childTpe  = tree.tpe.dealias.widen
+        val fieldName = NameTransformer.decode(child.toString)
+        val optic     = toOptic(parent)
+        if (optic.isEmpty) q"$schema.reflect.asRecord.flatMap(_.lensByName[$childTpe]($fieldName)).get"
+        else q"$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$childTpe]($fieldName)).get)"
+      case _: Ident =>
+        q""
+      case tree =>
+        fail(s"Expected a path element, got: ${showRaw(tree)}")
     }
+
+    toOptic(toPathBody(path.tree))
   }
 }

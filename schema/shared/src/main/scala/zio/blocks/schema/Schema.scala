@@ -2,11 +2,12 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import java.util.concurrent.ConcurrentHashMap
+import scala.collection.immutable.ArraySeq
 
 /**
- * A {{Schema}} is a data type that contains reified information on the
- * structure of a Scala data type, together with the ability to tear down and
- * build up values of that type.
+ * A `Schema` is a data type that contains reified information on the structure
+ * of a Scala data type, together with the ability to tear down and build up
+ * values of that type.
  */
 final case class Schema[A](reflect: Reflect.Bound[A]) {
   private[this] val cache: ConcurrentHashMap[codec.Format, _] = new ConcurrentHashMap
@@ -54,7 +55,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def examples[B](optic: Optic[A, B], value: B, values: B*): Schema[A] =
     updated(optic)(_.examples(value, values: _*)).getOrElse(this)
 
-  def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = reflect.fromDynamicValue(value)
+  def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = reflect.fromDynamicValue(value, Nil)
 
   def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
@@ -139,11 +140,16 @@ object Schema extends SchemaVersionSpecific {
 
   implicit val uuid: Schema[java.util.UUID] = new Schema(Reflect.uuid[Binding])
 
+  def fromPrimitiveType[A](primitiveType: PrimitiveType[A]): Schema[A] = new Schema(Reflect.primitive(primitiveType))
+
   implicit def set[A](implicit element: Schema[A]): Schema[Set[A]] = new Schema(Reflect.set(element.reflect))
 
   implicit def list[A](implicit element: Schema[A]): Schema[List[A]] = new Schema(Reflect.list(element.reflect))
 
   implicit def vector[A](implicit element: Schema[A]): Schema[Vector[A]] = new Schema(Reflect.vector(element.reflect))
+
+  implicit def arraySeq[A](implicit element: Schema[A]): Schema[ArraySeq[A]] =
+    new Schema(Reflect.arraySeq(element.reflect))
 
   implicit def array[A](implicit element: Schema[A]): Schema[Array[A]] = new Schema(Reflect.array(element.reflect))
 

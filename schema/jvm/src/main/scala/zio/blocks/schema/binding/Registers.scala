@@ -104,9 +104,5 @@ class Registers private (userRegister: RegisterOffset) {
 }
 
 object Registers {
-  def apply(usedRegisters: RegisterOffset): Registers =
-    if (usedRegisters == RegisterOffset.Zero) zeroRegisters
-    else new Registers(usedRegisters)
-
-  private[this] val zeroRegisters = new Registers(RegisterOffset.Zero)
+  def apply(usedRegisters: RegisterOffset): Registers = new Registers(usedRegisters)
 }
