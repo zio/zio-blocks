@@ -154,7 +154,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
-                fields = Seq(
+                fields = Vector(
                   Schema[Boolean].reflect
                     .asTerm("b-1")
                     .copy(modifiers =
@@ -215,7 +215,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record2[`i-8`, `i-32`]](
               reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
-                fields = Seq(
+                fields = Vector(
                   Schema[Byte].reflect.asTerm("b"),
                   Schema[Int].reflect.asTerm("i")
                 ),
@@ -257,7 +257,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record3](
               reflect = Reflect.Record[Binding, Record3](
-                fields = Seq(
+                fields = Vector(
                   Schema[Short].reflect.asTerm("s"),
                   Schema[Long].reflect.asTerm("l")
                 ),
@@ -312,7 +312,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record4](
               reflect = Reflect.Record[Binding, Record4](
-                fields = Seq(
+                fields = Vector(
                   Schema[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
@@ -352,7 +352,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record5](
               reflect = Reflect.Record[Binding, Record5](
-                fields = Seq(
+                fields = Vector(
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[List[Unit]].reflect.asTerm("lu")
                 ),
@@ -484,7 +484,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Variant1](
               reflect = Reflect.Variant[Binding, Variant1](
-                cases = Seq(
+                cases = Vector(
                   Schema[`Case-1`].reflect.asTerm("Case-1"),
                   Schema[`Case-2`].reflect.asTerm("Case-2")
                 ),
@@ -561,7 +561,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Variant2[String]](
               reflect = Reflect.Variant[Binding, Variant2[String]](
-                cases = Seq(
+                cases = Vector(
                   Schema[MissingValue.type].reflect
                     .asTerm("MissingValue")
                     .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
@@ -596,7 +596,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Level1.MultiLevel](
               reflect = Reflect.Variant[Binding, Level1.MultiLevel](
-                cases = Seq(
+                cases = Vector(
                   Schema[Case.type].reflect
                     .asTerm("Case")
                     .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]],
@@ -653,7 +653,7 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[`Variant-3`[Option]](
               reflect = Reflect.Variant[Binding, `Variant-3`[Option]](
-                cases = Seq(
+                cases = Vector(
                   Schema[`Case-1`[Option]].reflect.asTerm("Case-1"),
                   Schema[`Case-2`[Option]].reflect.asTerm("Case-2")
                 ),

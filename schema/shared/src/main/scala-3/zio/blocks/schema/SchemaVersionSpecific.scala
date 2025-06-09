@@ -236,7 +236,7 @@ private object SchemaVersionSpecific {
         '{
           new Schema[A](
             reflect = new Reflect.Record[Binding, A](
-              fields = Nil,
+              fields = Vector.empty,
               typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
                 constructor = new Constructor[A] {
@@ -308,7 +308,7 @@ private object SchemaVersionSpecific {
         '{
           new Schema[A](
             reflect = new Reflect.Variant[Binding, A](
-              cases = ${ Expr.ofList(cases) },
+              cases = Vector(${ Expr.ofSeq(cases) }*),
               typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               variantBinding = Binding.Variant(
                 discriminator = new Discriminator[A] {
@@ -492,7 +492,7 @@ private object SchemaVersionSpecific {
         '{
           new Schema[A](
             reflect = new Reflect.Record[Binding, A](
-              fields = ${ Expr.ofList(fields) },
+              fields = Vector(${ Expr.ofSeq(fields) }*),
               typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
                 constructor = new Constructor[A] {
