@@ -249,7 +249,7 @@ object Reflect {
   }
 
   case class Record[F[_, _], A](
-    fields: Seq[Term[F, A, ?]],
+    fields: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
     recordBinding: F[BindingType.Record, A],
     doc: Doc = Doc.Empty,
@@ -444,7 +444,7 @@ object Reflect {
   }
 
   case class Variant[F[_, _], A](
-    cases: Seq[Term[F, A, ? <: A]],
+    cases: IndexedSeq[Term[F, A, ? <: A]],
     typeName: TypeName[A],
     variantBinding: F[BindingType.Variant, A],
     doc: Doc = Doc.Empty,

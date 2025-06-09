@@ -5,7 +5,7 @@ import zio.blocks.schema.binding._
 trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformRecord[A](
     path: DynamicOptic,
-    fields: Seq[Term[G, A, ?]],
+    fields: IndexedSeq[Term[G, A, ?]],
     typeName: TypeName[A],
     metadata: F[BindingType.Record, A],
     doc: Doc,
@@ -14,7 +14,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
 
   def transformVariant[A](
     path: DynamicOptic,
-    cases: Seq[Term[G, A, ? <: A]],
+    cases: IndexedSeq[Term[G, A, ? <: A]],
     typeName: TypeName[A],
     metadata: F[BindingType.Variant, A],
     doc: Doc,
@@ -64,7 +64,7 @@ object ReflectTransformer {
 
     def transformRecord[A](
       path: DynamicOptic,
-      fields: Seq[Term[G, A, ?]],
+      fields: IndexedSeq[Term[G, A, ?]],
       typeName: TypeName[A],
       metadata: F[BindingType.Record, A],
       doc: Doc,
@@ -76,7 +76,7 @@ object ReflectTransformer {
 
     def transformVariant[A](
       path: DynamicOptic,
-      cases: Seq[Term[G, A, ? <: A]],
+      cases: IndexedSeq[Term[G, A, ? <: A]],
       typeName: TypeName[A],
       metadata: F[BindingType.Variant, A],
       doc: Doc,

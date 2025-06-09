@@ -78,7 +78,7 @@ final case class DerivationBuilder[TC[_], A](
         new ReflectTransformer[F, G] {
           override def transformRecord[A](
             path: DynamicOptic,
-            fields: Seq[Term[G, A, ?]],
+            fields: IndexedSeq[Term[G, A, ?]],
             typeName: TypeName[A],
             metadata: F[BindingType.Record, A],
             doc: Doc,
@@ -100,7 +100,7 @@ final case class DerivationBuilder[TC[_], A](
 
           override def transformVariant[A](
             path: DynamicOptic,
-            cases: Seq[Term[G, A, ? <: A]],
+            cases: IndexedSeq[Term[G, A, ? <: A]],
             typeName: TypeName[A],
             metadata: F[BindingType.Variant, A],
             doc: Doc,

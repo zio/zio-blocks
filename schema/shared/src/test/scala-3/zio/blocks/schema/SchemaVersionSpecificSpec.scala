@@ -37,7 +37,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Record1](
               reflect = Reflect.Record[Binding, Record1](
-                fields = Seq(
+                fields = Vector(
                   Schema[Char].reflect.asTerm("c"),
                   Schema[Double].reflect.asTerm("d")
                 ),
@@ -79,7 +79,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Variant1](
               reflect = Reflect.Variant[Binding, Variant1](
-                cases = Seq(
+                cases = Vector(
                   Schema[Case1].reflect.asTerm("Case1"),
                   Schema[Case2].reflect.asTerm("Case2")
                 ),
@@ -132,7 +132,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Color](
               reflect = Reflect.Variant[Binding, Color](
-                cases = Seq(
+                cases = Vector(
                   Schema[Color.Blue.type].reflect.asTerm("Blue"),
                   Schema[Color.Green.type].reflect.asTerm("Green"),
                   Schema[Color.Mix].reflect.asTerm("Mix"),
@@ -165,7 +165,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[FruitEnum[_]](
               reflect = Reflect.Variant[Binding, FruitEnum[_]](
-                cases = Seq(
+                cases = Vector(
                   Schema[FruitEnum.Apple].reflect.asTerm("Apple"),
                   Schema[FruitEnum.Banana].reflect.asTerm("Banana")
                 ),
@@ -203,7 +203,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[Value](
               reflect = Reflect.Variant[Binding, Value](
-                cases = Seq(
+                cases = Vector(
                   Schema[Boolean].reflect.asTerm("Boolean"),
                   Schema[Int].reflect.asTerm("Int")
                 ),
@@ -231,7 +231,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[LinkedList[Int]](
               reflect = Reflect.Variant[Binding, LinkedList[Int]](
-                cases = Seq(
+                cases = Vector(
                   Schema[LinkedList.End.type].reflect.asTerm("End"),
                   Schema[LinkedList.Node[Int]].reflect.asTerm("Node")
                 ),
@@ -264,7 +264,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           equalTo(
             new Schema[HKEnum[Option]](
               reflect = Reflect.Variant[Binding, HKEnum[Option]](
-                cases = Seq(
+                cases = Vector(
                   Schema[HKEnum.Case1[Option]].reflect.asTerm("Case1"),
                   Schema[HKEnum.Case2[Option]].reflect.asTerm("Case2")
                 ),
