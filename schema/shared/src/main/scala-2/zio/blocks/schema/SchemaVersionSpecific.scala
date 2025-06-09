@@ -174,7 +174,7 @@ private object SchemaVersionSpecific {
 
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
-                  fields = _root_.scala.Nil,
+                  fields = _root_.scala.Vector.empty,
                   typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
@@ -229,7 +229,7 @@ private object SchemaVersionSpecific {
 
               new Schema[$tpe](
                 reflect = Reflect.Variant[Binding, $tpe](
-                  cases = _root_.scala.Seq(..$cases),
+                  cases = _root_.scala.Vector(..$cases),
                   typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
                   variantBinding = Binding.Variant(
                     discriminator = new Discriminator[$tpe] {
@@ -371,7 +371,7 @@ private object SchemaVersionSpecific {
 
               new Schema[$tpe](
                 reflect = Reflect.Record[Binding, $tpe](
-                  fields = _root_.scala.Seq(..$fields),
+                  fields = _root_.scala.Vector(..$fields),
                   typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
                   recordBinding = Binding.Record(
                     constructor = new Constructor[$tpe] {
