@@ -419,7 +419,7 @@ object PrimitiveValue {
     }
   }
 
-  implicit def ordering: Ordering[PrimitiveValue] = new Ordering[PrimitiveValue] {
+  implicit val ordering: Ordering[PrimitiveValue] = new Ordering[PrimitiveValue] {
     def compare(x: PrimitiveValue, y: PrimitiveValue): scala.Int = x.compare(y)
   }
 }

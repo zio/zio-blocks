@@ -174,7 +174,7 @@ object DynamicValue {
 
   final def fromJson(rawJson: String): DynamicValue = json.dynamicValueFromJson(rawJson)
 
-  implicit def ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {
+  implicit val ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {
     def compare(x: DynamicValue, y: DynamicValue): Int = x.compare(y)
   }
 }
