@@ -21,5 +21,7 @@ object example {
     println("address:    " + Person.address.get(person))
     println("newPerson:  " + Person.name.replace(person, "Jane"))
     println("newPerson2: " + Person.childrenAges.modify(person, _ + 1))
+    println("(Person.id != 1).eval(person): " + (Person.id != 1).eval(person))
+    println("(Person.age + 1).eval(person): " + (Person.age + 1).eval(person))
   }
 }

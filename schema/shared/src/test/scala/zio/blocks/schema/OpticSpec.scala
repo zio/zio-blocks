@@ -13,6 +13,50 @@ object OpticSpec extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
     suite("Lens")(
+      test("evaluates schema expressions") {
+        assert((Record1.b === Record1.b).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.b === true).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((Record1.b != Record1.b).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((Record1.b != true).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f === Record1.f).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.b && true).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((Record1.b && Record1.b).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((Record1.b || true).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.b || Record1.b).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((!Record1.b).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f === 1.0f).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((Record1.f <= Record1.f).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f <= 1.0f).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f < 1.0f).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f < Record1.f).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((Record1.f >= -1.0f).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f >= Record1.f).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f > -1.0f).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
+        assert((Record1.f > Record1.f).eval(Record1(false, 0)))(isRight(equalTo(Seq(false)))) &&
+        assert((Record1.f + 1.0f).eval(Record1(false, 0)))(isRight(equalTo(Seq(1.0f)))) &&
+        assert((Record1.f - 1.0f).eval(Record1(false, 0)))(isRight(equalTo(Seq(-1.0f)))) &&
+        assert((Record1.f * 2).eval(Record1(false, 2)))(isRight(equalTo(Seq(4.0f))))
+      },
+      test("evaluates schema expressions to dynamic values") {
+        assert((Record1.b === Record1.b).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
+        assert((Record1.b === true).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+        ) &&
+        assert((Record1.b && true).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+        ) &&
+        assert((!Record1.b).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
+        assert((Record1.f === 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+        ) &&
+        assert((Record1.f + 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Float(1.0f)))))
+        )
+      },
       test("toDynamic") {
         assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("b"))))) &&
         assert(Record2.r1_b.toDynamic)(
@@ -42,7 +86,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.l: Any)(not(equalTo(Record1.b))) &&
         assert(Record2.vi: Any)(not(equalTo(Record1.b))) &&
         assert(Record2.r1: Any)(not(equalTo(Record1.b))) &&
-        assert(Record2.r1_f: Any)(not(equalTo(Record2.r1_b)))
+        assert(Record2.r1_f: Any)(not(equalTo(Record2.r1_b))) &&
         assert(Record2.r1_b: Any)(not(equalTo("")))
       },
       test("has associative equals and hashCode") {
@@ -109,6 +153,32 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Prism")(
+      test("evaluates schema expressions") {
+        assert((Variant1.c1 === Variant1.c1).eval(Case1(0.1)))(isRight(equalTo(Seq(true)))) &&
+        assert((Variant1.c1 === Variant1.c1).eval(Case4(Nil)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
+      },
+      test("evaluates schema expressions to dynamic values") {
+        assert((Variant1.c1 === Variant1.c1).evalDynamic(Case1(0.1)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        )
+      },
       test("toDynamic") {
         assert(Variant1.c1.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"))))) &&
         assert(Variant1.c2.toDynamic)(equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case2"))))) &&
@@ -936,6 +1006,34 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Optional")(
+      test("evaluates schema expressions") {
+        assert((Variant1.c1_d === Variant1.c1_d).eval(Case1(0.1)))(isRight(equalTo(Seq(true)))) &&
+        assert((Variant1.c1_d === 0.1).eval(Case1(0.1)))(isRight(equalTo(Seq(true)))) &&
+        assert((Variant1.c1_d != 0.1).eval(Case1(0.1)))(isRight(equalTo(Seq(false)))) &&
+        assert((Variant1.c1_d === Variant1.c1_d).eval(Case4(Nil)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
+      },
+      test("evaluates schema expressions to dynamic values") {
+        assert((Variant1.c1_d === Variant1.c1_d).evalDynamic(Case1(0.1)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        )
+      },
       test("toDynamic") {
         assert(Variant1.c1_d.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Case("Case1"), DynamicOptic.Node.Field("d"))))
@@ -2002,6 +2100,59 @@ object OpticSpec extends ZIOSpecDefault {
       }
     ),
     suite("Traversal")(
+      test("evaluates schema expressions") {
+        val emptyArray = Array.empty[String]
+        assert(Case5.as.matches("a").eval(Case5(Set(), Array("a", "b"))))(isRight(equalTo(Seq(true, false)))) &&
+        assert(Case5.as.concat("x").eval(Case5(Set(), Array("a", "b"))))(isRight(equalTo(Seq("ax", "bx")))) &&
+        assert(Case5.as.length.eval(Case5(Set(), Array("a", "b"))))(isRight(equalTo(Seq(1, 1)))) &&
+        assert(Case5.as.length.eval(Case5(Set(), emptyArray)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  EmptySequence(
+                    full = DynamicOptic(
+                      Vector(Field("as"), Elements)
+                    ),
+                    prefix = DynamicOptic(
+                      Vector(Field("as"), Elements)
+                    ),
+                    actualValue = emptyArray
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
+      },
+      test("evaluates schema expressions to dynamic values") {
+        assert(Case5.as.matches("a").evalDynamic(Case5(Set(), Array("a", "b"))))(
+          isRight(
+            equalTo(
+              Seq(
+                DynamicValue.Primitive(PrimitiveValue.Boolean(true)),
+                DynamicValue.Primitive(PrimitiveValue.Boolean(false))
+              )
+            )
+          )
+        ) &&
+        assert(Case5.as.concat("x").evalDynamic(Case5(Set(), Array("a", "b"))))(
+          isRight(
+            equalTo(
+              Seq(
+                DynamicValue.Primitive(PrimitiveValue.String("ax")),
+                DynamicValue.Primitive(PrimitiveValue.String("bx"))
+              )
+            )
+          )
+        ) &&
+        assert(Case5.as.length.evalDynamic(Case5(Set(), Array("a", "b"))))(
+          isRight(
+            equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        )
+      },
       test("toDynamic") {
         assert(Record2.vi.toDynamic)(
           equalTo(DynamicOptic(Vector(DynamicOptic.Node.Field("vi"), DynamicOptic.Node.Elements)))
