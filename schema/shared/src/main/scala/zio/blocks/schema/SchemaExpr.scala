@@ -42,7 +42,26 @@ object SchemaExpr {
   }
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
-    def eval(input: A): Either[OpticCheck, Seq[B]] = ???
+    def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
+      case l: Lens[_, _] =>
+        new Right(l.get(input) :: Nil)
+      case p: Prism[_, _] =>
+        p.getOrFail(input) match {
+          case Right(x) => new Right(x.asInstanceOf[B] :: Nil)
+          case left     => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
+        }
+      case o: Optional[_, _] =>
+        o.getOrFail(input) match {
+          case Right(x) => new Right(x :: Nil)
+          case left     => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
+        }
+      case t: Traversal[_, _] =>
+        val sb = Seq.newBuilder[B]
+        t.fold[Unit](input)((), (_, a) => sb.addOne(a))
+        val r = sb.result()
+        if (r.isEmpty) new Left(t.check(input).get)
+        else new Right(r)
+    }
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
       eval(input).map(_.map(optic.focus.toDynamicValue(_)))
