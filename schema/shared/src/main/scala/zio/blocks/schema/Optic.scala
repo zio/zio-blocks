@@ -115,8 +115,6 @@ sealed trait Optic[S, A] { self =>
     }
   }
 
-  final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
-
   final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
     SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Literal(that, schema), SchemaExpr.RelationalOperator.Equal)
 
@@ -167,39 +165,39 @@ sealed trait Optic[S, A] { self =>
   final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Not(this === that)
 
   final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.Logical(
-    SchemaExpr.Optic(this.asFocus[Boolean]),
-    SchemaExpr.Optic(that.asFocus[Boolean]),
+    SchemaExpr.Optic(this.asEquivalent[Boolean]),
+    SchemaExpr.Optic(that.asEquivalent[Boolean]),
     SchemaExpr.LogicalOperator.And
   )
 
   final def &&(that: Boolean)(implicit schema: Schema[A], ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Logical(
-      SchemaExpr.Optic(this.asFocus[Boolean]),
+      SchemaExpr.Optic(this.asEquivalent[Boolean]),
       SchemaExpr.Literal(that, Schema[Boolean]),
       SchemaExpr.LogicalOperator.And
     )
 
   final def ||(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.Logical(
-    SchemaExpr.Optic(this.asFocus[Boolean]),
-    SchemaExpr.Optic(that.asFocus[Boolean]),
+    SchemaExpr.Optic(this.asEquivalent[Boolean]),
+    SchemaExpr.Optic(that.asEquivalent[Boolean]),
     SchemaExpr.LogicalOperator.Or
   )
 
   final def ||(that: Boolean)(implicit schema: Schema[A], ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Logical(
-      SchemaExpr.Optic(this.asFocus[Boolean]),
+      SchemaExpr.Optic(this.asEquivalent[Boolean]),
       SchemaExpr.Literal(that, Schema[Boolean]),
       SchemaExpr.LogicalOperator.Or
     )
 
   final def unary_!(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
-    SchemaExpr.Not(SchemaExpr.Optic(this.asFocus[Boolean]))
+    SchemaExpr.Not(SchemaExpr.Optic(this.asEquivalent[Boolean]))
 
   final def concat(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
-    SchemaExpr.StringConcat(SchemaExpr.Optic(this.asFocus[String]), SchemaExpr.Literal(that, Schema[String]))
+    SchemaExpr.StringConcat(SchemaExpr.Optic(this.asEquivalent[String]), SchemaExpr.Literal(that, Schema[String]))
 
   final def matches(that: String)(implicit ev: A =:= String): SchemaExpr[S, Boolean] =
-    SchemaExpr.StringRegexMatch(SchemaExpr.Literal(that, Schema[String]), SchemaExpr.Optic(this.asFocus[String]))
+    SchemaExpr.StringRegexMatch(SchemaExpr.Literal(that, Schema[String]), SchemaExpr.Optic(this.asEquivalent[String]))
 
   final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
     SchemaExpr.Optic(this),
@@ -223,11 +221,9 @@ sealed trait Optic[S, A] { self =>
   )
 
   final def length(implicit ev: A =:= String): SchemaExpr[S, Int] =
-    SchemaExpr.StringLength(SchemaExpr.Optic(this.asFocus[String]))
+    SchemaExpr.StringLength(SchemaExpr.Optic(this.asEquivalent[String]))
 
-  final def asSource[T](implicit ev: A =:= T): Optic[T, A] = self.asInstanceOf[Optic[T, A]]
-
-  final def asFocus[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
+  final def asEquivalent[B](implicit ev: A =:= B): Optic[S, B] = self.asInstanceOf[Optic[S, B]]
 }
 
 sealed trait Lens[S, A] extends Optic[S, A] {
