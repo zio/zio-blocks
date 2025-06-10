@@ -195,8 +195,11 @@ sealed trait Optic[S, A] { self =>
   final def unary_!(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Not(SchemaExpr.Optic(this.asFocus[Boolean]))
 
-  final def +(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
+  final def concat(that: String)(implicit ev: A =:= String): SchemaExpr[S, String] =
     SchemaExpr.StringConcat(SchemaExpr.Optic(this.asFocus[String]), SchemaExpr.Literal(that, Schema[String]))
+
+  final def matches(that: String)(implicit ev: A =:= String): SchemaExpr[S, Boolean] =
+    SchemaExpr.StringRegexMatch(SchemaExpr.Literal(that, Schema[String]), SchemaExpr.Optic(this.asFocus[String]))
 
   final def +(that: A)(implicit isNumeric: IsNumeric[A]): SchemaExpr[S, A] = SchemaExpr.Arithmetic(
     SchemaExpr.Optic(this),
