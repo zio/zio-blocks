@@ -249,8 +249,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for higher-kinded Scala 3 enums") {
-        import OptionSchemas._
-
         implicit val case1Schema = Schema.derived[HKEnum.Case1[Option]]
         implicit val case2Schema = Schema.derived[HKEnum.Case2[Option]]
         val schema               = Schema.derived[HKEnum[Option]]

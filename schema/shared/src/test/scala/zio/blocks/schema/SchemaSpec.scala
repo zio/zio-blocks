@@ -368,12 +368,72 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("derives schema for record with option types") {
+        case class Record6(
+          u: Option[Unit] = Some(()),
+          bl: Option[Boolean] = None,
+          b: Option[Byte] = Some(0: Byte),
+          c: Option[Char] = None,
+          s: Option[Short] = Some(0: Short),
+          f: Option[Float] = None,
+          i: Option[Int] = Some(0),
+          d: Option[Double] = None,
+          l: Option[Long] = Some(0L),
+          r: Option[Record6] = None
+        )
+
+        object Record6 extends CompanionOptics[Record6] {
+          implicit val schema: Schema[Record6] = Schema.derived
+          val u: Optional[Record6, Unit]       = optic(_.u.when[Some[Unit]].value)
+          val bl: Optional[Record6, Boolean]   = optic(_.bl.when[Some[Boolean]].value)
+          val b: Optional[Record6, Byte]       = optic(_.b.when[Some[Byte]].value)
+          val c: Optional[Record6, Char]       = optic(_.c.when[Some[Char]].value)
+          val s: Optional[Record6, Short]      = optic(_.s.when[Some[Short]].value)
+          val f: Optional[Record6, Float]      = optic(_.f.when[Some[Float]].value)
+          val i: Optional[Record6, Int]        = optic(_.i.when[Some[Int]].value)
+          val d: Optional[Record6, Double]     = optic(_.d.when[Some[Double]].value)
+          val l: Optional[Record6, Long]       = optic(_.l.when[Some[Long]].value)
+          val r: Optional[Record6, Record6]    = optic(_.r.when[Some[Record6]].value)
+        }
+
+        val record = Record6.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record6]]
+        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 10))) &&
+        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 10))) &&
+        assert(Record6.u.getOption(Record6()))(isSome(equalTo(()))) &&
+        assert(Record6.bl.getOption(Record6(bl = Some(true))))(isSome(equalTo(true))) &&
+        assert(Record6.b.getOption(Record6(b = Some(123: Byte))))(isSome(equalTo(123: Byte))) &&
+        assert(Record6.c.getOption(Record6(c = Some('a'))))(isSome(equalTo('a'))) &&
+        assert(Record6.s.getOption(Record6(s = Some(123: Short))))(isSome(equalTo(123: Short))) &&
+        assert(Record6.f.getOption(Record6(f = Some(123.0f))))(isSome(equalTo(123.0f))) &&
+        assert(Record6.i.getOption(Record6(i = Some(123))))(isSome(equalTo(123))) &&
+        assert(Record6.d.getOption(Record6(d = Some(123.0))))(isSome(equalTo(123.0))) &&
+        assert(Record6.l.getOption(Record6(l = Some(123L))))(isSome(equalTo(123L))) &&
+        assert(Record6.r.getOption(Record6(r = Some(Record6()))))(isSome(equalTo(Record6()))) &&
+        assert(Record6.u.replace(Record6(), ()))(equalTo(Record6())) &&
+        assert(Record6.bl.replace(Record6(bl = Some(true)), false))(equalTo(Record6(bl = Some(false)))) &&
+        assert(Record6.b.replace(Record6(b = Some(123: Byte)), 0: Byte))(equalTo(Record6(b = Some(0: Byte)))) &&
+        assert(Record6.c.replace(Record6(c = Some('a')), ' '))(equalTo(Record6(c = Some(' ')))) &&
+        assert(Record6.s.replace(Record6(s = Some(123: Short)), 0: Short))(equalTo(Record6(s = Some(0: Short)))) &&
+        assert(Record6.f.replace(Record6(f = Some(123.0f)), 0.0f))(equalTo(Record6(f = Some(0.0f)))) &&
+        assert(Record6.i.replace(Record6(i = Some(123)), 0))(equalTo(Record6(i = Some(0)))) &&
+        assert(Record6.d.replace(Record6(d = Some(123.0)), 0.0))(equalTo(Record6(d = Some(0.0)))) &&
+        assert(Record6.l.replace(Record6(l = Some(123L)), 0L))(equalTo(Record6(l = Some(0L)))) &&
+        assert(Record6.r.replace(Record6(r = Some(Record6())), null))(equalTo(Record6(r = Some(null)))) &&
+        assert(Record6.schema.fromDynamicValue(Record6.schema.toDynamicValue(Record6())))(
+          isRight(equalTo(Record6()))
+        ) &&
+        assert(Record6.schema.fromDynamicValue(Record6.schema.toDynamicValue(Record6(r = Some(Record6())))))(
+          isRight(equalTo(Record6(r = Some(Record6()))))
+        )
       }
     ),
     suite("Reflect.Variant")(
       test("has consistent equals and hashCode") {
         assert(Variant.schema)(equalTo(Variant.schema)) &&
         assert(Variant.schema.hashCode)(equalTo(Variant.schema.hashCode)) &&
+        assert(Schema[Option[String]])(equalTo(Schema[Option[String]])) &&
+        assert(Schema[Option[String]].hashCode)(equalTo(Schema[Option[String]].hashCode)) &&
         assert(Schema[Either[Int, Long]])(equalTo(Schema[Either[Int, Long]])) &&
         assert(Schema[Either[Int, Long]].hashCode)(equalTo(Schema[Either[Int, Long]].hashCode)) &&
         assert(Variant.schema.defaultValue(Case1('1')))(equalTo(Variant.schema)) &&
@@ -628,8 +688,6 @@ object SchemaSpec extends ZIOSpecDefault {
         case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
 
         object Variant3OfOption extends CompanionOptics[`Variant-3`[Option]] {
-          import OptionSchemas._
-
           implicit val schemaCase1: Schema[`Case-1`[Option]]      = Schema.derived
           implicit val schemaCase2: Schema[`Case-2`[Option]]      = Schema.derived
           implicit val schema: Schema[`Variant-3`[Option]]        = Schema.derived
