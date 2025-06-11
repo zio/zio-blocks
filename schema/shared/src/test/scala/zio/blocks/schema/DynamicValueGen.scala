@@ -77,6 +77,7 @@ object DynamicValueGen {
       zoneId        <- genZoneId
     } yield ZonedDateTime.of(localDateTime, zoneId)
     Gen.oneOf(
+      Gen.unit.map(_ => PrimitiveValue.Unit),
       Gen.alphaNumericStringBounded(1, 10).map(PrimitiveValue.String.apply),
       Gen.int.map(PrimitiveValue.Int.apply),
       Gen.boolean.map(PrimitiveValue.Boolean.apply),
@@ -114,10 +115,8 @@ object DynamicValueGen {
   def genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
 
   private def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
-    if (maxDepth <= 0) {
-      // At max depth, only generate primitives
-      genPrimitiveValue.map(Primitive(_))
-    } else {
+    if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_))
+    else {
       Gen.oneOf(
         genPrimitiveValue.map(Primitive(_)),
         genRecordWithDepth(maxDepth - 1),
@@ -130,12 +129,13 @@ object DynamicValueGen {
   def genRecord: Gen[Any, Record] = genRecordWithDepth(2)
 
   private def genRecordWithDepth(maxDepth: Int): Gen[Any, Record] = Gen
-    .listOfBounded(0, 5) { // Reduced from 10 to 5 for Native compatibility
+    .listOfBounded(0, 5) {
       for {
         key   <- Gen.alphaNumericStringBounded(1, 10) // Avoid empty string keys
         value <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
       } yield key -> value
     }
+    .map(_.distinctBy(_._1)) // Now safe since all keys are non-empty strings
     .map(f => Record(f.toIndexedSeq))
 
   def genVariant: Gen[Any, Variant] = genVariantWithDepth(2)
