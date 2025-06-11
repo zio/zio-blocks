@@ -5,7 +5,7 @@ sealed trait IsNumeric[A] {
 
   def primitiveType: PrimitiveType[A]
 
-  def schema: Schema[A] = Schema.fromPrimitiveType(primitiveType)
+  val schema: Schema[A] = Schema.fromPrimitiveType(primitiveType)
 }
 
 object IsNumeric {

@@ -5,6 +5,8 @@ import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
+import java.time._
+import java.util.{Currency, UUID}
 
 object ReflectSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("ReflectSpec")(
@@ -14,14 +16,14 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.dynamic[Binding].isDynamic)(equalTo(true)) &&
         assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
         assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).isDynamic)(equalTo(true)) &&
-        assert(Reflect.int[Binding].asDynamic)(isNone) &&
-        assert(Reflect.int[Binding].isDynamic)(equalTo(false)) &&
+        assert(Reflect.localTime[Binding].asDynamic)(isNone) &&
+        assert(Reflect.localTime[Binding].isDynamic)(equalTo(false)) &&
         assert(tuple4Reflect.asDynamic)(isNone) &&
         assert(tuple4Reflect.isDynamic)(equalTo(false)) &&
         assert(eitherReflect.asDynamic)(isNone) &&
         assert(eitherReflect.isDynamic)(equalTo(false)) &&
-        assert(Reflect.set(Reflect.int[Binding]).asDynamic)(isNone) &&
-        assert(Reflect.set(Reflect.int[Binding]).isDynamic)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.localDateTime[Binding]).asDynamic)(isNone) &&
+        assert(Reflect.set(Reflect.localDateTime[Binding]).isDynamic)(equalTo(false)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asDynamic)(isNone) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isDynamic)(equalTo(false))
       },
@@ -38,14 +40,14 @@ object ReflectSpec extends ZIOSpecDefault {
           equalTo(true)
         ) &&
         assert(Reflect.Deferred(() => Reflect.map(Reflect.int[Binding], Reflect.int[Binding])).isMap)(equalTo(true)) &&
-        assert(Reflect.int[Binding].asMapUnknown)(isNone) &&
-        assert(Reflect.int[Binding].isMap)(equalTo(false)) &&
+        assert(Reflect.offsetTime[Binding].asMapUnknown)(isNone) &&
+        assert(Reflect.offsetTime[Binding].isMap)(equalTo(false)) &&
         assert(tuple4Reflect.asMapUnknown)(isNone) &&
         assert(tuple4Reflect.isMap)(equalTo(false)) &&
         assert(eitherReflect.asMapUnknown)(isNone) &&
         assert(eitherReflect.isMap)(equalTo(false)) &&
-        assert(Reflect.set(Reflect.int[Binding]).asMapUnknown)(isNone) &&
-        assert(Reflect.set(Reflect.int[Binding]).isMap)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.offsetDateTime[Binding]).asMapUnknown)(isNone) &&
+        assert(Reflect.set(Reflect.offsetDateTime[Binding]).isMap)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asMapUnknown)(isNone) &&
         assert(Reflect.dynamic[Binding].isMap)(equalTo(false))
       },
@@ -56,14 +58,14 @@ object ReflectSpec extends ZIOSpecDefault {
           isSome(equalTo(tuple4Reflect))
         ) &&
         assert(Reflect.Deferred(() => tuple4Reflect).isRecord)(equalTo(true)) &&
-        assert(Reflect.int[Binding].asRecord)(isNone) &&
-        assert(Reflect.int[Binding].isRecord)(equalTo(false)) &&
+        assert(Reflect.unit[Binding].asRecord)(isNone) &&
+        assert(Reflect.unit[Binding].isRecord)(equalTo(false)) &&
         assert(eitherReflect.asRecord)(isNone) &&
         assert(eitherReflect.isRecord)(equalTo(false)) &&
-        assert(Reflect.set(Reflect.int[Binding]).asRecord)(isNone) &&
-        assert(Reflect.set(Reflect.int[Binding]).isRecord)(equalTo(false)) &&
-        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asRecord)(isNone) &&
-        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isRecord)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.zoneId[Binding]).asRecord)(isNone) &&
+        assert(Reflect.set(Reflect.zoneId[Binding]).isRecord)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.bigDecimal[Binding]).asRecord)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.bigDecimal[Binding]).isRecord)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asRecord)(isNone) &&
         assert(Reflect.dynamic[Binding].isRecord)(equalTo(false))
       },
@@ -76,8 +78,8 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(tuple4Reflect.isPrimitive)(equalTo(false)) &&
         assert(eitherReflect.asPrimitive)(isNone) &&
         assert(eitherReflect.isPrimitive)(equalTo(false)) &&
-        assert(Reflect.set(Reflect.int[Binding]).asPrimitive)(isNone) &&
-        assert(Reflect.set(Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.period[Binding]).asPrimitive)(isNone) &&
+        assert(Reflect.set(Reflect.period[Binding]).isPrimitive)(equalTo(false)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asPrimitive)(isNone) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isPrimitive)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asPrimitive)(isNone) &&
@@ -98,8 +100,8 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(tuple4Reflect.isSequence)(equalTo(false)) &&
         assert(eitherReflect.asSequenceUnknown)(isNone) &&
         assert(eitherReflect.isSequence)(equalTo(false)) &&
-        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asSequenceUnknown)(isNone) &&
-        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isSequence)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.dayOfWeek[Binding], Reflect.duration[Binding]).asSequenceUnknown)(isNone) &&
+        assert(Reflect.map(Reflect.dayOfWeek[Binding], Reflect.duration[Binding]).isSequence)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asSequenceUnknown)(isNone) &&
         assert(Reflect.dynamic[Binding].isSequence)(equalTo(false))
       },
@@ -114,10 +116,10 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.int[Binding].isVariant)(equalTo(false)) &&
         assert(tuple4Reflect.asVariant)(isNone) &&
         assert(tuple4Reflect.isVariant)(equalTo(false)) &&
-        assert(Reflect.set(Reflect.int[Binding]).asVariant)(isNone) &&
-        assert(Reflect.set(Reflect.int[Binding]).isVariant)(equalTo(false)) &&
-        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asVariant)(isNone) &&
-        assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isVariant)(equalTo(false)) &&
+        assert(Reflect.set(Reflect.monthDay[Binding]).asVariant)(isNone) &&
+        assert(Reflect.set(Reflect.monthDay[Binding]).isVariant)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.zoneOffset[Binding], Reflect.zonedDateTime[Binding]).asVariant)(isNone) &&
+        assert(Reflect.map(Reflect.zoneOffset[Binding], Reflect.zonedDateTime[Binding]).isVariant)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asVariant)(isNone) &&
         assert(Reflect.dynamic[Binding].isVariant)(equalTo(false))
       }
@@ -401,20 +403,22 @@ object ReflectSpec extends ZIOSpecDefault {
       test("has extractors for lists, vactors, sets, and arrays") {
         import Reflect.Extractors._
 
-        val int1 = Reflect.int[Binding]
-        assert(Option(Reflect.list(int1)).collect { case List(e) => e })(isSome(equalTo(int1))) &&
-        assert(Option(Reflect.vector(int1)).collect { case Vector(e) => e })(isSome(equalTo(int1))) &&
-        assert(Option(Reflect.set(int1)).collect { case Set(e) => e })(isSome(equalTo(int1))) &&
-        assert(Option(Reflect.array(int1)).collect { case Array(e) => e })(isSome(equalTo(int1))) &&
-        assert(Option(Reflect.Deferred(() => Reflect.list(int1))).collect { case List(e) => e })(
-          isSome(equalTo(int1))
+        val bigInt1 = Reflect.bigInt[Binding]
+        assert(Option(Reflect.list(bigInt1)).collect { case List(e) => e })(isSome(equalTo(bigInt1))) &&
+        assert(Option(Reflect.vector(bigInt1)).collect { case Vector(e) => e })(isSome(equalTo(bigInt1))) &&
+        assert(Option(Reflect.set(bigInt1)).collect { case Set(e) => e })(isSome(equalTo(bigInt1))) &&
+        assert(Option(Reflect.array(bigInt1)).collect { case Array(e) => e })(isSome(equalTo(bigInt1))) &&
+        assert(Option(Reflect.Deferred(() => Reflect.list(bigInt1))).collect { case List(e) => e })(
+          isSome(equalTo(bigInt1))
         ) &&
-        assert(Option(Reflect.Deferred(() => Reflect.vector(int1))).collect { case Vector(e) => e })(
-          isSome(equalTo(int1))
+        assert(Option(Reflect.Deferred(() => Reflect.vector(bigInt1))).collect { case Vector(e) => e })(
+          isSome(equalTo(bigInt1))
         ) &&
-        assert(Option(Reflect.Deferred(() => Reflect.set(int1))).collect { case Set(e) => e })(isSome(equalTo(int1))) &&
-        assert(Option(Reflect.Deferred(() => Reflect.array(int1))).collect { case Array(e) => e })(
-          isSome(equalTo(int1))
+        assert(Option(Reflect.Deferred(() => Reflect.set(bigInt1))).collect { case Set(e) => e })(
+          isSome(equalTo(bigInt1))
+        ) &&
+        assert(Option(Reflect.Deferred(() => Reflect.array(bigInt1))).collect { case Array(e) => e })(
+          isSome(equalTo(bigInt1))
         )
       },
       test("gets and updates sequence default value") {
@@ -643,44 +647,34 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred5: Any)(not(equalTo("String")))
       },
       test("has consistent metadata and nodeType") {
-        assert(Reflect.Deferred(() => Reflect.int[Binding]).metadata: Any)(equalTo(Reflect.int[Binding].binding)) &&
-        assert(Reflect.Deferred(() => Reflect.int[Binding]).nodeType: Any)(equalTo(Reflect.Type.Primitive))
+        assert(Reflect.Deferred(() => Reflect.instant[Binding]).metadata: Any)(
+          equalTo(Reflect.instant[Binding].binding)
+        ) &&
+        assert(Reflect.Deferred(() => Reflect.localDate[Binding]).nodeType: Any)(equalTo(Reflect.Type.Primitive))
       },
       test("has consistent fromDynamicValue and toDynamicValue") {
-        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
-        assert(deferred1.fromDynamicValue(deferred1.toDynamicValue(0)))(isRight(equalTo(0)))
+        val deferred1 = Reflect.Deferred[Binding, Year](() => Reflect.year)
+        assert(deferred1.fromDynamicValue(deferred1.toDynamicValue(Year.of(2025))))(isRight(equalTo(Year.of(2025))))
       },
       test("gets and updates deferred default value") {
-        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        val deferred1 = Reflect.Deferred[Binding, YearMonth](() => Reflect.yearMonth)
         assert(deferred1.binding.defaultValue)(isNone) &&
-        assert(deferred1.binding.defaultValue(1).defaultValue.get.apply())(equalTo(1))
+        assert(deferred1.binding.defaultValue(YearMonth.of(2025, 6)).defaultValue.get.apply())(
+          equalTo(YearMonth.of(2025, 6))
+        )
       },
       test("gets and updates deferred documentation") {
-        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
-          Primitive(
-            PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive.int,
-            TypeName.int,
-            Doc("Int (positive)"),
-            Nil
-          )
-        }
-        assert(deferred1.doc)(equalTo(Doc("Int (positive)"))) &&
-        assert(deferred1.doc("Deferred (updated)").doc)(equalTo(Doc("Deferred (updated)")))
+        val deferred1 = Reflect.Deferred[Binding, Currency](() => Reflect.currency)
+        assert(deferred1.doc)(equalTo(Doc.Empty)) &&
+        assert(deferred1.doc("Currency (updated)").doc)(equalTo(Doc("Currency (updated)")))
       },
       test("gets and updates deferred examples") {
-        val deferred1 = Reflect.Deferred[Binding, Int] { () =>
-          Primitive(
-            PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int
-          )
-        }
-        assert(deferred1.binding.examples)(equalTo(Seq(1, 2, 3))) &&
-        assert(deferred1.binding.examples(1, 2).examples)(equalTo(Seq(1, 2)))
+        val deferred1 = Reflect.Deferred[Binding, Month](() => Reflect.month)
+        assert(deferred1.binding.examples)(equalTo(Seq())) &&
+        assert(deferred1.binding.examples(Month.APRIL, Month.MAY).examples)(equalTo(Seq(Month.APRIL, Month.MAY)))
       },
       test("gets and updates modifiers") {
-        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        val deferred1 = Reflect.Deferred[Binding, UUID](() => Reflect.uuid)
         assert(deferred1.modifiers)(equalTo(Seq.empty)) &&
         assert(deferred1.modifier(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]).modifiers: Any)(
           equalTo(Seq(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]))
