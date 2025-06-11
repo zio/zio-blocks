@@ -70,6 +70,12 @@ object TypeName {
 
   val uuid: TypeName[java.util.UUID] = new TypeName(new Namespace("java" :: "util" :: Nil, Nil), "UUID")
 
+  val none: TypeName[None.type] = TypeName(Namespace("scala" :: Nil, Nil), "None")
+
+  def some[A]: TypeName[Some[A]] = _some.asInstanceOf[TypeName[Some[A]]]
+
+  def option[A]: TypeName[Option[A]] = _option.asInstanceOf[TypeName[Option[A]]]
+
   def list[A]: TypeName[List[A]] = _list.asInstanceOf[TypeName[List[A]]]
 
   def map[K, V]: TypeName[Map[K, V]] = _map.asInstanceOf[TypeName[Map[K, V]]]
@@ -82,6 +88,8 @@ object TypeName {
 
   def array[A]: TypeName[Array[A]] = _array.asInstanceOf[TypeName[Array[A]]]
 
+  private[this] val _some     = TypeName(Namespace("scala" :: Nil, Nil), "Some")
+  private[this] val _option   = TypeName(Namespace("scala" :: Nil, Nil), "Option")
   private[this] val _list     = new TypeName(new Namespace(List("scala"), Nil), "List")
   private[this] val _map      = new TypeName(new Namespace(List("scala", "collection", "immutable"), Nil), "Map")
   private[this] val _set      = new TypeName(new Namespace(List("scala", "collection", "immutable"), Nil), "Set")
