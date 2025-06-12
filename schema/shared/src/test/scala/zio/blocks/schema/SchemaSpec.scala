@@ -246,10 +246,10 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
         assert(Record3.s.focus.getDefaultValue)(isNone) &&
         assert(Record3.l.focus.getDefaultValue)(isNone) &&
+        assert(Record3.s.modify(new Record3(1)(2L), _ => 3: Short).s)(equalTo(3: Short)) &&
+        assert(Record3.l.modify(new Record3(1)(2L), _ => 3L).l)(equalTo(3L)) &&
         assert(Record3.s.get(new Record3(1)(2L)))(equalTo(1: Short)) &&
         assert(Record3.l.get(new Record3(1)(2L)))(equalTo(2L)) &&
-        assert(Record3.s.replace(new Record3(1)(2L), 3: Short).s)(equalTo(3: Short)) &&
-        assert(Record3.l.replace(new Record3(1)(2L), 3L).l)(equalTo(3L)) &&
         assert(Record3.schema.fromDynamicValue(Record3.schema.toDynamicValue(new Record3(1)(2L))))(
           isRight(equalTo(new Record3(1)(2L)))
         ) &&
@@ -372,13 +372,13 @@ object SchemaSpec extends ZIOSpecDefault {
       test("derives schema for record with option types") {
         case class Record6(
           u: Option[Unit] = Some(()),
-          bl: Option[Boolean] = None,
+          bl: Option[Boolean] = Some(false),
           b: Option[Byte] = Some(0: Byte),
-          c: Option[Char] = None,
+          c: Option[Char] = Some(' '),
           s: Option[Short] = Some(0: Short),
-          f: Option[Float] = None,
+          f: Option[Float] = Some(0.0f),
           i: Option[Int] = Some(0),
-          d: Option[Double] = None,
+          d: Option[Double] = Some(0.0),
           l: Option[Long] = Some(0L),
           r: Option[Record6] = None
         )
@@ -395,31 +395,34 @@ object SchemaSpec extends ZIOSpecDefault {
           val d: Optional[Record6, Double]     = optic(_.d.when[Some[Double]].value)
           val l: Optional[Record6, Long]       = optic(_.l.when[Some[Long]].value)
           val r: Optional[Record6, Record6]    = optic(_.r.when[Some[Record6]].value)
+          val rn: Optional[Record6, None.type] = optic(_.r.when[None.type])
         }
 
         val record = Record6.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record6]]
         assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 10))) &&
         assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 10))) &&
+        assert(Record6.u.modify(Record6(), _ => ()))(equalTo(Record6())) &&
         assert(Record6.u.getOption(Record6()))(isSome(equalTo(()))) &&
+        assert(Record6.bl.modify(Record6(bl = Some(true)), _ => false))(equalTo(Record6(bl = Some(false)))) &&
         assert(Record6.bl.getOption(Record6(bl = Some(true))))(isSome(equalTo(true))) &&
+        assert(Record6.b.modify(Record6(b = Some(123: Byte)), _ => 0: Byte))(equalTo(Record6(b = Some(0: Byte)))) &&
         assert(Record6.b.getOption(Record6(b = Some(123: Byte))))(isSome(equalTo(123: Byte))) &&
+        assert(Record6.c.modify(Record6(c = Some('a')), _ => ' '))(equalTo(Record6(c = Some(' ')))) &&
         assert(Record6.c.getOption(Record6(c = Some('a'))))(isSome(equalTo('a'))) &&
+        assert(Record6.s.modify(Record6(s = Some(123: Short)), _ => 0: Short))(equalTo(Record6(s = Some(0: Short)))) &&
         assert(Record6.s.getOption(Record6(s = Some(123: Short))))(isSome(equalTo(123: Short))) &&
+        assert(Record6.f.replaceOption(Record6(f = Some(123.0f)), 0.0f))(isSome(equalTo(Record6(f = Some(0.0f))))) &&
         assert(Record6.f.getOption(Record6(f = Some(123.0f))))(isSome(equalTo(123.0f))) &&
+        assert(Record6.i.replaceOption(Record6(i = Some(123)), 0))(isSome(equalTo(Record6(i = Some(0))))) &&
         assert(Record6.i.getOption(Record6(i = Some(123))))(isSome(equalTo(123))) &&
+        assert(Record6.d.replaceOption(Record6(d = Some(123.0)), 0.0))(isSome(equalTo(Record6(d = Some(0.0))))) &&
         assert(Record6.d.getOption(Record6(d = Some(123.0))))(isSome(equalTo(123.0))) &&
         assert(Record6.l.getOption(Record6(l = Some(123L))))(isSome(equalTo(123L))) &&
+        assert(Record6.l.replaceOption(Record6(l = Some(123L)), 0L))(isSome(equalTo(Record6(l = Some(0L))))) &&
+        assert(Record6.r.getOption(Record6()))(isNone) &&
         assert(Record6.r.getOption(Record6(r = Some(Record6()))))(isSome(equalTo(Record6()))) &&
-        assert(Record6.u.replace(Record6(), ()))(equalTo(Record6())) &&
-        assert(Record6.bl.replace(Record6(bl = Some(true)), false))(equalTo(Record6(bl = Some(false)))) &&
-        assert(Record6.b.replace(Record6(b = Some(123: Byte)), 0: Byte))(equalTo(Record6(b = Some(0: Byte)))) &&
-        assert(Record6.c.replace(Record6(c = Some('a')), ' '))(equalTo(Record6(c = Some(' ')))) &&
-        assert(Record6.s.replace(Record6(s = Some(123: Short)), 0: Short))(equalTo(Record6(s = Some(0: Short)))) &&
-        assert(Record6.f.replace(Record6(f = Some(123.0f)), 0.0f))(equalTo(Record6(f = Some(0.0f)))) &&
-        assert(Record6.i.replace(Record6(i = Some(123)), 0))(equalTo(Record6(i = Some(0)))) &&
-        assert(Record6.d.replace(Record6(d = Some(123.0)), 0.0))(equalTo(Record6(d = Some(0.0)))) &&
-        assert(Record6.l.replace(Record6(l = Some(123L)), 0L))(equalTo(Record6(l = Some(0L)))) &&
-        assert(Record6.r.replace(Record6(r = Some(Record6())), null))(equalTo(Record6(r = Some(null)))) &&
+        assert(Record6.r.replaceOption(Record6(r = Some(Record6())), null))(isSome(equalTo(Record6(r = Some(null))))) &&
+        assert(Record6.rn.getOption(Record6(r = Some(Record6()))))(isNone) &&
         assert(Record6.schema.fromDynamicValue(Record6.schema.toDynamicValue(Record6())))(
           isRight(equalTo(Record6()))
         ) &&
