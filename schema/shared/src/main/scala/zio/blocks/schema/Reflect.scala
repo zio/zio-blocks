@@ -1203,90 +1203,95 @@ object Reflect {
   def unit[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Unit] = primitive(PrimitiveType.Unit)
 
   def boolean[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Boolean] =
-    primitive(PrimitiveType.Boolean(Validation.None))
+    primitive(new PrimitiveType.Boolean(Validation.None))
 
-  def byte[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Byte] = primitive(PrimitiveType.Byte(Validation.None))
+  def byte[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Byte] = primitive(new PrimitiveType.Byte(Validation.None))
 
-  def short[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Short] = primitive(PrimitiveType.Short(Validation.None))
+  def short[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Short] =
+    primitive(new PrimitiveType.Short(Validation.None))
 
-  def int[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Int] = primitive(PrimitiveType.Int(Validation.None))
+  def int[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Int] = primitive(new PrimitiveType.Int(Validation.None))
 
-  def long[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Long] = primitive(PrimitiveType.Long(Validation.None))
+  def long[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Long] = primitive(new PrimitiveType.Long(Validation.None))
 
-  def float[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Float] = primitive(PrimitiveType.Float(Validation.None))
+  def float[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Float] =
+    primitive(new PrimitiveType.Float(Validation.None))
 
-  def double[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Double] = primitive(PrimitiveType.Double(Validation.None))
+  def double[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Double] =
+    primitive(new PrimitiveType.Double(Validation.None))
 
-  def char[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Char] = primitive(PrimitiveType.Char(Validation.None))
+  def char[F[_, _]](implicit F: FromBinding[F]): Reflect[F, Char] = primitive(new PrimitiveType.Char(Validation.None))
 
-  def string[F[_, _]](implicit F: FromBinding[F]): Reflect[F, String] = primitive(PrimitiveType.String(Validation.None))
+  def string[F[_, _]](implicit F: FromBinding[F]): Reflect[F, String] =
+    primitive(new PrimitiveType.String(Validation.None))
 
-  def bigInt[F[_, _]](implicit F: FromBinding[F]): Reflect[F, BigInt] = primitive(PrimitiveType.BigInt(Validation.None))
+  def bigInt[F[_, _]](implicit F: FromBinding[F]): Reflect[F, BigInt] =
+    primitive(new PrimitiveType.BigInt(Validation.None))
 
   def bigDecimal[F[_, _]](implicit F: FromBinding[F]): Reflect[F, BigDecimal] =
-    primitive(PrimitiveType.BigDecimal(Validation.None))
+    primitive(new PrimitiveType.BigDecimal(Validation.None))
 
   def dayOfWeek[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.DayOfWeek] =
-    primitive(PrimitiveType.DayOfWeek(Validation.None))
+    primitive(new PrimitiveType.DayOfWeek(Validation.None))
 
   def duration[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Duration] =
-    primitive(PrimitiveType.Duration(Validation.None))
+    primitive(new PrimitiveType.Duration(Validation.None))
 
   def instant[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Instant] =
-    primitive(PrimitiveType.Instant(Validation.None))
+    primitive(new PrimitiveType.Instant(Validation.None))
 
   def localDate[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.LocalDate] =
-    primitive(PrimitiveType.LocalDate(Validation.None))
+    primitive(new PrimitiveType.LocalDate(Validation.None))
 
   def localDateTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.LocalDateTime] =
-    primitive(PrimitiveType.LocalDateTime(Validation.None))
+    primitive(new PrimitiveType.LocalDateTime(Validation.None))
 
   def localTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.LocalTime] =
-    primitive(PrimitiveType.LocalTime(Validation.None))
+    primitive(new PrimitiveType.LocalTime(Validation.None))
 
   def month[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Month] =
-    primitive(PrimitiveType.Month(Validation.None))
+    primitive(new PrimitiveType.Month(Validation.None))
 
   def monthDay[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.MonthDay] =
-    primitive(PrimitiveType.MonthDay(Validation.None))
+    primitive(new PrimitiveType.MonthDay(Validation.None))
 
   def offsetDateTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.OffsetDateTime] =
-    primitive(PrimitiveType.OffsetDateTime(Validation.None))
+    primitive(new PrimitiveType.OffsetDateTime(Validation.None))
 
   def offsetTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.OffsetTime] =
-    primitive(PrimitiveType.OffsetTime(Validation.None))
+    primitive(new PrimitiveType.OffsetTime(Validation.None))
 
   def period[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Period] =
-    primitive(PrimitiveType.Period(Validation.None))
+    primitive(new PrimitiveType.Period(Validation.None))
 
-  def primitive[F[_, _], A](primitiveType: PrimitiveType[A])(implicit F: FromBinding[F]): Reflect[F, A] =
+  private[this] def primitive[F[_, _], A](primitiveType: PrimitiveType[A])(implicit F: FromBinding[F]): Reflect[F, A] =
     new Primitive(primitiveType, F.fromBinding(primitiveType.binding), primitiveType.typeName, Doc.Empty, Nil)
 
   def year[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Year] =
-    primitive(PrimitiveType.Year(Validation.None))
+    primitive(new PrimitiveType.Year(Validation.None))
 
   def yearMonth[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.YearMonth] =
-    primitive(PrimitiveType.YearMonth(Validation.None))
+    primitive(new PrimitiveType.YearMonth(Validation.None))
 
   def zoneId[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.ZoneId] =
-    primitive(PrimitiveType.ZoneId(Validation.None))
+    primitive(new PrimitiveType.ZoneId(Validation.None))
 
   def zoneOffset[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.ZoneOffset] =
-    primitive(PrimitiveType.ZoneOffset(Validation.None))
+    primitive(new PrimitiveType.ZoneOffset(Validation.None))
 
   def zonedDateTime[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.ZonedDateTime] =
-    primitive(PrimitiveType.ZonedDateTime(Validation.None))
+    primitive(new PrimitiveType.ZonedDateTime(Validation.None))
 
   def currency[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.util.Currency] =
-    primitive(PrimitiveType.Currency(Validation.None))
+    primitive(new PrimitiveType.Currency(Validation.None))
 
   def uuid[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.util.UUID] =
-    primitive(PrimitiveType.UUID(Validation.None))
+    primitive(new PrimitiveType.UUID(Validation.None))
 
   def dynamic[F[_, _]](implicit F: FromBinding[F]): Dynamic[F] =
     new Dynamic(F.fromBinding(Binding.Dynamic()), Doc.Empty, Nil)
 
-  def some[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
+  private[this] def some[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[A],
@@ -1295,7 +1300,9 @@ object Reflect {
       Nil
     )
 
-  def someDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Record[F, Some[Double]] =
+  private[this] def someDouble[F[_, _]](
+    element: Reflect[F, Double]
+  )(implicit F: FromBinding[F]): Record[F, Some[Double]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Double],
@@ -1304,7 +1311,7 @@ object Reflect {
       Nil
     )
 
-  def someLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Record[F, Some[Long]] =
+  private[this] def someLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Record[F, Some[Long]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Long],
@@ -1313,7 +1320,7 @@ object Reflect {
       Nil
     )
 
-  def someFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Record[F, Some[Float]] =
+  private[this] def someFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Record[F, Some[Float]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Float],
@@ -1322,7 +1329,7 @@ object Reflect {
       Nil
     )
 
-  def someInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Record[F, Some[Int]] =
+  private[this] def someInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Record[F, Some[Int]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Int],
@@ -1331,7 +1338,7 @@ object Reflect {
       Nil
     )
 
-  def someChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Record[F, Some[Char]] =
+  private[this] def someChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Record[F, Some[Char]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Char],
@@ -1340,7 +1347,7 @@ object Reflect {
       Nil
     )
 
-  def someShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Record[F, Some[Short]] =
+  private[this] def someShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Record[F, Some[Short]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Short],
@@ -1349,7 +1356,9 @@ object Reflect {
       Nil
     )
 
-  def someBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Record[F, Some[Boolean]] =
+  private[this] def someBoolean[F[_, _]](
+    element: Reflect[F, Boolean]
+  )(implicit F: FromBinding[F]): Record[F, Some[Boolean]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Boolean],
@@ -1358,7 +1367,7 @@ object Reflect {
       Nil
     )
 
-  def someByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Record[F, Some[Byte]] =
+  private[this] def someByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Record[F, Some[Byte]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Byte],
@@ -1367,7 +1376,7 @@ object Reflect {
       Nil
     )
 
-  def someUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Record[F, Some[Unit]] =
+  private[this] def someUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Record[F, Some[Unit]] =
     new Record(
       Vector(Term("value", element, Doc.Empty, Nil)),
       TypeName.some[Unit],
@@ -1376,7 +1385,7 @@ object Reflect {
       Nil
     )
 
-  def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
+  private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
     new Record(Vector(), TypeName.none, F.fromBinding(Binding.Record.none), Doc.Empty, Nil)
 
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
