@@ -80,68 +80,65 @@ object Schema extends SchemaVersionSpecific {
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
 
-  implicit val unit: Schema[Unit] = fromPrimitiveType(PrimitiveType.Unit)
+  implicit val unit: Schema[Unit] = new Schema(Reflect.unit[Binding])
 
-  implicit val boolean: Schema[Boolean] = fromPrimitiveType(PrimitiveType.Boolean(Validation.None))
+  implicit val boolean: Schema[Boolean] = new Schema(Reflect.boolean[Binding])
 
-  implicit val byte: Schema[Byte] = fromPrimitiveType(PrimitiveType.Byte(Validation.None))
+  implicit val byte: Schema[Byte] = new Schema(Reflect.byte[Binding])
 
-  implicit val short: Schema[Short] = fromPrimitiveType(PrimitiveType.Short(Validation.None))
+  implicit val short: Schema[Short] = new Schema(Reflect.short[Binding])
 
-  implicit val int: Schema[Int] = fromPrimitiveType(PrimitiveType.Int(Validation.None))
+  implicit val int: Schema[Int] = new Schema(Reflect.int[Binding])
 
-  implicit val long: Schema[Long] = fromPrimitiveType(PrimitiveType.Long(Validation.None))
+  implicit val long: Schema[Long] = new Schema(Reflect.long[Binding])
 
-  implicit val float: Schema[Float] = fromPrimitiveType(PrimitiveType.Float(Validation.None))
+  implicit val float: Schema[Float] = new Schema(Reflect.float[Binding])
 
-  implicit val double: Schema[Double] = fromPrimitiveType(PrimitiveType.Double(Validation.None))
+  implicit val double: Schema[Double] = new Schema(Reflect.double[Binding])
 
-  implicit val char: Schema[Char] = fromPrimitiveType(PrimitiveType.Char(Validation.None))
+  implicit val char: Schema[Char] = new Schema(Reflect.char[Binding])
 
-  implicit val string: Schema[String] = fromPrimitiveType(PrimitiveType.String(Validation.None))
+  implicit val string: Schema[String] = new Schema(Reflect.string[Binding])
 
-  implicit val bigInteger: Schema[BigInt] = fromPrimitiveType(PrimitiveType.BigInt(Validation.None))
+  implicit val bigInt: Schema[BigInt] = new Schema(Reflect.bigInt[Binding])
 
-  implicit val bigDecimal: Schema[BigDecimal] = fromPrimitiveType(PrimitiveType.BigDecimal(Validation.None))
+  implicit val bigDecimal: Schema[BigDecimal] = new Schema(Reflect.bigDecimal[Binding])
 
-  implicit val dayOfWeek: Schema[java.time.DayOfWeek] = fromPrimitiveType(PrimitiveType.DayOfWeek(Validation.None))
+  implicit val dayOfWeek: Schema[java.time.DayOfWeek] = new Schema(Reflect.dayOfWeek[Binding])
 
-  implicit val duration: Schema[java.time.Duration] = fromPrimitiveType(PrimitiveType.Duration(Validation.None))
+  implicit val duration: Schema[java.time.Duration] = new Schema(Reflect.duration[Binding])
 
-  implicit val instant: Schema[java.time.Instant] = fromPrimitiveType(PrimitiveType.Instant(Validation.None))
+  implicit val instant: Schema[java.time.Instant] = new Schema(Reflect.instant[Binding])
 
-  implicit val localDate: Schema[java.time.LocalDate] = fromPrimitiveType(PrimitiveType.LocalDate(Validation.None))
+  implicit val localDate: Schema[java.time.LocalDate] = new Schema(Reflect.localDate[Binding])
 
-  implicit val localDateTime: Schema[java.time.LocalDateTime] =
-    fromPrimitiveType(PrimitiveType.LocalDateTime(Validation.None))
+  implicit val localDateTime: Schema[java.time.LocalDateTime] = new Schema(Reflect.localDateTime[Binding])
 
-  implicit val localTime: Schema[java.time.LocalTime] = fromPrimitiveType(PrimitiveType.LocalTime(Validation.None))
+  implicit val localTime: Schema[java.time.LocalTime] = new Schema(Reflect.localTime[Binding])
 
-  implicit val month: Schema[java.time.Month] = fromPrimitiveType(PrimitiveType.Month(Validation.None))
+  implicit val month: Schema[java.time.Month] = new Schema(Reflect.month[Binding])
 
-  implicit val monthDay: Schema[java.time.MonthDay] = fromPrimitiveType(PrimitiveType.MonthDay(Validation.None))
+  implicit val monthDay: Schema[java.time.MonthDay] = new Schema(Reflect.monthDay[Binding])
 
-  implicit val offsetDateTime: Schema[java.time.OffsetDateTime] =
-    fromPrimitiveType(PrimitiveType.OffsetDateTime(Validation.None))
+  implicit val offsetDateTime: Schema[java.time.OffsetDateTime] = new Schema(Reflect.offsetDateTime[Binding])
 
-  implicit val offsetTime: Schema[java.time.OffsetTime] = fromPrimitiveType(PrimitiveType.OffsetTime(Validation.None))
+  implicit val offsetTime: Schema[java.time.OffsetTime] = new Schema(Reflect.offsetTime[Binding])
 
-  implicit val period: Schema[java.time.Period] = fromPrimitiveType(PrimitiveType.Period(Validation.None))
+  implicit val period: Schema[java.time.Period] = new Schema(Reflect.period[Binding])
 
-  implicit val year: Schema[java.time.Year] = fromPrimitiveType(PrimitiveType.Year(Validation.None))
+  implicit val year: Schema[java.time.Year] = new Schema(Reflect.year[Binding])
 
-  implicit val yearMonth: Schema[java.time.YearMonth] = fromPrimitiveType(PrimitiveType.YearMonth(Validation.None))
+  implicit val yearMonth: Schema[java.time.YearMonth] = new Schema(Reflect.yearMonth[Binding])
 
-  implicit val zoneId: Schema[java.time.ZoneId] = fromPrimitiveType(PrimitiveType.ZoneId(Validation.None))
+  implicit val zoneId: Schema[java.time.ZoneId] = new Schema(Reflect.zoneId[Binding])
 
-  implicit val zoneOffset: Schema[java.time.ZoneOffset] = fromPrimitiveType(PrimitiveType.ZoneOffset(Validation.None))
+  implicit val zoneOffset: Schema[java.time.ZoneOffset] = new Schema(Reflect.zoneOffset[Binding])
 
-  implicit val zonedDateTime: Schema[java.time.ZonedDateTime] =
-    fromPrimitiveType(PrimitiveType.ZonedDateTime(Validation.None))
+  implicit val zonedDateTime: Schema[java.time.ZonedDateTime] = new Schema(Reflect.zonedDateTime[Binding])
 
-  implicit val currency: Schema[java.util.Currency] = fromPrimitiveType(PrimitiveType.Currency(Validation.None))
+  implicit val currency: Schema[java.util.Currency] = new Schema(Reflect.currency[Binding])
 
-  implicit val uuid: Schema[java.util.UUID] = fromPrimitiveType(PrimitiveType.UUID(Validation.None))
+  implicit val uuid: Schema[java.util.UUID] = new Schema(Reflect.uuid[Binding])
 
   implicit def option[A <: AnyRef](implicit element: Schema[A]): Schema[Option[A]] =
     new Schema(Reflect.option(element.reflect))
@@ -177,7 +174,4 @@ object Schema extends SchemaVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
-
-  private[this] def fromPrimitiveType[A](primitiveType: PrimitiveType[A]): Schema[A] =
-    new Schema(Reflect.primitive(primitiveType))
 }
