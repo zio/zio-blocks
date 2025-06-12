@@ -143,8 +143,6 @@ object Schema extends SchemaVersionSpecific {
 
   implicit val uuid: Schema[java.util.UUID] = fromPrimitiveType(PrimitiveType.UUID(Validation.None))
 
-  def fromPrimitiveType[A](primitiveType: PrimitiveType[A]): Schema[A] = new Schema(Reflect.primitive(primitiveType))
-
   implicit def option[A <: AnyRef](implicit element: Schema[A]): Schema[Option[A]] =
     new Schema(Reflect.option(element.reflect))
 
@@ -179,4 +177,7 @@ object Schema extends SchemaVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  private[this] def fromPrimitiveType[A](primitiveType: PrimitiveType[A]): Schema[A] =
+    new Schema(Reflect.primitive(primitiveType))
 }
