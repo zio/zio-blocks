@@ -1,59 +1,59 @@
 package zio.blocks.schema
 
 sealed trait IsNumeric[A] {
+  val primitiveType: PrimitiveType[A] = schema.reflect.asPrimitive.get.primitiveType
+
   def numeric: Numeric[A]
 
-  def primitiveType: PrimitiveType[A]
-
-  val schema: Schema[A] = Schema.fromPrimitiveType(primitiveType)
+  def schema: Schema[A]
 }
 
 object IsNumeric {
-  implicit val IsByte: IsNumeric[Byte] = new IsNumeric[scala.Byte] {
-    def primitiveType: PrimitiveType[scala.Byte] = PrimitiveType.Byte(Validation.None)
+  implicit val IsByte: IsNumeric[Byte] = new IsNumeric[Byte] {
+    def numeric: Numeric[Byte] = implicitly[Numeric[Byte]]
 
-    def numeric: Numeric[scala.Byte] = implicitly[Numeric[scala.Byte]]
+    def schema: Schema[Byte] = Schema[Byte]
   }
 
-  implicit val IsShort: IsNumeric[Short] = new IsNumeric[scala.Short] {
-    def primitiveType: PrimitiveType[scala.Short] = PrimitiveType.Short(Validation.None)
+  implicit val IsShort: IsNumeric[Short] = new IsNumeric[Short] {
+    def numeric: Numeric[Short] = implicitly[Numeric[Short]]
 
-    def numeric: Numeric[scala.Short] = implicitly[Numeric[scala.Short]]
+    def schema: Schema[Short] = Schema[Short]
   }
 
-  implicit val IsInt: IsNumeric[Int] = new IsNumeric[scala.Int] {
-    def primitiveType: PrimitiveType[scala.Int] = PrimitiveType.Int(Validation.None)
+  implicit val IsInt: IsNumeric[Int] = new IsNumeric[Int] {
+    def numeric: Numeric[Int] = implicitly[Numeric[Int]]
 
-    def numeric: Numeric[scala.Int] = implicitly[Numeric[scala.Int]]
+    def schema: Schema[Int] = Schema[Int]
   }
 
-  implicit val IsLong: IsNumeric[Long] = new IsNumeric[scala.Long] {
-    def primitiveType: PrimitiveType[scala.Long] = PrimitiveType.Long(Validation.None)
+  implicit val IsLong: IsNumeric[Long] = new IsNumeric[Long] {
+    def numeric: Numeric[Long] = implicitly[Numeric[Long]]
 
-    def numeric: Numeric[scala.Long] = implicitly[Numeric[scala.Long]]
+    def schema: Schema[Long] = Schema[Long]
   }
 
-  implicit val IsFloat: IsNumeric[Float] = new IsNumeric[scala.Float] {
-    def primitiveType: PrimitiveType[scala.Float] = PrimitiveType.Float(Validation.None)
+  implicit val IsFloat: IsNumeric[Float] = new IsNumeric[Float] {
+    def numeric: Numeric[Float] = implicitly[Numeric[Float]]
 
-    def numeric: Numeric[scala.Float] = implicitly[Numeric[scala.Float]]
+    def schema: Schema[Float] = Schema[Float]
   }
 
-  implicit val IsDouble: IsNumeric[Double] = new IsNumeric[scala.Double] {
-    def primitiveType: PrimitiveType[scala.Double] = PrimitiveType.Double(Validation.None)
+  implicit val IsDouble: IsNumeric[Double] = new IsNumeric[Double] {
+    def numeric: Numeric[Double] = implicitly[Numeric[Double]]
 
-    def numeric: Numeric[scala.Double] = implicitly[Numeric[scala.Double]]
+    def schema: Schema[Double] = Schema[Double]
   }
 
-  implicit val IsBigInt: IsNumeric[BigInt] = new IsNumeric[scala.BigInt] {
-    def primitiveType: PrimitiveType[scala.BigInt] = PrimitiveType.BigInt(Validation.None)
+  implicit val IsBigInt: IsNumeric[BigInt] = new IsNumeric[BigInt] {
+    def numeric: Numeric[BigInt] = implicitly[Numeric[BigInt]]
 
-    def numeric: Numeric[scala.BigInt] = implicitly[Numeric[scala.BigInt]]
+    def schema: Schema[BigInt] = Schema[BigInt]
   }
 
-  implicit val IsBigDecimal: IsNumeric[BigDecimal] = new IsNumeric[scala.BigDecimal] {
-    def primitiveType: PrimitiveType[scala.BigDecimal] = PrimitiveType.BigDecimal(Validation.None)
+  implicit val IsBigDecimal: IsNumeric[BigDecimal] = new IsNumeric[BigDecimal] {
+    def numeric: Numeric[BigDecimal] = implicitly[Numeric[BigDecimal]]
 
-    def numeric: Numeric[scala.BigDecimal] = implicitly[Numeric[scala.BigDecimal]]
+    def schema: Schema[BigDecimal] = Schema[BigDecimal]
   }
 }
