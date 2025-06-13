@@ -316,13 +316,17 @@ object Reflect {
           val fieldValues = this.fieldValues.clone
           val constructor = this.constructor
           val registers   = Registers(constructor.usedRegisters)
-          fields.foreach { case (name, value) =>
-            val idx = fieldIndexByName.get(name)
+          val len         = fields.length
+          var fieldIdx    = 0
+          while (fieldIdx < len) {
+            val kv   = fields(fieldIdx)
+            val name = kv._1
+            val idx  = fieldIndexByName.get(name)
             if (idx >= 0) {
               val fieldValue = fieldValues(idx)
               if (fieldValue ne null) {
                 fieldValues(idx) = null
-                fieldValue.fromDynamicValue(value, new DynamicOptic.Node.Field(name) :: trace) match {
+                fieldValue.fromDynamicValue(kv._2, new DynamicOptic.Node.Field(name) :: trace) match {
                   case Right(value) =>
                     this.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
                   case Left(error) =>
@@ -330,6 +334,7 @@ object Reflect {
                 }
               } else addError(SchemaError.duplicatedField(trace, name))
             }
+            fieldIdx += 1
           }
           var idx = 0
           while (idx < fieldValues.length) {
@@ -369,22 +374,21 @@ object Reflect {
       val deconstructor = this.deconstructor
       val registers     = Registers(deconstructor.usedRegisters)
       deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-      val builder = Vector.newBuilder[(String, DynamicValue)]
-      var idx     = 0
-      while (idx < this.registers.length) {
-        val field    = fields(idx)
+      val len    = this.registers.length
+      val fields = new Array[(String, DynamicValue)](len)
+      var idx    = 0
+      while (idx < len) {
+        val field    = this.fields(idx)
         val register = this.registers(idx)
-        builder.addOne(
-          (
-            field.name,
-            field.value
-              .asInstanceOf[Reflect[F, field.Focus]]
-              .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
-          )
+        fields(idx) = (
+          field.name,
+          field.value
+            .asInstanceOf[Reflect[F, field.Focus]]
+            .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
         )
         idx += 1
       }
-      new DynamicValue.Record(builder.result())
+      new DynamicValue.Record(ArraySeq.unsafeWrapArray(fields))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
