@@ -264,7 +264,7 @@ object Reflect {
     modifiers: Seq[Modifier.Record] = Vector()
   ) extends Reflect[F, A] { self =>
     private[this] val fieldValues = fields.map(_.value).toArray
-    private[this] val fieldIndexByName = new java.util.HashMap[String, Int] {
+    private[this] val fieldIndexByName = new StringToIntMap {
       fields.foreach {
         var i = 0
         term =>
@@ -297,12 +297,12 @@ object Reflect {
     def deconstructor(implicit F: HasBinding[F]): Deconstructor[A] = F.deconstructor(recordBinding)
 
     def fieldByName(name: String): Option[Term[F, A, ?]] = {
-      val idx = fieldIndexByName.getOrDefault(name, -1)
+      val idx = fieldIndexByName.get(name)
       if (idx >= 0) new Some(fields(idx))
       else None
     }
 
-    private[schema] def fieldIndexByName(name: String): Int = fieldIndexByName.getOrDefault(name, -1)
+    private[schema] def fieldIndexByName(name: String): Int = fieldIndexByName.get(name)
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
@@ -316,13 +316,17 @@ object Reflect {
           val fieldValues = this.fieldValues.clone
           val constructor = this.constructor
           val registers   = Registers(constructor.usedRegisters)
-          fields.foreach { case (name, value) =>
-            val idx = fieldIndexByName.getOrDefault(name, -1)
+          val len         = fields.length
+          var fieldIdx    = 0
+          while (fieldIdx < len) {
+            val kv   = fields(fieldIdx)
+            val name = kv._1
+            val idx  = fieldIndexByName.get(name)
             if (idx >= 0) {
               val fieldValue = fieldValues(idx)
               if (fieldValue ne null) {
                 fieldValues(idx) = null
-                fieldValue.fromDynamicValue(value, DynamicOptic.Node.Field(name) :: trace) match {
+                fieldValue.fromDynamicValue(kv._2, new DynamicOptic.Node.Field(name) :: trace) match {
                   case Right(value) =>
                     this.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
                   case Left(error) =>
@@ -330,6 +334,7 @@ object Reflect {
                 }
               } else addError(SchemaError.duplicatedField(trace, name))
             }
+            fieldIdx += 1
           }
           var idx = 0
           while (idx < fieldValues.length) {
@@ -343,7 +348,7 @@ object Reflect {
       }
 
     def lensByName[B](name: String): Option[Lens[A, B]] = {
-      val idx = fieldIndexByName.getOrDefault(name, -1)
+      val idx = fieldIndexByName.get(name)
       if (idx >= 0) {
         new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(idx).asInstanceOf[Term.Bound[A, B]]))
       } else None
@@ -356,7 +361,7 @@ object Reflect {
     def modifiers(modifiers: Iterable[Modifier.Record]): Record[F, A] = copy(modifiers = this.modifiers ++ modifiers)
 
     def modifyField(name: String)(f: Term.Updater[F]): Option[Record[F, A]] = {
-      val idx = fieldIndexByName.getOrDefault(name, -1)
+      val idx = fieldIndexByName.get(name)
       if (idx >= 0) {
         f.update(fields(idx)) match {
           case Some(field) => new Some(copy(fields = fields.updated(idx, field)))
@@ -369,18 +374,21 @@ object Reflect {
       val deconstructor = this.deconstructor
       val registers     = Registers(deconstructor.usedRegisters)
       deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-      val builder = Vector.newBuilder[(String, DynamicValue)]
-      var idx     = 0
-      while (idx < this.registers.length) {
-        val field                                 = fields(idx)
-        val register                              = this.registers(idx)
-        val fieldReflect: Reflect[F, field.Focus] = field.value.asInstanceOf[Reflect[F, field.Focus]]
-        val value =
-          fieldReflect.toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
-        builder.addOne((field.name, value))
+      val len    = this.registers.length
+      val fields = new Array[(String, DynamicValue)](len)
+      var idx    = 0
+      while (idx < len) {
+        val field    = this.fields(idx)
+        val register = this.registers(idx)
+        fields(idx) = (
+          field.name,
+          field.value
+            .asInstanceOf[Reflect[F, field.Focus]]
+            .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+        )
         idx += 1
       }
-      new DynamicValue.Record(builder.result())
+      new DynamicValue.Record(ArraySeq.unsafeWrapArray(fields))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
@@ -458,7 +466,7 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Variant] = Vector()
   ) extends Reflect[F, A] {
-    private[this] val caseIndexByName = new java.util.HashMap[String, Int] {
+    private[this] val caseIndexByName = new StringToIntMap {
       cases.foreach {
         var i = 0
         term =>
@@ -487,12 +495,12 @@ object Reflect {
     def binding(implicit F: HasBinding[F]): Binding[BindingType.Variant, A] = F.binding(variantBinding)
 
     def caseByName(name: String): Option[Term[F, A, ? <: A]] = {
-      val idx = caseIndexByName.getOrDefault(name, -1)
+      val idx = caseIndexByName.get(name)
       if (idx >= 0) new Some(cases(idx))
       else None
     }
 
-    private[schema] def caseIndexByName(name: String): Int = caseIndexByName.getOrDefault(name, -1)
+    private[schema] def caseIndexByName(name: String): Int = caseIndexByName.get(name)
 
     def discriminator(implicit F: HasBinding[F]): Discriminator[A] = F.discriminator(variantBinding)
 
@@ -501,10 +509,12 @@ object Reflect {
     ): Either[SchemaError, A] =
       value match {
         case DynamicValue.Variant(discriminator, value) =>
-          val idx = caseIndexByName(discriminator)
+          val idx = caseIndexByName.get(discriminator)
           if (idx >= 0) {
             val case_ = cases(idx)
-            case_.value.asInstanceOf[Reflect[F, A]].fromDynamicValue(value, DynamicOptic.Node.Case(case_.name) :: trace)
+            case_.value
+              .asInstanceOf[Reflect[F, A]]
+              .fromDynamicValue(value, new DynamicOptic.Node.Case(case_.name) :: trace)
           } else new Left(SchemaError.unknownCase(trace, discriminator))
         case _ => new Left(SchemaError.invalidType(trace, "Expected a variant"))
       }
@@ -518,7 +528,7 @@ object Reflect {
     def modifiers(modifiers: Iterable[Modifier.Variant]): Variant[F, A] = copy(modifiers = this.modifiers ++ modifiers)
 
     def modifyCase(name: String)(f: Term.Updater[F]): Option[Variant[F, A]] = {
-      val idx = caseIndexByName.getOrDefault(name, -1)
+      val idx = caseIndexByName.get(name)
       if (idx >= 0) {
         f.update(cases(idx)) match {
           case Some(case_) => new Some(copy(cases = cases.updated(idx, case_)))
@@ -528,17 +538,15 @@ object Reflect {
     }
 
     def prismByName[B <: A](name: String): Option[Prism[A, B]] = {
-      val idx = caseIndexByName.getOrDefault(name, -1)
+      val idx = caseIndexByName.get(name)
       if (idx >= 0) {
         new Some(Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(idx).asInstanceOf[Term.Bound[A, B]]))
       } else None
     }
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
-      val idx        = discriminator.discriminate(value)
-      val downcasted = matchers.matchers(idx).downcastOrNull(value)
-      val case_      = cases(idx)
-      DynamicValue.Variant(case_.name, case_.value.asInstanceOf[Reflect[F, downcasted.type]].toDynamicValue(downcasted))
+      val case_ = cases(discriminator.discriminate(value))
+      new DynamicValue.Variant(case_.name, case_.value.asInstanceOf[Reflect[F, A]].toDynamicValue(value))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
@@ -1567,6 +1575,65 @@ object Reflect {
           case x if x.sequence.typeName == TypeName.array =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
+    }
+  }
+
+  private class StringToIntMap {
+    private[this] var keys   = new Array[String](8)
+    private[this] var values = new Array[Int](8)
+    private[this] var size   = 0
+
+    def put(key: String, value: Int): Unit = {
+      val mask = keys.length - 1
+      if (size << 1 > mask) grow()
+      var idx = key.hashCode & mask
+      while ({
+        val currKey = keys(idx)
+        (currKey ne null) && !currKey.equals(key)
+      }) {
+        idx = (idx + 1) & mask
+      }
+      keys(idx) = key
+      values(idx) = value
+      size += 1
+    }
+
+    def get(key: String): Int = {
+      val mask            = keys.length - 1
+      var idx             = key.hashCode & mask
+      var currKey: String = null
+      while ({
+        currKey = keys(idx)
+        (currKey ne null) && !currKey.equals(key)
+      }) {
+        idx = (idx + 1) & mask
+      }
+      if (currKey eq null) -1
+      else values(idx)
+    }
+
+    private[this] def grow(): Unit = {
+      val len       = keys.length
+      val newLen    = len << 1
+      val newMask   = newLen - 1
+      val newKeys   = new Array[String](newLen)
+      val newValues = new Array[Int](newLen)
+      var idx       = 0
+      while (idx < len) {
+        val key   = keys(idx)
+        val value = values(idx)
+        if (key != null) {
+          var newIdx = key.hashCode & newMask
+          while (newKeys(idx) ne null) {
+            newIdx = (newIdx + 1) & newMask
+          }
+          newKeys(newIdx) = key
+          newValues(newIdx) = value
+        }
+        idx += 1
+      }
+      keys = newKeys
+      values = newValues
     }
   }
 }
