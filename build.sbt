@@ -116,9 +116,11 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 
 lazy val benchmarks = project
   .dependsOn(schema.jvm)
+  .settings(stdSettings("zio-blocks-benchmarks"))
   .enablePlugins(JmhPlugin)
   .settings(
-    publish / skip := true,
+    crossScalaVersions := Seq(Scala213, "3.7.1"),
+    publish / skip     := true,
     libraryDependencies ++= {
       Seq(
         "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
@@ -127,9 +129,7 @@ lazy val benchmarks = project
         "dev.zio"                   %%% "zio-test"      % "2.1.18" % Test,
         "dev.zio"                   %%% "zio-test-sbt"  % "2.1.18" % Test
       )
-    }
-  )
-  .settings(
+    },
     assembly / assemblyJarName := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case PathList("module-info.class") => MergeStrategy.discard
