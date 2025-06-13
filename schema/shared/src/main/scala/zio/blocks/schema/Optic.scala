@@ -160,9 +160,15 @@ sealed trait Optic[S, A] { self =>
     SchemaExpr.RelationalOperator.LessThanOrEqual
   )
 
-  final def !=(that: Optic[S, A]): SchemaExpr[S, Boolean] = SchemaExpr.Not(this === that)
+  final def !=(that: Optic[S, A]): SchemaExpr[S, Boolean] =
+    SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Optic(that), SchemaExpr.RelationalOperator.NotEqual)
 
-  final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] = SchemaExpr.Not(this === that)
+  final def !=(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
+    SchemaExpr.Relational(
+      SchemaExpr.Optic(this),
+      SchemaExpr.Literal(that, schema),
+      SchemaExpr.RelationalOperator.NotEqual
+    )
 
   final def &&(that: Optic[S, A])(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] = SchemaExpr.Logical(
     SchemaExpr.Optic(this.asEquivalent[Boolean]),
