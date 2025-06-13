@@ -1586,16 +1586,17 @@ object Reflect {
     def put(key: String, value: Int): Unit = {
       val mask = keys.length - 1
       if (size << 1 > mask) grow()
-      var idx = key.hashCode & mask
+      var idx             = key.hashCode & mask
+      var currKey: String = null
       while ({
-        val currKey = keys(idx)
+        currKey = keys(idx)
         (currKey ne null) && !currKey.equals(key)
       }) {
         idx = (idx + 1) & mask
       }
+      if (currKey eq null) size += 1
       keys(idx) = key
       values(idx) = value
-      size += 1
     }
 
     def get(key: String): Int = {
