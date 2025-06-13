@@ -372,12 +372,16 @@ object Reflect {
       val builder = Vector.newBuilder[(String, DynamicValue)]
       var idx     = 0
       while (idx < this.registers.length) {
-        val field                                 = fields(idx)
-        val register                              = this.registers(idx)
-        val fieldReflect: Reflect[F, field.Focus] = field.value.asInstanceOf[Reflect[F, field.Focus]]
-        val value =
-          fieldReflect.toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
-        builder.addOne((field.name, value))
+        val field    = fields(idx)
+        val register = this.registers(idx)
+        builder.addOne(
+          (
+            field.name,
+            field.value
+              .asInstanceOf[Reflect[F, field.Focus]]
+              .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+          )
+        )
         idx += 1
       }
       new DynamicValue.Record(builder.result())
@@ -537,12 +541,10 @@ object Reflect {
     }
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
-      val idx        = discriminator.discriminate(value)
-      val downcasted = matchers.matchers(idx).downcastOrNull(value)
-      val case_      = cases(idx)
+      val case_ = cases(discriminator.discriminate(value))
       new DynamicValue.Variant(
         case_.name,
-        case_.value.asInstanceOf[Reflect[F, downcasted.type]].toDynamicValue(downcasted)
+        case_.value.asInstanceOf[Reflect[F, case_.Focus]].toDynamicValue(value.asInstanceOf[case_.Focus])
       )
     }
 
