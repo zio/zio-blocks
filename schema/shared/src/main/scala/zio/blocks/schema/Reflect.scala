@@ -509,7 +509,7 @@ object Reflect {
     ): Either[SchemaError, A] =
       value match {
         case DynamicValue.Variant(discriminator, value) =>
-          val idx = caseIndexByName(discriminator)
+          val idx = caseIndexByName.get(discriminator)
           if (idx >= 0) {
             val case_ = cases(idx)
             case_.value
@@ -546,10 +546,7 @@ object Reflect {
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val case_ = cases(discriminator.discriminate(value))
-      new DynamicValue.Variant(
-        case_.name,
-        case_.value.asInstanceOf[Reflect[F, case_.Focus]].toDynamicValue(value.asInstanceOf[case_.Focus])
-      )
+      new DynamicValue.Variant(case_.name, case_.value.asInstanceOf[Reflect[F, A]].toDynamicValue(value))
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
