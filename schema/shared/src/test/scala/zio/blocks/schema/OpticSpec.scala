@@ -47,14 +47,38 @@ object OpticSpec extends ZIOSpecDefault {
         assert((Record1.b && true).evalDynamic(Record1(false, 0)))(
           isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
         ) &&
+        assert((Record1.b || true).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
         assert((!Record1.b).evalDynamic(Record1(false, 0)))(
           isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
         ) &&
         assert((Record1.f === 1.0f).evalDynamic(Record1(false, 0)))(
           isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
         ) &&
+        assert((Record1.f >= 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+        ) &&
+        assert((Record1.f > 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+        ) &&
+        assert((Record1.f <= 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
+        assert((Record1.f < 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
+        assert((Record1.f != 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
         assert((Record1.f + 1.0f).evalDynamic(Record1(false, 0)))(
           isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Float(1.0f)))))
+        ) &&
+        assert((Record1.f - 1.0f).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Float(-1.0f)))))
+        ) &&
+        assert((Record1.f * 2.0f).evalDynamic(Record1(false, 2.0f)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Float(4.0f)))))
         )
       },
       test("toDynamic") {
@@ -2135,6 +2159,10 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("evaluates schema expressions to dynamic values") {
+        val emptyArray = Array.empty[String]
+        assert((Collections.abd === Collections.abd).evalDynamic(Array(BigDecimal(1))))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
         assert(Case5.as.matches("a").evalDynamic(Case5(Set(), Array("a", "b"))))(
           isRight(
             equalTo(
@@ -2158,6 +2186,26 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case5.as.length.evalDynamic(Case5(Set(), Array("a", "b"))))(
           isRight(
             equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          )
+        ) &&
+        assert((Case5.as === Case5.as).eval(Case5(Set(), emptyArray)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  EmptySequence(
+                    full = DynamicOptic(
+                      Vector(Field("as"), Elements)
+                    ),
+                    prefix = DynamicOptic(
+                      Vector(Field("as"), Elements)
+                    ),
+                    actualValue = emptyArray
+                  ),
+                  Nil
+                )
+              )
+            )
           )
         )
       },
