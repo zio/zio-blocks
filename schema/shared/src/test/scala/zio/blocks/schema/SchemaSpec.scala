@@ -515,33 +515,76 @@ object SchemaSpec extends ZIOSpecDefault {
 
         type Variant1 = `Variant-1`
 
+        @Modifier.config("case-key-1", "case-value-1")
+        @Modifier.config("case-key-1", "case-value-2")
         case class `Case-1`(d: Double) extends Variant1
 
         object `Case-1` {
           implicit val schema: Schema[`Case-1`] = Schema.derived
         }
 
+        @Modifier.config("case-key-2", "case-value-1")
+        @Modifier.config("case-key-2", "case-value-2")
         case class `Case-2`(f: Float) extends Variant1
 
         object `Case-2` {
           implicit val schema: Schema[`Case-2`] = Schema.derived
         }
 
-        object `Variant-1` extends CompanionOptics[Variant1] {
-          implicit val schema: Schema[Variant1] = Schema.derived
-          val case1: Prism[Variant1, `Case-1`]  = optic(_.when[`Case-1`])
-          val case2: Prism[Variant1, `Case-2`]  = optic(_.when[`Case-2`])
+        @Modifier.config("case-key-3", "case-value-1")
+        @Modifier.config("case-key-3", "case-value-2")
+        case object `Case-3` extends Variant1 {
+          implicit val schema: Schema[`Case-3`.type] = Schema.derived
         }
 
+        object `Variant-1` extends CompanionOptics[Variant1] {
+          implicit val schema: Schema[Variant1]     = Schema.derived
+          val case1: Prism[Variant1, `Case-1`]      = optic(_.when[`Case-1`])
+          val case2: Prism[Variant1, `Case-2`]      = optic(_.when[`Case-2`])
+          val case3: Prism[Variant1, `Case-3`.type] = optic(_.when[`Case-3`.type])
+        }
+
+        val record1 = `Case-1`.schema.reflect.asInstanceOf[Reflect.Record[Binding, `Case-1`]]
+        val record2 = `Case-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, `Case-2`]]
+        val record3 = `Case-3`.schema.reflect.asInstanceOf[Reflect.Record[Binding, `Case-3`.type]]
+        assert(record1.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("case-key-1", "case-value-1"),
+              Modifier.config("case-key-1", "case-value-2")
+            )
+          )
+        ) &&
+        assert(record2.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("case-key-2", "case-value-1"),
+              Modifier.config("case-key-2", "case-value-2")
+            )
+          )
+        ) &&
+        assert(record3.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("case-key-3", "case-value-1"),
+              Modifier.config("case-key-3", "case-value-2")
+            )
+          )
+        ) &&
         assert(`Variant-1`.case1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
         assert(`Variant-1`.case2.getOption(`Case-2`(0.2f)))(isSome(equalTo(`Case-2`(0.2f)))) &&
+        assert(`Variant-1`.case3.getOption(`Case-3`))(isSome(equalTo(`Case-3`))) &&
         assert(`Variant-1`.case1.replace(`Case-1`(0.1), `Case-1`(0.2)))(equalTo(`Case-1`(0.2))) &&
         assert(`Variant-1`.case2.replace(`Case-2`(0.2f), `Case-2`(0.3f)))(equalTo(`Case-2`(0.3f))) &&
+        assert(`Variant-1`.case3.replace(`Case-3`, `Case-3`))(equalTo(`Case-3`)) &&
         assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-1`(0.1))))(
           isRight(equalTo(`Case-1`(0.1)))
         ) &&
         assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-2`(0.2f))))(
           isRight(equalTo(`Case-2`(0.2f)))
+        ) &&
+        assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-3`)))(
+          isRight(equalTo(`Case-3`))
         ) &&
         assert(`Variant-1`.schema)(
           equalTo(
@@ -549,7 +592,8 @@ object SchemaSpec extends ZIOSpecDefault {
               reflect = Reflect.Variant[Binding, Variant1](
                 cases = Vector(
                   Schema[`Case-1`].reflect.asTerm("Case-1"),
-                  Schema[`Case-2`].reflect.asTerm("Case-2")
+                  Schema[`Case-2`].reflect.asTerm("Case-2"),
+                  Schema[`Case-3`.type].reflect.asTerm("Case-3")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
@@ -573,8 +617,6 @@ object SchemaSpec extends ZIOSpecDefault {
 
         type Variant2[A] = `Variant-2`[A]
 
-        @Modifier.config("variant-key", "variant-value-1")
-        @Modifier.config("variant-key", "variant-value-2")
         case object MissingValue extends Variant2[Nothing] {
           implicit val schema: Schema[MissingValue.type] = Schema.derived
         }
@@ -596,15 +638,6 @@ object SchemaSpec extends ZIOSpecDefault {
           val value: Prism[Variant2[String], Value[String]]            = optic(_.when[Value[String]])
         }
 
-        val record = Schema[MissingValue.type].reflect.asInstanceOf[Reflect.Record[Binding, MissingValue.type]]
-        assert(record.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("variant-key", "variant-value-1"),
-              Modifier.config("variant-key", "variant-value-2")
-            )
-          )
-        ) &&
         assert(Variant2OfString.missingValue.getOption(MissingValue))(isSome(equalTo(MissingValue))) &&
         assert(Variant2OfString.nullValue.getOption(NullValue))(isSome(equalTo(NullValue))) &&
         assert(Variant2OfString.value.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
