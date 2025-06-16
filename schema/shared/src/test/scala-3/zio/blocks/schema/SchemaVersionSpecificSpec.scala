@@ -99,16 +99,34 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema for Scala 3 enums using 'derives' keyword") {
         val schema  = Schema[Color]
         val record1 = Schema[Color.Red.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Red.type]]
-        val record2 = Schema[Color.Mix].reflect.asInstanceOf[Reflect.Record[Binding, Color.Mix]]
+        val record2 = Schema[Color.Green.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Green.type]]
+        val record3 = Schema[Color.Blue.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Blue.type]]
+        val record4 = Schema[Color.Mix].reflect.asInstanceOf[Reflect.Record[Binding, Color.Mix]]
         assert(record1.modifiers)(
           equalTo(
             Seq(
-              Modifier.config("term-key", "term-value-1"),
-              Modifier.config("term-key", "term-value-2")
+              Modifier.config("term-key-1", "term-value-1"),
+              Modifier.config("term-key-1", "term-value-2")
             )
           )
         ) &&
         assert(record2.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("term-key-2", "term-value-1"),
+              Modifier.config("term-key-2", "term-value-2")
+            )
+          )
+        ) &&
+        assert(record3.modifiers)(
+          equalTo(
+            Seq(
+              Modifier.config("term-key-3", "term-value-1"),
+              Modifier.config("term-key-3", "term-value-2")
+            )
+          )
+        ) &&
+        assert(record4.modifiers)(
           equalTo(
             Seq(
               Modifier.config("type-key", "type-value-1"),
@@ -284,10 +302,12 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 }
 
 enum Color(val rgb: Int) derives Schema:
-  @Modifier.config("term-key", "term-value-1") @Modifier.config("term-key", "term-value-2") case Red
+  @Modifier.config("term-key-1", "term-value-1") @Modifier.config("term-key-1", "term-value-2") case Red
       extends Color(0xff0000)
-  case Green extends Color(0x00ff00)
-  case Blue  extends Color(0x0000ff)
+  @Modifier.config("term-key-2", "term-value-1") @Modifier.config("term-key-2", "term-value-2") case Green
+      extends Color(0x00ff00)
+  @Modifier.config("term-key-3", "term-value-1") @Modifier.config("term-key-3", "term-value-2") case Blue
+      extends Color(0x0000ff)
   @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2") case Mix(mix: Int)
       extends Color(mix)
 
