@@ -29,7 +29,7 @@ private object SchemaVersionSpecific {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
-    def isEnumOrModuleValue(tpe: TypeRepr): Boolean = tpe.isSingleton &&
+    def isEnumOrModuleValue(tpe: TypeRepr): Boolean =
       (tpe.typeSymbol.flags.is(Flags.Module) || tpe.termSymbol.flags.is(Flags.Enum))
 
     def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
@@ -242,7 +242,12 @@ private object SchemaVersionSpecific {
                 constructor = new Constructor[A] {
                   def usedRegisters: RegisterOffset = 0
 
-                  def construct(in: Registers, baseOffset: RegisterOffset): A = ${ Ref(tpe.termSymbol).asExprOf[A] }
+                  def construct(in: Registers, baseOffset: RegisterOffset): A = ${
+                    Ref {
+                      if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol
+                      else tpe.typeSymbol.companionModule
+                    }.asExprOf[A]
+                  }
                 },
                 deconstructor = new Deconstructor[A] {
                   def usedRegisters: RegisterOffset = 0

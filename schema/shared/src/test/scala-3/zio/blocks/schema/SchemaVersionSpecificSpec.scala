@@ -63,25 +63,32 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         case class Case2() extends Variant1 derives Schema
 
+        case object Case3 extends Variant1 derives Schema
+
         object Variant1 extends CompanionOptics[Variant1] {
           val case1 = optic(_.when[Case1])
           val case2 = optic(_.when[Case2])
+          val case3 = optic(_.when[Case3.type])
         }
 
         val schema = Schema[Variant1]
         assert(Variant1.case1.getOption(Case1(0.1)))(isSome(equalTo(Case1(0.1)))) &&
         assert(Variant1.case2.getOption(Case2()))(isSome(equalTo(Case2()))) &&
+        assert(Variant1.case3.getOption(Case3))(isSome(equalTo(Case3))) &&
         assert(Variant1.case1.replace(Case1(0.1), Case1(0.2)))(equalTo(Case1(0.2))) &&
         assert(Variant1.case2.replace(Case2(), Case2()))(equalTo(Case2())) &&
+        assert(Variant1.case3.replace(Case3, Case3))(equalTo(Case3)) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case2())))(isRight(equalTo(Case2()))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Case3)))(isRight(equalTo(Case3))) &&
         assert(schema)(
           equalTo(
             new Schema[Variant1](
               reflect = Reflect.Variant[Binding, Variant1](
                 cases = Vector(
                   Schema[Case1].reflect.asTerm("Case1"),
-                  Schema[Case2].reflect.asTerm("Case2")
+                  Schema[Case2].reflect.asTerm("Case2"),
+                  Schema[Case3.type].reflect.asTerm("Case3")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
