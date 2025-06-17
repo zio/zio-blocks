@@ -5,13 +5,12 @@ import scala.reflect.ClassTag
 sealed trait Lazy[+A] {
   import Lazy.{Cont, Defer, FlatMap}
 
-  private var value: Any       = null.asInstanceOf[Any]
-  private var error: Throwable = null.asInstanceOf[Throwable]
+  private[this] var value: Any       = null.asInstanceOf[Any]
+  private[this] var error: Throwable = null
 
   final def as[B](b: => B): Lazy[B] = map(_ => b)
 
-  final def catchAll[A1 >: A](f: Throwable => Lazy[A1]): Lazy[A1] =
-    FlatMap[A, A1](this, Cont(Lazy(_), f))
+  final def catchAll[A1 >: A](f: Throwable => Lazy[A1]): Lazy[A1] = FlatMap[A, A1](this, Cont(Lazy(_), f))
 
   final def ensuring(finalizer: Lazy[Any]): Lazy[A] =
     FlatMap[A, A](this, Cont(a => finalizer.map(_ => a), e => finalizer.map(_ => throw e)))
@@ -29,7 +28,6 @@ sealed trait Lazy[+A] {
           val result =
             try Right(thunk())
             catch { case e: Throwable => Left(e) }
-
           result match {
             case Right(value) => loop(stack.head.ifSuccess(value), stack.tail)
             case Left(error)  => loop(stack.head.ifError(error), stack.tail)
@@ -39,26 +37,20 @@ sealed trait Lazy[+A] {
         loop(first, k.erase :: stack)
     }
 
-    if (value == null) {
-      if (error == null) {
-        try {
-          value = loop(this, Nil)
-
-          value.asInstanceOf[A]
-        } catch {
-          case e: Throwable =>
-            error = e
-            throw e
-        }
-      } else {
-        throw error
-      }
-    } else {
-      value.asInstanceOf[A]
-    }
+    (if (value == null) {
+       if (error ne null) throw error
+       try {
+         value = loop(this, Nil)
+         value
+       } catch {
+         case e: Throwable =>
+           error = e
+           throw e
+       }
+     } else value).asInstanceOf[A]
   }
 
-  final def isEvaluated: Boolean = !(value == null && error == null)
+  final def isEvaluated: Boolean = value != null || (error ne null)
 
   final def map[B](f: A => B): Lazy[B] = flatMap(a => Lazy(f(a)))
 
@@ -111,18 +103,13 @@ object Lazy {
       lazyValue.flatMap(value => lazyResult.map(values => values + value))
     )
 
-  def fail(throwable: Throwable): Lazy[Nothing] =
-    Defer(() => throw throwable)
+  def fail(throwable: Throwable): Lazy[Nothing] = Defer(() => throw throwable)
 
-  def foreach[A, B](values: List[A])(f: A => Lazy[B]): Lazy[List[B]] =
-    collectAll(values.map(f))
+  def foreach[A, B](values: List[A])(f: A => Lazy[B]): Lazy[List[B]] = collectAll(values.map(f))
 
-  def foreach[A, B](values: Vector[A])(f: A => Lazy[B]): Lazy[Vector[B]] =
-    collectAll(values.map(f))
+  def foreach[A, B](values: Vector[A])(f: A => Lazy[B]): Lazy[Vector[B]] = collectAll(values.map(f))
 
-  def foreach[A: ClassTag, B: ClassTag](values: Array[A])(f: A => Lazy[B]): Lazy[Array[B]] =
-    collectAll(values.map(f))
+  def foreach[A: ClassTag, B: ClassTag](values: Array[A])(f: A => Lazy[B]): Lazy[Array[B]] = collectAll(values.map(f))
 
-  def foreach[A, B](values: Set[A])(f: A => Lazy[B]): Lazy[Set[B]] =
-    collectAll(values.map(f))
+  def foreach[A, B](values: Set[A])(f: A => Lazy[B]): Lazy[Set[B]] = collectAll(values.map(f))
 }

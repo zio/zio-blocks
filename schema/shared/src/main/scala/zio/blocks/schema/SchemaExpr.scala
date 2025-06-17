@@ -49,8 +49,8 @@ object SchemaExpr {
         new Right(l.get(input) :: Nil)
       case p: Prism[_, _] =>
         p.getOrFail(input) match {
-          case Right(x) => new Right(x.asInstanceOf[B] :: Nil)
-          case left     => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
+          case Right(x: B @scala.unchecked) => new Right(x :: Nil)
+          case left                         => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
         }
       case o: Optional[_, _] =>
         o.getOrFail(input) match {
@@ -70,8 +70,8 @@ object SchemaExpr {
         new Right(toDynamicValue(l.get(input)) :: Nil)
       case p: Prism[_, _] =>
         p.getOrFail(input) match {
-          case Right(x) => new Right(toDynamicValue(x.asInstanceOf[B]) :: Nil)
-          case left     => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
+          case Right(x: B @scala.unchecked) => new Right(toDynamicValue(x) :: Nil)
+          case left                         => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
         }
       case o: Optional[_, _] =>
         o.getOrFail(input) match {
