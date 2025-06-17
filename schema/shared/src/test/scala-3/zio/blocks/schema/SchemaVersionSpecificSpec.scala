@@ -11,6 +11,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
       test("derives schema using 'derives' keyword") {
+
+        /** Record: Record1 */
         case class Record1(c: Char, d: Double) derives Schema
 
         object Record1 extends CompanionOptics[Record1] {
@@ -48,7 +50,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   ),
                   name = "Record1"
                 ),
-                recordBinding = null
+                recordBinding = null,
+                doc = Doc("/** Record: Record1 */")
               )
             )
           )
@@ -57,12 +60,17 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Variant")(
       test("derives schema for sealed traits using 'derives' keyword") {
+
+        /** Variant: Variant1 */
         sealed trait Variant1 derives Schema
 
+        /** Case: Case1 */
         case class Case1(d: Double) extends Variant1 derives Schema
 
+        /** Case: Case2 */
         case class Case2() extends Variant1 derives Schema
 
+        /** Case: Case3 */
         case object Case3 extends Variant1 derives Schema
 
         object Variant1 extends CompanionOptics[Variant1] {
@@ -97,7 +105,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   ),
                   name = "Variant1"
                 ),
-                variantBinding = null
+                variantBinding = null,
+                doc = Doc("/** Variant: Variant1 */")
               )
             )
           )
@@ -105,15 +114,15 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       },
       test("derives schema for Scala 3 enums using 'derives' keyword") {
         val schema  = Schema[Color]
-        val record1 = Schema[Color.Red.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Red.type]]
+        val record1 = Schema[Color.Blue.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Blue.type]]
         val record2 = Schema[Color.Green.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Green.type]]
-        val record3 = Schema[Color.Blue.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Blue.type]]
-        val record4 = Schema[Color.Mix].reflect.asInstanceOf[Reflect.Record[Binding, Color.Mix]]
+        val record3 = Schema[Color.Mix].reflect.asInstanceOf[Reflect.Record[Binding, Color.Mix]]
+        val record4 = Schema[Color.Red.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Red.type]]
         assert(record1.modifiers)(
           equalTo(
             Seq(
-              Modifier.config("term-key-1", "term-value-1"),
-              Modifier.config("term-key-1", "term-value-2")
+              Modifier.config("term-key-3", "term-value-1"),
+              Modifier.config("term-key-3", "term-value-2")
             )
           )
         ) &&
@@ -128,19 +137,23 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(record3.modifiers)(
           equalTo(
             Seq(
-              Modifier.config("term-key-3", "term-value-1"),
-              Modifier.config("term-key-3", "term-value-2")
+              Modifier.config("type-key", "type-value-1"),
+              Modifier.config("type-key", "type-value-2")
             )
           )
         ) &&
         assert(record4.modifiers)(
           equalTo(
             Seq(
-              Modifier.config("type-key", "type-value-1"),
-              Modifier.config("type-key", "type-value-2")
+              Modifier.config("term-key-1", "term-value-1"),
+              Modifier.config("term-key-1", "term-value-2")
             )
           )
         ) &&
+        assert(record1.doc)(equalTo(Doc("/** Term: Blue */"))) &&
+        assert(record2.doc)(equalTo(Doc("/** Term: Green */"))) &&
+        assert(record3.doc)(equalTo(Doc("/** Type: Mix */"))) &&
+        assert(record4.doc)(equalTo(Doc("/** Term: Red */"))) &&
         assert(Color.red.getOption(Color.Red))(isSome(equalTo(Color.Red))) &&
         assert(Color.mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(Color.Mix(0xffffff)))) &&
         assert(Color.mix_mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(0xffffff))) &&
@@ -170,7 +183,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   ),
                   name = "Color"
                 ),
-                variantBinding = null
+                variantBinding = null,
+                doc = Doc("/** Variant: Color */")
               )
             )
           )
@@ -308,13 +322,21 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   )
 }
 
+/** Variant: Color */
 enum Color(val rgb: Int) derives Schema:
+  /** Term: Red */
   @Modifier.config("term-key-1", "term-value-1") @Modifier.config("term-key-1", "term-value-2") case Red
       extends Color(0xff0000)
+
+  /** Term: Green */
   @Modifier.config("term-key-2", "term-value-1") @Modifier.config("term-key-2", "term-value-2") case Green
       extends Color(0x00ff00)
+
+  /** Term: Blue */
   @Modifier.config("term-key-3", "term-value-1") @Modifier.config("term-key-3", "term-value-2") case Blue
       extends Color(0x0000ff)
+
+  /** Type: Mix */
   @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2") case Mix(mix: Int)
       extends Color(mix)
 
