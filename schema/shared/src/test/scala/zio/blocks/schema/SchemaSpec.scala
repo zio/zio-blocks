@@ -138,9 +138,9 @@ object SchemaSpec extends ZIOSpecDefault {
           val `f-2`: Lens[Record1, Float]      = optic(_.`f-2`)
         }
 
-        val record = `Record-1`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(booleans = 1, floats = 1))) &&
+        val record = `Record-1`.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(booleans = 1, floats = 1)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(booleans = 1, floats = 1)))) &&
         assert(`Record-1`.`b-1`.focus.getDefaultValue)(isSome(equalTo(false))) &&
         assert(`Record-1`.`f-2`.focus.getDefaultValue)(isSome(equalTo(0.0f))) &&
         assert(`Record-1`.`b-1`.get(`Record-1`()))(equalTo(false)) &&
@@ -195,11 +195,9 @@ object SchemaSpec extends ZIOSpecDefault {
           val i: Lens[Record2[`i-8`, `i-32`], `i-32`]         = optic(_.i)
         }
 
-        val record = `Record-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
-        assertTrue(
-          record.constructor.usedRegisters == RegisterOffset(bytes = 1, ints = 1),
-          record.deconstructor.usedRegisters == RegisterOffset(bytes = 1, ints = 1)
-        ) &&
+        val record = `Record-2`.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(bytes = 1, ints = 1)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(bytes = 1, ints = 1)))) &&
         assert(`Record-2`.b.focus.getDefaultValue)(isNone) &&
         assert(`Record-2`.i.focus.getDefaultValue.isDefined)(equalTo(true)) &&
         assert(`Record-2`.b.get(`Record-2`[`i-8`, `i-32`](1, 2)))(equalTo(1: Byte)) &&
@@ -241,9 +239,9 @@ object SchemaSpec extends ZIOSpecDefault {
           val l: Lens[Record3, Long]           = optic(_.l)
         }
 
-        val record = Record3.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(shorts = 1, longs = 1))) &&
+        val record = Record3.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(shorts = 1, longs = 1)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(shorts = 1, longs = 1)))) &&
         assert(Record3.s.focus.getDefaultValue)(isNone) &&
         assert(Record3.l.focus.getDefaultValue)(isNone) &&
         assert(Record3.s.modify(new Record3(1)(2L), _ => 3: Short).s)(equalTo(3: Short)) &&
@@ -283,9 +281,9 @@ object SchemaSpec extends ZIOSpecDefault {
           val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
         }
 
-        val record = Record4.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 2))) &&
+        val record = Record4.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(Record4.mx.focus.getDefaultValue)(isNone) &&
         assert(Record4.rs.focus.getDefaultValue)(isNone) &&
         assert(Record4.mx.fold[Int](Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))(0, _ + _))(equalTo(10)) &&
@@ -338,9 +336,9 @@ object SchemaSpec extends ZIOSpecDefault {
           val lu: Traversal[Record5, Unit]     = optic(_.lu.each)
         }
 
-        val record = Record5.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 1))) &&
+        val record = Record5.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 1)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 1)))) &&
         assert(Record5.u.focus.getDefaultValue)(isNone) &&
         assert(Record5.lu.focus.getDefaultValue)(isNone) &&
         assert(Record5.u.get(Record5((), Nil)))(equalTo(())) &&
@@ -398,9 +396,9 @@ object SchemaSpec extends ZIOSpecDefault {
           val rn: Optional[Record6, None.type] = optic(_.r.when[None.type])
         }
 
-        val record = Record6.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record6]]
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(objects = 10))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(objects = 10))) &&
+        val record = Record6.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 10)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 10)))) &&
         assert(Record6.u.modify(Record6(), _ => ()))(equalTo(Record6())) &&
         assert(Record6.u.getOption(Record6()))(isSome(equalTo(()))) &&
         assert(Record6.bl.modify(Record6(bl = Some(true)), _ => false))(equalTo(Record6(bl = Some(false)))) &&
@@ -544,31 +542,22 @@ object SchemaSpec extends ZIOSpecDefault {
           val case3: Prism[Variant1, `Case-3`.type] = optic(_.when[`Case-3`.type])
         }
 
-        val record1 = `Case-1`.schema.reflect.asInstanceOf[Reflect.Record[Binding, `Case-1`]]
-        val record2 = `Case-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, `Case-2`]]
-        val record3 = `Case-3`.schema.reflect.asInstanceOf[Reflect.Record[Binding, `Case-3`.type]]
-        assert(record1.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("case-key-1", "case-value-1"),
-              Modifier.config("case-key-1", "case-value-2")
-            )
+        val record1 = `Case-1`.schema.reflect.asRecord
+        val record2 = `Case-2`.schema.reflect.asRecord
+        val record3 = `Case-3`.schema.reflect.asRecord
+        assert(record1.map(_.modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("case-key-1", "case-value-1"), Modifier.config("case-key-1", "case-value-2")))
           )
         ) &&
-        assert(record2.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("case-key-2", "case-value-1"),
-              Modifier.config("case-key-2", "case-value-2")
-            )
+        assert(record2.map(_.modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("case-key-2", "case-value-1"), Modifier.config("case-key-2", "case-value-2")))
           )
         ) &&
-        assert(record3.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("case-key-3", "case-value-1"),
-              Modifier.config("case-key-3", "case-value-2")
-            )
+        assert(record3.map(_.modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("case-key-3", "case-value-1"), Modifier.config("case-key-3", "case-value-2")))
           )
         ) &&
         assert(`Variant-1`.case1.getOption(`Case-1`(0.1)))(isSome(equalTo(`Case-1`(0.1)))) &&
@@ -658,15 +647,9 @@ object SchemaSpec extends ZIOSpecDefault {
             new Schema[Variant2[String]](
               reflect = Reflect.Variant[Binding, Variant2[String]](
                 cases = Vector(
-                  Schema[MissingValue.type].reflect
-                    .asTerm("MissingValue")
-                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
-                  Schema[NullValue.type].reflect
-                    .asTerm("NullValue")
-                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]],
-                  Schema[Value[String]].reflect
-                    .asTerm("Value")
-                    .asInstanceOf[Term[Binding, Variant2[String], ? <: Variant2[String]]]
+                  Schema[MissingValue.type].reflect.asTerm("MissingValue"),
+                  Schema[NullValue.type].reflect.asTerm("NullValue"),
+                  Schema[Value[String]].reflect.asTerm("Value")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
@@ -693,15 +676,9 @@ object SchemaSpec extends ZIOSpecDefault {
             new Schema[Level1.MultiLevel](
               reflect = Reflect.Variant[Binding, Level1.MultiLevel](
                 cases = Vector(
-                  Schema[Case.type].reflect
-                    .asTerm("Case")
-                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]],
-                  Schema[Level1.Case.type].reflect
-                    .asTerm("Level1.Case")
-                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]],
-                  Schema[Level1.Level2.Case.type].reflect
-                    .asTerm("Level1.Level2.Case")
-                    .asInstanceOf[Term[Binding, Level1.MultiLevel, ? <: Level1.MultiLevel]]
+                  Schema[Case.type].reflect.asTerm("Case"),
+                  Schema[Level1.Case.type].reflect.asTerm("Level1.Case"),
+                  Schema[Level1.Level2.Case.type].reflect.asTerm("Level1.Level2.Case")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(
