@@ -5,8 +5,7 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def apply(that: DynamicOptic): DynamicOptic = new DynamicOptic(nodes ++ that.nodes)
 
-  def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, A]] =
-    reflect.get(this).asInstanceOf[Option[Reflect[F, A]]]
+  def apply[F[_, _], A](reflect: Reflect[F, A]): Option[Reflect[F, _]] = reflect.get(this)
 
   def field(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Field(name))
 

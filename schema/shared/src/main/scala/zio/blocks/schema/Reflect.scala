@@ -58,8 +58,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     F: HasBinding[F]
   ): Either[SchemaError, A]
 
-  def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] =
-    get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
+  def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] = get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
 
   def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
     @tailrec
@@ -101,7 +100,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
         )
       }
 
-    loop(this, 0).asInstanceOf[Option[Reflect[F, A]]]
+    loop(this, 0)
   }
 
   def getDefaultValue(implicit F: HasBinding[F]): Option[A]
