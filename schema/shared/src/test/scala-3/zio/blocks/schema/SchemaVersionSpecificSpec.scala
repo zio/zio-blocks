@@ -21,13 +21,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         }
 
         val schema = Schema[Record1]
-        val record = schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
-        val field1 = record.fields(0).asInstanceOf[Term.Bound[Record1, Char]]
-        val field2 = record.fields(1).asInstanceOf[Term.Bound[Record1, Double]]
-        assert(field1.value.binding.defaultValue)(isNone) &&
-        assert(field2.value.binding.defaultValue)(isNone) &&
-        assert(record.constructor.usedRegisters)(equalTo(RegisterOffset(chars = 1, doubles = 1))) &&
-        assert(record.deconstructor.usedRegisters)(equalTo(RegisterOffset(chars = 1, doubles = 1))) &&
+        val record = schema.reflect.asRecord
+        assert(record.flatMap(_.fields(0).value.binding.defaultValue))(isNone) &&
+        assert(record.flatMap(_.fields(1).value.binding.defaultValue))(isNone) &&
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(chars = 1, doubles = 1)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(chars = 1, doubles = 1)))) &&
         assert(Record1.c.get(Record1('1', 2.0)))(equalTo('1')) &&
         assert(Record1.d.get(Record1('1', 2.0)))(equalTo(2.0)) &&
         assert(Record1.c.replace(Record1('1', 2.0), '3'))(equalTo(Record1('3', 2.0))) &&
@@ -114,46 +112,34 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       },
       test("derives schema for Scala 3 enums using 'derives' keyword") {
         val schema  = Schema[Color]
-        val record1 = Schema[Color.Blue.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Blue.type]]
-        val record2 = Schema[Color.Green.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Green.type]]
-        val record3 = Schema[Color.Mix].reflect.asInstanceOf[Reflect.Record[Binding, Color.Mix]]
-        val record4 = Schema[Color.Red.type].reflect.asInstanceOf[Reflect.Record[Binding, Color.Red.type]]
-        assert(record1.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("term-key-3", "term-value-1"),
-              Modifier.config("term-key-3", "term-value-2")
-            )
+        val record1 = Schema[Color.Blue.type].reflect.asRecord
+        val record2 = Schema[Color.Green.type].reflect.asRecord
+        val record3 = Schema[Color.Mix].reflect.asRecord
+        val record4 = Schema[Color.Red.type].reflect.asRecord
+        assert(record1.map(_.modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("term-key-3", "term-value-1"), Modifier.config("term-key-3", "term-value-2")))
           )
         ) &&
-        assert(record2.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("term-key-2", "term-value-1"),
-              Modifier.config("term-key-2", "term-value-2")
-            )
+        assert(record2.map(_.modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("term-key-2", "term-value-1"), Modifier.config("term-key-2", "term-value-2")))
           )
         ) &&
-        assert(record3.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("type-key", "type-value-1"),
-              Modifier.config("type-key", "type-value-2")
-            )
+        assert(record3.map(_.modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("type-key", "type-value-1"), Modifier.config("type-key", "type-value-2")))
           )
         ) &&
-        assert(record4.modifiers)(
-          equalTo(
-            Seq(
-              Modifier.config("term-key-1", "term-value-1"),
-              Modifier.config("term-key-1", "term-value-2")
-            )
+        assert(record4.map(_.modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("term-key-1", "term-value-1"), Modifier.config("term-key-1", "term-value-2")))
           )
         ) &&
-        assert(record1.doc)(equalTo(Doc("/** Term: Blue */"))) &&
-        assert(record2.doc)(equalTo(Doc("/** Term: Green */"))) &&
-        assert(record3.doc)(equalTo(Doc("/** Type: Mix */"))) &&
-        assert(record4.doc)(equalTo(Doc("/** Term: Red */"))) &&
+        assert(record1.map(_.doc))(isSome(equalTo(Doc("/** Term: Blue */")))) &&
+        assert(record2.map(_.doc))(isSome(equalTo(Doc("/** Term: Green */")))) &&
+        assert(record3.map(_.doc))(isSome(equalTo(Doc("/** Type: Mix */")))) &&
+        assert(record4.map(_.doc))(isSome(equalTo(Doc("/** Term: Red */")))) &&
         assert(Color.red.getOption(Color.Red))(isSome(equalTo(Color.Red))) &&
         assert(Color.mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(Color.Mix(0xffffff)))) &&
         assert(Color.mix_mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(0xffffff))) &&

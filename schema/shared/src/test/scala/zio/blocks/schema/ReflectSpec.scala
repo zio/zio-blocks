@@ -126,9 +126,9 @@ object ReflectSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
-        val long1 = Primitive(
+        val long1 = Primitive[Binding, Long](
           primitiveType = PrimitiveType.Long(Validation.None),
-          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]], // should be ignored in equals and hashCode
+          primitiveBinding = null, // should be ignored in equals and hashCode
           typeName = TypeName.long,
           doc = Doc.Empty,
           modifiers = Nil
@@ -162,15 +162,9 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.int[Binding].defaultValue(1).binding.defaultValue.get.apply())(equalTo(1))
       },
       test("gets and updates primitive documentation") {
-        val long1 = Primitive(
-          primitiveType = PrimitiveType.Long(Validation.None),
-          primitiveBinding = null.asInstanceOf[Binding.Primitive[Long]],
-          typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
-        )
-        assert(long1.doc)(equalTo(Doc("Long (positive)"))) &&
-        assert(Reflect.int[Binding].doc("Int (updated)").doc)(equalTo(Doc("Int (updated)")))
+        val long1 = Reflect.long[Binding]
+        assert(long1.doc)(equalTo(Doc.Empty)) &&
+        assert(long1.doc("Long (updated)").doc)(equalTo(Doc("Long (updated)")))
       },
       test("gets and updates primitive examples") {
         val long1 = Primitive(
@@ -186,11 +180,11 @@ object ReflectSpec extends ZIOSpecDefault {
       test("gets and appends dynamic modifiers") {
         val int1 = Reflect.int[Binding]
         assert(int1.modifiers)(equalTo(Seq.empty)) &&
-        assert(int1.modifier(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]).modifiers)(
-          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]))
+        assert(int1.modifier(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]).modifiers: Any)(
+          equalTo(Seq(Modifier.config("key", "value")))
         ) &&
-        assert(int1.modifiers(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType])).modifiers)(
-          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]))
+        assert(int1.modifiers(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType])).modifiers: Any)(
+          equalTo(Seq(Modifier.config("key", "value")))
         )
       }
     ),
@@ -268,14 +262,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("creates lens by name") {
         assert(tuple4Reflect.lensByName("_3"): Option[Any])(
-          isSome(
-            equalTo(
-              Lens(
-                tuple4Reflect,
-                Reflect.int[Binding].asTerm("_3").asInstanceOf[Term[Binding, (Byte, Short, Int, Long), Int]]
-              )
-            )
-          )
+          isSome(equalTo(Lens(tuple4Reflect, Reflect.int[Binding].asTerm[(Byte, Short, Int, Long)]("_3"))))
         ) &&
         assert(tuple4Reflect.lensByName("_5"))(isNone)
       },
@@ -340,14 +327,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("creates prism by name") {
         assert(eitherReflect.prismByName("Left"): Option[Any])(
-          isSome(
-            equalTo(
-              Prism(
-                eitherReflect,
-                leftSchema.reflect.asTerm("Left").asInstanceOf[Term[Binding, Either[Int, Long], Left[Int, Long]]]
-              )
-            )
-          )
+          isSome(equalTo(Prism(eitherReflect, leftSchema.reflect.asTerm[Either[Int, Long]]("Left"))))
         ) &&
         assert(eitherReflect.prismByName("Middle"))(isNone)
       },
@@ -375,7 +355,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
           element = Reflect.double,
           typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]] // should be ignored in equals and hashCode
+          seqBinding = null // should be ignored in equals and hashCode
         )
         val sequence2 = sequence1.copy(element =
           Primitive(PrimitiveType.Double(Validation.None), Binding.Primitive.double, TypeName.double, Doc("text"), Nil)
@@ -428,15 +408,9 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates sequence documentation") {
-        val sequence1 = Reflect.Sequence[Binding, Double, List](
-          element = Reflect.double,
-          typeName = TypeName.list,
-          seqBinding = null.asInstanceOf[Binding.Seq[List, Double]],
-          doc = Doc("List of doubles"),
-          modifiers = Nil
-        )
-        assert(sequence1.doc)(equalTo(Doc("List of doubles"))) &&
-        assert(Reflect.array(Reflect.int[Binding]).doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
+        val sequence1 = Reflect.array(Reflect.int[Binding])
+        assert(sequence1.doc)(equalTo(Doc.Empty)) &&
+        assert(sequence1.doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
       },
       test("gets and updates sequence examples") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](
@@ -468,7 +442,7 @@ object ReflectSpec extends ZIOSpecDefault {
           key = Reflect.short,
           value = Reflect.float,
           typeName = TypeName.map[Short, Float],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Short, Float]] // should be ignored in equals and hashCode
+          mapBinding = null // should be ignored in equals and hashCode
         )
         val map2 = map1.copy(key =
           Primitive(
@@ -522,7 +496,7 @@ object ReflectSpec extends ZIOSpecDefault {
           key = Reflect.int,
           value = Reflect.long,
           typeName = TypeName.map[Int, Long],
-          mapBinding = null.asInstanceOf[Binding.Map[Map, Int, Long]], // should be ignored in equals and hashCode
+          mapBinding = null, // should be ignored in equals and hashCode
           doc = Doc("Map of Int to Long"),
           modifiers = Nil
         )
@@ -565,7 +539,7 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("Reflect.Dynamic")(
       test("has consistent equals and hashCode") {
         val dynamic1 = Reflect.dynamic[Binding]
-        val dynamic2 = dynamic1.copy(dynamicBinding = null.asInstanceOf[Binding.Dynamic])
+        val dynamic2 = dynamic1.copy(dynamicBinding = null: Binding.Dynamic)
         val dynamic3 = dynamic1.copy(doc = Doc("text"))
         val dynamic4 = dynamic1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(dynamic1)(equalTo(dynamic1)) &&
@@ -599,13 +573,9 @@ object ReflectSpec extends ZIOSpecDefault {
         )(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
       },
       test("gets and updates dynamic documentation") {
-        val dynamic1 = Reflect.Dynamic[Binding](
-          dynamicBinding = Binding.Dynamic(),
-          doc = Doc("Dynamic"),
-          modifiers = Nil
-        )
-        assert(dynamic1.doc)(equalTo(Doc("Dynamic"))) &&
-        assert(Reflect.dynamic[Binding].doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+        val dynamic1 = Reflect.dynamic[Binding]
+        assert(dynamic1.doc)(equalTo(Doc.Empty)) &&
+        assert(dynamic1.doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
       },
       test("gets and updates dynamic examples") {
         val dynamic1 = Reflect.Dynamic[Binding](
@@ -677,13 +647,13 @@ object ReflectSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, UUID](() => Reflect.uuid)
         assert(deferred1.modifiers)(equalTo(Seq.empty)) &&
         assert(deferred1.modifier(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]).modifiers: Any)(
-          equalTo(Seq(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]))
+          equalTo(Seq(Modifier.config("key", "value")))
         ) &&
         assert(
           deferred1
             .modifiers(Seq(Modifier.config("key", "value")).asInstanceOf[Seq[deferred1.ModifierType]])
             .modifiers: Any
-        )(equalTo(Seq(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType])))
+        )(equalTo(Seq(Modifier.config("key", "value"))))
       }
     )
   )
