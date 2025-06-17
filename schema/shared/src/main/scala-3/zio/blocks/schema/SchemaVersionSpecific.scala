@@ -214,6 +214,11 @@ private object SchemaVersionSpecific {
         }
         .reverse
 
+    def doc(tpe: TypeRepr): Expr[Doc] =
+      (if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol else tpe.typeSymbol).docstring
+        .map(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
+        .getOrElse('{ Doc.Empty }.asExprOf[Doc])
+
     val tpe                      = TypeRepr.of[A].dealias
     val (packages, values, name) = typeName(tpe)
 
@@ -255,6 +260,7 @@ private object SchemaVersionSpecific {
                   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ()
                 }
               ),
+              doc = ${ doc(tpe) },
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
@@ -321,6 +327,7 @@ private object SchemaVersionSpecific {
                 },
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
               ),
+              doc = ${ doc(tpe) },
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
@@ -513,6 +520,7 @@ private object SchemaVersionSpecific {
                   }
                 }
               ),
+              doc = ${ doc(tpe) },
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
