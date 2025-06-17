@@ -453,32 +453,20 @@ private object SchemaVersionSpecific {
             val fTpe = fieldInfo.tpe
             fTpe.asType match {
               case '[ft] =>
-                val nameExpr = Expr(fieldInfo.name)
                 val usingExpr = Expr.summon[Schema[ft]].getOrElse {
                   fail(s"Cannot find implicitly accessible schema for '${fTpe.show}'")
                 }
-                val reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
-                var fieldTermExpr = if (isNonRecursive(fTpe)) {
-                  fieldInfo.defaultValue
-                    .fold('{ $reflectExpr.asTerm[A]($nameExpr) }) { dv =>
-                      '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }).asTerm[A]($nameExpr) }
-                    }
-                } else {
-                  fieldInfo.defaultValue
-                    .fold('{ Reflect.Deferred(() => $reflectExpr).asTerm[A]($nameExpr) }) { dv =>
-                      '{ Reflect.Deferred(() => $reflectExpr.defaultValue(${ dv.asExprOf[ft] })).asTerm[A]($nameExpr) }
-                    }
+                var reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
+                reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
+                  '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
                 }
+                if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+                var fieldTermExpr = '{ $reflectExpr.asTerm[A](${ Expr(fieldInfo.name) }) }
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
                 if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
-                if (modifiers.nonEmpty) {
-                  val modifiersExpr = Expr.ofSeq(modifiers)
-                  fieldTermExpr = '{
-                    $fieldTermExpr.copy(modifiers = $modifiersExpr).asInstanceOf[zio.blocks.schema.Term[Binding, A, ft]]
-                  }
-                }
+                if (modifiers.nonEmpty) fieldTermExpr = '{ $fieldTermExpr.copy(modifiers = ${ Expr.ofSeq(modifiers) }) }
                 fieldTermExpr
             }
           })

@@ -345,19 +345,12 @@ private object SchemaVersionSpecific {
           FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
-          val fTpe        = fieldInfo.tpe
-          val name        = fieldInfo.name
-          val reflectTree = q"Schema[$fTpe].reflect"
-          var fieldTermTree = if (isNonRecursive(fTpe)) {
-            fieldInfo.defaultValue.fold(q"$reflectTree.asTerm($name)") { dv =>
-              q"$reflectTree.defaultValue($dv).asTerm($name)"
-            }
-          } else {
-            fieldInfo.defaultValue.fold(q"Reflect.Deferred(() => $reflectTree).asTerm($name)") { dv =>
-              q"Reflect.Deferred(() => $reflectTree.defaultValue($dv)).asTerm($name)"
-            }
-          }
-          var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
+          val fTpe              = fieldInfo.tpe
+          var reflectTree: Tree = q"Schema[$fTpe].reflect"
+          reflectTree = fieldInfo.defaultValue.fold(reflectTree)(dv => q"$reflectTree.defaultValue($dv)")
+          if (!isNonRecursive(fTpe)) reflectTree = q"Reflect.Deferred(() => $reflectTree)"
+          var fieldTermTree = q"$reflectTree.asTerm[$tpe](${fieldInfo.name})"
+          var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
           fieldTermTree
