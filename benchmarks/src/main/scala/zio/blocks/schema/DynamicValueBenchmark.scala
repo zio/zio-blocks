@@ -28,7 +28,5 @@ object DynamicValueDomain {
 
   case class Node(value: String, next: LinkedList) extends LinkedList
 
-  implicit val endSchema: Schema[End.type]     = Schema.derived
-  implicit lazy val nodeSchema: Schema[Node]   = Schema.derived
   implicit lazy val schema: Schema[LinkedList] = Schema.derived
 }

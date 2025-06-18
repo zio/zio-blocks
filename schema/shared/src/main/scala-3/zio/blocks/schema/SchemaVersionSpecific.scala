@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import scala.collection.concurrent.TrieMap
+import scala.collection.mutable
 import scala.quoted._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
@@ -100,26 +101,26 @@ private object SchemaVersionSpecific {
           }
         }
 
-      tpe.typeSymbol.children.map { sym =>
-        if (sym.isType) {
-          if (sym.name == "<local child>") { // problem - we have no other way to find this other return the name
+      tpe.typeSymbol.children.map { symbol =>
+        if (symbol.isType) {
+          if (symbol.name == "<local child>") { // problem - we have no other way to find this other return the name
             fail(
               s"Local child symbols are not supported, please consider change '${tpe.show}' or implement a " +
                 "custom implicitly accessible schema"
             )
           }
-          val nudeSubtype = TypeIdent(sym).tpe
-          nudeSubtype.memberType(sym.primaryConstructor) match {
+          val nudeSubtype = TypeIdent(symbol).tpe
+          nudeSubtype.memberType(symbol.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
             case PolyType(names, bounds, resPolyTp) =>
               val tpBinding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
                 .zip(typeArgs(tpe))
-                .foldLeft(Map.empty[String, TypeRepr])((s, e) => resolveParentTypeArg(sym, e._1, e._2, s))
+                .foldLeft(Map.empty[String, TypeRepr])((s, e) => resolveParentTypeArg(symbol, e._1, e._2, s))
               val ctArgs = names.map { name =>
                 tpBinding.getOrElse(
                   name,
                   fail(
-                    s"Type parameter '$name' of '$sym' can't be deduced from " +
+                    s"Type parameter '$name' of '$symbol' can't be deduced from " +
                       s"type arguments of ${tpe.show}. Please provide a custom implicitly accessible schema for it."
                   )
                 )
@@ -137,7 +138,7 @@ private object SchemaVersionSpecific {
                 }
             case other => fail(s"Primary constructior for ${tpe.show} is not MethodType or PolyType but $other")
           }
-        } else if (sym.isTerm) Ref(sym).tpe
+        } else if (symbol.isTerm) Ref(symbol).tpe
         else {
           fail(
             "Only concrete (no free type parametes) type are supported for ADT cases. Please consider using of " +
@@ -219,45 +220,73 @@ private object SchemaVersionSpecific {
         .map(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
         .getOrElse('{ Doc.Empty }.asExprOf[Doc])
 
-    val tpe                      = TypeRepr.of[A].dealias
-    val (packages, values, name) = typeName(tpe)
+    val inferredSchemas = new mutable.HashMap[TypeRepr, Option[Expr[Schema[_]]]]
+    val derivedSchemas  = new mutable.LinkedHashMap[TypeRepr, ValDef]
 
-    def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
-      var minFullName = typesWithFullNames.head._2
-      var maxFullName = typesWithFullNames.last._2
-      if (!isUnion(tpe)) {
-        val tpeFullName = packages.toArray ++ values.toArray :+ name
-        if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
-        if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
-      }
-      val minLength = Math.min(minFullName.length, maxFullName.length)
-      var idx       = 0
-      while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
-      idx
+    def findImplicitOrDeriveSchema[T: Type]: Expr[Schema[T]] = {
+      val tpe = TypeRepr.of[T]
+      val schema = inferredSchemas.getOrElseUpdate(
+        tpe,
+        Implicits.search(TypeRepr.of[Schema].appliedTo(tpe)) match
+          case v: ImplicitSearchSuccess => Some(v.tree.asExprOf[Schema[_]])
+          case _                        => None
+      )
+      schema.getOrElse {
+        Ref(
+          derivedSchemas
+            .getOrElseUpdate(
+              tpe, {
+                val schema = deriveSchema[T]
+                val name   = "s" + derivedSchemas.size
+                val symbol =
+                  Symbol.newVal(Symbol.spliceOwner, name, TypeRepr.of[Schema[T]], Flags.EmptyFlags, Symbol.noSymbol)
+                ValDef(symbol, Some(schema.asTerm.changeOwner(symbol)))
+              }
+            )
+            .symbol
+        ).asExprOf[Schema[_]]
+      }.asExprOf[Schema[T]]
     }
 
-    val schema =
+    def deriveSchema[T: Type]: Expr[Schema[T]] = {
+      val tpe                      = TypeRepr.of[T]
+      val (packages, values, name) = typeName(tpe)
+
+      def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
+        var minFullName = typesWithFullNames.head._2
+        var maxFullName = typesWithFullNames.last._2
+        if (!isUnion(tpe)) {
+          val tpeFullName = packages.toArray ++ values.toArray :+ name
+          if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+          if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+        }
+        val minLength = Math.min(minFullName.length, maxFullName.length)
+        var idx       = 0
+        while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+        idx
+      }
+
       if (isEnumOrModuleValue(tpe)) {
         '{
-          new Schema[A](
-            reflect = new Reflect.Record[Binding, A](
+          new Schema[T](
+            reflect = new Reflect.Record[Binding, T](
               fields = Vector.empty,
-              typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = TypeName[T](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
-                constructor = new Constructor[A] {
+                constructor = new Constructor[T] {
                   def usedRegisters: RegisterOffset = 0
 
-                  def construct(in: Registers, baseOffset: RegisterOffset): A = ${
+                  def construct(in: Registers, baseOffset: RegisterOffset): T = ${
                     Ref {
                       if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol
                       else tpe.typeSymbol.companionModule
-                    }.asExprOf[A]
+                    }.asExprOf[T]
                   }
                 },
-                deconstructor = new Deconstructor[A] {
+                deconstructor = new Deconstructor[T] {
                   def usedRegisters: RegisterOffset = 0
 
-                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ()
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ()
                 }
               ),
               doc = ${ doc(tpe) },
@@ -284,16 +313,14 @@ private object SchemaVersionSpecific {
           sTpe.asType match {
             case '[st] =>
               val termName = fullName.drop(length).mkString(".")
-              val usingExpr = Expr.summon[Schema[st]].getOrElse {
-                fail(s"Cannot find implicitly accessible schema for '${sTpe.show}'")
-              }
+              val sSchema  = findImplicitOrDeriveSchema[st]
               '{
-                Schema[st](using $usingExpr).reflect.asTerm[A](${ Expr(termName) })
-              }.asExprOf[zio.blocks.schema.Term[Binding, A, ? <: A]]
+                $sSchema.reflect.asTerm[T](${ Expr(termName) })
+              }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
           }
         }
 
-        def discr(a: Expr[A]) = Match(
+        def discr(a: Expr[T]) = Match(
           '{ $a: @scala.unchecked }.asTerm,
           subTypesWithFullNames.map {
             var idx = -1
@@ -313,17 +340,17 @@ private object SchemaVersionSpecific {
                     case _     => null.asInstanceOf[st]
                   }
                 }
-              }.asExprOf[Matcher[? <: A]]
+              }.asExprOf[Matcher[? <: T]]
           }
         }
         '{
-          new Schema[A](
-            reflect = new Reflect.Variant[Binding, A](
+          new Schema[T](
+            reflect = new Reflect.Variant[Binding, T](
               cases = Vector(${ Expr.ofSeq(cases) }*),
-              typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = TypeName[T](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               variantBinding = Binding.Variant(
-                discriminator = new Discriminator[A] {
-                  def discriminate(a: A): Int = ${ discr('a) }
+                discriminator = new Discriminator[T] {
+                  def discriminate(a: T): Int = ${ discr('a) }
                 },
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
               ),
@@ -339,7 +366,7 @@ private object SchemaVersionSpecific {
           tpe: TypeRepr,
           defaultValue: Option[Term],
           const: (Expr[Registers], Expr[RegisterOffset]) => Term,
-          deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term,
+          deconst: (Expr[Registers], Expr[RegisterOffset], Expr[T]) => Term,
           isTransient: Boolean,
           config: List[(String, String)]
         )
@@ -391,7 +418,7 @@ private object SchemaVersionSpecific {
                   }).orElse(fail(s"Cannot find default value for '$symbol' in class ${tpe.show}"))
                 } else None
               var const: (Expr[Registers], Expr[RegisterOffset]) => Term            = null
-              var deconst: (Expr[Registers], Expr[RegisterOffset], Expr[A]) => Term = null
+              var deconst: (Expr[Registers], Expr[RegisterOffset], Expr[T]) => Term = null
               val bytes                                                             = Expr(RegisterOffset.getBytes(registersUsed))
               val objects                                                           = Expr(RegisterOffset.getObjects(registersUsed))
               var offset                                                            = RegisterOffset.Zero
@@ -453,15 +480,13 @@ private object SchemaVersionSpecific {
             val fTpe = fieldInfo.tpe
             fTpe.asType match {
               case '[ft] =>
-                val usingExpr = Expr.summon[Schema[ft]].getOrElse {
-                  fail(s"Cannot find implicitly accessible schema for '${fTpe.show}'")
-                }
-                var reflectExpr = '{ Schema[ft](using $usingExpr).reflect }
+                val fSchema     = findImplicitOrDeriveSchema[ft]
+                var reflectExpr = '{ $fSchema.reflect }
                 reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
                   '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
                 }
                 if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                var fieldTermExpr = '{ $reflectExpr.asTerm[A](${ Expr(fieldInfo.name) }) }
+                var fieldTermExpr = '{ $reflectExpr.asTerm[T](${ Expr(fieldInfo.name) }) }
                 var modifiers = fieldInfo.config.map { case (k, v) =>
                   '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
                 }
@@ -471,7 +496,7 @@ private object SchemaVersionSpecific {
             }
           })
 
-        def const(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[A] = {
+        def const(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
           val constructorNoTypes = Select(New(Inferred(tpe)), primaryConstructor)
           val constructor = typeArgs(tpe) match {
             case Nil      => constructorNoTypes
@@ -479,9 +504,9 @@ private object SchemaVersionSpecific {
           }
           val argss = fieldInfos.map(_.map(_.const(in, baseOffset)))
           argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
-        }.asExprOf[A]
+        }.asExprOf[T]
 
-        def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[A])(using Quotes): Expr[Unit] = {
+        def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] = {
           val terms = fieldInfos.flatMap(_.map(_.deconst(out, baseOffset, in)))
           val size  = terms.size
           if (size > 1) Block(terms.init, terms.last)
@@ -490,20 +515,20 @@ private object SchemaVersionSpecific {
         }.asExprOf[Unit]
 
         '{
-          new Schema[A](
-            reflect = new Reflect.Record[Binding, A](
+          new Schema[T](
+            reflect = new Reflect.Record[Binding, T](
               fields = Vector(${ Expr.ofSeq(fields) }*),
-              typeName = TypeName[A](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = TypeName[T](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
-                constructor = new Constructor[A] {
+                constructor = new Constructor[T] {
                   def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
 
-                  def construct(in: Registers, baseOffset: RegisterOffset): A = ${ const('in, 'baseOffset) }
+                  def construct(in: Registers, baseOffset: RegisterOffset): T = ${ const('in, 'baseOffset) }
                 },
-                deconstructor = new Deconstructor[A] {
+                deconstructor = new Deconstructor[T] {
                   def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
 
-                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = ${
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
                     deconst('out, 'baseOffset, 'in)
                   }
                 }
@@ -514,7 +539,14 @@ private object SchemaVersionSpecific {
           )
         }
       } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show}'.")
-    // report.info(s"Generated schema for type '${tpe.show}':\n${schema.show}", Position.ofMacroExpansion)
-    schema
+    }.asExprOf[Schema[T]]
+
+    val tpe = TypeRepr.of[A].dealias
+    val schema = tpe.asType match {
+      case '[t] => deriveSchema[t]
+    }
+    val schemaBlock = Block(derivedSchemas.values.toList, schema.asTerm).asExprOf[Schema[A]]
+    // report.info(s"Generated schema for type '${tpe.show}':\n${schemaBlock.show}", Position.ofMacroExpansion)
+    schemaBlock
   }
 }
