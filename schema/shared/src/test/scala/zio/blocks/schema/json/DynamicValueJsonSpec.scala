@@ -5,7 +5,7 @@ import zio.blocks.schema.DynamicValueGen._
 import zio.blocks.schema.{DynamicValue, PrimitiveValue}
 import zio.test._
 
-object DynamicValueJsonTest extends ZIOSpecDefault {
+object DynamicValueJsonSpec extends ZIOSpecDefault {
   private val simpleRecord = Record(
     List(
       "number"  -> Primitive(value = PrimitiveValue.Int(42)),

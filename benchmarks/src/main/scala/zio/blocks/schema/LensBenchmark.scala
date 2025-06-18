@@ -45,27 +45,11 @@ class LensReplaceBenchmark extends BaseBenchmark {
 object LensDomain {
   case class E(s: String)
 
-  object E extends CompanionOptics[E] {
-    implicit val schema: Schema[E] = Schema.derived
-  }
-
   case class D(e: E)
-
-  object D extends CompanionOptics[D] {
-    implicit val schema: Schema[D] = Schema.derived
-  }
 
   case class C(d: D)
 
-  object C extends CompanionOptics[C] {
-    implicit val schema: Schema[C] = Schema.derived
-  }
-
   case class B(c: C)
-
-  object B extends CompanionOptics[B] {
-    implicit val schema: Schema[B] = Schema.derived
-  }
 
   case class A(b: B)
 

@@ -327,12 +327,14 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("creates prism by name") {
         assert(eitherReflect.prismByName("Left"): Option[Any])(
-          isSome(equalTo(Prism(eitherReflect, leftSchema.reflect.asTerm[Either[Int, Long]]("Left"))))
+          isSome(equalTo(Prism(eitherReflect, eitherReflect.cases(0).value.asTerm[Either[Int, Long]]("Left"))))
         ) &&
         assert(eitherReflect.prismByName("Middle"))(isNone)
       },
       test("finds case term by name") {
-        assert(eitherReflect.caseByName("Left"): Option[Any])(isSome(equalTo(leftSchema.reflect.asTerm("Left")))) &&
+        assert(eitherReflect.caseByName("Left"): Option[Any])(
+          isSome(equalTo(eitherReflect.cases(0).value.asTerm("Left")))
+        ) &&
         assert(eitherReflect.caseByName("Middle"))(isNone)
       },
       test("modifies case term by name") {
@@ -660,8 +662,6 @@ object ReflectSpec extends ZIOSpecDefault {
 
   val tuple4Reflect: Reflect.Record[Binding, (Byte, Short, Int, Long)] =
     Schema.derived[(Byte, Short, Int, Long)].reflect.asRecord.get
-  implicit val leftSchema: Schema[Left[Int, Long]]   = Schema.derived
-  implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
   val eitherReflect: Reflect.Variant[Binding, Either[Int, Long]] =
     Schema.derived[Either[Int, Long]].reflect.asVariant.get
 }
