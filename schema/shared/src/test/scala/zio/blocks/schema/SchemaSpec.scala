@@ -517,23 +517,13 @@ object SchemaSpec extends ZIOSpecDefault {
         @Modifier.config("case-key-1", "case-value-2")
         case class `Case-1`(d: Double) extends Variant1
 
-        object `Case-1` {
-          implicit val schema: Schema[`Case-1`] = Schema.derived
-        }
-
         @Modifier.config("case-key-2", "case-value-1")
         @Modifier.config("case-key-2", "case-value-2")
         case class `Case-2`(f: Float) extends Variant1
 
-        object `Case-2` {
-          implicit val schema: Schema[`Case-2`] = Schema.derived
-        }
-
         @Modifier.config("case-key-3", "case-value-1")
         @Modifier.config("case-key-3", "case-value-2")
-        case object `Case-3` extends Variant1 {
-          implicit val schema: Schema[`Case-3`.type] = Schema.derived
-        }
+        case object `Case-3` extends Variant1
 
         object `Variant-1` extends CompanionOptics[Variant1] {
           implicit val schema: Schema[Variant1]     = Schema.derived
@@ -542,9 +532,10 @@ object SchemaSpec extends ZIOSpecDefault {
           val case3: Prism[Variant1, `Case-3`.type] = optic(_.when[`Case-3`.type])
         }
 
-        val record1 = `Case-1`.schema.reflect.asRecord
-        val record2 = `Case-2`.schema.reflect.asRecord
-        val record3 = `Case-3`.schema.reflect.asRecord
+        val variant = `Variant-1`.schema.reflect.asVariant
+        val record1 = variant.flatMap(_.cases(0).value.asRecord)
+        val record2 = variant.flatMap(_.cases(1).value.asRecord)
+        val record3 = variant.flatMap(_.cases(2).value.asRecord)
         assert(record1.map(_.modifiers))(
           isSome(
             equalTo(Seq(Modifier.config("case-key-1", "case-value-1"), Modifier.config("case-key-1", "case-value-2")))
@@ -575,27 +566,26 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(`Variant-1`.schema.fromDynamicValue(`Variant-1`.schema.toDynamicValue(`Case-3`)))(
           isRight(equalTo(`Case-3`))
         ) &&
-        assert(`Variant-1`.schema)(
-          equalTo(
-            new Schema[Variant1](
-              reflect = Reflect.Variant[Binding, Variant1](
-                cases = Vector(
-                  Schema[`Case-1`].reflect.asTerm("Case-1"),
-                  Schema[`Case-2`].reflect.asTerm("Case-2"),
-                  Schema[`Case-3`.type].reflect.asTerm("Case-3")
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2", "Case-3")))) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[`Variant-1`](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "spec")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
-                  name = "Variant-1"
-                ),
-                variantBinding = null,
-                modifiers = Seq(
-                  Modifier.config("variant-key", "variant-value-1"),
-                  Modifier.config("variant-key", "variant-value-2")
-                )
+                name = "Variant-1"
+              )
+            )
+          )
+        ) &&
+        assert(variant.map(_.modifiers))(
+          isSome(
+            equalTo(
+              Seq(
+                Modifier.config("variant-key", "variant-value-1"),
+                Modifier.config("variant-key", "variant-value-2")
               )
             )
           )
@@ -606,19 +596,11 @@ object SchemaSpec extends ZIOSpecDefault {
 
         type Variant2[A] = `Variant-2`[A]
 
-        case object MissingValue extends Variant2[Nothing] {
-          implicit val schema: Schema[MissingValue.type] = Schema.derived
-        }
+        case object MissingValue extends Variant2[Nothing]
 
-        case object NullValue extends Variant2[Null] {
-          implicit val schema: Schema[NullValue.type] = Schema.derived
-        }
+        case object NullValue extends Variant2[Null]
 
         case class Value[A](a: A) extends Variant2[A]
-
-        object Value {
-          implicit def schema[A <: AnyRef: Schema]: Schema[Value[A]] = Schema.derived
-        }
 
         object Variant2OfString extends CompanionOptics[Variant2[String]] {
           implicit val schema: Schema[Variant2[String]]                = Schema.derived
@@ -627,6 +609,7 @@ object SchemaSpec extends ZIOSpecDefault {
           val value: Prism[Variant2[String], Value[String]]            = optic(_.when[Value[String]])
         }
 
+        val variant = Variant2OfString.schema.reflect.asVariant
         assert(Variant2OfString.missingValue.getOption(MissingValue))(isSome(equalTo(MissingValue))) &&
         assert(Variant2OfString.nullValue.getOption(NullValue))(isSome(equalTo(NullValue))) &&
         assert(Variant2OfString.value.getOption(Value[String]("WWW")))(isSome(equalTo(Value[String]("WWW")))) &&
@@ -642,23 +625,16 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant2OfString.schema.fromDynamicValue(Variant2OfString.schema.toDynamicValue(Value[String]("WWW"))))(
           isRight(equalTo(Value[String]("WWW")))
         ) &&
-        assert(Variant2OfString.schema)(
-          equalTo(
-            new Schema[Variant2[String]](
-              reflect = Reflect.Variant[Binding, Variant2[String]](
-                cases = Vector(
-                  Schema[MissingValue.type].reflect.asTerm("MissingValue"),
-                  Schema[NullValue.type].reflect.asTerm("NullValue"),
-                  Schema[Value[String]].reflect.asTerm("Value")
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("MissingValue", "NullValue", "Value")))) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[`Variant-2`[String]](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "spec")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
-                  name = "Variant-2"
-                ),
-                variantBinding = null
+                name = "Variant-2"
               )
             )
           )
@@ -666,28 +642,24 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("derives schema for a variant with cases on different levels using a macro call") {
         val schema: Schema[Level1.MultiLevel] = Schema.derived
+        val variant                           = schema.reflect.asVariant
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Level2.Case)))(
           isRight(equalTo(Level1.Level2.Case))
         ) &&
-        assert(schema)(
-          equalTo(
-            new Schema[Level1.MultiLevel](
-              reflect = Reflect.Variant[Binding, Level1.MultiLevel](
-                cases = Vector(
-                  Schema[Case.type].reflect.asTerm("Case"),
-                  Schema[Level1.Case.type].reflect.asTerm("Level1.Case"),
-                  Schema[Level1.Level2.Case.type].reflect.asTerm("Level1.Level2.Case")
+        assert(variant.map(_.cases.map(_.name)))(
+          isSome(equalTo(Vector("Case", "Level1.Case", "Level1.Level2.Case")))
+        ) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[Level1.MultiLevel](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "Level1")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "Level1")
-                  ),
-                  name = "MultiLevel"
-                ),
-                variantBinding = null
+                name = "MultiLevel"
               )
             )
           )
@@ -701,8 +673,6 @@ object SchemaSpec extends ZIOSpecDefault {
         case class `Case-2`[F[_]](a: F[Float]) extends `Variant-3`[F]
 
         object Variant3OfOption extends CompanionOptics[`Variant-3`[Option]] {
-          implicit val schemaCase1: Schema[`Case-1`[Option]]      = Schema.derived
-          implicit val schemaCase2: Schema[`Case-2`[Option]]      = Schema.derived
           implicit val schema: Schema[`Variant-3`[Option]]        = Schema.derived
           val case1: Prism[`Variant-3`[Option], `Case-1`[Option]] = optic(_.when[`Case-1`[Option]])
           val case2: Prism[`Variant-3`[Option], `Case-2`[Option]] = optic(_.when[`Case-2`[Option]])
@@ -710,6 +680,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
         import Variant3OfOption._
 
+        val variant = schema.reflect.asVariant
         assert(case1.getOption(`Case-1`[Option](Some(0.1))))(isSome(equalTo(`Case-1`[Option](Some(0.1))))) &&
         assert(case2.getOption(`Case-2`[Option](Some(0.2f))))(isSome(equalTo(`Case-2`[Option](Some(0.2f))))) &&
         assert(case1.replace(`Case-1`[Option](Some(0.1)), `Case-1`[Option](None)))(equalTo(`Case-1`[Option](None))) &&
@@ -720,22 +691,16 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(schema.fromDynamicValue(schema.toDynamicValue(`Case-2`[Option](None))))(
           isRight(equalTo(`Case-2`[Option](None)))
         ) &&
-        assert(schema)(
-          equalTo(
-            new Schema[`Variant-3`[Option]](
-              reflect = Reflect.Variant[Binding, `Variant-3`[Option]](
-                cases = Vector(
-                  Schema[`Case-1`[Option]].reflect.asTerm("Case-1"),
-                  Schema[`Case-2`[Option]].reflect.asTerm("Case-2")
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2")))) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[`Variant-3`[Option]](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "spec")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
-                  name = "Variant-3"
-                ),
-                variantBinding = null
+                name = "Variant-3"
               )
             )
           )
@@ -1183,18 +1148,12 @@ object SchemaSpec extends ZIOSpecDefault {
   object Level1 {
     sealed trait MultiLevel
 
-    case object Case extends MultiLevel {
-      implicit val schema: Schema[Case.type] = Schema.derived
-    }
+    case object Case extends MultiLevel
 
     object Level2 {
-      case object Case extends MultiLevel {
-        implicit val schema: Schema[Case.type] = Schema.derived
-      }
+      case object Case extends MultiLevel
     }
   }
 
-  case object Case extends Level1.MultiLevel {
-    implicit val schema: Schema[Case.type] = Schema.derived
-  }
+  case object Case extends Level1.MultiLevel
 }
