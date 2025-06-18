@@ -8,7 +8,6 @@ import java.time._
 import java.util.{Currency, UUID}
 
 object PrimitiveValueSpec extends ZIOSpecDefault {
-
   def spec: Spec[TestEnvironment with Scope, Any] = suite("PrimitiveValueSpec")(
     suite("PrimitiveValue.Unit")(
       test("has correct primitiveType and typeIndex") {

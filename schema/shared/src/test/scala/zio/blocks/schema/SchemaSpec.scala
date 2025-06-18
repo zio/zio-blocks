@@ -1158,11 +1158,7 @@ object SchemaSpec extends ZIOSpecDefault {
   )
 
   implicit val tuple4Schema: Schema[(Byte, Short, Int, Long)] = Schema.derived[(Byte, Short, Int, Long)]
-  implicit val eitherSchema: Schema[Either[Int, Long]] = {
-    implicit val leftSchema: Schema[Left[Int, Long]]   = Schema.derived
-    implicit val rightSchema: Schema[Right[Int, Long]] = Schema.derived
-    Schema.derived[Either[Int, Long]]
-  }
+  implicit val eitherSchema: Schema[Either[Int, Long]]        = Schema.derived[Either[Int, Long]]
 
   case class Record(b: Byte, i: Int)
 
@@ -1182,15 +1178,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
   case class Case1(c: Char) extends Variant
 
-  object Case1 {
-    implicit val schema: Schema[Case1] = Schema.derived
-  }
-
   case class Case2(s: String) extends Variant
-
-  object Case2 {
-    implicit val schema: Schema[Case2] = Schema.derived
-  }
 
   object Level1 {
     sealed trait MultiLevel
