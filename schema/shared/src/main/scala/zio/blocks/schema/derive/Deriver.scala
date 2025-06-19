@@ -18,14 +18,14 @@ trait Deriver[TC[_]] { self =>
   ): Lazy[TC[A]]
 
   def deriveRecord[F[_, _], A](
-    fields: Seq[Term[F, A, ?]],
+    fields: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
     doc: Doc,
     modifiers: Seq[Modifier.Record]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 
   def deriveVariant[F[_, _], A](
-    cases: Seq[Term[F, A, ?]],
+    cases: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
     doc: Doc,
     modifiers: Seq[Modifier.Variant]
