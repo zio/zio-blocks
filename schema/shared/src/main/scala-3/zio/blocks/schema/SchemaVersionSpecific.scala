@@ -207,7 +207,7 @@ private object SchemaVersionSpecific {
       (packages, values, name)
     }
 
-    def modifiers(tpe: TypeRepr): Seq[Expr[Modifier.config]] =
+    def modifiers(tpe: TypeRepr)(using Quotes): Seq[Expr[Modifier.config]] =
       (if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol else tpe.typeSymbol).annotations
         .filter(_.tpe =:= TypeRepr.of[Modifier.config])
         .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
@@ -215,7 +215,7 @@ private object SchemaVersionSpecific {
         }
         .reverse
 
-    def doc(tpe: TypeRepr): Expr[Doc] =
+    def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] =
       (if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol else tpe.typeSymbol).docstring
         .map(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
         .getOrElse('{ Doc.Empty }.asExprOf[Doc])
@@ -224,10 +224,11 @@ private object SchemaVersionSpecific {
     val derivedSchemas  = new mutable.LinkedHashMap[TypeRepr, ValDef]
 
     def findImplicitOrDeriveSchema[T: Type]: Expr[Schema[T]] = {
-      val tpe = TypeRepr.of[T]
+      val tpe       = TypeRepr.of[T]
+      val schemaTpe = TypeRepr.of[Schema[T]]
       val schema = inferredSchemas.getOrElseUpdate(
         tpe,
-        Implicits.search(TypeRepr.of[Schema].appliedTo(tpe)) match
+        Implicits.search(schemaTpe) match
           case v: ImplicitSearchSuccess => Some(v.tree.asExprOf[Schema[_]])
           case _                        => None
       )
@@ -238,8 +239,11 @@ private object SchemaVersionSpecific {
               tpe, {
                 val schema = deriveSchema[T]
                 val name   = "s" + derivedSchemas.size
+                val flags =
+                  if (isNonRecursive(tpe)) Flags.Implicit
+                  else Flags.Implicit | Flags.Lazy
                 val symbol =
-                  Symbol.newVal(Symbol.spliceOwner, name, TypeRepr.of[Schema[T]], Flags.EmptyFlags, Symbol.noSymbol)
+                  Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
                 ValDef(symbol, Some(schema.asTerm.changeOwner(symbol)))
               }
             )
@@ -320,7 +324,7 @@ private object SchemaVersionSpecific {
           }
         }
 
-        def discr(a: Expr[T]) = Match(
+        def discr(a: Expr[T])(using Quotes) = Match(
           '{ $a: @scala.unchecked }.asTerm,
           subTypesWithFullNames.map {
             var idx = -1
@@ -365,8 +369,8 @@ private object SchemaVersionSpecific {
           name: String,
           tpe: TypeRepr,
           defaultValue: Option[Term],
-          const: (Expr[Registers], Expr[RegisterOffset]) => Term,
-          deconst: (Expr[Registers], Expr[RegisterOffset], Expr[T]) => Term,
+          getter: Symbol,
+          registersUsed: RegisterOffset,
           isTransient: Boolean,
           config: List[(String, String)]
         )
@@ -417,62 +421,20 @@ private object SchemaVersionSpecific {
                     case Nil => None
                   }).orElse(fail(s"Cannot find default value for '$symbol' in class ${tpe.show}"))
                 } else None
-              var const: (Expr[Registers], Expr[RegisterOffset]) => Term            = null
-              var deconst: (Expr[Registers], Expr[RegisterOffset], Expr[T]) => Term = null
-              val bytes                                                             = Expr(RegisterOffset.getBytes(registersUsed))
-              val objects                                                           = Expr(RegisterOffset.getObjects(registersUsed))
-              var offset                                                            = RegisterOffset.Zero
-              if (fTpe =:= TypeRepr.of[Unit]) {
-                const = (in, baseOffset) => '{ () }.asTerm
-                deconst = (out, baseOffset, in) => '{ () }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Boolean]) {
-                offset = RegisterOffset(booleans = 1)
-                const = (in, baseOffset) => '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Byte]) {
-                offset = RegisterOffset(bytes = 1)
-                const = (in, baseOffset) => '{ $in.getByte($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Char]) {
-                offset = RegisterOffset(chars = 1)
-                const = (in, baseOffset) => '{ $in.getChar($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Short]) {
-                offset = RegisterOffset(shorts = 1)
-                const = (in, baseOffset) => '{ $in.getShort($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Float]) {
-                offset = RegisterOffset(floats = 1)
-                const = (in, baseOffset) => '{ $in.getFloat($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Int]) {
-                offset = RegisterOffset(ints = 1)
-                const = (in, baseOffset) => '{ $in.getInt($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Double]) {
-                offset = RegisterOffset(doubles = 1)
-                const = (in, baseOffset) => '{ $in.getDouble($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
-              } else if (fTpe =:= TypeRepr.of[Long]) {
-                offset = RegisterOffset(longs = 1)
-                const = (in, baseOffset) => '{ $in.getLong($baseOffset, $bytes) }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
-              } else {
-                offset = RegisterOffset(objects = 1)
-                const = (in, baseOffset) => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm
-                deconst = (out, baseOffset, in) =>
-                  '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
-              }
+              val offset =
+                if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
+                else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+                else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+                else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
+                else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+                else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
+                else if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
+                else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+                else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
+                else RegisterOffset(objects = 1)
+              val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
               registersUsed = RegisterOffset.add(registersUsed, offset)
-              FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
+              fieldInfo
           }
         })
         val fields =
@@ -502,13 +464,58 @@ private object SchemaVersionSpecific {
             case Nil      => constructorNoTypes
             case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
           }
-          val argss = fieldInfos.map(_.map(_.const(in, baseOffset)))
+          val argss = fieldInfos.map(_.map { fieldInfo =>
+            val fTpe         = fieldInfo.tpe
+            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
+            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
+            if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
+            else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
+            else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
+            else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
+            else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
+            else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
+            else if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
+            else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
+            else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
+            else {
+              fTpe.asType match {
+                case '[ft] =>
+                  '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm
+              }
+            }
+          })
           argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
         }.asExprOf[T]
 
         def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] = {
-          val terms = fieldInfos.flatMap(_.map(_.deconst(out, baseOffset, in)))
-          val size  = terms.size
+          val terms = fieldInfos.flatMap(_.map { fieldInfo =>
+            val fTpe         = fieldInfo.tpe
+            val getter       = fieldInfo.getter
+            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
+            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
+            if (fTpe =:= TypeRepr.of[Unit]) {
+              '{ () }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Boolean]) {
+              '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Byte]) {
+              '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Char]) {
+              '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Short]) {
+              '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Float]) {
+              '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Int]) {
+              '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Double]) {
+              '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
+            } else if (fTpe =:= TypeRepr.of[Long]) {
+              '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
+            } else {
+              '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
+            }
+          })
+          val size = terms.size
           if (size > 1) Block(terms.init, terms.last)
           else if (size > 0) terms.head
           else Literal(UnitConstant())

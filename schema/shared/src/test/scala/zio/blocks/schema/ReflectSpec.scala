@@ -158,8 +158,10 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(int1.fromDynamicValue(int1.toDynamicValue(1)))(isRight(equalTo(1)))
       },
       test("updates primitive default value") {
-        assert(Reflect.int[Binding].binding.defaultValue)(isNone) &&
-        assert(Reflect.int[Binding].defaultValue(1).binding.defaultValue.get.apply())(equalTo(1))
+        val defaultValue1 = Reflect.int[Binding].binding.defaultValue
+        val defaultValue2 = Reflect.int[Binding].defaultValue(1).binding.defaultValue.get.apply()
+        assert(defaultValue1)(isNone) &&
+        assert(defaultValue2)(equalTo(1))
       },
       test("gets and updates primitive documentation") {
         val long1 = Reflect.long[Binding]
@@ -174,8 +176,10 @@ object ReflectSpec extends ZIOSpecDefault {
           doc = Doc("Long (positive)"),
           modifiers = Nil
         )
-        assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
-        assert(Reflect.int[Binding].binding.examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
+        val examples1 = long1.examples
+        val examples2 = Reflect.int[Binding].binding.examples(1, 2, 3).examples
+        assert(examples1)(equalTo(Seq(1L, 2L, 3L))) &&
+        assert(examples2)(equalTo(Seq(1, 2, 3)))
       },
       test("gets and appends dynamic modifiers") {
         val int1 = Reflect.int[Binding]

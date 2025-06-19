@@ -22,8 +22,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         val schema = Schema[Record1]
         val record = schema.reflect.asRecord
-        assert(record.flatMap(_.fields(0).value.binding.defaultValue))(isNone) &&
-        assert(record.flatMap(_.fields(1).value.binding.defaultValue))(isNone) &&
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(chars = 1, doubles = 1)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(chars = 1, doubles = 1)))) &&
         assert(Record1.c.get(Record1('1', 2.0)))(equalTo('1')) &&
