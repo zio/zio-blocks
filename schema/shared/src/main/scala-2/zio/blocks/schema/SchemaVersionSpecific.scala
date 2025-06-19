@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
@@ -155,10 +156,8 @@ private object SchemaVersionSpecific {
     val derivedSchemas  = new mutable.LinkedHashMap[Type, (TermName, Tree)]
 
     def findImplicitOrDeriveSchema(tpe: Type): Tree = {
-      val schema = inferredSchemas.getOrElseUpdate(
-        tpe,
-        c.inferImplicitValue(c.typecheck(tq"_root_.zio.blocks.schema.Schema[$tpe]", c.TYPEmode).tpe)
-      )
+      val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
+      val schema    = inferredSchemas.getOrElseUpdate(tpe, c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe))
       if (schema.isEmpty) {
         Ident(
           derivedSchemas
@@ -166,7 +165,10 @@ private object SchemaVersionSpecific {
               tpe, {
                 val schema = deriveSchema(tpe)
                 val name   = TermName("s" + derivedSchemas.size)
-                (name, q"val $name = $schema")
+                val tree =
+                  if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
+                  else q"implicit lazy val $name: $schemaTpe = $schema"
+                (name, tree)
               }
             )
             ._1
@@ -262,8 +264,8 @@ private object SchemaVersionSpecific {
           name: String,
           tpe: Type,
           defaultValue: Option[Tree],
-          const: Tree,
-          deconst: Tree,
+          getter: MethodSymbol,
+          registersUsed: RegisterOffset,
           isTransient: Boolean,
           config: Seq[(String, String)]
         )
@@ -309,53 +311,20 @@ private object SchemaVersionSpecific {
           val defaultValue =
             if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
             else None
-          var const: Tree   = null
-          var deconst: Tree = null
-          val bytes         = RegisterOffset.getBytes(registersUsed)
-          val objects       = RegisterOffset.getObjects(registersUsed)
-          var offset        = RegisterOffset.Zero
-          if (fTpe =:= typeOf[Unit]) {
-            const = q"()"
-            deconst = q"()"
-          } else if (fTpe =:= typeOf[Boolean]) {
-            offset = RegisterOffset(booleans = 1)
-            const = q"in.getBoolean(baseOffset, $bytes)"
-            deconst = q"out.setBoolean(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Byte]) {
-            offset = RegisterOffset(bytes = 1)
-            const = q"in.getByte(baseOffset, $bytes)"
-            deconst = q"out.setByte(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Char]) {
-            offset = RegisterOffset(chars = 1)
-            const = q"in.getChar(baseOffset, $bytes)"
-            deconst = q"out.setChar(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Short]) {
-            offset = RegisterOffset(shorts = 1)
-            const = q"in.getShort(baseOffset, $bytes)"
-            deconst = q"out.setShort(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Float]) {
-            offset = RegisterOffset(floats = 1)
-            const = q"in.getFloat(baseOffset, $bytes)"
-            deconst = q"out.setFloat(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Int]) {
-            offset = RegisterOffset(ints = 1)
-            const = q"in.getInt(baseOffset, $bytes)"
-            deconst = q"out.setInt(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Double]) {
-            offset = RegisterOffset(doubles = 1)
-            const = q"in.getDouble(baseOffset, $bytes)"
-            deconst = q"out.setDouble(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Long]) {
-            offset = RegisterOffset(longs = 1)
-            const = q"in.getLong(baseOffset, $bytes)"
-            deconst = q"out.setLong(baseOffset, $bytes, in.$getter)"
-          } else {
-            offset = RegisterOffset(objects = 1)
-            const = q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
-            deconst = q"out.setObject(baseOffset, $objects, in.$getter)"
-          }
+          val offset =
+            if (fTpe =:= typeOf[Unit]) RegisterOffset.Zero
+            else if (fTpe =:= typeOf[Boolean]) RegisterOffset(booleans = 1)
+            else if (fTpe =:= typeOf[Byte]) RegisterOffset(bytes = 1)
+            else if (fTpe =:= typeOf[Char]) RegisterOffset(chars = 1)
+            else if (fTpe =:= typeOf[Short]) RegisterOffset(shorts = 1)
+            else if (fTpe =:= typeOf[Float]) RegisterOffset(floats = 1)
+            else if (fTpe =:= typeOf[Int]) RegisterOffset(ints = 1)
+            else if (fTpe =:= typeOf[Double]) RegisterOffset(doubles = 1)
+            else if (fTpe =:= typeOf[Long]) RegisterOffset(longs = 1)
+            else RegisterOffset(objects = 1)
+          val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
           registersUsed = RegisterOffset.add(registersUsed, offset)
-          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
+          fieldInfo
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe              = fieldInfo.tpe
@@ -369,8 +338,40 @@ private object SchemaVersionSpecific {
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
           fieldTermTree
         })
-        val const   = q"new $tpe(...${fieldInfos.map(_.map(fieldInfo => q"${fieldInfo.symbol} = ${fieldInfo.const}"))})"
-        val deconst = fieldInfos.flatMap(_.map(_.deconst))
+        val argss = fieldInfos.map(_.map { fieldInfo =>
+          val fTpe         = fieldInfo.tpe
+          lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
+          lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
+          val const =
+            if (fTpe =:= typeOf[Unit]) q"()"
+            else if (fTpe =:= typeOf[Boolean]) q"in.getBoolean(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Byte]) q"in.getByte(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Char]) q"in.getChar(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Short]) q"in.getShort(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Float]) q"in.getFloat(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Int]) q"in.getInt(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Double]) q"in.getDouble(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Long]) q"in.getLong(baseOffset, $bytes)"
+            else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+          q"${fieldInfo.symbol} = $const"
+        })
+        val const = q"new $tpe(...$argss)"
+        val deconst = fieldInfos.flatMap(_.map { fieldInfo =>
+          val fTpe         = fieldInfo.tpe
+          val getter       = fieldInfo.getter
+          lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
+          lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
+          if (fTpe =:= typeOf[Unit]) q"()"
+          else if (fTpe =:= typeOf[Boolean]) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Byte]) q"out.setByte(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Char]) q"out.setChar(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Short]) q"out.setShort(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Float]) q"out.setFloat(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Int]) q"out.setInt(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Double]) q"out.setDouble(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Long]) q"out.setLong(baseOffset, $bytes, in.$getter)"
+          else q"out.setObject(baseOffset, $objects, in.$getter)"
+        })
         q"""new Schema[$tpe](
               reflect = Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector(..$fields),
