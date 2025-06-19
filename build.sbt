@@ -69,7 +69,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         case _ =>
           Seq(
             "-explain",
-            "-explain-cyclic"
+            "-explain-cyclic",
+            "-Xcheck-macros"
           )
       }),
     libraryDependencies ++= Seq(
