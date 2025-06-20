@@ -18,3 +18,9 @@ abstract class Deconstructor[-A] { self =>
    */
   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit
 }
+
+class ConstantDeconstructor[A] extends Deconstructor[A] {
+  override def usedRegisters: RegisterOffset = 0
+
+  override def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = {}
+}
