@@ -184,29 +184,31 @@ private object SchemaVersionSpecific {
         }
     )
 
-    def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) = {
-      var packages  = List.empty[String]
-      var values    = List.empty[String]
-      var tpeSymbol = tpe.typeSymbol
-      var name      = tpeSymbol.name
-      if (isEnumValue(tpe)) {
-        name = tpe.termSymbol.name
-        var ownerName = tpeSymbol.name
-        if (tpeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
-        values = ownerName :: values
-      } else if (tpeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-      if (tpeSymbol != Symbol.noSymbol) {
-        var owner = tpeSymbol.owner
-        while (owner != defn.RootClass) {
-          val ownerName = owner.name
-          if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
-          else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
-          else values = ownerName :: values
-          owner = owner.owner
+    def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) =
+      if (isUnion(tpe)) (Nil, Nil, "|")
+      else {
+        var packages  = List.empty[String]
+        var values    = List.empty[String]
+        var tpeSymbol = tpe.typeSymbol
+        var name      = tpeSymbol.name
+        if (isEnumValue(tpe)) {
+          name = tpe.termSymbol.name
+          var ownerName = tpeSymbol.name
+          if (tpeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
+          values = ownerName :: values
+        } else if (tpeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+        if (tpeSymbol != Symbol.noSymbol) {
+          var owner = tpeSymbol.owner
+          while (owner != defn.RootClass) {
+            val ownerName = owner.name
+            if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+            else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
+            else values = ownerName :: values
+            owner = owner.owner
+          }
         }
+        (packages, values, name)
       }
-      (packages, values, name)
-    }
 
     def modifiers(tpe: TypeRepr)(using Quotes): Seq[Expr[Modifier.config]] =
       (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).annotations
