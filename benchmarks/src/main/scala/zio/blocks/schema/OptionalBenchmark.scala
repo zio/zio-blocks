@@ -5,20 +5,21 @@ import monocle.macros.GenPrism
 import org.openjdk.jmh.annotations._
 
 class OptionalGetOptionBenchmark extends BaseBenchmark {
-  var a1: OptionalDomain.A1 =
-    OptionalDomain.A1(OptionalDomain.B1(OptionalDomain.C1(OptionalDomain.D1(OptionalDomain.E1("test")))))
+  import zio.blocks.schema.OptionalDomain._
+
+  var a1: OptionalDomain.A1 = A1(B1(C1(D1(E1("test")))))
 
   @Benchmark
   def direct: Option[String] = {
     a1.b match {
-      case b1: OptionalDomain.B1 =>
+      case b1: B1 =>
         b1.c match {
-          case c1: OptionalDomain.C1 =>
+          case c1: C1 =>
             c1.d match {
-              case d1: OptionalDomain.D1 =>
+              case d1: D1 =>
                 d1.e match {
-                  case e1: OptionalDomain.E1 => return new Some(e1.s)
-                  case _                     =>
+                  case e1: E1 => return new Some(e1.s)
+                  case _      =>
                 }
               case _ =>
             }
@@ -30,27 +31,28 @@ class OptionalGetOptionBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: Option[String] = OptionalDomain.A1_.b_b1_c_c1_d_d1_e_e1_s_monocle.getOption(a1)
+  def monocle: Option[String] = A1_.b_b1_c_c1_d_d1_e_e1_s_monocle.getOption(a1)
 
   @Benchmark
-  def zioBlocks: Option[String] = OptionalDomain.A1.b_b1_c_c1_d_d1_e_e1_s.getOption(a1)
+  def zioBlocks: Option[String] = A1.b_b1_c_c1_d_d1_e_e1_s.getOption(a1)
 }
 
 class OptionalReplaceBenchmark extends BaseBenchmark {
-  var a1: OptionalDomain.A1 =
-    OptionalDomain.A1(OptionalDomain.B1(OptionalDomain.C1(OptionalDomain.D1(OptionalDomain.E1("test")))))
+  import zio.blocks.schema.OptionalDomain._
+
+  var a1: A1 = A1(B1(C1(D1(E1("test")))))
 
   @Benchmark
-  def direct: OptionalDomain.A1 = {
+  def direct: A1 = {
     val a1 = this.a1
     a1.b match {
-      case b1: OptionalDomain.B1 =>
+      case b1: B1 =>
         b1.c match {
-          case c1: OptionalDomain.C1 =>
+          case c1: C1 =>
             c1.d match {
-              case d1: OptionalDomain.D1 =>
+              case d1: D1 =>
                 d1.e match {
-                  case e1: OptionalDomain.E1 =>
+                  case e1: E1 =>
                     return a1.copy(b = b1.copy(c = c1.copy(d = d1.copy(e = e1.copy(s = "test2")))))
                   case _ =>
                 }
@@ -64,17 +66,13 @@ class OptionalReplaceBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: OptionalDomain.A1 = OptionalDomain.A1_.b_b1_c_c1_d_d1_e_e1_s_monocle.replace("test2").apply(a1)
+  def monocle: A1 = A1_.b_b1_c_c1_d_d1_e_e1_s_monocle.replace("test2").apply(a1)
 
   @Benchmark
-  def quicklens: OptionalDomain.A1 = {
-    import com.softwaremill.quicklens._
-
-    OptionalDomain.A1_.b_b1_c_c1_d_d1_e_e1_s_quicklens.apply(a1).setTo("test2")
-  }
+  def quicklens: A1 = A1_.b_b1_c_c1_d_d1_e_e1_s_quicklens.apply(a1).setTo("test2")
 
   @Benchmark
-  def zioBlocks: OptionalDomain.A1 = OptionalDomain.A1.b_b1_c_c1_d_d1_e_e1_s.replace(a1, "test2")
+  def zioBlocks: A1 = A1.b_b1_c_c1_d_d1_e_e1_s.replace(a1, "test2")
 }
 
 object OptionalDomain {
