@@ -206,7 +206,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   packages = Nil,
                   values = Nil
                 ),
-                name = "<none>"
+                name = "|"
               )
             )
           )
