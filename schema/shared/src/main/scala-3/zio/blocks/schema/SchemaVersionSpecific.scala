@@ -470,12 +470,7 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
             else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
             else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
-            else {
-              fTpe.asType match {
-                case '[ft] =>
-                  '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm
-              }
-            }
+            else fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
           })
           argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
         }.asExprOf[T]
@@ -541,10 +536,8 @@ private object SchemaVersionSpecific {
       } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show}'.")
     }.asExprOf[Schema[T]]
 
-    val tpe = TypeRepr.of[A].dealias
-    val schema = tpe.asType match {
-      case '[t] => deriveSchema[t]
-    }
+    val tpe         = TypeRepr.of[A].dealias
+    val schema      = tpe.asType match { case '[t] => deriveSchema[t] }
     val schemaBlock = Block(derivedSchemas.values.toList, schema.asTerm).asExprOf[Schema[A]]
     // report.info(s"Generated schema for type '${tpe.show}':\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock

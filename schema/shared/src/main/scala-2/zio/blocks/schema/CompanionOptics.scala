@@ -36,8 +36,6 @@ private object CompanionOptics {
   )(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
     import c.universe._
 
-    val sTpe = weakTypeOf[S].dealias
-
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
