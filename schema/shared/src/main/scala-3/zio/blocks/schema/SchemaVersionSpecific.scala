@@ -30,8 +30,9 @@ private object SchemaVersionSpecific {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
-    def isEnumOrModuleValue(tpe: TypeRepr): Boolean =
-      (tpe.typeSymbol.flags.is(Flags.Module) || tpe.termSymbol.flags.is(Flags.Enum))
+    def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
+
+    def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
 
     def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
@@ -188,7 +189,7 @@ private object SchemaVersionSpecific {
       var values    = List.empty[String]
       var tpeSymbol = tpe.typeSymbol
       var name      = tpeSymbol.name
-      if (tpe.termSymbol.flags.is(Flags.Enum)) {
+      if (isEnumValue(tpe)) {
         name = tpe.termSymbol.name
         var ownerName = tpeSymbol.name
         if (tpeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
@@ -208,7 +209,7 @@ private object SchemaVersionSpecific {
     }
 
     def modifiers(tpe: TypeRepr)(using Quotes): Seq[Expr[Modifier.config]] =
-      (if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol else tpe.typeSymbol).annotations
+      (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).annotations
         .filter(_.tpe =:= TypeRepr.of[Modifier.config])
         .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
           '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
@@ -216,7 +217,7 @@ private object SchemaVersionSpecific {
         .reverse
 
     def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] =
-      (if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol else tpe.typeSymbol).docstring
+      (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
         .map(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
         .getOrElse('{ Doc.Empty }.asExprOf[Doc])
 
@@ -277,21 +278,13 @@ private object SchemaVersionSpecific {
               fields = Vector.empty,
               typeName = TypeName[T](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = Binding.Record(
-                constructor = new Constructor[T] {
-                  def usedRegisters: RegisterOffset = 0
-
-                  def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                    Ref {
-                      if (tpe.termSymbol.flags.is(Flags.Enum)) tpe.termSymbol
-                      else tpe.typeSymbol.companionModule
-                    }.asExprOf[T]
-                  }
-                },
-                deconstructor = new Deconstructor[T] {
-                  def usedRegisters: RegisterOffset = 0
-
-                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ()
-                }
+                constructor = new ConstantConstructor[T](${
+                  Ref {
+                    if (isEnumValue(tpe)) tpe.termSymbol
+                    else tpe.typeSymbol.companionModule
+                  }.asExprOf[T]
+                }),
+                deconstructor = new ConstantDeconstructor[T]
               ),
               doc = ${ doc(tpe) },
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }

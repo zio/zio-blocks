@@ -197,16 +197,8 @@ private object SchemaVersionSpecific {
                 fields = _root_.scala.Vector.empty,
                 typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
                 recordBinding = Binding.Record(
-                  constructor = new Constructor[$tpe] {
-                    def usedRegisters: RegisterOffset = 0
-
-                    def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpe.typeSymbol.asClass.module}
-                  },
-                  deconstructor = new Deconstructor[$tpe] {
-                    def usedRegisters: RegisterOffset = 0
-
-                    def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = ()
-                  }
+                  constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
+                  deconstructor = new ConstantDeconstructor[$tpe]
                 ),
                 modifiers = _root_.scala.Seq(..${modifiers(tpe)})
               )
