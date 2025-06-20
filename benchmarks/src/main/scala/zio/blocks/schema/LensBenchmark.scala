@@ -4,23 +4,27 @@ import monocle.{Focus, PLens}
 import org.openjdk.jmh.annotations._
 
 class LensGetBenchmark extends BaseBenchmark {
-  var a: LensDomain.A = LensDomain.A(LensDomain.B(LensDomain.C(LensDomain.D(LensDomain.E("test")))))
+  import zio.blocks.schema.LensDomain._
+
+  var a: A = A(B(C(D(E("test")))))
 
   @Benchmark
   def direct: String = a.b.c.d.e.s
 
   @Benchmark
-  def monocle: String = LensDomain.A_.b_c_d_e_s_monocle.get(a)
+  def monocle: String = A_.b_c_d_e_s_monocle.get(a)
 
   @Benchmark
-  def zioBlocks: String = LensDomain.A.b_c_d_e_s.get(a)
+  def zioBlocks: String = A.b_c_d_e_s.get(a)
 }
 
 class LensReplaceBenchmark extends BaseBenchmark {
-  var a: LensDomain.A = LensDomain.A(LensDomain.B(LensDomain.C(LensDomain.D(LensDomain.E("test")))))
+  import zio.blocks.schema.LensDomain._
+
+  var a: A = A(B(C(D(E("test")))))
 
   @Benchmark
-  def direct: LensDomain.A = {
+  def direct: A = {
     val a = this.a
     val b = a.b
     val c = b.c
@@ -29,17 +33,13 @@ class LensReplaceBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def monocle: LensDomain.A = LensDomain.A_.b_c_d_e_s_monocle.replace("test2").apply(a)
+  def monocle: A = A_.b_c_d_e_s_monocle.replace("test2").apply(a)
 
   @Benchmark
-  def quicklens: LensDomain.A = {
-    import com.softwaremill.quicklens._
-
-    LensDomain.A_.b_c_d_e_s_quicklens.apply(a).setTo("test2")
-  }
+  def quicklens: A = A_.b_c_d_e_s_quicklens.apply(a).setTo("test2")
 
   @Benchmark
-  def zioBlocks: LensDomain.A = LensDomain.A.b_c_d_e_s.replace(a, "test2")
+  def zioBlocks: A = A.b_c_d_e_s.replace(a, "test2")
 }
 
 object LensDomain {
