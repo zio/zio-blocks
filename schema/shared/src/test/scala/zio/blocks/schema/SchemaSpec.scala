@@ -1119,6 +1119,64 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred1).get(Record.b.toDynamic))(equalTo(Schema(deferred1).get(Record.b))) &&
         assert(Schema(deferred2).get(Variant.case1.toDynamic))(equalTo(Schema(deferred2).get(Variant.case1)))
       }
+    ),
+    suite("zio-prelude")(
+      test("derives schema for subtypes") {
+        import zio.prelude._
+
+        object Name extends Subtype[String] {
+          implicit def schema: Schema[Name.Type] = Schema[String].asInstanceOf[Schema[Name.Type]]
+        }
+
+        object Meter extends Subtype[Double] {
+          implicit def schema: Schema[Meter.Type] = Schema[Double].asInstanceOf[Schema[Meter.Type]]
+        }
+
+        object Kilogram extends Subtype[Double] {
+          implicit def schema: Schema[Kilogram.Type] = Schema[Double].asInstanceOf[Schema[Kilogram.Type]]
+        }
+
+        case class Planet(name: Name.Type, mass: Kilogram.Type, radius: Meter.Type)
+
+        object Planet extends CompanionOptics[Planet] {
+          implicit val schema: Schema[Planet]   = Schema.derived
+          val name: Lens[Planet, Name.Type]     = optic(_.name)
+          val mass: Lens[Planet, Kilogram.Type] = optic(_.mass)
+          val radius: Lens[Planet, Meter.Type]  = optic(_.radius)
+        }
+
+        val record = Planet.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 1, doubles = 2)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 1, doubles = 2)))) &&
+        assert(Planet.name.get(Planet(Name("Earth"), Kilogram(5.976e+24), Meter(6.37814e6))))(equalTo(Name("Earth"))) &&
+        assert(Planet.mass.get(Planet(Name("Mars"), Kilogram(6.421e+23), Meter(3.3972e6))))(
+          equalTo(Kilogram(6.421e+23))
+        ) &&
+        assert(Planet.radius.get(Planet(Name("Venus"), Kilogram(4.869e+24), Meter(6.0518e6))))(
+          equalTo(Meter(6.0518e6))
+        ) &&
+        assert(
+          Planet.schema.fromDynamicValue(
+            Planet.schema.toDynamicValue(Planet(Name("Jupiter"), Kilogram(1.9e+27), Meter(7.1492e7)))
+          )
+        )(
+          isRight(equalTo(Planet(Name("Jupiter"), Kilogram(1.9e+27), Meter(7.1492e7))))
+        ) &&
+        assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("name", "mass", "radius")))) &&
+        assert(record.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[Planet](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "spec")
+                ),
+                name = "Planet"
+              )
+            )
+          )
+        )
+      } @@ jvmOnly
     )
   )
 

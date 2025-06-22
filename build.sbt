@@ -74,8 +74,9 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
           )
       }),
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.18" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.18" % Test
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC41" % Test,
+      "dev.zio" %%% "zio-test"     % "2.1.18"     % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.18"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(

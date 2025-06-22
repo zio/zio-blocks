@@ -151,12 +151,12 @@ private object SchemaVersionSpecific {
 
     def isNonRecursive(tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
-      tpe =:= TypeRepr.of[String] || tpe =:= TypeRepr.of[Boolean] || tpe =:= TypeRepr.of[Byte] ||
-        tpe =:= TypeRepr.of[Char] || tpe =:= TypeRepr.of[Short] || tpe =:= TypeRepr.of[Float] ||
-        tpe =:= TypeRepr.of[Int] || tpe =:= TypeRepr.of[Double] || tpe =:= TypeRepr.of[Long] ||
-        tpe =:= TypeRepr.of[BigDecimal] || tpe =:= TypeRepr.of[BigInt] || tpe =:= TypeRepr.of[Unit] ||
+      tpe <:< TypeRepr.of[String] || tpe <:< TypeRepr.of[Boolean] || tpe <:< TypeRepr.of[Byte] ||
+        tpe <:< TypeRepr.of[Char] || tpe <:< TypeRepr.of[Short] || tpe <:< TypeRepr.of[Float] ||
+        tpe <:< TypeRepr.of[Int] || tpe <:< TypeRepr.of[Double] || tpe <:< TypeRepr.of[Long] ||
+        tpe <:< TypeRepr.of[BigDecimal] || tpe <:< TypeRepr.of[BigInt] || tpe <:< TypeRepr.of[Unit] ||
         tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
-        tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) || {
+        tpe <:< TypeRepr.of[java.util.Currency] || tpe <:< TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
@@ -226,7 +226,7 @@ private object SchemaVersionSpecific {
     val inferredSchemas = new mutable.HashMap[TypeRepr, Option[Expr[Schema[_]]]]
     val derivedSchemas  = new mutable.LinkedHashMap[TypeRepr, ValDef]
 
-    def findImplicitOrDeriveSchema[T: Type]: Expr[Schema[T]] = {
+    def findImplicitOrDeriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
       val tpe       = TypeRepr.of[T]
       val schemaTpe = TypeRepr.of[Schema[T]]
       val schema = inferredSchemas.getOrElseUpdate(
@@ -255,7 +255,7 @@ private object SchemaVersionSpecific {
       }.asExprOf[Schema[T]]
     }
 
-    def deriveSchema[T: Type]: Expr[Schema[T]] = {
+    def deriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
       val tpe                      = TypeRepr.of[T]
       val (packages, values, name) = typeName(tpe)
 
@@ -417,15 +417,15 @@ private object SchemaVersionSpecific {
                   }).orElse(fail(s"Cannot find default value for '$symbol' in class ${tpe.show}"))
                 } else None
               val offset =
-                if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
-                else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-                else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-                else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
-                else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-                else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
-                else if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
-                else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-                else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
+                if (fTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
+                else if (fTpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+                else if (fTpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+                else if (fTpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
+                else if (fTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+                else if (fTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
+                else if (fTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
+                else if (fTpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+                else if (fTpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
                 else RegisterOffset(objects = 1)
               val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
               registersUsed = RegisterOffset.add(registersUsed, offset)
@@ -460,19 +460,40 @@ private object SchemaVersionSpecific {
             case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
           }
           val argss = fieldInfos.map(_.map { fieldInfo =>
-            val fTpe         = fieldInfo.tpe
-            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
-            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-            if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
-            else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
-            else fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
+            val fTpe = fieldInfo.tpe
+            fTpe.asType match {
+              case '[ft] =>
+                lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
+                lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
+                if (fTpe <:< TypeRepr.of[Unit]) {
+                  if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
+                  else '{ ().asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Boolean]) {
+                  if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getBoolean($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Byte]) {
+                  if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getByte($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Char]) {
+                  if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getChar($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Short]) {
+                  if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getShort($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Float]) {
+                  if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getFloat($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Int]) {
+                  if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getInt($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Double]) {
+                  if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getDouble($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else if (fTpe <:< TypeRepr.of[Long]) {
+                  if (fTpe <:< TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
+                  else '{ $in.getLong($baseOffset, $bytes).asInstanceOf[ft] }.asTerm
+                } else '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm
+            }
           })
           argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
         }.asExprOf[T]
@@ -483,23 +504,23 @@ private object SchemaVersionSpecific {
             val getter       = fieldInfo.getter
             lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
             lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-            if (fTpe =:= TypeRepr.of[Unit]) {
+            if (fTpe <:< TypeRepr.of[Unit]) {
               '{ () }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Boolean]) {
+            } else if (fTpe <:< TypeRepr.of[Boolean]) {
               '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Byte]) {
+            } else if (fTpe <:< TypeRepr.of[Byte]) {
               '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Char]) {
+            } else if (fTpe <:< TypeRepr.of[Char]) {
               '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Short]) {
+            } else if (fTpe <:< TypeRepr.of[Short]) {
               '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Float]) {
+            } else if (fTpe <:< TypeRepr.of[Float]) {
               '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Int]) {
+            } else if (fTpe <:< TypeRepr.of[Int]) {
               '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Double]) {
+            } else if (fTpe <:< TypeRepr.of[Double]) {
               '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Long]) {
+            } else if (fTpe <:< TypeRepr.of[Long]) {
               '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
             } else {
               '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
@@ -535,7 +556,7 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show}'.")
+      } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show(using Printer.TypeReprStructure)}'.")
     }.asExprOf[Schema[T]]
 
     val tpe         = TypeRepr.of[A].dealias

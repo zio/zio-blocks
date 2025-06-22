@@ -93,11 +93,11 @@ private object SchemaVersionSpecific {
 
     def isNonRecursive(tpe: Type, nestedTpes: List[Type] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
-      tpe =:= typeOf[String] || tpe =:= typeOf[Boolean] || tpe =:= typeOf[Byte] || tpe =:= typeOf[Char] ||
-        tpe =:= typeOf[Short] || tpe =:= typeOf[Float] || tpe =:= typeOf[Int] || tpe =:= typeOf[Double] ||
-        tpe =:= typeOf[Long] || tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= typeOf[Unit] ||
+      tpe <:< typeOf[String] || tpe <:< typeOf[Boolean] || tpe <:< typeOf[Byte] || tpe <:< typeOf[Char] ||
+        tpe <:< typeOf[Short] || tpe <:< typeOf[Float] || tpe <:< typeOf[Int] || tpe <:< typeOf[Double] ||
+        tpe <:< typeOf[Long] || tpe <:< typeOf[BigDecimal] || tpe <:< typeOf[BigInt] || tpe <:< typeOf[Unit] ||
         tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
-        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) || {
+        tpe <:< typeOf[java.util.Currency] || tpe <:< typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else {
@@ -304,15 +304,15 @@ private object SchemaVersionSpecific {
             if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
             else None
           val offset =
-            if (fTpe =:= typeOf[Unit]) RegisterOffset.Zero
-            else if (fTpe =:= typeOf[Boolean]) RegisterOffset(booleans = 1)
-            else if (fTpe =:= typeOf[Byte]) RegisterOffset(bytes = 1)
-            else if (fTpe =:= typeOf[Char]) RegisterOffset(chars = 1)
-            else if (fTpe =:= typeOf[Short]) RegisterOffset(shorts = 1)
-            else if (fTpe =:= typeOf[Float]) RegisterOffset(floats = 1)
-            else if (fTpe =:= typeOf[Int]) RegisterOffset(ints = 1)
-            else if (fTpe =:= typeOf[Double]) RegisterOffset(doubles = 1)
-            else if (fTpe =:= typeOf[Long]) RegisterOffset(longs = 1)
+            if (fTpe <:< typeOf[Unit]) RegisterOffset.Zero
+            else if (fTpe <:< typeOf[Boolean]) RegisterOffset(booleans = 1)
+            else if (fTpe <:< typeOf[Byte]) RegisterOffset(bytes = 1)
+            else if (fTpe <:< typeOf[Char]) RegisterOffset(chars = 1)
+            else if (fTpe <:< typeOf[Short]) RegisterOffset(shorts = 1)
+            else if (fTpe <:< typeOf[Float]) RegisterOffset(floats = 1)
+            else if (fTpe <:< typeOf[Int]) RegisterOffset(ints = 1)
+            else if (fTpe <:< typeOf[Double]) RegisterOffset(doubles = 1)
+            else if (fTpe <:< typeOf[Long]) RegisterOffset(longs = 1)
             else RegisterOffset(objects = 1)
           val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
           registersUsed = RegisterOffset.add(registersUsed, offset)
@@ -335,16 +335,34 @@ private object SchemaVersionSpecific {
           lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
           lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
           val const =
-            if (fTpe =:= typeOf[Unit]) q"()"
-            else if (fTpe =:= typeOf[Boolean]) q"in.getBoolean(baseOffset, $bytes)"
-            else if (fTpe =:= typeOf[Byte]) q"in.getByte(baseOffset, $bytes)"
-            else if (fTpe =:= typeOf[Char]) q"in.getChar(baseOffset, $bytes)"
-            else if (fTpe =:= typeOf[Short]) q"in.getShort(baseOffset, $bytes)"
-            else if (fTpe =:= typeOf[Float]) q"in.getFloat(baseOffset, $bytes)"
-            else if (fTpe =:= typeOf[Int]) q"in.getInt(baseOffset, $bytes)"
-            else if (fTpe =:= typeOf[Double]) q"in.getDouble(baseOffset, $bytes)"
-            else if (fTpe =:= typeOf[Long]) q"in.getLong(baseOffset, $bytes)"
-            else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            if (fTpe <:< typeOf[Unit]) {
+              if (fTpe =:= typeOf[Unit]) q"()"
+              else q"().asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Boolean]) {
+              if (fTpe =:= typeOf[Boolean]) q"in.getBoolean(baseOffset, $bytes)"
+              else q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Byte]) {
+              if (fTpe =:= typeOf[Byte]) q"in.getByte(baseOffset, $bytes)"
+              else q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Char]) {
+              if (fTpe =:= typeOf[Char]) q"in.getChar(baseOffset, $bytes)"
+              else q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Short]) {
+              if (fTpe =:= typeOf[Short]) q"in.getShort(baseOffset, $bytes)"
+              else q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Float]) {
+              if (fTpe =:= typeOf[Float]) q"in.getFloat(baseOffset, $bytes)"
+              else q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Int]) {
+              if (fTpe =:= typeOf[Int]) q"in.getInt(baseOffset, $bytes)"
+              else q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Double]) {
+              if (fTpe =:= typeOf[Double]) q"in.getDouble(baseOffset, $bytes)"
+              else q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< typeOf[Long]) {
+              if (fTpe =:= typeOf[Long]) q"in.getLong(baseOffset, $bytes)"
+              else q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            } else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
           q"${fieldInfo.symbol} = $const"
         })
         val const = q"new $tpe(...$argss)"
@@ -353,15 +371,15 @@ private object SchemaVersionSpecific {
           val getter       = fieldInfo.getter
           lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
           lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
-          if (fTpe =:= typeOf[Unit]) q"()"
-          else if (fTpe =:= typeOf[Boolean]) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= typeOf[Byte]) q"out.setByte(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= typeOf[Char]) q"out.setChar(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= typeOf[Short]) q"out.setShort(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= typeOf[Float]) q"out.setFloat(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= typeOf[Int]) q"out.setInt(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= typeOf[Double]) q"out.setDouble(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= typeOf[Long]) q"out.setLong(baseOffset, $bytes, in.$getter)"
+          if (fTpe <:< typeOf[Unit]) q"()"
+          else if (fTpe <:< typeOf[Boolean]) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
+          else if (fTpe <:< typeOf[Byte]) q"out.setByte(baseOffset, $bytes, in.$getter)"
+          else if (fTpe <:< typeOf[Char]) q"out.setChar(baseOffset, $bytes, in.$getter)"
+          else if (fTpe <:< typeOf[Short]) q"out.setShort(baseOffset, $bytes, in.$getter)"
+          else if (fTpe <:< typeOf[Float]) q"out.setFloat(baseOffset, $bytes, in.$getter)"
+          else if (fTpe <:< typeOf[Int]) q"out.setInt(baseOffset, $bytes, in.$getter)"
+          else if (fTpe <:< typeOf[Double]) q"out.setDouble(baseOffset, $bytes, in.$getter)"
+          else if (fTpe <:< typeOf[Long]) q"out.setLong(baseOffset, $bytes, in.$getter)"
           else q"out.setObject(baseOffset, $objects, in.$getter)"
         })
         q"""new Schema[$tpe](
