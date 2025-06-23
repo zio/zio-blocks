@@ -5,9 +5,12 @@ import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
 import zio.blocks.schema.binding._
+import zio.blocks.schema.codec.{Format, TextCodec, TextFormat}
+import zio.blocks.schema.derive.Deriver
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
+import java.nio.CharBuffer
 import scala.collection.immutable.ArraySeq
 
 object SchemaSpec extends ZIOSpecDefault {
@@ -41,6 +44,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Byte")))
         )
+      },
+      test("encodes values using provided formats and outputs") {
+        val result = encodeToString { out =>
+          Schema[Byte].encode(ToStringFormat)(out)(1: Byte)
+        }
+        assert(result)(equalTo("1"))
       }
     ),
     suite("Reflect.Record")(
@@ -427,6 +436,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record6.schema.fromDynamicValue(Record6.schema.toDynamicValue(Record6(r = Some(Record6())))))(
           isRight(equalTo(Record6(r = Some(Record6()))))
         )
+      },
+      test("encodes values using provided formats and outputs") {
+        val result = encodeToString { out =>
+          Schema[Record].encode(ToStringFormat)(out)(Record(1: Byte, 2))
+        }
+        assert(result)(equalTo("Record(1,2)"))
       }
     ),
     suite("Reflect.Variant")(
@@ -705,6 +720,12 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("encodes values using provided formats and outputs") {
+        val result = encodeToString { out =>
+          Schema[Variant].encode(ToStringFormat)(out)(Case1('a'))
+        }
+        assert(result)(equalTo("Case1(a)"))
       }
     ),
     suite("Reflect.Sequence")(
@@ -881,6 +902,12 @@ object SchemaSpec extends ZIOSpecDefault {
         val elements2 = Traversal.setValues(Reflect.long[Binding])
         assert(Schema[List[Int]].get(elements1.toDynamic))(equalTo(Schema[List[Int]].get(elements1))) &&
         assert(Schema[Set[Long]].get(elements2.toDynamic))(equalTo(Schema[Set[Long]].get(elements2)))
+      },
+      test("encodes values using provided formats and outputs") {
+        val result = encodeToString { out =>
+          Schema[List[Int]].encode(ToStringFormat)(out)(List(1, 2, 3))
+        }
+        assert(result)(equalTo("List(1, 2, 3)"))
       }
     ),
     suite("Reflect.Map")(
@@ -993,6 +1020,12 @@ object SchemaSpec extends ZIOSpecDefault {
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].get(mapKeys.toDynamic))(equalTo(Schema[Map[Int, Long]].get(mapKeys))) &&
         assert(Schema[Map[Int, Long]].get(mapValues.toDynamic))(equalTo(Schema[Map[Int, Long]].get(mapValues)))
+      },
+      test("encodes values using provided formats and outputs") {
+        val result = encodeToString { out =>
+          Schema[Map[Int, Char]].encode(ToStringFormat)(out)(Map(1 -> 'a', 2 -> 'b', 3 -> 'c'))
+        }
+        assert(result)(equalTo("Map(1 -> a, 2 -> b, 3 -> c)"))
       }
     ),
     suite("Reflect.Dynamic")(
@@ -1019,6 +1052,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[DynamicValue].fromDynamicValue(Schema[DynamicValue].toDynamicValue(value)))(
           isRight(equalTo(value))
         )
+      },
+      test("encodes values using provided formats and outputs") {
+        val result = encodeToString { out =>
+          Schema[DynamicValue].encode(ToStringFormat)(out)(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        }
+        assert(result)(equalTo("Primitive(Int(1))"))
       }
     ),
     suite("Reflect.Deferred")(
@@ -1118,6 +1157,10 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
         assert(Schema(deferred1).get(Record.b.toDynamic))(equalTo(Schema(deferred1).get(Record.b))) &&
         assert(Schema(deferred2).get(Variant.case1.toDynamic))(equalTo(Schema(deferred2).get(Variant.case1)))
+      },
+      test("encodes values using provided formats and outputs") {
+        val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
+        assert(encodeToString(out => Schema(deferred1).encode(ToStringFormat)(out)(1)))(equalTo("1"))
       }
     )
   )
@@ -1156,4 +1199,99 @@ object SchemaSpec extends ZIOSpecDefault {
   }
 
   case object Case extends Level1.MultiLevel
+
+  def encodeToString(f: CharBuffer => Unit): String = {
+    val out = CharBuffer.allocate(1024)
+    f(out)
+    out.limit(out.position()).position(0).toString
+  }
+
+  object ToStringFormat
+      extends TextFormat(
+        "text/plain",
+        new Deriver[TextCodec] {
+          override def derivePrimitive[F[_, _], A](
+            primitiveType: PrimitiveType[A],
+            typeName: TypeName[A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Primitive]
+          ): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def format: Format = ???
+
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveRecord[F[_, _], A](
+            fields: IndexedSeq[Term[F, A, _]],
+            typeName: TypeName[A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Record]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def format: Format = ???
+
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveVariant[F[_, _], A](
+            cases: IndexedSeq[Term[F, A, _]],
+            typeName: TypeName[A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Variant]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def format: Format = ???
+
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
+
+          override def deriveSequence[F[_, _], C[_], A](
+            element: Reflect[F, A],
+            typeName: TypeName[C[A]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Seq]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
+            Lazy(new TextCodec[C[A]] {
+              override def format: Format = ???
+
+              override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, C[A]] = ???
+            })
+
+          override def deriveMap[F[_, _], M[_, _], K, V](
+            key: Reflect[F, K],
+            value: Reflect[F, V],
+            typeName: TypeName[M[K, V]],
+            doc: Doc,
+            modifiers: Seq[Modifier.Map]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
+            Lazy(new TextCodec[M[K, V]] {
+              override def format: Format = ???
+
+              override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, M[K, V]] = ???
+            })
+
+          override def deriveDynamic[F[_, _]](doc: Doc, modifiers: Seq[Modifier.Dynamic])(implicit
+            F: HasBinding[F],
+            D: HasInstance[F]
+          ): Lazy[TextCodec[DynamicValue]] =
+            Lazy(new TextCodec[DynamicValue] {
+              override def format: Format = ???
+
+              override def encode(value: DynamicValue, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, DynamicValue] = ???
+            })
+        }
+      )
 }
