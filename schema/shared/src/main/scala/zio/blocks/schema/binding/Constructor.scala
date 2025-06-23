@@ -18,3 +18,9 @@ abstract class Constructor[+A] { self =>
    */
   def construct(in: Registers, baseOffset: RegisterOffset): A
 }
+
+class ConstantConstructor[A](constant: A) extends Constructor[A] {
+  def usedRegisters: RegisterOffset = 0
+
+  def construct(in: Registers, baseOffset: RegisterOffset): A = constant
+}

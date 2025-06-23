@@ -1,7 +1,9 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.concurrent.TrieMap
+import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
@@ -150,48 +152,57 @@ private object SchemaVersionSpecific {
       (packages, values, name)
     }
 
-    val tpe                      = weakTypeOf[A].dealias
-    val (packages, values, name) = typeName(tpe)
+    val inferredSchemas = new mutable.HashMap[Type, Tree]
+    val derivedSchemas  = new mutable.LinkedHashMap[Type, (TermName, Tree)]
 
-    def maxCommonPrefixLength(typesWithFullNames: Seq[(Type, Array[String])]): Int = {
-      var minFullName = typesWithFullNames.head._2
-      var maxFullName = typesWithFullNames.last._2
-      val tpeFullName = packages.toArray ++ values.toArray :+ name
-      if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
-      if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
-      val minLength = Math.min(minFullName.length, maxFullName.length)
-      var idx       = 0
-      while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
-      idx
+    def findImplicitOrDeriveSchema(tpe: Type): Tree = {
+      val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
+      val schema    = inferredSchemas.getOrElseUpdate(tpe, c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe))
+      if (schema.isEmpty) {
+        Ident(
+          derivedSchemas
+            .getOrElseUpdate(
+              tpe, {
+                val schema = deriveSchema(tpe)
+                val name   = TermName("s" + derivedSchemas.size)
+                val tree =
+                  if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
+                  else q"implicit lazy val $name: $schemaTpe = $schema"
+                (name, tree)
+              }
+            )
+            ._1
+        )
+      } else schema
     }
 
-    val schema =
+    def deriveSchema(tpe: Type): Tree = {
+      val (packages, values, name) = typeName(tpe)
+
+      def maxCommonPrefixLength(typesWithFullNames: Seq[(Type, Array[String])]): Int = {
+        var minFullName = typesWithFullNames.head._2
+        var maxFullName = typesWithFullNames.last._2
+        val tpeFullName = packages.toArray ++ values.toArray :+ name
+        if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+        if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+        val minLength = Math.min(minFullName.length, maxFullName.length)
+        var idx       = 0
+        while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+        idx
+      }
+
       if (isEnumOrModuleValue(tpe)) {
-        q"""{
-              import _root_.zio.blocks.schema._
-              import _root_.zio.blocks.schema.binding._
-              import _root_.zio.blocks.schema.binding.RegisterOffset._
-
-              new Schema[$tpe](
-                reflect = Reflect.Record[Binding, $tpe](
-                  fields = _root_.scala.Vector.empty,
-                  typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                  recordBinding = Binding.Record(
-                    constructor = new Constructor[$tpe] {
-                      def usedRegisters: RegisterOffset = 0
-
-                      def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${tpe.typeSymbol.asClass.module}
-                    },
-                    deconstructor = new Deconstructor[$tpe] {
-                      def usedRegisters: RegisterOffset = 0
-
-                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): Unit = ()
-                    }
-                  ),
-                  modifiers = _root_.scala.Seq(..${modifiers(tpe)})
-                )
+        q"""new Schema[$tpe](
+              reflect = Reflect.Record[Binding, $tpe](
+                fields = _root_.scala.Vector.empty,
+                typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                recordBinding = Binding.Record(
+                  constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
+                  deconstructor = new ConstantDeconstructor[$tpe]
+                ),
+                modifiers = _root_.scala.Seq(..${modifiers(tpe)})
               )
-            }"""
+            )"""
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) {
@@ -207,7 +218,8 @@ private object SchemaVersionSpecific {
         val length = maxCommonPrefixLength(subTypesWithFullNames)
         val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
           val termName = fullName.drop(length).mkString(".")
-          q"Schema[$sTpe].reflect.asTerm($termName)"
+          val sSchema  = findImplicitOrDeriveSchema(sTpe)
+          q"$sSchema.reflect.asTerm($termName)"
         }
         val discrCases = subTypesWithFullNames.map {
           var idx = -1
@@ -223,34 +235,29 @@ private object SchemaVersionSpecific {
                 }
               }"""
         }
-        q"""{
-              import _root_.zio.blocks.schema._
-              import _root_.zio.blocks.schema.binding._
-
-              new Schema[$tpe](
-                reflect = Reflect.Variant[Binding, $tpe](
-                  cases = _root_.scala.Vector(..$cases),
-                  typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                  variantBinding = Binding.Variant(
-                    discriminator = new Discriminator[$tpe] {
-                      def discriminate(a: $tpe): Int = a match {
-                        case ..$discrCases
-                      }
-                    },
-                    matchers = Matchers(..$matcherCases),
-                  ),
-                  modifiers = _root_.scala.Seq(..${modifiers(tpe)})
-                )
+        q"""new Schema[$tpe](
+              reflect = Reflect.Variant[Binding, $tpe](
+                cases = _root_.scala.Vector(..$cases),
+                typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                variantBinding = Binding.Variant(
+                  discriminator = new Discriminator[$tpe] {
+                    def discriminate(a: $tpe): Int = a match {
+                      case ..$discrCases
+                    }
+                  },
+                  matchers = Matchers(..$matcherCases),
+                ),
+                modifiers = _root_.scala.Seq(..${modifiers(tpe)})
               )
-            }"""
+            )"""
       } else if (isNonAbstractScalaClass(tpe)) {
         case class FieldInfo(
           symbol: Symbol,
           name: String,
           tpe: Type,
           defaultValue: Option[Tree],
-          const: Tree,
-          deconst: Tree,
+          getter: MethodSymbol,
+          registersUsed: RegisterOffset,
           isTransient: Boolean,
           config: Seq[(String, String)]
         )
@@ -296,103 +303,104 @@ private object SchemaVersionSpecific {
           val defaultValue =
             if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
             else None
-          var const: Tree   = null
-          var deconst: Tree = null
-          val bytes         = RegisterOffset.getBytes(registersUsed)
-          val objects       = RegisterOffset.getObjects(registersUsed)
-          var offset        = RegisterOffset.Zero
-          if (fTpe =:= typeOf[Unit]) {
-            const = q"()"
-            deconst = q"()"
-          } else if (fTpe =:= typeOf[Boolean]) {
-            offset = RegisterOffset(booleans = 1)
-            const = q"in.getBoolean(baseOffset, $bytes)"
-            deconst = q"out.setBoolean(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Byte]) {
-            offset = RegisterOffset(bytes = 1)
-            const = q"in.getByte(baseOffset, $bytes)"
-            deconst = q"out.setByte(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Char]) {
-            offset = RegisterOffset(chars = 1)
-            const = q"in.getChar(baseOffset, $bytes)"
-            deconst = q"out.setChar(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Short]) {
-            offset = RegisterOffset(shorts = 1)
-            const = q"in.getShort(baseOffset, $bytes)"
-            deconst = q"out.setShort(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Float]) {
-            offset = RegisterOffset(floats = 1)
-            const = q"in.getFloat(baseOffset, $bytes)"
-            deconst = q"out.setFloat(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Int]) {
-            offset = RegisterOffset(ints = 1)
-            const = q"in.getInt(baseOffset, $bytes)"
-            deconst = q"out.setInt(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Double]) {
-            offset = RegisterOffset(doubles = 1)
-            const = q"in.getDouble(baseOffset, $bytes)"
-            deconst = q"out.setDouble(baseOffset, $bytes, in.$getter)"
-          } else if (fTpe =:= typeOf[Long]) {
-            offset = RegisterOffset(longs = 1)
-            const = q"in.getLong(baseOffset, $bytes)"
-            deconst = q"out.setLong(baseOffset, $bytes, in.$getter)"
-          } else {
-            offset = RegisterOffset(objects = 1)
-            const = q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
-            deconst = q"out.setObject(baseOffset, $objects, in.$getter)"
-          }
+          val offset =
+            if (fTpe =:= typeOf[Unit]) RegisterOffset.Zero
+            else if (fTpe =:= typeOf[Boolean]) RegisterOffset(booleans = 1)
+            else if (fTpe =:= typeOf[Byte]) RegisterOffset(bytes = 1)
+            else if (fTpe =:= typeOf[Char]) RegisterOffset(chars = 1)
+            else if (fTpe =:= typeOf[Short]) RegisterOffset(shorts = 1)
+            else if (fTpe =:= typeOf[Float]) RegisterOffset(floats = 1)
+            else if (fTpe =:= typeOf[Int]) RegisterOffset(ints = 1)
+            else if (fTpe =:= typeOf[Double]) RegisterOffset(doubles = 1)
+            else if (fTpe =:= typeOf[Long]) RegisterOffset(longs = 1)
+            else RegisterOffset(objects = 1)
+          val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
           registersUsed = RegisterOffset.add(registersUsed, offset)
-          FieldInfo(symbol, name, fTpe, defaultValue, const, deconst, isTransient, config)
+          fieldInfo
         })
         val fields = fieldInfos.flatMap(_.map { fieldInfo =>
-          val fTpe        = fieldInfo.tpe
-          val name        = fieldInfo.name
-          val reflectTree = q"Schema[$fTpe].reflect"
-          var fieldTermTree = if (isNonRecursive(fTpe)) {
-            fieldInfo.defaultValue.fold(q"$reflectTree.asTerm($name)") { dv =>
-              q"$reflectTree.defaultValue($dv).asTerm($name)"
-            }
-          } else {
-            fieldInfo.defaultValue.fold(q"Reflect.Deferred(() => $reflectTree).asTerm($name)") { dv =>
-              q"Reflect.Deferred(() => $reflectTree.defaultValue($dv)).asTerm($name)"
-            }
-          }
-          var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
+          val fTpe              = fieldInfo.tpe
+          val fSchema           = findImplicitOrDeriveSchema(fTpe)
+          var reflectTree: Tree = q"$fSchema.reflect"
+          reflectTree = fieldInfo.defaultValue.fold(reflectTree)(dv => q"$reflectTree.defaultValue($dv)")
+          if (!isNonRecursive(fTpe)) reflectTree = q"Reflect.Deferred(() => $reflectTree)"
+          var fieldTermTree = q"$reflectTree.asTerm[$tpe](${fieldInfo.name})"
+          var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
           fieldTermTree
         })
-        val const   = q"new $tpe(...${fieldInfos.map(_.map(fieldInfo => q"${fieldInfo.symbol} = ${fieldInfo.const}"))})"
-        val deconst = fieldInfos.flatMap(_.map(_.deconst))
-        q"""{
-              import _root_.zio.blocks.schema._
-              import _root_.zio.blocks.schema.binding._
-              import _root_.zio.blocks.schema.binding.RegisterOffset._
+        val argss = fieldInfos.map(_.map { fieldInfo =>
+          val fTpe         = fieldInfo.tpe
+          lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
+          lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
+          val const =
+            if (fTpe =:= typeOf[Unit]) q"()"
+            else if (fTpe =:= typeOf[Boolean]) q"in.getBoolean(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Byte]) q"in.getByte(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Char]) q"in.getChar(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Short]) q"in.getShort(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Float]) q"in.getFloat(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Int]) q"in.getInt(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Double]) q"in.getDouble(baseOffset, $bytes)"
+            else if (fTpe =:= typeOf[Long]) q"in.getLong(baseOffset, $bytes)"
+            else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+          q"${fieldInfo.symbol} = $const"
+        })
+        val const = q"new $tpe(...$argss)"
+        val deconst = fieldInfos.flatMap(_.map { fieldInfo =>
+          val fTpe         = fieldInfo.tpe
+          val getter       = fieldInfo.getter
+          lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
+          lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
+          if (fTpe =:= typeOf[Unit]) q"()"
+          else if (fTpe =:= typeOf[Boolean]) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Byte]) q"out.setByte(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Char]) q"out.setChar(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Short]) q"out.setShort(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Float]) q"out.setFloat(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Int]) q"out.setInt(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Double]) q"out.setDouble(baseOffset, $bytes, in.$getter)"
+          else if (fTpe =:= typeOf[Long]) q"out.setLong(baseOffset, $bytes, in.$getter)"
+          else q"out.setObject(baseOffset, $objects, in.$getter)"
+        })
+        q"""new Schema[$tpe](
+              reflect = Reflect.Record[Binding, $tpe](
+                fields = _root_.scala.Vector(..$fields),
+                typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                recordBinding = Binding.Record(
+                  constructor = new Constructor[$tpe] {
+                    def usedRegisters: RegisterOffset = $registersUsed
 
-              new Schema[$tpe](
-                reflect = Reflect.Record[Binding, $tpe](
-                  fields = _root_.scala.Vector(..$fields),
-                  typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                  recordBinding = Binding.Record(
-                    constructor = new Constructor[$tpe] {
-                      def usedRegisters: RegisterOffset = $registersUsed
+                    def construct(in: Registers, baseOffset: RegisterOffset): $tpe = $const
+                  },
+                  deconstructor = new Deconstructor[$tpe] {
+                    def usedRegisters: RegisterOffset = $registersUsed
 
-                      def construct(in: Registers, baseOffset: RegisterOffset): $tpe = $const
-                    },
-                    deconstructor = new Deconstructor[$tpe] {
-                      def usedRegisters: RegisterOffset = $registersUsed
-
-                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
-                        ..$deconst
-                      }
+                    def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
+                      ..$deconst
                     }
-                  ),
-                  modifiers = _root_.scala.Seq(..${modifiers(tpe)}),
-                )
+                  }
+                ),
+                modifiers = _root_.scala.Seq(..${modifiers(tpe)}),
               )
-            }"""
+            )"""
       } else fail(s"Cannot derive '${typeOf[Schema[_]]}' for '$tpe'.")
-    // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schema)}", force = true)
-    c.Expr[Schema[A]](schema)
+    }
+
+    val tpe    = weakTypeOf[A].dealias
+    val schema = deriveSchema(tpe)
+    val schemaBlock =
+      q"""{
+            import _root_.zio.blocks.schema._
+            import _root_.zio.blocks.schema.binding._
+            import _root_.zio.blocks.schema.binding.RegisterOffset._
+
+            ..${derivedSchemas.values.map(_._2)}
+
+            $schema
+          }"""
+    // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schemaBlock)}", force = true)
+    c.Expr[Schema[A]](schemaBlock)
   }
 }
