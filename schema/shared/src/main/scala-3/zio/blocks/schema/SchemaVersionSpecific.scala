@@ -226,7 +226,7 @@ private object SchemaVersionSpecific {
     val inferredSchemas = new mutable.HashMap[TypeRepr, Option[Expr[Schema[_]]]]
     val derivedSchemas  = new mutable.LinkedHashMap[TypeRepr, ValDef]
 
-    def findImplicitOrDeriveSchema[T: Type]: Expr[Schema[T]] = {
+    def findImplicitOrDeriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
       val tpe       = TypeRepr.of[T]
       val schemaTpe = TypeRepr.of[Schema[T]]
       val schema = inferredSchemas.getOrElseUpdate(
@@ -255,7 +255,7 @@ private object SchemaVersionSpecific {
       }.asExprOf[Schema[T]]
     }
 
-    def deriveSchema[T: Type]: Expr[Schema[T]] = {
+    def deriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
       val tpe                      = TypeRepr.of[T]
       val (packages, values, name) = typeName(tpe)
 
@@ -535,7 +535,7 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else fail(s"Cannot derive '${TypeRepr.of[Schema[_]].show}' for '${tpe.show}'.")
+      } else fail(s"Cannot derive schema for '${tpe.show(using Printer.TypeReprStructure)}'.")
     }.asExprOf[Schema[T]]
 
     val tpe         = TypeRepr.of[A].dealias

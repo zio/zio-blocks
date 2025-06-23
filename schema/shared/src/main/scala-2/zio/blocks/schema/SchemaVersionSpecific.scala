@@ -386,7 +386,7 @@ private object SchemaVersionSpecific {
                 modifiers = _root_.scala.Seq(..${modifiers(tpe)}),
               )
             )"""
-      } else fail(s"Cannot derive '${typeOf[Schema[_]]}' for '$tpe'.")
+      } else fail(s"Cannot derive schema for '${showRaw(tpe)}'.")
     }
 
     val tpe    = weakTypeOf[A].dealias
