@@ -1217,8 +1217,6 @@ object SchemaSpec extends ZIOSpecDefault {
             modifiers: Seq[Modifier.Primitive]
           ): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
-              override def format: Format = ???
-
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
 
               override def decode(input: CharBuffer): Either[SchemaError, A] = ???
@@ -1231,8 +1229,6 @@ object SchemaSpec extends ZIOSpecDefault {
             modifiers: Seq[Modifier.Record]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
-              override def format: Format = ???
-
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
 
               override def decode(input: CharBuffer): Either[SchemaError, A] = ???
@@ -1245,8 +1241,6 @@ object SchemaSpec extends ZIOSpecDefault {
             modifiers: Seq[Modifier.Variant]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
-              override def format: Format = ???
-
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
 
               override def decode(input: CharBuffer): Either[SchemaError, A] = ???
@@ -1259,8 +1253,6 @@ object SchemaSpec extends ZIOSpecDefault {
             modifiers: Seq[Modifier.Seq]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
             Lazy(new TextCodec[C[A]] {
-              override def format: Format = ???
-
               override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
 
               override def decode(input: CharBuffer): Either[SchemaError, C[A]] = ???
@@ -1274,8 +1266,6 @@ object SchemaSpec extends ZIOSpecDefault {
             modifiers: Seq[Modifier.Map]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
             Lazy(new TextCodec[M[K, V]] {
-              override def format: Format = ???
-
               override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
 
               override def decode(input: CharBuffer): Either[SchemaError, M[K, V]] = ???
@@ -1286,8 +1276,6 @@ object SchemaSpec extends ZIOSpecDefault {
             D: HasInstance[F]
           ): Lazy[TextCodec[DynamicValue]] =
             Lazy(new TextCodec[DynamicValue] {
-              override def format: Format = ???
-
               override def encode(value: DynamicValue, output: CharBuffer): Unit = output.append(value.toString)
 
               override def decode(input: CharBuffer): Either[SchemaError, DynamicValue] = ???
