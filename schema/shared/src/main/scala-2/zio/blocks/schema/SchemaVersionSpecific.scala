@@ -305,16 +305,19 @@ private object SchemaVersionSpecific {
             if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
             else None
           val offset =
-            if (fTpe =:= definitions.IntTpe) RegisterOffset(ints = 1)
-            else if (fTpe =:= definitions.FloatTpe) RegisterOffset(floats = 1)
-            else if (fTpe =:= definitions.LongTpe) RegisterOffset(longs = 1)
-            else if (fTpe =:= definitions.DoubleTpe) RegisterOffset(doubles = 1)
-            else if (fTpe =:= definitions.BooleanTpe) RegisterOffset(booleans = 1)
-            else if (fTpe =:= definitions.ByteTpe) RegisterOffset(bytes = 1)
-            else if (fTpe =:= definitions.CharTpe) RegisterOffset(chars = 1)
-            else if (fTpe =:= definitions.ShortTpe) RegisterOffset(shorts = 1)
-            else if (fTpe =:= definitions.UnitTpe) RegisterOffset.Zero
-            else RegisterOffset(objects = 1)
+            if (fTpe <:< definitions.AnyValTpe) {
+              if (fTpe =:= definitions.IntTpe) RegisterOffset(ints = 1)
+              else if (fTpe =:= definitions.FloatTpe) RegisterOffset(floats = 1)
+              else if (fTpe =:= definitions.LongTpe) RegisterOffset(longs = 1)
+              else if (fTpe =:= definitions.DoubleTpe) RegisterOffset(doubles = 1)
+              else if (fTpe =:= definitions.BooleanTpe) RegisterOffset(booleans = 1)
+              else if (fTpe =:= definitions.ByteTpe) RegisterOffset(bytes = 1)
+              else if (fTpe =:= definitions.CharTpe) RegisterOffset(chars = 1)
+              else if (fTpe =:= definitions.ShortTpe) RegisterOffset(shorts = 1)
+              else if (fTpe =:= definitions.UnitTpe) RegisterOffset.Zero
+              else RegisterOffset(objects = 1)
+            } else if (fTpe <:< definitions.AnyRefTpe) RegisterOffset(objects = 1)
+            else fail(s"Unsupported field type '$fTpe'.")
           val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
           registersUsed = RegisterOffset.add(registersUsed, offset)
           fieldInfo
@@ -336,16 +339,19 @@ private object SchemaVersionSpecific {
           lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
           lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
           val const =
-            if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.UnitTpe) q"()"
-            else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            if (fTpe <:< definitions.AnyValTpe) {
+              if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+              else if (fTpe =:= definitions.UnitTpe) q"()"
+              else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            } else if (fTpe <:< definitions.AnyRefTpe) q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            else fail(s"Unsupported field type '$fTpe'.")
           q"${fieldInfo.symbol} = $const"
         })
         val const = q"new $tpe(...$argss)"
@@ -354,16 +360,19 @@ private object SchemaVersionSpecific {
           val getter       = fieldInfo.getter
           lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
           lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
-          if (fTpe =:= definitions.IntTpe) q"out.setInt(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.LongTpe) q"out.setLong(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.CharTpe) q"out.setChar(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, in.$getter)"
-          else if (fTpe =:= definitions.UnitTpe) q"()"
-          else q"out.setObject(baseOffset, $objects, in.$getter)"
+          if (fTpe <:< definitions.AnyValTpe) {
+            if (fTpe =:= definitions.IntTpe) q"out.setInt(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.LongTpe) q"out.setLong(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.CharTpe) q"out.setChar(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, in.$getter)"
+            else if (fTpe =:= definitions.UnitTpe) q"()"
+            else q"out.setObject(baseOffset, $objects, in.$getter)"
+          } else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
+          else fail(s"Unsupported field type '$fTpe'.")
         })
         q"""new Schema[$tpe](
               reflect = Reflect.Record[Binding, $tpe](
@@ -386,7 +395,7 @@ private object SchemaVersionSpecific {
                 modifiers = _root_.scala.Seq(..${modifiers(tpe)}),
               )
             )"""
-      } else fail(s"Cannot derive schema for '${showRaw(tpe)}'.")
+      } else fail(s"Cannot derive schema for '$tpe'.")
     }
 
     val tpe    = weakTypeOf[A].dealias

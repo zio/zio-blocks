@@ -417,16 +417,19 @@ private object SchemaVersionSpecific {
                   }).orElse(fail(s"Cannot find default value for '$symbol' in class ${tpe.show}"))
                 } else None
               val offset =
-                if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
-                else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
-                else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
-                else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-                else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-                else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-                else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
-                else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-                else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
-                else RegisterOffset(objects = 1)
+                if (fTpe <:< TypeRepr.of[AnyVal]) {
+                  if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
+                  else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
+                  else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
+                  else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+                  else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+                  else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+                  else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
+                  else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+                  else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
+                  else RegisterOffset(objects = 1)
+                } else if (fTpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
+                else fail(s"Unsupported field type '${fTpe.show}'.")
               val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
               registersUsed = RegisterOffset.add(registersUsed, offset)
               fieldInfo
@@ -463,16 +466,20 @@ private object SchemaVersionSpecific {
             val fTpe         = fieldInfo.tpe
             lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
             lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-            if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
-            else fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
+            if (fTpe <:< TypeRepr.of[AnyVal]) {
+              if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
+              else if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
+              else fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
+            } else if (fTpe <:< TypeRepr.of[AnyRef]) {
+              fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
+            } else fail(s"Unsupported field type '${fTpe.show}'.")
           })
           argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
         }.asExprOf[T]
@@ -483,27 +490,31 @@ private object SchemaVersionSpecific {
             val getter       = fieldInfo.getter
             lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
             lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-            if (fTpe =:= TypeRepr.of[Int]) {
-              '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Float]) {
-              '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Long]) {
-              '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Double]) {
-              '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Boolean]) {
-              '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Byte]) {
-              '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Char]) {
-              '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Short]) {
-              '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Unit]) {
-              '{ () }.asTerm
-            } else {
+            if (fTpe <:< TypeRepr.of[AnyVal]) {
+              if (fTpe =:= TypeRepr.of[Int]) {
+                '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Float]) {
+                '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Long]) {
+                '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Double]) {
+                '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Boolean]) {
+                '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Byte]) {
+                '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Char]) {
+                '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Short]) {
+                '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
+              } else if (fTpe =:= TypeRepr.of[Unit]) {
+                '{ () }.asTerm
+              } else {
+                '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
+              }
+            } else if (fTpe <:< TypeRepr.of[AnyRef]) {
               '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
-            }
+            } else fail(s"Unsupported field type '${fTpe.show}'.")
           })
           val size = terms.size
           if (size > 1) Block(terms.init, terms.last)
@@ -535,7 +546,7 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else fail(s"Cannot derive schema for '${tpe.show(using Printer.TypeReprStructure)}'.")
+      } else fail(s"Cannot derive schema for '${tpe.show}'.")
     }.asExprOf[Schema[T]]
 
     val tpe         = TypeRepr.of[A].dealias

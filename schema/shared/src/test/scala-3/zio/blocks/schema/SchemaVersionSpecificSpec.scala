@@ -257,6 +257,42 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       }
+    ),
+    suite("neotype")(
+      test("fail to derive schemas for newtypes") {
+        typeCheck {
+          """import neotype._
+
+             object Name extends Newtype[String] {
+               implicit val schema: Schema[Name.Type] = Schema.derived
+             }"""
+        }.map(result => assert(result)(isLeft(equalTo("Cannot derive schema for 'Name.Type'."))))
+      },
+      test("fail to derive schemas for cases classes with newtype fields") {
+        typeCheck {
+          """import neotype._
+
+             object Name extends Subtype[String] {
+               implicit def schema: Schema[Name.Type] = Schema[String].asInstanceOf[Schema[Name.Type]]
+             }
+
+             object Kilogram extends Newtype[Double] {
+               implicit def schema: Schema[Kilogram.Type] = Schema[Double].asInstanceOf[Schema[Kilogram.Type]]
+             }
+
+             object Meter extends Newtype[Double] {
+               implicit def schema: Schema[Meter.Type] = Schema[Double].asInstanceOf[Schema[Meter.Type]]
+             }
+
+             case class Planet(name: Name.Type, mass: Kilogram.Type, radius: Meter.Type) derives Schema
+
+             object Planet extends CompanionOptics[Planet] {
+               val name: Lens[Planet, Name.Type]     = optic(_.name)
+               val mass: Lens[Planet, Kilogram.Type] = optic(_.mass)
+               val radius: Lens[Planet, Meter.Type]  = optic(_.radius)
+             }"""
+        }.map(result => assert(result)(isLeft(equalTo("Unsupported field type 'Kilogram.Type'."))))
+      }
     )
   )
 }
