@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.{Binding, BindingType}
 
 sealed trait PrimitiveType[A] {
-  def binding: Binding[BindingType.Primitive, A] = Binding.primitive[A]
+  def binding: Binding[BindingType.Primitive, A] = new Binding.Primitive[A]
 
   def fromDynamicValue(value: DynamicValue): Either[SchemaError, A] = fromDynamicValue(value, Nil)
 

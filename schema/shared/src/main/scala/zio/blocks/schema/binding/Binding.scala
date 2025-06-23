@@ -38,7 +38,7 @@ object Binding {
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Primitive, A] {
-    def defaultValue(value: => A): Primitive[A] = copy(defaultValue = Some(() => value))
+    def defaultValue(value: => A): Primitive[A] = copy(defaultValue = new Some(() => value))
 
     def examples(value: A, values: A*): Primitive[A] = copy(examples = value :: values.toList)
   }
@@ -111,7 +111,7 @@ object Binding {
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Record, A] {
-    def defaultValue(value: => A): Record[A] = copy(defaultValue = Some(() => value))
+    def defaultValue(value: => A): Record[A] = copy(defaultValue = new Some(() => value))
 
     def examples(value: A, values: A*): Record[A] = copy(examples = value :: values.toList)
   }
@@ -256,7 +256,7 @@ object Binding {
       constructor = new Constructor[Some[Unit]] {
         def usedRegisters: RegisterOffset = RegisterOffset.Zero
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Unit] = Some(())
+        def construct(in: Registers, baseOffset: RegisterOffset): Some[Unit] = new Some(())
       },
       deconstructor = new Deconstructor[Some[Unit]] {
         def usedRegisters: RegisterOffset = RegisterOffset.Zero
@@ -285,7 +285,7 @@ object Binding {
     defaultValue: Option[() => A] = None,
     examples: collection.immutable.Seq[A] = Nil
   ) extends Binding[BindingType.Variant, A] {
-    def defaultValue(value: => A): Variant[A] = copy(defaultValue = Some(() => value))
+    def defaultValue(value: => A): Variant[A] = copy(defaultValue = new Some(() => value))
 
     def examples(value: A, values: A*): Variant[A] = copy(examples = value :: values.toList)
   }
@@ -321,7 +321,7 @@ object Binding {
     defaultValue: Option[() => C[A]] = None,
     examples: collection.immutable.Seq[C[A]] = Nil
   ) extends Binding[BindingType.Seq[C], C[A]] {
-    def defaultValue(value: => C[A]): Seq[C, A] = copy(defaultValue = Some(() => value))
+    def defaultValue(value: => C[A]): Seq[C, A] = copy(defaultValue = new Some(() => value))
 
     def examples(value: C[A], values: C[A]*): Seq[C, A] = copy(examples = value :: values.toList)
   }
@@ -329,15 +329,16 @@ object Binding {
   object Seq {
     def apply[C[_], A](implicit s: Seq[C, A]): Seq[C, A] = s
 
-    def set[A]: Seq[Set, A] = Seq(SeqConstructor.setConstructor, SeqDeconstructor.setDeconstructor)
+    def set[A]: Seq[Set, A] = new Seq(SeqConstructor.setConstructor, SeqDeconstructor.setDeconstructor)
 
-    def list[A]: Seq[List, A] = Seq(SeqConstructor.listConstructor, SeqDeconstructor.listDeconstructor)
+    def list[A]: Seq[List, A] = new Seq(SeqConstructor.listConstructor, SeqDeconstructor.listDeconstructor)
 
-    def vector[A]: Seq[Vector, A] = Seq(SeqConstructor.vectorConstructor, SeqDeconstructor.vectorDeconstructor)
+    def vector[A]: Seq[Vector, A] = new Seq(SeqConstructor.vectorConstructor, SeqDeconstructor.vectorDeconstructor)
 
-    def arraySeq[A]: Seq[ArraySeq, A] = Seq(SeqConstructor.arraySeqConstructor, SeqDeconstructor.arraySeqDeconstructor)
+    def arraySeq[A]: Seq[ArraySeq, A] =
+      new Seq(SeqConstructor.arraySeqConstructor, SeqDeconstructor.arraySeqDeconstructor)
 
-    def array[A]: Seq[Array, A] = Seq(SeqConstructor.arrayConstructor, SeqDeconstructor.arrayDeconstructor)
+    def array[A]: Seq[Array, A] = new Seq(SeqConstructor.arrayConstructor, SeqDeconstructor.arrayDeconstructor)
   }
 
   final case class Map[M[_, _], K, V](
@@ -346,20 +347,20 @@ object Binding {
     defaultValue: Option[() => M[K, V]] = None,
     examples: collection.immutable.Seq[M[K, V]] = Nil
   ) extends Binding[BindingType.Map[M], M[K, V]] {
-    def defaultValue(value: => M[K, V]): Map[M, K, V] = copy(defaultValue = Some(() => value))
+    def defaultValue(value: => M[K, V]): Map[M, K, V] = copy(defaultValue = new Some(() => value))
 
     def examples(value: M[K, V], values: M[K, V]*): Map[M, K, V] = copy(examples = value :: values.toList)
   }
 
   object Map {
-    def map[K, V]: Map[Predef.Map, K, V] = Map(MapConstructor.map, MapDeconstructor.map)
+    def map[K, V]: Map[Predef.Map, K, V] = new Map(MapConstructor.map, MapDeconstructor.map)
   }
 
   final case class Dynamic(
     defaultValue: Option[() => DynamicValue] = None,
     examples: collection.immutable.Seq[DynamicValue] = Nil
   ) extends Binding[BindingType.Dynamic, DynamicValue] {
-    def defaultValue(value: => DynamicValue): Dynamic = copy(defaultValue = Some(() => value))
+    def defaultValue(value: => DynamicValue): Dynamic = copy(defaultValue = new Some(() => value))
 
     def examples(value: DynamicValue, values: DynamicValue*): Dynamic = copy(examples = value :: values.toList)
   }
@@ -373,6 +374,4 @@ object Binding {
   implicit val bindingFromBinding: FromBinding[Binding] = new FromBinding[Binding] {
     def fromBinding[T, A](binding: Binding[T, A]): Binding[T, A] = binding
   }
-
-  def primitive[A]: Primitive[A] = Primitive()
 }
