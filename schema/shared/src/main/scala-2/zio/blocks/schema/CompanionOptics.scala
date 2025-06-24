@@ -52,7 +52,9 @@ private object CompanionOptics {
         else
           q"""$optic.apply($optic.focus.asSequenceUnknown.map { x =>
                 _root_.zio.blocks.schema.Traversal.seqValues(x.sequence)
-              }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]])"""
+              }
+              .getOrElse(sys.error("Expected a sequence"))
+              .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]])"""
       case q"$_[..$_]($parent).eachKey" =>
         val parentTpe = parent.tpe.dealias.widen
         val keyTpe    = tree.tpe.dealias.widen
@@ -61,7 +63,9 @@ private object CompanionOptics {
         else
           q"""$optic.apply($optic.focus.asMapUnknown.map { x =>
                 _root_.zio.blocks.schema.Traversal.mapKeys(x.map)
-              }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $keyTpe]])"""
+              }
+              .getOrElse(sys.error("Expected a map"))
+              .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $keyTpe]])"""
       case q"$_[..$_]($parent).eachValue" =>
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = tree.tpe.dealias.widen
@@ -70,19 +74,31 @@ private object CompanionOptics {
         else
           q"""$optic.apply($optic.focus.asMapUnknown.map { x =>
                 _root_.zio.blocks.schema.Traversal.mapValues(x.map)
-              }.get.asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
+              }
+              .getOrElse(sys.error("Expected a map"))
+              .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
       case q"$_[..$_]($parent).when[$caseTree]" =>
         val caseTpe  = caseTree.tpe.dealias
         val caseName = NameTransformer.decode(caseTpe.typeSymbol.name.toString)
         val optic    = toOptic(parent)
-        if (optic.isEmpty) q"$schema.reflect.asVariant.flatMap(_.prismByName[$caseTpe]($caseName)).get"
-        else q"$optic.apply($optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName)).get)"
+        if (optic.isEmpty) {
+          q"""$schema.reflect.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
+                .getOrElse(sys.error("Expected a variant"))"""
+        } else {
+          q"""$optic.apply($optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
+                .getOrElse(sys.error("Expected a variant")))"""
+        }
       case q"$parent.$child" =>
         val childTpe  = tree.tpe.dealias.widen
         val fieldName = NameTransformer.decode(child.toString)
         val optic     = toOptic(parent)
-        if (optic.isEmpty) q"$schema.reflect.asRecord.flatMap(_.lensByName[$childTpe]($fieldName)).get"
-        else q"$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$childTpe]($fieldName)).get)"
+        if (optic.isEmpty) {
+          q"""$schema.reflect.asRecord.flatMap(_.lensByName[$childTpe]($fieldName))
+                .getOrElse(sys.error("Expected a record"))"""
+        } else {
+          q"""$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$childTpe]($fieldName))
+                .getOrElse(sys.error("Expected a record")))"""
+        }
       case _: Ident =>
         q""
       case tree =>

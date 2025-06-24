@@ -64,7 +64,7 @@ private object CompanionOptics {
                 $optic.apply(
                   $optic.focus.asSequenceUnknown
                     .map(x => Traversal.seqValues(x.sequence))
-                    .get
+                    .getOrElse(sys.error("Expected a sequence"))
                     .asInstanceOf[Traversal[p, e]]
                 )
               }.asExprOf[Any]
@@ -80,7 +80,10 @@ private object CompanionOptics {
               val optic = x.asExprOf[Optic[S, p]]
               '{
                 $optic.apply(
-                  $optic.focus.asMapUnknown.map(x => Traversal.mapKeys(x.map)).get.asInstanceOf[Traversal[p, k]]
+                  $optic.focus.asMapUnknown
+                    .map(x => Traversal.mapKeys(x.map))
+                    .getOrElse(sys.error("Expected a map"))
+                    .asInstanceOf[Traversal[p, k]]
                 )
               }.asExprOf[Any]
             }.getOrElse(fail("Expected a path element preceding `.eachKey`"))
@@ -95,7 +98,10 @@ private object CompanionOptics {
               val optic = x.asExprOf[Optic[S, p]]
               '{
                 $optic.apply(
-                  $optic.focus.asMapUnknown.map(x => Traversal.mapValues(x.map)).get.asInstanceOf[Traversal[p, v]]
+                  $optic.focus.asMapUnknown
+                    .map(x => Traversal.mapValues(x.map))
+                    .getOrElse(sys.error("Expected a map"))
+                    .asInstanceOf[Traversal[p, v]]
                 )
               }.asExprOf[Any]
             }.getOrElse(fail("Expected a path element preceding `.eachValue`"))
@@ -111,11 +117,19 @@ private object CompanionOptics {
           case ('[p], '[c]) =>
             toOptic(parent).fold {
               val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[p]]
-              '{ $reflect.asVariant.flatMap(_.prismByName[c & p](${ Expr(caseName) })).get }.asExprOf[Any]
+              '{
+                $reflect.asVariant
+                  .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
+                  .getOrElse(sys.error("Expected a variant"))
+              }.asExprOf[Any]
             } { x =>
               val optic = x.asExprOf[Optic[S, p]]
               '{
-                $optic.apply($optic.focus.asVariant.flatMap(_.prismByName[c & p](${ Expr(caseName) })).get)
+                $optic.apply(
+                  $optic.focus.asVariant
+                    .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
+                    .getOrElse(sys.error("Expected a variant"))
+                )
               }.asExprOf[Any]
             }
         })
@@ -125,10 +139,20 @@ private object CompanionOptics {
         Some((parentTpe.asType, childTpe.asType) match {
           case ('[p], '[c]) =>
             toOptic(parent).fold {
-              '{ $schema.reflect.asRecord.flatMap(_.lensByName[c](${ Expr(fieldName) })).get }.asExprOf[Any]
+              '{
+                $schema.reflect.asRecord
+                  .flatMap(_.lensByName[c](${ Expr(fieldName) }))
+                  .getOrElse(sys.error("Expected a record"))
+              }.asExprOf[Any]
             } { x =>
               val optic = x.asExprOf[Optic[S, p]]
-              '{ $optic.apply($optic.focus.asRecord.flatMap(_.lensByName[c](${ Expr(fieldName) })).get) }.asExprOf[Any]
+              '{
+                $optic.apply(
+                  $optic.focus.asRecord
+                    .flatMap(_.lensByName[c](${ Expr(fieldName) }))
+                    .getOrElse(sys.error("Expected a record"))
+                )
+              }.asExprOf[Any]
             }
         })
       case _: Ident =>
