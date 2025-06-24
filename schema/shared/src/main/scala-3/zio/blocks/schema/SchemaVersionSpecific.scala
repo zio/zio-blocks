@@ -105,10 +105,7 @@ private object SchemaVersionSpecific {
       tpe.typeSymbol.children.map { symbol =>
         if (symbol.isType) {
           if (symbol.name == "<local child>") { // problem - we have no other way to find this other return the name
-            fail(
-              s"Local child symbols are not supported, please consider change '${tpe.show}' or implement a " +
-                "custom implicitly accessible schema"
-            )
+            fail(s"Unsupported local child symbol is found in '${tpe.show}'.")
           }
           val nudeSubtype = TypeIdent(symbol).tpe
           nudeSubtype.memberType(symbol.primaryConstructor) match {
@@ -120,10 +117,7 @@ private object SchemaVersionSpecific {
               val ctArgs = names.map { name =>
                 tpBinding.getOrElse(
                   name,
-                  fail(
-                    s"Type parameter '$name' of '$symbol' can't be deduced from " +
-                      s"type arguments of ${tpe.show}. Please provide a custom implicitly accessible schema for it."
-                  )
+                  fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of ${tpe.show}.")
                 )
               }
               val polyRes = resPolyTp match {
@@ -140,12 +134,7 @@ private object SchemaVersionSpecific {
             case other => fail(s"Primary constructior for ${tpe.show} is not MethodType or PolyType but $other")
           }
         } else if (symbol.isTerm) Ref(symbol).tpe
-        else {
-          fail(
-            "Only concrete (no free type parametes) type are supported for ADT cases. Please consider using of " +
-              s"them for ADT with base '${tpe.show}' or provide a custom implicitly accessible schema for the ADT base."
-          )
-        }
+        else fail(s"Cannot resolve free type parametes type for ADT cases with base '${tpe.show}'.")
       }
     }
 
@@ -299,12 +288,7 @@ private object SchemaVersionSpecific {
         val subTypes =
           if (isUnion(tpe)) allUnionTypes(tpe).toSeq
           else directSubTypes(tpe)
-        if (subTypes.isEmpty) {
-          fail(
-            s"Cannot find sub-types for ADT base '$tpe'. " +
-              "Please add them or provide an implicitly accessible schema for the ADT base."
-          )
-        }
+        if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
         val subTypesWithFullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
           (sTpe, packages.toArray ++ values.toArray :+ name)
@@ -374,7 +358,7 @@ private object SchemaVersionSpecific {
 
         val tpeClassSymbol     = tpe.classSymbol.get
         val primaryConstructor = tpeClassSymbol.primaryConstructor
-        if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '$tpe'")
+        if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '$tpe'.")
         val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
           case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
           case ps                                     => (Nil, ps)
