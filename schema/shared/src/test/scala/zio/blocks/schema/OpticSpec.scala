@@ -96,6 +96,27 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO.attempt(Lens(null, Case4.reflect.fields(0))).flip.map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
+      test("optic macro requires record for creation") {
+        ZIO
+          .attempt({
+            sealed trait Variant {
+              def b: Test
+            }
+
+            case class Case(b: Test) extends Variant
+
+            case class Test(a: Variant)
+
+            object Test extends CompanionOptics[Test] {
+              implicit val schema: Schema[Test] = Schema.derived
+              val lens                          = optic(_.a.b)
+            }
+
+            Test.lens
+          })
+          .flip
+          .map(e => assert(e.getMessage)(equalTo("Expected a record")))
+      },
       test("has consistent equals and hashCode") {
         assert(Record1.b)(equalTo(Record1.b)) &&
         assert(Record1.b.hashCode)(equalTo(Record1.b.hashCode)) &&
@@ -233,6 +254,21 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Prism(null, Variant1.reflect.cases(0)))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
+      },
+      test("optic macro requires variant for creation") {
+        ZIO
+          .attempt({
+            case class Test(a: Double)
+
+            object Test extends CompanionOptics[Test] {
+              implicit val schema: Schema[Test] = Schema.derived
+              val prism                         = optic(_.when[Test])
+            }
+
+            Test.prism
+          })
+          .flip
+          .map(e => assert(e.getMessage)(equalTo("Expected a variant")))
       },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1)(equalTo(Variant1.c1)) &&
@@ -2246,6 +2282,47 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Traversal.mapValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
+      },
+      test("optic macro requires sequence or map for creation") {
+        ZIO
+          .attempt({
+            case class Test(a: Array[Map[Int, String]])
+
+            object Test extends CompanionOptics[Test] {
+              implicit val schema: Schema[Test] = Schema.derived
+              val traversal                     = optic(_.a.each.each)
+            }
+
+            Test.traversal
+          })
+          .flip
+          .map(e => assert(e.getMessage)(equalTo("Expected a sequence"))) &&
+        ZIO
+          .attempt({
+            case class Test(a: Map[Set[Int], String])
+
+            object Test extends CompanionOptics[Test] {
+              implicit val schema: Schema[Test] = Schema.derived
+              val traversal                     = optic(_.a.eachKey.eachKey)
+            }
+
+            Test.traversal
+          })
+          .flip
+          .map(e => assert(e.getMessage)(equalTo("Expected a map"))) &&
+        ZIO
+          .attempt({
+            case class Test(a: Map[Int, Set[String]])
+
+            object Test extends CompanionOptics[Test] {
+              implicit val schema: Schema[Test] = Schema.derived
+              val traversal                     = optic(_.a.eachValue.eachValue)
+            }
+
+            Test.traversal
+          })
+          .flip
+          .map(e => assert(e.getMessage)(equalTo("Expected a map")))
       },
       test("has consistent equals and hashCode") {
         assert(Record2.vi)(equalTo(Record2.vi)) &&
