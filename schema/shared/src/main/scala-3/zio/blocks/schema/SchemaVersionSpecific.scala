@@ -259,6 +259,8 @@ private object SchemaVersionSpecific {
       val tpe                      = TypeRepr.of[T]
       val (packages, values, name) = typeName(tpe)
 
+      def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
+
       def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
         var minFullName = typesWithFullNames.head._2
         var maxFullName = typesWithFullNames.last._2
@@ -426,7 +428,8 @@ private object SchemaVersionSpecific {
                 else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
                 else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
                 else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
-                else RegisterOffset(objects = 1)
+                else if (fTpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
+                else unsupportedFieldType(fTpe)
               val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
               registersUsed = RegisterOffset.add(registersUsed, offset)
               fieldInfo
@@ -472,7 +475,9 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
             else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
             else if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
-            else fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
+            else if (fTpe <:< TypeRepr.of[AnyRef]) {
+              fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
+            } else unsupportedFieldType(fTpe)
           })
           argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
         }.asExprOf[T]
@@ -501,9 +506,9 @@ private object SchemaVersionSpecific {
               '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
             } else if (fTpe =:= TypeRepr.of[Unit]) {
               '{ () }.asTerm
-            } else {
+            } else if (fTpe <:< TypeRepr.of[AnyRef]) {
               '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
-            }
+            } else unsupportedFieldType(fTpe)
           })
           val size = terms.size
           if (size > 1) Block(terms.init, terms.last)
@@ -535,7 +540,7 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else fail(s"Cannot derive schema for '${tpe.show(using Printer.TypeReprStructure)}'.")
+      } else fail(s"Cannot derive schema for '${tpe.show}'.")
     }.asExprOf[Schema[T]]
 
     val tpe         = TypeRepr.of[A].dealias

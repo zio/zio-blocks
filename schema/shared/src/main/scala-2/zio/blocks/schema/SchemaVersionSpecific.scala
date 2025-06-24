@@ -180,6 +180,8 @@ private object SchemaVersionSpecific {
     def deriveSchema(tpe: Type): Tree = {
       val (packages, values, name) = typeName(tpe)
 
+      def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")
+
       def maxCommonPrefixLength(typesWithFullNames: Seq[(Type, Array[String])]): Int = {
         var minFullName = typesWithFullNames.head._2
         var maxFullName = typesWithFullNames.last._2
@@ -314,7 +316,8 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= definitions.CharTpe) RegisterOffset(chars = 1)
             else if (fTpe =:= definitions.ShortTpe) RegisterOffset(shorts = 1)
             else if (fTpe =:= definitions.UnitTpe) RegisterOffset.Zero
-            else RegisterOffset(objects = 1)
+            else if (fTpe <:< definitions.AnyRefTpe) RegisterOffset(objects = 1)
+            else unsupportedFieldType(fTpe)
           val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
           registersUsed = RegisterOffset.add(registersUsed, offset)
           fieldInfo
@@ -345,7 +348,8 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
             else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
             else if (fTpe =:= definitions.UnitTpe) q"()"
-            else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            else if (fTpe <:< definitions.AnyRefTpe) q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            else unsupportedFieldType(fTpe)
           q"${fieldInfo.symbol} = $const"
         })
         val const = q"new $tpe(...$argss)"
@@ -363,7 +367,8 @@ private object SchemaVersionSpecific {
           else if (fTpe =:= definitions.CharTpe) q"out.setChar(baseOffset, $bytes, in.$getter)"
           else if (fTpe =:= definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, in.$getter)"
           else if (fTpe =:= definitions.UnitTpe) q"()"
-          else q"out.setObject(baseOffset, $objects, in.$getter)"
+          else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
+          else unsupportedFieldType(fTpe)
         })
         q"""new Schema[$tpe](
               reflect = Reflect.Record[Binding, $tpe](
@@ -386,7 +391,7 @@ private object SchemaVersionSpecific {
                 modifiers = _root_.scala.Seq(..${modifiers(tpe)}),
               )
             )"""
-      } else fail(s"Cannot derive schema for '${showRaw(tpe)}'.")
+      } else fail(s"Cannot derive schema for '$tpe'.")
     }
 
     val tpe    = weakTypeOf[A].dealias
