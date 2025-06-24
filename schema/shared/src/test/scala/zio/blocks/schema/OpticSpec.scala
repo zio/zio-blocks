@@ -2300,6 +2300,21 @@ object OpticSpec extends ZIOSpecDefault {
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
       },
+      test("optic macro generates traversals for sequence or map") {
+        object Test1 extends CompanionOptics[Vector[String]] {
+          val traversal: Traversal[Vector[String], String] = optic[String](_.each)
+        }
+        object Test2 extends CompanionOptics[Map[Int, Long]] {
+          val traversal: Traversal[Map[Int, Long], Int] = optic[Int](_.eachKey)
+        }
+        object Test3 extends CompanionOptics[Map[Int, Long]] {
+          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.eachValue)
+        }
+
+        assert(Test1.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("abc")) &&
+        assert(Test2.traversal.fold[Int](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6)) &&
+        assert(Test3.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6L))
+      },
       test("optic macro requires sequence or map for creation") {
         ZIO
           .attempt({
