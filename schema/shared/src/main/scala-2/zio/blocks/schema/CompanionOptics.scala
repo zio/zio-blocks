@@ -102,7 +102,7 @@ private object CompanionOptics {
       case _: Ident =>
         q""
       case tree =>
-        fail(s"Expected a path element, got: ${showRaw(tree)}")
+        fail(s"Expected path elements: .<field>, .when[T], .each, .eachKey, or .eachValue, got: '$tree'")
     }
 
     toOptic(toPathBody(path.tree))

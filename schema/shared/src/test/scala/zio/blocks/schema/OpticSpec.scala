@@ -117,6 +117,23 @@ object OpticSpec extends ZIOSpecDefault {
           .flip
           .map(e => assert(e.getMessage)(equalTo("Expected a record")))
       },
+      test("fail to generate lens") {
+        typeCheck {
+          """case class Test(a: Double)
+
+             object Test extends CompanionOptics[Test] {
+               implicit val schema: Schema[Test] = Schema.derived
+               val lens                          = optic(_.equals(null))
+             }"""
+        }.map(
+          assert(_)(
+            isLeft(
+              startsWithString("Expected path elements: .<field>, .when[T], .each, .eachKey, or .eachValue, got: '") &&
+                endsWithString(".equals(null)'")
+            )
+          )
+        )
+      },
       test("has consistent equals and hashCode") {
         assert(Record1.b)(equalTo(Record1.b)) &&
         assert(Record1.b.hashCode)(equalTo(Record1.b.hashCode)) &&
