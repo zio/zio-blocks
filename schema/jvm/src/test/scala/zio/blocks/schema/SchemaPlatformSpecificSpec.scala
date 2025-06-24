@@ -13,7 +13,7 @@ object SchemaPlatformSpecificSpec extends ZIOSpecDefault {
              object Name extends Newtype[String] {
                implicit val schema: Schema[Name.Type] = Schema.derived
              }"""
-        }.map(result => assert(result)(isLeft(equalTo("Cannot derive schema for 'Name.Type'."))))
+        }.map(assert(_)(isLeft(equalTo("Cannot derive schema for 'Name.Type'."))))
       },
       test("fail to derive schemas for cases classes with newtype fields") {
         typeCheck {
@@ -34,7 +34,7 @@ object SchemaPlatformSpecificSpec extends ZIOSpecDefault {
                val mass: Lens[Planet, Kilogram.Type] = optic(_.mass)
                val radius: Lens[Planet, Meter.Type]  = optic(_.radius)
              }"""
-        }.map(result => assert(result)(isLeft(equalTo("Unsupported field type 'Kilogram.Type'."))))
+        }.map(assert(_)(isLeft(equalTo("Unsupported field type 'Kilogram.Type'."))))
       }
     )
   )
