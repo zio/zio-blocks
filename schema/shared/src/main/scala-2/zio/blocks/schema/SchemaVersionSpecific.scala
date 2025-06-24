@@ -80,10 +80,7 @@ private object SchemaVersionSpecific {
             typeParams.map { s =>
               typeParamsAndArgs.getOrElse(
                 s.toString,
-                fail(
-                  s"Cannot resolve generic type(s) for `${classSymbol.toType}`. " +
-                    s"Please provide an implicitly accessible schema for it."
-                )
+                fail(s"Cannot resolve generic type(s) for `${classSymbol.toType}`.")
               )
             }
           )
@@ -208,12 +205,7 @@ private object SchemaVersionSpecific {
             )"""
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         val subTypes = directSubTypes(tpe)
-        if (subTypes.isEmpty) {
-          fail(
-            s"Cannot find sub-types for ADT base '$tpe'. " +
-              "Please add them or provide an implicitly accessible schema for the ADT base."
-          )
-        }
+        if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
         val subTypesWithFullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
           (sTpe, packages.toArray ++ values.toArray :+ name)
