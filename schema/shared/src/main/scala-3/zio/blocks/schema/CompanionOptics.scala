@@ -51,14 +51,21 @@ private object CompanionOptics {
       case _            => false
     }
 
-    def toOptic(term: Term): Option[Expr[Any]] = term match {
+    def toOptic(term: Term)(using q: Quotes): Option[Expr[Any]] = term match {
       case Apply(TypeApply(subTerm, _), idents) if hasName(subTerm, "each") =>
         val parent     = idents.head
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
         Some((parentTpe.asType, elementTpe.asType) match {
           case ('[p], '[e]) =>
-            toOptic(parent).map { x =>
+            toOptic(parent).fold {
+              '{
+                $schema.reflect.asSequenceUnknown
+                  .map(x => Traversal.seqValues(x.sequence))
+                  .getOrElse(sys.error("Expected a sequence"))
+                  .asInstanceOf[Traversal[p, e]]
+              }.asExprOf[Any]
+            } { x =>
               val optic = x.asExprOf[Optic[S, p]]
               '{
                 $optic.apply(
@@ -68,7 +75,7 @@ private object CompanionOptics {
                     .asInstanceOf[Traversal[p, e]]
                 )
               }.asExprOf[Any]
-            }.getOrElse(fail("Expected a path element preceding `.each`"))
+            }
         })
       case Apply(TypeApply(subTerm, _), idents) if hasName(subTerm, "eachKey") =>
         val parent    = idents.head
@@ -76,7 +83,14 @@ private object CompanionOptics {
         val keyTpe    = term.tpe.dealias.widen
         Some((parentTpe.asType, keyTpe.asType) match {
           case ('[p], '[k]) =>
-            toOptic(parent).map { x =>
+            toOptic(parent).fold {
+              '{
+                $schema.reflect.asMapUnknown
+                  .map(x => Traversal.mapKeys(x.map))
+                  .getOrElse(sys.error("Expected a map"))
+                  .asInstanceOf[Traversal[p, k]]
+              }.asExprOf[Any]
+            } { x =>
               val optic = x.asExprOf[Optic[S, p]]
               '{
                 $optic.apply(
@@ -86,7 +100,7 @@ private object CompanionOptics {
                     .asInstanceOf[Traversal[p, k]]
                 )
               }.asExprOf[Any]
-            }.getOrElse(fail("Expected a path element preceding `.eachKey`"))
+            }
         })
       case Apply(TypeApply(subTerm, _), idents) if hasName(subTerm, "eachValue") =>
         val parent    = idents.head
@@ -94,7 +108,14 @@ private object CompanionOptics {
         val valueTpe  = term.tpe.dealias.widen
         Some((parentTpe.asType, valueTpe.asType) match {
           case ('[p], '[v]) =>
-            toOptic(parent).map { x =>
+            toOptic(parent).fold {
+              '{
+                $schema.reflect.asMapUnknown
+                  .map(x => Traversal.mapValues(x.map))
+                  .getOrElse(sys.error("Expected a map"))
+                  .asInstanceOf[Traversal[p, v]]
+              }.asExprOf[Any]
+            } { x =>
               val optic = x.asExprOf[Optic[S, p]]
               '{
                 $optic.apply(
@@ -104,7 +125,7 @@ private object CompanionOptics {
                     .asInstanceOf[Traversal[p, v]]
                 )
               }.asExprOf[Any]
-            }.getOrElse(fail("Expected a path element preceding `.eachValue`"))
+            }
         })
       case TypeApply(Apply(TypeApply(subTerm, _), idents), typeTrees) if hasName(subTerm, "when") =>
         val parent    = idents.head
