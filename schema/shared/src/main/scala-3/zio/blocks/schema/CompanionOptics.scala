@@ -158,7 +158,7 @@ private object CompanionOptics {
       case _: Ident =>
         None
       case term =>
-        fail(s"Expected a path element, got: ${term.show(using Printer.TreeStructure)}")
+        fail(s"Expected path elements: .<field>, .when[T], .each, .eachKey, or .eachValue, got: '${term.show}'")
     }
 
     toOptic(toPathBody(path.asTerm)).get
