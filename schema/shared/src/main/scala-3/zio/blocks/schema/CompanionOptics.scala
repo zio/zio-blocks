@@ -52,7 +52,7 @@ private object CompanionOptics {
     }
 
     def toOptic(term: Term)(using q: Quotes): Option[Expr[Any]] = term match {
-      case Apply(TypeApply(subTerm, _), idents) if hasName(subTerm, "each") =>
+      case Apply(TypeApply(elementTerm, _), idents) if hasName(elementTerm, "each") =>
         val parent     = idents.head
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
@@ -77,7 +77,7 @@ private object CompanionOptics {
               }.asExprOf[Any]
             }
         })
-      case Apply(TypeApply(subTerm, _), idents) if hasName(subTerm, "eachKey") =>
+      case Apply(TypeApply(keyTerm, _), idents) if hasName(keyTerm, "eachKey") =>
         val parent    = idents.head
         val parentTpe = parent.tpe.dealias.widen
         val keyTpe    = term.tpe.dealias.widen
@@ -102,7 +102,7 @@ private object CompanionOptics {
               }.asExprOf[Any]
             }
         })
-      case Apply(TypeApply(subTerm, _), idents) if hasName(subTerm, "eachValue") =>
+      case Apply(TypeApply(valueTerm, _), idents) if hasName(valueTerm, "eachValue") =>
         val parent    = idents.head
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
@@ -127,7 +127,7 @@ private object CompanionOptics {
               }.asExprOf[Any]
             }
         })
-      case TypeApply(Apply(TypeApply(subTerm, _), idents), typeTrees) if hasName(subTerm, "when") =>
+      case TypeApply(Apply(TypeApply(caseTerm, _), idents), typeTrees) if hasName(caseTerm, "when") =>
         val parent    = idents.head
         val parentTpe = parent.tpe.dealias.widen
         val caseTpe   = typeTrees.head.tpe.dealias
