@@ -5,7 +5,7 @@ import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
 import zio.blocks.schema.binding._
-import zio.blocks.schema.codec.{Format, TextCodec, TextFormat}
+import zio.blocks.schema.codec.{TextCodec, TextFormat}
 import zio.blocks.schema.derive.Deriver
 import zio.test._
 import zio.test.Assertion._
@@ -436,6 +436,47 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record6.schema.fromDynamicValue(Record6.schema.toDynamicValue(Record6(r = Some(Record6())))))(
           isRight(equalTo(Record6(r = Some(Record6()))))
         )
+      },
+      test("derives schema for record with dynamic values") {
+        case class Record7(d: DynamicValue, od: Option[DynamicValue], ld: List[DynamicValue])
+
+        object Record7 extends CompanionOptics[Record7] {
+          implicit val schema: Schema[Record7] = Schema.derived
+          val d: Lens[Record7, DynamicValue]           = optic(_.d)
+          val od: Optional[Record7, DynamicValue]     = optic(_.od.when[Some[DynamicValue]].value)
+          val ld: Traversal[Record7, DynamicValue]     = optic(_.ld.each)
+        }
+
+        val record = Record7.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
+          assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
+          assert(Record7.d.get(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), None, Nil)))(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)))) &&
+          assert(Record7.od.getOption(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), Nil)))(isSome(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(2))))) &&
+          assert(Record7.ld.fold[Int](Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), List(DynamicValue.Primitive(PrimitiveValue.Int(3)))))(0, (z, _) => z + 1))(equalTo(1)) &&
+          assert(Record7.schema.fromDynamicValue(Record7.schema.toDynamicValue(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), List(DynamicValue.Primitive(PrimitiveValue.Int(3)))))))(
+            isRight(equalTo(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), List(DynamicValue.Primitive(PrimitiveValue.Int(3))))))
+          ) &&
+          assert(Record7.schema)(
+            equalTo(
+              new Schema[Record7](
+                reflect = Reflect.Record[Binding, Record7](
+                  fields = Vector(
+                    Schema[DynamicValue].reflect.asTerm("d"),
+                    Schema[Option[DynamicValue]].reflect.asTerm("od"),
+                    Schema[List[DynamicValue]].reflect.asTerm("ld")
+                  ),
+                  typeName = TypeName(
+                    namespace = Namespace(
+                      packages = Seq("zio", "blocks", "schema"),
+                      values = Seq("SchemaSpec", "spec")
+                    ),
+                    name = "Record7"
+                  ),
+                  recordBinding = null
+                )
+              )
+            )
+          )
       },
       test("encodes values using provided formats and outputs") {
         val result = encodeToString { out =>
@@ -1165,8 +1206,8 @@ object SchemaSpec extends ZIOSpecDefault {
     )
   )
 
-  implicit val tuple4Schema: Schema[(Byte, Short, Int, Long)] = Schema.derived[(Byte, Short, Int, Long)]
-  implicit val eitherSchema: Schema[Either[Int, Long]]        = Schema.derived[Either[Int, Long]]
+  implicit val tuple4Schema: Schema[(Byte, Short, Int, Long)] = Schema.derived
+  implicit val eitherSchema: Schema[Either[Int, Long]]        = Schema.derived
 
   case class Record(b: Byte, i: Int)
 
