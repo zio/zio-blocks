@@ -441,42 +441,78 @@ object SchemaSpec extends ZIOSpecDefault {
         case class Record7(d: DynamicValue, od: Option[DynamicValue], ld: List[DynamicValue])
 
         object Record7 extends CompanionOptics[Record7] {
-          implicit val schema: Schema[Record7] = Schema.derived
-          val d: Lens[Record7, DynamicValue]           = optic(_.d)
-          val od: Optional[Record7, DynamicValue]     = optic(_.od.when[Some[DynamicValue]].value)
-          val ld: Traversal[Record7, DynamicValue]     = optic(_.ld.each)
+          implicit val schema: Schema[Record7]     = Schema.derived
+          val d: Lens[Record7, DynamicValue]       = optic(_.d)
+          val od: Optional[Record7, DynamicValue]  = optic(_.od.when[Some[DynamicValue]].value)
+          val ld: Traversal[Record7, DynamicValue] = optic(_.ld.each)
         }
 
         val record = Record7.schema.reflect.asRecord
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
-          assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
-          assert(Record7.d.get(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), None, Nil)))(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)))) &&
-          assert(Record7.od.getOption(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), Nil)))(isSome(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(2))))) &&
-          assert(Record7.ld.fold[Int](Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), List(DynamicValue.Primitive(PrimitiveValue.Int(3)))))(0, (z, _) => z + 1))(equalTo(1)) &&
-          assert(Record7.schema.fromDynamicValue(Record7.schema.toDynamicValue(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), List(DynamicValue.Primitive(PrimitiveValue.Int(3)))))))(
-            isRight(equalTo(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), Some(DynamicValue.Primitive(PrimitiveValue.Int(2))), List(DynamicValue.Primitive(PrimitiveValue.Int(3))))))
-          ) &&
-          assert(Record7.schema)(
-            equalTo(
-              new Schema[Record7](
-                reflect = Reflect.Record[Binding, Record7](
-                  fields = Vector(
-                    Schema[DynamicValue].reflect.asTerm("d"),
-                    Schema[Option[DynamicValue]].reflect.asTerm("od"),
-                    Schema[List[DynamicValue]].reflect.asTerm("ld")
-                  ),
-                  typeName = TypeName(
-                    namespace = Namespace(
-                      packages = Seq("zio", "blocks", "schema"),
-                      values = Seq("SchemaSpec", "spec")
-                    ),
-                    name = "Record7"
-                  ),
-                  recordBinding = null
-                )
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
+        assert(Record7.d.get(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), None, Nil)))(
+          equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+        ) &&
+        assert(
+          Record7.od.getOption(
+            Record7(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+              Nil
+            )
+          )
+        )(isSome(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(2))))) &&
+        assert(
+          Record7.ld.fold[Int](
+            Record7(
+              DynamicValue.Primitive(PrimitiveValue.Int(1)),
+              Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+              List(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+            )
+          )(0, (z, _) => z + 1)
+        )(equalTo(1)) &&
+        assert(
+          Record7.schema.fromDynamicValue(
+            Record7.schema.toDynamicValue(
+              Record7(
+                DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+                List(DynamicValue.Primitive(PrimitiveValue.Int(3)))
               )
             )
           )
+        )(
+          isRight(
+            equalTo(
+              Record7(
+                DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
+                List(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+              )
+            )
+          )
+        ) &&
+        assert(Record7.schema)(
+          equalTo(
+            new Schema[Record7](
+              reflect = Reflect.Record[Binding, Record7](
+                fields = Vector(
+                  Schema[DynamicValue].reflect.asTerm("d"),
+                  Schema[Option[DynamicValue]].reflect.asTerm("od"),
+                  Schema[List[DynamicValue]].reflect.asTerm("ld")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaSpec", "spec")
+                  ),
+                  name = "Record7"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
       },
       test("encodes values using provided formats and outputs") {
         val result = encodeToString { out =>

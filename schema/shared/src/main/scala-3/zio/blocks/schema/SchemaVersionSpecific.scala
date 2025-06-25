@@ -70,35 +70,28 @@ private object SchemaVersionSpecific {
     def directSubTypes(tpe: TypeRepr): Seq[TypeRepr] = {
       def resolveParentTypeArg(
         child: Symbol,
-        fromNudeChildTarg: TypeRepr,
-        parentTarg: TypeRepr,
+        fromNudeChildTypeArg: TypeRepr,
+        parentTypeArg: TypeRepr,
         binding: Map[String, TypeRepr]
       ): Map[String, TypeRepr] =
-        if (fromNudeChildTarg.typeSymbol.isTypeParam) { // TODO: check for paramRef instead ?
-          val paramName = fromNudeChildTarg.typeSymbol.name
+        if (fromNudeChildTypeArg.typeSymbol.isTypeParam) { // TODO: check for paramRef instead ?
+          val paramName = fromNudeChildTypeArg.typeSymbol.name
           binding.get(paramName) match {
             case Some(oldBinding) =>
-              if (oldBinding =:= parentTarg) binding
-              else
-                fail(
-                  s"Type parameter $paramName' in class '${child.name}' appeared in the constructor of " +
-                    s"'${tpe.show}' two times differently, with '${oldBinding.show}' and '${parentTarg.show}'"
-                )
-            case _ => binding.updated(paramName, parentTarg)
+              if (oldBinding =:= parentTypeArg) binding
+              else fail(s"Failed unification of type parameters of '${tpe.show}'.")
+            case _ => binding.updated(paramName, parentTypeArg)
           }
-        } else if (fromNudeChildTarg <:< parentTarg) {
+        } else if (fromNudeChildTypeArg <:< parentTypeArg) {
           binding // TODO: assure parentTag is covariant, get covariance from type parameters
         } else {
-          (fromNudeChildTarg, parentTarg) match {
-            case (AppliedType(ctycon, ctargs), AppliedType(ptycon, ptargs)) =>
-              ctargs.zip(ptargs).foldLeft(resolveParentTypeArg(child, ctycon, ptycon, binding)) { (b, e) =>
+          (fromNudeChildTypeArg, parentTypeArg) match {
+            case (AppliedType(ctc, cta), AppliedType(ptc, pta)) =>
+              cta.zip(pta).foldLeft(resolveParentTypeArg(child, ctc, ptc, binding)) { (b, e) =>
                 resolveParentTypeArg(child, e._1, e._2, b)
               }
             case _ =>
-              fail(
-                s"Failed unification of type parameters of '${tpe.show}' from child '$child' - " +
-                  s"'${fromNudeChildTarg.show}' and '${parentTarg.show}'"
-              )
+              fail(s"Failed unification of type parameters of '${tpe.show}'.")
           }
         }
 
@@ -111,13 +104,13 @@ private object SchemaVersionSpecific {
           nudeSubtype.memberType(symbol.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
             case PolyType(names, bounds, resPolyTp) =>
-              val tpBinding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
+              val binding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
                 .zip(typeArgs(tpe))
-                .foldLeft(Map.empty[String, TypeRepr])((s, e) => resolveParentTypeArg(symbol, e._1, e._2, s))
+                .foldLeft(Map.empty[String, TypeRepr])((b, e) => resolveParentTypeArg(symbol, e._1, e._2, b))
               val ctArgs = names.map { name =>
-                tpBinding.getOrElse(
+                binding.getOrElse(
                   name,
-                  fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of ${tpe.show}.")
+                  fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of '${tpe.show}'.")
                 )
               }
               val polyRes = resPolyTp match {
@@ -131,7 +124,7 @@ private object SchemaVersionSpecific {
                   case AnnotatedType(AppliedType(base, _), annot) => AnnotatedType(base.appliedTo(ctArgs), annot)
                   case _                                          => polyRes.appliedTo(ctArgs)
                 }
-            case other => fail(s"Primary constructior for ${tpe.show} is not MethodType or PolyType but $other")
+            case other => fail(s"Primary constructor for '${tpe.show}' is not MethodType or PolyType but '$other'.")
           }
         } else if (symbol.isTerm) Ref(symbol).tpe
         else fail(s"Cannot resolve free type parametes type for ADT cases with base '${tpe.show}'.")
@@ -288,7 +281,7 @@ private object SchemaVersionSpecific {
         val subTypes =
           if (isUnion(tpe)) allUnionTypes(tpe).toSeq
           else directSubTypes(tpe)
-        if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
+        if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
         val subTypesWithFullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
           (sTpe, packages.toArray ++ values.toArray :+ name)
@@ -358,7 +351,7 @@ private object SchemaVersionSpecific {
 
         val tpeClassSymbol     = tpe.classSymbol.get
         val primaryConstructor = tpeClassSymbol.primaryConstructor
-        if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '$tpe'.")
+        if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
         val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
           case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
           case ps                                     => (Nil, ps)
@@ -400,7 +393,7 @@ private object SchemaVersionSpecific {
                           None
                       }
                     case Nil => None
-                  }).orElse(fail(s"Cannot find default value for '$symbol' in class ${tpe.show}"))
+                  }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
                 } else None
               val offset =
                 if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
