@@ -8,6 +8,8 @@ trait MapConstructor[M[_, _]] {
   def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit
 
   def resultObject[K, V](builder: ObjectBuilder[K, V]): M[K, V]
+
+  def updated[K, V](map: M[K, V], key: K, value: V): M[K, V]
 }
 
 object MapConstructor {
@@ -21,5 +23,7 @@ object MapConstructor {
     def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit = builder.addOne((k, v))
 
     def resultObject[K, V](builder: ObjectBuilder[K, V]): Map[K, V] = builder.result()
+
+    def updated[K, V](map: Map[K, V], key: K, value: V): Map[K, V] = map.updated(key, value)
   }
 }

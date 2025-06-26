@@ -83,7 +83,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                   else return None
                 case _ => return None
               }
-            case DynamicOptic.Node.Elements =>
+            case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.Elements.type =>
               current.asSequenceUnknown match {
                 case Some(unknown) => unknown.sequence.element
                 case _             => return None
@@ -168,7 +168,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 })
               case _ => None
             }
-          case DynamicOptic.Node.Elements =>
+          case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.Elements.type =>
             current.asSequenceUnknown match {
               case Some(unknown) =>
                 val sequence = unknown.sequence
@@ -572,6 +572,8 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Seq] = Vector()
   ) extends Reflect[F, C[A]] { self =>
+    require(element ne null)
+
     protected def inner: Any = (element, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Seq[C]
@@ -767,6 +769,8 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Map] = Vector()
   ) extends Reflect[F, M[Key, Value]] { self =>
+    require((key ne null) && (value ne null))
+
     protected def inner: Any = (key, value, typeName, doc, modifiers)
 
     type NodeBinding  = BindingType.Map[M]
