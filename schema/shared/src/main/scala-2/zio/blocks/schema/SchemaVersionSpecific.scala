@@ -398,7 +398,7 @@ private object SchemaVersionSpecific {
 
             $schema
           }"""
-    // c.info(c.enclosingPosition, s"Generated schema for type '$tpe':\n${showCode(schemaBlock)}", force = true)
+    // c.info(c.enclosingPosition, s"Generated schema:\n${showCode(schemaBlock)}", force = true)
     c.Expr[Schema[A]](schemaBlock)
   }
 }
