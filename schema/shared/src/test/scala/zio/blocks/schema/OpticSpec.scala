@@ -100,10 +100,10 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO
           .attempt({
             sealed trait Variant {
-              def b: Test
+              def b: String
             }
 
-            case class Case(b: Test) extends Variant
+            case class Case(b: String) extends Variant
 
             case class Test(a: Variant)
 
