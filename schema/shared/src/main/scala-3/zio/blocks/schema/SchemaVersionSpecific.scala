@@ -523,7 +523,7 @@ private object SchemaVersionSpecific {
     val tpe         = TypeRepr.of[A].dealias
     val schema      = tpe.asType match { case '[t] => deriveSchema[t] }
     val schemaBlock = Block(derivedSchemas.values.toList, schema.asTerm).asExprOf[Schema[A]]
-    // report.info(s"Generated schema for type '${tpe.show}':\n${schemaBlock.show}", Position.ofMacroExpansion)
+    // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
   }
 }

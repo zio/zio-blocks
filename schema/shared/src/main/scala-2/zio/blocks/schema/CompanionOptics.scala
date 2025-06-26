@@ -55,7 +55,8 @@ private object CompanionOptics {
               .getOrElse(sys.error("Expected a sequence"))
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]]"""
         } else {
-          q"""$optic.apply($optic.focus.asSequenceUnknown.map { x =>
+          q"""val optic = $optic
+              optic.apply(optic.focus.asSequenceUnknown.map { x =>
                 _root_.zio.blocks.schema.Traversal.seqValues(x.sequence)
               }
               .getOrElse(sys.error("Expected a sequence"))
@@ -72,7 +73,8 @@ private object CompanionOptics {
               .getOrElse(sys.error("Expected a map"))
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $keyTpe]]"""
         } else {
-          q"""$optic.apply($optic.focus.asMapUnknown.map { x =>
+          q"""val optic = $optic
+              optic.apply(optic.focus.asMapUnknown.map { x =>
                 _root_.zio.blocks.schema.Traversal.mapKeys(x.map)
               }
               .getOrElse(sys.error("Expected a map"))
@@ -89,7 +91,8 @@ private object CompanionOptics {
               .getOrElse(sys.error("Expected a map"))
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]]"""
         } else {
-          q"""$optic.apply($optic.focus.asMapUnknown.map { x =>
+          q"""val optic = $optic
+              optic.apply(optic.focus.asMapUnknown.map { x =>
                 _root_.zio.blocks.schema.Traversal.mapValues(x.map)
               }
               .getOrElse(sys.error("Expected a map"))
@@ -103,7 +106,8 @@ private object CompanionOptics {
           q"""$schema.reflect.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
                 .getOrElse(sys.error("Expected a variant"))"""
         } else {
-          q"""$optic.apply($optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
+          q"""val optic = $optic
+              optic.apply(optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
                 .getOrElse(sys.error("Expected a variant")))"""
         }
       case q"$parent.$child" =>
@@ -114,7 +118,8 @@ private object CompanionOptics {
           q"""$schema.reflect.asRecord.flatMap(_.lensByName[$childTpe]($fieldName))
                 .getOrElse(sys.error("Expected a record"))"""
         } else {
-          q"""$optic.apply($optic.focus.asRecord.flatMap(_.lensByName[$childTpe]($fieldName))
+          q"""val optic = $optic
+              optic.apply(optic.focus.asRecord.flatMap(_.lensByName[$childTpe]($fieldName))
                 .getOrElse(sys.error("Expected a record")))"""
         }
       case _: Ident =>
@@ -123,6 +128,8 @@ private object CompanionOptics {
         fail(s"Expected path elements: .<field>, .when[T], .each, .eachKey, or .eachValue, got: '$tree'")
     }
 
-    toOptic(toPathBody(path.tree))
+    val optic = toOptic(toPathBody(path.tree))
+    // c.info(c.enclosingPosition, s"Generated optic:\n${showCode(optic)}", force = true)
+    optic
   }
 }
