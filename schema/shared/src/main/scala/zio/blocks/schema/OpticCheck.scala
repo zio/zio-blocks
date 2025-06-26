@@ -20,8 +20,6 @@ object OpticCheck {
 
     def prefix: DynamicOptic
 
-    def actualValue: Any
-
     def message: String
 
     def isWarning: Boolean = this match {
@@ -47,12 +45,22 @@ object OpticCheck {
       s"During attempted access at $full, encountered an unexpected case at $prefix: expected $expectedCase, but got $actualCase"
   }
 
-  case class EmptySequence(full: DynamicOptic, prefix: DynamicOptic, actualValue: Any) extends Warning {
+  case class EmptySequence(full: DynamicOptic, prefix: DynamicOptic) extends Warning {
     def message: String =
       s"During attempted access at $full, encountered an empty sequence at $prefix"
   }
 
-  case class EmptyMap(full: DynamicOptic, prefix: DynamicOptic, actualValue: Any) extends Warning {
+  case class SequenceIndexOutOfBounds(full: DynamicOptic, prefix: DynamicOptic, index: Int, size: Int) extends Error {
+    def message: String =
+      s"During attempted access at $full, encountered a sequence out of bounds at $prefix: index is $index, but size is $size"
+  }
+
+  case class MissingKey(full: DynamicOptic, prefix: DynamicOptic, key: Any) extends Error {
+    def message: String =
+      s"During attempted access at $full, encountered missing key at $prefix"
+  }
+
+  case class EmptyMap(full: DynamicOptic, prefix: DynamicOptic) extends Warning {
     def message: String =
       s"During attempted access at $full, encountered an empty map at $prefix"
   }
