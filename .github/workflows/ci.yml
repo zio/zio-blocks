@@ -46,7 +46,7 @@ jobs:
         os: ['ubuntu-22.04-arm', 'ubuntu-22.04']
     steps:
       - name: Checkout current branch
-        uses: actions/checkout@v4.1.2
+        uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
       - name: Setup Action
@@ -65,3 +65,27 @@ jobs:
     steps:
       - name: Aggregate of lint, and all tests
         run: echo "ci passed"
+
+  publish:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    needs: [ci]
+    if: ${{ github.event_name != 'pull_request' }}
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Setup Action
+        uses: coursier/setup-action@v1
+        with:
+          jvm: temurin:11
+          apps: sbt
+      - name: Release
+        run: sbt ci-release
+        env:
+          PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
+          PGP_SECRET: ${{ secrets.PGP_SECRET }}
+          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
+          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
+
