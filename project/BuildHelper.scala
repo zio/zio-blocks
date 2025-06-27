@@ -74,6 +74,11 @@ object BuildHelper {
     name                     := prjName,
     crossScalaVersions       := Seq(Scala213, Scala3),
     ThisBuild / scalaVersion := Scala213,
+    ThisBuild / publishTo := {
+      val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
+      if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
+      else localStaging.value
+    },
     scalacOptions ++= Seq(
       "-deprecation",
       "-encoding",
