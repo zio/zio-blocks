@@ -11,6 +11,10 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def caseOf(name: String): DynamicOptic = new DynamicOptic(nodes :+ Node.Case(name))
 
+  def at(index: Int): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndex(index))
+
+  def atKey[K](key: K): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKey(key))
+
   def elements: DynamicOptic = new DynamicOptic(nodes :+ Node.Elements)
 
   def mapKeys: DynamicOptic = new DynamicOptic(nodes :+ Node.MapKeys)
@@ -23,11 +27,13 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
     var idx = 0
     while (idx < len) {
       nodes(idx) match {
-        case Node.Field(name) => sb.append('.').append(name)
-        case Node.Case(name)  => sb.append(".when[").append(name).append(']')
-        case Node.Elements    => sb.append(".each")
-        case Node.MapKeys     => sb.append(".eachKey")
-        case Node.MapValues   => sb.append(".eachValue")
+        case Node.Field(name)    => sb.append('.').append(name)
+        case Node.Case(name)     => sb.append(".when[").append(name).append(']')
+        case Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
+        case Node.AtMapKey(_)    => sb.append(".atKey(<key>)")
+        case Node.Elements       => sb.append(".each")
+        case Node.MapKeys        => sb.append(".eachKey")
+        case Node.MapValues      => sb.append(".eachValue")
       }
       idx += 1
     }
@@ -52,9 +58,9 @@ object DynamicOptic {
 
     case class Case(name: String) extends Node
 
-    // case class AtIndex(index: Int)    extends Node // TODO: For At support
+    case class AtIndex(index: Int) extends Node
 
-    // case class AtMapKey(key: String)  extends Node // TODO: For At support
+    case class AtMapKey[K](key: K) extends Node
 
     case object Elements extends Node
 
