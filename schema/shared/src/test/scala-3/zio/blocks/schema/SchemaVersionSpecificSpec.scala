@@ -182,7 +182,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema for Scala 3 unions") {
         type Value = Int | Boolean
 
-        implicit val schema = Schema.derived[Value]
+        given schema: Schema[Value] = Schema.derived
 
         object Value extends CompanionOptics[Value] {
           val int     = $(_.when[Int])
@@ -213,8 +213,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for recursive generic Scala 3 enums") {
-        implicit lazy val schema = Schema.derived[LinkedList[Int]]
-        val variant              = schema.reflect.asVariant
+        given schema: Schema[LinkedList[Int]] =
+          Schema.derived // givens are lazy, see: https://users.scala-lang.org/t/how-to-deal-with-given-being-always-lazy/10844/5
+        val variant = schema.reflect.asVariant
         assert(schema.fromDynamicValue(schema.toDynamicValue(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End)))))(
           isRight(equalTo(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End))))
         ) &&

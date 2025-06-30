@@ -3,11 +3,8 @@ package zio.blocks.schema
 import zio.Scope
 import zio.blocks.schema.DynamicOptic.Node.{Case, Elements, Field, MapKeys, MapValues}
 import zio.blocks.schema.OpticCheck.{EmptyMap, EmptySequence, UnexpectedCase}
-import zio.blocks.schema.OpticSpecTypes.{Case1, Case3}
 import zio.test._
 import zio.test.Assertion._
-
-import java.time.YearMonth
 
 object OpticCheckSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticCheckSpec")(
@@ -37,8 +34,7 @@ object OpticCheckSpec extends ZIOSpecDefault {
         ::(
           EmptySequence(
             full = DynamicOptic(Vector(Elements, MapKeys)),
-            prefix = DynamicOptic(Vector(Elements)),
-            actualValue = null
+            prefix = DynamicOptic(Vector(Elements))
           ),
           Nil
         )
@@ -66,8 +62,7 @@ object OpticCheckSpec extends ZIOSpecDefault {
         ::(
           EmptyMap(
             full = DynamicOptic(Vector(MapValues, Elements)),
-            prefix = DynamicOptic(Vector(MapValues)),
-            actualValue = null
+            prefix = DynamicOptic(Vector(MapValues))
           ),
           Nil
         )
