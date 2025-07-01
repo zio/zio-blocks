@@ -67,10 +67,27 @@ private object SchemaVersionSpecific {
       }
     }
 
+    implicit lazy val positionOrdering: Ordering[c.universe.Symbol] =
+      (x: c.universe.Symbol, y: c.universe.Symbol) => {
+        val xPos  = x.pos
+        val yPos  = y.pos
+        val xFile = xPos.source.file.absolute
+        val yFile = yPos.source.file.absolute
+        var diff  = xFile.path.compareTo(yFile.path)
+        if (diff == 0) diff = xFile.name.compareTo(yFile.name)
+        if (diff == 0) diff = xPos.line.compareTo(yPos.line)
+        if (diff == 0) diff = xPos.column.compareTo(yPos.column)
+        if (diff == 0) {
+          // make sorting stable in case of missing sources for sub-project or *.jar dependencies
+          diff = NameTransformer.decode(x.fullName).compareTo(NameTransformer.decode(y.fullName))
+        }
+        diff
+      }
+
     def directSubTypes(tpe: Type): Seq[Type] = {
       val tpeClass               = tpe.typeSymbol.asClass
       lazy val typeParamsAndArgs = tpeClass.typeParams.map(_.toString).zip(tpe.typeArgs).toMap
-      tpeClass.knownDirectSubclasses.toSeq.map { symbol =>
+      tpeClass.knownDirectSubclasses.toSeq.sorted.map { symbol =>
         val classSymbol = symbol.asClass
         val typeParams  = classSymbol.typeParams
         if (typeParams.isEmpty) classSymbol.toType
@@ -209,8 +226,8 @@ private object SchemaVersionSpecific {
         val subTypesWithFullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
           (sTpe, packages.toArray ++ values.toArray :+ name)
-        }.sortBy(_._2)
-        val length = maxCommonPrefixLength(subTypesWithFullNames)
+        }
+        val length = maxCommonPrefixLength(subTypesWithFullNames.sortBy(_._2))
         val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
           val termName = fullName.drop(length).mkString(".")
           val sSchema  = findImplicitOrDeriveSchema(sTpe)

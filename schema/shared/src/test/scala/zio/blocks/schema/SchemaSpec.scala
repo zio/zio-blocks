@@ -741,7 +741,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Level1.Level2.Case))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(
-          isSome(equalTo(Vector("Case", "Level1.Case", "Level1.Level2.Case")))
+          isSome(equalTo(Vector("Level1.Case", "Level1.Level2.Case", "Case")))
         ) &&
         assert(variant.map(_.typeName))(
           isSome(
