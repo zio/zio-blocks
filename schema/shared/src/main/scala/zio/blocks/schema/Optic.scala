@@ -176,7 +176,7 @@ sealed trait Optic[S, A] { self =>
     SchemaExpr.LogicalOperator.And
   )
 
-  final def &&(that: Boolean)(implicit schema: Schema[A], ev: A =:= Boolean): SchemaExpr[S, Boolean] =
+  final def &&(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Logical(
       SchemaExpr.Optic(this.asEquivalent[Boolean]),
       SchemaExpr.Literal(that, Schema[Boolean]),
@@ -189,7 +189,7 @@ sealed trait Optic[S, A] { self =>
     SchemaExpr.LogicalOperator.Or
   )
 
-  final def ||(that: Boolean)(implicit schema: Schema[A], ev: A =:= Boolean): SchemaExpr[S, Boolean] =
+  final def ||(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Logical(
       SchemaExpr.Optic(this.asEquivalent[Boolean]),
       SchemaExpr.Literal(that, Schema[Boolean]),
@@ -626,7 +626,7 @@ object Optional {
   def at[A, C[_]](seq: Reflect.Sequence.Bound[A, C], index: Int): Optional[C[A], A] =
     new OptionalImpl(Array(seq), Array(seq.element.asTerm("at")), Array[Any](index))
 
-  def atKey[Key, Value, M[_, _]](map: Reflect.Map.Bound[Key, Value, M], key: Key): Optional[M[Key, Value], Value] =
+  def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K): Optional[M[K, V], V] =
     new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array[Any](key))
 
   private[schema] case class OptionalImpl[S, A](
@@ -1195,10 +1195,10 @@ object Traversal {
 
   def listValues[A](reflect: Reflect.Bound[A]): Traversal[List[A], A] = seqValues(Reflect.list(reflect))
 
-  def mapKeys[Key, Value, M[_, _]](map: Reflect.Map.Bound[Key, Value, M]): Traversal[M[Key, Value], Key] =
+  def mapKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], K] =
     new TraversalImpl(Array(map), Array(map.key.asTerm("key")), Array[Any](null))
 
-  def mapValues[Key, Value, M[_, _]](map: Reflect.Map.Bound[Key, Value, M]): Traversal[M[Key, Value], Value] =
+  def mapValues[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], V] =
     new TraversalImpl(Array(map), Array(map.value.asTerm("value")), Array[Any](null))
 
   def seqValues[A, C[_]](seq: Reflect.Sequence.Bound[A, C]): Traversal[C[A], A] =
@@ -2089,7 +2089,7 @@ private[schema] case class AtBinding[C[_]](
   index: Int = 0
 ) extends OpticBinding
 
-private[schema] case class AtKeyBinding[K, M[K, _]](
+private[schema] case class AtKeyBinding[K, M[_, _]](
   mapDeconstructor: MapDeconstructor[M] = null,
   mapConstructor: MapConstructor[M] = null,
   key: K = null.asInstanceOf[K]
