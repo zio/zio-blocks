@@ -49,6 +49,8 @@ private object SchemaVersionSpecific {
 
     def isEither(tpe: Type): Boolean = tpe <:< typeOf[Either[_, _]]
 
+    def isDynamicValue(tpe: Type): Boolean = tpe =:= typeOf[DynamicValue]
+
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[_]] || tpe <:< typeOf[Iterator[_]] || tpe <:< typeOf[Array[_]]
 
@@ -112,7 +114,8 @@ private object SchemaVersionSpecific {
         tpe =:= definitions.ByteTpe || tpe =:= definitions.CharTpe || tpe =:= definitions.ShortTpe ||
         tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= definitions.UnitTpe ||
         tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
-        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) || {
+        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
+        isDynamicValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else {
