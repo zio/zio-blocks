@@ -448,6 +448,9 @@ object SchemaSpec extends ZIOSpecDefault {
         }
 
         val record = Record7.schema.reflect.asRecord
+        assert(Record7.d.focus.isDynamic)(equalTo(true)) &&
+        assert(Record7.od.focus.isDynamic)(equalTo(true)) &&
+        assert(Record7.ld.focus.isDynamic)(equalTo(true)) &&
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
         assert(Record7.d.get(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), None, Nil)))(
