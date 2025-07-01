@@ -44,9 +44,9 @@ private object SchemaVersionSpecific {
       case _            => false
     }
 
-    def allUnionTypes(tpe: TypeRepr): Set[TypeRepr] = tpe.dealias match {
+    def allUnionTypes(tpe: TypeRepr): Seq[TypeRepr] = tpe.dealias match {
       case OrType(left, right) => allUnionTypes(left) ++ allUnionTypes(right)
-      case dealiased           => Set(dealiased)
+      case dealiased           => dealiased :: Nil
     }
 
     def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
@@ -279,14 +279,14 @@ private object SchemaVersionSpecific {
         }
       } else if (isSealedTraitOrAbstractClass(tpe) || isUnion(tpe)) {
         val subTypes =
-          if (isUnion(tpe)) allUnionTypes(tpe).toSeq
+          if (isUnion(tpe)) allUnionTypes(tpe).distinct
           else directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
         val subTypesWithFullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
           (sTpe, packages.toArray ++ values.toArray :+ name)
-        }.sortBy(_._2)
-        val length = maxCommonPrefixLength(subTypesWithFullNames)
+        }
+        val length = maxCommonPrefixLength(subTypesWithFullNames.sortBy(_._2))
         val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
