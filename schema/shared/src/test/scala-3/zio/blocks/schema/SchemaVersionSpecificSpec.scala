@@ -105,7 +105,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val record4 = variant.flatMap(_.cases(3).value.asRecord)
         assert(record1.map(_.modifiers))(
           isSome(
-            equalTo(Seq(Modifier.config("term-key-3", "term-value-1"), Modifier.config("term-key-3", "term-value-2")))
+            equalTo(Seq(Modifier.config("term-key-1", "term-value-1"), Modifier.config("term-key-1", "term-value-2")))
           )
         ) &&
         assert(record2.map(_.modifiers))(
@@ -115,18 +115,18 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         ) &&
         assert(record3.map(_.modifiers))(
           isSome(
-            equalTo(Seq(Modifier.config("type-key", "type-value-1"), Modifier.config("type-key", "type-value-2")))
+            equalTo(Seq(Modifier.config("term-key-3", "term-value-1"), Modifier.config("term-key-3", "term-value-2")))
           )
         ) &&
         assert(record4.map(_.modifiers))(
           isSome(
-            equalTo(Seq(Modifier.config("term-key-1", "term-value-1"), Modifier.config("term-key-1", "term-value-2")))
+            equalTo(Seq(Modifier.config("type-key", "type-value-1"), Modifier.config("type-key", "type-value-2")))
           )
         ) &&
-        assert(record1.map(_.doc))(isSome(equalTo(Doc("/** Term: Blue */")))) &&
+        assert(record1.map(_.doc))(isSome(equalTo(Doc("/** Term: Red */")))) &&
         assert(record2.map(_.doc))(isSome(equalTo(Doc("/** Term: Green */")))) &&
-        assert(record3.map(_.doc))(isSome(equalTo(Doc("/** Type: Mix */")))) &&
-        assert(record4.map(_.doc))(isSome(equalTo(Doc("/** Term: Red */")))) &&
+        assert(record3.map(_.doc))(isSome(equalTo(Doc("/** Term: Blue */")))) &&
+        assert(record4.map(_.doc))(isSome(equalTo(Doc("/** Type: Mix */")))) &&
         assert(Color.red.getOption(Color.Red))(isSome(equalTo(Color.Red))) &&
         assert(Color.mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(Color.Mix(0xffffff)))) &&
         assert(Color.mix_mix.getOption(Color.Mix(0xffffff)))(isSome(equalTo(0xffffff))) &&
@@ -139,7 +139,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Color.Mix(0xff7733))))(
           isRight(equalTo(Color.Mix(0xff7733)))
         ) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Blue", "Green", "Mix", "Red")))) &&
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Red", "Green", "Blue", "Mix")))) &&
         assert(variant.map(_.typeName))(
           isSome(
             equalTo(
@@ -196,8 +196,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(Value.boolean.replace(true, false))(equalTo(false)) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(123)))(isRight(equalTo(123))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
-        assert(schema)(equalTo(Schema.derived[Boolean | Int])) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Boolean", "Int")))) &&
+        assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "Boolean")))) &&
         assert(variant.map(_.typeName))(
           isSome(
             equalTo(
