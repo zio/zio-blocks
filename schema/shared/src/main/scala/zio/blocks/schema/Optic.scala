@@ -887,10 +887,16 @@ object Optional {
           val deconstructor = atBinding.seqDeconstructor
           val constructor   = atBinding.seqConstructor
           val colIdx        = atBinding.index
-          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, x.asInstanceOf[Col[A]], f, colIdx)
+          val col           = x.asInstanceOf[Col[A]]
+          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx)
           else {
-            val builder = constructor.newObjectBuilder[Any]()
-            val it      = deconstructor.deconstruct(x.asInstanceOf[Col[Any]])
+            val sizeHint =
+              deconstructor match {
+                case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.length(col)
+                case _                                                 => 8
+              }
+            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val it      = deconstructor.deconstruct(col)
             var currIdx = 0
             while (it.hasNext) {
               constructor.addObject(
@@ -1666,10 +1672,16 @@ object Traversal {
           val deconstructor = atBinding.seqDeconstructor
           val constructor   = atBinding.seqConstructor
           val colIdx        = atBinding.index
-          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, x.asInstanceOf[Col[A]], f, colIdx)
+          val col           = x.asInstanceOf[Col[A]]
+          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx)
           else {
-            val builder = constructor.newObjectBuilder[Any]()
-            val it      = deconstructor.deconstruct(x.asInstanceOf[Col[Any]])
+            val sizeHint =
+              deconstructor match {
+                case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.length(col)
+                case _                                                 => 8
+              }
+            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val it      = deconstructor.deconstruct(col)
             var currIdx = 0
             while (it.hasNext) {
               constructor.addObject(
@@ -1701,10 +1713,16 @@ object Traversal {
         case seqBinding: SeqBinding[Col] @scala.unchecked =>
           val deconstructor = seqBinding.seqDeconstructor
           val constructor   = seqBinding.seqConstructor
-          if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, x.asInstanceOf[Col[A]], f)
+          val col           = x.asInstanceOf[Col[A]]
+          if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, col, f)
           else {
-            val builder = constructor.newObjectBuilder[Any]()
-            val it      = deconstructor.deconstruct(x.asInstanceOf[Col[Any]])
+            val sizeHint =
+              deconstructor match {
+                case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.length(col)
+                case _                                                 => 8
+              }
+            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val it      = deconstructor.deconstruct(col)
             while (it.hasNext) constructor.addObject(builder, modifyRec(registers, idx + 1, it.next(), f))
             constructor.resultObject(builder)
           }
@@ -2057,40 +2075,40 @@ object Traversal {
 private[schema] sealed trait OpticBinding
 
 private[schema] case class LensBinding(
-  offset: RegisterOffset = RegisterOffset.Zero,
-  deconstructor: Deconstructor[Any] = null,
-  constructor: Constructor[Any] = null,
-  register: Register[Any] = null
+  offset: RegisterOffset,
+  deconstructor: Deconstructor[Any],
+  constructor: Constructor[Any],
+  register: Register[Any]
 ) extends OpticBinding
 
 private[schema] case class PrismBinding(
-  matcher: Matcher[Any] = null,
-  discriminator: Discriminator[Any] = null
+  matcher: Matcher[Any],
+  discriminator: Discriminator[Any]
 ) extends OpticBinding
 
 private[schema] case class SeqBinding[C[_]](
-  seqDeconstructor: SeqDeconstructor[C] = null,
-  seqConstructor: SeqConstructor[C] = null
+  seqDeconstructor: SeqDeconstructor[C],
+  seqConstructor: SeqConstructor[C]
 ) extends OpticBinding
 
 private[schema] case class MapKeyBinding[M[_, _]](
-  mapDeconstructor: MapDeconstructor[M] = null,
-  mapConstructor: MapConstructor[M] = null
+  mapDeconstructor: MapDeconstructor[M],
+  mapConstructor: MapConstructor[M]
 ) extends OpticBinding
 
 private[schema] case class MapValueBinding[M[_, _]](
-  mapDeconstructor: MapDeconstructor[M] = null,
-  mapConstructor: MapConstructor[M] = null
+  mapDeconstructor: MapDeconstructor[M],
+  mapConstructor: MapConstructor[M]
 ) extends OpticBinding
 
 private[schema] case class AtBinding[C[_]](
-  seqDeconstructor: SeqDeconstructor[C] = null,
-  seqConstructor: SeqConstructor[C] = null,
-  index: Int = 0
+  seqDeconstructor: SeqDeconstructor[C],
+  seqConstructor: SeqConstructor[C],
+  index: Int
 ) extends OpticBinding
 
 private[schema] case class AtKeyBinding[K, M[_, _]](
-  mapDeconstructor: MapDeconstructor[M] = null,
-  mapConstructor: MapConstructor[M] = null,
-  key: K = null.asInstanceOf[K]
+  mapDeconstructor: MapDeconstructor[M],
+  mapConstructor: MapConstructor[M],
+  key: K
 ) extends OpticBinding
