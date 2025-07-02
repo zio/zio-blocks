@@ -128,9 +128,7 @@ object SeqConstructor {
     def resultChar(builder: CharBuilder): C[Char] = resultObject(builder)
   }
 
-  def apply[C[_]](implicit sc: SeqConstructor[C]): SeqConstructor[C] = sc
-
-  implicit val setConstructor: SeqConstructor[Set] = new Boxed[Set] {
+  val setConstructor: SeqConstructor[Set] = new Boxed[Set] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Set[A]]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Set.newBuilder[A]
@@ -140,7 +138,7 @@ object SeqConstructor {
     def resultObject[A](builder: ObjectBuilder[A]): Set[A] = builder.result()
   }
 
-  implicit val listConstructor: SeqConstructor[List] = new Boxed[List] {
+  val listConstructor: SeqConstructor[List] = new Boxed[List] {
     type ObjectBuilder[A] = scala.collection.mutable.ListBuffer[A]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = new ListBuffer[A]
@@ -150,7 +148,7 @@ object SeqConstructor {
     def resultObject[A](builder: ObjectBuilder[A]): List[A] = builder.toList
   }
 
-  implicit val vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
+  val vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Vector[A]]
 
     def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Vector.newBuilder[A]
@@ -160,7 +158,7 @@ object SeqConstructor {
     def resultObject[A](builder: ObjectBuilder[A]): Vector[A] = builder.result()
   }
 
-  implicit val arraySeqConstructor: SeqConstructor[ArraySeq] = new SeqConstructor[ArraySeq] {
+  val arraySeqConstructor: SeqConstructor[ArraySeq] = new SeqConstructor[ArraySeq] {
     case class Builder[A](var buffer: Array[A], var size: Int)
 
     type ObjectBuilder[A] = Builder[A]
@@ -355,7 +353,7 @@ object SeqConstructor {
     }
   }
 
-  implicit val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] {
+  val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] {
     case class Builder[A](var buffer: Array[A], var size: Int)
 
     type ObjectBuilder[A] = Builder[A]
