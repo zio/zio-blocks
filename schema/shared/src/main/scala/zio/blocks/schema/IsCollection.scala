@@ -18,7 +18,6 @@ object IsCollection {
       type Collection[X] = C[X]
       type Elem          = A
 
-      def proof: Collection[Elem] =:= C[A] =
-        implicitly[Collection[Elem] =:= C[A]]
+      def proof: Collection[Elem] =:= C[A] = implicitly[Collection[Elem] =:= C[A]]
     }
 }

@@ -31,21 +31,19 @@ object SeqDeconstructor {
     def charAt(c: C[Char], index: Int): Char
   }
 
-  def apply[C[_]](implicit sd: SeqDeconstructor[C]): SeqDeconstructor[C] = sd
-
-  implicit val setDeconstructor: SeqDeconstructor[Set] = new SeqDeconstructor[Set] {
+  val setDeconstructor: SeqDeconstructor[Set] = new SeqDeconstructor[Set] {
     def deconstruct[A](c: Set[A]): Iterator[A] = c.iterator
   }
 
-  implicit val listDeconstructor: SeqDeconstructor[List] = new SeqDeconstructor[List] {
+  val listDeconstructor: SeqDeconstructor[List] = new SeqDeconstructor[List] {
     def deconstruct[A](c: List[A]): Iterator[A] = c.iterator
   }
 
-  implicit val vectorDeconstructor: SeqDeconstructor[Vector] = new SeqDeconstructor[Vector] {
+  val vectorDeconstructor: SeqDeconstructor[Vector] = new SeqDeconstructor[Vector] {
     def deconstruct[A](c: Vector[A]): Iterator[A] = c.iterator
   }
 
-  implicit val arraySeqDeconstructor: SpecializedIndexed[ArraySeq] = new SpecializedIndexed[ArraySeq] {
+  val arraySeqDeconstructor: SpecializedIndexed[ArraySeq] = new SpecializedIndexed[ArraySeq] {
     def deconstruct[A](c: ArraySeq[A]): Iterator[A] = c.iterator
 
     def elementType[A](c: ArraySeq[A]): RegisterType[A] = (c.unsafeArray match {
@@ -81,7 +79,7 @@ object SeqDeconstructor {
     def charAt(c: ArraySeq[Char], index: Int): Char = c(index)
   }
 
-  implicit val arrayDeconstructor: SpecializedIndexed[Array] = new SpecializedIndexed[Array] {
+  val arrayDeconstructor: SpecializedIndexed[Array] = new SpecializedIndexed[Array] {
     def deconstruct[A](c: Array[A]): Iterator[A] = c.iterator
 
     def elementType[A](c: Array[A]): RegisterType[A] = c match {
