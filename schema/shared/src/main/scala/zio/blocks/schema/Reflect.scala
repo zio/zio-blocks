@@ -761,14 +761,14 @@ object Reflect {
     }
   }
 
-  case class Map[F[_, _], Key, Value, M[_, _]](
-    key: Reflect[F, Key],
-    value: Reflect[F, Value],
-    mapBinding: F[BindingType.Map[M], M[Key, Value]],
-    typeName: TypeName[M[Key, Value]],
+  case class Map[F[_, _], K, V, M[_, _]](
+    key: Reflect[F, K],
+    value: Reflect[F, V],
+    mapBinding: F[BindingType.Map[M], M[K, V]],
+    typeName: TypeName[M[K, V]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Map] = Vector()
-  ) extends Reflect[F, M[Key, Value]] { self =>
+  ) extends Reflect[F, M[K, V]] { self =>
     require((key ne null) && (value ne null))
 
     protected def inner: Any = (key, value, typeName, doc, modifiers)
@@ -776,23 +776,23 @@ object Reflect {
     type NodeBinding  = BindingType.Map[M]
     type ModifierType = Modifier.Map
 
-    def binding(implicit F: HasBinding[F]): Binding[BindingType.Map[M], M[Key, Value]] = F.binding(mapBinding)
+    def binding(implicit F: HasBinding[F]): Binding[BindingType.Map[M], M[K, V]] = F.binding(mapBinding)
 
-    def doc(value: Doc): Map[F, Key, Value, M] = copy(doc = value)
+    def doc(value: Doc): Map[F, K, V, M] = copy(doc = value)
 
-    def getDefaultValue(implicit F: HasBinding[F]): Option[M[Key, Value]] = F.binding(mapBinding).defaultValue.map(_())
+    def getDefaultValue(implicit F: HasBinding[F]): Option[M[K, V]] = F.binding(mapBinding).defaultValue.map(_())
 
-    def defaultValue(value: => M[Key, Value])(implicit F: HasBinding[F]): Map[F, Key, Value, M] =
+    def defaultValue(value: => M[K, V])(implicit F: HasBinding[F]): Map[F, K, V, M] =
       copy(mapBinding = F.updateBinding(mapBinding, _.defaultValue(value)))
 
-    def examples(implicit F: HasBinding[F]): Seq[M[Key, Value]] = binding.examples
+    def examples(implicit F: HasBinding[F]): Seq[M[K, V]] = binding.examples
 
-    def examples(value: M[Key, Value], values: M[Key, Value]*)(implicit F: HasBinding[F]): Map[F, Key, Value, M] =
+    def examples(value: M[K, V], values: M[K, V]*)(implicit F: HasBinding[F]): Map[F, K, V, M] =
       copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
-    ): Either[SchemaError, M[Key, Value]] = {
+    ): Either[SchemaError, M[K, V]] = {
       var error: Option[SchemaError] = None
 
       def addError(e: SchemaError): Unit = error = error.map(_ ++ e).orElse(Some(e))
@@ -802,7 +802,7 @@ object Reflect {
           val keyTrace    = DynamicOptic.Node.MapKeys :: trace
           val valueTrace  = DynamicOptic.Node.MapValues :: trace
           val constructor = mapConstructor
-          val builder     = constructor.newObjectBuilder[Key, Value](elements.size)
+          val builder     = constructor.newObjectBuilder[K, V](elements.size)
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key, keyTrace) match {
               case Right(keyValue) =>
@@ -824,14 +824,14 @@ object Reflect {
 
     def mapDeconstructor(implicit F: HasBinding[F]): MapDeconstructor[M] = F.mapDeconstructor(mapBinding)
 
-    def metadata: F[NodeBinding, M[Key, Value]] = mapBinding
+    def metadata: F[NodeBinding, M[K, V]] = mapBinding
 
-    def modifier(modifier: Modifier.Map): Map[F, Key, Value, M] = copy(modifiers = modifiers :+ modifier)
+    def modifier(modifier: Modifier.Map): Map[F, K, V, M] = copy(modifiers = modifiers :+ modifier)
 
-    def modifiers(modifiers: Iterable[Modifier.Map]): Map[F, Key, Value, M] =
+    def modifiers(modifiers: Iterable[Modifier.Map]): Map[F, K, V, M] =
       copy(modifiers = this.modifiers ++ modifiers)
 
-    def toDynamicValue(value: M[Key, Value])(implicit F: HasBinding[F]): DynamicValue = {
+    def toDynamicValue(value: M[K, V])(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = mapDeconstructor
       val it            = deconstructor.deconstruct(value)
       val builder       = Vector.newBuilder[(DynamicValue, DynamicValue)]
@@ -844,7 +844,7 @@ object Reflect {
       DynamicValue.Map(builder.result())
     }
 
-    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, Key, Value, M]] =
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, K, V, M]] =
       for {
         key   <- key.transform(path(DynamicOptic.mapKeys), f)
         value <- value.transform(path(DynamicOptic.mapValues), f)
@@ -853,7 +853,7 @@ object Reflect {
 
     def nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
 
-    override def asMap(implicit ev: IsMap[M[Key, Value]]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
+    override def asMap(implicit ev: IsMap[M[K, V]]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
       new Some(this.asInstanceOf[Reflect.Map[F, ev.Key, ev.Value, ev.Map]])
 
     override def asMapUnknown: Option[Reflect.Map.Unknown[F]] = new Some(new Reflect.Map.Unknown[F] {
