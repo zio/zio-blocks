@@ -2,7 +2,9 @@ package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
 
-final case class TypeName[A](namespace: Namespace, name: String)
+final case class TypeName[A](namespace: Namespace, name: String) {
+  lazy val fullName: String = namespace.elements.mkString("", ".", "." + name)
+}
 
 object TypeName {
   val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
@@ -23,7 +25,7 @@ object TypeName {
 
   val char: TypeName[Char] = new TypeName(Namespace.scala, "Char")
 
-  val string: TypeName[String] = new TypeName(Namespace.scala, "String")
+  val string: TypeName[String] = new TypeName(Namespace.javaLang, "String")
 
   val bigInt: TypeName[BigInt] = new TypeName(Namespace.scala, "BigInt")
 

@@ -14,6 +14,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   type NodeBinding <: BindingType
   type ModifierType <: Modifier
 
+  def typeName: TypeName[A]
+
   def metadata: F[NodeBinding, A]
 
   def asDynamic: Option[Reflect.Dynamic[F]] = None
@@ -688,7 +690,7 @@ object Reflect {
                   if (error.isDefined) new Left(error.get)
                   else new Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
                 case _ =>
-                  val builder = constructor.newObjectBuilder[A](elements.size)
+                  val builder = constructor.newObjectBuilder[A](element.typeName, elements.size)
                   elements.foreach { elem =>
                     element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addObject(builder, value)
@@ -699,7 +701,7 @@ object Reflect {
                   else new Right(constructor.resultObject(builder))
               }
             case _ =>
-              val builder = constructor.newObjectBuilder[A](elements.size)
+              val builder = constructor.newObjectBuilder[A](element.typeName, elements.size)
               elements.foreach { elem =>
                 element.fromDynamicValue(elem, seqTrace) match {
                   case Right(value) => constructor.addObject(builder, value)
@@ -881,6 +883,9 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Dynamic] = Vector()
   ) extends Reflect[F, DynamicValue] {
+    val typeName: TypeName[DynamicValue] =
+      new TypeName(new Namespace("zio" :: "blocks" :: "schema" :: Nil, Nil), "DynamicValue")
+
     protected def inner: Any = (modifiers, modifiers, doc)
 
     type NodeBinding  = BindingType.Dynamic
@@ -991,6 +996,8 @@ object Reflect {
 
     type NodeBinding  = value.NodeBinding
     type ModifierType = value.ModifierType
+
+    def typeName: TypeName[A] = value.typeName
 
     def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A] = value.binding
 

@@ -668,7 +668,8 @@ object Optional {
             bindings(idx) = new AtBinding(
               seqDeconstructor = sequence.seqDeconstructor,
               seqConstructor = sequence.seqConstructor,
-              index = params(idx).asInstanceOf[Int]
+              index = params(idx).asInstanceOf[Int],
+              typeName = focusTerms(idx).value.typeName.asInstanceOf[TypeName[A]]
             )
           case source =>
             val map = source.asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
@@ -711,7 +712,7 @@ object Optional {
                 new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
               return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
             }
-          case atBinding: AtBinding[Col] @scala.unchecked =>
+          case atBinding: AtBinding[A, Col] @scala.unchecked =>
             val deconstructor = atBinding.seqDeconstructor
             val col           = x.asInstanceOf[Col[A]]
             deconstructor match {
@@ -780,7 +781,7 @@ object Optional {
           case prismBinding: PrismBinding =>
             x = prismBinding.matcher.downcastOrNull(x)
             if (x == null) return None
-          case atBinding: AtBinding[Col] @scala.unchecked =>
+          case atBinding: AtBinding[A, Col] @scala.unchecked =>
             val deconstructor = atBinding.seqDeconstructor
             val col           = x.asInstanceOf[Col[A]]
             deconstructor match {
@@ -831,10 +832,10 @@ object Optional {
       while (idx < len) {
         nodes.addOne {
           bindings(idx) match {
-            case _: LensBinding                      => new DynamicOptic.Node.Field(focusTerms(idx).name)
-            case _: PrismBinding                     => new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case at: AtBinding[Col] @scala.unchecked => new DynamicOptic.Node.AtIndex(at.index)
-            case binding                             => new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
+            case _: LensBinding                         => new DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding                        => new DynamicOptic.Node.Case(focusTerms(idx).name)
+            case at: AtBinding[A, Col] @scala.unchecked => new DynamicOptic.Node.AtIndex(at.index)
+            case binding                                => new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
           }
         }
         idx += 1
@@ -883,19 +884,20 @@ object Optional {
           if (x1 == null) x
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRec(registers, idx + 1, x1, f)
-        case atBinding: AtBinding[Col] @scala.unchecked =>
+        case atBinding: AtBinding[A, Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val constructor   = atBinding.seqConstructor
           val colIdx        = atBinding.index
+          val typeName      = atBinding.typeName
           val col           = x.asInstanceOf[Col[A]]
-          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx)
+          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx, typeName)
           else {
             val sizeHint =
               deconstructor match {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.length(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val builder = constructor.newObjectBuilder(typeName, sizeHint)
             val it      = deconstructor.deconstruct(col)
             var currIdx = 0
             while (it.hasNext) {
@@ -904,7 +906,7 @@ object Optional {
                   val value = it.next()
                   if (currIdx == colIdx) modifyRec(registers, idx + 1, value, f)
                   else value
-                }
+                }.asInstanceOf[A]
               )
               currIdx += 1
             }
@@ -933,7 +935,8 @@ object Optional {
       constructor: SeqConstructor[Col],
       s: Col[A],
       f: A => A,
-      colIdx: Int
+      colIdx: Int,
+      typeName: TypeName[A]
     ): Col[A] =
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
@@ -1052,7 +1055,7 @@ object Optional {
               }
               constructor.resultChar(builder).asInstanceOf[Col[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A](len)
+              val builder = constructor.newObjectBuilder[A](typeName, len)
               var idx     = 0
               while (idx < len) {
                 constructor.addObject(
@@ -1067,7 +1070,7 @@ object Optional {
               constructor.resultObject(builder)
           }
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()
+          val builder = constructor.newObjectBuilder[A](typeName)
           val it      = deconstructor.deconstruct(s)
           var currIdx = -1
           while (it.hasNext)
@@ -1250,16 +1253,19 @@ object Traversal {
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
             )
           case sequence: Reflect.Sequence.Bound[Elem, Col] @scala.unchecked =>
+            val typeName = focusTerms(idx).value.typeName.asInstanceOf[TypeName[A]]
             if (focusTermName == "at") {
-              bindings(idx) = new AtBinding[Col](
+              bindings(idx) = new AtBinding[A, Col](
                 seqDeconstructor = sequence.seqDeconstructor,
                 seqConstructor = sequence.seqConstructor,
-                index = params(idx).asInstanceOf[Int]
+                index = params(idx).asInstanceOf[Int],
+                typeName = typeName
               )
             } else {
-              bindings(idx) = new SeqBinding[Col](
+              bindings(idx) = new SeqBinding[A, Col](
                 seqDeconstructor = sequence.seqDeconstructor,
-                seqConstructor = sequence.seqConstructor
+                seqConstructor = sequence.seqConstructor,
+                typeName = typeName
               )
             }
           case source =>
@@ -1322,7 +1328,7 @@ object Traversal {
             val focusTermName = focusTerms(idx).name
             errors.addOne(new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), x))
           } else if (idx + 1 != bindings.length) checkRec(registers, idx + 1, x1, errors)
-        case atBinding: AtBinding[Col] @scala.unchecked =>
+        case atBinding: AtBinding[A, Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val col           = x.asInstanceOf[Col[A]]
           deconstructor match {
@@ -1353,7 +1359,7 @@ object Traversal {
             case None    => errors.addOne(new OpticCheck.MissingKey(toDynamic, toDynamic(idx), key))
             case Some(v) => if (idx + 1 != bindings.length) checkRec(registers, idx + 1, v, errors)
           }
-        case seqBinding: SeqBinding[Col] @scala.unchecked =>
+        case seqBinding: SeqBinding[A, Col] @scala.unchecked =>
           val deconstructor = seqBinding.seqDeconstructor
           val it            = deconstructor.deconstruct(x.asInstanceOf[Col[Elem]])
           if (it.isEmpty) errors.addOne(new OpticCheck.EmptySequence(toDynamic, toDynamic(idx)))
@@ -1394,7 +1400,7 @@ object Traversal {
           if (x1 == null) zero
           else if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
           else foldRec(registers, idx + 1, x1, zero, f)
-        case atBinding: AtBinding[Col] @scala.unchecked =>
+        case atBinding: AtBinding[A, Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val col           = x.asInstanceOf[Col[A]]
           deconstructor match {
@@ -1441,7 +1447,7 @@ object Traversal {
               if (idx + 1 == bindings.length) f(zero, v.asInstanceOf[A])
               else foldRec(registers, idx + 1, v, zero, f)
           }
-        case seqBinding: SeqBinding[Col] @scala.unchecked =>
+        case seqBinding: SeqBinding[A, Col] @scala.unchecked =>
           val deconstructor = seqBinding.seqDeconstructor
           if (idx + 1 == bindings.length) foldCol(deconstructor, x.asInstanceOf[Col[A]], zero, f)
           else {
@@ -1668,19 +1674,20 @@ object Traversal {
           if (x1 == null) x
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRec(registers, idx + 1, x1, f)
-        case atBinding: AtBinding[Col] @scala.unchecked =>
+        case atBinding: AtBinding[A, Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val constructor   = atBinding.seqConstructor
           val colIdx        = atBinding.index
+          val typeName      = atBinding.typeName
           val col           = x.asInstanceOf[Col[A]]
-          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx)
+          if (idx + 1 == bindings.length) modifySeqAt(deconstructor, constructor, col, f, colIdx, typeName)
           else {
             val sizeHint =
               deconstructor match {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.length(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val builder = constructor.newObjectBuilder(typeName, sizeHint)
             val it      = deconstructor.deconstruct(col)
             var currIdx = 0
             while (it.hasNext) {
@@ -1689,7 +1696,7 @@ object Traversal {
                   val value = it.next()
                   if (currIdx == colIdx) modifyRec(registers, idx + 1, value, f)
                   else value
-                }
+                }.asInstanceOf[A]
               )
               currIdx += 1
             }
@@ -1710,20 +1717,23 @@ object Traversal {
               )
             case _ => map
           }
-        case seqBinding: SeqBinding[Col] @scala.unchecked =>
+        case seqBinding: SeqBinding[A, Col] @scala.unchecked =>
           val deconstructor = seqBinding.seqDeconstructor
           val constructor   = seqBinding.seqConstructor
+          val typeName      = seqBinding.typeName
           val col           = x.asInstanceOf[Col[A]]
-          if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, col, f)
+          if (idx + 1 == bindings.length) modifySeq(deconstructor, constructor, col, f, typeName)
           else {
             val sizeHint =
               deconstructor match {
                 case indexed: SeqDeconstructor.SpecializedIndexed[Col] => indexed.length(col)
                 case _                                                 => 8
               }
-            val builder = constructor.newObjectBuilder[Any](sizeHint)
+            val builder = constructor.newObjectBuilder(typeName, sizeHint)
             val it      = deconstructor.deconstruct(col)
-            while (it.hasNext) constructor.addObject(builder, modifyRec(registers, idx + 1, it.next(), f))
+            while (it.hasNext) {
+              constructor.addObject(builder, modifyRec(registers, idx + 1, it.next(), f).asInstanceOf[A])
+            }
             constructor.resultObject(builder)
           }
         case mapKeyBinding: MapKeyBinding[Map] @scala.unchecked =>
@@ -1781,7 +1791,8 @@ object Traversal {
       constructor: SeqConstructor[Col],
       s: Col[A],
       f: A => A,
-      colIdx: Int
+      colIdx: Int,
+      typeName: TypeName[A]
     ): Col[A] =
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
@@ -1900,7 +1911,7 @@ object Traversal {
               }
               constructor.resultChar(builder).asInstanceOf[Col[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A](len)
+              val builder = constructor.newObjectBuilder[A](typeName, len)
               var idx     = 0
               while (idx < len) {
                 constructor.addObject(
@@ -1915,7 +1926,7 @@ object Traversal {
               constructor.resultObject(builder)
           }
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()
+          val builder = constructor.newObjectBuilder[A](typeName)
           val it      = deconstructor.deconstruct(s)
           var currIdx = -1
           while (it.hasNext)
@@ -1934,7 +1945,8 @@ object Traversal {
       deconstructor: SeqDeconstructor[Col],
       constructor: SeqConstructor[Col],
       s: Col[A],
-      f: A => A
+      f: A => A,
+      typeName: TypeName[A]
     ): Col[A] =
       deconstructor match {
         case indexed: SeqDeconstructor.SpecializedIndexed[Col] =>
@@ -2021,7 +2033,7 @@ object Traversal {
               }
               constructor.resultChar(builder).asInstanceOf[Col[A]]
             case _ =>
-              val builder = constructor.newObjectBuilder[A](len)
+              val builder = constructor.newObjectBuilder[A](typeName, len)
               var idx     = 0
               while (idx < len) {
                 constructor.addObject(builder, f(indexed.objectAt(s, idx)))
@@ -2030,7 +2042,7 @@ object Traversal {
               constructor.resultObject(builder)
           }
         case _ =>
-          val builder = constructor.newObjectBuilder[A]()
+          val builder = constructor.newObjectBuilder[A](typeName)
           val it      = deconstructor.deconstruct(s)
           while (it.hasNext) constructor.addObject(builder, f(it.next()))
           constructor.resultObject(builder)
@@ -2046,9 +2058,9 @@ object Traversal {
           bindings(idx) match {
             case _: LensBinding                                 => new DynamicOptic.Node.Field(focusTerms(idx).name)
             case _: PrismBinding                                => new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case at: AtBinding[Col] @scala.unchecked            => new DynamicOptic.Node.AtIndex(at.index)
+            case at: AtBinding[A, Col] @scala.unchecked         => new DynamicOptic.Node.AtIndex(at.index)
             case atKey: AtKeyBinding[Key, Map] @scala.unchecked => new DynamicOptic.Node.AtMapKey[Key](atKey.key)
-            case _: SeqBinding[Col] @scala.unchecked            => DynamicOptic.Node.Elements
+            case _: SeqBinding[A, Col] @scala.unchecked         => DynamicOptic.Node.Elements
             case _: MapKeyBinding[Map] @scala.unchecked         => DynamicOptic.Node.MapKeys
             case _                                              => DynamicOptic.Node.MapValues
           }
@@ -2086,9 +2098,10 @@ private[schema] case class PrismBinding(
   discriminator: Discriminator[Any]
 ) extends OpticBinding
 
-private[schema] case class SeqBinding[C[_]](
+private[schema] case class SeqBinding[A, C[_]](
   seqDeconstructor: SeqDeconstructor[C],
-  seqConstructor: SeqConstructor[C]
+  seqConstructor: SeqConstructor[C],
+  typeName: TypeName[A]
 ) extends OpticBinding
 
 private[schema] case class MapKeyBinding[M[_, _]](
@@ -2101,10 +2114,11 @@ private[schema] case class MapValueBinding[M[_, _]](
   mapConstructor: MapConstructor[M]
 ) extends OpticBinding
 
-private[schema] case class AtBinding[C[_]](
+private[schema] case class AtBinding[A, C[_]](
   seqDeconstructor: SeqDeconstructor[C],
   seqConstructor: SeqConstructor[C],
-  index: Int
+  index: Int = 0,
+  typeName: TypeName[A]
 ) extends OpticBinding
 
 private[schema] case class AtKeyBinding[K, M[_, _]](

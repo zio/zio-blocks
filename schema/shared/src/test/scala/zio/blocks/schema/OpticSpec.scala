@@ -2014,7 +2014,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.aad.modify(Array(1.0, 2.0, 3.0), _ + 1.0))(equalTo(Array(1.0, 3.0, 3.0))) &&
         assert(Collections.aaf.modify(Array(1.0f, 2.0f, 3.0f), _ + 1.0f))(equalTo(Array(1.0f, 3.0f, 3.0f))) &&
         assert(Collections.aac.modify(Array('a', 'b', 'c'), _.toUpper))(equalTo(Array('a', 'B', 'c'))) &&
-        assert(Collections.aas.modify(Array("a", "b", "c"), _ + "x"): Any)(equalTo(Array("a", "bx", "c"))) &&
+        assert(Collections.aas.modify(Array("a", "b", "c"), _ + "x"))(equalTo(Array("a", "bx", "c"))) &&
         assert(Collections.akms.modify(Map('A' -> "a", 'B' -> "b", 'C' -> "c"), _ + "x"))(
           equalTo(Map('A' -> "ax", 'B' -> "b", 'C' -> "c"))
         ) &&

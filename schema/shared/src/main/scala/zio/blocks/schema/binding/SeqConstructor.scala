@@ -1,5 +1,7 @@
 package zio.blocks.schema.binding
 
+import zio.blocks.schema.TypeName
+import java.util.concurrent.ConcurrentHashMap
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable.ListBuffer
 
@@ -14,7 +16,7 @@ trait SeqConstructor[C[_]] {
   type DoubleBuilder
   type CharBuilder
 
-  def newObjectBuilder[A](sizeHint: Int = 8): ObjectBuilder[A]
+  def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int = 8): ObjectBuilder[A]
 
   def newBooleanBuilder(sizeHint: Int = 8): BooleanBuilder
 
@@ -79,21 +81,21 @@ object SeqConstructor {
     override type DoubleBuilder  = ObjectBuilder[Double]
     override type CharBuilder    = ObjectBuilder[Char]
 
-    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = newObjectBuilder(sizeHint)
+    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = newObjectBuilder(TypeName.boolean, sizeHint)
 
-    def newByteBuilder(sizeHint: Int): ByteBuilder = newObjectBuilder(sizeHint)
+    def newByteBuilder(sizeHint: Int): ByteBuilder = newObjectBuilder(TypeName.byte, sizeHint)
 
-    def newShortBuilder(sizeHint: Int): ShortBuilder = newObjectBuilder(sizeHint)
+    def newShortBuilder(sizeHint: Int): ShortBuilder = newObjectBuilder(TypeName.short, sizeHint)
 
-    def newIntBuilder(sizeHint: Int): IntBuilder = newObjectBuilder(sizeHint)
+    def newIntBuilder(sizeHint: Int): IntBuilder = newObjectBuilder(TypeName.int, sizeHint)
 
-    def newLongBuilder(sizeHint: Int): LongBuilder = newObjectBuilder(sizeHint)
+    def newLongBuilder(sizeHint: Int): LongBuilder = newObjectBuilder(TypeName.long, sizeHint)
 
-    def newFloatBuilder(sizeHint: Int): FloatBuilder = newObjectBuilder(sizeHint)
+    def newFloatBuilder(sizeHint: Int): FloatBuilder = newObjectBuilder(TypeName.float, sizeHint)
 
-    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = newObjectBuilder(sizeHint)
+    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = newObjectBuilder(TypeName.double, sizeHint)
 
-    def newCharBuilder(sizeHint: Int): CharBuilder = newObjectBuilder(sizeHint)
+    def newCharBuilder(sizeHint: Int): CharBuilder = newObjectBuilder(TypeName.char, sizeHint)
 
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = addObject(builder, a)
 
@@ -131,7 +133,7 @@ object SeqConstructor {
   val setConstructor: SeqConstructor[Set] = new Boxed[Set] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Set[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Set.newBuilder[A]
+    def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int): ObjectBuilder[A] = Set.newBuilder[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
@@ -141,7 +143,7 @@ object SeqConstructor {
   val listConstructor: SeqConstructor[List] = new Boxed[List] {
     type ObjectBuilder[A] = scala.collection.mutable.ListBuffer[A]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = new ListBuffer[A]
+    def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int): ObjectBuilder[A] = new ListBuffer[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
@@ -151,7 +153,7 @@ object SeqConstructor {
   val vectorConstructor: SeqConstructor[Vector] = new Boxed[Vector] {
     type ObjectBuilder[A] = scala.collection.mutable.Builder[A, Vector[A]]
 
-    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = Vector.newBuilder[A]
+    def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int): ObjectBuilder[A] = Vector.newBuilder[A]
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
 
@@ -171,7 +173,7 @@ object SeqConstructor {
     type DoubleBuilder    = Builder[Double]
     type CharBuilder      = Builder[Char]
 
-    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+    def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int): Builder[A] =
       new Builder(new Array[AnyRef](sizeHint).asInstanceOf[Array[A]], 0)
 
     def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](sizeHint), 0)
@@ -353,7 +355,12 @@ object SeqConstructor {
     }
   }
 
-  val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] {
+  val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] with SeqConstructorPlatformSpecific {
+    private[this] val classCache = new ConcurrentHashMap[String, Class[_]]
+    private[this] val classForNameFunction = new java.util.function.Function[String, Class[_]] {
+      override def apply(t: String): Class[_] = classForName(t)
+    }
+
     case class Builder[A](var buffer: Array[A], var size: Int)
 
     type ObjectBuilder[A] = Builder[A]
@@ -366,8 +373,10 @@ object SeqConstructor {
     type DoubleBuilder    = Builder[Double]
     type CharBuilder      = Builder[Char]
 
-    def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      new Builder(new Array[AnyRef](sizeHint).asInstanceOf[Array[A]], 0)
+    def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int): Builder[A] = {
+      val clazz = classCache.computeIfAbsent(typeName.fullName, classForNameFunction).asInstanceOf[Class[A]]
+      new Builder(java.lang.reflect.Array.newInstance(clazz, sizeHint).asInstanceOf[Array[A]], 0)
+    }
 
     def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](sizeHint), 0)
 
