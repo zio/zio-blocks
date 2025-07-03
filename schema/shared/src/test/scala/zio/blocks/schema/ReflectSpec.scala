@@ -129,9 +129,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val long1 = Primitive[Binding, Long](
           primitiveType = PrimitiveType.Long(Validation.None),
           primitiveBinding = null, // should be ignored in equals and hashCode
-          typeName = TypeName.long,
-          doc = Doc.Empty,
-          modifiers = Nil
+          typeName = TypeName.long
         )
         val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
         val long3 = long1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Long1"))
@@ -173,8 +171,7 @@ object ReflectSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val examples1 = long1.examples
         val examples2 = Reflect.int[Binding].binding.examples(1, 2, 3).examples
@@ -503,8 +500,7 @@ object ReflectSpec extends ZIOSpecDefault {
           value = Reflect.long,
           typeName = TypeName.map[Int, Long],
           mapBinding = null, // should be ignored in equals and hashCode
-          doc = Doc("Map of Int to Long"),
-          modifiers = Nil
+          doc = Doc("Map of Int to Long")
         )
         assert(map1.doc)(equalTo(Doc("Map of Int to Long"))) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).doc("Map (updated)").doc)(
