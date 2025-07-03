@@ -356,11 +356,6 @@ object SeqConstructor {
   }
 
   val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] with SeqConstructorPlatformSpecific {
-    private[this] val classCache = new ConcurrentHashMap[String, Class[_]]
-    private[this] val classForNameFunction = new java.util.function.Function[String, Class[_]] {
-      override def apply(t: String): Class[_] = classForName(t)
-    }
-
     case class Builder[A](var buffer: Array[A], var size: Int)
 
     type ObjectBuilder[A] = Builder[A]
@@ -373,10 +368,8 @@ object SeqConstructor {
     type DoubleBuilder    = Builder[Double]
     type CharBuilder      = Builder[Char]
 
-    def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int): Builder[A] = {
-      val clazz = classCache.computeIfAbsent(typeName.fullName, classForNameFunction).asInstanceOf[Class[A]]
-      new Builder(java.lang.reflect.Array.newInstance(clazz, sizeHint).asInstanceOf[Array[A]], 0)
-    }
+    def newObjectBuilder[A](typeName: TypeName[A], sizeHint: Int): Builder[A] =
+      new Builder(newArray(typeName.fullName, sizeHint), 0)
 
     def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](sizeHint), 0)
 

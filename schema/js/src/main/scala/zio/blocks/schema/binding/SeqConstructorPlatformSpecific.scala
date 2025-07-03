@@ -1,8 +1,6 @@
 package zio.blocks.schema.binding
 
-import scala.scalajs.reflect.Reflect
-
 trait SeqConstructorPlatformSpecific {
-  def classForName(fqcn: String): Class[_] =
-    Reflect.lookupInstantiatableClass(fqcn).getOrElse(throw new ClassNotFoundException(fqcn)).runtimeClass
+  def newArray[A](fqcn: String, length: Int): Array[A] =
+    new scala.scalajs.js.Array[AnyRef](length).asInstanceOf[Array[A]]
 }
