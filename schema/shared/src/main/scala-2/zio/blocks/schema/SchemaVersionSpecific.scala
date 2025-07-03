@@ -213,16 +213,45 @@ private object SchemaVersionSpecific {
 
       if (isEnumOrModuleValue(tpe)) {
         q"""new Schema[$tpe](
-              reflect = Reflect.Record[Binding, $tpe](
+              reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector.empty,
-                typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                recordBinding = Binding.Record(
+                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                recordBinding = new Binding.Record(
                   constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                   deconstructor = new ConstantDeconstructor[$tpe]
                 ),
                 modifiers = _root_.scala.Seq(..${modifiers(tpe)})
               )
             )"""
+      } else if (tpe <:< typeOf[Array[_]]) {
+        val elementTpe    = typeArgs(tpe).head
+        val elementSchema = findImplicitOrDeriveSchema(elementTpe)
+        if (elementTpe <:< definitions.AnyRefTpe) {
+          q"""new Schema[$tpe](
+              reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
+                element = $elementSchema.reflect,
+                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
+                  constructor = new SeqConstructor.ArrayConstructor {
+                    override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
+                  },
+                  deconstructor = SeqDeconstructor.arrayDeconstructor
+                )
+              )
+            )"""
+        } else {
+          q"""new Schema[$tpe](
+              reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
+                element = $elementSchema.reflect,
+                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
+                  constructor = SeqConstructor.arrayConstructor,
+                  deconstructor = SeqDeconstructor.arrayDeconstructor
+                )
+              )
+            )"""
+        }
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
@@ -251,10 +280,10 @@ private object SchemaVersionSpecific {
               }"""
         }
         q"""new Schema[$tpe](
-              reflect = Reflect.Variant[Binding, $tpe](
+              reflect = new Reflect.Variant[Binding, $tpe](
                 cases = _root_.scala.Vector(..$cases),
-                typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                variantBinding = Binding.Variant(
+                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                variantBinding = new Binding.Variant(
                   discriminator = new Discriminator[$tpe] {
                     def discriminate(a: $tpe): Int = a match {
                       case ..$discrCases
@@ -383,10 +412,10 @@ private object SchemaVersionSpecific {
           else unsupportedFieldType(fTpe)
         })
         q"""new Schema[$tpe](
-              reflect = Reflect.Record[Binding, $tpe](
+              reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector(..$fields),
-                typeName = TypeName(Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                recordBinding = Binding.Record(
+                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                recordBinding = new Binding.Record(
                   constructor = new Constructor[$tpe] {
                     def usedRegisters: RegisterOffset = $registersUsed
 

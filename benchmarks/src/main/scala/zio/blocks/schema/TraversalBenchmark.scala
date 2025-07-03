@@ -61,6 +61,15 @@ class TraversalModifyBenchmark extends BaseBenchmark {
 object TraversalDomain {
   import com.softwaremill.quicklens._
 
-  val a_i: Traversal[Array[Int], Int]                          = Traversal.arrayValues(Reflect.int[Binding])
+  val a_i: Traversal[Array[Int], Int] =
+    Traversal.seqValues(
+      Schema
+        .derived[Array[Int]]
+        .reflect
+        .asSequenceUnknown
+        .get
+        .sequence
+        .asInstanceOf[Reflect.Sequence[Binding, Int, Array]]
+    )
   val a_i_quicklens: Array[Int] => PathModify[Array[Int], Int] = modify(_: Array[Int])(_.each)
 }

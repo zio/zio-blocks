@@ -81,8 +81,6 @@ object TypeName {
 
   def arraySeq[A]: TypeName[ArraySeq[A]] = _arraySeq.asInstanceOf[TypeName[ArraySeq[A]]]
 
-  def array[A]: TypeName[Array[A]] = _array.asInstanceOf[TypeName[Array[A]]]
-
   private[this] val _some     = new TypeName(Namespace.scala, "Some")
   private[this] val _option   = new TypeName(Namespace.scala, "Option")
   private[this] val _list     = new TypeName(Namespace.scala, "List")
@@ -90,5 +88,4 @@ object TypeName {
   private[this] val _set      = new TypeName(Namespace.scalaCollectionImmutable, "Set")
   private[this] val _vector   = new TypeName(Namespace.scala, "Vector")
   private[this] val _arraySeq = new TypeName(Namespace.scalaCollectionImmutable, "ArraySeq")
-  private[this] val _array    = new TypeName(Namespace.scala, "Array")
 }

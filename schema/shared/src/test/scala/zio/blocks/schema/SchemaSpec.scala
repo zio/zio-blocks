@@ -820,7 +820,7 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates sequence documentation") {
         assert(Schema[List[Double]].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[Array[Int]].doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
+        assert(Schema[ArraySeq[Int]].doc("ArraySeq (updated)").doc)(equalTo(Doc("ArraySeq (updated)")))
       },
       test("gets and updates sequence examples") {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
@@ -845,18 +845,17 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
-        assert(Schema[Array[Int]].fromDynamicValue(Schema[Array[Int]].toDynamicValue(Array(1, 2, 3))))(
-          isRight(equalTo(Array(1, 2, 3)))
+        assert(Schema[ArraySeq[Int]].fromDynamicValue(Schema[ArraySeq[Int]].toDynamicValue(ArraySeq(1, 2, 3))))(
+          isRight(equalTo(ArraySeq(1, 2, 3)))
         ) &&
-        /* FIXME: throws java.lang.ClassCastException: class [Ljava.lang.Object; cannot be cast to class [[I
         assert(
-          Schema[Array[Array[Int]]]
-            .fromDynamicValue(Schema[Array[Array[Int]]].toDynamicValue(Array(Array(1, 2), Array(3, 4))))
+          Schema
+            .derived[Array[Array[Int]]]
+            .fromDynamicValue(Schema.derived[Array[Array[Int]]].toDynamicValue(Array(Array(1, 2), Array(3, 4))))
             .map(_.map(_.toSeq).toSeq)
         )(
           isRight(equalTo(Seq(Seq(1, 2), Seq(3, 4))))
         ) &&
-         */
         assert(Schema[List[Boolean]].fromDynamicValue(Schema[List[Boolean]].toDynamicValue(List(true, false))))(
           isRight(equalTo(List(true, false)))
         ) &&
