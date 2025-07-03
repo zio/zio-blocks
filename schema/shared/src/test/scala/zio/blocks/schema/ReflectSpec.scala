@@ -390,7 +390,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Option(Reflect.list(bigInt1)).collect { case List(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.vector(bigInt1)).collect { case Vector(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.set(bigInt1)).collect { case Set(e) => e })(isSome(equalTo(bigInt1))) &&
-        assert(Option(Reflect.array(bigInt1)).collect { case Array(e) => e })(isSome(equalTo(bigInt1))) &&
+        assert(Option(Reflect.arraySeq(bigInt1)).collect { case ArraySeq(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.Deferred(() => Reflect.list(bigInt1))).collect { case List(e) => e })(
           isSome(equalTo(bigInt1))
         ) &&
@@ -400,7 +400,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Option(Reflect.Deferred(() => Reflect.set(bigInt1))).collect { case Set(e) => e })(
           isSome(equalTo(bigInt1))
         ) &&
-        assert(Option(Reflect.Deferred(() => Reflect.array(bigInt1))).collect { case Array(e) => e })(
+        assert(Option(Reflect.Deferred(() => Reflect.arraySeq(bigInt1))).collect { case ArraySeq(e) => e })(
           isSome(equalTo(bigInt1))
         )
       },
@@ -411,7 +411,7 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates sequence documentation") {
-        val sequence1 = Reflect.array(Reflect.int[Binding])
+        val sequence1 = Reflect.arraySeq(Reflect.int[Binding])
         assert(sequence1.doc)(equalTo(Doc.Empty)) &&
         assert(sequence1.doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
       },
