@@ -567,8 +567,8 @@ object Reflect {
 
   case class Sequence[F[_, _], A, C[_]](
     element: Reflect[F, A],
-    seqBinding: F[BindingType.Seq[C], C[A]],
     typeName: TypeName[C[A]],
+    seqBinding: F[BindingType.Seq[C], C[A]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Seq] = Nil
   ) extends Reflect[F, C[A]] { self =>
@@ -764,8 +764,8 @@ object Reflect {
   case class Map[F[_, _], K, V, M[_, _]](
     key: Reflect[F, K],
     value: Reflect[F, V],
-    mapBinding: F[BindingType.Map[M], M[K, V]],
     typeName: TypeName[M[K, V]],
+    mapBinding: F[BindingType.Map[M], M[K, V]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Map] = Nil
   ) extends Reflect[F, M[K, V]] { self =>
@@ -931,8 +931,8 @@ object Reflect {
 
   case class Primitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
-    primitiveBinding: F[BindingType.Primitive, A],
     typeName: TypeName[A],
+    primitiveBinding: F[BindingType.Primitive, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Primitive] = Nil
   ) extends Reflect[F, A] { self =>
@@ -1200,8 +1200,7 @@ object Reflect {
 
     private[this] val visited =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
-        override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] =
-          new java.util.IdentityHashMap[AnyRef, Unit](1)
+        override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap[AnyRef, Unit]
       }
 
     def nodeType = value.nodeType
@@ -1276,7 +1275,7 @@ object Reflect {
     primitive(new PrimitiveType.Period(Validation.None))
 
   private[this] def primitive[F[_, _], A](primitiveType: PrimitiveType[A])(implicit F: FromBinding[F]): Reflect[F, A] =
-    new Primitive(primitiveType, F.fromBinding(primitiveType.binding), primitiveType.typeName)
+    new Primitive(primitiveType, primitiveType.typeName, F.fromBinding(primitiveType.binding))
 
   def year[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Year] =
     primitive(new PrimitiveType.Year(Validation.None))
@@ -1341,7 +1340,7 @@ object Reflect {
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
     new Variant(
       Vector(
-        new Term("Some", some[F, A](element)),
+        new Term("Some", some(element)),
         new Term("None", none)
       ),
       TypeName.option,
@@ -1350,151 +1349,119 @@ object Reflect {
 
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(
-      Vector(
-        new Term("Some", someDouble(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someDouble(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Variant[F, Option[Long]] =
     new Variant(
-      Vector(
-        new Term("Some", someLong(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someLong(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Variant[F, Option[Float]] =
     new Variant(
-      Vector(
-        new Term("Some", someFloat(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someFloat(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Variant[F, Option[Int]] =
     new Variant(
-      Vector(
-        new Term("Some", someInt(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someInt(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Variant[F, Option[Char]] =
     new Variant(
-      Vector(
-        new Term("Some", someChar(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someChar(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Variant[F, Option[Short]] =
     new Variant(
-      Vector(
-        new Term("Some", someShort(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someShort(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Variant[F, Option[Boolean]] =
     new Variant(
-      Vector(
-        new Term("Some", someBoolean(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someBoolean(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Variant[F, Option[Byte]] =
     new Variant(
-      Vector(
-        new Term("Some", someByte(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someByte(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Variant[F, Option[Unit]] =
     new Variant(
-      Vector(
-        new Term("Some", someUnit(element)),
-        new Term("None", none)
-      ),
+      Vector(new Term("Some", someUnit(element)), new Term("None", none)),
       TypeName.option,
       F.fromBinding(Binding.Variant.option)
     )
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
-    new Sequence(element, F.fromBinding(Binding.Seq.set), TypeName.set[A])
+    new Sequence(element, TypeName.set, F.fromBinding(Binding.Seq.set))
 
   def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, List] =
-    new Sequence(element, F.fromBinding(Binding.Seq.list), TypeName.list[A])
+    new Sequence(element, TypeName.list, F.fromBinding(Binding.Seq.list))
 
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
-    new Sequence(element, F.fromBinding(Binding.Seq.vector), TypeName.vector[A])
+    new Sequence(element, TypeName.vector, F.fromBinding(Binding.Seq.vector))
 
   def arraySeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, ArraySeq] =
-    new Sequence(element, F.fromBinding(Binding.Seq.arraySeq), TypeName.arraySeq[A])
+    new Sequence(element, TypeName.arraySeq, F.fromBinding(Binding.Seq.arraySeq))
 
   def array[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Array] =
-    new Sequence(element, F.fromBinding(Binding.Seq.array), TypeName.array[A])
+    new Sequence(element, TypeName.array, F.fromBinding(Binding.Seq.array))
 
-  def map[F[_, _], A, B](key: Reflect[F, A], value: Reflect[F, B])(implicit
+  def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
-  ): Map[F, A, B, collection.immutable.Map] = new Map(key, value, F.fromBinding(Binding.Map.map), TypeName.map[A, B])
+  ): Map[F, K, V, collection.immutable.Map] = new Map(key, value, TypeName.map, F.fromBinding(Binding.Map.map))
 
   object Extractors {
     object List {
       def unapply[F[_, _], A](reflect: Reflect[F, List[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.list =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.list => x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Vector {
       def unapply[F[_, _], A](reflect: Reflect[F, Vector[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.vector =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.vector => x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Set {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.set =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.set => x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object ArraySeq {
       def unapply[F[_, _], A](reflect: Reflect[F, ArraySeq[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.arraySeq =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.arraySeq => x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Array {
       def unapply[F[_, _], A](reflect: Reflect[F, Array[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.array =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.array => x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
   }
@@ -1512,9 +1479,7 @@ object Reflect {
       while ({
         currKey = keys(idx)
         (currKey ne null) && !currKey.equals(key)
-      }) {
-        idx = (idx + 1) & mask
-      }
+      }) idx = (idx + 1) & mask
       if (currKey eq null) size += 1
       keys(idx) = key
       values(idx) = value
@@ -1527,9 +1492,7 @@ object Reflect {
       while ({
         currKey = keys(idx)
         (currKey ne null) && !currKey.equals(key)
-      }) {
-        idx = (idx + 1) & mask
-      }
+      }) idx = (idx + 1) & mask
       if (currKey eq null) -1
       else values(idx)
     }

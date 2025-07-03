@@ -93,9 +93,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[(Byte, Short, Int, Long)].fromDynamicValue(
             Schema[(Byte, Short, Int, Long)].toDynamicValue((1: Byte, 2: Short, 3, 4L))
           )
-        )(
-          isRight(equalTo((1: Byte, 2: Short, 3, 4L)))
-        ) &&
+        )(isRight(equalTo((1: Byte, 2: Short, 3, 4L)))) &&
         assert(Record.schema.fromDynamicValue(Record.schema.toDynamicValue(Record(1: Byte, 1000))))(
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
@@ -305,16 +303,12 @@ object SchemaSpec extends ZIOSpecDefault {
           Record4.schema.fromDynamicValue(
             Record4.schema.toDynamicValue(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))
           )
-        )(
-          isRight(equalTo(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil)))
-        ) &&
+        )(isRight(equalTo(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil)))) &&
         assert(
           Record4.schema.fromDynamicValue(
             Record4.schema.toDynamicValue(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4))))
           )
-        )(
-          isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))
-        ) &&
+        )(isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))) &&
         assert(Record4.schema)(
           equalTo(
             new Schema[Record4](
@@ -1145,8 +1139,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 =
-          Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int, Doc.Empty, Nil)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
@@ -1171,8 +1164,8 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int
+            TypeName.int,
+            Binding.Primitive(examples = Seq(1, 2, 3))
           )
         }
         assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3))) &&

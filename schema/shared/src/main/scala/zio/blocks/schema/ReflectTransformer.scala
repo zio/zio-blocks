@@ -96,7 +96,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Sequence[G, A, C]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Sequence(element, binding, typeName, doc, modifiers)
+      } yield Reflect.Sequence(element, typeName, binding, doc, modifiers)
 
     def transformMap[Key, Value, M[_, _]](
       path: DynamicOptic,
@@ -109,7 +109,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Map[G, Key, Value, M]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Map(key, value, binding, typeName, doc, modifiers)
+      } yield Reflect.Map(key, value, typeName, binding, doc, modifiers)
 
     def transformDynamic(
       path: DynamicOptic,
@@ -131,7 +131,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Primitive[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Primitive(primitiveType, binding, typeName, doc, modifiers)
+      } yield Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)
   }
 
   private type Any2[_, _] = Any
