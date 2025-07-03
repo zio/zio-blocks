@@ -170,8 +170,6 @@ object Schema extends SchemaVersionSpecific {
   implicit def arraySeq[A](implicit element: Schema[A]): Schema[ArraySeq[A]] =
     new Schema(Reflect.arraySeq(element.reflect))
 
-  implicit def array[A](implicit element: Schema[A]): Schema[Array[A]] = new Schema(Reflect.array(element.reflect))
-
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
 }

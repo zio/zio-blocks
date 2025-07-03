@@ -129,9 +129,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val long1 = Primitive[Binding, Long](
           primitiveType = PrimitiveType.Long(Validation.None),
           primitiveBinding = null, // should be ignored in equals and hashCode
-          typeName = TypeName.long,
-          doc = Doc.Empty,
-          modifiers = Nil
+          typeName = TypeName.long
         )
         val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
         val long3 = long1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Long1"))
@@ -173,8 +171,7 @@ object ReflectSpec extends ZIOSpecDefault {
           primitiveType = PrimitiveType.Long(Validation.Numeric.Positive),
           primitiveBinding = Binding.Primitive[Long](examples = Seq(1L, 2L, 3L)),
           typeName = TypeName.long,
-          doc = Doc("Long (positive)"),
-          modifiers = Nil
+          doc = Doc("Long (positive)")
         )
         val examples1 = long1.examples
         val examples2 = Reflect.int[Binding].binding.examples(1, 2, 3).examples
@@ -364,7 +361,7 @@ object ReflectSpec extends ZIOSpecDefault {
           seqBinding = null // should be ignored in equals and hashCode
         )
         val sequence2 = sequence1.copy(element =
-          Primitive(PrimitiveType.Double(Validation.None), Binding.Primitive.double, TypeName.double, Doc("text"), Nil)
+          Primitive(PrimitiveType.Double(Validation.None), TypeName.double, Binding.Primitive.double, Doc("text"))
         )
         val sequence3 = sequence1.copy(typeName = TypeName[List[Double]](Namespace("scala" :: Nil, Nil), "List2"))
         val sequence4 = sequence1.copy(doc = Doc("text"))
@@ -393,7 +390,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Option(Reflect.list(bigInt1)).collect { case List(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.vector(bigInt1)).collect { case Vector(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.set(bigInt1)).collect { case Set(e) => e })(isSome(equalTo(bigInt1))) &&
-        assert(Option(Reflect.array(bigInt1)).collect { case Array(e) => e })(isSome(equalTo(bigInt1))) &&
+        assert(Option(Reflect.arraySeq(bigInt1)).collect { case ArraySeq(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.Deferred(() => Reflect.list(bigInt1))).collect { case List(e) => e })(
           isSome(equalTo(bigInt1))
         ) &&
@@ -403,7 +400,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Option(Reflect.Deferred(() => Reflect.set(bigInt1))).collect { case Set(e) => e })(
           isSome(equalTo(bigInt1))
         ) &&
-        assert(Option(Reflect.Deferred(() => Reflect.array(bigInt1))).collect { case Array(e) => e })(
+        assert(Option(Reflect.Deferred(() => Reflect.arraySeq(bigInt1))).collect { case ArraySeq(e) => e })(
           isSome(equalTo(bigInt1))
         )
       },
@@ -414,7 +411,7 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates sequence documentation") {
-        val sequence1 = Reflect.array(Reflect.int[Binding])
+        val sequence1 = Reflect.arraySeq(Reflect.int[Binding])
         assert(sequence1.doc)(equalTo(Doc.Empty)) &&
         assert(sequence1.doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
       },
@@ -453,12 +450,12 @@ object ReflectSpec extends ZIOSpecDefault {
         val map2 = map1.copy(key =
           Primitive(
             PrimitiveType.Short(Validation.Numeric.Positive),
-            Binding.Primitive.short,
-            TypeName.short
+            TypeName.short,
+            Binding.Primitive.short
           )
         )
         val map3 = map1.copy(value =
-          Primitive(PrimitiveType.Float(Validation.None), Binding.Primitive.float, TypeName.float, Doc("text"), Nil)
+          Primitive(PrimitiveType.Float(Validation.None), TypeName.float, Binding.Primitive.float, Doc("text"))
         )
         val map4 = map1.copy(typeName = TypeName[Map[Short, Float]](Namespace("scala" :: Nil, Nil), "Map2"))
         val map5 = map1.copy(doc = Doc("text"))
@@ -503,8 +500,7 @@ object ReflectSpec extends ZIOSpecDefault {
           value = Reflect.long,
           typeName = TypeName.map[Int, Long],
           mapBinding = null, // should be ignored in equals and hashCode
-          doc = Doc("Map of Int to Long"),
-          modifiers = Nil
+          doc = Doc("Map of Int to Long")
         )
         assert(map1.doc)(equalTo(Doc("Map of Int to Long"))) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).doc("Map (updated)").doc)(
@@ -608,7 +604,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(deferred1)(equalTo(deferred1)) &&
         assert(deferred1.hashCode)(equalTo(deferred1.hashCode)) &&

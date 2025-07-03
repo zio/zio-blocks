@@ -265,8 +265,8 @@ private object SchemaVersionSpecific {
           new Schema[T](
             reflect = new Reflect.Record[Binding, T](
               fields = Vector.empty,
-              typeName = TypeName[T](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
-              recordBinding = Binding.Record(
+              typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[T](${
                   Ref {
                     if (isEnumValue(tpe)) tpe.termSymbol
@@ -279,6 +279,47 @@ private object SchemaVersionSpecific {
               modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
             )
           )
+        }
+      } else if (tpe <:< TypeRepr.of[Array[_]]) {
+        val elementTpe = typeArgs(tpe).head
+        elementTpe.asType match {
+          case '[et] =>
+            val elementSchema = findImplicitOrDeriveSchema[et]
+            if (elementTpe <:< TypeRepr.of[AnyRef]) {
+              val classTag =
+                Expr.summon[reflect.ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${elementTpe.show}"))
+              '{
+                implicit val ct: reflect.ClassTag[et] = $classTag
+                new Schema[Array[et]](
+                  reflect = new Reflect.Sequence[Binding, et, Array](
+                    element = $elementSchema.reflect,
+                    typeName =
+                      new TypeName[Array[et]](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                    seqBinding = new Binding.Seq[Array, et](
+                      constructor = new SeqConstructor.ArrayConstructor {
+                        override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+                          new Builder(new Array[et](sizeHint).asInstanceOf[Array[A]], 0)
+                      },
+                      deconstructor = SeqDeconstructor.arrayDeconstructor
+                    )
+                  )
+                )
+              }
+            } else {
+              '{
+                new Schema[Array[et]](
+                  reflect = new Reflect.Sequence[Binding, et, Array](
+                    element = $elementSchema.reflect,
+                    typeName =
+                      new TypeName[Array[et]](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                    seqBinding = new Binding.Seq[Array, et](
+                      constructor = SeqConstructor.arrayConstructor,
+                      deconstructor = SeqDeconstructor.arrayDeconstructor
+                    )
+                  )
+                )
+              }
+            }
         }
       } else if (isSealedTraitOrAbstractClass(tpe) || isUnion(tpe)) {
         val subTypes =
@@ -328,8 +369,8 @@ private object SchemaVersionSpecific {
           new Schema[T](
             reflect = new Reflect.Variant[Binding, T](
               cases = Vector(${ Expr.ofSeq(cases) }*),
-              typeName = TypeName[T](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
-              variantBinding = Binding.Variant(
+              typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[T] {
                   def discriminate(a: T): Int = ${ discr('a) }
                 },
@@ -500,8 +541,8 @@ private object SchemaVersionSpecific {
           new Schema[T](
             reflect = new Reflect.Record[Binding, T](
               fields = Vector(${ Expr.ofSeq(fields) }*),
-              typeName = TypeName[T](Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
-              recordBinding = Binding.Record(
+              typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              recordBinding = new Binding.Record(
                 constructor = new Constructor[T] {
                   def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
 

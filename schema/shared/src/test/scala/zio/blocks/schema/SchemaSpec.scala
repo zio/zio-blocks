@@ -93,9 +93,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[(Byte, Short, Int, Long)].fromDynamicValue(
             Schema[(Byte, Short, Int, Long)].toDynamicValue((1: Byte, 2: Short, 3, 4L))
           )
-        )(
-          isRight(equalTo((1: Byte, 2: Short, 3, 4L)))
-        ) &&
+        )(isRight(equalTo((1: Byte, 2: Short, 3, 4L)))) &&
         assert(Record.schema.fromDynamicValue(Record.schema.toDynamicValue(Record(1: Byte, 1000))))(
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
@@ -305,16 +303,12 @@ object SchemaSpec extends ZIOSpecDefault {
           Record4.schema.fromDynamicValue(
             Record4.schema.toDynamicValue(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil))
           )
-        )(
-          isRight(equalTo(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil)))
-        ) &&
+        )(isRight(equalTo(Record4(Vector(ArraySeq(1, 2), ArraySeq(3, 4)), Nil)))) &&
         assert(
           Record4.schema.fromDynamicValue(
             Record4.schema.toDynamicValue(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4))))
           )
-        )(
-          isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))
-        ) &&
+        )(isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))) &&
         assert(Record4.schema)(
           equalTo(
             new Schema[Record4](
@@ -826,7 +820,7 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates sequence documentation") {
         assert(Schema[List[Double]].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[Array[Int]].doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
+        assert(Schema[ArraySeq[Int]].doc("ArraySeq (updated)").doc)(equalTo(Doc("ArraySeq (updated)")))
       },
       test("gets and updates sequence examples") {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
@@ -851,18 +845,17 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
-        assert(Schema[Array[Int]].fromDynamicValue(Schema[Array[Int]].toDynamicValue(Array(1, 2, 3))))(
-          isRight(equalTo(Array(1, 2, 3)))
+        assert(Schema[ArraySeq[Int]].fromDynamicValue(Schema[ArraySeq[Int]].toDynamicValue(ArraySeq(1, 2, 3))))(
+          isRight(equalTo(ArraySeq(1, 2, 3)))
         ) &&
-        /* FIXME: throws java.lang.ClassCastException: class [Ljava.lang.Object; cannot be cast to class [[I
         assert(
-          Schema[Array[Array[Int]]]
-            .fromDynamicValue(Schema[Array[Array[Int]]].toDynamicValue(Array(Array(1, 2), Array(3, 4))))
+          Schema
+            .derived[Array[Array[Int]]]
+            .fromDynamicValue(Schema.derived[Array[Array[Int]]].toDynamicValue(Array(Array(1, 2), Array(3, 4))))
             .map(_.map(_.toSeq).toSeq)
         )(
           isRight(equalTo(Seq(Seq(1, 2), Seq(3, 4))))
         ) &&
-         */
         assert(Schema[List[Boolean]].fromDynamicValue(Schema[List[Boolean]].toDynamicValue(List(true, false))))(
           isRight(equalTo(List(true, false)))
         ) &&
@@ -1145,8 +1138,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 =
-          Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int, Doc.Empty, Nil)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
@@ -1171,8 +1163,8 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            Binding.Primitive(examples = Seq(1, 2, 3)),
-            TypeName.int
+            TypeName.int,
+            Binding.Primitive(examples = Seq(1, 2, 3))
           )
         }
         assert(Schema(deferred1).examples)(equalTo(Seq(1, 2, 3))) &&
