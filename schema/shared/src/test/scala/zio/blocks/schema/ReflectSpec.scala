@@ -361,7 +361,7 @@ object ReflectSpec extends ZIOSpecDefault {
           seqBinding = null // should be ignored in equals and hashCode
         )
         val sequence2 = sequence1.copy(element =
-          Primitive(PrimitiveType.Double(Validation.None), Binding.Primitive.double, TypeName.double, Doc("text"), Nil)
+          Primitive(PrimitiveType.Double(Validation.None), TypeName.double, Binding.Primitive.double, Doc("text"))
         )
         val sequence3 = sequence1.copy(typeName = TypeName[List[Double]](Namespace("scala" :: Nil, Nil), "List2"))
         val sequence4 = sequence1.copy(doc = Doc("text"))
@@ -450,12 +450,12 @@ object ReflectSpec extends ZIOSpecDefault {
         val map2 = map1.copy(key =
           Primitive(
             PrimitiveType.Short(Validation.Numeric.Positive),
-            Binding.Primitive.short,
-            TypeName.short
+            TypeName.short,
+            Binding.Primitive.short
           )
         )
         val map3 = map1.copy(value =
-          Primitive(PrimitiveType.Float(Validation.None), Binding.Primitive.float, TypeName.float, Doc("text"), Nil)
+          Primitive(PrimitiveType.Float(Validation.None), TypeName.float, Binding.Primitive.float, Doc("text"))
         )
         val map4 = map1.copy(typeName = TypeName[Map[Short, Float]](Namespace("scala" :: Nil, Nil), "Map2"))
         val map5 = map1.copy(doc = Doc("text"))
@@ -604,7 +604,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), Binding.Primitive.int, TypeName.int)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(deferred1)(equalTo(deferred1)) &&
         assert(deferred1.hashCode)(equalTo(deferred1.hashCode)) &&
