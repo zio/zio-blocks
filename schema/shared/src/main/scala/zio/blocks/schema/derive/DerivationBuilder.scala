@@ -45,24 +45,13 @@ final case class DerivationBuilder[TC[_], A](
 
     def extraModifiers(reflect: Reflect.Type, optic: DynamicOptic): Vector[reflect.ModifierType] = {
       val extra = modifierMap.getOrElse(optic, Vector.empty)
-
       (reflect match {
-        case Reflect.Type.Record =>
-          extra.collect { case m: Modifier.Record => m }
-
-        case _: Reflect.Type.Sequence[_] =>
-          extra.collect { case m: Modifier.Seq => m }
-
-        case _: Reflect.Type.Map[_] =>
-          extra.collect { case m: Modifier.Map => m }
-
-        case Reflect.Type.Dynamic =>
-          extra.collect { case m: Modifier.Dynamic => m }
-
-        case Reflect.Type.Primitive =>
-          extra.collect { case m: Modifier.Primitive => m }
-
-        case _ => Vector.empty
+        case Reflect.Type.Record         => extra.collect { case m: Modifier.Record => m }
+        case _: Reflect.Type.Sequence[_] => extra.collect { case m: Modifier.Seq => m }
+        case _: Reflect.Type.Map[_]      => extra.collect { case m: Modifier.Map => m }
+        case Reflect.Type.Dynamic        => extra.collect { case m: Modifier.Dynamic => m }
+        case Reflect.Type.Primitive      => extra.collect { case m: Modifier.Primitive => m }
+        case _                           => Vector.empty
       }).asInstanceOf[Vector[reflect.ModifierType]]
     }
 
@@ -87,15 +76,7 @@ final case class DerivationBuilder[TC[_], A](
             val instance = getCustomInstance[A](path).getOrElse(
               deriver.deriveRecord(fields, typeName, doc, modifiers ++ extraModifiers(Reflect.Type.Record, path))
             )
-            Lazy(
-              Reflect.Record(
-                fields,
-                typeName,
-                BindingInstance(metadata, instance),
-                doc,
-                modifiers
-              )
-            )
+            Lazy(Reflect.Record(fields, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
           override def transformVariant[A](
@@ -109,15 +90,7 @@ final case class DerivationBuilder[TC[_], A](
             val instance = getCustomInstance[A](path).getOrElse(
               deriver.deriveVariant(cases, typeName, doc, modifiers ++ extraModifiers(Reflect.Type.Variant, path))
             )
-            Lazy(
-              Reflect.Variant(
-                cases,
-                typeName,
-                BindingInstance(metadata, instance),
-                doc,
-                modifiers
-              )
-            )
+            Lazy(Reflect.Variant(cases, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
           override def transformSequence[A, C[_]](
@@ -131,15 +104,7 @@ final case class DerivationBuilder[TC[_], A](
             val instance = getCustomInstance[C[A]](path).getOrElse(
               deriver.deriveSequence(element, typeName, doc, modifiers ++ extraModifiers(Reflect.Type.Sequence(), path))
             )
-            Lazy(
-              Reflect.Sequence(
-                element,
-                BindingInstance(metadata, instance),
-                typeName,
-                doc,
-                modifiers
-              )
-            )
+            Lazy(Reflect.Sequence(element, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
           override def transformMap[Key, Value, M[_, _]](
@@ -154,16 +119,7 @@ final case class DerivationBuilder[TC[_], A](
             val instance = getCustomInstance[M[Key, Value]](path).getOrElse(
               deriver.deriveMap(key, value, typeName, doc, modifiers ++ extraModifiers(Reflect.Type.Map(), path))
             )
-            Lazy(
-              Reflect.Map(
-                key,
-                value,
-                BindingInstance(metadata, instance),
-                typeName,
-                doc,
-                modifiers
-              )
-            )
+            Lazy(Reflect.Map(key, value, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
           override def transformDynamic(
@@ -174,13 +130,7 @@ final case class DerivationBuilder[TC[_], A](
           ): Lazy[Reflect.Dynamic[G]] = {
             val instance = getCustomInstance[DynamicValue](path)
               .getOrElse(deriver.deriveDynamic[G](doc, modifiers ++ extraModifiers(Reflect.Type.Dynamic, path)))
-            Lazy(
-              Reflect.Dynamic(
-                BindingInstance(metadata, instance),
-                doc,
-                modifiers
-              )
-            )
+            Lazy(Reflect.Dynamic(BindingInstance(metadata, instance), doc, modifiers))
           }
 
           override def transformPrimitive[A](
@@ -199,15 +149,7 @@ final case class DerivationBuilder[TC[_], A](
                 modifiers ++ extraModifiers(Reflect.Type.Primitive, path)
               )
             )
-            Lazy(
-              Reflect.Primitive(
-                primitiveType,
-                BindingInstance(metadata, instance),
-                typeName,
-                doc,
-                modifiers
-              )
-            )
+            Lazy(Reflect.Primitive(primitiveType, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
         }
       )

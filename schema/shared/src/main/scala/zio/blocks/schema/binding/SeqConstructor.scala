@@ -353,7 +353,9 @@ object SeqConstructor {
     }
   }
 
-  val arrayConstructor: SeqConstructor[Array] = new SeqConstructor[Array] {
+  val arrayConstructor = new ArrayConstructor
+
+  class ArrayConstructor extends SeqConstructor[Array] {
     case class Builder[A](var buffer: Array[A], var size: Int)
 
     type ObjectBuilder[A] = Builder[A]

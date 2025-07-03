@@ -337,8 +337,6 @@ object Binding {
 
     def arraySeq[A]: Seq[ArraySeq, A] =
       new Seq(SeqConstructor.arraySeqConstructor, SeqDeconstructor.arraySeqDeconstructor)
-
-    def array[A]: Seq[Array, A] = new Seq(SeqConstructor.arrayConstructor, SeqDeconstructor.arrayDeconstructor)
   }
 
   final case class Map[M[_, _], K, V](
