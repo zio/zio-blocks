@@ -327,7 +327,7 @@ object Reflect {
                 fieldValues(idx) = null
                 fieldValue.fromDynamicValue(kv._2, new DynamicOptic.Node.Field(name) :: trace) match {
                   case Right(value) =>
-                    this.registers(idx).asInstanceOf[Register[Any]].set(registers, RegisterOffset.Zero, value)
+                    this.registers(idx).set(registers, RegisterOffset.Zero, value)
                   case Left(error) =>
                     addError(error)
                 }
@@ -396,11 +396,27 @@ object Reflect {
         record <- f.transformRecord(path, fields, typeName, recordBinding, doc, modifiers)
       } yield record
 
-    lazy val registers: IndexedSeq[Register[?]] = {
-      val registers      = new Array[Register[?]](fieldValues.length)
+    lazy val registers: IndexedSeq[Register[Any]] = ArraySeq.unsafeWrapArray(Record.registers(fieldValues))
+
+    lazy val usedRegisters: RegisterOffset = Record.usedRegisters(
+      registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
+    )
+
+    def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
+
+    override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
+
+    override def isRecord: Boolean = true
+  }
+
+  object Record {
+    type Bound[A] = Record[Binding, A]
+
+    def registers[F[_, _]](reflects: Array[Reflect[F, _]]): Array[Register[Any]] = {
+      val registers      = new Array[Register[?]](reflects.length)
       var registerOffset = RegisterOffset.Zero
       var idx            = 0
-      fieldValues.foreach { fieldValue =>
+      reflects.foreach { fieldValue =>
         fieldValue.asPrimitive match {
           case Some(primitive) =>
             primitive.primitiveType match {
@@ -440,22 +456,18 @@ object Reflect {
         }
         idx += 1
       }
-      ArraySeq.unsafeWrapArray(registers)
+      registers.asInstanceOf[Array[Register[Any]]]
     }
 
-    lazy val usedRegisters: RegisterOffset = registers.foldLeft(RegisterOffset.Zero) { (acc, register) =>
-      RegisterOffset.add(acc, register.usedRegisters)
+    def usedRegisters(registers: Array[Register[Any]]): RegisterOffset = {
+      var usedRegisters = RegisterOffset.Zero
+      var idx           = 0
+      while (idx < registers.length) {
+        usedRegisters = RegisterOffset.add(registers(idx).usedRegisters, usedRegisters)
+        idx += 1
+      }
+      usedRegisters
     }
-
-    def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
-
-    override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
-
-    override def isRecord: Boolean = true
-  }
-
-  object Record {
-    type Bound[A] = Record[Binding, A]
   }
 
   case class Variant[F[_, _], A](
