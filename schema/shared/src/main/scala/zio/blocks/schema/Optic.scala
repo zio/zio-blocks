@@ -266,7 +266,7 @@ object Lens {
         bindings(idx) = new LensBinding(
           deconstructor = source.deconstructor.asInstanceOf[Deconstructor[Any]],
           constructor = source.constructor.asInstanceOf[Constructor[Any]],
-          register = source.registers(source.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
+          register = source.registers(source.fieldIndexByName(focusTermName)),
           offset = offset
         )
         offset = RegisterOffset.add(offset, source.usedRegisters)
@@ -645,7 +645,7 @@ object Optional {
             bindings(idx) = new LensBinding(
               deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
               constructor = record.constructor.asInstanceOf[Constructor[Any]],
-              register = record.registers(record.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
+              register = record.registers(record.fieldIndexByName(focusTermName)),
               offset = offset
             )
             offset = RegisterOffset.add(offset, record.usedRegisters)
@@ -1228,7 +1228,7 @@ object Traversal {
             bindings(idx) = new LensBinding(
               deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
               constructor = record.constructor.asInstanceOf[Constructor[Any]],
-              register = record.registers(record.fieldIndexByName(focusTermName)).asInstanceOf[Register[Any]],
+              register = record.registers(record.fieldIndexByName(focusTermName)),
               offset = offset
             )
             offset = RegisterOffset.add(offset, record.usedRegisters)
