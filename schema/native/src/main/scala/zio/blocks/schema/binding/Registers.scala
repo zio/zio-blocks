@@ -96,6 +96,23 @@ class Registers private (userRegister: RegisterOffset) {
     objects(absoluteIndex) = value
   }
 
+  def setRegisters(baseOffset: RegisterOffset, registers: Registers): Unit = {
+    val bytes       = registers.getBytes
+    val bytesLength = bytes.length
+    val byteIndex   = RegisterOffset.getObjects(baseOffset)
+    if (bytesLength + byteIndex >= this.bytes.length) growBytes(bytesLength + byteIndex)
+    System.arraycopy(bytes, 0, this.bytes, byteIndex, bytesLength)
+    val objects       = registers.getObjects
+    val objectsLength = objects.length
+    val objectIndex   = RegisterOffset.getObjects(baseOffset)
+    if (objectsLength + objectIndex >= this.objects.length) growObjects(objectsLength + objectIndex)
+    System.arraycopy(objects, 0, this.objects, objectIndex, objectsLength)
+  }
+
+  private def getBytes: Array[Byte] = bytes
+
+  private def getObjects: Array[AnyRef] = objects
+
   private[this] def growBytes(absoluteIndex: RegisterOffset): Unit =
     bytes = util.Arrays.copyOf(bytes, Math.max(bytes.length << 1, absoluteIndex + 8))
 
