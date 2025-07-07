@@ -14,12 +14,18 @@ trait CompanionOptics[S] {
     def at(index: Int): A = ???
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def atIndices(index: Int*): A = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
   }
 
   implicit class MapExtension[M[_, _], K, V](m: M[K, V]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def atKey(key: K): V = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def atKeys(keys: K*): V = ???
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def eachKey: K = ???
@@ -152,6 +158,43 @@ private object CompanionOptics {
               .getOrElse(sys.error("Expected a map"))
               .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $valueTpe]])"""
         }
+      case q"$_[..$_]($parent).atIndices(..$args)"
+          if args.nonEmpty && args.forall(_.tpe.dealias.widen =:= definitions.IntTpe) =>
+        val parentTpe  = parent.tpe.dealias.widen
+        val elementTpe = tree.tpe.dealias.widen
+        val optic      = toOptic(parent)
+        if (optic.isEmpty) {
+          q"""$schema.reflect.asSequenceUnknown.map { x =>
+                _root_.zio.blocks.schema.Traversal.atIndices(x.sequence, $args)
+              }
+              .getOrElse(sys.error("Expected a sequence"))
+              .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]]"""
+        } else {
+          q"""val optic = $optic
+              optic.apply(optic.focus.asSequenceUnknown.map { x =>
+                _root_.zio.blocks.schema.Traversal.atIndices(x.sequence, $args)
+              }
+              .getOrElse(sys.error("Expected a sequence"))
+              .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]])"""
+        }
+      case q"$_[..$_]($parent).atKeys(..$args)" if args.nonEmpty =>
+        val parentTpe = parent.tpe.dealias.widen
+        val valueTpe  = tree.tpe.dealias.widen
+        val optic     = toOptic(parent)
+        if (optic.isEmpty) {
+          q"""$schema.reflect.asMapUnknown.map { x =>
+                _root_.zio.blocks.schema.Traversal.atKeys(x.map, $args.asInstanceOf[Seq[x.KeyType]])
+              }
+              .getOrElse(sys.error("Expected a map"))
+              .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]]"""
+        } else {
+          q"""val optic = $optic
+              optic.apply(optic.focus.asMapUnknown.map { x =>
+                _root_.zio.blocks.schema.Traversal.atKeys(x.map, $args.asInstanceOf[Seq[x.KeyType]])
+              }
+              .getOrElse(sys.error("Expected a map"))
+              .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
+        }
       case q"$parent.$child" =>
         val childTpe  = tree.tpe.dealias.widen
         val fieldName = NameTransformer.decode(child.toString)
@@ -168,7 +211,7 @@ private object CompanionOptics {
         q""
       case tree =>
         fail(
-          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atKey(<key>), .each, .eachKey, or .eachValue, got: '$tree'"
+          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, or .eachValue, got: '$tree'"
         )
     }
 

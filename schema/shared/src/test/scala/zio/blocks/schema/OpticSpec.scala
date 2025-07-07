@@ -127,7 +127,7 @@ object OpticSpec extends ZIOSpecDefault {
           assert(_)(
             isLeft(
               startsWithString(
-                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atKey(<key>), .each, .eachKey, or .eachValue, got: '"
+                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, or .eachValue, got: '"
               ) &&
                 endsWithString(".equals(null)'")
             )
@@ -1113,6 +1113,10 @@ object OpticSpec extends ZIOSpecDefault {
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
+          .attempt(Optional.at(null: Reflect.Sequence.Bound[Int, Array], -1))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
           .attempt(Optional(null: Prism[Variant1, Case1], Case1.d))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
@@ -1999,6 +2003,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.alb.modify(List(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte))(
           equalTo(List(1: Byte, 3: Byte, 3: Byte))
         ) &&
+        assert(Collections.ailb.modify(List(1: Byte, 2: Byte, 3: Byte), x => (x + 1).toByte))(
+          equalTo(List(1: Byte, 3: Byte, 4: Byte))
+        ) &&
         assert(Collections.alc1_d.modify(List(Case1(1.0), Case1(2.0), Case1(3.0)), _ + 1.0))(
           equalTo(List(Case1(1.0), Case1(3.0), Case1(3.0)))
         ) &&
@@ -2383,6 +2390,30 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("checks prerequisites for creation") {
         ZIO
+          .attempt(Traversal.atIndices(null: Reflect.Sequence.Bound[Int, Array], Seq(1)))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.atKeys(null: Reflect.Map.Bound[Int, Long, Map], Seq(1)))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq()))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.atKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]), Seq()))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.atKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]), Seq(-1)))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
+          .attempt(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq(1, 1)))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
+        ZIO
           .attempt(Traversal.listValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
@@ -2411,16 +2442,24 @@ object OpticSpec extends ZIOSpecDefault {
         object Test1 extends CompanionOptics[Vector[String]] {
           val traversal: Traversal[Vector[String], String] = optic[String](_.each)
         }
-        object Test2 extends CompanionOptics[Map[Int, Long]] {
-          val traversal: Traversal[Map[Int, Long], Int] = optic[Int](_.eachKey)
+        object Test2 extends CompanionOptics[Vector[String]] {
+          val traversal: Traversal[Vector[String], String] = optic[String](_.atIndices(1, 2))
         }
         object Test3 extends CompanionOptics[Map[Int, Long]] {
+          val traversal: Traversal[Map[Int, Long], Int] = optic[Int](_.eachKey)
+        }
+        object Test4 extends CompanionOptics[Map[Int, Long]] {
           val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.eachValue)
+        }
+        object Test5 extends CompanionOptics[Map[Int, Long]] {
+          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.atKeys(1, 2))
         }
 
         assert(Test1.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("abc")) &&
-        assert(Test2.traversal.fold[Int](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6)) &&
-        assert(Test3.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6L))
+        assert(Test2.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("bc")) &&
+        assert(Test3.traversal.fold[Int](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6)) &&
+        assert(Test4.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6L)) &&
+        assert(Test5.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(3L))
       },
       test("optic macro requires sequence or map for creation") {
         ZIO
@@ -2530,11 +2569,15 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c4_lr3.check(Case4(List(Record3(null, null, null)))))(isNone) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(List(Record3(null, null, null))))))(isNone) &&
         assert(Collections.aasasi_asi.check(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3))))(isNone) &&
+        assert(Collections.aiasasi_asi.check(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3))))(isNone) &&
         assert(Collections.asasi_aasi.check(ArraySeq(ArraySeq(1, 2, 3))))(isNone) &&
         assert(Collections.alli_li.check(List(List(1), List(2), List(3))))(isNone) &&
+        assert(Collections.ailli_li.check(List(List(1), List(2), List(3))))(isNone) &&
         assert(Collections.lli_ali.check(List(List(1, 2, 3))))(isNone) &&
         assert(Collections.akmill_ll.check(Map(1 -> List(1L, 2L, 3L))))(isNone) &&
-        assert(Collections.lmil_akmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone)
+        assert(Collections.aksmill_ll.check(Map(1 -> List(1L, 2L, 3L))))(isNone) &&
+        assert(Collections.lmil_akmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone) &&
+        assert(Collections.lmil_aksmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone)
       },
       test("checks collection values and returns an error if they will not be modified") {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
@@ -2610,6 +2653,17 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         ) &&
+        assert(Collections.aiasasi_asi.check(ArraySeq(ArraySeq())))(
+          isSome(
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>)"
+              )
+            )
+          )
+        ) &&
         assert(Collections.asasi_aasi.check(ArraySeq(ArraySeq())))(
           isSome(
             hasField[OpticCheck, String](
@@ -2632,6 +2686,17 @@ object OpticSpec extends ZIOSpecDefault {
             )
           )
         ) &&
+        assert(Collections.ailli_li.check(List(List())))(
+          isSome(
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>): index is 1, but size is 1"
+              )
+            )
+          )
+        ) &&
         assert(Collections.lli_ali.check(List(List())))(
           isSome(
             hasField[OpticCheck, String](
@@ -2650,6 +2715,17 @@ object OpticSpec extends ZIOSpecDefault {
               _.message,
               containsString(
                 "During attempted access at .atKey(<key>).each, encountered missing key at .atKey(<key>)"
+              )
+            )
+          )
+        ) &&
+        assert(Collections.aksmill_ll.check(Map()))(
+          isSome(
+            hasField[OpticCheck, String](
+              "message",
+              _.message,
+              containsString(
+                "During attempted access at .atKeys(<keys>).each, encountered missing key at .atKeys(<keys>)"
               )
             )
           )
@@ -2723,6 +2799,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.aasasi_asi.modify(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)), _ + 1))(
           equalTo(ArraySeq(ArraySeq(1), ArraySeq(3), ArraySeq(3)))
         ) &&
+        assert(Collections.aiasasi_asi.modify(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)), _ + 1))(
+          equalTo(ArraySeq(ArraySeq(1), ArraySeq(3), ArraySeq(4)))
+        ) &&
         assert(Collections.asasb_aasb.modify(ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)), x => (x + 1).toByte))(
           equalTo(ArraySeq(ArraySeq(1: Byte, 3: Byte, 3: Byte)))
         ) &&
@@ -2750,15 +2829,53 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.asass_aass.modify(ArraySeq(ArraySeq("a", "b", "c")), _ + "x"))(
           equalTo(ArraySeq(ArraySeq("a", "bx", "c")))
         ) &&
+        assert(Collections.asasb_aiasb.modify(ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)), x => (x + 1).toByte))(
+          equalTo(ArraySeq(ArraySeq(1: Byte, 3: Byte, 4: Byte)))
+        ) &&
+        assert(Collections.asasbl_aiasbl.modify(ArraySeq(ArraySeq(true, true, true)), x => !x))(
+          equalTo(ArraySeq(ArraySeq(true, false, false)))
+        ) &&
+        assert(
+          Collections.asassh_aiassh.modify(ArraySeq(ArraySeq(1: Short, 2: Short, 3: Short)), x => (x + 1).toShort)
+        )(
+          equalTo(ArraySeq(ArraySeq(1: Short, 3: Short, 4: Short)))
+        ) &&
+        assert(Collections.asasc_aiasc.modify(ArraySeq(ArraySeq('a', 'b', 'c')), _.toUpper))(
+          equalTo(ArraySeq(ArraySeq('a', 'B', 'C')))
+        ) &&
+        assert(Collections.asasi_aiasi.modify(ArraySeq(ArraySeq(1, 2, 3)), _ + 1))(
+          equalTo(ArraySeq(ArraySeq(1, 3, 4)))
+        ) &&
+        assert(Collections.asasf_aiasf.modify(ArraySeq(ArraySeq(1.0f, 2.0f, 3.0f)), _ + 1.0f))(
+          equalTo(ArraySeq(ArraySeq(1.0f, 3.0f, 4.0f)))
+        ) &&
+        assert(Collections.asasl_aiasl.modify(ArraySeq(ArraySeq(1L, 2L, 3L)), _ + 1L))(
+          equalTo(ArraySeq(ArraySeq(1L, 3L, 4L)))
+        ) &&
+        assert(Collections.asasd_aiasd.modify(ArraySeq(ArraySeq(1.0, 2.0, 3.0)), _ + 1.0))(
+          equalTo(ArraySeq(ArraySeq(1.0, 3.0, 4.0)))
+        ) &&
+        assert(Collections.asass_aiass.modify(ArraySeq(ArraySeq("a", "b", "c")), _ + "x"))(
+          equalTo(ArraySeq(ArraySeq("a", "bx", "cx")))
+        ) &&
         assert(Collections.alli_li.modify(List(List(1), List(2), List(3)), _ + 1))(
+          equalTo(List(List(1), List(3), List(3)))
+        ) &&
+        assert(Collections.ailli_li.modify(List(List(1), List(2), List(3)), _ + 1))(
           equalTo(List(List(1), List(3), List(3)))
         ) &&
         assert(Collections.lli_ali.modify(List(List(1, 2, 3)), _ + 1))(equalTo(List(List(1, 3, 3)))) &&
         assert(Collections.akmill_ll.modify(Map(1 -> List(1L), 2 -> List(2L), 3 -> List(3L)), _ + 1L))(
           equalTo(Map(1 -> List(2L), 2 -> List(2L), 3 -> List(3L)))
         ) &&
+        assert(Collections.aksmill_ll.modify(Map(1 -> List(1L), 2 -> List(2L), 3 -> List(3L)), _ + 1L))(
+          equalTo(Map(1 -> List(2L), 2 -> List(2L), 3 -> List(3L)))
+        ) &&
         assert(Collections.lmil_akmil.modify(List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)), _ + 1L))(
           equalTo(List(Map(1 -> 2L), Map(2 -> 2L), Map(3 -> 3L)))
+        ) &&
+        assert(Collections.lmil_aksmil.modify(List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)), _ + 1L))(
+          equalTo(List(Map(1 -> 2L), Map(2 -> 3L), Map(3 -> 3L)))
         )
       },
       test("doesn't modify collection values for non-matching cases") {
@@ -2941,6 +3058,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.aasasi_asi.fold[Int](ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)))(0, _ + _))(
           equalTo(2)
         ) &&
+        assert(Collections.aiasasi_asi.fold[Int](ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)))(0, _ + _))(
+          equalTo(5)
+        ) &&
         assert(Collections.asasb_aasb.fold[Int](ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)))(0, _ + _))(equalTo(2)) &&
         assert(Collections.asasbl_aasbl.fold[Boolean](ArraySeq(ArraySeq(true, true, true)))(false, _ || _))(
           equalTo(true)
@@ -2956,13 +3076,48 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.asasl_aasl.fold[Long](ArraySeq(ArraySeq(1L, 2L, 3L)))(0L, _ + _))(equalTo(2L)) &&
         assert(Collections.asasd_aasd.fold[Double](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0.0, _ + _))(equalTo(2.0)) &&
         assert(Collections.asass_aass.fold[String](ArraySeq(ArraySeq("1", "2", "3")))("0", _ + _))(equalTo("02")) &&
+        assert(Collections.asasb_aiasb.fold[Int](ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)))(0, _ + _))(
+          equalTo(5)
+        ) &&
+        assert(Collections.asasbl_aiasbl.fold[Boolean](ArraySeq(ArraySeq(true, true, true)))(false, _ || _))(
+          equalTo(true)
+        ) &&
+        assert(Collections.asassh_aiassh.fold[Int](ArraySeq(ArraySeq(1: Short, 2: Short, 3: Short)))(0, _ + _))(
+          equalTo(5)
+        ) &&
+        assert(Collections.asasc_aiasc.fold[String](ArraySeq(ArraySeq('1', '2', '3')))("0", _ + _.toString))(
+          equalTo("023")
+        ) &&
+        assert(Collections.asasi_aiasi.fold[Int](ArraySeq(ArraySeq(1, 2, 3)))(0, _ + _))(equalTo(5)) &&
+        assert(Collections.asasi_aiasi.fold[Long](ArraySeq(ArraySeq(1, 2, 3)))(0L, _ + _))(equalTo(5L)) &&
+        assert(Collections.asasi_aiasi.fold[Double](ArraySeq(ArraySeq(1, 2, 3)))(0.0, _ + _))(equalTo(5.0)) &&
+        assert(Collections.asasi_aiasi.fold[String](ArraySeq(ArraySeq(1, 2, 3)))("0", _ + _))(equalTo("023")) &&
+        assert(Collections.asasl_aiasl.fold[Long](ArraySeq(ArraySeq(1L, 2L, 3L)))(0L, _ + _))(equalTo(5L)) &&
+        assert(Collections.asasl_aiasl.fold[Int](ArraySeq(ArraySeq(1L, 2L, 3L)))(0, _ + _.toInt))(equalTo(5)) &&
+        assert(Collections.asasl_aiasl.fold[Double](ArraySeq(ArraySeq(1L, 2L, 3L)))(0.0, _ + _))(equalTo(5.0)) &&
+        assert(Collections.asasl_aiasl.fold[String](ArraySeq(ArraySeq(1L, 2L, 3L)))("0", _ + _))(equalTo("023")) &&
+        assert(Collections.asasd_aiasd.fold[Double](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0.0, _ + _))(equalTo(5.0)) &&
+        assert(Collections.asasd_aiasd.fold[Int](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0, _ + _.toInt))(equalTo(5)) &&
+        assert(Collections.asasd_aiasd.fold[Long](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0L, _ + _.toLong))(equalTo(5L)) &&
+        assert(Collections.asasd_aiasd.fold[String](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))("0", _ + _.toInt))(
+          equalTo("023")
+        ) &&
+        assert(Collections.asasf_aiasf.fold[Float](ArraySeq(ArraySeq(1.0f, 2.0f, 3.0f)))(0.0f, _ + _))(equalTo(5.0f)) &&
+        assert(Collections.asass_aiass.fold[String](ArraySeq(ArraySeq("1", "2", "3")))("0", _ + _))(equalTo("023")) &&
         assert(Collections.alli_li.fold[Int](List(List(1), List(2), List(3)))(0, _ + _))(equalTo(2)) &&
+        assert(Collections.ailli_li.fold[Int](List(List(1), List(2), List(3)))(0, _ + _))(equalTo(2)) &&
         assert(Collections.lli_ali.fold[Int](List(List(1, 2, 3)))(0, _ + _))(equalTo(2)) &&
         assert(Collections.akmill_ll.fold[Long](Map(1 -> List(1L), 2 -> List(2L), 3 -> List(3L)))(0L, _ + _))(
           equalTo(1L)
         ) &&
+        assert(Collections.aksmill_ll.fold[Long](Map(1 -> List(1L), 2 -> List(2L), 3 -> List(3L)))(0L, _ + _))(
+          equalTo(1L)
+        ) &&
         assert(Collections.lmil_akmil.fold[Long](List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)))(0L, _ + _))(
           equalTo(1L)
+        ) &&
+        assert(Collections.lmil_aksmil.fold[Long](List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)))(0L, _ + _))(
+          equalTo(3L)
         )
       },
       test("folds zero values for non-matching cases") {
@@ -3175,6 +3330,7 @@ object OpticSpecTypes {
 
   object Collections {
     val alb: Optional[List[Byte], Byte]       = Optional.at(Reflect.list(Reflect.byte), 1)
+    val ailb: Traversal[List[Byte], Byte]     = Traversal.atIndices(Reflect.list(Reflect.byte), Seq(1, 2))
     val alc1_d: Optional[List[Case1], Double] = Optional.at(Reflect.list(Case1.reflect), 1)(Case1.d)
     val aabl: Optional[Array[Boolean], Boolean] =
       Optional.at(
@@ -3417,6 +3573,10 @@ object OpticSpecTypes {
       Optional.at(Reflect.arraySeq(Reflect.arraySeq(Reflect.int[Binding])), 1)(
         Traversal.arraySeqValues(Reflect.int[Binding])
       )
+    val aiasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+      Traversal.atIndices(Reflect.arraySeq(Reflect.arraySeq(Reflect.int[Binding])), Seq(1, 2))(
+        Traversal.arraySeqValues(Reflect.int[Binding])
+      )
     val asasb_aasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
       Traversal.arraySeqValues(Reflect.arraySeq(Reflect.byte[Binding]))(
         Optional.at(Reflect.arraySeq(Reflect.byte[Binding]), 1)
@@ -3453,15 +3613,61 @@ object OpticSpecTypes {
       Traversal.arraySeqValues(Reflect.arraySeq(Reflect.string[Binding]))(
         Optional.at(Reflect.arraySeq(Reflect.string[Binding]), 1)
       )
+    val asasb_aiasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.byte[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.byte[Binding]), Seq(1, 2))
+      )
+    val asasbl_aiasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.boolean[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.boolean[Binding]), Seq(1, 2))
+      )
+    val asassh_aiassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.short[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.short[Binding]), Seq(1, 2))
+      )
+    val asasc_aiasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.char[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.char[Binding]), Seq(1, 2))
+      )
+    val asasi_aiasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.int[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq(1, 2))
+      )
+    val asasf_aiasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.float[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.float[Binding]), Seq(1, 2))
+      )
+    val asasl_aiasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.long[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.long[Binding]), Seq(1, 2))
+      )
+    val asasd_aiasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.double[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.double[Binding]), Seq(1, 2))
+      )
+    val asass_aiass: Traversal[ArraySeq[ArraySeq[String]], String] =
+      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.string[Binding]))(
+        Traversal.atIndices(Reflect.arraySeq(Reflect.string[Binding]), Seq(1, 2))
+      )
     val alli_li: Traversal[List[List[Int]], Int] =
       Optional.at(Reflect.list(Reflect.list(Reflect.int[Binding])), 1)(Traversal.listValues(Reflect.int[Binding]))
+    val ailli_li: Traversal[List[List[Int]], Int] =
+      Traversal.atIndices(Reflect.list(Reflect.list(Reflect.int[Binding])), Seq(1))(
+        Traversal.listValues(Reflect.int[Binding])
+      )
     val lli_ali: Traversal[List[List[Int]], Int] =
       Traversal.listValues(Reflect.list(Reflect.int[Binding]))(Optional.at(Reflect.list(Reflect.int[Binding]), 1))
     val akmill_ll: Traversal[Map[Int, List[Long]], Long] =
       Optional.atKey(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), 1)(Traversal.listValues(Reflect.long))
+    val aksmill_ll: Traversal[Map[Int, List[Long]], Long] =
+      Traversal.atKeys(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), Seq(1))(Traversal.listValues(Reflect.long))
     val lmil_akmil: Traversal[List[Map[Int, Long]], Long] =
       Traversal.listValues(Reflect.map(Reflect.int, Reflect.long))(
         Optional.atKey(Reflect.map(Reflect.int, Reflect.long), 1)
+      )
+    val lmil_aksmil: Traversal[List[Map[Int, Long]], Long] =
+      Traversal.listValues(Reflect.map(Reflect.int, Reflect.long))(
+        Traversal.atKeys(Reflect.map(Reflect.int, Reflect.long), Seq(1, 2))
       )
   }
 }

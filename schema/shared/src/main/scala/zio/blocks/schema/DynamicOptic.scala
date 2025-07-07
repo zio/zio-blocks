@@ -13,7 +13,11 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def at(index: Int): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndex(index))
 
+  def atIndices(indices: Int*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndices(indices))
+
   def atKey[K](key: K): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKey(key))
+
+  def atKeys[K](keys: K*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKeys(keys))
 
   def elements: DynamicOptic = new DynamicOptic(nodes :+ Node.Elements)
 
@@ -31,6 +35,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
         case Node.Case(name)     => sb.append(".when[").append(name).append(']')
         case Node.AtIndex(index) => sb.append(".at(").append(index).append(')')
         case Node.AtMapKey(_)    => sb.append(".atKey(<key>)")
+        case Node.AtIndices(_)   => sb.append(".atIndices(<indices>)")
+        case Node.AtMapKeys(_)   => sb.append(".atKeys(<keys>)")
         case Node.Elements       => sb.append(".each")
         case Node.MapKeys        => sb.append(".eachKey")
         case Node.MapValues      => sb.append(".eachValue")
@@ -61,6 +67,10 @@ object DynamicOptic {
     case class AtIndex(index: Int) extends Node
 
     case class AtMapKey[K](key: K) extends Node
+
+    case class AtIndices(index: Seq[Int]) extends Node
+
+    case class AtMapKeys[K](keys: Seq[K]) extends Node
 
     case object Elements extends Node
 

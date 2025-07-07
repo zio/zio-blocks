@@ -50,12 +50,12 @@ object OpticCheck {
       s"During attempted access at $full, encountered an empty sequence at $prefix"
   }
 
-  case class SequenceIndexOutOfBounds(full: DynamicOptic, prefix: DynamicOptic, index: Int, size: Int) extends Error {
+  case class SequenceIndexOutOfBounds(full: DynamicOptic, prefix: DynamicOptic, index: Int, size: Int) extends Warning {
     def message: String =
       s"During attempted access at $full, encountered a sequence out of bounds at $prefix: index is $index, but size is $size"
   }
 
-  case class MissingKey(full: DynamicOptic, prefix: DynamicOptic, key: Any) extends Error {
+  case class MissingKey(full: DynamicOptic, prefix: DynamicOptic, key: Any) extends Warning {
     def message: String =
       s"During attempted access at $full, encountered missing key at $prefix"
   }
