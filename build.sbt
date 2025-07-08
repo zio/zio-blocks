@@ -75,8 +75,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       }),
     libraryDependencies ++= Seq(
       "dev.zio"  %% "zio-prelude"  % "1.0.0-RC41" % Test,
-      "dev.zio" %%% "zio-test"     % "2.1.18"     % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.18"     % Test
+      "dev.zio" %%% "zio-test"     % "2.1.19"     % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.19"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -110,8 +110,8 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
           )
       }),
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.18" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.18" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.19" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.19" % Test
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
@@ -128,8 +128,8 @@ lazy val benchmarks = project
         "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
         "dev.optics"                 %% "monocle-core"  % "3.3.0",
         "dev.optics"                 %% "monocle-macro" % "3.3.0",
-        "dev.zio"                   %%% "zio-test"      % "2.1.18" % Test,
-        "dev.zio"                   %%% "zio-test-sbt"  % "2.1.18" % Test
+        "dev.zio"                   %%% "zio-test"      % "2.1.19" % Test,
+        "dev.zio"                   %%% "zio-test-sbt"  % "2.1.19" % Test
       )
     },
     assembly / assemblyJarName := "benchmarks.jar",
