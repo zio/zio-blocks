@@ -13,12 +13,18 @@ trait CompanionOptics[S] {
     def at(index: Int): A = ???
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def atIndices(index: Int*): A = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
   }
 
   extension [M[_, _], K, V](m: M[K, V]) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def atKey(key: K): V = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def atKeys(key: K*): V = ???
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def eachKey: K = ???
@@ -304,6 +310,57 @@ private object CompanionOptics {
               }
             }
         })
+      case Apply(Apply(TypeApply(elementTerm, _), idents), List(Typed(Repeated(indices, _), _)))
+          if hasName(elementTerm, "atIndices") && indices.forall(_.tpe.dealias.widen =:= TypeRepr.of[Int]) =>
+        val parent     = idents.head
+        val parentTpe  = parent.tpe.dealias.widen
+        val elementTpe = term.tpe.dealias.widen
+        Some((parentTpe.asType, elementTpe.asType) match {
+          case ('[p], '[e]) =>
+            toOptic(parent).fold {
+              '{
+                $schema.reflect.asSequenceUnknown
+                  .map(x => Traversal.atIndices(x.sequence, ${ Expr.ofSeq(indices.map(_.asExprOf[Int])) }))
+                  .getOrElse(sys.error("Expected a sequence"))
+                  .asInstanceOf[Traversal[p, e]]
+              }
+            } { x =>
+              '{
+                val optic = ${ x.asExprOf[Optic[S, p]] }
+                optic.apply(
+                  optic.focus.asSequenceUnknown
+                    .map(x => Traversal.atIndices(x.sequence, ${ Expr.ofSeq(indices.map(_.asExprOf[Int])) }))
+                    .getOrElse(sys.error("Expected a sequence"))
+                    .asInstanceOf[Traversal[p, e]]
+                )
+              }
+            }
+        })
+      case Apply(Apply(TypeApply(elementTerm, _), idents), List(keys)) if hasName(elementTerm, "atKeys") =>
+        val parent    = idents.head
+        val parentTpe = parent.tpe.dealias.widen
+        val valueTpe  = term.tpe.dealias.widen
+        Some((parentTpe.asType, valueTpe.asType) match {
+          case ('[p], '[v]) =>
+            toOptic(parent).fold {
+              '{
+                $schema.reflect.asMapUnknown
+                  .map(x => Traversal.atKeys(x.map, ${ keys.asExprOf[Seq[Any]] }.asInstanceOf[Seq[x.KeyType]]))
+                  .getOrElse(sys.error("Expected a map"))
+                  .asInstanceOf[Traversal[p, v]]
+              }
+            } { x =>
+              '{
+                val optic = ${ x.asExprOf[Optic[S, p]] }
+                optic.apply(
+                  optic.focus.asMapUnknown
+                    .map(x => Traversal.atKeys(x.map, ${ keys.asExprOf[Seq[Any]] }.asInstanceOf[Seq[x.KeyType]]))
+                    .getOrElse(sys.error("Expected a map"))
+                    .asInstanceOf[Traversal[p, v]]
+                )
+              }
+            }
+        })
       case Select(parent, fieldName) =>
         val parentTpe = parent.tpe.dealias.widen
         val childTpe  = term.tpe.dealias.widen
@@ -359,7 +416,7 @@ private object CompanionOptics {
         None
       case term =>
         fail(
-          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atKey(<key>), .each, .eachKey, or .eachValue, got: '${term.show}'"
+          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, or .eachValue, got: '${term.show}'"
         )
     }
 
