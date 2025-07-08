@@ -83,7 +83,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                   else return None
                 case _ => return None
               }
-            case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.Elements.type =>
+            case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.AtIndices | _: DynamicOptic.Node.Elements.type =>
               current.asSequenceUnknown match {
                 case Some(unknown) => unknown.sequence.element
                 case _             => return None
@@ -168,7 +168,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 })
               case _ => None
             }
-          case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.Elements.type =>
+          case _: DynamicOptic.Node.AtIndex | _: DynamicOptic.Node.AtIndices | _: DynamicOptic.Node.Elements.type =>
             current.asSequenceUnknown match {
               case Some(unknown) =>
                 val sequence = unknown.sequence
