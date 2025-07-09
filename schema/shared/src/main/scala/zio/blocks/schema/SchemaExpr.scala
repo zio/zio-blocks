@@ -102,16 +102,24 @@ object SchemaExpr {
   final case class Relational[A, B](left: SchemaExpr[A, B], right: SchemaExpr[A, B], operator: RelationalOperator)
       extends BinaryOp[A, B, Boolean] {
     def eval(input: A): Either[OpticCheck, Seq[Boolean]] =
-      for {
-        xs <- left.evalDynamic(input)
-        ys <- right.evalDynamic(input)
-      } yield operator match {
-        case RelationalOperator.LessThan           => for { x <- xs; y <- ys } yield x < y
-        case RelationalOperator.LessThanOrEqual    => for { x <- xs; y <- ys } yield x <= y
-        case RelationalOperator.GreaterThan        => for { x <- xs; y <- ys } yield x > y
-        case RelationalOperator.GreaterThanOrEqual => for { x <- xs; y <- ys } yield x >= y
-        case RelationalOperator.Equal              => for { x <- xs; y <- ys } yield x == y
-        case RelationalOperator.NotEqual           => for { x <- xs; y <- ys } yield x != y
+      if (operator == RelationalOperator.Equal || operator == RelationalOperator.NotEqual) {
+        for {
+          xs <- left.eval(input)
+          ys <- right.eval(input)
+        } yield {
+          if (operator == RelationalOperator.Equal) for { x <- xs; y <- ys } yield x == y
+          else for { x <- xs; y <- ys } yield x != y
+        }
+      } else { // FIXME: Use Ordering to avoid converisons to dynamic values
+        for {
+          xs <- left.evalDynamic(input)
+          ys <- right.evalDynamic(input)
+        } yield {
+          if (operator == RelationalOperator.LessThan) for { x <- xs; y <- ys } yield x < y
+          else if (operator == RelationalOperator.LessThanOrEqual) for { x <- xs; y <- ys } yield x <= y
+          else if (operator == RelationalOperator.GreaterThan) for { x <- xs; y <- ys } yield x > y
+          else for { x <- xs; y <- ys } yield x >= y
+        }
       }
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] =
