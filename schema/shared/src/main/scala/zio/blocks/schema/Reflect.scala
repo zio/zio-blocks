@@ -263,7 +263,7 @@ object Reflect {
     modifiers: Seq[Modifier.Record] = Nil
   ) extends Reflect[F, A] { self =>
     private[this] val fieldValues = fields.map(_.value).toArray
-    private[this] val fieldIndexByName = new StringToIntMap {
+    private[this] val fieldIndexByName = new StringToIntMap(fields.length) {
       fields.foreach {
         var i = 0
         term =>
@@ -477,7 +477,7 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Variant] = Nil
   ) extends Reflect[F, A] {
-    private[this] val caseIndexByName = new StringToIntMap {
+    private[this] val caseIndexByName = new StringToIntMap(cases.length) {
       cases.foreach {
         var i = 0
         term =>
@@ -1468,27 +1468,23 @@ object Reflect {
     }
   }
 
-  private class StringToIntMap {
-    private[this] var keys   = new Array[String](8)
-    private[this] var values = new Array[Int](8)
-    private[this] var size   = 0
+  private class StringToIntMap(size: Int) {
+    private[this] val mask   = (Integer.highestOneBit(size) << 2) - 1
+    private[this] val keys   = new Array[String](mask + 1)
+    private[this] val values = new Array[Int](mask + 1)
 
     def put(key: String, value: Int): Unit = {
-      val mask = keys.length - 1
-      if (size << 1 > mask) grow()
       var idx             = key.hashCode & mask
       var currKey: String = null
       while ({
         currKey = keys(idx)
         (currKey ne null) && !currKey.equals(key)
       }) idx = (idx + 1) & mask
-      if (currKey eq null) size += 1
       keys(idx) = key
       values(idx) = value
     }
 
     def get(key: String): Int = {
-      val mask            = keys.length - 1
       var idx             = key.hashCode & mask
       var currKey: String = null
       while ({
@@ -1497,30 +1493,6 @@ object Reflect {
       }) idx = (idx + 1) & mask
       if (currKey eq null) -1
       else values(idx)
-    }
-
-    private[this] def grow(): Unit = {
-      val len       = keys.length
-      val newLen    = len << 1
-      val newMask   = newLen - 1
-      val newKeys   = new Array[String](newLen)
-      val newValues = new Array[Int](newLen)
-      var idx       = 0
-      while (idx < len) {
-        val key   = keys(idx)
-        val value = values(idx)
-        if (key != null) {
-          var newIdx = key.hashCode & newMask
-          while (newKeys(idx) ne null) {
-            newIdx = (newIdx + 1) & newMask
-          }
-          newKeys(newIdx) = key
-          newValues(newIdx) = value
-        }
-        idx += 1
-      }
-      keys = newKeys
-      values = newValues
     }
   }
 }
