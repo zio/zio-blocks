@@ -237,6 +237,24 @@ object OpticSpec extends ZIOSpecDefault {
       test("evaluates schema expressions to dynamic values") {
         assert((Variant1.c1 === Variant1.c1).evalDynamic(Case1(0.1)))(
           isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
+        assert((Variant1.c1 === Variant1.c1).evalDynamic(Case4(Nil)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Case("Case1"))),
+                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
         )
       },
       test("toDynamic") {
@@ -1095,6 +1113,24 @@ object OpticSpec extends ZIOSpecDefault {
       test("evaluates schema expressions to dynamic values") {
         assert((Variant1.c1_d === Variant1.c1_d).evalDynamic(Case1(0.1)))(
           isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
+        assert((Variant1.c1_d === Variant1.c1_d).evalDynamic(Case4(Nil)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  UnexpectedCase(
+                    expectedCase = "Case1",
+                    actualCase = "Variant2",
+                    full = DynamicOptic(Vector(Case("Case1"), Field("d"))),
+                    prefix = DynamicOptic(Vector(Case("Case1"))),
+                    actualValue = Case4(Nil)
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
         )
       },
       test("toDynamic") {
@@ -2362,7 +2398,7 @@ object OpticSpec extends ZIOSpecDefault {
             equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
         ) &&
-        assert((Case5.as === Case5.as).eval(Case5(Set(), emptyArray)))(
+        assert((Case5.as === Case5.as).evalDynamic(Case5(Set(), emptyArray)))(
           isLeft(
             equalTo(
               OpticCheck(
