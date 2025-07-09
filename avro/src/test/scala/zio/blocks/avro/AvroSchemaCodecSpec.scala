@@ -1,0 +1,149 @@
+package zio.blocks.avro
+
+import zio.blocks.schema.Schema
+import zio.test.Assertion._
+import zio.test._
+import java.time._
+import java.util.{Currency, UUID}
+
+object AvroSchemaCodecSpec extends ZIOSpecDefault {
+  def spec: Spec[TestEnvironment, Any] = suite("AvroSchemaCodecSpec")(
+    suite("primitives")(
+      test("Unit") {
+        roundTrip[Unit]("\"null\"")
+      },
+      test("Boolean") {
+        roundTrip[Boolean]("\"boolean\"")
+      },
+      test("Byte") {
+        roundTrip[Byte]("{\"type\":\"int\",\"zio.blocks.avro.primitiveType\":\"Byte\"}")
+      },
+      test("Short") {
+        roundTrip[Short]("{\"type\":\"int\",\"zio.blocks.avro.primitiveType\":\"Short\"}")
+      },
+      test("Int") {
+        roundTrip[Int]("\"int\"")
+      },
+      test("Long") {
+        roundTrip[Long]("\"long\"")
+      },
+      test("Float") {
+        roundTrip[Float]("\"float\"")
+      },
+      test("Double") {
+        roundTrip[Double]("\"double\"")
+      },
+      test("Char") {
+        roundTrip[Char]("{\"type\":\"int\",\"zio.blocks.avro.primitiveType\":\"Char\"}")
+      },
+      test("String") {
+        roundTrip[String]("\"string\"")
+      },
+      test("BigInt") {
+        roundTrip[BigInt]("{\"type\":\"bytes\",\"zio.blocks.avro.primitiveType\":\"BigInt\"}")
+      },
+      test("BigDecimal") {
+        roundTrip[BigDecimal](
+          "{\"type\":\"record\",\"name\":\"BigDecimal\",\"fields\":[{\"name\":\"mantissa\",\"type\":\"bytes\"},{\"name\":\"scale\",\"type\":\"int\"},{\"name\":\"precision\",\"type\":\"int\"},{\"name\":\"roundingMode\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"BigDecimal\"}"
+        )
+      },
+      test("DayOfWeek") {
+        roundTrip[DayOfWeek]("{\"type\":\"int\",\"zio.blocks.avro.primitiveType\":\"DayOfWeek\"}")
+      },
+      test("Duration") {
+        roundTrip[Duration](
+          "{\"type\":\"record\",\"name\":\"Duration\",\"fields\":[{\"name\":\"seconds\",\"type\":\"long\"},{\"name\":\"nanos\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Duration\"}"
+        )
+      },
+      test("Instant") {
+        roundTrip[Instant](
+          "{\"type\":\"record\",\"name\":\"Instant\",\"fields\":[{\"name\":\"epochSecond\",\"type\":\"long\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Instant\"}"
+        )
+      },
+      test("LocalDate") {
+        roundTrip[LocalDate](
+          "{\"type\":\"record\",\"name\":\"LocalDate\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalDate\"}"
+        )
+      },
+      test("LocalDateTime") {
+        roundTrip[LocalDateTime](
+          "{\"type\":\"record\",\"name\":\"LocalDateTime\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalDateTime\"}"
+        )
+      },
+      test("LocalTime") {
+        roundTrip[LocalTime](
+          "{\"type\":\"record\",\"name\":\"LocalTime\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalTime\"}"
+        )
+      },
+      test("Month") {
+        roundTrip[Month]("{\"type\":\"int\",\"zio.blocks.avro.primitiveType\":\"Month\"}")
+      },
+      test("MonthDay") {
+        roundTrip[MonthDay](
+          "{\"type\":\"record\",\"name\":\"MonthDay\",\"fields\":[{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"MonthDay\"}"
+        )
+      },
+      test("OffsetDateTime") {
+        roundTrip[OffsetDateTime](
+          "{\"type\":\"record\",\"name\":\"OffsetDateTime\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"OffsetDateTime\"}"
+        )
+      },
+      test("OffsetTime") {
+        roundTrip[OffsetTime](
+          "{\"type\":\"record\",\"name\":\"OffsetTime\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"OffsetTime\"}"
+        )
+      },
+      test("Period") {
+        roundTrip[Period](
+          "{\"type\":\"record\",\"name\":\"Period\",\"fields\":[{\"name\":\"years\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"days\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Period\"}"
+        )
+      },
+      test("Year") {
+        roundTrip[Year]("{\"type\":\"int\",\"zio.blocks.avro.primitiveType\":\"Year\"}")
+      },
+      test("YearMonth") {
+        roundTrip[YearMonth](
+          "{\"type\":\"record\",\"name\":\"YearMonth\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"YearMonth\"}"
+        )
+      },
+      test("ZoneId") {
+        roundTrip[ZoneId]("{\"type\":\"string\",\"zio.blocks.avro.primitiveType\":\"ZoneId\"}")
+      },
+      test("ZoneOffset") {
+        roundTrip[ZoneOffset]("{\"type\":\"int\",\"zio.blocks.avro.primitiveType\":\"ZoneOffset\"}")
+      },
+      test("ZonedDateTime") {
+        roundTrip[ZonedDateTime](
+          "{\"type\":\"record\",\"name\":\"ZonedDateTime\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"},{\"name\":\"zoneId\",\"type\":\"string\"}],\"zio.blocks.avro.primitiveType\":\"ZonedDateTime\"}"
+        )
+      },
+      test("Currency") {
+        roundTrip[Currency](
+          "{\"type\":\"fixed\",\"name\":\"Currency\",\"size\":3,\"zio.blocks.avro.primitiveType\":\"Currency\"}"
+        )
+      },
+      test("UUID") {
+        roundTrip[UUID]("{\"type\":\"fixed\",\"name\":\"UUID\",\"size\":16,\"zio.blocks.avro.primitiveType\":\"UUID\"}")
+      }
+    ),
+    suite("primitives")(
+      test("simple record") {
+        roundTrip[Record](
+          "{\"type\":\"record\",\"name\":\"Record\",\"namespace\":\"zio.blocks.avro.AvroSchemaCodecSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"int\"}]}"
+        )
+      }
+    )
+  )
+
+  def roundTrip[A: Schema](expectedAvroSchemaJson: String): TestResult = {
+    val avroSchemaJson = AvroSchemaCodec.encode(Schema[A])
+    assert(avroSchemaJson)(equalTo(expectedAvroSchemaJson)) &&
+    assert(AvroSchemaCodec.decode(avroSchemaJson))(isRight(equalTo(Schema[A])))
+  }
+
+  case class Record(name: String, value: Int)
+
+  object Record {
+    implicit val schemaRecord: Schema[Record] = Schema.derived
+  }
+}

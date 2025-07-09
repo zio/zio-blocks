@@ -39,6 +39,7 @@ lazy val root = project
     streams.jvm,
     streams.js,
     streams.native,
+    avro,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
@@ -112,6 +113,17 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.21" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.21" % Test
+    )
+  )
+
+lazy val avro = project
+  .dependsOn(schema.jvm)
+  .settings(stdSettings("zio-blocks-avro"))
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.apache.avro" % "avro"         % "1.12.0",
+      "dev.zio"        %% "zio-test"     % "2.1.20" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.20" % Test
     )
   )
 
