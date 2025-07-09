@@ -6,6 +6,7 @@ import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
+
 import scala.collection.immutable.ArraySeq
 
 object OpticSpec extends ZIOSpecDefault {
@@ -2920,6 +2921,14 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("doesn't modify collection values for non-matching cases and returns none") {
+        assert(Collections.aasasi_asi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
+        assert(Collections.aiasasi_asi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
+        assert(Collections.asasi_aasi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
+        assert(Collections.asasi_aiasi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
+        assert(Collections.alli_li.modifyOption(List(List(1)), _ + 1))(isNone) &&
+        assert(Collections.ailli_li.modifyOption(List(List(1)), _ + 1))(isNone) &&
+        assert(Collections.akmill_ll.modifyOption(Map(2 -> List(2L)), _ + 1L))(isNone) &&
+        assert(Collections.aksmill_ll.modifyOption(Map(2 -> List(2L)), _ + 1L))(isNone) &&
         assert(Collections.mkv1_c1_d.modifyOption(Map(Case2(null) -> 1, Case6(null) -> 2), _ + 0.4))(isNone) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOption(Case4(Nil), _ => null))(isNone) &&
         assert(Variant2.c4_lr3.modifyOption(Case3(Case1(0.1)), _ => null))(isNone)
@@ -3122,8 +3131,13 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("folds zero values for non-matching cases") {
         assert(Collections.aasasi_asi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
+        assert(Collections.aiasasi_asi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
         assert(Collections.asasi_aasi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
+        assert(Collections.asasi_aiasi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
         assert(Collections.alli_li.fold[Int](List(List()))(0, _ + _))(equalTo(0)) &&
+        assert(Collections.ailli_li.fold[Int](List(List()))(0, _ + _))(equalTo(0)) &&
+        assert(Collections.akmill_ll.fold[Long](Map())(0L, _ + _))(equalTo(0L)) &&
+        assert(Collections.aksmill_ll.fold[Long](Map())(0L, _ + _))(equalTo(0L)) &&
         assert(Collections.lli_ali.fold[Int](List(List()))(0, _ + _))(equalTo(0)) &&
         assert(Collections.mkv1_c1_d.fold[Double](Map(Case2(null) -> 1, Case6(null) -> 2))(0.0, _ + _))(equalTo(0.0)) &&
         assert(Variant2.c3_v1_v2_c4_lr3.fold[Record3](Case4(Nil))(null, (_, x) => x))(equalTo(null)) &&
