@@ -46,7 +46,8 @@ lazy val root = project
     streams.jvm,
     streams.js,
     streams.native,
-    benchmarks
+    benchmarks,
+    avro
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -60,19 +61,18 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .nativeSettings(nativeSettings)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
-    scalacOptions ++=
-      (CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) =>
-          Seq(
-            "-opt:l:method"
-          )
-        case _ =>
-          Seq(
-            "-explain",
-            "-explain-cyclic",
-            "-Xcheck-macros"
-          )
-      }),
+    scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "-opt:l:method"
+        )
+      case _ =>
+        Seq(
+          "-explain",
+          "-explain-cyclic",
+          "-Xcheck-macros"
+        )
+    }),
     libraryDependencies ++= Seq(
       "dev.zio"  %% "zio-prelude"  % "1.0.0-RC41" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.18"     % Test,
@@ -97,23 +97,21 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
   .settings(
-    scalacOptions ++=
-      (CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) =>
-          Seq(
-            "-opt:l:method"
-          )
-        case _ =>
-          Seq(
-            "-explain",
-            "-explain-cyclic"
-          )
-      }),
+    scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "-opt:l:method"
+        )
+      case _ =>
+        Seq(
+          "-explain",
+          "-explain-cyclic"
+        )
+    }),
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.18" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.18" % Test
-    ),
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+    )
   )
 
 lazy val benchmarks = project
@@ -121,17 +119,26 @@ lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks"))
   .enablePlugins(JmhPlugin)
   .settings(
+    scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "-opt:l:method"
+        )
+      case _ =>
+        Seq(
+          "-explain",
+          "-explain-cyclic"
+        )
+    }),
     crossScalaVersions := Seq(Scala213, "3.7.1"),
     publish / skip     := true,
-    libraryDependencies ++= {
-      Seq(
-        "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
-        "dev.optics"                 %% "monocle-core"  % "3.3.0",
-        "dev.optics"                 %% "monocle-macro" % "3.3.0",
-        "dev.zio"                   %%% "zio-test"      % "2.1.18" % Test,
-        "dev.zio"                   %%% "zio-test-sbt"  % "2.1.18" % Test
-      )
-    },
+    libraryDependencies ++= Seq(
+      "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
+      "dev.optics"                 %% "monocle-core"  % "3.3.0",
+      "dev.optics"                 %% "monocle-macro" % "3.3.0",
+      "dev.zio"                    %% "zio-test"      % "2.1.18" % Test,
+      "dev.zio"                    %% "zio-test-sbt"  % "2.1.18" % Test
+    ),
     assembly / assemblyJarName := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case PathList("module-info.class") => MergeStrategy.discard
@@ -139,4 +146,26 @@ lazy val benchmarks = project
     },
     assembly / fullClasspath := (Jmh / fullClasspath).value,
     assembly / mainClass     := Some("org.openjdk.jmh.Main")
+  )
+
+lazy val avro = project
+  .dependsOn(schema.jvm)
+  .settings(stdSettings("zio-blocks-avro"))
+  .settings(
+    scalacOptions ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "-opt:l:method"
+        )
+      case _ =>
+        Seq(
+          "-explain",
+          "-explain-cyclic"
+        )
+    }),
+    libraryDependencies ++= Seq(
+      "org.apache.avro" % "avro"         % "1.12.0",
+      "dev.zio"       %%% "zio-test"     % "2.1.18" % Test,
+      "dev.zio"       %%% "zio-test-sbt" % "2.1.18" % Test
+    )
   )

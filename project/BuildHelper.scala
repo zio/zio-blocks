@@ -88,8 +88,9 @@ object BuildHelper {
       "-release",
       JdkReleaseVersion
     ),
-    versionScheme            := Some("early-semver"),
-    Test / parallelExecution := false,
+    versionScheme := Some("early-semver"),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    Test / parallelExecution := true,
     Compile / fork           := true,
     Test / fork              := true, // set fork to `true` to improve log readability
     // For compatibility with Java 9+ module system;
