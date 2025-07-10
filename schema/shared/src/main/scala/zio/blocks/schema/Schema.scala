@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
+import zio.blocks.schema.derive.Deriver
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.immutable.ArraySeq
 
@@ -15,7 +16,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
       .asInstanceOf[ConcurrentHashMap[codec.Format, format.TypeClass[A]]]
-      .computeIfAbsent(format, _ => derive(format))
+      .computeIfAbsent(format, _ => derive(format.deriver))
 
   def getDefaultValue: Option[A] = reflect.getDefaultValue
 
@@ -26,11 +27,11 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
 
-  def derive[F <: codec.Format](format: F): format.TypeClass[A] = deriving(format).derive
+  def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
 
-  def deriving[F <: codec.Format](format: F): zio.blocks.schema.derive.DerivationBuilder[format.TypeClass, A] =
+  def deriving[TC[_]](deriver: Deriver[TC]): zio.blocks.schema.derive.DerivationBuilder[TC, A] =
     zio.blocks.schema.derive
-      .DerivationBuilder[format.TypeClass, A](this, format.deriver, IndexedSeq.empty, IndexedSeq.empty)
+      .DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
 
   def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[SchemaError, A] =
     getInstance(format).decode(decodeInput)
