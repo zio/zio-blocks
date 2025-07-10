@@ -265,10 +265,10 @@ object Reflect {
     private[this] val fieldValues = fields.map(_.value).toArray
     private[this] val fieldIndexByName = new StringToIntMap(fields.length) {
       fields.foreach {
-        var i = 0
+        var idx = 0
         term =>
-          put(term.name, i)
-          i += 1
+          put(term.name, idx)
+          idx += 1
       }
     }
 
@@ -479,10 +479,10 @@ object Reflect {
   ) extends Reflect[F, A] {
     private[this] val caseIndexByName = new StringToIntMap(cases.length) {
       cases.foreach {
-        var i = 0
+        var idx = 0
         term =>
-          put(term.name, i)
-          i += 1
+          put(term.name, idx)
+          idx += 1
       }
     }
 
