@@ -14,7 +14,7 @@ private object SchemaVersionSpecific {
   private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
   private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
-      val minLen = math.min(x.length, y.length)
+      val minLen = Math.min(x.length, y.length)
       var idx    = 0
       while (idx < minLen) {
         val cmp = x(idx).compareTo(y(idx))
@@ -76,7 +76,7 @@ private object SchemaVersionSpecific {
         parentTypeArg: TypeRepr,
         binding: Map[String, TypeRepr]
       ): Map[String, TypeRepr] =
-        if (fromNudeChildTypeArg.typeSymbol.isTypeParam) { // TODO: check for paramRef instead ?
+        if (fromNudeChildTypeArg.typeSymbol.isTypeParam) {
           val paramName = fromNudeChildTypeArg.typeSymbol.name
           binding.get(paramName) match {
             case Some(oldBinding) =>
@@ -84,9 +84,8 @@ private object SchemaVersionSpecific {
               else fail(s"Failed unification of type parameters of '${tpe.show}'.")
             case _ => binding.updated(paramName, parentTypeArg)
           }
-        } else if (fromNudeChildTypeArg <:< parentTypeArg) {
-          binding // TODO: assure parentTag is covariant, get covariance from type parameters
-        } else {
+        } else if (fromNudeChildTypeArg <:< parentTypeArg) binding
+        else {
           (fromNudeChildTypeArg, parentTypeArg) match {
             case (AppliedType(ctc, cta), AppliedType(ptc, pta)) =>
               cta.zip(pta).foldLeft(resolveParentTypeArg(child, ctc, ptc, binding)) { (b, e) =>
@@ -117,15 +116,16 @@ private object SchemaVersionSpecific {
               }
               val polyRes = resPolyTp match {
                 case MethodType(_, _, resTp) => resTp
-                case other                   => other // hope we have no multiple typed param lists yet.
+                case _                       => resPolyTp
               }
               if (ctArgs.isEmpty) polyRes
-              else
+              else {
                 polyRes match {
                   case AppliedType(base, _)                       => base.appliedTo(ctArgs)
                   case AnnotatedType(AppliedType(base, _), annot) => AnnotatedType(base.appliedTo(ctArgs), annot)
                   case _                                          => polyRes.appliedTo(ctArgs)
                 }
+              }
             case other => fail(s"Primary constructor for '${tpe.show}' is not MethodType or PolyType but '$other'.")
           }
         } else if (symbol.isTerm) Ref(symbol).tpe
@@ -230,8 +230,7 @@ private object SchemaVersionSpecific {
                 val flags =
                   if (isNonRecursive(tpe)) Flags.Implicit
                   else Flags.Implicit | Flags.Lazy
-                val symbol =
-                  Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
+                val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
                 ValDef(symbol, Some(schema.asTerm.changeOwner(symbol)))
               }
             )
@@ -402,9 +401,9 @@ private object SchemaVersionSpecific {
         }
         val tpeTypeArgs   = typeArgs(tpe)
         var registersUsed = RegisterOffset.Zero
-        var i             = 0
+        var idx           = 0
         val fieldInfos = tpeParams.map(_.map { symbol =>
-          i += 1
+          idx += 1
           val name = symbol.name
           var fTpe = tpe.memberType(symbol).dealias
           if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
@@ -425,7 +424,7 @@ private object SchemaVersionSpecific {
                 .reverse
               val defaultValue =
                 if (symbol.flags.is(Flags.HasDefault)) {
-                  (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + i) match {
+                  (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + idx) match {
                     case methodSymbol :: _ =>
                       val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
                       methodSymbol.paramSymss match {
@@ -564,8 +563,7 @@ private object SchemaVersionSpecific {
       } else fail(s"Cannot derive schema for '${tpe.show}'.")
     }.asExprOf[Schema[T]]
 
-    val tpe         = TypeRepr.of[A].dealias
-    val schema      = tpe.asType match { case '[t] => deriveSchema[t] }
+    val schema      = TypeRepr.of[A].dealias.asType match { case '[t] => deriveSchema[t] }
     val schemaBlock = Block(derivedSchemas.values.toList, schema.asTerm).asExprOf[Schema[A]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
