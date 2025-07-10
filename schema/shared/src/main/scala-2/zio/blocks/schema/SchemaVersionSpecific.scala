@@ -16,7 +16,7 @@ private object SchemaVersionSpecific {
   private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
   private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
-      val minLen = math.min(x.length, y.length)
+      val minLen = Math.min(x.length, y.length)
       var idx    = 0
       while (idx < minLen) {
         val cmp = x(idx).compareTo(y(idx))
@@ -435,8 +435,7 @@ private object SchemaVersionSpecific {
       } else fail(s"Cannot derive schema for '$tpe'.")
     }
 
-    val tpe    = weakTypeOf[A].dealias
-    val schema = deriveSchema(tpe)
+    val schema = deriveSchema(weakTypeOf[A].dealias)
     val schemaBlock =
       q"""{
             import _root_.zio.blocks.schema._
@@ -444,7 +443,6 @@ private object SchemaVersionSpecific {
             import _root_.zio.blocks.schema.binding.RegisterOffset._
 
             ..${derivedSchemas.values.map(_._2)}
-
             $schema
           }"""
     // c.info(c.enclosingPosition, s"Generated schema:\n${showCode(schemaBlock)}", force = true)
