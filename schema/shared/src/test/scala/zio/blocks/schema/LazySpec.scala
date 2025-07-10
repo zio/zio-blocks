@@ -1,56 +1,112 @@
 package zio.blocks.schema
-import zio.Scope
+import zio.{Scope, ZIO}
 import zio.test.Assertion._
 import zio.test._
+import scala.collection.immutable.ArraySeq
 
 object LazySpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("LazySpec")(
-    test("has consistent as") {
-      assert(Lazy[Int](42).as[String]("42"))(equalTo(Lazy[String]("42")))
+    test("equals") {
+      assert(Lazy(42))(equalTo(Lazy(42))) &&
+      assert(Lazy(42))(not(equalTo(Lazy(43)))) &&
+      assert(Lazy(42): Any)(not(equalTo(43)))
     },
-    test("ensuring") {
-      val lazyValue: Lazy[Int] = Lazy(42)
-      // TODO test other values [Any]
-      val lazyEnsuring: Lazy[Int] = lazyValue.ensuring(Lazy(42))
-      assert(lazyEnsuring)(equalTo(Lazy(42)))
+    test("hashCode") {
+      assert(Lazy(42).hashCode)(equalTo(Lazy(42).hashCode))
     },
-    test("flatMap") {
-      val lazyValue: Lazy[Int]   = Lazy(42)
-      val lazyFlatMap: Lazy[Int] = lazyValue.flatMap(i => Lazy(i + 1))
-      assert(lazyFlatMap)(equalTo(Lazy(43)))
-    },
-    test("flatten") {
-      val lazyValue: Lazy[Lazy[Int]] = Lazy(Lazy(42))
-      val lazyFlatten: Lazy[Int]     = lazyValue.flatten
-      assert(lazyFlatten)(equalTo(Lazy(42)))
-    },
-    // TODO: test that force breaks graciously
-    test("force") {
-      val lazyValue: Lazy[Int] = Lazy(42)
-      assert(lazyValue.force)(equalTo(42))
+    test("toString") {
+      assert(Lazy(42).toString)(equalTo("Lazy(<not evaluated>)")) &&
+      assert({
+        val lazyValue = Lazy(42)
+        lazyValue.force
+        lazyValue.toString
+      })(equalTo("Lazy(42)"))
     },
     test("isEvaluated") {
-      val lazyValue: Lazy[Int] = Lazy(42)
+      val lazyValue = Lazy(42)
       assert(lazyValue.isEvaluated)(isFalse)
       val _ = lazyValue.force
       assert(lazyValue.isEvaluated)(isTrue)
     },
+    test("force (success result)") {
+      var world = List.empty[Int]
+      val lazyValue = Lazy({
+        world = world :+ 42
+        world
+      })
+      assert(world)(equalTo(List.empty[Int])) &&
+      assert(lazyValue.force)(equalTo(List(42))) &&
+      assert(lazyValue.force)(equalTo(List(42)))
+    },
+    test("force (error result)") {
+      val lazyValue = Lazy[Int](sys.error("test"))
+      ZIO.attempt(lazyValue.force).flip.map { e =>
+        assertTrue(e.isInstanceOf[Throwable])
+      } &&
+      ZIO.attempt(lazyValue.force).flip.map { e =>
+        assertTrue(e.isInstanceOf[Throwable])
+      }
+    },
+    test("ensuring (success result)") {
+      var world = List.empty[Int]
+      val finalizer = Lazy({
+        world = world :+ 43
+        world
+      })
+      val lazyValue = Lazy({
+        world = world :+ 42
+        world
+      }).ensuring(finalizer)
+      assert(lazyValue.force)(equalTo(List(42))) &&
+      assert(finalizer.force)(equalTo(List(42, 43, 43))) // FIXME: dublicated evaluation of the finalizer
+    },
+    test("ensuring (error result)") {
+      var world = List.empty[Int]
+      val finalizer = Lazy({
+        world = world :+ 43
+        world
+      })
+      ZIO.attempt(Lazy[Int](sys.error("test")).ensuring(finalizer).force).flip.map { e =>
+        assertTrue(e.isInstanceOf[Throwable]) &&
+        assert(finalizer.force)(equalTo(List(43, 43))) // FIXME: dublicated evaluation of the finalizer
+      }
+    },
+    test("catchAll (success result)") {
+      assert(Lazy(42).catchAll(_ => Lazy(43)))(equalTo(Lazy(42)))
+    },
+    test("catchAll (error result)") {
+      assert(Lazy(sys.error("test")).catchAll(_ => Lazy(43)))(equalTo(Lazy(43)))
+    },
+    test("flatMap") {
+      assert(Lazy(42).flatMap(i => Lazy(i + 1)))(equalTo(Lazy(43)))
+    },
+    test("flatten") {
+      assert(Lazy(Lazy(42)).flatten)(equalTo(Lazy(42)))
+    },
     test("map") {
-      val lazyValue: Lazy[Int]  = Lazy(42)
-      val lazyMap: Lazy[String] = lazyValue.map(_.toString)
-      assert(lazyMap)(equalTo(Lazy("42")))
+      assert(Lazy(42).map(_.toString))(equalTo(Lazy("42")))
     },
-    test("equals") {
-      assert(Lazy(42))(equalTo(Lazy(42)))
-    },
-    test("hashCode") {
-      assert(Lazy(42).hashCode())(equalTo(Lazy(42).hashCode()))
+    test("as") {
+      assert(Lazy(42).as("42"))(equalTo(Lazy("42"))) &&
+      assert(Lazy(42).as(()))(equalTo(Lazy(())))
     },
     test("zip") {
-      val lazyValue1: Lazy[Int]     = Lazy(42)
-      val lazyValue2: Lazy[Int]     = Lazy(43)
-      val lazyZip: Lazy[(Int, Int)] = lazyValue1.zip(lazyValue2)
-      assert(lazyZip)(equalTo(Lazy((42, 43))))
+      assert(Lazy(42).zip(Lazy(43)))(equalTo(Lazy((42, 43))))
+    },
+    test("unit") {
+      assert(Lazy(42).unit)(equalTo(Lazy(())))
+    },
+    test("collectAll") {
+      assert(Lazy.collectAll(List(Lazy(42), Lazy(43))))(equalTo(Lazy(List(42, 43)))) &&
+      assert(Lazy.collectAll(Vector(Lazy(42), Lazy(43))))(equalTo(Lazy(Vector(42, 43)))) &&
+      assert(Lazy.collectAll(ArraySeq(Lazy(42), Lazy(43))))(equalTo(Lazy(ArraySeq(42, 43)))) &&
+      assert(Lazy.collectAll(Set(Lazy(42), Lazy(43))))(equalTo(Lazy(Set(42, 43))))
+    },
+    test("foreach") {
+      assert(Lazy.foreach(List(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(List("42", "43")))) &&
+      assert(Lazy.foreach(Vector(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(Vector("42", "43")))) &&
+      assert(Lazy.foreach(ArraySeq(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(ArraySeq("42", "43")))) &&
+      assert(Lazy.foreach(Set(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(Set("42", "43"))))
     }
   )
 }
