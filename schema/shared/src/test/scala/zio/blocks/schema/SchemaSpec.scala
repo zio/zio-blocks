@@ -424,6 +424,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record6.r.getOption(Record6(r = Some(Record6()))))(isSome(equalTo(Record6()))) &&
         assert(Record6.r.replaceOption(Record6(r = Some(Record6())), null))(isSome(equalTo(Record6(r = Some(null))))) &&
         assert(Record6.rn.getOption(Record6(r = Some(Record6()))))(isNone) &&
+        assert(Record6.rn.getOption(Record6(r = None)))(isSome(equalTo(None))) &&
         assert(Record6.schema.fromDynamicValue(Record6.schema.toDynamicValue(Record6())))(
           isRight(equalTo(Record6()))
         ) &&
