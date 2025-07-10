@@ -327,8 +327,6 @@ object Binding {
   }
 
   object Seq {
-    def apply[C[_], A](implicit s: Seq[C, A]): Seq[C, A] = s
-
     def set[A]: Seq[Set, A] = new Seq(SeqConstructor.setConstructor, SeqDeconstructor.setDeconstructor)
 
     def list[A]: Seq[List, A] = new Seq(SeqConstructor.listConstructor, SeqDeconstructor.listDeconstructor)
