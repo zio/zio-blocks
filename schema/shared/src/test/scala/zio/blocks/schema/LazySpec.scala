@@ -36,6 +36,7 @@ object LazySpec extends ZIOSpecDefault {
       })
       assert(world)(equalTo(List.empty[Int])) &&
       assert(lazyValue.force)(equalTo(List(42))) &&
+      assert(world)(equalTo(List(42))) &&
       assert(lazyValue.force)(equalTo(List(42)))
     },
     test("force (error result)") {
@@ -58,7 +59,9 @@ object LazySpec extends ZIOSpecDefault {
         world
       }).ensuring(finalizer)
       assert(lazyValue.force)(equalTo(List(42))) &&
-      assert(finalizer.force)(equalTo(List(42, 43, 43))) // FIXME: dublicated evaluation of the finalizer
+      assert(world)(equalTo(List(42, 43))) &&
+      assert(finalizer.isEvaluated)(isTrue) &&
+      assert(finalizer.force)(equalTo(List(42, 43)))
     },
     test("ensuring (error result)") {
       var world = List.empty[Int]
@@ -68,7 +71,9 @@ object LazySpec extends ZIOSpecDefault {
       })
       ZIO.attempt(Lazy[Int](sys.error("test")).ensuring(finalizer).force).flip.map { e =>
         assertTrue(e.isInstanceOf[Throwable]) &&
-        assert(finalizer.force)(equalTo(List(43, 43))) // FIXME: dublicated evaluation of the finalizer
+        assert(world)(equalTo(List(43))) &&
+        assert(finalizer.isEvaluated)(isTrue) &&
+        assert(finalizer.force)(equalTo(List(43)))
       }
     },
     test("catchAll (success result)") {
