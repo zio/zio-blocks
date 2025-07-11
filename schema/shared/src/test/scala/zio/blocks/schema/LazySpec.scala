@@ -9,7 +9,7 @@ object LazySpec extends ZIOSpecDefault {
     test("equals") {
       assert(Lazy(42))(equalTo(Lazy(42))) &&
       assert(Lazy(42))(not(equalTo(Lazy(43)))) &&
-      assert(Lazy(42): Any)(not(equalTo(43)))
+      assert(Lazy(42): Any)(not(equalTo(42)))
     },
     test("hashCode") {
       assert(Lazy(42).hashCode)(equalTo(Lazy(42).hashCode))
@@ -58,6 +58,7 @@ object LazySpec extends ZIOSpecDefault {
         world = world :+ 42
         world
       }).ensuring(finalizer)
+      assert(world)(equalTo(List.empty[Int])) &&
       assert(lazyValue.force)(equalTo(List(42))) &&
       assert(world)(equalTo(List(42, 43))) &&
       assert(finalizer.isEvaluated)(isTrue) &&
@@ -82,8 +83,18 @@ object LazySpec extends ZIOSpecDefault {
     test("catchAll (error result)") {
       assert(Lazy(sys.error("test")).catchAll(_ => Lazy(43)))(equalTo(Lazy(43)))
     },
-    test("flatMap") {
+    test("flatMap (success result)") {
       assert(Lazy(42).flatMap(i => Lazy(i + 1)))(equalTo(Lazy(43)))
+    },
+    test("flatMap (error result)") {
+      ZIO.attempt(Lazy(42).flatMap(_ => Lazy(sys.error("test")).as("42")).force).flip.map { e =>
+        assertTrue(e.isInstanceOf[Throwable])
+      }
+    },
+    test("fail") {
+      ZIO.attempt(Lazy.fail(new RuntimeException()).force).flip.map { e =>
+        assertTrue(e.isInstanceOf[Throwable])
+      }
     },
     test("flatten") {
       assert(Lazy(Lazy(42)).flatten)(equalTo(Lazy(42)))
