@@ -4,21 +4,36 @@ import scala.collection.immutable.ArraySeq
 import scala.reflect.ClassTag
 
 sealed trait Lazy[+A] {
-  import Lazy.{Cont, Defer, FlatMap}
+  import Lazy._
 
   private[this] var value: Any       = null.asInstanceOf[Any]
   private[this] var error: Throwable = null
 
-  final def as[B](b: => B): Lazy[B] = map(_ => b)
+  @inline final def as[B](b: => B): Lazy[B] = map(_ => b)
 
-  final def catchAll[A1 >: A](f: Throwable => Lazy[A1]): Lazy[A1] = new FlatMap[A, A1](this, new Cont(Lazy(_), f))
+  final def catchAll[B >: A](f: Throwable => Lazy[B]): Lazy[B] =
+    new FlatMap[A, B](this, new Cont(a => new Defer(() => a), f))
 
   final def ensuring(finalizer: Lazy[Any]): Lazy[A] =
-    new FlatMap[A, A](this, new Cont(a => finalizer.map(_ => a), e => finalizer.map(_ => throw e)))
+    new FlatMap[A, A](
+      this,
+      new Cont(
+        a =>
+          new Defer({ () =>
+            finalizer.force: Unit
+            a
+          }),
+        e =>
+          new Defer({ () =>
+            finalizer.force: Unit
+            throw e
+          })
+      )
+    )
 
-  final def flatMap[B](f: A => Lazy[B]): Lazy[B] = new FlatMap(this, new Cont(f, Lazy.fail))
+  final def flatMap[B](f: A => Lazy[B]): Lazy[B] = new FlatMap(this, new Cont(f, e => new Defer(() => throw e)))
 
-  final def flatten[B](implicit ev: A <:< Lazy[B]): Lazy[B] = flatMap(a => a)
+  @inline final def flatten[B](implicit ev: A <:< Lazy[B]): Lazy[B] = flatMap(a => a)
 
   final def force: A = {
     @annotation.tailrec
@@ -52,7 +67,11 @@ sealed trait Lazy[+A] {
 
   final def isEvaluated: Boolean = value != null || (error ne null)
 
-  final def map[B](f: A => B): Lazy[B] = flatMap(a => Lazy(f(a)))
+  final def map[B](f: A => B): Lazy[B] = flatMap(a => new Defer(() => f(a)))
+
+  @inline final def unit: Lazy[Unit] = map(_ => ())
+
+  final def zip[B](that: Lazy[B]): Lazy[(A, B)] = flatMap(a => that.map(b => (a, b)))
 
   override final def equals(that: Any): Boolean = that match {
     case other: Lazy[A] @unchecked => other.force == force
@@ -64,10 +83,6 @@ sealed trait Lazy[+A] {
   override final def toString: String =
     if (isEvaluated) s"Lazy($value)"
     else "Lazy(<not evaluated>)"
-
-  final def unit: Lazy[Unit] = as(())
-
-  final def zip[B](that: Lazy[B]): Lazy[(A, B)] = flatMap(a => that.map(b => (a, b)))
 }
 
 object Lazy {
@@ -77,7 +92,7 @@ object Lazy {
 
   private case class FlatMap[A, +B](first: Lazy[A], cont: Cont[A, B]) extends Lazy[B]
 
-  def apply[A](expression: => A): Lazy[A] = new Defer(() => expression)
+  @inline def apply[A](expression: => A): Lazy[A] = new Defer(() => expression)
 
   def collectAll[A](values: List[Lazy[A]]): Lazy[List[A]] =
     values
@@ -105,7 +120,7 @@ object Lazy {
       lazyValue.flatMap(value => lazyResult.map(values => values + value))
     )
 
-  def fail(throwable: Throwable): Lazy[Nothing] = new Defer(() => throw throwable)
+  @inline def fail(throwable: Throwable): Lazy[Nothing] = new Defer(() => throw throwable)
 
   def foreach[A, B](values: List[A])(f: A => Lazy[B]): Lazy[List[B]] = collectAll(values.map(f))
 
