@@ -292,7 +292,7 @@ object Lens {
         val binding = bindings(idx)
         val offset  = binding.offset
         binding.deconstructor.deconstruct(registers, offset, x)
-        x = binding.register.get(registers, offset)
+        x = Register.get(registers, offset, binding.register)
         idx += 1
       }
       x.asInstanceOf[A]
@@ -308,7 +308,7 @@ object Lens {
         val binding = bindings(idx)
         val offset  = binding.offset
         binding.deconstructor.deconstruct(registers, offset, x)
-        if (idx < len) x = binding.register.get(registers, offset)
+        if (idx < len) x = Register.get(registers, offset, binding.register)
         idx += 1
       }
       x = a
@@ -316,7 +316,7 @@ object Lens {
         idx -= 1
         val binding = bindings(idx)
         val offset  = binding.offset
-        binding.register.set(registers, offset, x)
+        Register.set(registers, offset, binding.register, x)
         x = binding.constructor.construct(registers, offset)
       }
       x.asInstanceOf[S]
@@ -332,7 +332,7 @@ object Lens {
         val binding = bindings(idx)
         val offset  = binding.offset
         binding.deconstructor.deconstruct(registers, offset, x)
-        x = binding.register.get(registers, offset)
+        x = Register.get(registers, offset, binding.register)
         idx += 1
       }
       x = f(x.asInstanceOf[A])
@@ -340,7 +340,7 @@ object Lens {
         idx -= 1
         val binding = bindings(idx)
         val offset  = binding.offset
-        binding.register.set(registers, offset, x)
+        Register.set(registers, offset, binding.register, x)
         x = binding.constructor.construct(registers, offset)
       }
       x.asInstanceOf[S]
@@ -691,7 +691,7 @@ object Optional {
           case lensBinding: LensBinding =>
             val offset = lensBinding.offset
             lensBinding.deconstructor.deconstruct(registers, offset, x)
-            x = lensBinding.register.get(registers, offset)
+            x = Register.get(registers, offset, lensBinding.register)
           case prismBinding: PrismBinding =>
             val lastX = x
             x = prismBinding.matcher.downcastOrNull(x)
@@ -768,7 +768,7 @@ object Optional {
           case lensBinding: LensBinding =>
             val offset = lensBinding.offset
             lensBinding.deconstructor.deconstruct(registers, offset, x)
-            x = lensBinding.register.get(registers, offset)
+            x = Register.get(registers, offset, lensBinding.register)
           case prismBinding: PrismBinding =>
             x = prismBinding.matcher.downcastOrNull(x)
             if (x == null) return None
@@ -865,10 +865,10 @@ object Optional {
         case lensBinding: LensBinding =>
           val offset = lensBinding.offset
           lensBinding.deconstructor.deconstruct(registers, offset, x)
-          var x1 = lensBinding.register.get(registers, offset)
+          var x1 = Register.get(registers, offset, lensBinding.register)
           if (idx + 1 == bindings.length) x1 = f(x1.asInstanceOf[A])
           else x1 = modifyRecursive(registers, idx + 1, x1, f)
-          lensBinding.register.set(registers, offset, x1)
+          Register.set(registers, offset, lensBinding.register, x1)
           lensBinding.constructor.construct(registers, offset)
         case prismBinding: PrismBinding =>
           val x1 = prismBinding.matcher.downcastOrNull(x)
@@ -1335,7 +1335,7 @@ object Traversal {
         case lensBinding: LensBinding =>
           val offset = lensBinding.offset
           lensBinding.deconstructor.deconstruct(registers, offset, x)
-          val x1 = lensBinding.register.get(registers, offset)
+          val x1 = Register.get(registers, offset, lensBinding.register)
           if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
         case prismBinding: PrismBinding =>
           val x1 = prismBinding.matcher.downcastOrNull(x)
@@ -1452,7 +1452,7 @@ object Traversal {
         case lensBinding: LensBinding =>
           val offset = lensBinding.offset
           lensBinding.deconstructor.deconstruct(registers, offset, x)
-          val x1 = lensBinding.register.get(registers, offset)
+          val x1 = Register.get(registers, offset, lensBinding.register)
           if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
           else foldRecursive(registers, idx + 1, x1, zero, f)
         case prismBinding: PrismBinding =>
@@ -1992,10 +1992,10 @@ object Traversal {
         case lensBinding: LensBinding =>
           val offset = lensBinding.offset
           lensBinding.deconstructor.deconstruct(registers, offset, x)
-          var x1 = lensBinding.register.get(registers, offset)
+          var x1 = Register.get(registers, offset, lensBinding.register)
           if (idx + 1 == bindings.length) x1 = f(x1.asInstanceOf[A])
           else x1 = modifyRecursive(registers, idx + 1, x1, f)
-          lensBinding.register.set(registers, offset, x1)
+          Register.set(registers, offset, lensBinding.register, x1)
           lensBinding.constructor.construct(registers, offset)
         case prismBinding: PrismBinding =>
           val x1 = prismBinding.matcher.downcastOrNull(x)

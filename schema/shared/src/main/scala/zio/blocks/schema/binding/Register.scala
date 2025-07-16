@@ -5,11 +5,11 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 sealed trait Register[A] {
   final type Boxed = A
 
-  def get(registers: Registers, base: RegisterOffset): Boxed
+  protected def get(registers: Registers, base: RegisterOffset): Boxed
 
-  def set(registers: Registers, base: RegisterOffset, boxed: Boxed): Unit
+  protected def set(registers: Registers, base: RegisterOffset, boxed: Boxed): Unit
 
-  def usedRegisters: RegisterOffset
+  protected def usedRegisters: RegisterOffset
 }
 
 object Register {
@@ -102,4 +102,46 @@ object Register {
 
     def usedRegisters: RegisterOffset = RegisterOffset.incrementObjects(RegisterOffset.Zero)
   }
+
+  def get[A](registers: Registers, offset: RegisterOffset, register: Register[A]): A =
+    register match {
+      case reg: Object[_] => reg.get(registers, offset).asInstanceOf[A]
+      case reg: Int       => reg.get(registers, offset)
+      case reg: Long      => reg.get(registers, offset)
+      case reg: Boolean   => reg.get(registers, offset)
+      case reg: Double    => reg.get(registers, offset)
+      case reg: Float     => reg.get(registers, offset)
+      case reg: Byte      => reg.get(registers, offset)
+      case reg: Short     => reg.get(registers, offset)
+      case reg: Char      => reg.get(registers, offset)
+      case Unit           => Unit.get(registers, offset)
+    }
+
+  def set[A](registers: Registers, offset: RegisterOffset, register: Register[A], value: A): Unit =
+    register match {
+      case reg: Object[_] => reg.set(registers, offset, value.asInstanceOf[reg.Boxed])
+      case reg: Int       => reg.set(registers, offset, value)
+      case reg: Long      => reg.set(registers, offset, value)
+      case reg: Boolean   => reg.set(registers, offset, value)
+      case reg: Double    => reg.set(registers, offset, value)
+      case reg: Float     => reg.set(registers, offset, value)
+      case reg: Byte      => reg.set(registers, offset, value)
+      case reg: Short     => reg.set(registers, offset, value)
+      case reg: Char      => reg.set(registers, offset, value)
+      case Unit           => Unit.set(registers, offset, value)
+    }
+
+  def usedRegisters(register: Register[_]): RegisterOffset =
+    register match {
+      case reg: Object[_] => reg.usedRegisters
+      case reg: Int       => reg.usedRegisters
+      case reg: Long      => reg.usedRegisters
+      case reg: Boolean   => reg.usedRegisters
+      case reg: Double    => reg.usedRegisters
+      case reg: Float     => reg.usedRegisters
+      case reg: Byte      => reg.usedRegisters
+      case reg: Short     => reg.usedRegisters
+      case reg: Char      => reg.usedRegisters
+      case Unit           => Unit.usedRegisters
+    }
 }

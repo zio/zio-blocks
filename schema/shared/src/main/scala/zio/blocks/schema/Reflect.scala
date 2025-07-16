@@ -327,7 +327,7 @@ object Reflect {
                 fieldValues(idx) = null
                 fieldValue.fromDynamicValue(kv._2, new DynamicOptic.Node.Field(name) :: trace) match {
                   case Right(value) =>
-                    this.registers(idx).set(registers, RegisterOffset.Zero, value)
+                    Register.set(registers, RegisterOffset.Zero, this.registers(idx), value)
                   case Left(error) =>
                     addError(error)
                 }
@@ -383,7 +383,7 @@ object Reflect {
           field.name,
           field.value
             .asInstanceOf[Reflect[F, field.Focus]]
-            .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+            .toDynamicValue(Register.get(registers, RegisterOffset.Zero, register).asInstanceOf[field.Focus])
         )
         idx += 1
       }
@@ -463,7 +463,7 @@ object Reflect {
       var usedRegisters = RegisterOffset.Zero
       var idx           = 0
       while (idx < registers.length) {
-        usedRegisters = RegisterOffset.add(registers(idx).usedRegisters, usedRegisters)
+        usedRegisters = RegisterOffset.add(Register.usedRegisters(registers(idx)), usedRegisters)
         idx += 1
       }
       usedRegisters

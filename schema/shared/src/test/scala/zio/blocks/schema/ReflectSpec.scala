@@ -216,20 +216,20 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(record1.fields(0).value.asPrimitive.map(_.primitiveType): Option[Any])(
           isSome(equalTo(PrimitiveType.Byte(Validation.None)))
         ) &&
-        assert(record1.registers(0).usedRegisters)(equalTo(RegisterOffset(bytes = 1))) &&
+        assert(Register.usedRegisters(record1.registers(0)))(equalTo(RegisterOffset(bytes = 1))) &&
         assert(record1.fields(1).value.asPrimitive.map(_.primitiveType): Option[Any])(
           isSome(equalTo(PrimitiveType.Short(Validation.None)))
         ) &&
-        assert(record1.registers(1).usedRegisters)(equalTo(RegisterOffset(shorts = 1))) &&
+        assert(Register.usedRegisters(record1.registers(1)))(equalTo(RegisterOffset(shorts = 1))) &&
         assert(record1.fields(2).value.asPrimitive.map(_.primitiveType): Option[Any])(
           isSome(equalTo(PrimitiveType.Int(Validation.None)))
         ) &&
-        assert(record1.registers(2).usedRegisters)(equalTo(RegisterOffset(ints = 1))) &&
+        assert(Register.usedRegisters(record1.registers(2)))(equalTo(RegisterOffset(ints = 1))) &&
         assert(record1.fields(3).value.asPrimitive.map(_.primitiveType): Option[Any])(
           isSome(equalTo(PrimitiveType.Long(Validation.None)))
         ) &&
-        assert(record1.registers(3).usedRegisters)(equalTo(RegisterOffset(longs = 1))) &&
-        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters)))
+        assert(Register.usedRegisters(record1.registers(3)))(equalTo(RegisterOffset(longs = 1))) &&
+        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + Register.usedRegisters(_))))
       },
       test("has consistent fromDynamicValue and toDynamicValue") {
         assert(tuple4Reflect.fromDynamicValue(tuple4Reflect.toDynamicValue((1: Byte, 2: Short, 3, 4L))))(
