@@ -67,6 +67,8 @@ object TypeName {
 
   val none: TypeName[None.type] = new TypeName(Namespace.scala, "None")
 
+  val dynamicValue: TypeName[DynamicValue] = new TypeName(Namespace.zioSchema, "DynamicValue")
+
   def some[A]: TypeName[Some[A]] = _some.asInstanceOf[TypeName[Some[A]]]
 
   def option[A]: TypeName[Option[A]] = _option.asInstanceOf[TypeName[Option[A]]]
