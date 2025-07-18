@@ -2,6 +2,7 @@ package zio.blocks.schema.derive
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
+import zio.blocks.schema.derive.InstanceOverride._
 import scala.collection.immutable.{Map => ScalaMap}
 
 /**
@@ -27,12 +28,12 @@ final case class DerivationBuilder[TC[_], A](
   modifierOverrides: IndexedSeq[ModifierOverride]
 ) {
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] = {
-    val override_ = InstanceOverride(InstanceOverride.By.Optic(optic.toDynamic), Lazy(instance))
+    val override_ = InstanceOverride(By.Optic(optic.toDynamic), Lazy(instance))
     copy(instanceOverrides = instanceOverrides :+ override_)
   }
 
   def instance[B](typeName: TypeName[B], instance: => TC[B]): DerivationBuilder[TC, A] = {
-    val override_ = InstanceOverride(InstanceOverride.By.Type(typeName), Lazy(instance))
+    val override_ = InstanceOverride(By.Type(typeName), Lazy(instance))
     copy(instanceOverrides = instanceOverrides :+ override_)
   }
 
@@ -43,13 +44,9 @@ final case class DerivationBuilder[TC[_], A](
 
   lazy val derive: TC[A] = {
     val instanceByOpticMap =
-      instanceOverrides.collect { case InstanceOverride(InstanceOverride.By.Optic(optic), instance) =>
-        optic -> instance
-      }.toMap
+      instanceOverrides.collect { case InstanceOverride(By.Optic(optic), instance) => optic -> instance }.toMap
     val instanceByTypeMap =
-      instanceOverrides.collect { case InstanceOverride(InstanceOverride.By.Type(name), instance) =>
-        name -> instance
-      }.toMap
+      instanceOverrides.collect { case InstanceOverride(By.Type(name), instance) => name -> instance }.toMap
     val modifierMap = modifierOverrides.foldLeft[ScalaMap[DynamicOptic, Vector[Modifier]]](ScalaMap.empty) {
       case (acc, override_) =>
         acc + (override_.optic -> acc.getOrElse(override_.optic, Vector.empty).appended(override_.modifier))
