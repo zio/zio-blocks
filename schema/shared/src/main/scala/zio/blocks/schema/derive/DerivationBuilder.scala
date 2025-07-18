@@ -2,6 +2,7 @@ package zio.blocks.schema.derive
 
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
+import zio.blocks.schema.derive.InstanceOverride._
 import scala.collection.immutable.{Map => ScalaMap}
 
 /**
@@ -27,7 +28,12 @@ final case class DerivationBuilder[TC[_], A](
   modifierOverrides: IndexedSeq[ModifierOverride]
 ) {
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] = {
-    val override_ = InstanceOverride(optic.toDynamic, Lazy(instance))
+    val override_ = InstanceOverride(By.Optic(optic.toDynamic), Lazy(instance))
+    copy(instanceOverrides = instanceOverrides :+ override_)
+  }
+
+  def instance[B](typeName: TypeName[B], instance: => TC[B]): DerivationBuilder[TC, A] = {
+    val override_ = InstanceOverride(By.Type(typeName), Lazy(instance))
     copy(instanceOverrides = instanceOverrides :+ override_)
   }
 
@@ -37,7 +43,10 @@ final case class DerivationBuilder[TC[_], A](
   }
 
   lazy val derive: TC[A] = {
-    val instanceMap = instanceOverrides.map(override_ => override_.optic -> override_.instance).toMap
+    val instanceByOpticMap =
+      instanceOverrides.collect { case InstanceOverride(By.Optic(optic), instance) => optic -> instance }.toMap
+    val instanceByTypeMap =
+      instanceOverrides.collect { case InstanceOverride(By.Type(name), instance) => name -> instance }.toMap
     val modifierMap = modifierOverrides.foldLeft[ScalaMap[DynamicOptic, Vector[Modifier]]](ScalaMap.empty) {
       case (acc, override_) =>
         acc + (override_.optic -> acc.getOrElse(override_.optic, Vector.empty).appended(override_.modifier))
@@ -55,8 +64,13 @@ final case class DerivationBuilder[TC[_], A](
       }).asInstanceOf[Vector[reflect.ModifierType]]
     }
 
-    def getCustomInstance[A](path: DynamicOptic): Option[Lazy[TC[A]]] =
-      instanceMap.get(path).map(_.asInstanceOf[Lazy[TC[A]]])
+    def getCustomInstance[A](path: DynamicOptic, typeName: TypeName[A]): Option[Lazy[TC[A]]] =
+      // first try to find an instance by optic (more precise)
+      instanceByOpticMap
+        .get(path)
+        // then try to find an instance by type name (more general)
+        .orElse(instanceByTypeMap.get(typeName.asInstanceOf[TypeName[Any]]))
+        .map(_.asInstanceOf[Lazy[TC[A]]])
 
     type F[T, A] = Binding[T, A]
     type G[T, A] = BindingInstance[TC, T, A]
@@ -73,7 +87,7 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Record]
           ): Lazy[Reflect.Record[G, A]] = {
-            val instance = getCustomInstance[A](path).getOrElse(
+            val instance = getCustomInstance[A](path, typeName).getOrElse(
               deriver
                 .deriveRecord(fields, typeName, metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Record, path))
             )
@@ -88,7 +102,7 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Variant]
           ): Lazy[Reflect.Variant[G, A]] = {
-            val instance = getCustomInstance[A](path).getOrElse(
+            val instance = getCustomInstance[A](path, typeName).getOrElse(
               deriver
                 .deriveVariant(cases, typeName, metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Variant, path))
             )
@@ -103,7 +117,7 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Seq]
           ): Lazy[Reflect.Sequence[G, A, C]] = {
-            val instance = getCustomInstance[C[A]](path).getOrElse(
+            val instance = getCustomInstance[C[A]](path, typeName).getOrElse(
               deriver.deriveSequence(
                 element,
                 typeName,
@@ -124,7 +138,7 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Map]
           ): Lazy[Reflect.Map[G, Key, Value, M]] = {
-            val instance = getCustomInstance[M[Key, Value]](path).getOrElse(
+            val instance = getCustomInstance[M[Key, Value]](path, typeName).getOrElse(
               deriver
                 .deriveMap(key, value, typeName, metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Map(), path))
             )
@@ -137,7 +151,7 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Dynamic]
           ): Lazy[Reflect.Dynamic[G]] = {
-            val instance = getCustomInstance[DynamicValue](path)
+            val instance = getCustomInstance[DynamicValue](path, TypeName.dynamicValue)
               .getOrElse(
                 deriver.deriveDynamic[G](metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Dynamic, path))
               )
@@ -152,7 +166,7 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Primitive]
           ): Lazy[Reflect.Primitive[G, A]] = {
-            val instance = getCustomInstance[A](path).getOrElse(
+            val instance = getCustomInstance[A](path, typeName).getOrElse(
               deriver.derivePrimitive(
                 primitiveType,
                 typeName,
