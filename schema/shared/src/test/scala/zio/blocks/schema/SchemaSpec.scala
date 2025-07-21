@@ -1554,6 +1554,19 @@ object SchemaSpec extends ZIOSpecDefault {
 
               override def decode(input: CharBuffer): Either[SchemaError, DynamicValue] = ???
             })
+
+          override def deriveWrapper[F[_, _], A, B](
+            wrapped: Reflect[F, B],
+            typeName: TypeName[A],
+            binding: Binding[BindingType.Wrapper[A, B], A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Wrapper]
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
+            Lazy(new TextCodec[A] {
+              override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
+
+              override def decode(input: CharBuffer): Either[SchemaError, A] = ???
+            })
         }
       )
 }

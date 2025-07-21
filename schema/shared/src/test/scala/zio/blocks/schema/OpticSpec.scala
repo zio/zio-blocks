@@ -131,7 +131,7 @@ object OpticSpec extends ZIOSpecDefault {
           assert(_)(
             isLeft(
               startsWithString(
-                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, or .eachValue, got: '"
+                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '"
               ) &&
                 endsWithString(".equals(null)'")
             )
@@ -1140,6 +1140,8 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("toDynamic") {
+        assert(Wrapper.r1.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped)))) &&
+        assert(Wrapper.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped, Field("b"))))) &&
         assert(Case5.aas.toDynamic)(equalTo(DynamicOptic(Vector(Field("as"), AtIndex(1))))) &&
         assert(Case6.akmil.toDynamic)(equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(1))))) &&
         assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case1"), Field("d"))))) &&
@@ -1147,6 +1149,10 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1")))))
       },
       test("checks prerequisites for creation") {
+        ZIO
+          .attempt(Optional.wrapped(null: Reflect.Wrapper.Bound[Box1, Long]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Optional.at(null: Reflect.Sequence.Bound[Int, Array], 1))
           .flip
@@ -1174,11 +1180,11 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO
           .attempt(Optional(Variant1.c2_r3_v1_c1, null: Lens[Case1, Int]))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Optional(Variant1.c2_r3_v1_c1, null: Optional[Case1, Int]))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Optional(null: Optional[Variant1, Variant1], Variant1.c1_d))
           .flip
@@ -1266,7 +1272,11 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case5.aas)(equalTo(Case5.aas)) &&
         assert(Case5.aas.hashCode)(equalTo(Case5.aas.hashCode)) &&
         assert(Case6.akmil)(equalTo(Case6.akmil)) &&
-        assert(Case6.akmil.hashCode)(equalTo(Case6.akmil.hashCode))
+        assert(Case6.akmil.hashCode)(equalTo(Case6.akmil.hashCode)) &&
+        assert(Wrapper.r1)(equalTo(Wrapper.r1)) &&
+        assert(Wrapper.r1.hashCode)(equalTo(Wrapper.r1.hashCode)) &&
+        assert(Wrapper.r1_b)(equalTo(Wrapper.r1_b)) &&
+        assert(Wrapper.r1_b.hashCode)(equalTo(Wrapper.r1_b.hashCode))
       },
       test("has associative equals and hashCode") {
         assert(Variant1.c2_r3_r2_r1_b_left)(equalTo(Variant1.c2_r3_r2_r1_b_right)) &&
@@ -1292,7 +1302,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1.source)(equalTo(Case3.reflect)) &&
         assert(Variant2.c3_v1_v2_c4.source)(equalTo(Variant2.reflect)) &&
         assert(Case5.aas.source)(equalTo(Case5.reflect)) &&
-        assert(Case6.akmil.source)(equalTo(Case6.reflect))
+        assert(Case6.akmil.source)(equalTo(Case6.reflect)) &&
+        assert(Wrapper.r1.source)(equalTo(Wrapper.reflect)) &&
+        assert(Wrapper.r1_b.source)(equalTo(Wrapper.reflect))
       },
       test("returns a focus structure") {
         assert(Variant1.c1_d.focus)(equalTo(Reflect.double[Binding])) &&
@@ -1310,7 +1322,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1.focus)(equalTo(Case1.reflect)) &&
         assert(Variant2.c3_v1_v2_c4.focus)(equalTo(Case4.reflect)) &&
         assert(Case5.aas.focus)(equalTo(Reflect.string[Binding])) &&
-        assert(Case6.akmil.focus)(equalTo(Reflect.long[Binding]))
+        assert(Case6.akmil.focus)(equalTo(Reflect.long[Binding])) &&
+        assert(Wrapper.r1.focus)(equalTo(Record1.reflect)) &&
+        assert(Wrapper.r1_b.focus)(equalTo(Reflect.boolean[Binding]))
       },
       test("passes check if a focus value exists") {
         assert(Variant1.c2_r3_r1.check(Case2(Record3(Record1(true, 0.1f), null, null))))(isNone) &&
@@ -1335,7 +1349,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.aad.check(Array(1.0, 2.0, 3.0)))(isNone) &&
         assert(Collections.aaf.check(Array(1.0f, 2.0f, 3.0f)))(isNone) &&
         assert(Collections.aac.check(Array('a', 'b', 'c')))(isNone) &&
-        assert(Collections.aas.check(Array("a", "b", "c")))(isNone)
+        assert(Collections.aas.check(Array("a", "b", "c")))(isNone) &&
+        assert(Wrapper.r1.check(Wrapper.applyUnsafe(Record1(true, 1))))(isNone) &&
+        assert(Wrapper.r1_b.check(Wrapper.applyUnsafe(Record1(true, 1))))(isNone)
       },
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c2_r3_r1.check(Case3(Case1(0.1))))(
@@ -1499,7 +1515,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.aad.getOption(Array(1.0, 2.0, 3.0)))(isSome(equalTo(2.0))) &&
         assert(Collections.aaf.getOption(Array(1.0f, 2.0f, 3.0f)))(isSome(equalTo(2.0f))) &&
         assert(Collections.aac.getOption(Array('a', 'b', 'c')))(isSome(equalTo('b'))) &&
-        assert(Collections.aas.getOption(Array("a", "b", "c")))(isSome(equalTo("b")))
+        assert(Collections.aas.getOption(Array("a", "b", "c")))(isSome(equalTo("b"))) &&
+        assert(Wrapper.r1.getOption(Wrapper.applyUnsafe(Record1(true, 1))))(isSome(equalTo(Record1(true, 1)))) &&
+        assert(Wrapper.r1_b.getOption(Wrapper.applyUnsafe(Record1(true, 1))))(isSome(equalTo(true)))
       },
       test("doesn't get a focus value if it's not possible") {
         assert(Variant1.c2_r3_r1.getOption(Case3(Case1(0.1))))(isNone) &&
@@ -1531,7 +1549,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1_d_right.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(0.1))) &&
         assert(Case3.v1_c1.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
         assert(Case5.aas.getOrFail(Case5(Set(), Array("a", "b", "c"))))(isRight(equalTo("b"))) &&
-        assert(Case6.akmil.getOrFail(Case6(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isRight(equalTo(1L)))
+        assert(Case6.akmil.getOrFail(Case6(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isRight(equalTo(1L))) &&
+        assert(Wrapper.r1.getOrFail(Wrapper.applyUnsafe(Record1(true, 1))))(isRight(equalTo(Record1(true, 1)))) &&
+        assert(Wrapper.r1_b.getOrFail(Wrapper.applyUnsafe(Record1(true, 1))))(isRight(equalTo(true)))
       },
       test("doesn't get a focus value if it's not possible and returns an error") {
         assert(Variant1.c2_r3_r1.getOrFail(Case3(Case1(0.1))))(
@@ -1765,7 +1785,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.replace(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Case3(Case1(0.2)))) &&
         assert(Case3.v1_c1_d_left.replace(Case3(Case1(0.1)), 0.2))(equalTo(Case3(Case1(0.2)))) &&
         assert(Case3.v1_c1_d_right.replace(Case3(Case1(0.1)), 0.2))(equalTo(Case3(Case1(0.2)))) &&
-        assert(Case3.v1_c1.replace(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Case3(Case1(0.2))))
+        assert(Case3.v1_c1.replace(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Case3(Case1(0.2)))) &&
+        assert(Wrapper.r1.replace(Wrapper.applyUnsafe(Record1(true, 1)), Record1(false, -2)))(
+          equalTo(Wrapper.applyUnsafe(Record1(false, -2)))
+        ) &&
+        assert(Wrapper.r1_b.replace(Wrapper.applyUnsafe(Record1(true, 0)), false))(
+          equalTo(Wrapper.applyUnsafe(Record1(false, 0)))
+        )
       },
       test("doesn't replace a focus value if it's not possible") {
         assert(Variant1.c2_r3_r1.replace(Case3(Case1(0.1)), Record1(false, 0.2f)))(equalTo(Case3(Case1(0.1)))) &&
@@ -1779,7 +1805,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_c1_d_right.replace(Case4(Nil), 0.2))(equalTo(Case4(Nil))) &&
         assert(Variant2.c3_v1.replace(Case4(Nil), Case1(0.2)))(equalTo(Case4(Nil))) &&
         assert(Case3.v1_c1_d_left.replace(Case3(Case4(Nil)), 0.2))(equalTo(Case3(Case4(Nil)))) &&
-        assert(Case3.v1_c1_d_right.replace(Case3(Case4(Nil)), 0.2))(equalTo(Case3(Case4(Nil))))
+        assert(Case3.v1_c1_d_right.replace(Case3(Case4(Nil)), 0.2))(equalTo(Case3(Case4(Nil)))) &&
+        assert(Wrapper.r1.replace(Wrapper.applyUnsafe(Record1(true, 1)), Record1(false, 2)))(
+          equalTo(Wrapper.applyUnsafe(Record1(true, 1)))
+        ) &&
+        assert(Wrapper.r1_b.replace(Wrapper.applyUnsafe(Record1(true, 1)), false))(
+          equalTo(Wrapper.applyUnsafe(Record1(true, 1)))
+        )
       },
       test("optionally replaces a focus value") {
         assert(Variant1.c2_r3_r1.replaceOption(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
@@ -1804,7 +1836,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.replaceOption(Case3(Case1(0.1)), Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_left.replaceOption(Case3(Case1(0.1)), 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.replaceOption(Case3(Case1(0.1)), 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.replaceOption(Case3(Case1(0.1)), Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2)))))
+        assert(Case3.v1_c1.replaceOption(Case3(Case1(0.1)), Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
+        assert(Wrapper.r1.replaceOption(Wrapper.applyUnsafe(Record1(true, 1)), Record1(false, -2)))(
+          isSome(equalTo(Wrapper.applyUnsafe(Record1(false, -2))))
+        ) &&
+        assert(Wrapper.r1_b.replaceOption(Wrapper.applyUnsafe(Record1(true, 0)), false))(
+          isSome(equalTo(Wrapper.applyUnsafe(Record1(false, 0))))
+        )
       },
       test("optionally doesn't replace a focus value if it's not possible") {
         assert(Variant1.c2_r3_r1.replaceOption(Case3(Case1(0.1)), Record1(false, 0.2f)))(isNone) &&
@@ -1816,7 +1854,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_c1_d_right.replaceOption(Case4(Nil), 0.2))(isNone) &&
         assert(Variant2.c3_v1.replaceOption(Case4(Nil), Case1(0.2)))(isNone) &&
         assert(Case3.v1_c1_d_left.replaceOption(Case3(Case4(Nil)), 0.2))(isNone) &&
-        assert(Case3.v1_c1_d_right.replaceOption(Case3(Case4(Nil)), 0.2))(isNone)
+        assert(Case3.v1_c1_d_right.replaceOption(Case3(Case4(Nil)), 0.2))(isNone) &&
+        assert(Wrapper.r1.replaceOption(Wrapper.applyUnsafe(Record1(true, 1)), Record1(false, 2)))(isNone) &&
+        assert(Wrapper.r1_b.replaceOption(Wrapper.applyUnsafe(Record1(true, 1)), false))(isNone)
       },
       test("optionally replaces a focus value wrapped by right") {
         assert(Variant1.c2_r3_r1.replaceOrFail(Case2(Record3(Record1(true, 0.1f), null, null)), Record1(false, 0.2f)))(
@@ -1841,7 +1881,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_left.replaceOrFail(Case3(Case1(0.1)), 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.replaceOrFail(Case3(Case1(0.1)), 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2)))))
+        assert(Case3.v1_c1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Wrapper.r1.replaceOrFail(Wrapper.applyUnsafe(Record1(true, 1)), Record1(false, -2)))(
+          isRight(equalTo(Wrapper.applyUnsafe(Record1(false, -2))))
+        ) &&
+        assert(Wrapper.r1_b.replaceOrFail(Wrapper.applyUnsafe(Record1(true, 0)), false))(
+          isRight(equalTo(Wrapper.applyUnsafe(Record1(false, 0))))
+        )
       },
       test("optionally doesn't replace a focus value if it's not possible and returns an error") {
         assert(Variant1.c2_r3_r1.replaceOrFail(Case3(Case1(0.1)), Record1(false, 0.2f)))(
@@ -2023,6 +2069,22 @@ object OpticSpec extends ZIOSpecDefault {
               )
             )
           )
+        ) &&
+        assert(Wrapper.r1.replaceOrFail(Wrapper.applyUnsafe(Record1(true, 1)), Record1(false, 2)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  WrappingError(
+                    full = DynamicOptic(Vector(Wrapped)),
+                    prefix = DynamicOptic(Vector(Wrapped)),
+                    error = "Unexpected 'Wrapper' value"
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
         )
       },
       test("modifies a focus value") {
@@ -2070,6 +2132,12 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.akmc1_d.modify(Map('A' -> Case1(1.0), 'B' -> Case1(2.0), 'C' -> Case1(2.0)), _ + 1.0))(
           equalTo(Map('A' -> Case1(2.0), 'B' -> Case1(2.0), 'C' -> Case1(2.0)))
+        ) &&
+        assert(Wrapper.r1.modify(Wrapper.applyUnsafe(Record1(true, 1)), _ => Record1(false, -2)))(
+          equalTo(Wrapper.applyUnsafe(Record1(false, -2)))
+        ) &&
+        assert(Wrapper.r1_b.modify(Wrapper.applyUnsafe(Record1(true, 0)), x => !x))(
+          equalTo(Wrapper.applyUnsafe(Record1(false, 0)))
         )
       },
       test("doesn't modify a focus value if it's not possible") {
@@ -2085,7 +2153,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.modify(Case4(Nil), _ => Case1(0.2)))(equalTo(Case4(Nil))) &&
         assert(Case3.v1_c1_d_left.modify(Case3(Case4(Nil)), _ => 0.2))(equalTo(Case3(Case4(Nil)))) &&
         assert(Case3.v1_c1_d_right.modify(Case3(Case4(Nil)), _ => 0.2))(equalTo(Case3(Case4(Nil)))) &&
-        assert(Collections.akms.modify(Map('B' -> "b", 'C' -> "c"), _ + "x"))(equalTo(Map('B' -> "b", 'C' -> "c")))
+        assert(Collections.akms.modify(Map('B' -> "b", 'C' -> "c"), _ + "x"))(equalTo(Map('B' -> "b", 'C' -> "c"))) &&
+        assert(Wrapper.r1.modify(Wrapper.applyUnsafe(Record1(true, 1)), _ => Record1(false, 2)))(
+          equalTo(Wrapper.applyUnsafe(Record1(true, 1)))
+        ) &&
+        assert(Wrapper.r1_b.modify(Wrapper.applyUnsafe(Record1(true, 1)), x => !x))(
+          equalTo(Wrapper.applyUnsafe(Record1(true, 1)))
+        )
       },
       test("modifies a focus value wrapped to some") {
         assert(
@@ -2114,7 +2188,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_left.modifyOption(Case3(Case1(0.1)), _ => 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.modifyOption(Case3(Case1(0.1)), _ => 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2)))))
+        assert(Case3.v1_c1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
+        assert(Wrapper.r1.modifyOption(Wrapper.applyUnsafe(Record1(true, 1)), _ => Record1(false, -1)))(
+          isSome(equalTo(Wrapper.applyUnsafe(Record1(false, -1))))
+        ) &&
+        assert(Wrapper.r1_b.modifyOption(Wrapper.applyUnsafe(Record1(true, 0)), x => !x))(
+          isSome(equalTo(Wrapper.applyUnsafe(Record1(false, 0))))
+        )
       },
       test("doesn't modify a focus value returning none") {
         assert(Variant1.c2_r3_r1.modifyOption(Case3(Case1(0.1)), _ => Record1(false, 0.2f)))(isNone) &&
@@ -2126,7 +2206,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_c1_d_right.modifyOption(Case4(Nil), _ => 0.2))(isNone) &&
         assert(Variant2.c3_v1.modifyOption(Case4(Nil), _ => Case1(0.2)))(isNone) &&
         assert(Case3.v1_c1_d_left.modifyOption(Case3(Case4(Nil)), _ => 0.2))(isNone) &&
-        assert(Case3.v1_c1_d_right.modifyOption(Case3(Case4(Nil)), _ => 0.2))(isNone)
+        assert(Case3.v1_c1_d_right.modifyOption(Case3(Case4(Nil)), _ => 0.2))(isNone) &&
+        assert(Wrapper.r1.modifyOption(Wrapper.applyUnsafe(Record1(true, 1)), _ => Record1(false, 2)))(isNone) &&
+        assert(Wrapper.r1_b.modifyOption(Wrapper.applyUnsafe(Record1(true, 1)), x => !x))(isNone)
       },
       test("modifies a focus value wrapped to right") {
         assert(
@@ -2155,7 +2237,13 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_left.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2)))))
+        assert(Case3.v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Wrapper.r1.modifyOrFail(Wrapper.applyUnsafe(Record1(true, 1)), _ => Record1(false, -1)))(
+          isRight(equalTo(Wrapper.applyUnsafe(Record1(false, -1))))
+        ) &&
+        assert(Wrapper.r1_b.modifyOrFail(Wrapper.applyUnsafe(Record1(true, 0)), x => !x))(
+          isRight(equalTo(Wrapper.applyUnsafe(Record1(false, 0))))
+        )
       },
       test("doesn't modify a focus value returning none") {
         assert(Variant1.c2_r3_r1.modifyOrFail(Case3(Case1(0.1)), _ => Record1(false, 0.2f)))(
@@ -2337,6 +2425,22 @@ object OpticSpec extends ZIOSpecDefault {
               )
             )
           )
+        ) &&
+        assert(Wrapper.r1.modifyOrFail(Wrapper.applyUnsafe(Record1(true, 1)), _ => Record1(false, 1)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  WrappingError(
+                    full = DynamicOptic(Vector(Wrapped)),
+                    prefix = DynamicOptic(Vector(Wrapped)),
+                    error = "Unexpected 'Wrapper' value"
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
         )
       }
     ),
@@ -2449,10 +2553,6 @@ object OpticSpec extends ZIOSpecDefault {
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
-          .attempt(Traversal.atKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]), Seq(-1)))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
           .attempt(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq(1, 1)))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
@@ -2471,7 +2571,7 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO
           .attempt(Traversal.vectorValues(null))
           .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Traversal.mapKeys(null))
           .flip
@@ -2620,7 +2720,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.akmill_ll.check(Map(1 -> List(1L, 2L, 3L))))(isNone) &&
         assert(Collections.aksmill_ll.check(Map(1 -> List(1L, 2L, 3L))))(isNone) &&
         assert(Collections.lmil_akmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone) &&
-        assert(Collections.lmil_aksmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone)
+        assert(Collections.lmil_aksmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone) &&
+        assert(Collections.lw_r1.check(List(Wrapper.applyUnsafe(Record1(true, 1)))))(isNone) &&
+        assert(Collections.lw_r1_b.check(List(Wrapper.applyUnsafe(Record1(true, 1)))))(isNone)
       },
       test("checks collection values and returns an error if they will not be modified") {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
@@ -2919,6 +3021,12 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lmil_aksmil.modify(List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)), _ + 1L))(
           equalTo(List(Map(1 -> 2L), Map(2 -> 3L), Map(3 -> 3L)))
+        ) &&
+        assert(Collections.lw_r1.modify(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, -1)))(
+          equalTo(List(Wrapper.applyUnsafe(Record1(false, -1))))
+        ) &&
+        assert(Collections.lw_r1_b.modify(List(Wrapper.applyUnsafe(Record1(true, 0))), x => !x))(
+          equalTo(List(Wrapper.applyUnsafe(Record1(false, 0))))
         )
       },
       test("doesn't modify collection values for non-matching cases") {
@@ -2926,7 +3034,13 @@ object OpticSpec extends ZIOSpecDefault {
           equalTo(Map[Variant1, Int](Case2(null) -> 1, Case6(null) -> 2))
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modify(Case4(Nil), _ => null))(equalTo(Case4(Nil))) &&
-        assert(Variant2.c4_lr3.modify(Case3(Case1(0.1)), _ => null))(equalTo(Case3(Case1(0.1))))
+        assert(Variant2.c4_lr3.modify(Case3(Case1(0.1)), _ => null))(equalTo(Case3(Case1(0.1)))) &&
+        assert(Collections.lw_r1.modify(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, 1)))(
+          equalTo(List(Wrapper.applyUnsafe(Record1(true, 1))))
+        ) &&
+        assert(Collections.lw_r1_b.modify(List(Wrapper.applyUnsafe(Record1(true, 1))), x => !x))(
+          equalTo(List(Wrapper.applyUnsafe(Record1(true, 1))))
+        )
       },
       test("modifies collection values and wraps result to some") {
         assert(Collections.mkc.modifyOption(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
@@ -2960,6 +3074,12 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOption(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
           isSome(equalTo(Case3(Case4(List(null)))))
+        ) &&
+        assert(Collections.lw_r1.modifyOption(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, -1)))(
+          isSome(equalTo(List(Wrapper.applyUnsafe(Record1(false, -1)))))
+        ) &&
+        assert(Collections.lw_r1_b.modifyOption(List(Wrapper.applyUnsafe(Record1(true, 0))), x => !x))(
+          isSome(equalTo(List(Wrapper.applyUnsafe(Record1(false, 0)))))
         )
       },
       test("doesn't modify collection values for non-matching cases and returns none") {
@@ -2973,7 +3093,11 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.aksmill_ll.modifyOption(Map(2 -> List(2L)), _ + 1L))(isNone) &&
         assert(Collections.mkv1_c1_d.modifyOption(Map(Case2(null) -> 1, Case6(null) -> 2), _ + 0.4))(isNone) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOption(Case4(Nil), _ => null))(isNone) &&
-        assert(Variant2.c4_lr3.modifyOption(Case3(Case1(0.1)), _ => null))(isNone)
+        assert(Variant2.c4_lr3.modifyOption(Case3(Case1(0.1)), _ => null))(isNone) &&
+        assert(Collections.lw_r1.modifyOption(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, 1)))(
+          isNone
+        ) &&
+        assert(Collections.lw_r1_b.modifyOption(List(Wrapper.applyUnsafe(Record1(true, 1))), x => !x))(isNone)
       },
       test("modifies collection values and wraps result to right") {
         assert(Collections.mkc.modifyOrFail(Map('a' -> "1", 'b' -> "2", 'c' -> "3"), _.toUpper))(
@@ -3007,7 +3131,14 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
           isRight(equalTo(Case3(Case4(List(null)))))
+        ) &&
+        assert(Collections.lw_r1.modifyOrFail(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, -1)))(
+          isRight(equalTo(List(Wrapper.applyUnsafe(Record1(false, -1)))))
+        ) &&
+        assert(Collections.lw_r1_b.modifyOrFail(List(Wrapper.applyUnsafe(Record1(true, 0))), x => !x))(
+          isRight(equalTo(List(Wrapper.applyUnsafe(Record1(false, 0)))))
         )
+
       },
       test("doesn't modify collection values for non-matching cases and returns an error") {
         assert(Variant2.c3_v1_v2_c4_lr3.modifyOrFail(Case3(Case4(Nil)), _ => null))(
@@ -3060,6 +3191,22 @@ object OpticSpec extends ZIOSpecDefault {
                     full = DynamicOptic(Vector(Case("Case4"), Field("lr3"), Elements)),
                     prefix = DynamicOptic(Vector(Case("Case4"))),
                     actualValue = Case3(Case1(0.1))
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Collections.lw_r1.modifyOrFail(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, 1)))(
+          isLeft(
+            equalTo(
+              OpticCheck(
+                errors = ::(
+                  WrappingError(
+                    full = DynamicOptic(Vector(Elements, Wrapped)),
+                    prefix = DynamicOptic(Vector(Elements, Wrapped)),
+                    error = "Unexpected 'Wrapper' value"
                   ),
                   Nil
                 )
@@ -3169,6 +3316,12 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lmil_aksmil.fold[Long](List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)))(0L, _ + _))(
           equalTo(3L)
+        ) &&
+        assert(Collections.lw_r1.fold[Record1](List(Wrapper.applyUnsafe(Record1(true, 1))))(null, (_, x) => x))(
+          equalTo(Record1(true, 1))
+        ) &&
+        assert(Collections.lw_r1_b.fold[Boolean](List(Wrapper.applyUnsafe(Record1(true, 1))))(false, _ && _))(
+          equalTo(false)
         )
       },
       test("folds zero values for non-matching cases") {
@@ -3397,6 +3550,30 @@ object OpticSpecTypes {
     implicit val schema: Schema[Box2] = Schema.derived
     val r1: Lens[Box2, Record1]       = optic(_.r1)
     val r1_b: Lens[Box2, Boolean]     = optic(_.r1.b)
+  }
+
+  case class Wrapper private (value: Record1) extends AnyVal
+
+  object Wrapper extends CompanionOptics[Wrapper] {
+    def apply(value: Record1): Either[String, Wrapper] =
+      if (value.b ^ value.f < 0 || value.f == 0) new Right(new Wrapper(value))
+      else new Left("Unexpected 'Wrapper' value")
+
+    def applyUnsafe(value: Record1): Wrapper =
+      if (value.b ^ value.f < 0 || value.f == 0) new Wrapper(value)
+      else throw new IllegalArgumentException("Unexpected 'Wrapper' value")
+
+    val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
+      wrapped = Schema[Record1].reflect,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("OpticSpec")), "Wrapper"),
+      wrapperBinding = new Binding.Wrapper(
+        wrap = Wrapper.apply,
+        unwrap = (x: Wrapper) => x.value
+      )
+    )
+    implicit val schema: Schema[Wrapper] = new Schema(reflect)
+    val r1: Optional[Wrapper, Record1]   = optic(_.wrapped[Record1])
+    val r1_b: Optional[Wrapper, Boolean] = optic(_.wrapped[Record1].b)
   }
 
   object Collections {
@@ -3740,5 +3917,7 @@ object OpticSpecTypes {
       Traversal.listValues(Reflect.map(Reflect.int, Reflect.long))(
         Traversal.atKeys(Reflect.map(Reflect.int, Reflect.long), Seq(1, 2))
       )
+    val lw_r1: Traversal[List[Wrapper], Record1]   = Traversal.listValues(Wrapper.reflect)(Wrapper.r1)
+    val lw_r1_b: Traversal[List[Wrapper], Boolean] = Traversal.listValues(Wrapper.reflect)(Wrapper.r1_b)
   }
 }

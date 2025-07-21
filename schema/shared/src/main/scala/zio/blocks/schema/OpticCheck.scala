@@ -56,12 +56,14 @@ object OpticCheck {
   }
 
   case class MissingKey(full: DynamicOptic, prefix: DynamicOptic, key: Any) extends Warning {
-    def message: String =
-      s"During attempted access at $full, encountered missing key at $prefix"
+    def message: String = s"During attempted access at $full, encountered missing key at $prefix"
   }
 
   case class EmptyMap(full: DynamicOptic, prefix: DynamicOptic) extends Warning {
-    def message: String =
-      s"During attempted access at $full, encountered an empty map at $prefix"
+    def message: String = s"During attempted access at $full, encountered an empty map at $prefix"
+  }
+
+  case class WrappingError(full: DynamicOptic, prefix: DynamicOptic, error: String) extends Error {
+    def message: String = s"During attempted access at $full, encountered an error at $prefix: $error"
   }
 }

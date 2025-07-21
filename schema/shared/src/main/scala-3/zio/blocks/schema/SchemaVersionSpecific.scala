@@ -229,9 +229,10 @@ private object SchemaVersionSpecific {
       lazy val schemaTpe = TypeRepr.of[Schema[T]]
       val inferredSchema = inferredSchemas.getOrElseUpdate(
         tpe,
-        Implicits.search(schemaTpe) match
+        Implicits.search(schemaTpe) match {
           case v: ImplicitSearchSuccess => v.tree.asExprOf[Schema[?]]
           case _                        => null
+        }
       )
       if (inferredSchema ne null) inferredSchema
       else {

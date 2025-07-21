@@ -4,9 +4,12 @@ trait CompanionOptics[S] {
   import scala.annotation.compileTimeOnly
   import scala.language.experimental.macros
 
-  implicit class VariantExtension[A](a: A) {
+  implicit class ValueExtension[A](a: A) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def when[B <: A]: B = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def wrapped[B]: B = ???
   }
 
   implicit class SequenceExtension[C[_], A](c: C[A]) {
@@ -122,6 +125,24 @@ private object CompanionOptics {
               optic.apply(optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
                 .getOrElse(sys.error("Expected a variant")))"""
         }
+      case q"$_[..$_]($parent).wrapped[$wrappedTree]" =>
+        val parentTpe  = parent.tpe.dealias.widen
+        val wrappedTpe = wrappedTree.tpe.dealias.widen
+        val optic      = toOptic(parent)
+        if (optic.isEmpty) {
+          q"""$schema.reflect.asWrapperUnknown.map { x =>
+                _root_.zio.blocks.schema.Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, $parentTpe, $wrappedTpe]])
+              }
+              .getOrElse(sys.error("Expected a wrapper"))
+              .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $wrappedTpe]]"""
+        } else {
+          q"""val optic = $optic
+              optic.apply(optic.focus.asWrapperUnknown.map { x =>
+                _root_.zio.blocks.schema.Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, $parentTpe, $wrappedTpe]])
+              }
+              .getOrElse(sys.error("Expected a wrapper"))
+              .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $wrappedTpe]])"""
+        }
       case q"$_[..$_]($parent).at(..$args)" if args.size == 1 && args.head.tpe.dealias.widen =:= definitions.IntTpe =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = tree.tpe.dealias.widen
@@ -211,7 +232,7 @@ private object CompanionOptics {
         q""
       case tree =>
         fail(
-          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, or .eachValue, got: '$tree'"
+          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '$tree'"
         )
     }
 

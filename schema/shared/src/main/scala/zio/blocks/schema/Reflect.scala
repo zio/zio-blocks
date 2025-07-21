@@ -34,6 +34,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def asVariant: Option[Reflect.Variant[F, A]] = None
 
+  def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = None
+
   def binding(implicit F: HasBinding[F]): Binding[NodeBinding, A]
 
   def examples(implicit F: HasBinding[F]): Seq[A]
@@ -88,6 +90,11 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 case Some(unknown) => unknown.sequence.element
                 case _             => return None
               }
+            case _: DynamicOptic.Node.Wrapped.type =>
+              current.asWrapperUnknown match {
+                case Some(unknown) => unknown.wrapper.wrapped
+                case _             => return None
+              }
             case node =>
               current.asMapUnknown match {
                 case Some(unknown) =>
@@ -118,6 +125,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def isSequence: Boolean = false
 
   def isVariant: Boolean = false
+
+  def isWrapper: Boolean = false
 
   def modifiers: Seq[ModifierType]
 
@@ -175,6 +184,17 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 loop(sequence.element, idx + 1) match {
                   case Some(element) =>
                     new Some(sequence.copy(element = element.asInstanceOf[Reflect[F, unknown.ElementType]]))
+                  case _ => None
+                }
+              case _ => None
+            }
+          case _: DynamicOptic.Node.Wrapped.type =>
+            current.asWrapperUnknown match {
+              case Some(unknown) =>
+                val wrapper = unknown.wrapper
+                loop(wrapper.wrapped, idx + 1) match {
+                  case Some(element) =>
+                    new Some(wrapper.copy(wrapped = element.asInstanceOf[Reflect[F, unknown.Wrapped]]))
                   case _ => None
                 }
               case _ => None
@@ -245,6 +265,11 @@ object Reflect {
     case object Primitive extends Type {
       type ModifierType = Modifier.Primitive
       type NodeBinding  = BindingType.Primitive
+    }
+
+    case class Wrapper[A, B]() extends Type {
+      type ModifierType = Modifier.Wrapper
+      type NodeBinding  = BindingType.Wrapper[A, B]
     }
   }
 
@@ -993,6 +1018,80 @@ object Reflect {
     type Bound[A] = Primitive[Binding, A]
   }
 
+  case class Wrapper[F[_, _], A, B](
+    wrapped: Reflect[F, B],
+    typeName: TypeName[A],
+    wrapperBinding: F[BindingType.Wrapper[A, B], A],
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Wrapper] = Nil
+  ) extends Reflect[F, A] { self =>
+    protected def inner: Any = (wrapped, typeName, doc, modifiers)
+
+    type NodeBinding  = BindingType.Wrapper[A, B]
+    type ModifierType = Modifier.Wrapper
+
+    def binding(implicit F: HasBinding[F]): Binding.Wrapper[A, B] = F.wrapper(wrapperBinding)
+
+    def doc(value: Doc): Wrapper[F, A, B] = copy(doc = value)
+
+    def getDefaultValue(implicit F: HasBinding[F]): Option[A] = F.wrapper(wrapperBinding).defaultValue.map(_())
+
+    def defaultValue(value: => A)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
+      copy(wrapperBinding = F.updateBinding(wrapperBinding, _.defaultValue(value)))
+
+    def examples(implicit F: HasBinding[F]): Seq[A] = binding.examples
+
+    def examples(value: A, values: A*)(implicit F: HasBinding[F]): Wrapper[F, A, B] =
+      copy(wrapperBinding = F.updateBinding(wrapperBinding, _.examples(value, values: _*)))
+
+    private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
+      F: HasBinding[F]
+    ): Either[SchemaError, A] =
+      (wrapped.fromDynamicValue(value) match {
+        case Right(unwrapped) =>
+          binding.wrap(unwrapped) match {
+            case Left(error) => new Left(SchemaError.invalidType(trace, s"Expected ${typeName.name}: $error"))
+            case right       => right
+          }
+        case left => left
+      }).asInstanceOf[Either[SchemaError, A]]
+
+    def metadata: F[NodeBinding, A] = wrapperBinding
+
+    def modifier(modifier: Modifier.Wrapper): Wrapper[F, A, B] = copy(modifiers = modifiers :+ modifier)
+
+    def modifiers(modifiers: Iterable[Modifier.Wrapper]): Wrapper[F, A, B] =
+      copy(modifiers = this.modifiers ++ modifiers)
+
+    def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue =
+      wrapped.toDynamicValue(binding.unwrap(value))
+
+    def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
+      for {
+        wrapped <- wrapped.transform(path, f)
+        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperBinding, doc, modifiers)
+      } yield wrapper
+
+    override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
+      def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped] = self.asInstanceOf[Reflect.Wrapper[F, Wrapping, Wrapped]]
+    })
+
+    override def isWrapper: Boolean = true
+
+    def nodeType: Reflect.Type.Wrapper[A, B] = new Reflect.Type.Wrapper
+  }
+
+  object Wrapper {
+    type Bound[A, B] = Wrapper[Binding, A, B]
+
+    trait Unknown[F[_, _]] {
+      type Wrapping
+      type Wrapped
+
+      def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped]
+    }
+  }
+
   case class Deferred[F[_, _], A](_value: () => Reflect[F, A]) extends Reflect[F, A] { self =>
     protected def inner: Any = value.inner
 
@@ -1145,6 +1244,16 @@ object Reflect {
       }
     }
 
+    override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = {
+      val v = visited.get
+      if (v.containsKey(this)) None // exit from recursion
+      else {
+        v.put(this, ())
+        try value.asWrapperUnknown
+        finally v.remove(this)
+      }
+    }
+
     override def isDynamic: Boolean = {
       val v = visited.get
       if (v.containsKey(this)) false // exit from recursion
@@ -1201,6 +1310,16 @@ object Reflect {
       else {
         v.put(this, ())
         try value.isVariant
+        finally v.remove(this)
+      }
+    }
+
+    override def isWrapper: Boolean = {
+      val v = visited.get
+      if (v.containsKey(this)) false // exit from recursion
+      else {
+        v.put(this, ())
+        try value.isWrapper
         finally v.remove(this)
       }
     }

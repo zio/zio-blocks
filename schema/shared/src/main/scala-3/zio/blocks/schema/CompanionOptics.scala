@@ -1,11 +1,16 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.binding._
+
 trait CompanionOptics[S] {
   import scala.annotation.compileTimeOnly
 
   extension [A](a: A) {
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def when[B <: A]: B = ???
+
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def wrapped[B]: B = ???
   }
 
   extension [C[_], A](c: C[A]) {
@@ -207,6 +212,66 @@ private object CompanionOptics {
                 }
             }
         })
+      case TypeApply(Apply(TypeApply(wrapperTerm, _), idents), typeTrees) if hasName(wrapperTerm, "wrapped") =>
+        val parent     = idents.head
+        val parentTpe  = parent.tpe.dealias.widen
+        val wrapperTpe = typeTrees.head.tpe.dealias
+        Some(parentTpe.asType match {
+          case '[p] =>
+            wrapperTpe.asType match {
+              case '[w] =>
+                toOptic(parent).fold {
+                  '{
+                    $schema.reflect.asWrapperUnknown
+                      .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                      .getOrElse(sys.error("Expected a wrapper"))
+                      .asInstanceOf[Optional[p, w]]
+                  }
+                } { x =>
+                  if (x.isExprOf[Lens[S, p]]) {
+                    '{
+                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      optic.apply(
+                        optic.focus.asWrapperUnknown
+                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .getOrElse(sys.error("Expected a wrapper"))
+                          .asInstanceOf[Optional[p, w]]
+                      )
+                    }
+                  } else if (x.isExprOf[Prism[S, p & S]]) {
+                    '{
+                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      optic.apply(
+                        optic.focus.asWrapperUnknown
+                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .getOrElse(sys.error("Expected a wrapper"))
+                          .asInstanceOf[Optional[p & S, w]]
+                      )
+                    }
+                  } else if (x.isExprOf[Optional[S, p]]) {
+                    '{
+                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      optic.apply(
+                        optic.focus.asWrapperUnknown
+                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .getOrElse(sys.error("Expected a wrapper"))
+                          .asInstanceOf[Optional[p, w]]
+                      )
+                    }
+                  } else {
+                    '{
+                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      optic.apply(
+                        optic.focus.asWrapperUnknown
+                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .getOrElse(sys.error("Expected a wrapper"))
+                          .asInstanceOf[Optional[p, w]]
+                      )
+                    }
+                  }
+                }
+            }
+        })
       case Apply(Apply(TypeApply(elementTerm, _), idents), List(index))
           if hasName(elementTerm, "at") && index.tpe.dealias.widen =:= TypeRepr.of[Int] =>
         val parent     = idents.head
@@ -268,7 +333,7 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(Apply(TypeApply(elementTerm, _), idents), List(key)) if hasName(elementTerm, "atKey") =>
+      case Apply(Apply(TypeApply(valueTerm, _), idents), List(key)) if hasName(valueTerm, "atKey") =>
         val parent    = idents.head
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
@@ -357,7 +422,7 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(Apply(TypeApply(elementTerm, _), idents), List(keys)) if hasName(elementTerm, "atKeys") =>
+      case Apply(Apply(TypeApply(valueTerm, _), idents), List(keys)) if hasName(valueTerm, "atKeys") =>
         val parent    = idents.head
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
@@ -497,7 +562,7 @@ private object CompanionOptics {
         None
       case term =>
         fail(
-          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, or .eachValue, got: '${term.show}'"
+          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '${term.show}'"
         )
     }
 
