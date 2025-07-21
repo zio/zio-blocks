@@ -34,6 +34,11 @@ trait CompanionOptics[S] {
     def eachValue: V = ???
   }
 
+  implicit class WrapperExtension[A](a: A) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def wrapped[B]: B = ???
+  }
+
   def $[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
 
   def optic[A](path: S => A)(implicit schema: Schema[S]): Any = macro CompanionOptics.optic[S, A]
@@ -121,6 +126,24 @@ private object CompanionOptics {
           q"""val optic = $optic
               optic.apply(optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
                 .getOrElse(sys.error("Expected a variant")))"""
+        }
+      case q"$_[..$_]($parent).wrapped[$wrappedTree]" =>
+        val parentTpe  = parent.tpe.dealias.widen
+        val wrappedTpe = wrappedTree.tpe.dealias.widen
+        val optic      = toOptic(parent)
+        if (optic.isEmpty) {
+          q"""$schema.reflect.asWrapperUnknown.map { x =>
+                _root_.zio.blocks.schema.Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, $parentTpe, $wrappedTpe]])
+              }
+              .getOrElse(sys.error("Expected a wrapper"))
+              .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $wrappedTpe]]"""
+        } else {
+          q"""val optic = $optic
+              optic.apply(optic.focus.asWrapperUnknown.map { x =>
+                _root_.zio.blocks.schema.Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, $parentTpe, $wrappedTpe]])
+              }
+              .getOrElse(sys.error("Expected a wrapper"))
+              .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $wrappedTpe]])"""
         }
       case q"$_[..$_]($parent).at(..$args)" if args.size == 1 && args.head.tpe.dealias.widen =:= definitions.IntTpe =>
         val parentTpe  = parent.tpe.dealias.widen

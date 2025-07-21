@@ -1135,6 +1135,8 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("toDynamic") {
+        assert(Box1.l.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped)))) &&
+        assert(Box2.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped, Field("b"))))) &&
         assert(Case5.aas.toDynamic)(equalTo(DynamicOptic(Vector(Field("as"), AtIndex(1))))) &&
         assert(Case6.akmil.toDynamic)(equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(1))))) &&
         assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case1"), Field("d"))))) &&
@@ -1142,6 +1144,10 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1")))))
       },
       test("checks prerequisites for creation") {
+        ZIO
+          .attempt(Optional.wrapped(null: Reflect.Wrapper.Bound[Box1, Long]))
+          .flip
+          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
           .attempt(Optional.at(null: Reflect.Sequence.Bound[Int, Array], 1))
           .flip
@@ -1261,7 +1267,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case5.aas)(equalTo(Case5.aas)) &&
         assert(Case5.aas.hashCode)(equalTo(Case5.aas.hashCode)) &&
         assert(Case6.akmil)(equalTo(Case6.akmil)) &&
-        assert(Case6.akmil.hashCode)(equalTo(Case6.akmil.hashCode))
+        assert(Case6.akmil.hashCode)(equalTo(Case6.akmil.hashCode)) &&
+        assert(Box1.l)(equalTo(Box1.l)) &&
+        assert(Box1.l.hashCode)(equalTo(Box1.l.hashCode))
       },
       test("has associative equals and hashCode") {
         assert(Variant1.c2_r3_r2_r1_b_left)(equalTo(Variant1.c2_r3_r2_r1_b_right)) &&
@@ -1305,7 +1313,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1.focus)(equalTo(Case1.reflect)) &&
         assert(Variant2.c3_v1_v2_c4.focus)(equalTo(Case4.reflect)) &&
         assert(Case5.aas.focus)(equalTo(Reflect.string[Binding])) &&
-        assert(Case6.akmil.focus)(equalTo(Reflect.long[Binding]))
+        assert(Case6.akmil.focus)(equalTo(Reflect.long[Binding])) &&
+        assert(Box1.l.focus)(equalTo(Reflect.long[Binding]))
       },
       test("passes check if a focus value exists") {
         assert(Variant1.c2_r3_r1.check(Case2(Record3(Record1(true, 0.1f), null, null))))(isNone) &&
@@ -1321,6 +1330,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1.check(Case3(Case1(0.1))))(isNone) &&
         assert(Case5.aas.check(Case5(Set(), Array("a", "b", "c"))))(isNone) &&
         assert(Case6.akmil.check(Case6(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone) &&
+        assert(Box1.l.check(Box1(3L)))(isNone) &&
         assert(Collections.alb.check(List(1: Byte, 2: Byte, 3: Byte)))(isNone) &&
         assert(Collections.aabl.check(Array(false, true, false)))(isNone) &&
         assert(Collections.aab.check(Array(1: Byte, 2: Byte, 3: Byte)))(isNone) &&
@@ -1485,6 +1495,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1.getOption(Case3(Case1(0.1))))(isSome(equalTo(Case1(0.1)))) &&
         assert(Case5.aas.getOption(Case5(Set(), Array("a", "b", "c"))))(isSome(equalTo("b"))) &&
         assert(Case6.akmil.getOption(Case6(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isSome(equalTo(1L))) &&
+        assert(Box1.l.getOption(Box1(3L)))(isSome(equalTo(3L))) &&
         assert(Collections.alb.getOption(List(1: Byte, 2: Byte, 3: Byte)))(isSome(equalTo(2: Byte))) &&
         assert(Collections.aabl.getOption(Array(false, true, false)))(isSome(equalTo(true))) &&
         assert(Collections.aab.getOption(Array(1: Byte, 2: Byte, 3: Byte)))(isSome(equalTo(2: Byte))) &&
@@ -1526,7 +1537,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1_d_right.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(0.1))) &&
         assert(Case3.v1_c1.getOrFail(Case3(Case1(0.1))))(isRight(equalTo(Case1(0.1)))) &&
         assert(Case5.aas.getOrFail(Case5(Set(), Array("a", "b", "c"))))(isRight(equalTo("b"))) &&
-        assert(Case6.akmil.getOrFail(Case6(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isRight(equalTo(1L)))
+        assert(Case6.akmil.getOrFail(Case6(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isRight(equalTo(1L))) &&
+        assert(Box1.l.getOrFail(Box1(3L)))(isRight(equalTo(3L)))
       },
       test("doesn't get a focus value if it's not possible and returns an error") {
         assert(Variant1.c2_r3_r1.getOrFail(Case3(Case1(0.1))))(
@@ -1760,7 +1772,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.replace(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Case3(Case1(0.2)))) &&
         assert(Case3.v1_c1_d_left.replace(Case3(Case1(0.1)), 0.2))(equalTo(Case3(Case1(0.2)))) &&
         assert(Case3.v1_c1_d_right.replace(Case3(Case1(0.1)), 0.2))(equalTo(Case3(Case1(0.2)))) &&
-        assert(Case3.v1_c1.replace(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Case3(Case1(0.2))))
+        assert(Case3.v1_c1.replace(Case3(Case1(0.1)), Case1(0.2)))(equalTo(Case3(Case1(0.2)))) &&
+        assert(Box1.l.replace(Box1(1L), 2L))(equalTo(Box1(2L))) &&
+        assert(Box2.r1_b.replace(Box2(Record1(false, 0.2f)), true))(equalTo(Box2(Record1(true, 0.2f))))
       },
       test("doesn't replace a focus value if it's not possible") {
         assert(Variant1.c2_r3_r1.replace(Case3(Case1(0.1)), Record1(false, 0.2f)))(equalTo(Case3(Case1(0.1)))) &&
@@ -1799,7 +1813,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.replaceOption(Case3(Case1(0.1)), Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_left.replaceOption(Case3(Case1(0.1)), 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.replaceOption(Case3(Case1(0.1)), 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.replaceOption(Case3(Case1(0.1)), Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2)))))
+        assert(Case3.v1_c1.replaceOption(Case3(Case1(0.1)), Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
+        assert(Box1.l.replaceOption(Box1(1L), 2L))(isSome(equalTo(Box1(2L))))
       },
       test("optionally doesn't replace a focus value if it's not possible") {
         assert(Variant1.c2_r3_r1.replaceOption(Case3(Case1(0.1)), Record1(false, 0.2f)))(isNone) &&
@@ -1836,7 +1851,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_left.replaceOrFail(Case3(Case1(0.1)), 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.replaceOrFail(Case3(Case1(0.1)), 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2)))))
+        assert(Case3.v1_c1.replaceOrFail(Case3(Case1(0.1)), Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2))))) &&
+        assert(Box1.l.replaceOrFail(Box1(1L), 2L))(isRight(equalTo(Box1(2L))))
       },
       test("optionally doesn't replace a focus value if it's not possible and returns an error") {
         assert(Variant1.c2_r3_r1.replaceOrFail(Case3(Case1(0.1)), Record1(false, 0.2f)))(
@@ -2080,7 +2096,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.modify(Case4(Nil), _ => Case1(0.2)))(equalTo(Case4(Nil))) &&
         assert(Case3.v1_c1_d_left.modify(Case3(Case4(Nil)), _ => 0.2))(equalTo(Case3(Case4(Nil)))) &&
         assert(Case3.v1_c1_d_right.modify(Case3(Case4(Nil)), _ => 0.2))(equalTo(Case3(Case4(Nil)))) &&
-        assert(Collections.akms.modify(Map('B' -> "b", 'C' -> "c"), _ + "x"))(equalTo(Map('B' -> "b", 'C' -> "c")))
+        assert(Collections.akms.modify(Map('B' -> "b", 'C' -> "c"), _ + "x"))(equalTo(Map('B' -> "b", 'C' -> "c"))) &&
+        assert(Box1.l.modify(Box1(2L), _ + 1L))(equalTo(Box1(3L)))
       },
       test("modifies a focus value wrapped to some") {
         assert(
@@ -2109,7 +2126,8 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_left.modifyOption(Case3(Case1(0.1)), _ => 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.modifyOption(Case3(Case1(0.1)), _ => 0.2))(isSome(equalTo(Case3(Case1(0.2))))) &&
-        assert(Case3.v1_c1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2)))))
+        assert(Case3.v1_c1.modifyOption(Case3(Case1(0.1)), _ => Case1(0.2)))(isSome(equalTo(Case3(Case1(0.2))))) &&
+        assert(Box1.l.modifyOption(Box1(2L), _ + 1L))(isSome(equalTo(Box1(3L))))
       },
       test("doesn't modify a focus value returning none") {
         assert(Variant1.c2_r3_r1.modifyOption(Case3(Case1(0.1)), _ => Record1(false, 0.2f)))(isNone) &&
@@ -2151,6 +2169,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1_d_left.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1_d_right.modifyOrFail(Case3(Case1(0.1)), _ => 0.2))(isRight(equalTo(Case3(Case1(0.2))))) &&
         assert(Case3.v1_c1.modifyOrFail(Case3(Case1(0.1)), _ => Case1(0.2)))(isRight(equalTo(Case3(Case1(0.2)))))
+        assert(Box1.l.modifyOrFail(Box1(2L), _ + 1L))(isRight(equalTo(Box1(3L))))
       },
       test("doesn't modify a focus value returning none") {
         assert(Variant1.c2_r3_r1.modifyOrFail(Case3(Case1(0.1)), _ => Record1(false, 0.2f)))(
@@ -2615,7 +2634,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.akmill_ll.check(Map(1 -> List(1L, 2L, 3L))))(isNone) &&
         assert(Collections.aksmill_ll.check(Map(1 -> List(1L, 2L, 3L))))(isNone) &&
         assert(Collections.lmil_akmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone) &&
-        assert(Collections.lmil_aksmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone)
+        assert(Collections.lmil_aksmil.check(List(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))))(isNone) &&
+        assert(Collections.lb1_l.check(List(Box1(3L))))(isNone) &&
+        assert(Collections.lb2_r1_b.check(List(Box2(Record1(false, 0.1f)))))(isNone)
       },
       test("checks collection values and returns an error if they will not be modified") {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
@@ -2914,6 +2935,10 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lmil_aksmil.modify(List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)), _ + 1L))(
           equalTo(List(Map(1 -> 2L), Map(2 -> 3L), Map(3 -> 3L)))
+        ) &&
+        assert(Collections.lb1_l.modify(List(Box1(2L)), _ + 1L))(equalTo(List(Box1(3L)))) &&
+        assert(Collections.lb2_r1_b.modify(List(Box2(Record1(false, 0.1f))), _ | true))(
+          equalTo(List(Box2(Record1(true, 0.1f))))
         )
       },
       test("doesn't modify collection values for non-matching cases") {
@@ -3164,7 +3189,9 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lmil_aksmil.fold[Long](List(Map(1 -> 1L), Map(2 -> 2L), Map(3 -> 3L)))(0L, _ + _))(
           equalTo(3L)
-        )
+        ) &&
+        assert(Collections.lb1_l.fold[Long](List(Box1(1L), Box1(2L), Box1(3L)))(0L, _ + _))(equalTo(6L)) &&
+        assert(Collections.lb2_r1_b.fold[Boolean](List(Box2(Record1(true, 0.1f))))(false, _ | _))(equalTo(true))
       },
       test("folds zero values for non-matching cases") {
         assert(Collections.aasasi_asi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
@@ -3377,6 +3404,21 @@ object OpticSpecTypes {
     val milk: Traversal[Case6, Int]          = optic(_.mil.eachKey)
     val milv: Traversal[Case6, Long]         = optic(_.mil.eachValue)
     val akmil: Optional[Case6, Long]         = optic(_.mil.atKey(1))
+  }
+
+  case class Box1(l: Long) extends AnyVal
+
+  object Box1 extends CompanionOptics[Box1] {
+    implicit val schema: Schema[Box1] = Schema.derived
+    val l: Optional[Box1, Long]       = optic(_.wrapped[Long])
+  }
+
+  case class Box2(r1: Record1) extends AnyVal
+
+  object Box2 extends CompanionOptics[Box2] {
+    implicit val schema: Schema[Box2] = Schema.derived
+    val r1: Optional[Box2, Record1]   = optic(_.wrapped[Record1])
+    val r1_b: Optional[Box2, Boolean] = optic(_.wrapped[Record1].b)
   }
 
   object Collections {
@@ -3720,5 +3762,13 @@ object OpticSpecTypes {
       Traversal.listValues(Reflect.map(Reflect.int, Reflect.long))(
         Traversal.atKeys(Reflect.map(Reflect.int, Reflect.long), Seq(1, 2))
       )
+    val lb1_l: Traversal[List[Box1], Long] =
+      Traversal.listValues(
+        Box1.schema.reflect.asWrapperUnknown.get.wrapper.asInstanceOf[Reflect.Wrapper[Binding, Box1, Long]]
+      )(Box1.l)
+    val lb2_r1_b: Traversal[List[Box2], Boolean] =
+      Traversal.listValues(
+        Box2.schema.reflect.asWrapperUnknown.get.wrapper.asInstanceOf[Reflect.Wrapper[Binding, Box2, Record1]]
+      )(Box2.r1_b)
   }
 }

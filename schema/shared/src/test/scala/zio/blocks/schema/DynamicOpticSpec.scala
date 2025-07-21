@@ -20,9 +20,9 @@ object DynamicOpticSpec extends ZIOSpecDefault {
           .apply(DynamicOptic(Vector(DynamicOptic.Node.AtIndex(0))))
           .apply(DynamicOptic(Vector(DynamicOptic.Node.AtMapKey("Z"))))
       )(equalTo(DynamicOptic.root.at(0).atKey("Z"))) &&
-      assert(DynamicOptic.root.elements.mapKeys.mapValues)(
+      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped)(
         equalTo(
-          DynamicOptic.root.apply(DynamicOptic.elements).apply(DynamicOptic.mapKeys).apply(DynamicOptic.mapValues)
+          DynamicOptic.root(DynamicOptic.elements)(DynamicOptic.mapKeys)(DynamicOptic.mapValues)(DynamicOptic.wrapped)
         )
       )
     },
@@ -52,14 +52,15 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       assert(DynamicOptic.root.atKey("Z").apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.elements.apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.mapKeys.apply(Schema[A].reflect): Option[Any])(isNone) &&
-      assert(DynamicOptic.mapValues.apply(Schema[A].reflect): Option[Any])(isNone)
+      assert(DynamicOptic.mapValues.apply(Schema[A].reflect): Option[Any])(isNone) &&
+      assert(DynamicOptic.wrapped.apply(Schema[A].reflect): Option[Any])(isNone)
     },
     test("toString returns a path") {
       assert(A.x.toDynamic.toString)(equalTo(".when[X]")) &&
       assert(A.x(X.y).toDynamic.toString)(equalTo(".when[X].y")) &&
       assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo(".when[X].y.z")) &&
       assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo(".at(0).atKey(<key>)")) &&
-      assert(DynamicOptic.root.elements.mapKeys.mapValues.toString)(equalTo(".each.eachKey.eachValue"))
+      assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo(".each.eachKey.eachValue.wrapped"))
     }
   )
 }

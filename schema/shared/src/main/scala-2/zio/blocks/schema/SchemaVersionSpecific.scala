@@ -35,6 +35,12 @@ private object SchemaVersionSpecific {
 
     def isEnumOrModuleValue(tpe: Type): Boolean = tpe.typeSymbol.isModuleClass
 
+    def isValueClass(tpe: Type): Boolean = tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isDerivedValueClass
+
+    def valueClassValueSymbol(tpe: Type): MethodSymbol = tpe.decls.head.asMethod
+
+    def valueClassValueType(tpe: Type): Type = valueClassValueSymbol(tpe).returnType.dealias
+
     def isSealedTraitOrAbstractClass(tpe: Type): Boolean = tpe.typeSymbol.isClass && {
       val classSymbol = tpe.typeSymbol.asClass
       classSymbol.isSealed && (classSymbol.isAbstract || classSymbol.isTrait)
@@ -118,6 +124,7 @@ private object SchemaVersionSpecific {
         isDynamicValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isValueClass(tpe)) isNonRecursive(valueClassValueType(tpe), tpe :: nestedTpes)
           else {
             isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
               tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m } match {
@@ -290,6 +297,20 @@ private object SchemaVersionSpecific {
                     }
                   },
                   matchers = Matchers(..$matcherCases),
+                ),
+                modifiers = _root_.scala.Seq(..${modifiers(tpe)})
+              )
+            )"""
+      } else if (isValueClass(tpe)) {
+        val wrappedTpe    = valueClassValueType(tpe)
+        val wrappedSchema = findImplicitOrDeriveSchema(wrappedTpe)
+        q"""new Schema[$tpe](
+              reflect = new Reflect.Wrapper[Binding, $tpe, $wrappedTpe](
+                wrapped = $wrappedSchema.reflect,
+                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                wrapperBinding = new Binding.Wrapper(
+                  wrap = (x: $wrappedTpe) => new _root_.scala.util.Right(new $tpe(x)),
+                  unwrap = (x: $tpe) => x.${valueClassValueSymbol(tpe)}
                 ),
                 modifiers = _root_.scala.Seq(..${modifiers(tpe)})
               )

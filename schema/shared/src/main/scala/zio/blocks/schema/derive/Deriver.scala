@@ -56,4 +56,12 @@ trait Deriver[TC[_]] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Dynamic]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[DynamicValue]]
+
+  def deriveWrapper[F[_, _], A, B](
+    wrapped: Reflect[F, B],
+    typeName: TypeName[A],
+    binding: Binding[BindingType.Wrapper[A, B], A],
+    doc: Doc,
+    modifiers: Seq[Modifier.Wrapper]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 }

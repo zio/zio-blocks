@@ -621,6 +621,9 @@ object Optional {
   def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K): Optional[M[K, V], V] =
     new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array[Any](key))
 
+  def wrapped[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Optional[A, B] =
+    new OptionalImpl(Array(wrapper), Array(wrapper.wrapped.asTerm("wrapped")), Array[Any](null))
+
   private[schema] case class OptionalImpl[S, A](
     sources: Array[Reflect.Bound[?]],
     focusTerms: Array[Term.Bound[?, ?]],
@@ -634,6 +637,8 @@ object Optional {
     type Map[_, _]
     type Elem
     type Col[_]
+    type Wrapping
+    type Wrapped
 
     private[this] def init(): Unit = {
       val len      = sources.length
@@ -655,6 +660,11 @@ object Optional {
             bindings(idx) = new PrismBinding(
               matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
+            )
+          case wrapper: Reflect.Wrapper.Bound[Wrapping, Wrapped] @scala.unchecked =>
+            bindings(idx) = new WrappedBinding(
+              wrap = wrapper.binding.wrap,
+              unwrap = wrapper.binding.unwrap
             )
           case sequence: Reflect.Sequence.Bound[Elem, Col] @scala.unchecked =>
             bindings(idx) = new AtBinding(
@@ -703,6 +713,8 @@ object Optional {
                 new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
               return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
             }
+          case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            x = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
           case atBinding: AtBinding[Col] @scala.unchecked =>
             val deconstructor = atBinding.seqDeconstructor
             val col           = x.asInstanceOf[Col[A]]
@@ -772,6 +784,8 @@ object Optional {
           case prismBinding: PrismBinding =>
             x = prismBinding.matcher.downcastOrNull(x)
             if (x == null) return None
+          case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            x = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
           case atBinding: AtBinding[Col] @scala.unchecked =>
             val deconstructor = atBinding.seqDeconstructor
             val col           = x.asInstanceOf[Col[A]]
@@ -823,10 +837,16 @@ object Optional {
       while (idx < len) {
         nodes.addOne {
           bindings(idx) match {
-            case _: LensBinding                      => new DynamicOptic.Node.Field(focusTerms(idx).name)
-            case _: PrismBinding                     => new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case at: AtBinding[Col] @scala.unchecked => new DynamicOptic.Node.AtIndex(at.index)
-            case binding                             => new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
+            case _: LensBinding =>
+              new DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding =>
+              new DynamicOptic.Node.Case(focusTerms(idx).name)
+            case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+              DynamicOptic.Node.Wrapped
+            case at: AtBinding[Col] @scala.unchecked =>
+              new DynamicOptic.Node.AtIndex(at.index)
+            case binding =>
+              new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
           }
         }
         idx += 1
@@ -875,6 +895,15 @@ object Optional {
           if (x1 == null) x
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
+        case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+          wrapperBinding.wrap({
+            if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+            else modifyRecursive(registers, idx + 1, x1, f)
+          }.asInstanceOf[Wrapped]) match {
+            case Right(right)  => right
+            case _: Left[_, _] => x
+          }
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val constructor   = atBinding.seqConstructor
@@ -1238,6 +1267,8 @@ object Traversal {
     type Map[_, _]
     type Elem
     type Col[_]
+    type Wrapping
+    type Wrapped
 
     private[this] def init(): Unit = {
       val len      = sources.length
@@ -1259,6 +1290,11 @@ object Traversal {
             bindings(idx) = new PrismBinding(
               matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
+            )
+          case wrapper: Reflect.Wrapper.Bound[Wrapping, Wrapped] @scala.unchecked =>
+            bindings(idx) = new WrappedBinding(
+              wrap = wrapper.binding.wrap,
+              unwrap = wrapper.binding.unwrap
             )
           case sequence: Reflect.Sequence.Bound[Elem, Col] @scala.unchecked =>
             if (focusTermName == "at") {
@@ -1345,6 +1381,9 @@ object Traversal {
             val focusTermName = focusTerms(idx).name
             errors.addOne(new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), x))
           } else if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
+        case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+          if (idx + 1 != bindings.length) checkRecursive(registers, idx + 1, x1, errors)
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val col           = x.asInstanceOf[Col[A]]
@@ -1459,6 +1498,10 @@ object Traversal {
           val x1 = prismBinding.matcher.downcastOrNull(x)
           if (x1 == null) zero
           else if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
+          else foldRecursive(registers, idx + 1, x1, zero, f)
+        case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+          if (idx + 1 == bindings.length) f(zero, x1.asInstanceOf[A])
           else foldRecursive(registers, idx + 1, x1, zero, f)
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
@@ -2002,6 +2045,15 @@ object Traversal {
           if (x1 == null) x
           else if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
           else modifyRecursive(registers, idx + 1, x1, f)
+        case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+          val x1 = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
+          wrapperBinding.wrap({
+            if (idx + 1 == bindings.length) f(x1.asInstanceOf[A])
+            else modifyRecursive(registers, idx + 1, x1, f)
+          }.asInstanceOf[Wrapped]) match {
+            case Right(right)  => right
+            case _: Left[_, _] => x
+          }
         case atBinding: AtBinding[Col] @scala.unchecked =>
           val deconstructor = atBinding.seqDeconstructor
           val constructor   = atBinding.seqConstructor
@@ -2635,16 +2687,26 @@ object Traversal {
       while (idx < len) {
         nodes.addOne {
           bindings(idx) match {
-            case _: LensBinding                                 => new DynamicOptic.Node.Field(focusTerms(idx).name)
-            case _: PrismBinding                                => new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case at: AtBinding[Col] @scala.unchecked            => new DynamicOptic.Node.AtIndex(at.index)
-            case atKey: AtKeyBinding[Key, Map] @scala.unchecked => new DynamicOptic.Node.AtMapKey[Key](atKey.key)
+            case _: LensBinding =>
+              new DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding =>
+              new DynamicOptic.Node.Case(focusTerms(idx).name)
+            case wrapped: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+              DynamicOptic.Node.Wrapped
+            case at: AtBinding[Col] @scala.unchecked =>
+              new DynamicOptic.Node.AtIndex(at.index)
+            case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
+              new DynamicOptic.Node.AtMapKey[Key](atKey.key)
             case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
-            case atKeys: AtKeysBinding[Key, Map] @scala.unchecked => new DynamicOptic.Node.AtMapKeys[Key](atKeys.keys)
-            case _: SeqBinding[Col] @scala.unchecked              => DynamicOptic.Node.Elements
-            case _: MapKeyBinding[Map] @scala.unchecked           => DynamicOptic.Node.MapKeys
-            case _                                                => DynamicOptic.Node.MapValues
+            case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
+              new DynamicOptic.Node.AtMapKeys[Key](atKeys.keys)
+            case _: SeqBinding[Col] @scala.unchecked =>
+              DynamicOptic.Node.Elements
+            case _: MapKeyBinding[Map] @scala.unchecked =>
+              DynamicOptic.Node.MapKeys
+            case _ =>
+              DynamicOptic.Node.MapValues
           }
         }
         idx += 1
@@ -2717,4 +2779,9 @@ private[schema] case class AtKeysBinding[K, M[_, _]](
   mapDeconstructor: MapDeconstructor[M],
   mapConstructor: MapConstructor[M],
   keys: Seq[K]
+) extends OpticBinding
+
+private[schema] case class WrappedBinding[A, B](
+  wrap: B => Either[Throwable, A],
+  unwrap: A => B
 ) extends OpticBinding
