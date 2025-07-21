@@ -25,6 +25,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def mapValues: DynamicOptic = new DynamicOptic(nodes :+ Node.MapValues)
 
+  def wrapped: DynamicOptic = new DynamicOptic(nodes :+ Node.Wrapped)
+
   override lazy val toString: String = {
     val sb  = new StringBuilder
     val len = nodes.length
@@ -40,6 +42,7 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
         case Node.Elements       => sb.append(".each")
         case Node.MapKeys        => sb.append(".eachKey")
         case Node.MapValues      => sb.append(".eachValue")
+        case Node.Wrapped        => sb.append(".wrapped")
       }
       idx += 1
     }
@@ -56,6 +59,8 @@ object DynamicOptic {
   val mapKeys: DynamicOptic = new DynamicOptic(Vector(Node.MapKeys))
 
   val mapValues: DynamicOptic = new DynamicOptic(Vector(Node.MapValues))
+
+  val wrapped: DynamicOptic = new DynamicOptic(Vector(Node.Wrapped))
 
   sealed trait Node
 
@@ -77,5 +82,7 @@ object DynamicOptic {
     case object MapKeys extends Node
 
     case object MapValues extends Node
+
+    case object Wrapped extends Node
   }
 }

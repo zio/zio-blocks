@@ -352,6 +352,17 @@ object Binding {
     def map[K, V]: Map[Predef.Map, K, V] = new Map(MapConstructor.map, MapDeconstructor.map)
   }
 
+  final case class Wrapper[A, B](
+    wrap: B => Either[String, A],
+    unwrap: A => B,
+    defaultValue: Option[() => A] = None,
+    examples: collection.immutable.Seq[A] = Nil
+  ) extends Binding[BindingType.Wrapper[A, B], A] {
+    def defaultValue(value: => A): Wrapper[A, B] = copy(defaultValue = new Some(() => value))
+
+    def examples(value: A, values: A*): Wrapper[A, B] = copy(examples = value :: values.toList)
+  }
+
   final case class Dynamic(
     defaultValue: Option[() => DynamicValue] = None,
     examples: collection.immutable.Seq[DynamicValue] = Nil
