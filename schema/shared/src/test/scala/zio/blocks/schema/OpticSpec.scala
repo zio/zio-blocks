@@ -5,6 +5,7 @@ import zio.blocks.schema.OpticCheck._
 import zio.{Scope, ZIO}
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
+import zio.test.TestAspect.jvmOnly
 import zio.test._
 
 import scala.collection.immutable.ArraySeq
@@ -94,7 +95,7 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO.attempt(Lens(null, Case4.reflect.fields(0))).flip.map(e => assertTrue(e.isInstanceOf[Throwable]))
-      },
+      } @@ jvmOnly,
       test("optic macro requires record for creation") {
         ZIO
           .attempt({
@@ -278,7 +279,7 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Prism(null, Variant1.reflect.cases(0)))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
-      },
+      } @@ jvmOnly,
       test("optic macro requires variant for creation") {
         ZIO
           .attempt({
@@ -1177,7 +1178,7 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Optional(null: Optional[Variant1, Variant1], Variant1.c1_d))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
-      },
+      } @@ jvmOnly,
       test("check") {
         assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
           isSome(
@@ -2474,7 +2475,7 @@ object OpticSpec extends ZIOSpecDefault {
           .attempt(Traversal.mapValues(null))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
-      },
+      } @@ jvmOnly,
       test("optic macro generates traversals for sequence or map") {
         object Test1 extends CompanionOptics[Vector[String]] {
           val traversal: Traversal[Vector[String], String] = optic[String](_.each)
