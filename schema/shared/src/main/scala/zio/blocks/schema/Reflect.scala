@@ -853,7 +853,7 @@ object Reflect {
           (this.key.toDynamicValue(deconstructor.getKey(next)), this.value.toDynamicValue(deconstructor.getValue(next)))
         )
       }
-      DynamicValue.Map(builder.result())
+      new DynamicValue.Map(builder.result())
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Map[G, K, V, M]] =
@@ -863,7 +863,7 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
-    def nodeType: Reflect.Type.Map[M] = Reflect.Type.Map[M]()
+    def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
     override def asMap(implicit ev: IsMap[M[K, V]]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
       new Some(this.asInstanceOf[Reflect.Map[F, ev.Key, ev.Value, ev.Map]])

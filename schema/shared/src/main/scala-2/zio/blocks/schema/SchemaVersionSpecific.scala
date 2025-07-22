@@ -228,29 +228,29 @@ private object SchemaVersionSpecific {
         val elementSchema = findImplicitOrDeriveSchema(elementTpe)
         if (elementTpe <:< definitions.AnyRefTpe) {
           q"""new Schema[$tpe](
-              reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
-                element = $elementSchema.reflect,
-                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
-                  constructor = new SeqConstructor.ArrayConstructor {
-                    override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
-                  },
-                  deconstructor = SeqDeconstructor.arrayDeconstructor
+                reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
+                  element = $elementSchema.reflect,
+                  typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                  seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
+                    constructor = new SeqConstructor.ArrayConstructor {
+                      override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+                        new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
+                    },
+                    deconstructor = SeqDeconstructor.arrayDeconstructor
+                  )
                 )
-              )
-            )"""
+              )"""
         } else {
           q"""new Schema[$tpe](
-              reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
-                element = $elementSchema.reflect,
-                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
-                seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
-                  constructor = SeqConstructor.arrayConstructor,
-                  deconstructor = SeqDeconstructor.arrayDeconstructor
+                reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
+                  element = $elementSchema.reflect,
+                  typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                  seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
+                    constructor = SeqConstructor.arrayConstructor,
+                    deconstructor = SeqDeconstructor.arrayDeconstructor
+                  )
                 )
-              )
-            )"""
+              )"""
         }
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         val subTypes = directSubTypes(tpe)
