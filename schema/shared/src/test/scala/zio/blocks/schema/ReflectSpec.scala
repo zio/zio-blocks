@@ -156,10 +156,8 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(int1.fromDynamicValue(int1.toDynamicValue(1)))(isRight(equalTo(1)))
       },
       test("updates primitive default value") {
-        val defaultValue1 = Reflect.int[Binding].binding.defaultValue
-        val defaultValue2 = Reflect.int[Binding].defaultValue(1).binding.defaultValue.get.apply()
-        assert(defaultValue1)(isNone) &&
-        assert(defaultValue2)(equalTo(1))
+        assert(Reflect.int[Binding].getDefaultValue)(isNone) &&
+        assert(Reflect.int[Binding].defaultValue(1).getDefaultValue)(isSome(equalTo(1)))
       },
       test("gets and updates primitive documentation") {
         val long1 = Reflect.long[Binding]
@@ -173,12 +171,10 @@ object ReflectSpec extends ZIOSpecDefault {
           typeName = TypeName.long,
           doc = Doc("Long (positive)")
         )
-        val examples1 = long1.examples
-        val examples2 = Reflect.int[Binding].binding.examples(1, 2, 3).examples
-        assert(examples1)(equalTo(Seq(1L, 2L, 3L))) &&
-        assert(examples2)(equalTo(Seq(1, 2, 3)))
+        assert(long1.examples)(equalTo(Seq(1L, 2L, 3L))) &&
+        assert(Reflect.int[Binding].examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
       },
-      test("gets and appends dynamic modifiers") {
+      test("gets and appends primitive modifiers") {
         val int1 = Reflect.int[Binding]
         assert(int1.modifiers)(equalTo(Seq.empty)) &&
         assert(int1.modifier(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]).modifiers: Any)(
@@ -237,18 +233,18 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates record default value") {
-        assert(tuple4Reflect.binding.defaultValue)(isNone) &&
-        assert(tuple4Reflect.binding.defaultValue((1: Byte, 2: Short, 3, 4L)).defaultValue.get.apply())(
-          equalTo((1: Byte, 2: Short, 3, 4L))
+        assert(tuple4Reflect.getDefaultValue)(isNone) &&
+        assert(tuple4Reflect.defaultValue((1: Byte, 2: Short, 3, 4L)).getDefaultValue)(
+          isSome(equalTo((1: Byte, 2: Short, 3, 4L)))
         )
       },
       test("gets and updates record documentation") {
         assert(tuple4Reflect.doc)(equalTo(Doc.Empty)) &&
-        assert(tuple4Reflect.doc("Some[Int] (updated)").doc)(equalTo(Doc("Some[Int] (updated)")))
+        assert(tuple4Reflect.doc("Tuple4 (updated)").doc)(equalTo(Doc("Tuple4 (updated)")))
       },
       test("gets and updates record examples") {
-        assert(tuple4Reflect.binding.examples)(equalTo(Seq.empty)) &&
-        assert(tuple4Reflect.binding.examples((1: Byte, 2: Short, 3, 4L)).examples)(
+        assert(tuple4Reflect.examples)(equalTo(Seq.empty)) &&
+        assert(tuple4Reflect.examples((1: Byte, 2: Short, 3, 4L)).examples)(
           equalTo((1: Byte, 2: Short, 3, 4L) :: Nil)
         )
       },
@@ -306,16 +302,16 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(eitherReflect.fromDynamicValue(eitherReflect.toDynamicValue(Left(0))))(isRight(equalTo(Left(0))))
       },
       test("gets and updates variant default value") {
-        assert(eitherReflect.binding.defaultValue)(isNone) &&
-        assert(eitherReflect.binding.defaultValue(Left(0)).defaultValue.get.apply())(equalTo(Left(0)))
+        assert(eitherReflect.getDefaultValue)(isNone) &&
+        assert(eitherReflect.defaultValue(Left(0)).getDefaultValue)(isSome(equalTo(Left(0))))
       },
       test("gets and updates variant documentation") {
         assert(eitherReflect.doc)(equalTo(Doc.Empty)) &&
         assert(eitherReflect.doc("Option[Int] (updated)").doc)(equalTo(Doc("Option[Int] (updated)")))
       },
       test("gets and updates variant examples") {
-        assert(eitherReflect.binding.examples)(equalTo(Seq.empty)) &&
-        assert(eitherReflect.binding.examples(Left(1)).examples)(equalTo(Seq(Left(1))))
+        assert(eitherReflect.examples)(equalTo(Seq.empty)) &&
+        assert(eitherReflect.examples(Left(1)).examples)(equalTo(Seq(Left(1))))
       },
       test("gets and appends variant modifiers") {
         assert(eitherReflect.modifiers)(equalTo(Seq.empty)) &&
@@ -405,9 +401,9 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates sequence default value") {
-        assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue)(isNone) &&
-        assert(Reflect.vector(Reflect.int[Binding]).binding.defaultValue(Vector.empty).defaultValue.get.apply())(
-          equalTo(Vector.empty)
+        assert(Reflect.vector(Reflect.int[Binding]).getDefaultValue)(isNone) &&
+        assert(Reflect.vector(Reflect.int[Binding]).defaultValue(Vector.empty).getDefaultValue)(
+          isSome(equalTo(Vector.empty))
         )
       },
       test("gets and updates sequence documentation") {
@@ -425,8 +421,8 @@ object ReflectSpec extends ZIOSpecDefault {
             examples = Seq(List(0.1, 0.2, 0.3))
           )
         )
-        assert(sequence1.binding.examples)(equalTo(Seq(List(0.1, 0.2, 0.3)))) &&
-        assert(Reflect.set(Reflect.int[Binding]).binding.examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
+        assert(sequence1.examples)(equalTo(Seq(List(0.1, 0.2, 0.3)))) &&
+        assert(Reflect.set(Reflect.int[Binding]).examples(Set(1, 2, 3)).examples)(equalTo(Seq(Set(1, 2, 3))))
       },
       test("gets and appends sequence modifiers") {
         val sequence1 = Reflect.set(Reflect.char[Binding])
@@ -483,16 +479,10 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates map default value") {
-        assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).binding.defaultValue)(isNone) &&
-        assert(
-          Reflect
-            .map(Reflect.int[Binding], Reflect.long[Binding])
-            .defaultValue(Map.empty)
-            .binding
-            .defaultValue
-            .get
-            .apply()
-        )(equalTo(Map.empty[Int, Long]))
+        assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).getDefaultValue)(isNone) &&
+        assert(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).defaultValue(Map.empty).getDefaultValue)(
+          isSome(equalTo(Map.empty[Int, Long]))
+        )
       },
       test("gets and updates map documentation") {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
@@ -565,14 +555,10 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates dynamic default value") {
         val dynamic1 = Reflect.dynamic[Binding]
-        assert(dynamic1.binding.defaultValue)(isNone) &&
-        assert(
-          dynamic1.binding
-            .defaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0)))
-            .defaultValue
-            .get
-            .apply()
-        )(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        assert(dynamic1.getDefaultValue)(isNone) &&
+        assert(dynamic1.defaultValue(DynamicValue.Primitive(PrimitiveValue.Int(0))).getDefaultValue)(
+          isSome(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0))))
+        )
       },
       test("gets and updates dynamic documentation") {
         val dynamic1 = Reflect.dynamic[Binding]
@@ -583,8 +569,8 @@ object ReflectSpec extends ZIOSpecDefault {
         val dynamic1 = Reflect.Dynamic[Binding](
           dynamicBinding = Binding.Dynamic(examples = DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)
         )
-        assert(dynamic1.binding.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)) &&
-        assert(dynamic1.binding.examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
+        assert(dynamic1.examples)(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(0)) :: Nil)) &&
+        assert(dynamic1.examples(DynamicValue.Primitive(PrimitiveValue.Int(1))).examples)(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)) :: Nil)
         )
       },
@@ -630,10 +616,8 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates deferred default value") {
         val deferred1 = Reflect.Deferred[Binding, YearMonth](() => Reflect.yearMonth)
-        assert(deferred1.binding.defaultValue)(isNone) &&
-        assert(deferred1.binding.defaultValue(YearMonth.of(2025, 6)).defaultValue.get.apply())(
-          equalTo(YearMonth.of(2025, 6))
-        )
+        assert(deferred1.getDefaultValue)(isNone) &&
+        assert(deferred1.defaultValue(YearMonth.of(2025, 6)).getDefaultValue)(isSome(equalTo(YearMonth.of(2025, 6))))
       },
       test("gets and updates deferred documentation") {
         val deferred1 = Reflect.Deferred[Binding, Currency](() => Reflect.currency)
@@ -642,8 +626,8 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates deferred examples") {
         val deferred1 = Reflect.Deferred[Binding, Month](() => Reflect.month)
-        assert(deferred1.binding.examples)(equalTo(Seq())) &&
-        assert(deferred1.binding.examples(Month.APRIL, Month.MAY).examples)(equalTo(Seq(Month.APRIL, Month.MAY)))
+        assert(deferred1.examples)(equalTo(Seq())) &&
+        assert(deferred1.examples(Month.APRIL, Month.MAY).examples)(equalTo(Seq(Month.APRIL, Month.MAY)))
       },
       test("gets and updates modifiers") {
         val deferred1 = Reflect.Deferred[Binding, UUID](() => Reflect.uuid)

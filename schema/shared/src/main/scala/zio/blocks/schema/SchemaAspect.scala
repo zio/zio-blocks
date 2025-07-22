@@ -3,14 +3,12 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.Binding
 
 trait SchemaAspect[-Min, +Max, F[_, _]] {
-
   def apply[A >: Max <: Min](reflect: Reflect[F, A]): Reflect[F, A]
 
   def recursive(implicit ev1: Any <:< Min, ev2: Max <:< Nothing): SchemaAspect[Min, Max, F]
 }
 
 object SchemaAspect {
-
   val identity: SchemaAspect[Any, Nothing, Binding] = new SchemaAspect[Any, Nothing, Binding] {
     def apply[A](reflect: Reflect.Bound[A]): Reflect.Bound[A] = reflect
 
@@ -24,7 +22,6 @@ object SchemaAspect {
   }
 
   def examples[A0](value: A0, values: A0*): SchemaAspect[A0, A0, Binding] = new SchemaAspect[A0, A0, Binding] {
-
     def apply[A >: A0 <: A0](reflect: Reflect.Bound[A]): Reflect.Bound[A] =
       reflect.examples(value, values: _*)
 

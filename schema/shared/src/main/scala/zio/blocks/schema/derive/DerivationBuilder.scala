@@ -123,7 +123,7 @@ final case class DerivationBuilder[TC[_], A](
                 typeName,
                 metadata,
                 doc,
-                modifiers ++ extraModifiers(Reflect.Type.Sequence(), path)
+                modifiers ++ extraModifiers(new Reflect.Type.Sequence, path)
               )
             )
             Lazy(Reflect.Sequence(element, typeName, BindingInstance(metadata, instance), doc, modifiers))
@@ -140,7 +140,7 @@ final case class DerivationBuilder[TC[_], A](
           ): Lazy[Reflect.Map[G, Key, Value, M]] = {
             val instance = getCustomInstance[M[Key, Value]](path, typeName).getOrElse(
               deriver
-                .deriveMap(key, value, typeName, metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Map(), path))
+                .deriveMap(key, value, typeName, metadata, doc, modifiers ++ extraModifiers(new Reflect.Type.Map, path))
             )
             Lazy(Reflect.Map(key, value, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
