@@ -473,7 +473,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
           isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Currency")))
         )
-      } @@ jvmOnly // Only relevant when we have locale data, which is not available in Scala.js or Scala Native.
+      }
     )
   )
 }
