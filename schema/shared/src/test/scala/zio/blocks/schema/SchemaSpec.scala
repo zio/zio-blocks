@@ -1234,6 +1234,46 @@ object SchemaSpec extends ZIOSpecDefault {
       test("encodes values using provided formats and outputs") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         assert(encodeToString(out => Schema(deferred1).encode(ToStringFormat)(out)(1)))(equalTo("1"))
+      },
+      test("helps to avoid stack overflow for schemas of recursive data structures") {
+        case class Recursive(a: Int, b: Option[Recursive])
+
+        def recursiveSchema: Schema[Recursive] = {
+          implicit lazy val schema: Schema[Recursive] = Schema.derived[Recursive]
+          schema
+        }
+
+        val recursive   = Recursive(1, Some(Recursive(2, Some(Recursive(3, None)))))
+        val schema1     = recursiveSchema
+        val schema2     = recursiveSchema
+        val fieldValue1 = schema1.reflect.asRecord.get.fields(0).value
+        val fieldValue2 = schema1.reflect.asRecord.get.fields(1).value
+        val caseValue1  = fieldValue2.asVariant.get.cases(0).value
+        val caseValue2  = fieldValue2.asVariant.get.cases(1).value
+        val fieldValue3 = caseValue1.asRecord.get.fields(0).value
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(recursive)))(isRight(equalTo(recursive))) &&
+        assert(schema1 eq schema2)(equalTo(false)) &&
+        assert(schema1.reflect)(equalTo(schema2.reflect)) &&
+        assert(schema1.reflect.hashCode)(equalTo(schema2.reflect.hashCode)) &&
+        assert(schema1.reflect: Any)(equalTo(fieldValue3)) &&
+        assert(schema1.reflect.hashCode)(equalTo(fieldValue3.hashCode)) &&
+        assert(schema1.reflect.noBinding: Any)(equalTo(schema1.reflect)) &&
+        assert(fieldValue1.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
+        assert(fieldValue2.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(true)) &&
+        assert(caseValue1.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
+        assert(caseValue2.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
+        assert(fieldValue3.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
+        assert(fieldValue2.isVariant)(equalTo(true)) &&
+        assert(fieldValue2.isRecord)(equalTo(false)) &&
+        assert(fieldValue2.isPrimitive)(equalTo(false)) &&
+        assert(fieldValue2.isDynamic)(equalTo(false)) &&
+        assert(fieldValue2.isSequence)(equalTo(false)) &&
+        assert(fieldValue2.isMap)(equalTo(false)) &&
+        assert(fieldValue2.asRecord)(isNone) &&
+        assert(fieldValue2.asPrimitive)(isNone) &&
+        assert(fieldValue2.asDynamic)(isNone) &&
+        assert(fieldValue2.asSequenceUnknown)(isNone) &&
+        assert(fieldValue2.asMapUnknown)(isNone)
       }
     )
   )
