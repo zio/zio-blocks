@@ -508,13 +508,9 @@ object ReflectSpec extends ZIOSpecDefault {
             examples = Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil
           )
         )
-        assert(map1.binding.examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)) &&
+        assert(map1.examples)(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil)) &&
         assert(
-          Reflect
-            .map(Reflect.int[Binding], Reflect.long[Binding])
-            .binding
-            .examples(Map(1 -> 1L, 2 -> 2L, 3 -> 3L))
-            .examples
+          Reflect.map(Reflect.int[Binding], Reflect.long[Binding]).examples(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)).examples
         )(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L) :: Nil))
       },
       test("gets and appends map modifiers") {
@@ -606,7 +602,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("has consistent metadata and nodeType") {
         assert(Reflect.Deferred(() => Reflect.instant[Binding]).metadata: Any)(
-          equalTo(Reflect.instant[Binding].binding)
+          equalTo(Reflect.Deferred(() => Reflect.instant[Binding]).binding)
         ) &&
         assert(Reflect.Deferred(() => Reflect.localDate[Binding]).nodeType: Any)(equalTo(Reflect.Type.Primitive))
       },
