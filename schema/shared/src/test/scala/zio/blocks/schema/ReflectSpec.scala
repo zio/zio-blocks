@@ -12,6 +12,10 @@ object ReflectSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment with Scope, Any] = suite("ReflectSpec")(
     suite("Reflect")(
       test("has consistent asDynamic and isDynamic") {
+        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred2)
+        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred1)
+        assert(deferred1.asDynamic)(isNone) &&
+        assert(deferred1.isDynamic)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
         assert(Reflect.dynamic[Binding].isDynamic)(equalTo(true)) &&
         assert(Reflect.Deferred(() => Reflect.dynamic[Binding]).asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&
@@ -28,6 +32,12 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).isDynamic)(equalTo(false))
       },
       test("has consistent asMap, asMapUnknown and isMap") {
+        lazy val deferred1: Reflect.Deferred[Binding, Any] =
+          Reflect.Deferred(() => deferred2.asInstanceOf[Reflect.Deferred[Binding, Any]])
+        lazy val deferred2: Reflect.Deferred[Binding, Map[Any, Any]] =
+          Reflect.Deferred(() => Reflect.map(deferred1, deferred1))
+        assert(deferred1.asMapUnknown.isDefined)(equalTo(true)) &&
+        assert(deferred1.isMap)(equalTo(true)) &&
         assert(Reflect.map(Reflect.int[Binding], Reflect.int[Binding]).asMap)(
           isSome(equalTo(Reflect.map(Reflect.int[Binding], Reflect.int[Binding])))
         ) &&
@@ -52,6 +62,10 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.dynamic[Binding].isMap)(equalTo(false))
       },
       test("has consistent asRecord and isRecord") {
+        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred2)
+        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred1)
+        assert(deferred1.asRecord)(isNone) &&
+        assert(deferred1.isRecord)(equalTo(false)) &&
         assert(tuple4Reflect.asRecord)(isSome(equalTo(tuple4Reflect))) &&
         assert(tuple4Reflect.isRecord)(equalTo(true)) &&
         assert(Reflect.Deferred(() => tuple4Reflect).asRecord)(
@@ -70,6 +84,10 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.dynamic[Binding].isRecord)(equalTo(false))
       },
       test("has consistent asPrimitive and isPrimitive") {
+        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred2)
+        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred1)
+        assert(deferred1.asPrimitive)(isNone) &&
+        assert(deferred1.isPrimitive)(equalTo(false)) &&
         assert(Reflect.int[Binding].asPrimitive)(isSome(equalTo(Reflect.int[Binding]))) &&
         assert(Reflect.int[Binding].isPrimitive)(equalTo(true)) &&
         assert(Reflect.Deferred(() => Reflect.int[Binding]).asPrimitive)(isSome(equalTo(Reflect.int[Binding]))) &&
@@ -86,6 +104,11 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.dynamic[Binding].isPrimitive)(equalTo(false))
       },
       test("has consistent asSequence, asSequenceUnknown and isSequence") {
+        lazy val deferred1: Reflect.Deferred[Binding, Any] =
+          Reflect.Deferred(() => deferred2.asInstanceOf[Reflect.Deferred[Binding, Any]])
+        lazy val deferred2: Reflect.Deferred[Binding, List[Any]] = Reflect.Deferred(() => Reflect.list(deferred1))
+        assert(deferred1.asSequenceUnknown.isDefined)(equalTo(true)) &&
+        assert(deferred1.isSequence)(equalTo(true)) &&
         assert(Reflect.set(Reflect.int[Binding]).asSequence)(isSome(equalTo(Reflect.set(Reflect.int[Binding])))) &&
         assert(Reflect.set(Reflect.int[Binding]).asSequenceUnknown.isDefined)(equalTo(true)) &&
         assert(Reflect.set(Reflect.int[Binding]).isSequence)(equalTo(true)) &&
@@ -106,6 +129,10 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.dynamic[Binding].isSequence)(equalTo(false))
       },
       test("has consistent asVariant and isVariant") {
+        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred2)
+        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred1)
+        assert(deferred1.asVariant)(isNone) &&
+        assert(deferred1.isVariant)(equalTo(false)) &&
         assert(eitherReflect.asVariant)(isSome(equalTo(eitherReflect))) &&
         assert(eitherReflect.isVariant)(equalTo(true)) &&
         assert(Reflect.Deferred(() => eitherReflect).asVariant)(
