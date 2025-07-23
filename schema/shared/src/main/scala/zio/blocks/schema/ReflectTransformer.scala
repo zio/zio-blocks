@@ -55,7 +55,6 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     doc: Doc,
     modifiers: Seq[Modifier.Primitive]
   ): Lazy[Reflect.Primitive[G, A]]
-
 }
 
 object ReflectTransformer {
@@ -136,10 +135,10 @@ object ReflectTransformer {
 
   private type Any2[_, _] = Any
 
-  private[this] val _noBinding: ReflectTransformer[Any2, NoBinding] = new OnlyMetadata[Any2, NoBinding] {
-    private val nb                                             = NoBinding[Any, Any]()
-    private val result                                         = Lazy(nb)
-    def transformMetadata[K, A](f: Any): Lazy[NoBinding[K, A]] = result.asInstanceOf[Lazy[NoBinding[K, A]]]
+  private[this] val _noBinding = new OnlyMetadata[Any2, NoBinding] {
+    private[this] val nb = Lazy(NoBinding[Any, Any]())
+
+    def transformMetadata[K, A](f: Any): Lazy[NoBinding[K, A]] = nb.asInstanceOf[Lazy[NoBinding[K, A]]]
   }
 
   def noBinding[F[_, _]](): ReflectTransformer[F, NoBinding] = _noBinding.asInstanceOf[ReflectTransformer[F, NoBinding]]

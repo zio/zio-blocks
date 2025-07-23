@@ -1039,10 +1039,8 @@ object Reflect {
         val v = visited.get
         if (v.containsKey(this)) Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion
         else {
-          for {
-            _      <- Lazy(v.put(this, ()))
-            result <- value.transform(path, f).ensuring(Lazy(v.remove(this)))
-          } yield result
+          v.put(this, ())
+          value.transform(path, f).ensuring(Lazy(v.remove(this)))
         }
       }.flatten
 
