@@ -78,15 +78,18 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates default values of record fields using optic focus") {
         assert(Record.schema.defaultValue(Record.b, 1: Byte).getDefaultValue(Record.b))(isSome(equalTo(1: Byte))) &&
-        assert(Record.schema.defaultValue(Record.i, 1000).getDefaultValue(Record.i))(isSome(equalTo(1000)))
+        assert(Record.schema.defaultValue(Record.i, 1000).getDefaultValue(Record.i))(isSome(equalTo(1000))) &&
+        assert(Record.schema.defaultValue(Record.x, true).getDefaultValue(Record.x))(isNone) // invalid lens
       },
       test("gets and updates documentation of record fields using optic focus") {
         assert(Record.schema.doc(Record.b, "b").doc(Record.b))(equalTo(Doc("b"))) &&
-        assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(Doc("i")))
+        assert(Record.schema.doc(Record.i, "i").doc(Record.i))(equalTo(Doc("i"))) &&
+        assert(Record.schema.doc(Record.x, "x").doc(Record.x))(equalTo(Doc.Empty)) // invalid lens
       },
       test("gets and updates examples of record fields using optic focus") {
         assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
-        assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000)))
+        assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000))) &&
+        assert(Record.schema.examples(Record.x, true).examples(Record.x))(equalTo(Seq())) // invalid lens
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(
@@ -124,7 +127,8 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("has consistent gets for typed and dynamic optics") {
         assert(Record.schema.get(Record.b.toDynamic))(equalTo(Record.schema.get(Record.b))) &&
-        assert(Record.schema.get(Record.i.toDynamic))(equalTo(Record.schema.get(Record.i)))
+        assert(Record.schema.get(Record.i.toDynamic))(equalTo(Record.schema.get(Record.i))) &&
+        assert(Record.schema.get(Record.x.toDynamic))(equalTo(Record.schema.get(Record.x))) // invalid lens
       },
       test("derives schema for record with default values and annotations using a macro call") {
         @Modifier.config("record-key", "record-value-1")
@@ -1287,6 +1291,8 @@ object SchemaSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Record] = Schema.derived
     val b: Lens[Record, Byte]           = $(_.b)
     val i: Lens[Record, Int]            = $(_.i)
+    val x: Lens[Record, Boolean] = // invalid lens
+      Lens(schema.reflect.asRecord.get, Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[Record, Boolean]])
   }
 
   sealed trait Variant
