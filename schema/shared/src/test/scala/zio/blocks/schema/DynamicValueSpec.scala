@@ -1,13 +1,12 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.test._
 import DynamicValueGen._
 import zio.test.Assertion.{equalTo, not}
 import zio.test.TestAspect.jvmOnly
 
 object DynamicValueSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("DynamicValueSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("DynamicValueSpec")(
     suite("DynamicValue equals and hashCode properties with Generators")(
       test("symmetry") {
         check(genDynamicValue, genDynamicValue) { (value1, value2) =>

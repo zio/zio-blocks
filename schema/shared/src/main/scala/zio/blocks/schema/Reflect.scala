@@ -60,9 +60,9 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def get[B](optic: Optic[A, B]): Option[Reflect[F, B]] = get(optic.toDynamic).asInstanceOf[Option[Reflect[F, B]]]
 
-  def get(dynamic: DynamicOptic): Option[Reflect[F, _]] = {
+  def get(dynamic: DynamicOptic): Option[Reflect[F, ?]] = {
     @tailrec
-    def loop(current: Reflect[F, _], idx: Int): Option[Reflect[F, _]] =
+    def loop(current: Reflect[F, ?], idx: Int): Option[Reflect[F, ?]] =
       if (idx == dynamic.nodes.length) new Some(current)
       else {
         loop(
@@ -140,7 +140,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
     })
 
   def updated[B](dynamic: DynamicOptic)(f: Reflect.Updater[F]): Option[Reflect[F, A]] = {
-    def loop(current: Reflect[F, _], idx: Int): Option[Reflect[F, _]] =
+    def loop(current: Reflect[F, ?], idx: Int): Option[Reflect[F, ?]] =
       if (idx == dynamic.nodes.length) new Some(f.update(current.asInstanceOf[Reflect[F, B]]))
       else {
         dynamic.nodes(idx) match {
@@ -409,7 +409,7 @@ object Reflect {
   object Record {
     type Bound[A] = Record[Binding, A]
 
-    def registers[F[_, _]](reflects: Array[Reflect[F, _]]): Array[Register[Any]] = {
+    def registers[F[_, _]](reflects: Array[Reflect[F, ?]]): Array[Register[Any]] = {
       val registers      = new Array[Register[?]](reflects.length)
       var registerOffset = RegisterOffset.Zero
       var idx            = 0

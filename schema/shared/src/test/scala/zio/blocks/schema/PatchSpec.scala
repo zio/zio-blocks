@@ -1,12 +1,11 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.test._
 import zio.test.Assertion._
 import java.time.YearMonth
 
 object PatchSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("PatchSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("PatchSpec")(
     test("replace a field with a new value") {
       val person1 = Person(12345678901L, "John", "123 Main St", Nil)
       val patch   = Patch.replace(Person.name, "Piero")

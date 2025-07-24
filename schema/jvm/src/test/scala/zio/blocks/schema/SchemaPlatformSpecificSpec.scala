@@ -1,11 +1,10 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.test._
 import zio.test.Assertion._
 
 object SchemaPlatformSpecificSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaPlatformSpecificSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("SchemaPlatformSpecificSpec")(
     suite("zio-prelude")(
       test("fail to derive schemas for newtypes") {
         typeCheck {

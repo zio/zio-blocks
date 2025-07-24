@@ -1,11 +1,10 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.test.Assertion._
 import zio.test._
 
 object OptionalBenchmarkSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("OptionalBenchmarkSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("OptionalBenchmarkSpec")(
     suite("OptionalGetOptionBenchmark")(
       test("has consistent output") {
         assert((new OptionalGetOptionBenchmark).direct)(isSome(equalTo("test"))) &&

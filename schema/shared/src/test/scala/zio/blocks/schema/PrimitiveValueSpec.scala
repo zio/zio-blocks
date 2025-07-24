@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.test.Assertion._
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
 import zio.test.TestAspect._
@@ -8,7 +7,7 @@ import java.time._
 import java.util.{Currency, UUID}
 
 object PrimitiveValueSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("PrimitiveValueSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("PrimitiveValueSpec")(
     suite("PrimitiveValue.Unit")(
       test("has correct primitiveType and typeIndex") {
         assert(PrimitiveValue.Unit.primitiveType)(equalTo(PrimitiveType.Unit)) &&

@@ -243,14 +243,14 @@ object Lens {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
-    val lens1 = first.asInstanceOf[LensImpl[_, _]]
-    val lens2 = second.asInstanceOf[LensImpl[_, _]]
+    val lens1 = first.asInstanceOf[LensImpl[?, ?]]
+    val lens2 = second.asInstanceOf[LensImpl[?, ?]]
     new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
   }
 
   private[schema] case class LensImpl[S, A](
-    sources: Array[Reflect.Record.Bound[_]],
-    focusTerms: Array[Term.Bound[_, _]]
+    sources: Array[Reflect.Record.Bound[?]],
+    focusTerms: Array[Term.Bound[?, ?]]
   ) extends Lens[S, A] {
     private[this] var bindings: Array[LensBinding]  = null
     private[this] var usedRegisters: RegisterOffset = RegisterOffset.Zero
@@ -398,14 +398,14 @@ object Prism {
   }
 
   def apply[S, T <: S, A <: T](first: Prism[S, T], second: Prism[T, A]): Prism[S, A] = {
-    val prism1 = first.asInstanceOf[PrismImpl[_, _]]
-    val prism2 = second.asInstanceOf[PrismImpl[_, _]]
+    val prism1 = first.asInstanceOf[PrismImpl[?, ?]]
+    val prism2 = second.asInstanceOf[PrismImpl[?, ?]]
     new PrismImpl(prism1.sources ++ prism2.sources, prism1.focusTerms ++ prism2.focusTerms)
   }
 
   private[schema] case class PrismImpl[S, A <: S](
-    sources: Array[Reflect.Variant.Bound[_]],
-    focusTerms: Array[Term.Bound[_, _]]
+    sources: Array[Reflect.Variant.Bound[?]],
+    focusTerms: Array[Term.Bound[?, ?]]
   ) extends Prism[S, A] {
     private[this] var matchers: Array[Matcher[Any]]             = new Array[Matcher[Any]](sources.length)
     private[this] var discriminators: Array[Discriminator[Any]] = new Array[Discriminator[Any]](sources.length)
@@ -545,8 +545,8 @@ sealed trait Optional[S, A] extends Optic[S, A] {
 
 object Optional {
   def apply[S, T, A](first: Optional[S, T], second: Lens[T, A]): Optional[S, A] = {
-    val optional1 = first.asInstanceOf[OptionalImpl[_, _]]
-    val lens2     = second.asInstanceOf[Lens.LensImpl[_, _]]
+    val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
+    val lens2     = second.asInstanceOf[Lens.LensImpl[?, ?]]
     new OptionalImpl(
       optional1.sources ++ lens2.sources,
       optional1.focusTerms ++ lens2.focusTerms,
@@ -555,8 +555,8 @@ object Optional {
   }
 
   def apply[S, T, A <: T](first: Optional[S, T], second: Prism[T, A]): Optional[S, A] = {
-    val optional1 = first.asInstanceOf[OptionalImpl[_, _]]
-    val prism2    = second.asInstanceOf[Prism.PrismImpl[_, _]]
+    val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
+    val prism2    = second.asInstanceOf[Prism.PrismImpl[?, ?]]
     new OptionalImpl(
       optional1.sources ++ prism2.sources,
       optional1.focusTerms ++ prism2.focusTerms,
@@ -565,8 +565,8 @@ object Optional {
   }
 
   def apply[S, T, A](first: Optional[S, T], second: Optional[T, A]): Optional[S, A] = {
-    val optional1 = first.asInstanceOf[OptionalImpl[_, _]]
-    val optional2 = second.asInstanceOf[OptionalImpl[_, _]]
+    val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
+    val optional2 = second.asInstanceOf[OptionalImpl[?, ?]]
     new OptionalImpl(
       optional1.sources ++ optional2.sources,
       optional1.focusTerms ++ optional2.focusTerms,
@@ -575,8 +575,8 @@ object Optional {
   }
 
   def apply[S, T, A <: T](first: Lens[S, T], second: Prism[T, A]): Optional[S, A] = {
-    val lens1  = first.asInstanceOf[Lens.LensImpl[_, _]]
-    val prism2 = second.asInstanceOf[Prism.PrismImpl[_, _]]
+    val lens1  = first.asInstanceOf[Lens.LensImpl[?, ?]]
+    val prism2 = second.asInstanceOf[Prism.PrismImpl[?, ?]]
     new OptionalImpl(
       lens1.sources ++ prism2.sources,
       lens1.focusTerms ++ prism2.focusTerms,
@@ -585,8 +585,8 @@ object Optional {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Optional[T, A]): Optional[S, A] = {
-    val lens1     = first.asInstanceOf[Lens.LensImpl[_, _]]
-    val optional2 = second.asInstanceOf[OptionalImpl[_, _]]
+    val lens1     = first.asInstanceOf[Lens.LensImpl[?, ?]]
+    val optional2 = second.asInstanceOf[OptionalImpl[?, ?]]
     new OptionalImpl(
       lens1.sources ++ optional2.sources,
       lens1.focusTerms ++ optional2.focusTerms,
@@ -595,8 +595,8 @@ object Optional {
   }
 
   def apply[S, T <: S, A](first: Prism[S, T], second: Lens[T, A]): Optional[S, A] = {
-    val prism1 = first.asInstanceOf[Prism.PrismImpl[_, _]]
-    val lens2  = second.asInstanceOf[Lens.LensImpl[_, _]]
+    val prism1 = first.asInstanceOf[Prism.PrismImpl[?, ?]]
+    val lens2  = second.asInstanceOf[Lens.LensImpl[?, ?]]
     new OptionalImpl(
       prism1.sources ++ lens2.sources,
       prism1.focusTerms ++ lens2.focusTerms,
@@ -604,8 +604,8 @@ object Optional {
     )
   }
   def apply[S, T <: S, A](first: Prism[S, T], second: Optional[T, A]): Optional[S, A] = {
-    val prism1    = first.asInstanceOf[Prism.PrismImpl[_, _]]
-    val optional2 = second.asInstanceOf[OptionalImpl[_, _]]
+    val prism1    = first.asInstanceOf[Prism.PrismImpl[?, ?]]
+    val optional2 = second.asInstanceOf[OptionalImpl[?, ?]]
     new OptionalImpl(
       prism1.sources ++ optional2.sources,
       prism1.focusTerms ++ optional2.focusTerms,
@@ -622,8 +622,8 @@ object Optional {
     new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array[Any](key))
 
   private[schema] case class OptionalImpl[S, A](
-    sources: Array[Reflect.Bound[_]],
-    focusTerms: Array[Term.Bound[_, _]],
+    sources: Array[Reflect.Bound[?]],
+    focusTerms: Array[Term.Bound[?, ?]],
     params: Array[Any]
   ) extends Optional[S, A] {
     private[this] var bindings: Array[OpticBinding] = null
@@ -1139,8 +1139,8 @@ object Traversal {
   }
 
   def apply[S, T, A](first: Traversal[S, T], second: Traversal[T, A]): Traversal[S, A] = {
-    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
-    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    val traversal1 = first.asInstanceOf[TraversalImpl[?, ?]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[?, ?]]
     new TraversalImpl(
       traversal1.sources ++ traversal2.sources,
       traversal1.focusTerms ++ traversal2.focusTerms,
@@ -1149,8 +1149,8 @@ object Traversal {
   }
 
   def apply[S, T, A](first: Traversal[S, T], second: Lens[T, A]): Traversal[S, A] = {
-    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
-    val lens2      = second.asInstanceOf[Lens.LensImpl[_, _]]
+    val traversal1 = first.asInstanceOf[TraversalImpl[?, ?]]
+    val lens2      = second.asInstanceOf[Lens.LensImpl[?, ?]]
     new TraversalImpl(
       traversal1.sources ++ lens2.sources,
       traversal1.focusTerms ++ lens2.focusTerms,
@@ -1159,8 +1159,8 @@ object Traversal {
   }
 
   def apply[S, T, A <: T](first: Traversal[S, T], second: Prism[T, A]): Traversal[S, A] = {
-    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
-    val prism2     = second.asInstanceOf[Prism.PrismImpl[_, _]]
+    val traversal1 = first.asInstanceOf[TraversalImpl[?, ?]]
+    val prism2     = second.asInstanceOf[Prism.PrismImpl[?, ?]]
     new TraversalImpl(
       traversal1.sources ++ prism2.sources,
       traversal1.focusTerms ++ prism2.focusTerms,
@@ -1169,8 +1169,8 @@ object Traversal {
   }
 
   def apply[S, T, A](first: Traversal[S, T], second: Optional[T, A]): Traversal[S, A] = {
-    val traversal1 = first.asInstanceOf[TraversalImpl[_, _]]
-    val optional2  = second.asInstanceOf[Optional.OptionalImpl[_, _]]
+    val traversal1 = first.asInstanceOf[TraversalImpl[?, ?]]
+    val optional2  = second.asInstanceOf[Optional.OptionalImpl[?, ?]]
     new TraversalImpl(
       traversal1.sources ++ optional2.sources,
       traversal1.focusTerms ++ optional2.focusTerms,
@@ -1179,8 +1179,8 @@ object Traversal {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Traversal[T, A]): Traversal[S, A] = {
-    val lens1      = first.asInstanceOf[Lens.LensImpl[_, _]]
-    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    val lens1      = first.asInstanceOf[Lens.LensImpl[?, ?]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[?, ?]]
     new TraversalImpl(
       lens1.sources ++ traversal2.sources,
       lens1.focusTerms ++ traversal2.focusTerms,
@@ -1189,8 +1189,8 @@ object Traversal {
   }
 
   def apply[S, T <: S, A](first: Prism[S, T], second: Traversal[T, A]): Traversal[S, A] = {
-    val prism1     = first.asInstanceOf[Prism.PrismImpl[_, _]]
-    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    val prism1     = first.asInstanceOf[Prism.PrismImpl[?, ?]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[?, ?]]
     new TraversalImpl(
       prism1.sources ++ traversal2.sources,
       prism1.focusTerms ++ traversal2.focusTerms,
@@ -1199,8 +1199,8 @@ object Traversal {
   }
 
   def apply[S, T, A](first: Optional[S, T], second: Traversal[T, A]): Traversal[S, A] = {
-    val optional1  = first.asInstanceOf[Optional.OptionalImpl[_, _]]
-    val traversal2 = second.asInstanceOf[TraversalImpl[_, _]]
+    val optional1  = first.asInstanceOf[Optional.OptionalImpl[?, ?]]
+    val traversal2 = second.asInstanceOf[TraversalImpl[?, ?]]
     new TraversalImpl(
       optional1.sources ++ traversal2.sources,
       optional1.focusTerms ++ traversal2.focusTerms,
@@ -1226,8 +1226,8 @@ object Traversal {
   def vectorValues[A](reflect: Reflect.Bound[A]): Traversal[Vector[A], A] = seqValues(Reflect.vector(reflect))
 
   private[schema] case class TraversalImpl[S, A](
-    sources: Array[Reflect.Bound[_]],
-    focusTerms: Array[Term.Bound[_, _]],
+    sources: Array[Reflect.Bound[?]],
+    focusTerms: Array[Term.Bound[?, ?]],
     params: Array[Any]
   ) extends Traversal[S, A] {
     private[this] var bindings: Array[OpticBinding] = null

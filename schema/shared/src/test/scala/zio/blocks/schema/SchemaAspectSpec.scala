@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.blocks.schema.binding.Binding
 import zio.test.Assertion._
 import zio.test._
@@ -16,7 +15,7 @@ object SchemaAspectSpec extends ZIOSpecDefault {
       Lens(schema.reflect.asRecord.get, Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[Person, Boolean]])
   }
 
-  def spec: Spec[TestEnvironment with Scope, Any] =
+  def spec: Spec[TestEnvironment, Any] =
     suite("SchemaAspectSpec")(
       test("identity aspect") {
         val updatedSchema = Person.schema @@ SchemaAspect.identity

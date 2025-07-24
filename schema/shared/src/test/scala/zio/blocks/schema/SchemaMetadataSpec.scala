@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.test.Assertion._
 import zio.test._
 
@@ -12,7 +11,7 @@ object SchemaMetadataSpec extends ZIOSpecDefault {
     val s: Lens[Record, String]         = optic(_.s)
   }
 
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaMetadataSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("SchemaMetadataSpec")(
     test("reports accurate size") {
       val metadata = SchemaMetadata[Record, IndexedSeq](Map(Record.s -> IndexedSeq("foo")))
       assert(metadata.size)(equalTo(1))

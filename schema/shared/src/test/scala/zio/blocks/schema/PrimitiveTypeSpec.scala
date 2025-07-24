@@ -1,14 +1,12 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.blocks.schema.Validation.None
 import zio.test.Assertion.{equalTo, isLeft, isRight}
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert, assertTrue}
-import zio.test.TestAspect._
 import java.time.DayOfWeek
 
 object PrimitiveTypeSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("PrimitiveTypeSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("PrimitiveTypeSpec")(
     suite("PrimitiveType.Unit")(
       test("has consistent toDynamicValue and fromDynamicValue") {
         val tpe = PrimitiveType.Unit
