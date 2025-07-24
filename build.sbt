@@ -60,19 +60,6 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .nativeSettings(nativeSettings)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
-    scalacOptions ++=
-      (CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) =>
-          Seq(
-            "-opt:l:method"
-          )
-        case _ =>
-          Seq(
-            "-explain",
-            "-explain-cyclic",
-            "-Xcheck-macros"
-          )
-      }),
     libraryDependencies ++= Seq(
       "dev.zio"  %% "zio-prelude"  % "1.0.0-RC41" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.20"     % Test,
@@ -83,8 +70,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
           "org.scala-lang" % "scala-reflect" % scalaVersion.value
         )
       case _ => Seq()
-    }),
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+    })
   )
   .jsSettings(
     libraryDependencies ++= Seq(
@@ -109,23 +95,10 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
   .settings(
-    scalacOptions ++=
-      (CrossVersion.partialVersion(scalaVersion.value) match {
-        case Some((2, _)) =>
-          Seq(
-            "-opt:l:method"
-          )
-        case _ =>
-          Seq(
-            "-explain",
-            "-explain-cyclic"
-          )
-      }),
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.20" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.20" % Test
-    ),
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+    )
   )
 
 lazy val benchmarks = project
@@ -135,15 +108,13 @@ lazy val benchmarks = project
   .settings(
     crossScalaVersions := Seq(Scala213, "3.7.1"),
     publish / skip     := true,
-    libraryDependencies ++= {
-      Seq(
-        "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
-        "dev.optics"                 %% "monocle-core"  % "3.3.0",
-        "dev.optics"                 %% "monocle-macro" % "3.3.0",
-        "dev.zio"                    %% "zio-test"      % "2.1.20" % Test,
-        "dev.zio"                    %% "zio-test-sbt"  % "2.1.20" % Test
-      )
-    },
+    libraryDependencies ++= Seq(
+      "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
+      "dev.optics"                 %% "monocle-core"  % "3.3.0",
+      "dev.optics"                 %% "monocle-macro" % "3.3.0",
+      "dev.zio"                    %% "zio-test"      % "2.1.20" % Test,
+      "dev.zio"                    %% "zio-test-sbt"  % "2.1.20" % Test
+    ),
     assembly / assemblyJarName := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case PathList("module-info.class") => MergeStrategy.discard
