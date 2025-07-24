@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.Scope
+import zio.blocks.schema.binding.Binding
 import zio.test.Assertion._
 import zio.test._
 
@@ -9,9 +10,10 @@ object SchemaAspectSpec extends ZIOSpecDefault {
 
   object Person extends CompanionOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
-
-    val name: Lens[Person, String] = optic(_.name)
-    val age: Lens[Person, Int]     = optic(_.age)
+    val name: Lens[Person, String]      = optic(_.name)
+    val age: Lens[Person, Int]          = optic(_.age)
+    val x: Lens[Person, Boolean] = // invalid lens
+      Lens(schema.reflect.asRecord.get, Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[Person, Boolean]])
   }
 
   def spec: Spec[TestEnvironment with Scope, Any] =
@@ -33,7 +35,9 @@ object SchemaAspectSpec extends ZIOSpecDefault {
       test("update doc of a field") {
         val doc           = "name of the person"
         val updatedSchema = Person.schema @@ (Person.name, SchemaAspect.doc(doc))
-        assert(updatedSchema.get(Person.name).get.doc)(equalTo(Doc.Text(doc)))
+        assert(updatedSchema.get(Person.name).get.doc)(equalTo(Doc.Text(doc))) &&
+        assert(updatedSchema)(not(equalTo(Person.schema))) &&
+        assert(Person.schema @@ (Person.x, SchemaAspect.doc(doc)))(equalTo(Person.schema)) // invalid lens
       }
     )
 }
