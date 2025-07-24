@@ -733,7 +733,7 @@ object Reflect {
       val iterator = seqDeconstructor.deconstruct(value)
       val builder  = Vector.newBuilder[DynamicValue]
       while (iterator.hasNext) builder.addOne(element.toDynamicValue(iterator.next()))
-      DynamicValue.Sequence(builder.result())
+      new DynamicValue.Sequence(builder.result())
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
@@ -746,7 +746,7 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    def nodeType: Reflect.Type.Sequence[C] = Reflect.Type.Sequence[C]()
+    def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
     override def asSequence(implicit ev: IsCollection[C[A]]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
       new Some(this.asInstanceOf[Reflect.Sequence[F, ev.Elem, ev.Collection]])
