@@ -8,7 +8,7 @@ import zio.test.Assertion._
 import zio.test._
 
 object SchemaVersionSpecificSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaVersionSpecificSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
     suite("Reflect.Record")(
       test("derives schema using 'derives' keyword") {
 
@@ -156,7 +156,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(variant.map(_.doc))(isSome(equalTo(Doc("/** Variant: Color */"))))
       },
       test("derives schema for type recursive Scala 3 enums") {
-        val schema  = Schema.derived[FruitEnum[_]]
+        val schema  = Schema.derived[FruitEnum[?]]
         val variant = schema.reflect.asVariant
         assert(schema.fromDynamicValue(schema.toDynamicValue(FruitEnum.Apple("red"))))(
           isRight(equalTo(FruitEnum.Apple("red")))

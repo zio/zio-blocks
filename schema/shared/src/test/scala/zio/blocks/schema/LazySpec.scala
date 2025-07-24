@@ -1,11 +1,11 @@
 package zio.blocks.schema
-import zio.{Scope, ZIO}
+import zio.ZIO
 import zio.test.Assertion._
 import zio.test._
 import scala.collection.immutable.ArraySeq
 
 object LazySpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("LazySpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("LazySpec")(
     test("equals") {
       assert(Lazy(42))(equalTo(Lazy(42))) &&
       assert(Lazy(42))(not(equalTo(Lazy(43)))) &&

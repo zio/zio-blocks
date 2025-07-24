@@ -1,11 +1,10 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.test.Assertion._
 import zio.test._
 
 object LensBenchmarkSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("LensBenchmarkSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("LensBenchmarkSpec")(
     suite("LensGetBenchmark")(
       test("has consistent output") {
         assert((new LensGetBenchmark).direct)(equalTo("test")) &&

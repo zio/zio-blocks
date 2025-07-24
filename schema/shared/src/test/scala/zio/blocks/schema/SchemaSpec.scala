@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
@@ -14,7 +13,7 @@ import java.nio.CharBuffer
 import scala.collection.immutable.ArraySeq
 
 object SchemaSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("SchemaSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("SchemaSpec")(
     suite("Reflect.Primitive")(
       test("has consistent equals and hashCode") {
         assert(Schema[Long])(equalTo(Schema[Long])) &&
@@ -1262,11 +1261,11 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(schema1.reflect: Any)(equalTo(fieldValue3)) &&
         assert(schema1.reflect.hashCode)(equalTo(fieldValue3.hashCode)) &&
         assert(schema1.reflect.noBinding: Any)(equalTo(schema1.reflect)) &&
-        assert(fieldValue1.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
-        assert(fieldValue2.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(true)) &&
-        assert(caseValue1.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
-        assert(caseValue2.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
-        assert(fieldValue3.isInstanceOf[Reflect.Deferred[Binding, _]])(equalTo(false)) &&
+        assert(fieldValue1.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
+        assert(fieldValue2.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(true)) &&
+        assert(caseValue1.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
+        assert(caseValue2.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
+        assert(fieldValue3.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
         assert(fieldValue2.isVariant)(equalTo(true)) &&
         assert(fieldValue2.isRecord)(equalTo(false)) &&
         assert(fieldValue2.isPrimitive)(equalTo(false)) &&
@@ -1343,7 +1342,7 @@ object SchemaSpec extends ZIOSpecDefault {
             })
 
           override def deriveRecord[F[_, _], A](
-            fields: IndexedSeq[Term[F, A, _]],
+            fields: IndexedSeq[Term[F, A, ?]],
             typeName: TypeName[A],
             binding: Binding[BindingType.Record, A],
             doc: Doc,
@@ -1356,7 +1355,7 @@ object SchemaSpec extends ZIOSpecDefault {
             })
 
           override def deriveVariant[F[_, _], A](
-            cases: IndexedSeq[Term[F, A, _]],
+            cases: IndexedSeq[Term[F, A, ?]],
             typeName: TypeName[A],
             binding: Binding[BindingType.Variant, A],
             doc: Doc,

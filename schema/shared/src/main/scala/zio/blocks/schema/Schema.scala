@@ -11,7 +11,7 @@ import scala.collection.immutable.ArraySeq
  * values of that type.
  */
 final case class Schema[A](reflect: Reflect.Bound[A]) {
-  private[this] val cache: ConcurrentHashMap[codec.Format, _] = new ConcurrentHashMap
+  private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
@@ -60,7 +60,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def get[B](optic: Optic[A, B]): Option[Reflect.Bound[B]] = reflect.get(optic)
 
-  def get(dynamic: DynamicOptic): Option[Reflect.Bound[_]] = reflect.get(dynamic)
+  def get(dynamic: DynamicOptic): Option[Reflect.Bound[?]] = reflect.get(dynamic)
 
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 

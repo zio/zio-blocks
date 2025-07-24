@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.blocks.schema.binding.Binding
 import zio.test.Assertion.{equalTo, isNone, isSome}
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
@@ -8,7 +7,7 @@ import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
 object DynamicOpticSpec extends ZIOSpecDefault {
   import DynamicOpticSpecTypes._
 
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("DynamicOpticSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("DynamicOpticSpec")(
     test("composition using apply, field, caseOf, at, atKey, elements, mapKeys, and mapValues methods") {
       assert(
         DynamicOptic.root

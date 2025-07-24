@@ -1,11 +1,10 @@
 package zio.blocks.schema.binding
 
-import zio.Scope
 import zio.test.Assertion._
 import zio.test._
 
 object RegistersSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("RegistersSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("RegistersSpec")(
     test("setRegisters") {
       val registers1 = Registers(RegisterOffset(bytes = 2, objects = 2))
       registers1.setByte(RegisterOffset.Zero, 0, 1: Byte)
