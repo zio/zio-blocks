@@ -4,7 +4,7 @@ package zio.blocks.schema
  * A schema metadata structure can store arbitrary metadata attached to the
  * structure of a type.
  */
-final case class SchemaMetadata[S, G[_]](private val map: Map[Optic[S, ?], IndexedSeq[_]]) {
+final case class SchemaMetadata[S, G[_]](private val map: Map[Optic[S, ?], IndexedSeq[?]]) {
   def add[A](optic: Optic[S, A], value: G[A]): SchemaMetadata[S, G] =
     SchemaMetadata[S, G](map.updated(optic, map.getOrElse(optic, IndexedSeq.empty) :+ value))
 

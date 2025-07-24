@@ -1,13 +1,12 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.blocks.schema.DynamicOptic.Node.{Case, Elements, Field, MapKeys, MapValues}
 import zio.blocks.schema.OpticCheck.{EmptyMap, EmptySequence, UnexpectedCase}
 import zio.test._
 import zio.test.Assertion._
 
 object OpticCheckSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticCheckSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("OpticCheckSpec")(
     test("can contain errors") {
       val opticCheck = OpticCheck(errors =
         ::(

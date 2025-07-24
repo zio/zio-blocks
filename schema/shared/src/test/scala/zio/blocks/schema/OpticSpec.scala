@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.DynamicOptic.Node._
 import zio.blocks.schema.OpticCheck._
-import zio.{Scope, ZIO}
+import zio.ZIO
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test.TestAspect.jvmOnly
@@ -13,7 +13,7 @@ import scala.collection.immutable.ArraySeq
 object OpticSpec extends ZIOSpecDefault {
   import OpticSpecTypes._
 
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("OpticSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("OpticSpec")(
     suite("Lens")(
       test("evaluates schema expressions") {
         assert((Record1.b === Record1.b).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&

@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import zio.Scope
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
@@ -9,7 +8,7 @@ import java.time._
 import java.util.{Currency, UUID}
 
 object ReflectSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment with Scope, Any] = suite("ReflectSpec")(
+  def spec: Spec[TestEnvironment, Any] = suite("ReflectSpec")(
     suite("Reflect")(
       test("has consistent asDynamic and isDynamic") {
         assert(Reflect.dynamic[Binding].asDynamic)(isSome(equalTo(Reflect.dynamic[Binding]))) &&

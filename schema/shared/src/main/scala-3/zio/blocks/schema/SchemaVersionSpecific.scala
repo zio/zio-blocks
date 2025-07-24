@@ -11,8 +11,8 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
-  private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
+  private val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
+  private implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
       var idx    = 0
@@ -59,14 +59,14 @@ private object SchemaVersionSpecific {
       case _                        => Nil
     }
 
-    def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[_]]
+    def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[?]]
 
-    def isEither(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Either[_, _]]
+    def isEither(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Either[?, ?]]
 
     def isDynamicValue(tpe: TypeRepr): Boolean = tpe =:= TypeRepr.of[DynamicValue]
 
     def isCollection(tpe: TypeRepr): Boolean =
-      tpe <:< TypeRepr.of[Iterable[_]] || tpe <:< TypeRepr.of[Iterator[_]] || tpe <:< TypeRepr.of[Array[_]] ||
+      tpe <:< TypeRepr.of[Iterable[?]] || tpe <:< TypeRepr.of[Iterator[?]] || tpe <:< TypeRepr.of[Array[?]] ||
         tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
     def directSubTypes(tpe: TypeRepr): Seq[TypeRepr] = {
@@ -208,7 +208,7 @@ private object SchemaVersionSpecific {
         .map(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
         .getOrElse('{ Doc.Empty }.asExprOf[Doc])
 
-    val inferredSchemas = new mutable.HashMap[TypeRepr, Option[Expr[Schema[_]]]]
+    val inferredSchemas = new mutable.HashMap[TypeRepr, Option[Expr[Schema[?]]]]
     val derivedSchemas  = new mutable.LinkedHashMap[TypeRepr, ValDef]
 
     def findImplicitOrDeriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
@@ -217,7 +217,7 @@ private object SchemaVersionSpecific {
       val schema = inferredSchemas.getOrElseUpdate(
         tpe,
         Implicits.search(schemaTpe) match
-          case v: ImplicitSearchSuccess => Some(v.tree.asExprOf[Schema[_]])
+          case v: ImplicitSearchSuccess => Some(v.tree.asExprOf[Schema[?]])
           case _                        => None
       )
       schema.getOrElse {
@@ -235,7 +235,7 @@ private object SchemaVersionSpecific {
               }
             )
             .symbol
-        ).asExprOf[Schema[_]]
+        ).asExprOf[Schema[?]]
       }.asExprOf[Schema[T]]
     }
 
@@ -279,7 +279,7 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else if (tpe <:< TypeRepr.of[Array[_]]) {
+      } else if (tpe <:< TypeRepr.of[Array[?]]) {
         val elementTpe = typeArgs(tpe).head
         elementTpe.asType match {
           case '[et] =>
