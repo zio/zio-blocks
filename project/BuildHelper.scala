@@ -87,9 +87,20 @@ object BuildHelper {
       "-unchecked",
       "-release",
       JdkReleaseVersion
-    ),
-    versionScheme            := Some("early-semver"),
-    Test / parallelExecution := false,
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "-opt:l:method"
+        )
+      case _ =>
+        Seq(
+          "-explain",
+          "-explain-cyclic"
+        )
+    }),
+    versionScheme := Some("early-semver"),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    Test / parallelExecution := true,
     Compile / fork           := true,
     Test / fork              := true, // set fork to `true` to improve log readability
     // For compatibility with Java 9+ module system;
