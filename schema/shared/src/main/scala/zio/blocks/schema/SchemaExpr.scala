@@ -8,7 +8,7 @@ package zio.blocks.schema
  * libraries, as well as for validation, implemented in this library. In
  * addition, {{SchemaExpr}} could be used for data migration.
  */
-sealed trait SchemaExpr[A, +B] {
+sealed trait SchemaExpr[A, +B] { self =>
 
   /**
    * Evaluate the expression on the input value.
@@ -31,6 +31,14 @@ sealed trait SchemaExpr[A, +B] {
    *   the result of the expression, converted to {{DynamicValue}} values.
    */
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
+
+  final def &&[C, B](that: SchemaExpr[A, C])(implicit ev: B <:< Boolean, ev2: C =:= Boolean): SchemaExpr[A, Boolean] =
+    SchemaExpr.Logical(
+      self.asInstanceOf[SchemaExpr[A, Boolean]],
+      that.asInstanceOf[SchemaExpr[A, Boolean]],
+      SchemaExpr.LogicalOperator.And
+    )
+
 }
 
 object SchemaExpr {
@@ -41,6 +49,7 @@ object SchemaExpr {
 
     private[this] val result        = new Right(value :: Nil)
     private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
+
   }
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
