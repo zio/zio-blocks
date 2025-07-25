@@ -539,9 +539,9 @@ object SchemaSpec extends ZIOSpecDefault {
         typeCheck {
           """case class GenDoc[A, B, C](a: A, opt: Option[B], list: List[C])
 
-           object GenDoc {
-             implicit def schema[A, B : Schema, C : Schema]: Schema[GenDoc[A, B, C]] = Schema.derived
-           }"""
+             object GenDoc {
+               implicit def schema[A, B : Schema, C : Schema]: Schema[GenDoc[A, B, C]] = Schema.derived
+             }"""
         }.map(assert(_)(isLeft(containsString("Unsupported field type 'A'."))))
       }
     ),
