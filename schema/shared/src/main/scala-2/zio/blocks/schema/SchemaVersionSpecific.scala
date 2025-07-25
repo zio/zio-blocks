@@ -171,27 +171,27 @@ private object SchemaVersionSpecific {
     }
 
     val inferredSchemas = new mutable.HashMap[Type, Tree]
-    val derivedSchemas  = new mutable.LinkedHashMap[Type, (TermName, Tree)]
+    val derivedSchemas  = new mutable.LinkedHashMap[Type, (Ident, Tree)]
 
     def findImplicitOrDeriveSchema(tpe: Type): Tree = {
-      val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
-      val schema    = inferredSchemas.getOrElseUpdate(tpe, c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe))
-      if (schema.isEmpty) {
-        Ident(
-          derivedSchemas
-            .getOrElseUpdate(
-              tpe, {
-                val schema = deriveSchema(tpe)
-                val name   = TermName("s" + derivedSchemas.size)
-                val tree =
-                  if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
-                  else q"implicit lazy val $name: $schemaTpe = $schema"
-                (name, tree)
-              }
-            )
-            ._1
-        )
-      } else schema
+      lazy val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
+      val inferredSchema =
+        inferredSchemas.getOrElseUpdate(tpe, c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe))
+      if (inferredSchema.nonEmpty) inferredSchema
+      else {
+        derivedSchemas
+          .getOrElseUpdate(
+            tpe, {
+              val schema = deriveSchema(tpe)
+              val name   = TermName("s" + derivedSchemas.size)
+              val tree =
+                if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
+                else q"implicit lazy val $name: $schemaTpe = $schema"
+              (Ident(name), tree)
+            }
+          )
+          ._1
+      }
     }
 
     def deriveSchema(tpe: Type): Tree = {
