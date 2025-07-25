@@ -32,20 +32,25 @@ sealed trait SchemaExpr[A, +B] { self =>
    */
   def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]]
 
-  final def &&[C, B](that: SchemaExpr[A, C])(implicit ev: B <:< Boolean, ev2: C =:= Boolean): SchemaExpr[A, Boolean] =
+  final def &&[B2](
+    that: SchemaExpr[A, B2]
+  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
     SchemaExpr.Logical(
-      self.asInstanceOf[SchemaExpr[A, Boolean]],
-      that.asInstanceOf[SchemaExpr[A, Boolean]],
+      self.asEquivalent[Boolean],
+      that.asEquivalent[Boolean],
       SchemaExpr.LogicalOperator.And
     )
 
-  final def ||[C, B](that: SchemaExpr[A, C])(implicit ev: B <:< Boolean, ev2: C =:= Boolean): SchemaExpr[A, Boolean] =
+  final def ||[B2](
+    that: SchemaExpr[A, B2]
+  )(implicit ev: B <:< Boolean, ev2: B2 =:= Boolean): SchemaExpr[A, Boolean] =
     SchemaExpr.Logical(
-      self.asInstanceOf[SchemaExpr[A, Boolean]],
-      that.asInstanceOf[SchemaExpr[A, Boolean]],
+      self.asEquivalent[Boolean],
+      that.asEquivalent[Boolean],
       SchemaExpr.LogicalOperator.Or
     )
 
+  private final def asEquivalent[B2](implicit ev: B <:< B2): SchemaExpr[A, B2] = self.asInstanceOf[SchemaExpr[A, B2]]
 }
 
 object SchemaExpr {
