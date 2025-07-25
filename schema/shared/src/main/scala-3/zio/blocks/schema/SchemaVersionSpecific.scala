@@ -98,9 +98,6 @@ private object SchemaVersionSpecific {
 
       tpe.typeSymbol.children.map { symbol =>
         if (symbol.isType) {
-          if (symbol.name == "<local child>") { // problem - we have no other way to find this other return the name
-            fail(s"Unsupported local child symbol is found in '${tpe.show}'.")
-          }
           val nudeSubtype = TypeIdent(symbol).tpe
           nudeSubtype.memberType(symbol.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
@@ -126,10 +123,10 @@ private object SchemaVersionSpecific {
                   case _                                          => polyRes.appliedTo(ctArgs)
                 }
               }
-            case other => fail(s"Primary constructor for '${tpe.show}' is not MethodType or PolyType but '$other'.")
+            case other => fail(s"Cannot resolve free type parameters type for ADT cases with base '${tpe.show}'.")
           }
         } else if (symbol.isTerm) Ref(symbol).tpe
-        else fail(s"Cannot resolve free type parametes type for ADT cases with base '${tpe.show}'.")
+        else fail(s"Cannot resolve free type parameters type for ADT cases with base '${tpe.show}'.")
       }
     }
 

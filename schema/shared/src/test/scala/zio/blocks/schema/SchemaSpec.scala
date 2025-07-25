@@ -521,7 +521,7 @@ object SchemaSpec extends ZIOSpecDefault {
         }
         assert(result)(equalTo("Record(1,2)"))
       },
-      test("fail to generate schema for classes without a primary constructor") {
+      test("doesn't generate schema for classes without a primary constructor") {
         typeCheck {
           "Schema.derived[scala.concurrent.duration.Duration]"
         }.map(
@@ -827,6 +827,33 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[Variant].encode(ToStringFormat)(out)(Case1('a'))
         }
         assert(result)(equalTo("Case1(a)"))
+      },
+      test("doesn't generate schema when all generic type parameters cannot be resolved") {
+        typeCheck {
+          """sealed trait Foo[F[_]] extends Product with Serializable
+
+             case class FooImpl[F[_], A](fa: F[A], as: Vector[A]) extends Foo[F]
+
+             sealed trait Bar[A] extends Product with Serializable
+
+             case object Baz extends Bar[Int]
+
+             case object Qux extends Bar[String]
+
+             val v = FooImpl[Bar, String](Qux, Vector.empty[String])
+             val c = Schema.derived[Foo[Bar]]"""
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString(
+                "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[Bar]'."
+              ) || // Scala 2
+                containsString(
+                  "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[[A >: scala.Nothing <: scala.Any] => Bar[A]]'."
+                ) // Scala 3
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Sequence")(

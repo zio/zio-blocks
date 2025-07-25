@@ -96,10 +96,10 @@ private object SchemaVersionSpecific {
         else {
           classSymbol.toType.substituteTypes(
             typeParams,
-            typeParams.map { s =>
+            typeParams.map { typeParam =>
               typeParamsAndArgs.getOrElse(
-                s.toString,
-                fail(s"Cannot resolve generic type(s) for `${classSymbol.toType}`.")
+                typeParam.toString,
+                fail(s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'.")
               )
             }
           )
