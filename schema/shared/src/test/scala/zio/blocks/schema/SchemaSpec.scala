@@ -515,11 +515,44 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for higher-kinded records using a macro call") {
+        case class Record8[F[_]](f: F[Int], fs: F[Record8[F]])
+
+        val schema = Schema.derived[Record8[Option]]
+        val record = schema.reflect.asRecord
+        val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      },
       test("encodes values using provided formats and outputs") {
         val result = encodeToString { out =>
           Schema[Record].encode(ToStringFormat)(out)(Record(1: Byte, 2))
         }
         assert(result)(equalTo("Record(1,2)"))
+      },
+      test("doesn't generate schema for classes without a primary constructor") {
+        typeCheck {
+          "Schema.derived[scala.concurrent.duration.Duration]"
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("Cannot find a primary constructor for 'Infinite.this.<local child>'") || // Scala 2
+                containsString(
+                  "Cannot find 'length' parameter of 'scala.concurrent.duration.FiniteDuration' in the primary constructor."
+                ) // Scala 3
+            )
+          )
+        )
+      },
+      test("doesn't generate schema for non resolved generic field types with a missing implicitly provided schema") {
+        typeCheck {
+          """case class GenDoc[A, B, C](a: A, opt: Option[B], list: List[C])
+
+             object GenDoc {
+               implicit def schema[A, B : Schema, C : Schema]: Schema[GenDoc[A, B, C]] = Schema.derived
+             }"""
+        }.map(assert(_)(isLeft(containsString("Unsupported field type 'A'."))))
       }
     ),
     suite("Reflect.Variant")(
@@ -804,6 +837,33 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[Variant].encode(ToStringFormat)(out)(Case1('a'))
         }
         assert(result)(equalTo("Case1(a)"))
+      },
+      test("doesn't generate schema when all generic type parameters cannot be resolved") {
+        typeCheck {
+          """sealed trait Foo[F[_]] extends Product with Serializable
+
+             case class FooImpl[F[_], A](fa: F[A], as: Vector[A]) extends Foo[F]
+
+             sealed trait Bar[A] extends Product with Serializable
+
+             case object Baz extends Bar[Int]
+
+             case object Qux extends Bar[String]
+
+             val v = FooImpl[Bar, String](Qux, Vector.empty[String])
+             val c = Schema.derived[Foo[Bar]]"""
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString(
+                "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[Bar]'."
+              ) || // Scala 2
+                containsString(
+                  "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[[A >: scala.Nothing <: scala.Any] => Bar[A]]'."
+                ) // Scala 3
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Sequence")(
@@ -1278,7 +1338,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(fieldValue2.asSequenceUnknown)(isNone) &&
         assert(fieldValue2.asMapUnknown)(isNone)
       }
-    )
+    ),
+    test("doesn't generate schema for unsupported classes") {
+      typeCheck {
+        "Schema.derived[java.util.Date]"
+      }.map(assert(_)(isLeft(containsString("Cannot derive schema for 'java.util.Date'."))))
+    }
   )
 
   implicit val tuple4Schema: Schema[(Byte, Short, Int, Long)] = Schema.derived

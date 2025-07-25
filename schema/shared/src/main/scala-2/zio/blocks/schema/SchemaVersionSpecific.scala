@@ -96,10 +96,10 @@ private object SchemaVersionSpecific {
         else {
           classSymbol.toType.substituteTypes(
             typeParams,
-            typeParams.map { s =>
+            typeParams.map { typeParam =>
               typeParamsAndArgs.getOrElse(
-                s.toString,
-                fail(s"Cannot resolve generic type(s) for `${classSymbol.toType}`.")
+                typeParam.toString,
+                fail(s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'.")
               )
             }
           )
@@ -170,28 +170,31 @@ private object SchemaVersionSpecific {
       (packages, values, name)
     }
 
-    val inferredSchemas = new mutable.HashMap[Type, Tree]
-    val derivedSchemas  = new mutable.LinkedHashMap[Type, (TermName, Tree)]
+    val inferredSchemas   = new mutable.HashMap[Type, Tree]
+    val derivedSchemaRefs = new mutable.HashMap[Type, Ident]
+    val derivedSchemaDefs = new mutable.ListBuffer[Tree]
 
     def findImplicitOrDeriveSchema(tpe: Type): Tree = {
-      val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
-      val schema    = inferredSchemas.getOrElseUpdate(tpe, c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe))
-      if (schema.isEmpty) {
-        Ident(
-          derivedSchemas
-            .getOrElseUpdate(
-              tpe, {
-                val schema = deriveSchema(tpe)
-                val name   = TermName("s" + derivedSchemas.size)
-                val tree =
-                  if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
-                  else q"implicit lazy val $name: $schemaTpe = $schema"
-                (name, tree)
+      lazy val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
+      val inferredSchema =
+        inferredSchemas.getOrElseUpdate(tpe, c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe))
+      if (inferredSchema.nonEmpty) inferredSchema
+      else {
+        derivedSchemaRefs
+          .getOrElse(
+            tpe, {
+              val name  = TermName("s" + derivedSchemaRefs.size)
+              val ident = Ident(name)
+              derivedSchemaRefs.update(tpe, ident)
+              val schema = deriveSchema(tpe)
+              derivedSchemaDefs.addOne {
+                if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
+                else q"implicit lazy val $name: $schemaTpe = $schema"
               }
-            )
-            ._1
-        )
-      } else schema
+              ident
+            }
+          )
+      }
     }
 
     def deriveSchema(tpe: Type): Tree = {
@@ -442,7 +445,7 @@ private object SchemaVersionSpecific {
             import _root_.zio.blocks.schema.binding._
             import _root_.zio.blocks.schema.binding.RegisterOffset._
 
-            ..${derivedSchemas.values.map(_._2)}
+            ..$derivedSchemaDefs
             $schema
           }"""
     // c.info(c.enclosingPosition, s"Generated schema:\n${showCode(schemaBlock)}", force = true)
