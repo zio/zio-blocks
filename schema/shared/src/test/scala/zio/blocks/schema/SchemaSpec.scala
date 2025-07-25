@@ -520,6 +520,29 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[Record].encode(ToStringFormat)(out)(Record(1: Byte, 2))
         }
         assert(result)(equalTo("Record(1,2)"))
+      },
+      test("fail to generate schema for classes without a primary constructor") {
+        typeCheck {
+          "Schema.derived[scala.concurrent.duration.Duration]"
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("Cannot find a primary constructor for 'Infinite.this.<local child>'") || // Scala 2
+                containsString(
+                  "Cannot find 'length' parameter of 'scala.concurrent.duration.FiniteDuration' in the primary constructor."
+                ) // Scala 3
+            )
+          )
+        )
+      },
+      test("doesn't generate schema for non resolved generic field types with a missing implicitly provided schema") {
+        typeCheck {
+          """case class GenDoc[A, B, C](a: A, opt: Option[B], list: List[C])
+
+           object GenDoc {
+             implicit def schema[A, B : Schema, C : Schema]: Schema[GenDoc[A, B, C]] = Schema.derived
+           }"""
+        }.map(assert(_)(isLeft(containsString("Unsupported field type 'A'."))))
       }
     ),
     suite("Reflect.Variant")(
@@ -1278,7 +1301,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(fieldValue2.asSequenceUnknown)(isNone) &&
         assert(fieldValue2.asMapUnknown)(isNone)
       }
-    )
+    ),
+    test("doesn't generate schema for unsupported classes") {
+      typeCheck {
+        "Schema.derived[java.util.Date]"
+      }.map(assert(_)(isLeft(containsString("Cannot derive schema for 'java.util.Date'."))))
+    }
   )
 
   implicit val tuple4Schema: Schema[(Byte, Short, Int, Long)] = Schema.derived
