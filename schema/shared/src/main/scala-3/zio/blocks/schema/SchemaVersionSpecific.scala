@@ -220,17 +220,18 @@ private object SchemaVersionSpecific {
       if (inferredSchema ne null) inferredSchema
       else {
         derivedSchemaRefs
-          .getOrElseUpdate(
+          .getOrElse(
             tpe, {
-              val schema = deriveSchema[T]
-              val name   = "s" + derivedSchemaRefs.size
+              val name = "s" + derivedSchemaRefs.size
               val flags =
                 if (isNonRecursive(tpe)) Flags.Implicit
                 else Flags.Implicit | Flags.Lazy
               val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
-              val valDef = ValDef(symbol, Some(schema.asTerm.changeOwner(symbol)))
-              derivedSchemaDefs.addOne(valDef)
-              Ref(valDef.symbol).asExprOf[Schema[?]]
+              val ref    = Ref(symbol).asExprOf[Schema[?]]
+              derivedSchemaRefs.update(tpe, ref)
+              val schema = deriveSchema[T]
+              derivedSchemaDefs.addOne(ValDef(symbol, Some(schema.asTerm.changeOwner(symbol))))
+              ref
             }
           )
       }

@@ -181,15 +181,17 @@ private object SchemaVersionSpecific {
       if (inferredSchema.nonEmpty) inferredSchema
       else {
         derivedSchemaRefs
-          .getOrElseUpdate(
+          .getOrElse(
             tpe, {
+              val name  = TermName("s" + derivedSchemaRefs.size)
+              val ident = Ident(name)
+              derivedSchemaRefs.update(tpe, ident)
               val schema = deriveSchema(tpe)
-              val name   = TermName("s" + derivedSchemaRefs.size)
-              val tree =
+              derivedSchemaDefs.addOne {
                 if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
                 else q"implicit lazy val $name: $schemaTpe = $schema"
-              derivedSchemaDefs.addOne(tree)
-              Ident(name)
+              }
+              ident
             }
           )
       }

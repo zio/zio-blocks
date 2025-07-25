@@ -515,6 +515,16 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for higher-kinded records using a macro call") {
+        case class Record8[F[_]](f: F[Int], fs: F[Record8[F]])
+
+        val schema = Schema.derived[Record8[Option]]
+        val record = schema.reflect.asRecord
+        val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      },
       test("encodes values using provided formats and outputs") {
         val result = encodeToString { out =>
           Schema[Record].encode(ToStringFormat)(out)(Record(1: Byte, 2))
