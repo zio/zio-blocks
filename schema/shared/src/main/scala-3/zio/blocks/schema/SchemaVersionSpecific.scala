@@ -98,9 +98,6 @@ private object SchemaVersionSpecific {
 
       tpe.typeSymbol.children.map { symbol =>
         if (symbol.isType) {
-          if (symbol.name == "<local child>") { // problem - we have no other way to find this other return the name
-            fail(s"Unsupported local child symbol is found in '${tpe.show}'.")
-          }
           val nudeSubtype = TypeIdent(symbol).tpe
           nudeSubtype.memberType(symbol.primaryConstructor) match {
             case MethodType(_, _, _) => nudeSubtype
@@ -126,10 +123,10 @@ private object SchemaVersionSpecific {
                   case _                                          => polyRes.appliedTo(ctArgs)
                 }
               }
-            case other => fail(s"Primary constructor for '${tpe.show}' is not MethodType or PolyType but '$other'.")
+            case other => fail(s"Cannot resolve free type parameters type for ADT cases with base '${tpe.show}'.")
           }
         } else if (symbol.isTerm) Ref(symbol).tpe
-        else fail(s"Cannot resolve free type parametes type for ADT cases with base '${tpe.show}'.")
+        else fail(s"Cannot resolve free type parameters type for ADT cases with base '${tpe.show}'.")
       }
     }
 
@@ -205,39 +202,40 @@ private object SchemaVersionSpecific {
 
     def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] =
       (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
-        .map(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
-        .getOrElse('{ Doc.Empty }.asExprOf[Doc])
+        .fold('{ Doc.Empty }.asExprOf[Doc])(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
 
-    val inferredSchemas = new mutable.HashMap[TypeRepr, Option[Expr[Schema[?]]]]
-    val derivedSchemas  = new mutable.LinkedHashMap[TypeRepr, ValDef]
+    val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
+    val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
+    val derivedSchemaDefs = new mutable.ListBuffer[ValDef]
 
     def findImplicitOrDeriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
-      val tpe       = TypeRepr.of[T]
-      val schemaTpe = TypeRepr.of[Schema[T]]
-      val schema = inferredSchemas.getOrElseUpdate(
+      val tpe            = TypeRepr.of[T]
+      lazy val schemaTpe = TypeRepr.of[Schema[T]]
+      val inferredSchema = inferredSchemas.getOrElseUpdate(
         tpe,
         Implicits.search(schemaTpe) match
-          case v: ImplicitSearchSuccess => Some(v.tree.asExprOf[Schema[?]])
-          case _                        => None
+          case v: ImplicitSearchSuccess => v.tree.asExprOf[Schema[?]]
+          case _                        => null
       )
-      schema.getOrElse {
-        Ref(
-          derivedSchemas
-            .getOrElseUpdate(
-              tpe, {
-                val schema = deriveSchema[T]
-                val name   = "s" + derivedSchemas.size
-                val flags =
-                  if (isNonRecursive(tpe)) Flags.Implicit
-                  else Flags.Implicit | Flags.Lazy
-                val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
-                ValDef(symbol, Some(schema.asTerm.changeOwner(symbol)))
-              }
-            )
-            .symbol
-        ).asExprOf[Schema[?]]
-      }.asExprOf[Schema[T]]
-    }
+      if (inferredSchema ne null) inferredSchema
+      else {
+        derivedSchemaRefs
+          .getOrElse(
+            tpe, {
+              val name = "s" + derivedSchemaRefs.size
+              val flags =
+                if (isNonRecursive(tpe)) Flags.Implicit
+                else Flags.Implicit | Flags.Lazy
+              val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
+              val ref    = Ref(symbol).asExprOf[Schema[?]]
+              derivedSchemaRefs.update(tpe, ref)
+              val schema = deriveSchema[T]
+              derivedSchemaDefs.addOne(ValDef(symbol, Some(schema.asTerm.changeOwner(symbol))))
+              ref
+            }
+          )
+      }
+    }.asExprOf[Schema[T]]
 
     def deriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
       val tpe                      = TypeRepr.of[T]
@@ -435,7 +433,8 @@ private object SchemaVersionSpecific {
                         case _ =>
                           None
                       }
-                    case Nil => None
+                    case _ =>
+                      None
                   }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
                 } else None
               val offset =
@@ -564,7 +563,7 @@ private object SchemaVersionSpecific {
     }.asExprOf[Schema[T]]
 
     val schema      = TypeRepr.of[A].dealias.asType match { case '[t] => deriveSchema[t] }
-    val schemaBlock = Block(derivedSchemas.values.toList, schema.asTerm).asExprOf[Schema[A]]
+    val schemaBlock = Block(derivedSchemaDefs.toList, schema.asTerm).asExprOf[Schema[A]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
   }
