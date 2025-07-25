@@ -16,7 +16,16 @@ object OpticSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("OpticSpec")(
     suite("Lens")(
       test("evaluates schema expressions") {
-        assert(((Record1.b === Record1.b) && (Record1.b === Record1.b)).eval(Record1(false, 0)))(
+        assert(((Record1.f != Record1.f) || (Record1.b != Record1.b)).eval(Record1(false, 0)))(
+          isRight(equalTo(Seq(false)))
+        ) &&
+        assert(((Record1.f === Record1.f) || (Record1.b != Record1.b)).eval(Record1(false, 0)))(
+          isRight(equalTo(Seq(true)))
+        ) &&
+        assert(((Record1.f === Record1.f) && (Record1.b != Record1.b)).eval(Record1(false, 0)))(
+          isRight(equalTo(Seq(false)))
+        ) &&
+        assert(((Record1.f === Record1.f) && (Record1.b === Record1.b)).eval(Record1(false, 0)))(
           isRight(equalTo(Seq(true)))
         ) &&
         assert((Record1.b === Record1.b).eval(Record1(false, 0)))(isRight(equalTo(Seq(true)))) &&
