@@ -177,6 +177,26 @@ final case class DerivationBuilder[TC[_], A](
             )
             Lazy(Reflect.Primitive(primitiveType, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
+
+          override def transformWrapper[A, B](
+            path: DynamicOptic,
+            wrapped: Reflect[G, B],
+            typeName: TypeName[A],
+            metadata: F[BindingType.Wrapper[A, B], A],
+            doc: Doc,
+            modifiers: Seq[Modifier.Wrapper]
+          ): Lazy[Reflect.Wrapper[G, A, B]] = {
+            val instance = getCustomInstance[A](path, typeName).getOrElse(
+              deriver.deriveWrapper(
+                wrapped,
+                typeName,
+                metadata,
+                doc,
+                modifiers ++ extraModifiers(new Reflect.Type.Wrapper, path)
+              )
+            )
+            Lazy(Reflect.Wrapper(wrapped, typeName, BindingInstance(metadata, instance), doc, modifiers))
+          }
         }
       )
       .flatMap(_.metadata.instance)

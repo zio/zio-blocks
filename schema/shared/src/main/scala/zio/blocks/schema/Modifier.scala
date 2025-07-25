@@ -23,6 +23,8 @@ object Modifier {
 
   sealed trait Primitive extends Modifier
 
+  sealed trait Wrapper extends Modifier
+
   /**
    * A configuration key-value pair, which can be attached to any type of
    * reflective value. The convention for keys is `<format>.<property>`. For
@@ -37,4 +39,5 @@ object Modifier {
       with Seq
       with Map
       with Primitive
+      with Wrapper
 }

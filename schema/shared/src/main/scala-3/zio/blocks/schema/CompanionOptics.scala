@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.binding._
+
 trait CompanionOptics[S] {
   import scala.annotation.compileTimeOnly
 
@@ -31,6 +33,11 @@ trait CompanionOptics[S] {
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def eachValue: V = ???
+  }
+
+  extension [A](a: A) {
+    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
+    def wrapped[B]: B = ???
   }
 
   transparent inline def $[A](inline path: S => A)(using schema: Schema[S]): Any =
@@ -205,6 +212,63 @@ private object CompanionOptics {
                     }
                   }
                 }
+            }
+        })
+      case TypeApply(Apply(TypeApply(wrapperTerm, _), idents), typeTrees) if hasName(wrapperTerm, "wrapped") =>
+        val parent     = idents.head
+        val parentTpe  = parent.tpe.dealias.widen
+        val wrapperTpe = typeTrees.head.tpe.dealias
+        Some((parentTpe.asType, wrapperTpe.asType) match {
+          case ('[p], '[w]) =>
+            toOptic(parent).fold {
+              '{
+                $schema.reflect.asWrapperUnknown
+                  .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                  .getOrElse(sys.error("Expected a wrapper"))
+                  .asInstanceOf[Optional[p, w]]
+              }
+            } { x =>
+              if (x.isExprOf[Lens[S, p]]) {
+                '{
+                  val optic = ${ x.asExprOf[Lens[S, p]] }
+                  optic.apply(
+                    optic.focus.asWrapperUnknown
+                      .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                      .getOrElse(sys.error("Expected a wrapper"))
+                      .asInstanceOf[Optional[p, w]]
+                  )
+                }
+              } else if (x.isExprOf[Prism[S, p & S]]) {
+                '{
+                  val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                  optic.apply(
+                    optic.focus.asWrapperUnknown
+                      .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                      .getOrElse(sys.error("Expected a wrapper"))
+                      .asInstanceOf[Optional[p & S, w]]
+                  )
+                }
+              } else if (x.isExprOf[Optional[S, p]]) {
+                '{
+                  val optic = ${ x.asExprOf[Optional[S, p]] }
+                  optic.apply(
+                    optic.focus.asWrapperUnknown
+                      .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                      .getOrElse(sys.error("Expected a wrapper"))
+                      .asInstanceOf[Optional[p, w]]
+                  )
+                }
+              } else {
+                '{
+                  val optic = ${ x.asExprOf[Traversal[S, p]] }
+                  optic.apply(
+                    optic.focus.asWrapperUnknown
+                      .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                      .getOrElse(sys.error("Expected a wrapper"))
+                      .asInstanceOf[Optional[p, w]]
+                  )
+                }
+              }
             }
         })
       case Apply(Apply(TypeApply(elementTerm, _), idents), List(index))

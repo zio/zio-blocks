@@ -131,6 +131,22 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(Reflect.map(Reflect.zoneOffset[Binding], Reflect.zonedDateTime[Binding]).isVariant)(equalTo(false)) &&
         assert(Reflect.dynamic[Binding].asVariant)(isNone) &&
         assert(Reflect.dynamic[Binding].isVariant)(equalTo(false))
+      },
+      test("has consistent asWrapperUnknown and isWrapper") {
+        assert(boxReflect.asWrapperUnknown.isDefined)(equalTo(true)) &&
+        assert(boxReflect.isWrapper)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => boxReflect).asWrapperUnknown.isDefined)(equalTo(true)) &&
+        assert(Reflect.Deferred(() => boxReflect).isWrapper)(equalTo(true)) &&
+        assert(Reflect.int[Binding].asWrapperUnknown)(isNone) &&
+        assert(Reflect.int[Binding].isWrapper)(equalTo(false)) &&
+        assert(tuple4Reflect.asWrapperUnknown)(isNone) &&
+        assert(tuple4Reflect.isWrapper)(equalTo(false)) &&
+        assert(eitherReflect.asWrapperUnknown)(isNone) &&
+        assert(eitherReflect.isWrapper)(equalTo(false)) &&
+        assert(Reflect.map(Reflect.dayOfWeek[Binding], Reflect.duration[Binding]).asWrapperUnknown)(isNone) &&
+        assert(Reflect.map(Reflect.dayOfWeek[Binding], Reflect.duration[Binding]).isWrapper)(equalTo(false)) &&
+        assert(Reflect.dynamic[Binding].asWrapperUnknown)(isNone) &&
+        assert(Reflect.dynamic[Binding].isWrapper)(equalTo(false))
       }
     ),
     suite("Reflect.Primitive")(
@@ -590,6 +606,51 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       }
     ),
+    suite("Reflect.Wrapper")(
+      test("has consistent equals and hashCode") {
+        val wrapper1 = boxReflect
+        val wrapper2 = wrapper1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Tuple4"))
+        val wrapper3 = wrapper1.copy(wrapped = Reflect.long[Binding].doc("Long (updated)"))
+        val wrapper4 = wrapper1.copy(doc = Doc("text"))
+        val wrapper5 = wrapper1.copy(modifiers = Seq(Modifier.config("key", "value")))
+        assert(wrapper1)(equalTo(wrapper1)) &&
+        assert(wrapper1.hashCode)(equalTo(wrapper1.hashCode)) &&
+        assert(wrapper1.noBinding: Any)(equalTo(wrapper1)) &&
+        assert(wrapper1.noBinding.hashCode)(equalTo(wrapper1.hashCode)) &&
+        assert(wrapper2)(not(equalTo(wrapper1))) &&
+        assert(wrapper3)(not(equalTo(wrapper1))) &&
+        assert(wrapper4)(not(equalTo(wrapper1))) &&
+        assert(wrapper5)(not(equalTo(wrapper1)))
+      },
+      test("has consistent metadata and nodeType") {
+        assert(boxReflect.metadata: Any)(equalTo(boxReflect.binding)) &&
+        assert(boxReflect.nodeType)(equalTo(Reflect.Type.Wrapper[Box, Long]()))
+      },
+      test("has consistent fromDynamicValue and toDynamicValue") {
+        assert(boxReflect.fromDynamicValue(boxReflect.toDynamicValue(Box(4L))))(isRight(equalTo(Box(4L))))
+      },
+      test("gets and updates wrapper default value") {
+        assert(boxReflect.getDefaultValue)(isNone) &&
+        assert(boxReflect.defaultValue(Box(4L)).getDefaultValue)(isSome(equalTo(Box(4L))))
+      },
+      test("gets and updates wrapper documentation") {
+        assert(boxReflect.doc)(equalTo(Doc.Empty)) &&
+        assert(boxReflect.doc("Tuple4 (updated)").doc)(equalTo(Doc("Tuple4 (updated)")))
+      },
+      test("gets and updates wrapper examples") {
+        assert(boxReflect.examples)(equalTo(Seq.empty)) &&
+        assert(boxReflect.examples(Box(4L)).examples)(equalTo(Box(4L) :: Nil))
+      },
+      test("gets and appends wrapper modifiers") {
+        assert(boxReflect.modifiers)(equalTo(Seq.empty)) &&
+        assert(boxReflect.modifier(Modifier.config("key", "value")).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        ) &&
+        assert(boxReflect.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
+          equalTo(Seq(Modifier.config("key", "value")))
+        )
+      }
+    ),
     suite("Reflect.Deferred")(
       test("has consistent equals and hashCode") {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
@@ -671,4 +732,8 @@ object ReflectSpec extends ZIOSpecDefault {
     Schema.derived[(Byte, Short, Int, Long)].reflect.asRecord.get
   val eitherReflect: Reflect.Variant[Binding, Either[Int, Long]] =
     Schema.derived[Either[Int, Long]].reflect.asVariant.get
+  val boxReflect: Reflect.Wrapper[Binding, Box, Long] =
+    Schema.derived[Box].reflect.asWrapperUnknown.get.wrapper.asInstanceOf[Reflect.Wrapper[Binding, Box, Long]]
 }
+
+case class Box(value: Long) extends AnyVal

@@ -8,5 +8,6 @@ object BindingType {
   type Seq[_[_]] <: BindingType
   type Map[_[_, _]] <: BindingType
   type Primitive <: BindingType
+  type Wrapper[_, _] <: BindingType
   type Dynamic <: BindingType
 }

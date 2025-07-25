@@ -34,6 +34,13 @@ private object SchemaVersionSpecific {
 
     def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
 
+    def isValueClass(tpe: TypeRepr): Boolean =
+      tpe <:< TypeRepr.of[AnyVal] && !tpe.classSymbol.fold(false)(x => defn.ScalaPrimitiveValueClasses.contains(x))
+
+    def valueClassValueSymbol(tpe: TypeRepr): Symbol = tpe.typeSymbol.fieldMembers.head
+
+    def valueClassValueType(tpe: TypeRepr): TypeRepr = tpe.memberType(valueClassValueSymbol(tpe)).dealias
+
     def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
       flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
@@ -142,6 +149,7 @@ private object SchemaVersionSpecific {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isValueClass(tpe)) isNonRecursive(valueClassValueType(tpe), tpe :: nestedTpes)
           else {
             isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
               val primaryConstructor = tpe.classSymbol.get.primaryConstructor
@@ -378,6 +386,32 @@ private object SchemaVersionSpecific {
             )
           )
         }
+      } else if (isValueClass(tpe)) {
+        val wrappedTpe = valueClassValueType(tpe)
+        wrappedTpe.asType match
+          case '[wt] =>
+            val wrappedSchema      = findImplicitOrDeriveSchema[wt]
+            val tpeClassSymbol     = tpe.classSymbol.get
+            val primaryConstructor = tpeClassSymbol.primaryConstructor
+            if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
+            val constructorNoTypes = Select(New(Inferred(tpe)), primaryConstructor)
+            val constructor = typeArgs(tpe) match
+              case Nil      => constructorNoTypes
+              case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
+            '{
+              new Schema[T](
+                reflect = new Reflect.Wrapper[Binding, T, wt](
+                  wrapped = $wrappedSchema.reflect,
+                  typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                  wrapperBinding = new Binding.Wrapper(
+                    wrap = (x: wt) => new Right(${ Apply(constructor, List(('x).asTerm)).asExprOf[T] }),
+                    unwrap = (x: T) => ${ Select.unique(('x).asTerm, valueClassValueSymbol(tpe).name).asExprOf[wt] }
+                  ),
+                  doc = ${ doc(tpe) },
+                  modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
+                )
+              )
+            }
       } else if (isNonAbstractScalaClass(tpe)) {
         case class FieldInfo(
           symbol: Symbol,
