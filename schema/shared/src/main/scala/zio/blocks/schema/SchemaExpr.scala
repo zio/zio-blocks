@@ -39,6 +39,13 @@ sealed trait SchemaExpr[A, +B] { self =>
       SchemaExpr.LogicalOperator.And
     )
 
+  final def ||[C, B](that: SchemaExpr[A, C])(implicit ev: B <:< Boolean, ev2: C =:= Boolean): SchemaExpr[A, Boolean] =
+    SchemaExpr.Logical(
+      self.asInstanceOf[SchemaExpr[A, Boolean]],
+      that.asInstanceOf[SchemaExpr[A, Boolean]],
+      SchemaExpr.LogicalOperator.Or
+    )
+
 }
 
 object SchemaExpr {
