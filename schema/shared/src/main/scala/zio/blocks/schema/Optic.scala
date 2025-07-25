@@ -145,14 +145,6 @@ sealed trait Optic[S, A] { self =>
     SchemaExpr.LogicalOperator.And
   )
 
-  // TODO: Avi experiment
-  final def &&&[B](that: Optic[S, B])(implicit ev: A =:= Boolean, ev2: B =:= Boolean): SchemaExpr[S, Boolean] =
-    SchemaExpr.Logical(
-      SchemaExpr.Optic(this.asEquivalent[Boolean]),
-      SchemaExpr.Optic(that.asEquivalent[Boolean]),
-      SchemaExpr.LogicalOperator.And
-    )
-
   final def &&(that: Boolean)(implicit ev: A =:= Boolean): SchemaExpr[S, Boolean] =
     SchemaExpr.Logical(
       SchemaExpr.Optic(this.asEquivalent[Boolean]),
