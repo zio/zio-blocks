@@ -46,7 +46,8 @@ lazy val root = project
     streams.jvm,
     streams.js,
     streams.native,
-    benchmarks
+    benchmarks,
+    avro
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -122,4 +123,15 @@ lazy val benchmarks = project
     },
     assembly / fullClasspath := (Jmh / fullClasspath).value,
     assembly / mainClass     := Some("org.openjdk.jmh.Main")
+  )
+
+lazy val avro = project
+  .dependsOn(schema.jvm)
+  .settings(stdSettings("zio-blocks-avro"))
+  .settings(
+    libraryDependencies ++= Seq(
+      "org.apache.avro" % "avro"         % "1.12.0",
+      "dev.zio"        %% "zio-test"     % "2.1.20" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.20" % Test
+    )
   )
