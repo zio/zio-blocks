@@ -204,8 +204,9 @@ private object SchemaVersionSpecific {
       (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
         .fold('{ Doc.Empty }.asExprOf[Doc])(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
 
-    val inferredSchemas = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
-    val derivedSchemas  = new mutable.LinkedHashMap[TypeRepr, (Expr[Schema[?]], ValDef)]
+    val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
+    val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
+    val derivedSchemaDefs = new mutable.ListBuffer[ValDef]
 
     def findImplicitOrDeriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
       val tpe            = TypeRepr.of[T]
@@ -218,20 +219,20 @@ private object SchemaVersionSpecific {
       )
       if (inferredSchema ne null) inferredSchema
       else {
-        derivedSchemas
+        derivedSchemaRefs
           .getOrElseUpdate(
             tpe, {
               val schema = deriveSchema[T]
-              val name   = "s" + derivedSchemas.size
+              val name   = "s" + derivedSchemaRefs.size
               val flags =
                 if (isNonRecursive(tpe)) Flags.Implicit
                 else Flags.Implicit | Flags.Lazy
               val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
               val valDef = ValDef(symbol, Some(schema.asTerm.changeOwner(symbol)))
-              (Ref(valDef.symbol).asExprOf[Schema[?]], valDef)
+              derivedSchemaDefs.addOne(valDef)
+              Ref(valDef.symbol).asExprOf[Schema[?]]
             }
           )
-          ._1
       }
     }.asExprOf[Schema[T]]
 
@@ -561,7 +562,7 @@ private object SchemaVersionSpecific {
     }.asExprOf[Schema[T]]
 
     val schema      = TypeRepr.of[A].dealias.asType match { case '[t] => deriveSchema[t] }
-    val schemaBlock = Block(derivedSchemas.values.map(_._2).toList, schema.asTerm).asExprOf[Schema[A]]
+    val schemaBlock = Block(derivedSchemaDefs.toList, schema.asTerm).asExprOf[Schema[A]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
   }
