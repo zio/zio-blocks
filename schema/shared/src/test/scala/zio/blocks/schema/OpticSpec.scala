@@ -52,6 +52,18 @@ object OpticSpec extends ZIOSpecDefault {
         assert((Record1.f * 2).eval(Record1(false, 2)))(isRight(equalTo(Seq(4.0f))))
       },
       test("evaluates schema expressions to dynamic values") {
+        assert(((Record1.f != Record1.f) || (Record1.b != Record1.b)).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+        ) &&
+        assert(((Record1.f === Record1.f) || (Record1.b === Record1.b)).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
+        assert(((Record1.f === Record1.f) && (Record1.b != Record1.b)).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(false)))))
+        ) &&
+        assert(((Record1.f === Record1.f) && (Record1.b === Record1.b)).evalDynamic(Record1(false, 0)))(
+          isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
+        ) &&
         assert((Record1.b === Record1.b).evalDynamic(Record1(false, 0)))(
           isRight(equalTo(Seq(DynamicValue.Primitive(PrimitiveValue.Boolean(true)))))
         ) &&
