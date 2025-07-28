@@ -241,7 +241,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
       test("derives schema for record with multi list constructor using a macro call") {
-        case class Record3(val s: Short)(val l: Long)
+        case class Record3(val s: Short = 0: Short)(val l: Long)
 
         object Record3 extends CompanionOptics[Record3] {
           implicit val schema: Schema[Record3] = Schema.derived
@@ -252,7 +252,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val record = Record3.schema.reflect.asRecord
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(shorts = 1, longs = 1)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(shorts = 1, longs = 1)))) &&
-        assert(Record3.s.focus.getDefaultValue)(isNone) &&
+        assert(Record3.s.focus.getDefaultValue)(isSome(equalTo(0: Short))) &&
         assert(Record3.l.focus.getDefaultValue)(isNone) &&
         assert(Record3.s.modify(new Record3(1)(2L), _ => 3: Short).s)(equalTo(3: Short)) &&
         assert(Record3.l.modify(new Record3(1)(2L), _ => 3L).l)(equalTo(3L)) &&
@@ -553,6 +553,16 @@ object SchemaSpec extends ZIOSpecDefault {
                implicit def schema[A, B : Schema, C : Schema]: Schema[GenDoc[A, B, C]] = Schema.derived
              }"""
         }.map(assert(_)(isLeft(containsString("Unsupported field type 'A'."))))
+      },
+      test("doesn't generate schema for multi list constructor with default values in non-first list of arguments") {
+        typeCheck {
+          """case class MultiListWithDefaults(val s: Short = 0: Short)(val l: Long = 1L)
+
+             Schema.derived[MultiListWithDefaults]"""
+        }.map(assert(_)(isLeft(
+          containsString("missing argument list for method <init>$default$2 in object MultiListWithDefaults") || // Scala 2
+          containsString("Cannot find default value for 'val l' in class 'MultiListWithDefaults'.") // Scala 3
+        )))
       }
     ),
     suite("Reflect.Variant")(
