@@ -540,7 +540,10 @@ object SchemaSpec extends ZIOSpecDefault {
               containsString("Cannot find a primary constructor for 'Infinite.this.<local child>'") || // Scala 2
                 containsString(
                   "Cannot find 'length' parameter of 'scala.concurrent.duration.FiniteDuration' in the primary constructor."
-                ) // Scala 3
+                ) || // Scala 3.3
+                containsString(
+                  "Cannot derive schema for 'java.util.concurrent.TimeUnit'."
+                ) // Scala 3.7
             )
           )
         )
@@ -559,10 +562,16 @@ object SchemaSpec extends ZIOSpecDefault {
           """case class MultiListWithDefaults(val s: Short = 0: Short)(val l: Long = 1L)
 
              Schema.derived[MultiListWithDefaults]"""
-        }.map(assert(_)(isLeft(
-          containsString("missing argument list for method <init>$default$2 in object MultiListWithDefaults") || // Scala 2
-          containsString("Cannot find default value for 'val l' in class 'MultiListWithDefaults'.") // Scala 3
-        )))
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString(
+                "missing argument list for method <init>$default$2 in object MultiListWithDefaults"
+              ) ||                                                                                        // Scala 2
+                containsString("Cannot find default value for 'val l' in class 'MultiListWithDefaults'.") // Scala 3
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Variant")(
@@ -909,7 +918,10 @@ object SchemaSpec extends ZIOSpecDefault {
               ) || // Scala 2
                 containsString(
                   "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[[A >: scala.Nothing <: scala.Any] => Bar[A]]'."
-                ) // Scala 3
+                ) || // Scala 3.3
+                containsString(
+                  "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[[A >: scala.Nothing <: scala.Any] =>> Bar[A]]'."
+                ) // Scala 3.7
             )
           )
         )
