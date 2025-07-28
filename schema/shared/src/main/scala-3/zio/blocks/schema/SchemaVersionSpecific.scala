@@ -123,10 +123,10 @@ private object SchemaVersionSpecific {
                   case _                                          => polyRes.appliedTo(ctArgs)
                 }
               }
-            case other => fail(s"Cannot resolve free type parameters type for ADT cases with base '${tpe.show}'.")
+            case other => fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
           }
         } else if (symbol.isTerm) Ref(symbol).tpe
-        else fail(s"Cannot resolve free type parameters type for ADT cases with base '${tpe.show}'.")
+        else fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
       }
     }
 
@@ -333,9 +333,7 @@ private object SchemaVersionSpecific {
             case '[st] =>
               val termName = fullName.drop(length).mkString(".")
               val sSchema  = findImplicitOrDeriveSchema[st]
-              '{
-                $sSchema.reflect.asTerm[T](${ Expr(termName) })
-              }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
+              '{ $sSchema.reflect.asTerm[T](${ Expr(termName) }) }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
           }
         }
 

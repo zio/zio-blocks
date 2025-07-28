@@ -241,7 +241,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
       test("derives schema for record with multi list constructor using a macro call") {
-        case class Record3(val s: Short)(val l: Long)
+        case class Record3(val s: Short = 0: Short)(val l: Long)
 
         object Record3 extends CompanionOptics[Record3] {
           implicit val schema: Schema[Record3] = Schema.derived
@@ -252,7 +252,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val record = Record3.schema.reflect.asRecord
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(shorts = 1, longs = 1)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(shorts = 1, longs = 1)))) &&
-        assert(Record3.s.focus.getDefaultValue)(isNone) &&
+        assert(Record3.s.focus.getDefaultValue)(isSome(equalTo(0: Short))) &&
         assert(Record3.l.focus.getDefaultValue)(isNone) &&
         assert(Record3.s.modify(new Record3(1)(2L), _ => 3: Short).s)(equalTo(3: Short)) &&
         assert(Record3.l.modify(new Record3(1)(2L), _ => 3L).l)(equalTo(3L)) &&
@@ -515,7 +515,7 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("derives schema for higher-kinded records using a macro call") {
+      test("derives schema for recursive higher-kinded records using a macro call") {
         case class Record8[F[_]](f: F[Int], fs: F[Record8[F]])
 
         val schema = Schema.derived[Record8[Option]]
@@ -540,7 +540,10 @@ object SchemaSpec extends ZIOSpecDefault {
               containsString("Cannot find a primary constructor for 'Infinite.this.<local child>'") || // Scala 2
                 containsString(
                   "Cannot find 'length' parameter of 'scala.concurrent.duration.FiniteDuration' in the primary constructor."
-                ) // Scala 3
+                ) || // Scala 3.3
+                containsString(
+                  "Cannot derive schema for 'java.util.concurrent.TimeUnit'."
+                ) // Scala 3.7
             )
           )
         )
@@ -553,6 +556,22 @@ object SchemaSpec extends ZIOSpecDefault {
                implicit def schema[A, B : Schema, C : Schema]: Schema[GenDoc[A, B, C]] = Schema.derived
              }"""
         }.map(assert(_)(isLeft(containsString("Unsupported field type 'A'."))))
+      },
+      test("doesn't generate schema for multi list constructor with default values in non-first list of arguments") {
+        typeCheck {
+          """case class MultiListWithDefaults(val s: Short = 0: Short)(val l: Long = 1L)
+
+             Schema.derived[MultiListWithDefaults]"""
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString(
+                "missing argument list for method <init>$default$2 in object MultiListWithDefaults"
+              ) ||                                                                                        // Scala 2
+                containsString("Cannot find default value for 'val l' in class 'MultiListWithDefaults'.") // Scala 3
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Variant")(
@@ -832,6 +851,46 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for genetic variant with 'Nothing' type parameter using a macro call") {
+        sealed trait Variant4[+E, +A]
+
+        case class Error[E](error: E) extends Variant4[E, Nothing]
+
+        case class Fatal(reason: String) extends Variant4[Nothing, Nothing]
+
+        case class Success[A](a: A) extends Variant4[Nothing, A]
+
+        case class Timeout() extends Variant4[Nothing, Nothing]
+
+        val schema  = Schema.derived[Variant4[String, Int]]
+        val variant = schema.reflect.asVariant
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[Variant4[String, Int]](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "spec")
+                ),
+                name = "Variant4"
+              )
+            )
+          )
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Error[String]("error"))))(
+          isRight(equalTo(Error[String]("error")))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Fatal("fatal"))))(
+          isRight(equalTo(Fatal("fatal")))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Success[Int](1))))(
+          isRight(equalTo(Success[Int](1)))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Timeout())))(
+          isRight(equalTo(Timeout()))
+        )
+      },
       test("encodes values using provided formats and outputs") {
         val result = encodeToString { out =>
           Schema[Variant].encode(ToStringFormat)(out)(Case1('a'))
@@ -850,8 +909,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
              case object Qux extends Bar[String]
 
-             val v = FooImpl[Bar, String](Qux, Vector.empty[String])
-             val c = Schema.derived[Foo[Bar]]"""
+             Schema.derived[Foo[Bar]]"""
         }.map(
           assert(_)(
             isLeft(
@@ -860,10 +918,20 @@ object SchemaSpec extends ZIOSpecDefault {
               ) || // Scala 2
                 containsString(
                   "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[[A >: scala.Nothing <: scala.Any] => Bar[A]]'."
-                ) // Scala 3
+                ) || // Scala 3.3
+                containsString(
+                  "Type parameter 'A' of 'class FooImpl' can't be deduced from type arguments of 'Foo[[A >: scala.Nothing <: scala.Any] =>> Bar[A]]'."
+                ) // Scala 3.7
             )
           )
         )
+      },
+      test("doesn't generate schema for ADT-base without non-abstract subtypes") {
+        typeCheck {
+          """sealed trait X
+
+             Schema.derived[X]"""
+        }.map(assert(_)(isLeft(containsString("Cannot find sub-types for ADT base 'X'."))))
       }
     ),
     suite("Reflect.Sequence")(
