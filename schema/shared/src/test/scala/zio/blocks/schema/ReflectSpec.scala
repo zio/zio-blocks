@@ -272,6 +272,12 @@ object ReflectSpec extends ZIOSpecDefault {
         ) &&
         assert(tuple4Reflect.lensByName("_5"))(isNone)
       },
+      test("creates lens by index") {
+        assert(tuple4Reflect.lensByIndex(2): Option[Any])(
+          isSome(equalTo(Lens(tuple4Reflect, Reflect.int[Binding].asTerm[(Byte, Short, Int, Long)]("_3"))))
+        ) &&
+        assert(tuple4Reflect.lensByIndex(4))(isNone)
+      },
       test("finds field term by name") {
         assert(tuple4Reflect.fieldByName("_3"): Option[Any])(isSome(equalTo(Reflect.int[Binding].asTerm("_3")))) &&
         assert(tuple4Reflect.fieldByName("_5"))(isNone)

@@ -343,12 +343,12 @@ object Reflect {
           new Left(SchemaError.invalidType(trace, "Expected a record"))
       }
 
-    def lensByName[B](name: String): Option[Lens[A, B]] = {
-      val idx = fieldIndexByName.get(name)
-      if (idx >= 0) {
+    def lensByName[B](name: String): Option[Lens[A, B]] = lensByIndex(fieldIndexByName.get(name))
+
+    def lensByIndex[B](idx: Int): Option[Lens[A, B]] =
+      if (idx >= 0 && idx < fields.length) {
         new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(idx).asInstanceOf[Term.Bound[A, B]]))
       } else None
-    }
 
     def metadata: F[NodeBinding, A] = recordBinding
 
