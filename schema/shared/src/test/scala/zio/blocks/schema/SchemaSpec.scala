@@ -515,7 +515,7 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("derives schema for higher-kinded records using a macro call") {
+      test("derives schema for recursive higher-kinded records using a macro call") {
         case class Record8[F[_]](f: F[Int], fs: F[Record8[F]])
 
         val schema = Schema.derived[Record8[Option]]
@@ -832,6 +832,46 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for genetic variant with 'Nothing' type parameter using a macro call") {
+        sealed trait Variant4[+E, +A]
+
+        case class Error[E](error: E) extends Variant4[E, Nothing]
+
+        case class Fatal(reason: String) extends Variant4[Nothing, Nothing]
+
+        case class Success[A](a: A) extends Variant4[Nothing, A]
+
+        case class Timeout() extends Variant4[Nothing, Nothing]
+
+        val schema  = Schema.derived[Variant4[String, Int]]
+        val variant = schema.reflect.asVariant
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[Variant4[String, Int]](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "spec")
+                ),
+                name = "Variant4"
+              )
+            )
+          )
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Error[String]("error"))))(
+          isRight(equalTo(Error[String]("error")))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Fatal("fatal"))))(
+          isRight(equalTo(Fatal("fatal")))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Success[Int](1))))(
+          isRight(equalTo(Success[Int](1)))
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Timeout())))(
+          isRight(equalTo(Timeout()))
+        )
+      },
       test("encodes values using provided formats and outputs") {
         val result = encodeToString { out =>
           Schema[Variant].encode(ToStringFormat)(out)(Case1('a'))
@@ -850,8 +890,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
              case object Qux extends Bar[String]
 
-             val v = FooImpl[Bar, String](Qux, Vector.empty[String])
-             val c = Schema.derived[Foo[Bar]]"""
+             Schema.derived[Foo[Bar]]"""
         }.map(
           assert(_)(
             isLeft(
@@ -864,6 +903,13 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         )
+      },
+      test("doesn't generate schema for ADT-base without non-abstract subtypes") {
+        typeCheck {
+          """sealed trait X
+
+             Schema.derived[X]"""
+        }.map(assert(_)(isLeft(containsString("Cannot find sub-types for ADT base 'X'."))))
       }
     ),
     suite("Reflect.Sequence")(
