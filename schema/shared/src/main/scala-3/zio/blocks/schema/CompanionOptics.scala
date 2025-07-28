@@ -439,6 +439,60 @@ private object CompanionOptics {
                 }
             }
         })
+      case Apply(Apply(_, List(parent)), List(Literal(IntConstant(idx)))) =>
+        val parentTpe = parent.tpe.dealias.widen
+        val childTpe  = term.tpe.dealias.widen
+        Some(parentTpe.asType match {
+          case '[p] =>
+            childTpe.asType match {
+              case '[c] =>
+                toOptic(parent).fold {
+                  '{
+                    $schema.reflect.asRecord
+                      .flatMap(_.lensByIndex[c](${ Expr(idx) }))
+                      .getOrElse(sys.error("Expected a record"))
+                  }
+                } { x =>
+                  if (x.isExprOf[Lens[S, p]]) {
+                    '{
+                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      optic.apply(
+                        optic.focus.asRecord
+                          .flatMap(_.lensByIndex[c](${ Expr(idx) }))
+                          .getOrElse(sys.error("Expected a record"))
+                      )
+                    }
+                  } else if (x.isExprOf[Prism[S, p & S]]) {
+                    '{
+                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      optic.apply(
+                        optic.focus.asRecord
+                          .flatMap(_.lensByIndex[c](${ Expr(idx) }))
+                          .getOrElse(sys.error("Expected a record"))
+                      )
+                    }
+                  } else if (x.isExprOf[Optional[S, p]]) {
+                    '{
+                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      optic.apply(
+                        optic.focus.asRecord
+                          .flatMap(_.lensByIndex[c](${ Expr(idx) }))
+                          .getOrElse(sys.error("Expected a record"))
+                      )
+                    }
+                  } else {
+                    '{
+                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      optic.apply(
+                        optic.focus.asRecord
+                          .flatMap(_.lensByIndex[c](${ Expr(idx) }))
+                          .getOrElse(sys.error("Expected a record"))
+                      )
+                    }
+                  }
+                }
+            }
+        })
       case _: Ident =>
         None
       case term =>

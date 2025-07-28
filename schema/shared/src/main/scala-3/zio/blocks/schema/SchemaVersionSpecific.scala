@@ -54,6 +54,8 @@ private object SchemaVersionSpecific {
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
+    def isNamedTuple(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[NamedTuple.AnyNamedTuple]
+
     def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
       case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
       case _                        => Nil
@@ -142,7 +144,15 @@ private object SchemaVersionSpecific {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
-          else {
+          else if (isNamedTuple(tpe)) {
+            tpe match {
+              case AppliedType(_, List(_, tupleTpe)) =>
+                val nestedTpes_ = tpe :: nestedTpes
+                typeArgs(tupleTpe).forall(isNonRecursive(_, nestedTpes_))
+              case _ =>
+                false
+            }
+          } else {
             isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
               val primaryConstructor = tpe.classSymbol.get.primaryConstructor
               primaryConstructor.exists && {
@@ -237,11 +247,157 @@ private object SchemaVersionSpecific {
       }
     }.asExprOf[Schema[T]]
 
+    case class FieldInfo(
+      symbol: Symbol,
+      name: String,
+      tpe: TypeRepr,
+      defaultValue: Option[Term],
+      getter: Symbol,
+      registersUsed: RegisterOffset,
+      isTransient: Boolean,
+      config: List[(String, String)]
+    )
+
+    case class ClassInfo[T: Type]()(using Quotes) {
+      val tpe = TypeRepr.of[T]
+      val (fieldInfos, registersUsed, primaryConstructor) = {
+        val tpeClassSymbol     = tpe.classSymbol.get
+        val primaryConstructor = tpeClassSymbol.primaryConstructor
+        if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
+        val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
+          case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
+          case ps                                     => (Nil, ps)
+        }
+        val tpeTypeArgs   = typeArgs(tpe)
+        var registersUsed = RegisterOffset.Zero
+        var idx           = 0
+        (
+          tpeParams.map(_.map { symbol =>
+            idx += 1
+            val name = symbol.name
+            var fTpe = tpe.memberType(symbol).dealias
+            if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
+            fTpe.asType match {
+              case '[ft] =>
+                var getter = tpeClassSymbol.fieldMember(name)
+                if (!getter.exists) {
+                  val getters = tpeClassSymbol
+                    .methodMember(name)
+                    .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
+                  if (getters.isEmpty)
+                    fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+                  getter = getters.head
+                }
+                val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
+                val config = getter.annotations
+                  .filter(_.tpe =:= TypeRepr.of[Modifier.config])
+                  .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
+                  .reverse
+                val defaultValue =
+                  if (symbol.flags.is(Flags.HasDefault)) {
+                    (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + idx) match {
+                      case methodSymbol :: _ =>
+                        val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
+                        methodSymbol.paramSymss match {
+                          case Nil =>
+                            Some(dvSelectNoTArgs)
+                          case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
+                            Some(TypeApply(dvSelectNoTArgs, tpeTypeArgs.map(Inferred(_))))
+                          case _ =>
+                            None
+                        }
+                      case _ =>
+                        None
+                    }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
+                  } else None
+                val offset =
+                  if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
+                  else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
+                  else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
+                  else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+                  else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+                  else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+                  else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
+                  else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+                  else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
+                  else if (fTpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
+                  else unsupportedFieldType(fTpe)
+                val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
+                registersUsed = RegisterOffset.add(registersUsed, offset)
+                fieldInfo
+            }
+          }),
+          registersUsed,
+          primaryConstructor
+        )
+      }
+
+      def const(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] = {
+        val constructorNoTypes = Select(New(Inferred(tpe)), primaryConstructor)
+        val constructor = typeArgs(tpe) match {
+          case Nil      => constructorNoTypes
+          case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
+        }
+        val argss = fieldInfos.map(_.map { fieldInfo =>
+          val fTpe         = fieldInfo.tpe
+          lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
+          lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
+          if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
+          else if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
+          else if (fTpe <:< TypeRepr.of[AnyRef]) {
+            fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
+          } else unsupportedFieldType(fTpe)
+        })
+        argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
+      }.asExprOf[T]
+
+      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] = {
+        val terms = fieldInfos.flatMap(_.map { fieldInfo =>
+          val fTpe         = fieldInfo.tpe
+          val getter       = fieldInfo.getter
+          lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
+          lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
+          if (fTpe =:= TypeRepr.of[Int]) {
+            '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Float]) {
+            '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Long]) {
+            '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Double]) {
+            '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Boolean]) {
+            '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Byte]) {
+            '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Char]) {
+            '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Short]) {
+            '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Unit]) {
+            '{ () }.asTerm
+          } else if (fTpe <:< TypeRepr.of[AnyRef]) {
+            '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
+          } else unsupportedFieldType(fTpe)
+        })
+        val size = terms.size
+        if (size > 1) Block(terms.init, terms.last)
+        else if (size > 0) terms.head
+        else Literal(UnitConstant())
+      }.asExprOf[Unit]
+
+      def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
+    }
+
     def deriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
       val tpe                      = TypeRepr.of[T]
       val (packages, values, name) = typeName(tpe)
-
-      def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
 
       def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
         var minFullName = typesWithFullNames.head._2
@@ -376,84 +532,80 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else if (isNonAbstractScalaClass(tpe)) {
-        case class FieldInfo(
-          symbol: Symbol,
-          name: String,
-          tpe: TypeRepr,
-          defaultValue: Option[Term],
-          getter: Symbol,
-          registersUsed: RegisterOffset,
-          isTransient: Boolean,
-          config: List[(String, String)]
-        )
+      } else if (isNamedTuple(tpe)) {
+        tpe match {
+          case AppliedType(_, List(nameTpe @ AppliedType(_, nameConstants), tupleTpe)) =>
+            val names = nameConstants.collect { case ConstantType(StringConstant(x)) => x }
+            nameTpe.asType match {
+              case '[
+                  type nt <: Tuple; nt] =>
+                tupleTpe.asType match {
+                  case '[
+                      type tt <: Tuple; tt] =>
+                    val classInfo = new ClassInfo[tt]()
+                    var i         = -1
+                    val fields =
+                      classInfo.fieldInfos.flatMap(_.map { fieldInfo =>
+                        i += 1
+                        val fTpe = fieldInfo.tpe
+                        fTpe.asType match {
+                          case '[ft] =>
+                            val fSchema     = findImplicitOrDeriveSchema[ft]
+                            var reflectExpr = '{ $fSchema.reflect }
+                            reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
+                              '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
+                            }
+                            if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+                            var fieldTermExpr = '{ $reflectExpr.asTerm[T](${ Expr(names(i)) }) }
+                            var modifiers = fieldInfo.config.map { case (k, v) =>
+                              '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
+                            }
+                            if (fieldInfo.isTransient)
+                              modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
+                            if (modifiers.nonEmpty) fieldTermExpr = '{
+                              $fieldTermExpr.copy(modifiers = ${ Expr.ofSeq(modifiers) })
+                            }
+                            fieldTermExpr
+                        }
+                      })
+                    '{
+                      new Schema[T](
+                        reflect = new Reflect.Record[Binding, T](
+                          fields = Vector(${ Expr.ofSeq(fields) }*),
+                          typeName =
+                            new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                          recordBinding = new Binding.Record(
+                            constructor = new Constructor[T] {
+                              def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
 
-        val tpeClassSymbol     = tpe.classSymbol.get
-        val primaryConstructor = tpeClassSymbol.primaryConstructor
-        if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
-        val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
-          case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
-          case ps                                     => (Nil, ps)
+                              def construct(in: Registers, baseOffset: RegisterOffset): T =
+                                NamedTuple.apply[nt, tt](${ classInfo.const('in, 'baseOffset) }).asInstanceOf[T]
+                            },
+                            deconstructor = new Deconstructor[T] {
+                              def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
+
+                              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
+                                classInfo.deconst(
+                                  'out,
+                                  'baseOffset,
+                                  '{ in.asInstanceOf[NamedTuple.NamedTuple[nt, tt]].toTuple }
+                                )
+                              }
+                            }
+                          ),
+                          doc = ${ doc(tpe) },
+                          modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
+                        )
+                      )
+                    }
+                }
+            }
+          case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
         }
-        val tpeTypeArgs   = typeArgs(tpe)
-        var registersUsed = RegisterOffset.Zero
-        var idx           = 0
-        val fieldInfos = tpeParams.map(_.map { symbol =>
-          idx += 1
-          val name = symbol.name
-          var fTpe = tpe.memberType(symbol).dealias
-          if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
-          fTpe.asType match {
-            case '[ft] =>
-              var getter = tpeClassSymbol.fieldMember(name)
-              if (!getter.exists) {
-                val getters = tpeClassSymbol
-                  .methodMember(name)
-                  .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
-                if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
-                getter = getters.head
-              }
-              val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
-              val config = getter.annotations
-                .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-                .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
-                .reverse
-              val defaultValue =
-                if (symbol.flags.is(Flags.HasDefault)) {
-                  (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + idx) match {
-                    case methodSymbol :: _ =>
-                      val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
-                      methodSymbol.paramSymss match {
-                        case Nil =>
-                          Some(dvSelectNoTArgs)
-                        case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
-                          Some(TypeApply(dvSelectNoTArgs, tpeTypeArgs.map(Inferred(_))))
-                        case _ =>
-                          None
-                      }
-                    case _ =>
-                      None
-                  }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
-                } else None
-              val offset =
-                if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
-                else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
-                else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
-                else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-                else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-                else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-                else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
-                else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-                else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
-                else if (fTpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
-                else unsupportedFieldType(fTpe)
-              val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
-              registersUsed = RegisterOffset.add(registersUsed, offset)
-              fieldInfo
-          }
-        })
+      } else if (isNonAbstractScalaClass(tpe)) {
+        val classInfo = new ClassInfo[T]()
         val fields =
-          fieldInfos.flatMap(_.map { fieldInfo =>
+          classInfo.fieldInfos.flatMap(_.map { fieldInfo =>
             val fTpe = fieldInfo.tpe
             fTpe.asType match {
               case '[ft] =>
@@ -473,66 +625,6 @@ private object SchemaVersionSpecific {
             }
           })
 
-        def const(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
-          val constructorNoTypes = Select(New(Inferred(tpe)), primaryConstructor)
-          val constructor = typeArgs(tpe) match {
-            case Nil      => constructorNoTypes
-            case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
-          }
-          val argss = fieldInfos.map(_.map { fieldInfo =>
-            val fTpe         = fieldInfo.tpe
-            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
-            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-            if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
-            else if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
-            else if (fTpe <:< TypeRepr.of[AnyRef]) {
-              fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
-            } else unsupportedFieldType(fTpe)
-          })
-          argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
-        }.asExprOf[T]
-
-        def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] = {
-          val terms = fieldInfos.flatMap(_.map { fieldInfo =>
-            val fTpe         = fieldInfo.tpe
-            val getter       = fieldInfo.getter
-            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
-            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-            if (fTpe =:= TypeRepr.of[Int]) {
-              '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Float]) {
-              '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Long]) {
-              '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Double]) {
-              '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Boolean]) {
-              '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Byte]) {
-              '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Char]) {
-              '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Short]) {
-              '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
-            } else if (fTpe =:= TypeRepr.of[Unit]) {
-              '{ () }.asTerm
-            } else if (fTpe <:< TypeRepr.of[AnyRef]) {
-              '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
-            } else unsupportedFieldType(fTpe)
-          })
-          val size = terms.size
-          if (size > 1) Block(terms.init, terms.last)
-          else if (size > 0) terms.head
-          else Literal(UnitConstant())
-        }.asExprOf[Unit]
-
         '{
           new Schema[T](
             reflect = new Reflect.Record[Binding, T](
@@ -540,15 +632,17 @@ private object SchemaVersionSpecific {
               typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = new Binding.Record(
                 constructor = new Constructor[T] {
-                  def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
+                  def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
 
-                  def construct(in: Registers, baseOffset: RegisterOffset): T = ${ const('in, 'baseOffset) }
+                  def construct(in: Registers, baseOffset: RegisterOffset): T = ${
+                    classInfo.const('in, 'baseOffset)
+                  }
                 },
                 deconstructor = new Deconstructor[T] {
-                  def usedRegisters: RegisterOffset = ${ Expr(registersUsed) }
+                  def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
 
                   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
-                    deconst('out, 'baseOffset, 'in)
+                    classInfo.deconst('out, 'baseOffset, 'in)
                   }
                 }
               ),

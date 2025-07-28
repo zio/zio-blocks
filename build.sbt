@@ -106,8 +106,7 @@ lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks"))
   .enablePlugins(JmhPlugin)
   .settings(
-    crossScalaVersions := Seq(Scala213, "3.7.1"),
-    publish / skip     := true,
+    publish / skip := true,
     libraryDependencies ++= Seq(
       "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
       "dev.optics"                 %% "monocle-core"  % "3.3.0",

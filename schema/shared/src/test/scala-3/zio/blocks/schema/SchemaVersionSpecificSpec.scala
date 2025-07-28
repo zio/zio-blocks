@@ -46,6 +46,60 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(record.map(_.doc))(isSome(equalTo(Doc("/** Record: Record1 */"))))
+      },
+      test("derives schema for named tuples") {
+        type NameTuple4 = (b: Byte, sh: Short, i: Int, l: Long)
+
+        object NameTuple4 extends CompanionOptics[NameTuple4] {
+          implicit val schema: Schema[NameTuple4] = Schema.derived
+          val b                                   = optic(_.b)
+          val sh                                  = optic(_.sh)
+          val i                                   = optic(_.i)
+          val l                                   = optic(_.l)
+        }
+
+        val record = NameTuple4.schema.reflect.asRecord
+        assert(record.map(_.constructor.usedRegisters))(
+          isSome(equalTo(RegisterOffset(bytes = 1, shorts = 1, ints = 1, longs = 1)))
+        ) &&
+        assert(NameTuple4.b.get((b = 1: Byte, sh = 2: Short, i = 3, l = 4L)))(equalTo(1: Byte)) &&
+        assert(NameTuple4.sh.get((b = 1: Byte, sh = 2: Short, i = 3, l = 4L)))(equalTo(2: Short)) &&
+        assert(NameTuple4.i.get((b = 1: Byte, sh = 2: Short, i = 3, l = 4L)))(equalTo(3)) &&
+        assert(NameTuple4.l.get((b = 1: Byte, sh = 2: Short, i = 3, l = 4L)))(equalTo(4L)) &&
+        assert(NameTuple4.b.replace((b = 1: Byte, sh = 2: Short, i = 3, l = 4L), 5: Byte))(
+          equalTo((b = 5: Byte, sh = 2: Short, i = 3, l = 4L))
+        ) &&
+        assert(NameTuple4.sh.replace((b = 1: Byte, sh = 2: Short, i = 3, l = 4L), 5: Short))(
+          equalTo((b = 1: Byte, sh = 5: Short, i = 3, l = 4L))
+        ) &&
+        assert(NameTuple4.i.replace((b = 1: Byte, sh = 2: Short, i = 3, l = 4L), 5))(
+          equalTo((b = 1: Byte, sh = 2: Short, i = 5, l = 4L))
+        ) &&
+        assert(NameTuple4.l.replace((b = 1: Byte, sh = 2: Short, i = 3, l = 4L), 5L))(
+          equalTo((b = 1: Byte, sh = 2: Short, i = 3, l = 5L))
+        ) &&
+        assert(
+          NameTuple4.schema.fromDynamicValue(
+            NameTuple4.schema.toDynamicValue((b = 1: Byte, sh = 2: Short, i = 3, l = 4L))
+          )
+        )(
+          isRight(equalTo((b = 1: Byte, sh = 2: Short, i = 3, l = 4L)))
+        ) &&
+        assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("b", "sh", "i", "l")))) &&
+        assert(record.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName(
+                namespace = Namespace(
+                  packages = Seq("scala"),
+                  values = Seq("NamedTuple")
+                ),
+                name = "NamedTuple"
+              )
+            )
+          )
+        )
+
       }
     ),
     suite("Reflect.Variant")(
