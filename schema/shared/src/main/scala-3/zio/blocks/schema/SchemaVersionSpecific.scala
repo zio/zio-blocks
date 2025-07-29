@@ -54,12 +54,10 @@ private object SchemaVersionSpecific {
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
-    def isNamedTuple(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[NamedTuple.AnyNamedTuple] && (tpe match {
-      case AppliedType(_, List(nTpe @ AppliedType(_, _), tTpe))
-          if nTpe <:< TypeRepr.of[Tuple] && tTpe <:< TypeRepr.of[Tuple] =>
-        true
-      case _ => false
-    })
+    def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
+      case AppliedType(ntTpe, _) if ntTpe =:= TypeRepr.of[NamedTuple.NamedTuple] => true
+      case _                                                                     => false
+    }
 
     def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
       case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
@@ -423,7 +421,7 @@ private object SchemaVersionSpecific {
           new Schema[T](
             reflect = new Reflect.Record[Binding, T](
               fields = Vector.empty,
-              typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[T](${
                   Ref {
@@ -451,7 +449,7 @@ private object SchemaVersionSpecific {
                 new Schema[Array[et]](
                   reflect = new Reflect.Sequence[Binding, et, Array](
                     element = $elementSchema.reflect,
-                    typeName = new TypeName[Array[et]](new Namespace(List("scala"), Nil), "Array"),
+                    typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
                     seqBinding = new Binding.Seq[Array, et](
                       constructor = new SeqConstructor.ArrayConstructor {
                         override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
@@ -467,7 +465,7 @@ private object SchemaVersionSpecific {
                 new Schema[Array[et]](
                   reflect = new Reflect.Sequence[Binding, et, Array](
                     element = $elementSchema.reflect,
-                    typeName = new TypeName[Array[et]](new Namespace(List("scala"), Nil), "Array"),
+                    typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
                     seqBinding = new Binding.Seq[Array, et](
                       constructor = SeqConstructor.arrayConstructor,
                       deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -523,7 +521,7 @@ private object SchemaVersionSpecific {
           new Schema[T](
             reflect = new Reflect.Variant[Binding, T](
               cases = Vector(${ Expr.ofSeq(cases) }*),
-              typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[T] {
                   def discriminate(a: T): Int = ${ discr('a) }
@@ -544,7 +542,7 @@ private object SchemaVersionSpecific {
                 tTpe.asType match {
                   case '[
                       type tt <: Tuple; tt] =>
-                    val names     = nameConstants.collect { case ConstantType(StringConstant(x)) => x }
+                    val names     = nameConstants.collect { case ConstantType(StringConstant(x)) => x }.toArray
                     val classInfo = new ClassInfo[tt]()
                     var i         = -1
                     val fields =
@@ -556,30 +554,31 @@ private object SchemaVersionSpecific {
                             val fSchema     = findImplicitOrDeriveSchema[ft]
                             var reflectExpr = '{ $fSchema.reflect }
                             if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                            '{ $reflectExpr.asTerm[T](${ Expr(names(i)) }) }
+                            '{ $reflectExpr.asTerm[NamedTuple.NamedTuple[nt, tt]](${ Expr(names(i)) }) }
                         }
                       })
                     '{
-                      new Schema[T](
-                        reflect = new Reflect.Record[Binding, T](
+                      new Schema[NamedTuple.NamedTuple[nt, tt]](
+                        reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
                           fields = Vector(${ Expr.ofSeq(fields) }*),
-                          typeName = new TypeName[T](new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
+                          typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
                           recordBinding = new Binding.Record(
-                            constructor = new Constructor[T] {
+                            constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
                               def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
 
-                              def construct(in: Registers, baseOffset: RegisterOffset): T =
-                                NamedTuple.apply[nt, tt](${ classInfo.const('in, 'baseOffset) }).asInstanceOf[T]
+                              def construct(in: Registers, baseOffset: RegisterOffset): NamedTuple.NamedTuple[nt, tt] =
+                                NamedTuple.apply[nt, tt](${ classInfo.const('in, 'baseOffset) })
                             },
-                            deconstructor = new Deconstructor[T] {
+                            deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
                               def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
 
-                              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
-                                classInfo.deconst(
-                                  'out,
-                                  'baseOffset,
-                                  '{ in.asInstanceOf[NamedTuple.NamedTuple[nt, tt]].toTuple }
-                                )
+                              def deconstruct(
+                                out: Registers,
+                                baseOffset: RegisterOffset,
+                                in: NamedTuple.NamedTuple[nt, tt]
+                              ): Unit = {
+                                val t = in.toTuple
+                                ${ classInfo.deconst('out, 'baseOffset, 't) }
                               }
                             }
                           )
@@ -616,7 +615,7 @@ private object SchemaVersionSpecific {
           new Schema[T](
             reflect = new Reflect.Record[Binding, T](
               fields = Vector(${ Expr.ofSeq(fields) }*),
-              typeName = new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = new Binding.Record(
                 constructor = new Constructor[T] {
                   def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
