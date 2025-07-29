@@ -54,7 +54,12 @@ private object SchemaVersionSpecific {
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
-    def isNamedTuple(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[NamedTuple.AnyNamedTuple]
+    def isNamedTuple(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[NamedTuple.AnyNamedTuple] && (tpe match {
+      case AppliedType(_, List(nTpe @ AppliedType(_, _), tTpe))
+          if nTpe <:< TypeRepr.of[Tuple] && tTpe <:< TypeRepr.of[Tuple] =>
+        true
+      case _ => false
+    })
 
     def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
       case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
@@ -146,9 +151,9 @@ private object SchemaVersionSpecific {
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNamedTuple(tpe)) {
             tpe match {
-              case AppliedType(_, List(_, tupleTpe)) =>
+              case AppliedType(_, List(_, tTpe)) =>
                 val nestedTpes_ = tpe :: nestedTpes
-                typeArgs(tupleTpe).forall(isNonRecursive(_, nestedTpes_))
+                typeArgs(tTpe).forall(isNonRecursive(_, nestedTpes_))
               case _ =>
                 false
             }
@@ -446,8 +451,7 @@ private object SchemaVersionSpecific {
                 new Schema[Array[et]](
                   reflect = new Reflect.Sequence[Binding, et, Array](
                     element = $elementSchema.reflect,
-                    typeName =
-                      new TypeName[Array[et]](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                    typeName = new TypeName[Array[et]](new Namespace(List("scala"), Nil), "Array"),
                     seqBinding = new Binding.Seq[Array, et](
                       constructor = new SeqConstructor.ArrayConstructor {
                         override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
@@ -463,8 +467,7 @@ private object SchemaVersionSpecific {
                 new Schema[Array[et]](
                   reflect = new Reflect.Sequence[Binding, et, Array](
                     element = $elementSchema.reflect,
-                    typeName =
-                      new TypeName[Array[et]](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                    typeName = new TypeName[Array[et]](new Namespace(List("scala"), Nil), "Array"),
                     seqBinding = new Binding.Seq[Array, et](
                       constructor = SeqConstructor.arrayConstructor,
                       deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -534,14 +537,14 @@ private object SchemaVersionSpecific {
         }
       } else if (isNamedTuple(tpe)) {
         tpe match {
-          case AppliedType(_, List(nameTpe @ AppliedType(_, nameConstants), tupleTpe)) =>
-            val names = nameConstants.collect { case ConstantType(StringConstant(x)) => x }
-            nameTpe.asType match {
+          case AppliedType(_, List(nTpe @ AppliedType(_, nameConstants), tTpe)) =>
+            nTpe.asType match {
               case '[
                   type nt <: Tuple; nt] =>
-                tupleTpe.asType match {
+                tTpe.asType match {
                   case '[
                       type tt <: Tuple; tt] =>
+                    val names     = nameConstants.collect { case ConstantType(StringConstant(x)) => x }
                     val classInfo = new ClassInfo[tt]()
                     var i         = -1
                     val fields =
@@ -552,28 +555,15 @@ private object SchemaVersionSpecific {
                           case '[ft] =>
                             val fSchema     = findImplicitOrDeriveSchema[ft]
                             var reflectExpr = '{ $fSchema.reflect }
-                            reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
-                              '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
-                            }
                             if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                            var fieldTermExpr = '{ $reflectExpr.asTerm[T](${ Expr(names(i)) }) }
-                            var modifiers = fieldInfo.config.map { case (k, v) =>
-                              '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
-                            }
-                            if (fieldInfo.isTransient)
-                              modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
-                            if (modifiers.nonEmpty) fieldTermExpr = '{
-                              $fieldTermExpr.copy(modifiers = ${ Expr.ofSeq(modifiers) })
-                            }
-                            fieldTermExpr
+                            '{ $reflectExpr.asTerm[T](${ Expr(names(i)) }) }
                         }
                       })
                     '{
                       new Schema[T](
                         reflect = new Reflect.Record[Binding, T](
                           fields = Vector(${ Expr.ofSeq(fields) }*),
-                          typeName =
-                            new TypeName[T](new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                          typeName = new TypeName[T](new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
                           recordBinding = new Binding.Record(
                             constructor = new Constructor[T] {
                               def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
@@ -592,9 +582,7 @@ private object SchemaVersionSpecific {
                                 )
                               }
                             }
-                          ),
-                          doc = ${ doc(tpe) },
-                          modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
+                          )
                         )
                       )
                     }
@@ -624,7 +612,6 @@ private object SchemaVersionSpecific {
                 fieldTermExpr
             }
           })
-
         '{
           new Schema[T](
             reflect = new Reflect.Record[Binding, T](
