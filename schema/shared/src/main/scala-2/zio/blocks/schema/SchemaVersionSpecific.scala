@@ -141,13 +141,7 @@ private object SchemaVersionSpecific {
         }
     )
 
-    def modifiers(tpe: Type): Seq[Tree] = tpe.typeSymbol.annotations
-      .filter(_.tree.tpe =:= typeOf[Modifier.config])
-      .collect(_.tree.children match {
-        case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => q"Modifier.config($k, $v)"
-      })
-
-    def typeName(tpe: Type): (Seq[String], Seq[String], String) = {
+    def typeName(tpe: Type): (List[String], List[String], String) = {
       var packages  = List.empty[String]
       var values    = List.empty[String]
       val tpeSymbol = tpe.typeSymbol
@@ -169,6 +163,12 @@ private object SchemaVersionSpecific {
       }
       (packages, values, name)
     }
+
+    def modifiers(tpe: Type): List[Tree] = tpe.typeSymbol.annotations
+      .filter(_.tree.tpe =:= typeOf[Modifier.config])
+      .collect(_.tree.children match {
+        case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => q"Modifier.config($k, $v)"
+      })
 
     val inferredSchemas   = new mutable.HashMap[Type, Tree]
     val derivedSchemaRefs = new mutable.HashMap[Type, Ident]
@@ -205,7 +205,7 @@ private object SchemaVersionSpecific {
       getter: MethodSymbol,
       registersUsed: RegisterOffset,
       isTransient: Boolean,
-      config: Seq[(String, String)]
+      config: List[(String, String)]
     )
 
     case class ClassInfo(tpe: Type) {
@@ -334,12 +334,12 @@ private object SchemaVersionSpecific {
         q"""new Schema[$tpe](
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector.empty,
-                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                typeName = new TypeName(new Namespace($packages, $values), $name),
                 recordBinding = new Binding.Record(
                   constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                   deconstructor = new ConstantDeconstructor[$tpe]
                 ),
-                modifiers = _root_.scala.Seq(..${modifiers(tpe)})
+                modifiers = ${modifiers(tpe)}
               )
             )"""
       } else if (tpe <:< typeOf[Array[_]]) {
@@ -349,7 +349,7 @@ private object SchemaVersionSpecific {
           q"""new Schema[$tpe](
                 reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                   element = $elementSchema.reflect,
-                  typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                  typeName = new TypeName(new Namespace($packages, $values), $name),
                   seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
                     constructor = new SeqConstructor.ArrayConstructor {
                       override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
@@ -363,7 +363,7 @@ private object SchemaVersionSpecific {
           q"""new Schema[$tpe](
                 reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                   element = $elementSchema.reflect,
-                  typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                  typeName = new TypeName(new Namespace($packages, $values), $name),
                   seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
                     constructor = SeqConstructor.arrayConstructor,
                     deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -401,7 +401,7 @@ private object SchemaVersionSpecific {
         q"""new Schema[$tpe](
               reflect = new Reflect.Variant[Binding, $tpe](
                 cases = _root_.scala.Vector(..$cases),
-                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                typeName = new TypeName(new Namespace($packages, $values), $name),
                 variantBinding = new Binding.Variant(
                   discriminator = new Discriminator[$tpe] {
                     def discriminate(a: $tpe): Int = a match {
@@ -410,7 +410,7 @@ private object SchemaVersionSpecific {
                   },
                   matchers = Matchers(..$matcherCases),
                 ),
-                modifiers = _root_.scala.Seq(..${modifiers(tpe)})
+                modifiers = ${modifiers(tpe)}
               )
             )"""
       } else if (isNonAbstractScalaClass(tpe)) {
@@ -424,13 +424,13 @@ private object SchemaVersionSpecific {
           var fieldTermTree = q"$reflectTree.asTerm[$tpe](${fieldInfo.name})"
           var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
           if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
-          if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = _root_.scala.Seq(..$modifiers))"
+          if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = $modifiers)"
           fieldTermTree
         })
         q"""new Schema[$tpe](
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector(..$fields),
-                typeName = new TypeName(new Namespace(_root_.scala.Seq(..$packages), _root_.scala.Seq(..$values)), $name),
+                typeName = new TypeName(new Namespace($packages, $values), $name),
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[$tpe] {
                     def usedRegisters: RegisterOffset = ${classInfo.registersUsed}
@@ -445,7 +445,7 @@ private object SchemaVersionSpecific {
                     }
                   }
                 ),
-                modifiers = _root_.scala.Seq(..${modifiers(tpe)}),
+                modifiers = ${modifiers(tpe)},
               )
             )"""
       } else fail(s"Cannot derive schema for '$tpe'.")

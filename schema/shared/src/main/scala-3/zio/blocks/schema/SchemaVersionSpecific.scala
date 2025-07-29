@@ -179,7 +179,7 @@ private object SchemaVersionSpecific {
         }
     )
 
-    def typeName(tpe: TypeRepr): (Seq[String], Seq[String], String) =
+    def typeName(tpe: TypeRepr): (List[String], List[String], String) =
       if (isUnion(tpe)) (Nil, Nil, "|")
       else {
         var packages  = List.empty[String]
@@ -205,17 +205,17 @@ private object SchemaVersionSpecific {
         (packages, values, name)
       }
 
-    def modifiers(tpe: TypeRepr)(using Quotes): Seq[Expr[Modifier.config]] =
+    def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] =
+      (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
+        .fold('{ Doc.Empty }.asExprOf[Doc])(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
+
+    def modifiers(tpe: TypeRepr)(using Quotes): List[Expr[Modifier.config]] =
       (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).annotations
         .filter(_.tpe =:= TypeRepr.of[Modifier.config])
         .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
           '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
         }
         .reverse
-
-    def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] =
-      (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
-        .fold('{ Doc.Empty }.asExprOf[Doc])(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
 
     val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
     val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
@@ -432,7 +432,7 @@ private object SchemaVersionSpecific {
                 deconstructor = new ConstantDeconstructor[T]
               ),
               doc = ${ doc(tpe) },
-              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
+              modifiers = ${ Expr.ofList(modifiers(tpe)) }
             )
           )
         }
@@ -529,7 +529,7 @@ private object SchemaVersionSpecific {
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
               ),
               doc = ${ doc(tpe) },
-              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
+              modifiers = ${ Expr.ofList(modifiers(tpe)) }
             )
           )
         }
@@ -633,7 +633,7 @@ private object SchemaVersionSpecific {
                 }
               ),
               doc = ${ doc(tpe) },
-              modifiers = ${ Expr.ofSeq(modifiers(tpe)) }
+              modifiers = ${ Expr.ofList(modifiers(tpe)) }
             )
           )
         }
