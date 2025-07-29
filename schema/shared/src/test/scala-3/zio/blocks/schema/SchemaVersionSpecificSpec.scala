@@ -85,21 +85,28 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )(
           isRight(equalTo((b = 1: Byte, sh = 2: Short, i = 3, l = 4L)))
         ) &&
-        assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("b", "sh", "i", "l")))) &&
-        assert(record.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName(
-                namespace = Namespace(
-                  packages = Seq("scala"),
-                  values = Seq("NamedTuple")
+        assert(NameTuple4.schema)(
+          equalTo(
+            new Schema[NameTuple4](
+              reflect = Reflect.Record[Binding, NameTuple4](
+                fields = Vector(
+                  Schema[Byte].reflect.asTerm("b"),
+                  Schema[Short].reflect.asTerm("sh"),
+                  Schema[Int].reflect.asTerm("i"),
+                  Schema[Long].reflect.asTerm("l")
                 ),
-                name = "NamedTuple"
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("scala"),
+                    values = Seq("NamedTuple")
+                  ),
+                  name = "NamedTuple"
+                ),
+                recordBinding = null
               )
             )
           )
         )
-
       }
     ),
     suite("Reflect.Variant")(

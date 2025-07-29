@@ -52,7 +52,7 @@ object ZSourceFiber {
   }
 
   final case class FlatMap[E, A, B](self: ZSourceFiber[E, A], f: A => ZSourceFiber[E, B]) extends ZSourceFiber[E, B] {
-    private[this] var current: ZSourceFiber[E, B] = _
+    private[this] var current: ZSourceFiber[E, B] = null
 
     private def attemptCurrent(): Boolean = {
       if (current eq null) {
