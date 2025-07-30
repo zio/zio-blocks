@@ -399,26 +399,11 @@ private object SchemaVersionSpecific {
     }
 
     def deriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
-      val tpe                      = TypeRepr.of[T]
-      val (packages, values, name) = typeName(tpe)
-
-      def maxCommonPrefixLength(typesWithFullNames: Seq[(TypeRepr, Array[String])]): Int = {
-        var minFullName = typesWithFullNames.head._2
-        var maxFullName = typesWithFullNames.last._2
-        if (!isUnion(tpe)) {
-          val tpeFullName = packages.toArray ++ values.toArray :+ name
-          if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
-          if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
-        }
-        val minLength = Math.min(minFullName.length, maxFullName.length)
-        var idx       = 0
-        while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
-        idx
-      }
-
+      val tpe = TypeRepr.of[T]
       if (isEnumOrModuleValue(tpe)) {
+        val (packages, values, name) = typeName(tpe)
         '{
-          new Schema[T](
+          new Schema(
             reflect = new Reflect.Record[Binding, T](
               fields = Vector.empty,
               typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
@@ -446,7 +431,7 @@ private object SchemaVersionSpecific {
                 Expr.summon[reflect.ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${elementTpe.show}"))
               '{
                 implicit val ct: reflect.ClassTag[et] = $classTag
-                new Schema[Array[et]](
+                new Schema(
                   reflect = new Reflect.Sequence[Binding, et, Array](
                     element = $elementSchema.reflect,
                     typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
@@ -462,7 +447,7 @@ private object SchemaVersionSpecific {
               }
             } else {
               '{
-                new Schema[Array[et]](
+                new Schema(
                   reflect = new Reflect.Sequence[Binding, et, Array](
                     element = $elementSchema.reflect,
                     typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
@@ -484,11 +469,25 @@ private object SchemaVersionSpecific {
           val (packages, values, name) = typeName(sTpe)
           (sTpe, packages.toArray ++ values.toArray :+ name)
         }
-        val length = maxCommonPrefixLength(subTypesWithFullNames.sortBy(_._2))
+        val (packages, values, name) = typeName(tpe)
+        val maxCommonPrefixLength = {
+          val sortedSubTypesWithFullNames = subTypesWithFullNames.sortBy(_._2)
+          var minFullName                 = sortedSubTypesWithFullNames.head._2
+          var maxFullName                 = sortedSubTypesWithFullNames.last._2
+          if (!isUnion(tpe)) {
+            val tpeFullName = packages.toArray ++ values.toArray :+ name
+            if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+            if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+          }
+          val minLength = Math.min(minFullName.length, maxFullName.length)
+          var idx       = 0
+          while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+          idx
+        }
         val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
-              val termName = fullName.drop(length).mkString(".")
+              val termName = fullName.drop(maxCommonPrefixLength).mkString(".")
               val sSchema  = findImplicitOrDeriveSchema[st]
               '{ $sSchema.reflect.asTerm[T](${ Expr(termName) }) }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
           }
@@ -518,7 +517,7 @@ private object SchemaVersionSpecific {
           }
         }
         '{
-          new Schema[T](
+          new Schema(
             reflect = new Reflect.Variant[Binding, T](
               cases = Vector(${ Expr.ofSeq(cases) }*),
               typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
@@ -558,7 +557,7 @@ private object SchemaVersionSpecific {
                         }
                       })
                     '{
-                      new Schema[NamedTuple.NamedTuple[nt, tt]](
+                      new Schema(
                         reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
                           fields = Vector(${ Expr.ofSeq(fields) }*),
                           typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
@@ -611,8 +610,9 @@ private object SchemaVersionSpecific {
                 fieldTermExpr
             }
           })
+        val (packages, values, name) = typeName(tpe)
         '{
-          new Schema[T](
+          new Schema(
             reflect = new Reflect.Record[Binding, T](
               fields = Vector(${ Expr.ofSeq(fields) }*),
               typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
