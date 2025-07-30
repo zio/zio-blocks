@@ -86,25 +86,30 @@ private object SchemaVersionSpecific {
         diff
       }
 
-    def directSubTypes(tpe: Type): Seq[Type] = {
+    def directSubTypes(tpe: Type): List[Type] = {
       val tpeClass               = tpe.typeSymbol.asClass
       lazy val typeParamsAndArgs = tpeClass.typeParams.map(_.toString).zip(tpe.typeArgs).toMap
-      tpeClass.knownDirectSubclasses.toSeq.sorted.map { symbol =>
-        val classSymbol = symbol.asClass
-        val typeParams  = classSymbol.typeParams
-        if (typeParams.isEmpty) classSymbol.toType
-        else {
-          classSymbol.toType.substituteTypes(
-            typeParams,
-            typeParams.map { typeParam =>
-              typeParamsAndArgs.getOrElse(
-                typeParam.toString,
-                fail(s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'.")
-              )
-            }
-          )
+      tpeClass.knownDirectSubclasses.toArray
+        .sortInPlace()
+        .map { symbol =>
+          val classSymbol = symbol.asClass
+          val typeParams  = classSymbol.typeParams
+          if (typeParams.isEmpty) classSymbol.toType
+          else {
+            classSymbol.toType.substituteTypes(
+              typeParams,
+              typeParams.map { typeParam =>
+                typeParamsAndArgs.getOrElse(
+                  typeParam.toString,
+                  fail(
+                    s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
+                  )
+                )
+              }
+            )
+          }
         }
-      }
+        .toList
     }
 
     def isNonRecursive(tpe: Type, nestedTpes: List[Type] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
@@ -361,16 +366,15 @@ private object SchemaVersionSpecific {
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-        val subTypesWithFullNames = subTypes.map { sTpe =>
+        val fullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
-          (sTpe, packages.toArray ++ values.toArray :+ name)
+          packages.toArray ++ values.toArray :+ name
         }
         val (packages, values, name) = typeName(tpe)
         val maxCommonPrefixLength = {
-          val sortedSubTypesWithFullNames = subTypesWithFullNames.sortBy(_._2)
-          var minFullName                 = sortedSubTypesWithFullNames.head._2
-          var maxFullName                 = sortedSubTypesWithFullNames.last._2
-          val tpeFullName                 = packages.toArray ++ values.toArray :+ name
+          var minFullName = fullNames.min
+          var maxFullName = fullNames.max
+          val tpeFullName = packages.toArray ++ values.toArray :+ name
           if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
           if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
           val minLength = Math.min(minFullName.length, maxFullName.length)
@@ -378,18 +382,18 @@ private object SchemaVersionSpecific {
           while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
           idx
         }
-        val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
+        val cases = subTypes.zip(fullNames).map { case (sTpe, fullName) =>
           val termName = fullName.drop(maxCommonPrefixLength).mkString(".")
           val sSchema  = findImplicitOrDeriveSchema(sTpe)
           q"$sSchema.reflect.asTerm($termName)"
         }
-        val discrCases = subTypesWithFullNames.map {
+        val discrCases = subTypes.map {
           var idx = -1
-          x =>
+          sTpe =>
             idx += 1
-            cq"_: ${x._1} @_root_.scala.unchecked => $idx"
+            cq"_: $sTpe @_root_.scala.unchecked => $idx"
         }
-        val matcherCases = subTypesWithFullNames.map { case (sTpe, _) =>
+        val matcherCases = subTypes.map { sTpe =>
           q"""new Matcher[$sTpe] {
                 def downcastOrNull(a: Any): $sTpe = a match {
                   case x: $sTpe @_root_.scala.unchecked => x

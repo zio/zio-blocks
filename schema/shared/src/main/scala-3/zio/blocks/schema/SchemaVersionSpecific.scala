@@ -44,7 +44,7 @@ private object SchemaVersionSpecific {
       case _            => false
     }
 
-    def allUnionTypes(tpe: TypeRepr): Seq[TypeRepr] = tpe.dealias match {
+    def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = tpe.dealias match {
       case OrType(left, right) => allUnionTypes(left) ++ allUnionTypes(right)
       case dealiased           => dealiased :: Nil
     }
@@ -74,24 +74,30 @@ private object SchemaVersionSpecific {
       tpe <:< TypeRepr.of[Iterable[?]] || tpe <:< TypeRepr.of[Iterator[?]] || tpe <:< TypeRepr.of[Array[?]] ||
         tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
-    def directSubTypes(tpe: TypeRepr): Seq[TypeRepr] = {
+    def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
       def resolveParentTypeArg(
         child: Symbol,
-        fromNudeChildTypeArg: TypeRepr,
+        nudeChildTypeArg: TypeRepr,
         parentTypeArg: TypeRepr,
         binding: Map[String, TypeRepr]
       ): Map[String, TypeRepr] =
-        if (fromNudeChildTypeArg.typeSymbol.isTypeParam) {
-          val paramName = fromNudeChildTypeArg.typeSymbol.name
+        if (nudeChildTypeArg.typeSymbol.isTypeParam) {
+          val paramName = nudeChildTypeArg.typeSymbol.name
           binding.get(paramName) match {
-            case Some(oldBinding) =>
-              if (oldBinding =:= parentTypeArg) binding
-              else fail(s"Failed unification of type parameters of '${tpe.show}'.")
-            case _ => binding.updated(paramName, parentTypeArg)
+            case Some(existingBinding) =>
+              if (existingBinding =:= parentTypeArg) binding
+              else {
+                fail(
+                  s"Type parameter '$paramName' in class '${child.name}' appeared in the constructor of " +
+                    s"'${tpe.show}' two times differently, with '${existingBinding.show}' and '${parentTypeArg.show}'"
+                )
+              }
+            case _ =>
+              binding.updated(paramName, parentTypeArg)
           }
-        } else if (fromNudeChildTypeArg <:< parentTypeArg) binding
+        } else if (nudeChildTypeArg <:< parentTypeArg) binding
         else {
-          (fromNudeChildTypeArg, parentTypeArg) match {
+          (nudeChildTypeArg, parentTypeArg) match {
             case (AppliedType(ctc, cta), AppliedType(ptc, pta)) =>
               cta.zip(pta).foldLeft(resolveParentTypeArg(child, ctc, ptc, binding)) { (b, e) =>
                 resolveParentTypeArg(child, e._1, e._2, b)
@@ -465,15 +471,14 @@ private object SchemaVersionSpecific {
           if (isUnion(tpe)) allUnionTypes(tpe).distinct
           else directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-        val subTypesWithFullNames = subTypes.map { sTpe =>
+        val fullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
-          (sTpe, packages.toArray ++ values.toArray :+ name)
+          packages.toArray ++ values.toArray :+ name
         }
         val (packages, values, name) = typeName(tpe)
         val maxCommonPrefixLength = {
-          val sortedSubTypesWithFullNames = subTypesWithFullNames.sortBy(_._2)
-          var minFullName                 = sortedSubTypesWithFullNames.head._2
-          var maxFullName                 = sortedSubTypesWithFullNames.last._2
+          var minFullName = fullNames.min
+          var maxFullName = fullNames.max
           if (!isUnion(tpe)) {
             val tpeFullName = packages.toArray ++ values.toArray :+ name
             if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
@@ -484,7 +489,7 @@ private object SchemaVersionSpecific {
           while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
           idx
         }
-        val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
+        val cases = subTypes.zip(fullNames).map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
               val termName = fullName.drop(maxCommonPrefixLength).mkString(".")
@@ -492,18 +497,13 @@ private object SchemaVersionSpecific {
               '{ $sSchema.reflect.asTerm[T](${ Expr(termName) }) }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
           }
         }
-
-        def discr(a: Expr[T])(using Quotes) = Match(
-          '{ $a: @scala.unchecked }.asTerm,
-          subTypesWithFullNames.map {
-            var idx = -1
-            x =>
-              idx += 1
-              CaseDef(Typed(Wildcard(), Inferred(x._1)), None, Expr(idx).asTerm)
-          }.toList
-        ).asExprOf[Int]
-
-        val matcherCases = subTypesWithFullNames.map { case (sTpe, _) =>
+        val discrCases = subTypes.map {
+          var idx = -1
+          sTpe =>
+            idx += 1
+            CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Literal(IntConstant(idx)))
+        }
+        val matcherCases = subTypes.map { sTpe =>
           sTpe.asType match {
             case '[st] =>
               '{
@@ -523,7 +523,10 @@ private object SchemaVersionSpecific {
               typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[T] {
-                  def discriminate(a: T): Int = ${ discr('a) }
+                  def discriminate(a: T): Int = ${
+                    val v = 'a
+                    Match('{ $v: @scala.unchecked }.asTerm, discrCases).asExprOf[Int]
+                  }
                 },
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
               ),
