@@ -316,22 +316,9 @@ private object SchemaVersionSpecific {
     }
 
     def deriveSchema(tpe: Type): Tree = {
-      val (packages, values, name) = typeName(tpe)
-
-      def maxCommonPrefixLength(typesWithFullNames: Seq[(Type, Array[String])]): Int = {
-        var minFullName = typesWithFullNames.head._2
-        var maxFullName = typesWithFullNames.last._2
-        val tpeFullName = packages.toArray ++ values.toArray :+ name
-        if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
-        if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
-        val minLength = Math.min(minFullName.length, maxFullName.length)
-        var idx       = 0
-        while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
-        idx
-      }
-
       if (isEnumOrModuleValue(tpe)) {
-        q"""new Schema[$tpe](
+        val (packages, values, name) = typeName(tpe)
+        q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector.empty,
                 typeName = new TypeName(new Namespace($packages, $values), $name),
@@ -346,10 +333,10 @@ private object SchemaVersionSpecific {
         val elementTpe    = typeArgs(tpe).head
         val elementSchema = findImplicitOrDeriveSchema(elementTpe)
         if (elementTpe <:< definitions.AnyRefTpe) {
-          q"""new Schema[$tpe](
+          q"""new Schema(
                 reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                   element = $elementSchema.reflect,
-                  typeName = new TypeName(new Namespace($packages, $values), $name),
+                  typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
                   seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
                     constructor = new SeqConstructor.ArrayConstructor {
                       override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
@@ -360,10 +347,10 @@ private object SchemaVersionSpecific {
                 )
               )"""
         } else {
-          q"""new Schema[$tpe](
+          q"""new Schema(
                 reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                   element = $elementSchema.reflect,
-                  typeName = new TypeName(new Namespace($packages, $values), $name),
+                  typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
                   seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
                     constructor = SeqConstructor.arrayConstructor,
                     deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -378,9 +365,21 @@ private object SchemaVersionSpecific {
           val (packages, values, name) = typeName(sTpe)
           (sTpe, packages.toArray ++ values.toArray :+ name)
         }
-        val length = maxCommonPrefixLength(subTypesWithFullNames.sortBy(_._2))
+        val (packages, values, name) = typeName(tpe)
+        val maxCommonPrefixLength = {
+          val sortedSubTypesWithFullNames = subTypesWithFullNames.sortBy(_._2)
+          var minFullName                 = sortedSubTypesWithFullNames.head._2
+          var maxFullName                 = sortedSubTypesWithFullNames.last._2
+          val tpeFullName                 = packages.toArray ++ values.toArray :+ name
+          if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
+          if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
+          val minLength = Math.min(minFullName.length, maxFullName.length)
+          var idx       = 0
+          while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+          idx
+        }
         val cases = subTypesWithFullNames.map { case (sTpe, fullName) =>
-          val termName = fullName.drop(length).mkString(".")
+          val termName = fullName.drop(maxCommonPrefixLength).mkString(".")
           val sSchema  = findImplicitOrDeriveSchema(sTpe)
           q"$sSchema.reflect.asTerm($termName)"
         }
@@ -398,7 +397,7 @@ private object SchemaVersionSpecific {
                 }
               }"""
         }
-        q"""new Schema[$tpe](
+        q"""new Schema(
               reflect = new Reflect.Variant[Binding, $tpe](
                 cases = _root_.scala.Vector(..$cases),
                 typeName = new TypeName(new Namespace($packages, $values), $name),
@@ -427,7 +426,8 @@ private object SchemaVersionSpecific {
           if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = $modifiers)"
           fieldTermTree
         })
-        q"""new Schema[$tpe](
+        val (packages, values, name) = typeName(tpe)
+        q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector(..$fields),
                 typeName = new TypeName(new Namespace($packages, $values), $name),
