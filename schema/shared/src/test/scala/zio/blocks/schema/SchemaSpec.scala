@@ -91,6 +91,8 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples(Record.x, true).examples(Record.x))(equalTo(Seq())) // invalid lens
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
+        assert(Box1.schema.fromDynamicValue(Box1.schema.toDynamicValue(Box1(4L))))(isRight(equalTo(Box1(4L)))) &&
+        assert(Box2.schema.fromDynamicValue(Box2.schema.toDynamicValue(Box2("VVV"))))(isRight(equalTo(Box2("VVV")))) &&
         assert(
           Schema[(Byte, Short, Int, Long)].fromDynamicValue(
             Schema[(Byte, Short, Int, Long)].toDynamicValue((1: Byte, 2: Short, 3, 4L))
@@ -1450,6 +1452,18 @@ object SchemaSpec extends ZIOSpecDefault {
   }
 
   case object Case extends Level1.MultiLevel
+
+  case class Box1(l: Long) extends AnyVal
+
+  object Box1 extends CompanionOptics[Box1] {
+    implicit val schema: Schema[Box1] = Schema.derived
+  }
+
+  case class Box2(s: String) extends AnyVal
+
+  object Box2 extends CompanionOptics[Box2] {
+    implicit val schema: Schema[Box2] = Schema.derived
+  }
 
   def encodeToString(f: CharBuffer => Unit): String = {
     val out = CharBuffer.allocate(1024)

@@ -84,6 +84,8 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("toDynamic") {
+        assert(Box1.l.toDynamic)(equalTo(DynamicOptic(Vector(Field("l"))))) &&
+        assert(Box2.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Field("r1"), Field("b"))))) &&
         assert(Record1.b.toDynamic)(equalTo(DynamicOptic(Vector(Field("b"))))) &&
         assert(Record2.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Field("r1"), Field("b"))))) &&
         assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(Field("v1"))))) &&
@@ -167,22 +169,24 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record2.r1_b.check(Record2(2L, Vector.empty, Record1(true, 1))))(isNone)
       },
       test("gets a focus value") {
+        assert(Box1.l.get(Box1(1L)))(equalTo(1L)) &&
+        assert(Box2.r1.get(Box2(Record1(true, 1))))(equalTo(Record1(true, 1))) &&
+        assert(Box2.r1_b.get(Box2(Record1(true, 1))))(equalTo(true)) &&
         assert(Record1.b.get(Record1(true, 1)))(equalTo(true)) &&
         assert(Record1.b.get(Record1(false, 1)))(equalTo(false)) &&
         assert(Record2.r1_b.get(Record2(2L, Vector.empty, Record1(true, 1))))(equalTo(true)) &&
         assert(Record2.r1_b.get(Record2(2L, Vector.empty, Record1(false, 1))))(equalTo(false)) &&
         assert(
           Record3.r2_r1_b_left.get(Record3(Record1(false, 3), Record2(2L, Vector.empty, Record1(true, 1)), Case1(0.5)))
-        )(
-          equalTo(true)
-        ) &&
+        )(equalTo(true)) &&
         assert(
           Record3.r2_r1_b_right.get(Record3(Record1(true, 3), Record2(2L, Vector.empty, Record1(false, 1)), Case1(0.5)))
-        )(
-          equalTo(false)
-        )
+        )(equalTo(false))
       },
       test("replaces a focus value") {
+        assert(Box1.l.replace(Box1(1L), 2L))(equalTo(Box1(2L))) &&
+        assert(Box2.r1.replace(Box2(Record1(true, 1)), Record1(false, 2)))(equalTo(Box2(Record1(false, 2)))) &&
+        assert(Box2.r1_b.replace(Box2(Record1(true, 1)), false))(equalTo(Box2(Record1(false, 1)))) &&
         assert(Record1.b.replace(Record1(true, 1), false))(equalTo(Record1(false, 1))) &&
         assert(Record2.r1_b.replace(Record2(2L, Vector.empty, Record1(true, 1)), false))(
           equalTo(Record2(2L, Vector.empty, Record1(false, 1)))
@@ -190,11 +194,12 @@ object OpticSpec extends ZIOSpecDefault {
         assert(
           Record3.r2_r1_b_left
             .replace(Record3(Record1(true, 3), Record2(2L, Vector.empty, Record1(true, 1)), Case1(0.5)), false)
-        )(
-          equalTo(Record3(Record1(true, 3), Record2(2L, Vector.empty, Record1(false, 1)), Case1(0.5)))
-        )
+        )(equalTo(Record3(Record1(true, 3), Record2(2L, Vector.empty, Record1(false, 1)), Case1(0.5))))
       },
       test("modifies a focus value") {
+        assert(Box1.l.modify(Box1(1L), _ + 1L))(equalTo(Box1(2L))) &&
+        assert(Box2.r1.modify(Box2(Record1(true, 1)), _ => null))(equalTo(Box2(null))) &&
+        assert(Box2.r1_b.modify(Box2(Record1(true, 1)), x => !x))(equalTo(Box2(Record1(false, 1)))) &&
         assert(Record1.b.modify(Record1(true, 1), x => !x))(equalTo(Record1(false, 1))) &&
         assert(Record2.r1_b.modify(Record2(2L, Vector.empty, Record1(true, 1)), x => !x))(
           equalTo(Record2(2L, Vector.empty, Record1(false, 1)))
@@ -3377,6 +3382,21 @@ object OpticSpecTypes {
     val milk: Traversal[Case6, Int]          = optic(_.mil.eachKey)
     val milv: Traversal[Case6, Long]         = optic(_.mil.eachValue)
     val akmil: Optional[Case6, Long]         = optic(_.mil.atKey(1))
+  }
+
+  case class Box1(l: Long) extends AnyVal
+
+  object Box1 extends CompanionOptics[Box1] {
+    implicit val schema: Schema[Box1] = Schema.derived
+    val l: Lens[Box1, Long]           = optic(_.l)
+  }
+
+  case class Box2(r1: Record1) extends AnyVal
+
+  object Box2 extends CompanionOptics[Box2] {
+    implicit val schema: Schema[Box2] = Schema.derived
+    val r1: Lens[Box2, Record1]       = optic(_.r1)
+    val r1_b: Lens[Box2, Boolean]     = optic(_.r1.b)
   }
 
   object Collections {
