@@ -155,11 +155,8 @@ private object SchemaVersionSpecific {
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNamedTuple(tpe)) {
             tpe match {
-              case AppliedType(_, List(_, tTpe)) =>
-                val nestedTpes_ = tpe :: nestedTpes
-                typeArgs(tTpe).forall(isNonRecursive(_, nestedTpes_))
-              case _ =>
-                false
+              case AppliedType(_, List(_, tTpe)) => isNonRecursive(tTpe, nestedTpes)
+              case _                             => false
             }
           } else {
             isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
