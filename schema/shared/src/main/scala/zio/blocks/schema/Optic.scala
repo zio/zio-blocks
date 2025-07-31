@@ -35,31 +35,9 @@ sealed trait Optic[S, A] { self =>
 
   def modify(s: S, f: A => A): S
 
-  def modifyOption(s: S, f: A => A): Option[S] = {
-    var modified = false
-    val result = modify(
-      s,
-      (a: A) => {
-        modified = true
-        f(a)
-      }
-    )
-    if (modified) new Some(result)
-    else None
-  }
+  def modifyOption(s: S, f: A => A): Option[S]
 
-  def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
-    var modified = false
-    val result = modify(
-      s,
-      (a: A) => {
-        modified = true
-        f(a)
-      }
-    )
-    if (modified) new Right(result)
-    else new Left(check(s).get)
-  }
+  def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S]
 
   def toDynamic: DynamicOptic
 
@@ -346,6 +324,10 @@ object Lens {
       x.asInstanceOf[S]
     }
 
+    def modifyOption(s: S, f: A => A): Option[S] = new Some(modify(s, f))
+
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = new Right(modify(s, f))
+
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(focusTerms.map(term => new DynamicOptic.Node.Field(term.name)).toVector)
 
@@ -437,17 +419,19 @@ object Prism {
       while (idx < len) {
         val lastX = x
         x = matchers(idx).downcastOrNull(x)
-        if (x == null) {
-          val actualCaseIdx = discriminators(idx).discriminate(lastX)
-          val actualCase    = sources(idx).cases(actualCaseIdx).name
-          val focusTermName = focusTerms(idx).name
-          val unexpectedCase =
-            new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
-          return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
-        }
+        if (x == null) return new Some(toOpticCheck(idx, lastX))
         idx += 1
       }
       None
+    }
+
+    private[this] def toOpticCheck(idx: Int, lastX: Any): OpticCheck = {
+      val actualCaseIdx = discriminators(idx).discriminate(lastX)
+      val actualCase    = sources(idx).cases(actualCaseIdx).name
+      val focusTermName = focusTerms(idx).name
+      val unexpectedCase =
+        new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
+      new OpticCheck(new ::(unexpectedCase, Nil))
     }
 
     def getOption(s: S): Option[A] = {
@@ -461,9 +445,6 @@ object Prism {
       }
       new Some(x.asInstanceOf[A])
     }
-
-    lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(focusTerms.map(term => new DynamicOptic.Node.Case(term.name)).toVector)
 
     def reverseGet(a: A): S = a
 
@@ -502,6 +483,34 @@ object Prism {
       }
       f(x.asInstanceOf[A])
     }
+
+    def modifyOption(s: S, f: A => A): Option[S] = {
+      val len    = matchers.length
+      var x: Any = s
+      var idx    = 0
+      while (idx < len) {
+        x = matchers(idx).downcastOrNull(x)
+        if (x == null) return None
+        idx += 1
+      }
+      new Some(f(x.asInstanceOf[A]))
+    }
+
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
+      val len    = matchers.length
+      var x: Any = s
+      var idx    = 0
+      while (idx < len) {
+        val lastX = x
+        x = matchers(idx).downcastOrNull(x)
+        if (x == null) return new Left(toOpticCheck(idx, lastX))
+        idx += 1
+      }
+      new Right(f(x.asInstanceOf[A]))
+    }
+
+    lazy val toDynamic: DynamicOptic =
+      new DynamicOptic(focusTerms.map(term => new DynamicOptic.Node.Case(term.name)).toVector)
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -815,25 +824,6 @@ object Optional {
       new Some(x.asInstanceOf[A])
     }
 
-    lazy val toDynamic: DynamicOptic = new DynamicOptic({
-      if (bindings eq null) init()
-      val nodes = Vector.newBuilder[DynamicOptic.Node]
-      val len   = bindings.length
-      var idx   = 0
-      while (idx < len) {
-        nodes.addOne {
-          bindings(idx) match {
-            case _: LensBinding                      => new DynamicOptic.Node.Field(focusTerms(idx).name)
-            case _: PrismBinding                     => new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case at: AtBinding[Col] @scala.unchecked => new DynamicOptic.Node.AtIndex(at.index)
-            case binding                             => new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
-          }
-        }
-        idx += 1
-      }
-      nodes.result()
-    })
-
     def replace(s: S, a: A): S = {
       if (bindings eq null) init()
       modifyRecursive(Registers(usedRegisters), 0, s, _ => a).asInstanceOf[S]
@@ -1073,6 +1063,61 @@ object Optional {
             )
           constructor.resultObject(builder)
       }
+
+    def modifyOption(s: S, f: A => A): Option[S] = {
+      if (bindings eq null) init()
+      var success = false
+      val x = modifyRecursive(
+        Registers(usedRegisters),
+        0,
+        s,
+        a => {
+          success = true
+          f(a)
+        }
+      )
+      if (success) new Some(x.asInstanceOf[S])
+      else None
+    }
+
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
+      if (bindings eq null) init()
+      var success = false
+      val x = modifyRecursive(
+        Registers(usedRegisters),
+        0,
+        s,
+        a => {
+          success = true
+          f(a)
+        }
+      )
+      if (success) new Right(x.asInstanceOf[S])
+      else new Left(check(s).get)
+    }
+
+    lazy val toDynamic: DynamicOptic = new DynamicOptic({
+      if (bindings eq null) init()
+      val nodes = Vector.newBuilder[DynamicOptic.Node]
+      val len   = bindings.length
+      var idx   = 0
+      while (idx < len) {
+        nodes.addOne {
+          bindings(idx) match {
+            case _: LensBinding =>
+              new DynamicOptic.Node.Field(focusTerms(idx).name)
+            case _: PrismBinding =>
+              new DynamicOptic.Node.Case(focusTerms(idx).name)
+            case at: AtBinding[Col] @scala.unchecked =>
+              new DynamicOptic.Node.AtIndex(at.index)
+            case binding =>
+              new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
+          }
+        }
+        idx += 1
+      }
+      nodes.result()
+    })
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]]) ^
@@ -2626,6 +2671,38 @@ object Traversal {
           while (it.hasNext) constructor.addObject(builder, f(it.next()))
           constructor.resultObject(builder)
       }
+
+    def modifyOption(s: S, f: A => A): Option[S] = {
+      if (bindings eq null) init()
+      var modified = false
+      val x = modifyRecursive(
+        Registers(usedRegisters),
+        0,
+        s,
+        (a: A) => {
+          modified = true
+          f(a)
+        }
+      )
+      if (modified) new Some(x.asInstanceOf[S])
+      else None
+    }
+
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
+      if (bindings eq null) init()
+      var modified = false
+      val x = modifyRecursive(
+        Registers(usedRegisters),
+        0,
+        s,
+        (a: A) => {
+          modified = true
+          f(a)
+        }
+      )
+      if (modified) new Right(x.asInstanceOf[S])
+      else new Left(check(s).get)
+    }
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic({
       if (bindings eq null) init()
