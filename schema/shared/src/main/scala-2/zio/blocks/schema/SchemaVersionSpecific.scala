@@ -33,6 +33,8 @@ private object SchemaVersionSpecific {
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
+    def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")
+
     def isEnumOrModuleValue(tpe: Type): Boolean = tpe.typeSymbol.isModuleClass
 
     def isSealedTraitOrAbstractClass(tpe: Type): Boolean = tpe.typeSymbol.isClass && {
@@ -316,8 +318,6 @@ private object SchemaVersionSpecific {
         else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
         else unsupportedFieldType(fTpe)
       })
-
-      def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")
     }
 
     def deriveSchema(tpe: Type): Tree = {

@@ -101,9 +101,6 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.fromDynamicValue(Record.schema.toDynamicValue(Record(1: Byte, 1000))))(
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
-        assert(Record.schema.fromDynamicValue(Record.schema.toDynamicValue(Record(1: Byte, 1000))))(
-          isRight(equalTo(Record(1: Byte, 1000)))
-        ) &&
         assert(Record.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
           isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a record")))
         ) &&
@@ -526,6 +523,48 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      },
+      test("derives schema for case classes with more than 22 fields using a macro call") {
+        case class Record24(
+          i1: Int,
+          i2: Int,
+          i3: Int,
+          i4: Int,
+          i5: Int,
+          i6: Int,
+          i7: Int,
+          i8: Int,
+          i9: Int,
+          i10: Int,
+          i11: Int,
+          i12: Int,
+          i13: Int,
+          i14: Int,
+          i15: Int,
+          i16: Int,
+          i17: Int,
+          i18: Int,
+          i19: Int,
+          i20: Int,
+          i21: Int,
+          i22: Int,
+          i23: Int,
+          s24: String
+        )
+
+        object Record24 extends CompanionOptics[Record24] {
+          implicit val schema: Schema[Record24] = Schema.derived
+          val i23: Lens[Record24, Int]          = $(_.i23)
+          val s24: Lens[Record24, String]       = $(_.s24)
+        }
+
+        val record = Record24.schema.reflect.asRecord
+        val value  = Record24(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, "24")
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 23, objects = 1)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 23, objects = 1)))) &&
+        assert(Record24.i23.get(value))(equalTo(23)) &&
+        assert(Record24.s24.get(value))(equalTo("24")) &&
+        assert(Record24.schema.fromDynamicValue(Record24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("encodes values using provided formats and outputs") {
         val result = encodeToString { out =>
