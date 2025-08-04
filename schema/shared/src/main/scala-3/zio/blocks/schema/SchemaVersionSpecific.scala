@@ -30,6 +30,8 @@ private object SchemaVersionSpecific {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
+    def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
+
     def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
 
     def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
@@ -54,14 +56,29 @@ private object SchemaVersionSpecific {
       !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
     }
 
+    def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
+      case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
+      case _                        => Nil
+    }
+
+    def isTupleXXL(tpe: TypeRepr): Boolean = tpe match {
+      case AppliedType(tTpe, _) if tTpe =:= TypeRepr.of[*:] => true
+      case _                                                => false
+    }
+
+    def tupleXXLTypeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
+      case AppliedType(_, List(typeArg, tail)) => typeArg.dealias :: tupleXXLTypeArgs(tail)
+      case _                                   => Nil
+    }
+
     def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
       case AppliedType(ntTpe, _) if ntTpe =:= TypeRepr.of[NamedTuple.NamedTuple] => true
       case _                                                                     => false
     }
 
-    def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
-      case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
-      case _                        => Nil
+    def namedTupleXXLNames(tpe: TypeRepr): List[String] = tpe match {
+      case AppliedType(_, List(ConstantType(StringConstant(name)), tail)) => name :: namedTupleXXLNames(tail)
+      case _                                                              => Nil
     }
 
     def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[?]]
@@ -151,7 +168,10 @@ private object SchemaVersionSpecific {
         tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) ||
         isDynamicValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
-          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+          else if (isTupleXXL(tpe)) {
+            val nestedTpes_ = tpe :: nestedTpes
+            tupleXXLTypeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
+          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNamedTuple(tpe)) {
             tpe match {
@@ -207,6 +227,13 @@ private object SchemaVersionSpecific {
         }
         (packages, values, name)
       }
+
+    def toBlock(terms: List[Term]): Expr[Unit] = {
+      val size = terms.size
+      if (size > 1) Block(terms.init, terms.last)
+      else if (size > 0) terms.head
+      else Literal(UnitConstant())
+    }.asExprOf[Unit]
 
     def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] =
       (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
@@ -365,8 +392,8 @@ private object SchemaVersionSpecific {
         argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
       }.asExprOf[T]
 
-      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] = {
-        val terms = fieldInfos.flatMap(_.map { fieldInfo =>
+      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
+        toBlock(fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe         = fieldInfo.tpe
           val getter       = fieldInfo.getter
           lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
@@ -392,14 +419,88 @@ private object SchemaVersionSpecific {
           } else if (fTpe <:< TypeRepr.of[AnyRef]) {
             '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
           } else unsupportedFieldType(fTpe)
-        })
-        val size = terms.size
-        if (size > 1) Block(terms.init, terms.last)
-        else if (size > 0) terms.head
-        else Literal(UnitConstant())
-      }.asExprOf[Unit]
+        }))
+    }
 
-      def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
+    case class TupleXXLInfo[T <: Tuple: Type]()(using Quotes) {
+      val tpe = TypeRepr.of[T]
+      val (fieldInfos, registersUsed) = {
+        val fTpes         = tupleXXLTypeArgs(tpe)
+        var registersUsed = RegisterOffset.Zero
+        var idx           = -1
+        val fieldInfos = fTpes.map { fTpe =>
+          idx += 1
+          val offset =
+            if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
+            else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
+            else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
+            else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+            else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+            else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+            else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
+            else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+            else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
+            else if (fTpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
+            else unsupportedFieldType(fTpe)
+          val fieldInfo =
+            FieldInfo(Symbol.noSymbol, s"_${idx + 1}", fTpe, None, Symbol.noSymbol, registersUsed, false, Nil)
+          registersUsed = RegisterOffset.add(registersUsed, offset)
+          fieldInfo
+        }
+        (fieldInfos, registersUsed)
+      }
+
+      def const(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] =
+        Expr
+          .ofTupleFromSeq(fieldInfos.map { fieldInfo =>
+            val fTpe         = fieldInfo.tpe
+            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
+            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
+            if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }
+            else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
+            else if (fTpe <:< TypeRepr.of[AnyRef]) {
+              fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] } }
+            } else unsupportedFieldType(fTpe)
+          })
+          .asExprOf[T]
+
+      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
+        toBlock(fieldInfos.map { fieldInfo =>
+          val fTpe         = fieldInfo.tpe
+          lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
+          lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
+          val idx          = fieldInfo.name.substring(1).toInt - 1
+          val getter =
+            Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
+          if (fTpe =:= TypeRepr.of[Int]) {
+            '{ $out.setInt($baseOffset, $bytes, $getter.asInstanceOf[Int]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Float]) {
+            '{ $out.setFloat($baseOffset, $bytes, $getter.asInstanceOf[Float]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Long]) {
+            '{ $out.setLong($baseOffset, $bytes, $getter.asInstanceOf[Long]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Double]) {
+            '{ $out.setDouble($baseOffset, $bytes, $getter.asInstanceOf[Double]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Boolean]) {
+            '{ $out.setBoolean($baseOffset, $bytes, $getter.asInstanceOf[Boolean]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Byte]) {
+            '{ $out.setByte($baseOffset, $bytes, $getter.asInstanceOf[Byte]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Char]) {
+            '{ $out.setChar($baseOffset, $bytes, $getter.asInstanceOf[Char]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Short]) {
+            '{ $out.setShort($baseOffset, $bytes, $getter.asInstanceOf[Short]) }.asTerm
+          } else if (fTpe =:= TypeRepr.of[Unit]) {
+            '{ () }.asTerm
+          } else if (fTpe <:< TypeRepr.of[AnyRef]) {
+            '{ $out.setObject($baseOffset, $objects, $getter.asInstanceOf[AnyRef]) }.asTerm
+          } else unsupportedFieldType(fTpe)
+        })
     }
 
     def deriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
@@ -462,6 +563,47 @@ private object SchemaVersionSpecific {
                   )
                 )
               }
+            }
+        }
+      } else if (isTupleXXL(tpe)) {
+        tpe.asType match {
+          case '[
+              type tt <: Tuple; tt] =>
+            val tupleXXLInfo = new TupleXXLInfo[tt]()
+            val fields = tupleXXLInfo.fieldInfos.map { fieldInfo =>
+              val fTpe = fieldInfo.tpe
+              fTpe.asType match {
+                case '[ft] =>
+                  val fSchema     = findImplicitOrDeriveSchema[ft]
+                  var reflectExpr = '{ $fSchema.reflect }
+                  if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+                  '{ $reflectExpr.asTerm[tt](${ Expr(fieldInfo.name) }) }
+              }
+            }
+            val (packages, values, name) = typeName(tpe)
+            '{
+              new Schema(
+                reflect = new Reflect.Record[Binding, tt](
+                  fields = Vector(${ Expr.ofSeq(fields) }*),
+                  typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                  recordBinding = new Binding.Record(
+                    constructor = new Constructor[tt] {
+                      def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
+
+                      def construct(in: Registers, baseOffset: RegisterOffset): tt = ${
+                        tupleXXLInfo.const('in, 'baseOffset)
+                      }
+                    },
+                    deconstructor = new Deconstructor[tt] {
+                      def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
+
+                      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: tt): Unit = ${
+                        tupleXXLInfo.deconst('out, 'baseOffset, 'in)
+                      }
+                    }
+                  )
+                )
+              )
             }
         }
       } else if (isSealedTraitOrAbstractClass(tpe) || isUnion(tpe)) {
@@ -577,48 +719,98 @@ private object SchemaVersionSpecific {
                 tTpe.asType match {
                   case '[
                       type tt <: Tuple; tt] =>
-                    val names     = nameConstants.collect { case ConstantType(StringConstant(x)) => x }.toArray
-                    val classInfo = new ClassInfo[tt]()
-                    var i         = -1
-                    val fields =
-                      classInfo.fieldInfos.flatMap(_.map { fieldInfo =>
-                        i += 1
+                    if (isTupleXXL(tTpe)) {
+                      val names        = namedTupleXXLNames(nTpe).toArray
+                      val tupleXXLInfo = new TupleXXLInfo[tt]()
+                      var idx          = -1
+                      val fields = tupleXXLInfo.fieldInfos.map { fieldInfo =>
+                        idx += 1
                         val fTpe = fieldInfo.tpe
                         fTpe.asType match {
                           case '[ft] =>
                             val fSchema     = findImplicitOrDeriveSchema[ft]
                             var reflectExpr = '{ $fSchema.reflect }
                             if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                            '{ $reflectExpr.asTerm[NamedTuple.NamedTuple[nt, tt]](${ Expr(names(i)) }) }
+                            '{ $reflectExpr.asTerm[NamedTuple.NamedTuple[nt, tt]](${ Expr(names(idx)) }) }
                         }
-                      })
-                    '{
-                      new Schema(
-                        reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
-                          fields = Vector(${ Expr.ofSeq(fields) }*),
-                          typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
-                          recordBinding = new Binding.Record(
-                            constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
-                              def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
+                      }
+                      '{
+                        new Schema(
+                          reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
+                            fields = Vector(${ Expr.ofSeq(fields) }*),
+                            typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
+                            recordBinding = new Binding.Record(
+                              constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
+                                def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
 
-                              def construct(in: Registers, baseOffset: RegisterOffset): NamedTuple.NamedTuple[nt, tt] =
-                                NamedTuple.apply[nt, tt](${ classInfo.const('in, 'baseOffset) })
-                            },
-                            deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
-                              def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
+                                def construct(
+                                  in: Registers,
+                                  baseOffset: RegisterOffset
+                                ): NamedTuple.NamedTuple[nt, tt] =
+                                  NamedTuple.apply[nt, tt](${ tupleXXLInfo.const('in, 'baseOffset) })
+                              },
+                              deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
+                                def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
 
-                              def deconstruct(
-                                out: Registers,
-                                baseOffset: RegisterOffset,
-                                in: NamedTuple.NamedTuple[nt, tt]
-                              ): Unit = {
-                                val t = in.toTuple
-                                ${ classInfo.deconst('out, 'baseOffset, 't) }
+                                def deconstruct(
+                                  out: Registers,
+                                  baseOffset: RegisterOffset,
+                                  in: NamedTuple.NamedTuple[nt, tt]
+                                ): Unit = {
+                                  val t = in.toTuple
+                                  ${ tupleXXLInfo.deconst('out, 'baseOffset, 't) }
+                                }
                               }
-                            }
+                            )
                           )
                         )
-                      )
+                      }
+                    } else {
+                      val names     = nameConstants.collect { case ConstantType(StringConstant(x)) => x }.toArray
+                      val classInfo = new ClassInfo[tt]()
+                      var idx       = -1
+                      val fields = classInfo.fieldInfos.flatMap(_.map { fieldInfo =>
+                        idx += 1
+                        val fTpe = fieldInfo.tpe
+                        fTpe.asType match {
+                          case '[ft] =>
+                            val fSchema     = findImplicitOrDeriveSchema[ft]
+                            var reflectExpr = '{ $fSchema.reflect }
+                            if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+                            '{ $reflectExpr.asTerm[NamedTuple.NamedTuple[nt, tt]](${ Expr(names(idx)) }) }
+                        }
+                      })
+                      '{
+                        new Schema(
+                          reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
+                            fields = Vector(${ Expr.ofSeq(fields) }*),
+                            typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
+                            recordBinding = new Binding.Record(
+                              constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
+                                def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
+
+                                def construct(
+                                  in: Registers,
+                                  baseOffset: RegisterOffset
+                                ): NamedTuple.NamedTuple[nt, tt] =
+                                  NamedTuple.apply[nt, tt](${ classInfo.const('in, 'baseOffset) })
+                              },
+                              deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
+                                def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
+
+                                def deconstruct(
+                                  out: Registers,
+                                  baseOffset: RegisterOffset,
+                                  in: NamedTuple.NamedTuple[nt, tt]
+                                ): Unit = {
+                                  val t = in.toTuple
+                                  ${ classInfo.deconst('out, 'baseOffset, 't) }
+                                }
+                              }
+                            )
+                          )
+                        )
+                      }
                     }
                 }
             }
