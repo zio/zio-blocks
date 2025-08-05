@@ -16,8 +16,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         case class Record1(c: Char, d: Double) derives Schema
 
         object Record1 extends CompanionOptics[Record1] {
-          val c = optic(x => x.c)
-          val d = optic(_.d)
+          val c: Lens[Record1, Char]   = optic(x => x.c)
+          val d: Lens[Record1, Double] = optic(_.d)
         }
 
         val schema = Schema[Record1]
@@ -47,15 +47,57 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         ) &&
         assert(record.map(_.doc))(isSome(equalTo(Doc("/** Record: Record1 */"))))
       },
+      test("derives schema for tuples") {
+        type Tuple4 = (Byte, Short, Int, Long)
+
+        object Tuple4 extends CompanionOptics[Tuple4] {
+          implicit val schema: Schema[Tuple4] = Schema.derived
+          val _1: Lens[Tuple4, Byte]          = $(_(0))
+          val _2: Lens[Tuple4, Short]         = $(_.apply(1))
+          val _3: Lens[Tuple4, Int]           = $(_._3)
+          val _4: Lens[Tuple4, Long]          = $(_._4)
+        }
+
+        val record = Tuple4.schema.reflect.asRecord
+        val value  = (1: Byte, 2: Short, 3, 4L)
+        assert(record.map(_.constructor.usedRegisters))(
+          isSome(equalTo(RegisterOffset(bytes = 1, shorts = 1, ints = 1, longs = 1)))
+        ) &&
+        assert(Tuple4._1.get(value))(equalTo(1: Byte)) &&
+        assert(Tuple4._2.get(value))(equalTo(2: Short)) &&
+        assert(Tuple4._3.get(value))(equalTo(3)) &&
+        assert(Tuple4._4.get(value))(equalTo(4L)) &&
+        assert(Tuple4._1.replace(value, 5: Byte))(equalTo((5: Byte, 2: Short, 3, 4L))) &&
+        assert(Tuple4._2.replace(value, 5: Short))(equalTo((1: Byte, 5: Short, 3, 4L))) &&
+        assert(Tuple4._3.replace(value, 5))(equalTo((1: Byte, 2: Short, 5, 4L))) &&
+        assert(Tuple4._4.replace(value, 5L))(equalTo((1: Byte, 2: Short, 3, 5L))) &&
+        assert(Tuple4.schema.fromDynamicValue(Tuple4.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+        assert(Tuple4.schema)(
+          equalTo(
+            new Schema[Tuple4](
+              reflect = Reflect.Record[Binding, Tuple4](
+                fields = Vector(
+                  Schema[Byte].reflect.asTerm("_1"),
+                  Schema[Short].reflect.asTerm("_2"),
+                  Schema[Int].reflect.asTerm("_3"),
+                  Schema[Long].reflect.asTerm("_4")
+                ),
+                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "Tuple4"),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
       test("derives schema for named tuples") {
         type NamedTuple4 = (b: Byte, sh: Short, i: Int, l: Long)
 
         object NamedTuple4 extends CompanionOptics[NamedTuple4] {
           implicit val schema: Schema[NamedTuple4] = Schema.derived
-          val b                                    = optic(_(0))
-          val sh                                   = optic(_.apply(1))
-          val i                                    = optic(_.i)
-          val l                                    = optic(_.l)
+          val b: Lens[NamedTuple4, Byte]           = $(_(0))
+          val sh: Lens[NamedTuple4, Short]         = $(_.apply(1))
+          val i: Lens[NamedTuple4, Int]            = $(_.i)
+          val l: Lens[NamedTuple4, Long]           = $(_.l)
         }
 
         val record = NamedTuple4.schema.reflect.asRecord
@@ -124,8 +166,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         object Tuple24 extends CompanionOptics[Tuple24] {
           implicit val schema: Schema[Tuple24] = Schema.derived
-          val i23                              = optic(_(22))
-          val s24                              = optic(_.apply(23))
+          val i23: Lens[Tuple24, Int]          = $(_(22))
+          val s24: Lens[Tuple24, String]       = $(_.apply(23))
         }
 
         val record = Tuple24.schema.reflect.asRecord
@@ -166,8 +208,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         object NamedTuple24 extends CompanionOptics[NamedTuple24] {
           implicit val schema: Schema[NamedTuple24] = Schema.derived
-          val i23                                   = optic(_(22))
-          val s24                                   = optic(_.s24)
+          val i23: Lens[NamedTuple24, Int]          = $(_(22))
+          val s24: Lens[NamedTuple24, String]       = $(_.s24)
         }
 
         val record = NamedTuple24.schema.reflect.asRecord
@@ -220,9 +262,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         case object Case3 extends Variant1 derives Schema
 
         object Variant1 extends CompanionOptics[Variant1] {
-          val case1 = optic(_.when[Case1])
-          val case2 = optic(_.when[Case2])
-          val case3 = optic(_.when[Case3.type])
+          val case1: Prism[Variant1, Case1]      = optic(_.when[Case1])
+          val case2: Prism[Variant1, Case2]      = optic(_.when[Case2])
+          val case3: Prism[Variant1, Case3.type] = optic(_.when[Case3.type])
         }
 
         val schema  = Schema[Variant1]
@@ -332,8 +374,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         given schema: Schema[Value] = Schema.derived
 
         object Value extends CompanionOptics[Value] {
-          val int     = $(_.when[Int])
-          val boolean = $(_.when[Boolean])
+          val int: Prism[Value, Int]         = $(_.when[Int])
+          val boolean: Prism[Value, Boolean] = $(_.when[Boolean])
         }
 
         val variant = schema.reflect.asVariant
