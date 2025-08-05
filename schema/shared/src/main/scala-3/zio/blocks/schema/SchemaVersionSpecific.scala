@@ -30,8 +30,6 @@ private object SchemaVersionSpecific {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
-    def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
-
     def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
 
     def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
@@ -182,19 +180,16 @@ private object SchemaVersionSpecific {
             isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
               val primaryConstructor = tpe.classSymbol.get.primaryConstructor
               primaryConstructor.exists && {
-                val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
-                  case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
-                  case ps                                     => (Nil, ps)
-                }
                 val nestedTpes_ = tpe :: nestedTpes
-                val tpeTypeArgs = typeArgs(tpe)
-                if (tpeTypeArgs.isEmpty) {
-                  tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
-                } else {
-                  tpeParams.forall(_.forall { symbol =>
-                    val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
-                    isNonRecursive(fTpe, nestedTpes_)
-                  })
+                primaryConstructor.paramSymss match {
+                  case tpeTypeParams :: tpeParams if tpeTypeParams.exists(_.isTypeParam) =>
+                    val tpeTypeArgs = typeArgs(tpe)
+                    tpeParams.forall(_.forall { symbol =>
+                      val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                      isNonRecursive(fTpe, nestedTpes_)
+                    })
+                  case tpeParams =>
+                    tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
                 }
               }
             }
@@ -272,6 +267,7 @@ private object SchemaVersionSpecific {
                 else Flags.Implicit | Flags.Lazy
               val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
               val ref    = Ref(symbol).asExprOf[Schema[?]]
+              // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
               derivedSchemaRefs.update(tpe, ref)
               val schema = deriveSchema[T]
               derivedSchemaDefs.addOne(ValDef(symbol, Some(schema.asTerm.changeOwner(symbol))))
@@ -287,23 +283,66 @@ private object SchemaVersionSpecific {
       tpe: TypeRepr,
       defaultValue: Option[Term],
       getter: Symbol,
-      registersUsed: RegisterOffset,
+      usedRegisters: RegisterOffset,
       isTransient: Boolean,
       config: List[(String, String)]
     )
 
-    case class ClassInfo[T: Type]()(using Quotes) {
-      val tpe = TypeRepr.of[T]
-      val (fieldInfos, registersUsed, primaryConstructor) = {
-        val tpeClassSymbol     = tpe.classSymbol.get
-        val primaryConstructor = tpeClassSymbol.primaryConstructor
-        if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
+    abstract class TypeInfo[T: Type]()(using Quotes) {
+      def usedRegisters: Expr[RegisterOffset]
+
+      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]]
+
+      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T]
+
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit]
+
+      def fieldOffset(tpe: TypeRepr): RegisterOffset =
+        if (tpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
+        else if (tpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
+        else if (tpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
+        else if (tpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+        else if (tpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+        else if (tpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+        else if (tpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
+        else if (tpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+        else if (tpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
+        else if (tpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
+        else unsupportedFieldType(tpe)
+
+      def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo): Expr[?] = {
+        val fTpe      = fieldInfo.tpe
+        lazy val bs   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
+        lazy val objs = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
+        (if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs) }
+         else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
+         else if (fTpe <:< TypeRepr.of[AnyRef]) {
+           fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objs).asInstanceOf[ft] } }
+         } else unsupportedFieldType(fTpe))
+      }
+
+      def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
+    }
+
+    case class ClassInfo[T: Type]()(using Quotes) extends TypeInfo[T]() {
+      private[this] val tpe                = TypeRepr.of[T]
+      private[this] val tpeClassSymbol     = tpe.classSymbol.get
+      private[this] val primaryConstructor = tpeClassSymbol.primaryConstructor
+      if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
+      val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
         val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
           case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
           case ps                                     => (Nil, ps)
         }
         val tpeTypeArgs   = typeArgs(tpe)
-        var registersUsed = RegisterOffset.Zero
+        var usedRegisters = RegisterOffset.Zero
         var idx           = 0
         (
           tpeParams.map(_.map { symbol =>
@@ -318,8 +357,9 @@ private object SchemaVersionSpecific {
                   val getters = tpeClassSymbol
                     .methodMember(name)
                     .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
-                  if (getters.isEmpty)
+                  if (getters.isEmpty) {
                     fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+                  }
                   getter = getters.head
                 }
                 val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
@@ -344,162 +384,133 @@ private object SchemaVersionSpecific {
                         None
                     }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
                   } else None
-                val offset =
-                  if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
-                  else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
-                  else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
-                  else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-                  else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-                  else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-                  else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
-                  else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-                  else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
-                  else if (fTpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
-                  else unsupportedFieldType(fTpe)
-                val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
-                registersUsed = RegisterOffset.add(registersUsed, offset)
+                val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
+                usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
                 fieldInfo
             }
           }),
-          registersUsed,
-          primaryConstructor
+          Expr(usedRegisters)
         )
       }
 
-      def const(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] = {
+      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] = {
+        val names = nameOverrides.toArray
+        var idx   = -1
+        Expr.ofSeq(fieldInfos.flatMap(_.map { fieldInfo =>
+          val fTpe = fieldInfo.tpe
+          fTpe.asType match {
+            case '[ft] =>
+              idx += 1
+              var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft] }.reflect }
+              reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
+                '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
+              }
+              if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+              var name = fieldInfo.name
+              if (idx < names.length) name = names(idx)
+              var fieldTermExpr = '{ $reflectExpr.asTerm[S](${ Expr(name) }) }
+              var modifiers = fieldInfo.config.map { case (k, v) =>
+                '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
+              }
+              if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
+              if (modifiers.nonEmpty) fieldTermExpr = '{ $fieldTermExpr.copy(modifiers = ${ Expr.ofSeq(modifiers) }) }
+              fieldTermExpr
+          }
+        }))
+      }
+
+      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] = {
         val constructorNoTypes = Select(New(Inferred(tpe)), primaryConstructor)
         val constructor = typeArgs(tpe) match {
           case Nil      => constructorNoTypes
           case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
         }
-        val argss = fieldInfos.map(_.map { fieldInfo =>
-          val fTpe         = fieldInfo.tpe
-          lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
-          lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-          if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }.asTerm
-          else if (fTpe =:= TypeRepr.of[Unit]) '{ () }.asTerm
-          else if (fTpe <:< TypeRepr.of[AnyRef]) {
-            fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }.asTerm }
-          } else unsupportedFieldType(fTpe)
-        })
+        val argss = fieldInfos.map(_.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo).asTerm))
         argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
       }.asExprOf[T]
 
-      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
         toBlock(fieldInfos.flatMap(_.map { fieldInfo =>
-          val fTpe         = fieldInfo.tpe
-          val getter       = fieldInfo.getter
-          lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
-          lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-          if (fTpe =:= TypeRepr.of[Int]) {
-            '{ $out.setInt($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Int] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Float]) {
-            '{ $out.setFloat($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Float] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Long]) {
-            '{ $out.setLong($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Long] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Double]) {
-            '{ $out.setDouble($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Double] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Boolean]) {
-            '{ $out.setBoolean($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Boolean] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Byte]) {
-            '{ $out.setByte($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Byte] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Char]) {
-            '{ $out.setChar($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Char] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Short]) {
-            '{ $out.setShort($baseOffset, $bytes, ${ Select(in.asTerm, getter).asExprOf[Short] }) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Unit]) {
-            '{ () }.asTerm
-          } else if (fTpe <:< TypeRepr.of[AnyRef]) {
-            '{ $out.setObject($baseOffset, $objects, ${ Select(in.asTerm, getter).asExprOf[AnyRef] }) }.asTerm
-          } else unsupportedFieldType(fTpe)
+          val fTpe      = fieldInfo.tpe
+          val getter    = Select(in.asTerm, fieldInfo.getter)
+          lazy val bs   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
+          lazy val objs = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
+          (if (fTpe =:= TypeRepr.of[Int]) '{ $out.setInt($baseOffset, $bs, ${ getter.asExprOf[Int] }) }
+           else if (fTpe =:= TypeRepr.of[Float]) '{ $out.setFloat($baseOffset, $bs, ${ getter.asExprOf[Float] }) }
+           else if (fTpe =:= TypeRepr.of[Long]) '{ $out.setLong($baseOffset, $bs, ${ getter.asExprOf[Long] }) }
+           else if (fTpe =:= TypeRepr.of[Double]) '{ $out.setDouble($baseOffset, $bs, ${ getter.asExprOf[Double] }) }
+           else if (fTpe =:= TypeRepr.of[Boolean]) {
+             '{ $out.setBoolean($baseOffset, $bs, ${ getter.asExprOf[Boolean] }) }
+           } else if (fTpe =:= TypeRepr.of[Byte]) '{ $out.setByte($baseOffset, $bs, ${ getter.asExprOf[Byte] }) }
+           else if (fTpe =:= TypeRepr.of[Char]) '{ $out.setChar($baseOffset, $bs, ${ getter.asExprOf[Char] }) }
+           else if (fTpe =:= TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bs, ${ getter.asExprOf[Short] }) }
+           else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
+           else if (fTpe <:< TypeRepr.of[AnyRef]) '{ $out.setObject($baseOffset, $objs, ${ getter.asExprOf[AnyRef] }) }
+           else unsupportedFieldType(fTpe)).asTerm
         }))
     }
 
-    case class TupleXXLInfo[T <: Tuple: Type]()(using Quotes) {
-      val tpe = TypeRepr.of[T]
-      val (fieldInfos, registersUsed) = {
-        val fTpes         = tupleXXLTypeArgs(tpe)
-        var registersUsed = RegisterOffset.Zero
-        var idx           = -1
-        val fieldInfos = fTpes.map { fTpe =>
-          idx += 1
-          val offset =
-            if (fTpe =:= TypeRepr.of[Int]) RegisterOffset(ints = 1)
-            else if (fTpe =:= TypeRepr.of[Float]) RegisterOffset(floats = 1)
-            else if (fTpe =:= TypeRepr.of[Long]) RegisterOffset(longs = 1)
-            else if (fTpe =:= TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-            else if (fTpe =:= TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-            else if (fTpe =:= TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-            else if (fTpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
-            else if (fTpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-            else if (fTpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
-            else if (fTpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
-            else unsupportedFieldType(fTpe)
-          val fieldInfo =
-            FieldInfo(Symbol.noSymbol, s"_${idx + 1}", fTpe, None, Symbol.noSymbol, registersUsed, false, Nil)
-          registersUsed = RegisterOffset.add(registersUsed, offset)
-          fieldInfo
-        }
-        (fieldInfos, registersUsed)
+    case class TupleXXLInfo[T <: Tuple: Type]()(using Quotes) extends TypeInfo[T]() {
+      val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
+        val fTpes         = tupleXXLTypeArgs(TypeRepr.of[T])
+        val noSymbol      = Symbol.noSymbol
+        var usedRegisters = RegisterOffset.Zero
+        (
+          fTpes.map {
+            var idx = 0
+            fTpe =>
+              idx += 1
+              val fieldInfo = FieldInfo(noSymbol, s"_$idx", fTpe, None, noSymbol, usedRegisters, false, Nil)
+              usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
+              fieldInfo
+          },
+          Expr(usedRegisters)
+        )
       }
 
-      def const(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] =
-        Expr
-          .ofTupleFromSeq(fieldInfos.map { fieldInfo =>
-            val fTpe         = fieldInfo.tpe
-            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
-            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-            if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }
-            else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
-            else if (fTpe <:< TypeRepr.of[AnyRef]) {
-              fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] } }
-            } else unsupportedFieldType(fTpe)
-          })
-          .asExprOf[T]
+      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] = {
+        val names = nameOverrides.toArray
+        Expr.ofSeq(fieldInfos.map {
+          var idx = -1
+          fieldInfo =>
+            idx += 1
+            val fTpe = fieldInfo.tpe
+            fTpe.asType match {
+              case '[ft] =>
+                var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft] }.reflect }
+                if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+                var name = fieldInfo.name
+                if (idx < names.length) name = names(idx)
+                '{ $reflectExpr.asTerm[S](${ Expr(name) }) }
+            }
+        })
+      }
 
-      def deconst(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
-        toBlock(fieldInfos.map { fieldInfo =>
-          val fTpe         = fieldInfo.tpe
-          lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.registersUsed))
-          lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.registersUsed))
-          val idx          = fieldInfo.name.substring(1).toInt - 1
-          val getter =
-            Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
-          if (fTpe =:= TypeRepr.of[Int]) {
-            '{ $out.setInt($baseOffset, $bytes, $getter.asInstanceOf[Int]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Float]) {
-            '{ $out.setFloat($baseOffset, $bytes, $getter.asInstanceOf[Float]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Long]) {
-            '{ $out.setLong($baseOffset, $bytes, $getter.asInstanceOf[Long]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Double]) {
-            '{ $out.setDouble($baseOffset, $bytes, $getter.asInstanceOf[Double]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Boolean]) {
-            '{ $out.setBoolean($baseOffset, $bytes, $getter.asInstanceOf[Boolean]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Byte]) {
-            '{ $out.setByte($baseOffset, $bytes, $getter.asInstanceOf[Byte]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Char]) {
-            '{ $out.setChar($baseOffset, $bytes, $getter.asInstanceOf[Char]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Short]) {
-            '{ $out.setShort($baseOffset, $bytes, $getter.asInstanceOf[Short]) }.asTerm
-          } else if (fTpe =:= TypeRepr.of[Unit]) {
-            '{ () }.asTerm
-          } else if (fTpe <:< TypeRepr.of[AnyRef]) {
-            '{ $out.setObject($baseOffset, $objects, $getter.asInstanceOf[AnyRef]) }.asTerm
-          } else unsupportedFieldType(fTpe)
+      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] =
+        Expr.ofTupleFromSeq(fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))).asExprOf[T]
+
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
+        toBlock(fieldInfos.map {
+          var idx = -1
+          fieldInfo =>
+            idx += 1
+            val fTpe      = fieldInfo.tpe
+            val getter    = Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
+            lazy val bs   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
+            lazy val objs = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
+            (if (fTpe =:= TypeRepr.of[Int]) '{ $out.setInt($baseOffset, $bs, $getter.asInstanceOf[Int]) }
+             else if (fTpe =:= TypeRepr.of[Float]) '{ $out.setFloat($baseOffset, $bs, $getter.asInstanceOf[Float]) }
+             else if (fTpe =:= TypeRepr.of[Long]) '{ $out.setLong($baseOffset, $bs, $getter.asInstanceOf[Long]) }
+             else if (fTpe =:= TypeRepr.of[Double]) '{ $out.setDouble($baseOffset, $bs, $getter.asInstanceOf[Double]) }
+             else if (fTpe =:= TypeRepr.of[Boolean]) {
+               '{ $out.setBoolean($baseOffset, $bs, $getter.asInstanceOf[Boolean]) }
+             } else if (fTpe =:= TypeRepr.of[Byte]) '{ $out.setByte($baseOffset, $bs, $getter.asInstanceOf[Byte]) }
+             else if (fTpe =:= TypeRepr.of[Char]) '{ $out.setChar($baseOffset, $bs, $getter.asInstanceOf[Char]) }
+             else if (fTpe =:= TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bs, $getter.asInstanceOf[Short]) }
+             else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
+             else if (fTpe <:< TypeRepr.of[AnyRef]) {
+               '{ $out.setObject($baseOffset, $objs, $getter.asInstanceOf[AnyRef]) }
+             } else unsupportedFieldType(fTpe)).asTerm
         })
     }
 
@@ -514,10 +525,7 @@ private object SchemaVersionSpecific {
               typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[T](${
-                  Ref {
-                    if (isEnumValue(tpe)) tpe.termSymbol
-                    else tpe.typeSymbol.companionModule
-                  }.asExprOf[T]
+                  Ref(if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol.companionModule).asExprOf[T]
                 }),
                 deconstructor = new ConstantDeconstructor[T]
               ),
@@ -530,75 +538,56 @@ private object SchemaVersionSpecific {
         val elementTpe = typeArgs(tpe).head
         elementTpe.asType match {
           case '[et] =>
-            val elementSchema = findImplicitOrDeriveSchema[et]
-            if (elementTpe <:< TypeRepr.of[AnyRef]) {
-              val classTag =
-                Expr.summon[reflect.ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${elementTpe.show}"))
-              '{
-                implicit val ct: reflect.ClassTag[et] = $classTag
-                new Schema(
-                  reflect = new Reflect.Sequence[Binding, et, Array](
-                    element = $elementSchema.reflect,
-                    typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
-                    seqBinding = new Binding.Seq[Array, et](
-                      constructor = new SeqConstructor.ArrayConstructor {
-                        override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-                          new Builder(new Array[et](sizeHint).asInstanceOf[Array[A]], 0)
-                      },
-                      deconstructor = SeqDeconstructor.arrayDeconstructor
-                    )
+            var reflectExpr = '{ ${ findImplicitOrDeriveSchema[et] }.reflect }
+            val constructor =
+              if (elementTpe <:< TypeRepr.of[AnyRef]) {
+                val classTag =
+                  Expr.summon[reflect.ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${elementTpe.show}"))
+                '{
+                  implicit val ct: reflect.ClassTag[et] = $classTag
+                  new SeqConstructor.ArrayConstructor {
+                    override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+                      new Builder(new Array[et](sizeHint).asInstanceOf[Array[A]], 0)
+                  }
+                }
+              } else '{ SeqConstructor.arrayConstructor }
+            '{
+              new Schema(
+                reflect = new Reflect.Sequence[Binding, et, Array](
+                  element = $reflectExpr,
+                  typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
+                  seqBinding = new Binding.Seq[Array, et](
+                    constructor = $constructor,
+                    deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
                 )
-              }
-            } else {
-              '{
-                new Schema(
-                  reflect = new Reflect.Sequence[Binding, et, Array](
-                    element = $elementSchema.reflect,
-                    typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
-                    seqBinding = new Binding.Seq[Array, et](
-                      constructor = SeqConstructor.arrayConstructor,
-                      deconstructor = SeqDeconstructor.arrayDeconstructor
-                    )
-                  )
-                )
-              }
+              )
             }
         }
       } else if (isTupleXXL(tpe)) {
         tpe.asType match {
           case '[
               type tt <: Tuple; tt] =>
-            val tupleXXLInfo = new TupleXXLInfo[tt]()
-            val fields = tupleXXLInfo.fieldInfos.map { fieldInfo =>
-              val fTpe = fieldInfo.tpe
-              fTpe.asType match {
-                case '[ft] =>
-                  val fSchema     = findImplicitOrDeriveSchema[ft]
-                  var reflectExpr = '{ $fSchema.reflect }
-                  if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                  '{ $reflectExpr.asTerm[tt](${ Expr(fieldInfo.name) }) }
-              }
-            }
+            val tupleXXLInfo             = new TupleXXLInfo[tt]()
             val (packages, values, name) = typeName(tpe)
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
-                  fields = Vector(${ Expr.ofSeq(fields) }*),
+                  fields = Vector(${ tupleXXLInfo.fields[tt]() }*),
                   typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
                   recordBinding = new Binding.Record(
                     constructor = new Constructor[tt] {
-                      def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
+                      def usedRegisters: RegisterOffset = ${ tupleXXLInfo.usedRegisters }
 
                       def construct(in: Registers, baseOffset: RegisterOffset): tt = ${
-                        tupleXXLInfo.const('in, 'baseOffset)
+                        tupleXXLInfo.constructor('in, 'baseOffset)
                       }
                     },
                     deconstructor = new Deconstructor[tt] {
-                      def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
+                      def usedRegisters: RegisterOffset = ${ tupleXXLInfo.usedRegisters }
 
                       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: tt): Unit = ${
-                        tupleXXLInfo.deconst('out, 'baseOffset, 'in)
+                        tupleXXLInfo.deconstructor('out, 'baseOffset, 'in)
                       }
                     }
                   )
@@ -667,9 +656,11 @@ private object SchemaVersionSpecific {
         val cases = subTypes.zip(fullNames).map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
-              val termName = toTermName(fullName, maxCommonPrefixLength)
-              val sSchema  = findImplicitOrDeriveSchema[st]
-              '{ $sSchema.reflect.asTerm[T](${ Expr(termName) }) }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
+              '{
+                ${ findImplicitOrDeriveSchema[st] }.reflect.asTerm[T](${
+                  Expr(toTermName(fullName, maxCommonPrefixLength))
+                })
+              }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
           }
         }
         val discrCases = subTypes.map {
@@ -719,144 +710,65 @@ private object SchemaVersionSpecific {
                 tTpe.asType match {
                   case '[
                       type tt <: Tuple; tt] =>
-                    if (isTupleXXL(tTpe)) {
-                      val names        = namedTupleXXLNames(nTpe).toArray
-                      val tupleXXLInfo = new TupleXXLInfo[tt]()
-                      var idx          = -1
-                      val fields = tupleXXLInfo.fieldInfos.map { fieldInfo =>
-                        idx += 1
-                        val fTpe = fieldInfo.tpe
-                        fTpe.asType match {
-                          case '[ft] =>
-                            val fSchema     = findImplicitOrDeriveSchema[ft]
-                            var reflectExpr = '{ $fSchema.reflect }
-                            if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                            '{ $reflectExpr.asTerm[NamedTuple.NamedTuple[nt, tt]](${ Expr(names(idx)) }) }
-                        }
-                      }
-                      '{
-                        new Schema(
-                          reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
-                            fields = Vector(${ Expr.ofSeq(fields) }*),
-                            typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
-                            recordBinding = new Binding.Record(
-                              constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
-                                def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
+                    val (nameOverrides, typeInfo) =
+                      if (isTupleXXL(tTpe)) (namedTupleXXLNames(nTpe), new TupleXXLInfo[tt]())
+                      else (nameConstants.collect { case ConstantType(StringConstant(x)) => x }, new ClassInfo[tt]())
+                    '{
+                      new Schema(
+                        reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
+                          fields = Vector(${ typeInfo.fields[NamedTuple.NamedTuple[nt, tt]](nameOverrides) }*),
+                          typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
+                          recordBinding = new Binding.Record(
+                            constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
+                              def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                                def construct(
-                                  in: Registers,
-                                  baseOffset: RegisterOffset
-                                ): NamedTuple.NamedTuple[nt, tt] =
-                                  NamedTuple.apply[nt, tt](${ tupleXXLInfo.const('in, 'baseOffset) })
-                              },
-                              deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
-                                def usedRegisters: RegisterOffset = ${ Expr(tupleXXLInfo.registersUsed) }
+                              def construct(
+                                in: Registers,
+                                baseOffset: RegisterOffset
+                              ): NamedTuple.NamedTuple[nt, tt] =
+                                NamedTuple.apply[nt, tt](${ typeInfo.constructor('in, 'baseOffset) })
+                            },
+                            deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
+                              def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                                def deconstruct(
-                                  out: Registers,
-                                  baseOffset: RegisterOffset,
-                                  in: NamedTuple.NamedTuple[nt, tt]
-                                ): Unit = {
-                                  val t = in.toTuple
-                                  ${ tupleXXLInfo.deconst('out, 'baseOffset, 't) }
-                                }
+                              def deconstruct(
+                                out: Registers,
+                                baseOffset: RegisterOffset,
+                                in: NamedTuple.NamedTuple[nt, tt]
+                              ): Unit = {
+                                val t = in.toTuple
+                                ${ typeInfo.deconstructor('out, 'baseOffset, 't) }
                               }
-                            )
+                            }
                           )
                         )
-                      }
-                    } else {
-                      val names     = nameConstants.collect { case ConstantType(StringConstant(x)) => x }.toArray
-                      val classInfo = new ClassInfo[tt]()
-                      var idx       = -1
-                      val fields = classInfo.fieldInfos.flatMap(_.map { fieldInfo =>
-                        idx += 1
-                        val fTpe = fieldInfo.tpe
-                        fTpe.asType match {
-                          case '[ft] =>
-                            val fSchema     = findImplicitOrDeriveSchema[ft]
-                            var reflectExpr = '{ $fSchema.reflect }
-                            if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                            '{ $reflectExpr.asTerm[NamedTuple.NamedTuple[nt, tt]](${ Expr(names(idx)) }) }
-                        }
-                      })
-                      '{
-                        new Schema(
-                          reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
-                            fields = Vector(${ Expr.ofSeq(fields) }*),
-                            typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
-                            recordBinding = new Binding.Record(
-                              constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
-                                def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
-
-                                def construct(
-                                  in: Registers,
-                                  baseOffset: RegisterOffset
-                                ): NamedTuple.NamedTuple[nt, tt] =
-                                  NamedTuple.apply[nt, tt](${ classInfo.const('in, 'baseOffset) })
-                              },
-                              deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
-                                def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
-
-                                def deconstruct(
-                                  out: Registers,
-                                  baseOffset: RegisterOffset,
-                                  in: NamedTuple.NamedTuple[nt, tt]
-                                ): Unit = {
-                                  val t = in.toTuple
-                                  ${ classInfo.deconst('out, 'baseOffset, 't) }
-                                }
-                              }
-                            )
-                          )
-                        )
-                      }
+                      )
                     }
                 }
             }
           case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
         }
       } else if (isNonAbstractScalaClass(tpe)) {
-        val classInfo = new ClassInfo[T]()
-        val fields =
-          classInfo.fieldInfos.flatMap(_.map { fieldInfo =>
-            val fTpe = fieldInfo.tpe
-            fTpe.asType match {
-              case '[ft] =>
-                val fSchema     = findImplicitOrDeriveSchema[ft]
-                var reflectExpr = '{ $fSchema.reflect }
-                reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
-                  '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
-                }
-                if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
-                var fieldTermExpr = '{ $reflectExpr.asTerm[T](${ Expr(fieldInfo.name) }) }
-                var modifiers = fieldInfo.config.map { case (k, v) =>
-                  '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
-                }
-                if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
-                if (modifiers.nonEmpty) fieldTermExpr = '{ $fieldTermExpr.copy(modifiers = ${ Expr.ofSeq(modifiers) }) }
-                fieldTermExpr
-            }
-          })
+        val classInfo                = new ClassInfo[T]()
         val (packages, values, name) = typeName(tpe)
         '{
           new Schema(
             reflect = new Reflect.Record[Binding, T](
-              fields = Vector(${ Expr.ofSeq(fields) }*),
+              fields = Vector(${ classInfo.fields[T]() }*),
               typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               recordBinding = new Binding.Record(
                 constructor = new Constructor[T] {
-                  def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
+                  def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
 
                   def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                    classInfo.const('in, 'baseOffset)
+                    classInfo.constructor('in, 'baseOffset)
                   }
                 },
                 deconstructor = new Deconstructor[T] {
-                  def usedRegisters: RegisterOffset = ${ Expr(classInfo.registersUsed) }
+                  def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
 
                   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
-                    classInfo.deconst('out, 'baseOffset, 'in)
+                    classInfo.deconstructor('out, 'baseOffset, 'in)
                   }
                 }
               ),
