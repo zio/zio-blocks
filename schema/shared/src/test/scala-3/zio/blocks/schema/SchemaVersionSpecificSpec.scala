@@ -52,8 +52,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         object NamedTuple4 extends CompanionOptics[NamedTuple4] {
           implicit val schema: Schema[NamedTuple4] = Schema.derived
-          val b                                    = optic(_.b)
-          val sh                                   = optic(_.sh)
+          val b                                    = optic(_(0))
+          val sh                                   = optic(_.apply(1))
           val i                                    = optic(_.i)
           val l                                    = optic(_.l)
         }
@@ -85,10 +85,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Long].reflect.asTerm("l")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("scala"),
-                    values = Seq("NamedTuple")
-                  ),
+                  namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
                   name = "NamedTuple"
                 ),
                 recordBinding = null
@@ -128,7 +125,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         object Tuple24 extends CompanionOptics[Tuple24] {
           implicit val schema: Schema[Tuple24] = Schema.derived
           val i23                              = optic(_(22))
-          val s24                              = optic(_(23))
+          val s24                              = optic(_.apply(23))
         }
 
         val record = Tuple24.schema.reflect.asRecord
@@ -170,7 +167,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         object NamedTuple24 extends CompanionOptics[NamedTuple24] {
           implicit val schema: Schema[NamedTuple24] = Schema.derived
           val i23                                   = optic(_(22))
-          val s24                                   = optic(_(23))
+          val s24                                   = optic(_.s24)
         }
 
         val record = NamedTuple24.schema.reflect.asRecord
@@ -302,13 +299,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(variant.map(_.typeName))(
           isSome(
             equalTo(
-              TypeName(
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Nil
-                ),
-                name = "Color"
-              )
+              TypeName(namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil), name = "Color")
             )
           )
         ) &&
@@ -328,10 +319,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Nil
-                ),
+                namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil),
                 name = "FruitEnum"
               )
             )
@@ -358,23 +346,14 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "Boolean")))) &&
         assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName(
-                namespace = Namespace(
-                  packages = Nil,
-                  values = Nil
-                ),
-                name = "|"
-              )
-            )
-          )
+          isSome(equalTo(TypeName(namespace = Namespace(packages = Nil, values = Nil), name = "|")))
         )
       },
       test("derives schema for recursive generic Scala 3 enums") {
-        given schema: Schema[LinkedList[Int]] =
-          Schema.derived // givens are lazy, see: https://users.scala-lang.org/t/how-to-deal-with-given-being-always-lazy/10844/5
-        val variant = schema.reflect.asVariant
+        // givens are lazy and helps to avoid an endless loop on recursive data structures,
+        // see: https://users.scala-lang.org/t/how-to-deal-with-given-being-always-lazy/10844/5
+        given schema: Schema[LinkedList[Int]] = Schema.derived
+        val variant                           = schema.reflect.asVariant
         assert(schema.fromDynamicValue(schema.toDynamicValue(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End)))))(
           isRight(equalTo(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End))))
         ) &&
@@ -383,10 +362,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Nil
-                ),
+                namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil),
                 name = "LinkedList"
               )
             )
@@ -407,10 +383,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Nil
-                ),
+                namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil),
                 name = "HKEnum"
               )
             )
