@@ -33,8 +33,6 @@ private object SchemaVersionSpecific {
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
 
-    def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")
-
     def isEnumOrModuleValue(tpe: Type): Boolean = tpe.typeSymbol.isModuleClass
 
     def isSealedTraitOrAbstractClass(tpe: Type): Boolean = tpe.typeSymbol.isClass && {
@@ -129,8 +127,8 @@ private object SchemaVersionSpecific {
             isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
               tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m } match {
                 case Some(primaryConstructor) =>
-                  val tpeParams   = primaryConstructor.paramLists
                   val nestedTpes_ = tpe :: nestedTpes
+                  val tpeParams   = primaryConstructor.paramLists
                   val tpeTypeArgs = typeArgs(tpe)
                   if (tpeTypeArgs.isEmpty) {
                     tpeParams.forall(_.forall(param => isNonRecursive(param.asTerm.typeSignature.dealias, nestedTpes_)))
@@ -192,6 +190,7 @@ private object SchemaVersionSpecific {
             tpe, {
               val name  = TermName("s" + derivedSchemaRefs.size)
               val ident = Ident(name)
+              // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
               derivedSchemaRefs.update(tpe, ident)
               val schema = deriveSchema(tpe)
               derivedSchemaDefs.addOne {
@@ -210,13 +209,13 @@ private object SchemaVersionSpecific {
       tpe: Type,
       defaultValue: Option[Tree],
       getter: MethodSymbol,
-      registersUsed: RegisterOffset,
+      usedRegisters: RegisterOffset,
       isTransient: Boolean,
       config: List[(String, String)]
     )
 
     case class ClassInfo(tpe: Type) {
-      val (fieldInfos: List[List[FieldInfo]], registersUsed: RegisterOffset) = {
+      val (fieldInfos: List[List[FieldInfo]], usedRegisters: RegisterOffset) = {
         val primaryConstructor = tpe.decls.collectFirst {
           case m: MethodSymbol if m.isPrimaryConstructor => m
         }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
@@ -238,7 +237,7 @@ private object SchemaVersionSpecific {
         val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
         val tpeParams     = primaryConstructor.paramLists
         val tpeTypeArgs   = typeArgs(tpe)
-        var registersUsed = RegisterOffset.Zero
+        var usedRegisters = RegisterOffset.Zero
         var idx           = 0
         (
           tpeParams.map(_.map { param =>
@@ -271,53 +270,67 @@ private object SchemaVersionSpecific {
               else if (fTpe =:= definitions.UnitTpe) RegisterOffset.Zero
               else if (fTpe <:< definitions.AnyRefTpe) RegisterOffset(objects = 1)
               else unsupportedFieldType(fTpe)
-            val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, registersUsed, isTransient, config)
-            registersUsed = RegisterOffset.add(registersUsed, offset)
+            val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
+            usedRegisters = RegisterOffset.add(usedRegisters, offset)
             fieldInfo
           }),
-          registersUsed
+          usedRegisters
         )
       }
 
-      def const: Tree = {
+      def fields(schemaTpe: Type): List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
+        val fTpe              = fieldInfo.tpe
+        var reflectTree: Tree = q"${findImplicitOrDeriveSchema(fTpe)}.reflect"
+        reflectTree = fieldInfo.defaultValue.fold(reflectTree)(dv => q"$reflectTree.defaultValue($dv)")
+        if (!isNonRecursive(fTpe)) reflectTree = q"Reflect.Deferred(() => $reflectTree)"
+        var fieldTermTree = q"$reflectTree.asTerm[$schemaTpe](${fieldInfo.name})"
+        var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
+        if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
+        if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = $modifiers)"
+        fieldTermTree
+      })
+
+      def constructor: Tree = {
         val argss = fieldInfos.map(_.map { fieldInfo =>
-          val fTpe         = fieldInfo.tpe
-          lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
-          lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
-          val const =
-            if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+          val fTpe      = fieldInfo.tpe
+          lazy val bs   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+          lazy val objs = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+          val constructor =
+            if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bs)"
+            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bs)"
+            else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bs)"
+            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bs)"
+            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bs)"
+            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bs)"
+            else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bs)"
+            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bs)"
             else if (fTpe =:= definitions.UnitTpe) q"()"
-            else if (fTpe <:< definitions.AnyRefTpe) q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            else if (fTpe <:< definitions.AnyRefTpe) q"in.getObject(baseOffset, $objs).asInstanceOf[$fTpe]"
             else unsupportedFieldType(fTpe)
-          q"${fieldInfo.symbol} = $const"
+          q"${fieldInfo.symbol} = $constructor"
         })
         q"new $tpe(...$argss)"
       }
 
-      def deconst: List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
-        val fTpe         = fieldInfo.tpe
-        val getter       = fieldInfo.getter
-        lazy val bytes   = RegisterOffset.getBytes(fieldInfo.registersUsed)
-        lazy val objects = RegisterOffset.getObjects(fieldInfo.registersUsed)
-        if (fTpe =:= definitions.IntTpe) q"out.setInt(baseOffset, $bytes, in.$getter)"
-        else if (fTpe =:= definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, in.$getter)"
-        else if (fTpe =:= definitions.LongTpe) q"out.setLong(baseOffset, $bytes, in.$getter)"
-        else if (fTpe =:= definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, in.$getter)"
-        else if (fTpe =:= definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
-        else if (fTpe =:= definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, in.$getter)"
-        else if (fTpe =:= definitions.CharTpe) q"out.setChar(baseOffset, $bytes, in.$getter)"
-        else if (fTpe =:= definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, in.$getter)"
+      def deconstructor: List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
+        val fTpe      = fieldInfo.tpe
+        val getter    = fieldInfo.getter
+        lazy val bs   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+        lazy val objs = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+        if (fTpe =:= definitions.IntTpe) q"out.setInt(baseOffset, $bs, in.$getter)"
+        else if (fTpe =:= definitions.FloatTpe) q"out.setFloat(baseOffset, $bs, in.$getter)"
+        else if (fTpe =:= definitions.LongTpe) q"out.setLong(baseOffset, $bs, in.$getter)"
+        else if (fTpe =:= definitions.DoubleTpe) q"out.setDouble(baseOffset, $bs, in.$getter)"
+        else if (fTpe =:= definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bs, in.$getter)"
+        else if (fTpe =:= definitions.ByteTpe) q"out.setByte(baseOffset, $bs, in.$getter)"
+        else if (fTpe =:= definitions.CharTpe) q"out.setChar(baseOffset, $bs, in.$getter)"
+        else if (fTpe =:= definitions.ShortTpe) q"out.setShort(baseOffset, $bs, in.$getter)"
         else if (fTpe =:= definitions.UnitTpe) q"()"
-        else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
+        else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objs, in.$getter)"
         else unsupportedFieldType(fTpe)
       })
+
+      def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")
     }
 
     def deriveSchema(tpe: Type): Tree = {
@@ -335,34 +348,25 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (tpe <:< typeOf[Array[_]]) {
-        val elementTpe    = typeArgs(tpe).head
-        val elementSchema = findImplicitOrDeriveSchema(elementTpe)
-        if (elementTpe <:< definitions.AnyRefTpe) {
-          q"""new Schema(
-                reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
-                  element = $elementSchema.reflect,
-                  typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
-                  seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
-                    constructor = new SeqConstructor.ArrayConstructor {
-                      override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-                        new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
-                    },
-                    deconstructor = SeqDeconstructor.arrayDeconstructor
-                  )
+        val elementTpe  = typeArgs(tpe).head
+        val reflectTree = q"${findImplicitOrDeriveSchema(elementTpe)}.reflect"
+        val constructor =
+          if (elementTpe <:< definitions.AnyRefTpe) {
+            q"""new SeqConstructor.ArrayConstructor {
+                  override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
+                    new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
+                }"""
+          } else q"SeqConstructor.arrayConstructor"
+        q"""new Schema(
+              reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
+                element = $reflectTree,
+                typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
+                seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
+                  constructor = $constructor,
+                  deconstructor = SeqDeconstructor.arrayDeconstructor
                 )
-              )"""
-        } else {
-          q"""new Schema(
-                reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
-                  element = $elementSchema.reflect,
-                  typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
-                  seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
-                    constructor = SeqConstructor.arrayConstructor,
-                    deconstructor = SeqDeconstructor.arrayDeconstructor
-                  )
-                )
-              )"""
-        }
+              )
+            )"""
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         def toFullName(packages: List[String], values: List[String], name: String): Array[String] = {
           val fullName = new Array[String](packages.size + values.size + 1)
@@ -417,9 +421,7 @@ private object SchemaVersionSpecific {
           idx
         }
         val cases = subTypes.zip(fullNames).map { case (sTpe, fullName) =>
-          val termName = toTermName(fullName, maxCommonPrefixLength)
-          val sSchema  = findImplicitOrDeriveSchema(sTpe)
-          q"$sSchema.reflect.asTerm($termName)"
+          q"${findImplicitOrDeriveSchema(sTpe)}.reflect.asTerm(${toTermName(fullName, maxCommonPrefixLength)})"
         }
         val discrCases = subTypes.map {
           var idx = -1
@@ -451,35 +453,23 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isNonAbstractScalaClass(tpe)) {
-        val classInfo = new ClassInfo(tpe)
-        val fields = classInfo.fieldInfos.flatMap(_.map { fieldInfo =>
-          val fTpe              = fieldInfo.tpe
-          val fSchema           = findImplicitOrDeriveSchema(fTpe)
-          var reflectTree: Tree = q"$fSchema.reflect"
-          reflectTree = fieldInfo.defaultValue.fold(reflectTree)(dv => q"$reflectTree.defaultValue($dv)")
-          if (!isNonRecursive(fTpe)) reflectTree = q"Reflect.Deferred(() => $reflectTree)"
-          var fieldTermTree = q"$reflectTree.asTerm[$tpe](${fieldInfo.name})"
-          var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
-          if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
-          if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = $modifiers)"
-          fieldTermTree
-        })
+        val classInfo                = new ClassInfo(tpe)
         val (packages, values, name) = typeName(tpe)
         q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
-                fields = _root_.scala.Vector(..$fields),
+                fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
                 typeName = new TypeName(new Namespace($packages, $values), $name),
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[$tpe] {
-                    def usedRegisters: RegisterOffset = ${classInfo.registersUsed}
+                    def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
 
-                    def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${classInfo.const}
+                    def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${classInfo.constructor}
                   },
                   deconstructor = new Deconstructor[$tpe] {
-                    def usedRegisters: RegisterOffset = ${classInfo.registersUsed}
+                    def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
 
                     def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
-                      ..${classInfo.deconst}
+                      ..${classInfo.deconstructor}
                     }
                   }
                 ),
