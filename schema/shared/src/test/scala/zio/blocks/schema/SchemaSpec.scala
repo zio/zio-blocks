@@ -55,8 +55,6 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has consistent equals and hashCode") {
         assert(Record.schema)(equalTo(Record.schema)) &&
         assert(Record.schema.hashCode)(equalTo(Record.schema.hashCode)) &&
-        assert(Schema[(Byte, Short, Int, Long)])(equalTo(Schema[(Byte, Short, Int, Long)])) &&
-        assert(Schema[(Byte, Short, Int, Long)])(equalTo(Schema[(Byte, Short, Int, Long)])) &&
         assert(Record.schema.defaultValue(Record(0, 0)))(equalTo(Record.schema)) &&
         assert(Record.schema.defaultValue(Record(0, 0)).hashCode)(equalTo(Record.schema.hashCode)) &&
         assert(Record.schema.examples(Record(1, 1000)))(equalTo(Record.schema)) &&
@@ -93,11 +91,6 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Box1.schema.fromDynamicValue(Box1.schema.toDynamicValue(Box1(4L))))(isRight(equalTo(Box1(4L)))) &&
         assert(Box2.schema.fromDynamicValue(Box2.schema.toDynamicValue(Box2("VVV"))))(isRight(equalTo(Box2("VVV")))) &&
-        assert(
-          Schema[(Byte, Short, Int, Long)].fromDynamicValue(
-            Schema[(Byte, Short, Int, Long)].toDynamicValue((1: Byte, 2: Short, 3, 4L))
-          )
-        )(isRight(equalTo((1: Byte, 2: Short, 3, 4L)))) &&
         assert(Record.schema.fromDynamicValue(Record.schema.toDynamicValue(Record(1: Byte, 1000))))(
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
@@ -127,6 +120,48 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.get(Record.b.toDynamic))(equalTo(Record.schema.get(Record.b))) &&
         assert(Record.schema.get(Record.i.toDynamic))(equalTo(Record.schema.get(Record.i))) &&
         assert(Record.schema.get(Record.x.toDynamic))(equalTo(Record.schema.get(Record.x))) // invalid lens
+      },
+      test("derives schema for tuples") {
+        type Tuple4 = (Byte, Short, Int, Long)
+
+        object Tuple4 extends CompanionOptics[Tuple4] {
+          implicit val schema: Schema[Tuple4] = Schema.derived
+          val _1: Lens[Tuple4, Byte]          = optic(_._1)
+          val _2: Lens[Tuple4, Short]         = optic(_._2)
+          val _3: Lens[Tuple4, Int]           = optic(_._3)
+          val _4: Lens[Tuple4, Long]          = optic(_._4)
+        }
+
+        val record = Tuple4.schema.reflect.asRecord
+        val value  = (1: Byte, 2: Short, 3, 4L)
+        assert(record.map(_.constructor.usedRegisters))(
+          isSome(equalTo(RegisterOffset(bytes = 1, shorts = 1, ints = 1, longs = 1)))
+        ) &&
+        assert(Tuple4._1.get(value))(equalTo(1: Byte)) &&
+        assert(Tuple4._2.get(value))(equalTo(2: Short)) &&
+        assert(Tuple4._3.get(value))(equalTo(3)) &&
+        assert(Tuple4._4.get(value))(equalTo(4L)) &&
+        assert(Tuple4._1.replace(value, 5: Byte))(equalTo((5: Byte, 2: Short, 3, 4L))) &&
+        assert(Tuple4._2.replace(value, 5: Short))(equalTo((1: Byte, 5: Short, 3, 4L))) &&
+        assert(Tuple4._3.replace(value, 5))(equalTo((1: Byte, 2: Short, 5, 4L))) &&
+        assert(Tuple4._4.replace(value, 5L))(equalTo((1: Byte, 2: Short, 3, 5L))) &&
+        assert(Tuple4.schema.fromDynamicValue(Tuple4.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+        assert(Tuple4.schema)(
+          equalTo(
+            new Schema[Tuple4](
+              reflect = Reflect.Record[Binding, Tuple4](
+                fields = Vector(
+                  Schema[Byte].reflect.asTerm("_1"),
+                  Schema[Short].reflect.asTerm("_2"),
+                  Schema[Int].reflect.asTerm("_3"),
+                  Schema[Long].reflect.asTerm("_4")
+                ),
+                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "Tuple4"),
+                recordBinding = null
+              )
+            )
+          )
+        )
       },
       test("derives schema for record with default values and annotations using a macro call") {
         @Modifier.config("record-key", "record-value-1")
@@ -1455,8 +1490,7 @@ object SchemaSpec extends ZIOSpecDefault {
     }
   )
 
-  implicit val tuple4Schema: Schema[(Byte, Short, Int, Long)] = Schema.derived
-  implicit val eitherSchema: Schema[Either[Int, Long]]        = Schema.derived
+  implicit val eitherSchema: Schema[Either[Int, Long]] = Schema.derived
 
   case class Record(b: Byte, i: Int)
 
