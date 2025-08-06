@@ -89,6 +89,50 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for generic tuples") {
+        type GenericTuple4 = Byte *: Short *: Int *: Long *: EmptyTuple
+
+        object GenericTuple4 extends CompanionOptics[GenericTuple4] {
+          implicit val schema: Schema[GenericTuple4] = Schema.derived
+          val _1: Lens[GenericTuple4, Byte]          = $(_(0))
+          val _2: Lens[GenericTuple4, Short]         = $(_.apply(1))
+          val _3: Lens[GenericTuple4, Int]           = $(_(2))
+          val _4: Lens[GenericTuple4, Long]          = $(_.apply(3))
+        }
+
+        val record = GenericTuple4.schema.reflect.asRecord
+        val value  = (1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple
+        assert(record.map(_.constructor.usedRegisters))(
+          isSome(equalTo(RegisterOffset(bytes = 1, shorts = 1, ints = 1, longs = 1)))
+        ) &&
+        assert(GenericTuple4._1.get(value))(equalTo(1: Byte)) &&
+        assert(GenericTuple4._2.get(value))(equalTo(2: Short)) &&
+        assert(GenericTuple4._3.get(value))(equalTo(3)) &&
+        assert(GenericTuple4._4.get(value))(equalTo(4L)) &&
+        assert(GenericTuple4._1.replace(value, 5: Byte))(equalTo((5: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple)) &&
+        assert(GenericTuple4._2.replace(value, 5: Short))(equalTo((1: Byte) *: (5: Short) *: 3 *: 4L *: EmptyTuple)) &&
+        assert(GenericTuple4._3.replace(value, 5))(equalTo((1: Byte) *: (2: Short) *: 5 *: 4L *: EmptyTuple)) &&
+        assert(GenericTuple4._4.replace(value, 5L))(equalTo((1: Byte) *: (2: Short) *: 3 *: 5L *: EmptyTuple)) &&
+        assert(GenericTuple4.schema.fromDynamicValue(GenericTuple4.schema.toDynamicValue(value)))(
+          isRight(equalTo(value))
+        ) &&
+        assert(GenericTuple4.schema)(
+          equalTo(
+            new Schema[GenericTuple4](
+              reflect = Reflect.Record[Binding, GenericTuple4](
+                fields = Vector(
+                  Schema[Byte].reflect.asTerm("_1"),
+                  Schema[Short].reflect.asTerm("_2"),
+                  Schema[Int].reflect.asTerm("_3"),
+                  Schema[Long].reflect.asTerm("_4")
+                ),
+                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "*:"),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
       test("derives schema for named tuples") {
         type NamedTuple4 = (b: Byte, sh: Short, i: Int, l: Long)
 
