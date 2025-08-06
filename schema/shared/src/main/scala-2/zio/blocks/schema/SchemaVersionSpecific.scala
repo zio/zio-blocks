@@ -268,7 +268,7 @@ private object SchemaVersionSpecific {
               else if (fTpe =:= definitions.CharTpe) RegisterOffset(chars = 1)
               else if (fTpe =:= definitions.ShortTpe) RegisterOffset(shorts = 1)
               else if (fTpe =:= definitions.UnitTpe) RegisterOffset.Zero
-              else if (fTpe <:< definitions.AnyRefTpe) RegisterOffset(objects = 1)
+              else if (fTpe <:< definitions.AnyRefTpe || fTpe <:< definitions.AnyValTpe) RegisterOffset(objects = 1)
               else unsupportedFieldType(fTpe)
             val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
@@ -305,8 +305,9 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bs)"
             else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bs)"
             else if (fTpe =:= definitions.UnitTpe) q"()"
-            else if (fTpe <:< definitions.AnyRefTpe) q"in.getObject(baseOffset, $objs).asInstanceOf[$fTpe]"
-            else unsupportedFieldType(fTpe)
+            else if (fTpe <:< definitions.AnyRefTpe || fTpe <:< definitions.AnyValTpe) {
+              q"in.getObject(baseOffset, $objs).asInstanceOf[$fTpe]"
+            } else unsupportedFieldType(fTpe)
           q"${fieldInfo.symbol} = $constructor"
         })
         q"new $tpe(...$argss)"
@@ -327,7 +328,9 @@ private object SchemaVersionSpecific {
         else if (fTpe =:= definitions.ShortTpe) q"out.setShort(baseOffset, $bs, in.$getter)"
         else if (fTpe =:= definitions.UnitTpe) q"()"
         else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objs, in.$getter)"
-        else unsupportedFieldType(fTpe)
+        else if (fTpe <:< definitions.AnyValTpe) {
+          q"out.setObject(baseOffset, $objs, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
+        } else unsupportedFieldType(fTpe)
       })
 
       def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")

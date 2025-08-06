@@ -307,7 +307,7 @@ private object SchemaVersionSpecific {
         else if (tpe =:= TypeRepr.of[Char]) RegisterOffset(chars = 1)
         else if (tpe =:= TypeRepr.of[Short]) RegisterOffset(shorts = 1)
         else if (tpe =:= TypeRepr.of[Unit]) RegisterOffset.Zero
-        else if (tpe <:< TypeRepr.of[AnyRef]) RegisterOffset(objects = 1)
+        else if (tpe <:< TypeRepr.of[AnyRef] || tpe <:< TypeRepr.of[AnyVal]) RegisterOffset(objects = 1)
         else unsupportedFieldType(tpe)
 
       def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo): Expr[?] = {
@@ -323,7 +323,7 @@ private object SchemaVersionSpecific {
          else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bs) }
          else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs) }
          else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
-         else if (fTpe <:< TypeRepr.of[AnyRef]) {
+         else if (fTpe <:< TypeRepr.of[AnyRef] || fTpe <:< TypeRepr.of[AnyVal]) {
            fTpe.asType match { case '[ft] => '{ $in.getObject($baseOffset, $objs).asInstanceOf[ft] } }
          } else unsupportedFieldType(fTpe))
       }
@@ -446,7 +446,12 @@ private object SchemaVersionSpecific {
            else if (fTpe =:= TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bs, ${ getter.asExprOf[Short] }) }
            else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
            else if (fTpe <:< TypeRepr.of[AnyRef]) '{ $out.setObject($baseOffset, $objs, ${ getter.asExprOf[AnyRef] }) }
-           else unsupportedFieldType(fTpe)).asTerm
+           else if (fTpe <:< TypeRepr.of[AnyVal]) {
+             fTpe.asType match {
+               case '[ft] =>
+                 '{ $out.setObject($baseOffset, $objs, ${ getter.asExprOf[ft] }.asInstanceOf[AnyRef]) }
+             }
+           } else unsupportedFieldType(fTpe)).asTerm
         }))
     }
 
@@ -508,7 +513,7 @@ private object SchemaVersionSpecific {
              else if (fTpe =:= TypeRepr.of[Char]) '{ $out.setChar($baseOffset, $bs, $getter.asInstanceOf[Char]) }
              else if (fTpe =:= TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bs, $getter.asInstanceOf[Short]) }
              else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
-             else if (fTpe <:< TypeRepr.of[AnyRef]) {
+             else if (fTpe <:< TypeRepr.of[AnyRef] || fTpe <:< TypeRepr.of[AnyVal]) {
                '{ $out.setObject($baseOffset, $objs, $getter.asInstanceOf[AnyRef]) }
              } else unsupportedFieldType(fTpe)).asTerm
         })
