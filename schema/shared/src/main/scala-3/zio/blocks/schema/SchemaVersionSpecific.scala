@@ -59,13 +59,13 @@ private object SchemaVersionSpecific {
       case _                        => Nil
     }
 
-    def isTupleXXL(tpe: TypeRepr): Boolean = tpe match {
+    def isGenericTuple(tpe: TypeRepr): Boolean = tpe match {
       case AppliedType(tTpe, _) if tTpe =:= TypeRepr.of[*:] => true
       case _                                                => false
     }
 
-    def tupleXXLTypeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
-      case AppliedType(_, List(typeArg, tail)) => typeArg.dealias :: tupleXXLTypeArgs(tail)
+    def genericTupleTypeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
+      case AppliedType(_, List(typeArg, tail)) => typeArg.dealias :: genericTupleTypeArgs(tail)
       case _                                   => Nil
     }
 
@@ -74,8 +74,8 @@ private object SchemaVersionSpecific {
       case _                                                                     => false
     }
 
-    def namedTupleXXLNames(tpe: TypeRepr): List[String] = tpe match {
-      case AppliedType(_, List(ConstantType(StringConstant(name)), tail)) => name :: namedTupleXXLNames(tail)
+    def namedGenericTupleNames(tpe: TypeRepr): List[String] = tpe match {
+      case AppliedType(_, List(ConstantType(StringConstant(name)), tail)) => name :: namedGenericTupleNames(tail)
       case _                                                              => Nil
     }
 
@@ -166,9 +166,9 @@ private object SchemaVersionSpecific {
         tpe =:= TypeRepr.of[java.util.Currency] || tpe =:= TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) ||
         isDynamicValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
-          else if (isTupleXXL(tpe)) {
+          else if (isGenericTuple(tpe)) {
             val nestedTpes_ = tpe :: nestedTpes
-            tupleXXLTypeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
+            genericTupleTypeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNamedTuple(tpe)) {
@@ -455,9 +455,9 @@ private object SchemaVersionSpecific {
         }))
     }
 
-    case class TupleXXLInfo[T <: Tuple: Type]()(using Quotes) extends TypeInfo[T]() {
+    case class GenericTupleInfo[T <: Tuple: Type]()(using Quotes) extends TypeInfo[T]() {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
-        val fTpes         = tupleXXLTypeArgs(TypeRepr.of[T])
+        val fTpes         = genericTupleTypeArgs(TypeRepr.of[T])
         val noSymbol      = Symbol.noSymbol
         var usedRegisters = RegisterOffset.Zero
         (
@@ -569,30 +569,30 @@ private object SchemaVersionSpecific {
               )
             }
         }
-      } else if (isTupleXXL(tpe)) {
+      } else if (isGenericTuple(tpe)) {
         tpe.asType match {
           case '[
               type tt <: Tuple; tt] =>
-            val tupleXXLInfo             = new TupleXXLInfo[tt]()
+            val genericTupleInfo         = new GenericTupleInfo[tt]()
             val (packages, values, name) = typeName(tpe)
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
-                  fields = Vector(${ tupleXXLInfo.fields[tt]() }*),
+                  fields = Vector(${ genericTupleInfo.fields[tt]() }*),
                   typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
                   recordBinding = new Binding.Record(
                     constructor = new Constructor[tt] {
-                      def usedRegisters: RegisterOffset = ${ tupleXXLInfo.usedRegisters }
+                      def usedRegisters: RegisterOffset = ${ genericTupleInfo.usedRegisters }
 
                       def construct(in: Registers, baseOffset: RegisterOffset): tt = ${
-                        tupleXXLInfo.constructor('in, 'baseOffset)
+                        genericTupleInfo.constructor('in, 'baseOffset)
                       }
                     },
                     deconstructor = new Deconstructor[tt] {
-                      def usedRegisters: RegisterOffset = ${ tupleXXLInfo.usedRegisters }
+                      def usedRegisters: RegisterOffset = ${ genericTupleInfo.usedRegisters }
 
                       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: tt): Unit = ${
-                        tupleXXLInfo.deconstructor('out, 'baseOffset, 'in)
+                        genericTupleInfo.deconstructor('out, 'baseOffset, 'in)
                       }
                     }
                   )
@@ -716,7 +716,7 @@ private object SchemaVersionSpecific {
                   case '[
                       type tt <: Tuple; tt] =>
                     val (nameOverrides, typeInfo) =
-                      if (isTupleXXL(tTpe)) (namedTupleXXLNames(nTpe), new TupleXXLInfo[tt]())
+                      if (isGenericTuple(tTpe)) (namedGenericTupleNames(nTpe), new GenericTupleInfo[tt]())
                       else (nameConstants.collect { case ConstantType(StringConstant(x)) => x }, new ClassInfo[tt]())
                     '{
                       new Schema(
