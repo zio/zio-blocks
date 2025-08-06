@@ -158,22 +158,27 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           Int,
           Int,
           Int,
-          Int,
-          Int,
+          Box1,
+          Box2,
           Int,
           String
         )
 
         object Tuple24 extends CompanionOptics[Tuple24] {
           implicit val schema: Schema[Tuple24] = Schema.derived
+          val b21: Lens[Tuple24, Box1]         = $(_(20))
+          val b22: Lens[Tuple24, Box2]         = $(_.apply(21))
           val i23: Lens[Tuple24, Int]          = $(_(22))
           val s24: Lens[Tuple24, String]       = $(_.apply(23))
         }
 
         val record = Tuple24.schema.reflect.asRecord
-        val value  = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, "24")
-        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 23, objects = 1)))) &&
-        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 23, objects = 1)))) &&
+        val value =
+          (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Box1(21L), Box2("22"), 23, "24")
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&
+        assert(Tuple24.b21.get(value))(equalTo(Box1(21L))) &&
+        assert(Tuple24.b22.get(value))(equalTo(Box2("22"))) &&
         assert(Tuple24.i23.get(value))(equalTo(23)) &&
         assert(Tuple24.s24.get(value))(equalTo("24")) &&
         assert(Tuple24.schema.fromDynamicValue(Tuple24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
@@ -200,15 +205,17 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           i18: Int,
           i19: Int,
           i20: Int,
-          i21: Int,
-          i22: Int,
+          b21: Box1,
+          b22: Box2,
           i23: Int,
           s24: String
         )
 
         object NamedTuple24 extends CompanionOptics[NamedTuple24] {
           implicit val schema: Schema[NamedTuple24] = Schema.derived
-          val i23: Lens[NamedTuple24, Int]          = $(_(22))
+          val b21: Lens[NamedTuple24, Box1]         = $(_(20))
+          val b22: Lens[NamedTuple24, Box2]         = $(_.apply(21))
+          val i23: Lens[NamedTuple24, Int]          = $(_.i23)
           val s24: Lens[NamedTuple24, String]       = $(_.s24)
         }
 
@@ -234,13 +241,15 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           i18 = 18,
           i19 = 19,
           i20 = 20,
-          i21 = 21,
-          i22 = 22,
+          b21 = Box1(21L),
+          b22 = Box2("22"),
           i23 = 23,
           s24 = "24"
         )
-        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 23, objects = 1)))) &&
-        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 23, objects = 1)))) &&
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&
+        assert(NamedTuple24.b21.get(value))(equalTo(Box1(21L))) &&
+        assert(NamedTuple24.b22.get(value))(equalTo(Box2("22"))) &&
         assert(NamedTuple24.i23.get(value))(equalTo(23)) &&
         assert(NamedTuple24.s24.get(value))(equalTo("24")) &&
         assert(NamedTuple24.schema.fromDynamicValue(NamedTuple24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
@@ -341,7 +350,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(variant.map(_.typeName))(
           isSome(
             equalTo(
-              TypeName(namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil), name = "Color")
+              TypeName(
+                namespace =
+                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
+                name = "Color"
+              )
             )
           )
         ) &&
@@ -361,7 +374,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil),
+                namespace =
+                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
                 name = "FruitEnum"
               )
             )
@@ -392,7 +406,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for recursive generic Scala 3 enums") {
-        // givens are lazy and helps to avoid an endless loop on recursive data structures,
+        // `given` declaration is lazy that helps to avoid endless loops on recursive data structures,
         // see: https://users.scala-lang.org/t/how-to-deal-with-given-being-always-lazy/10844/5
         given schema: Schema[LinkedList[Int]] = Schema.derived
         val variant                           = schema.reflect.asVariant
@@ -404,7 +418,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil),
+                namespace =
+                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
                 name = "LinkedList"
               )
             )
@@ -425,7 +440,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(packages = Seq("zio", "blocks", "schema"), values = Nil),
+                namespace =
+                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
                 name = "HKEnum"
               )
             )
@@ -434,42 +450,46 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       }
     )
   )
+
+  /** Variant: Color */
+  enum Color(val rgb: Int) derives Schema:
+    /** Term: Red */
+    @Modifier.config("term-key-1", "term-value-1") @Modifier.config("term-key-1", "term-value-2") case Red
+        extends Color(0xff0000)
+
+    /** Term: Green */
+    @Modifier.config("term-key-2", "term-value-1") @Modifier.config("term-key-2", "term-value-2") case Green
+        extends Color(0x00ff00)
+
+    /** Term: Blue */
+    @Modifier.config("term-key-3", "term-value-1") @Modifier.config("term-key-3", "term-value-2") case Blue
+        extends Color(0x0000ff)
+
+    /** Type: Mix */
+    @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2") case Mix(mix: Int)
+        extends Color(mix)
+
+  object Color extends CompanionOptics[Color] {
+    val red: Prism[Color, Color.Red.type]     = $(_.when[Color.Red.type])
+    val green: Prism[Color, Color.Green.type] = $(_.when[Color.Green.type])
+    val blue: Prism[Color, Color.Blue.type]   = $(_.when[Color.Blue.type])
+    val mix: Prism[Color, Color.Mix]          = $(_.when[Color.Mix])
+    val mix_mix: Optional[Color, Int]         = $(_.when[Color.Mix].mix)
+  }
+
+  enum FruitEnum[T <: FruitEnum[T]]:
+    case Apple(color: String)      extends FruitEnum[Apple]
+    case Banana(curvature: Double) extends FruitEnum[Banana]
+
+  enum LinkedList[+T]:
+    case End
+    case Node(value: T, next: LinkedList[T])
+
+  enum HKEnum[A[_]]:
+    case Case1[A[_]](a: A[Int])    extends HKEnum[A]
+    case Case2[A[_]](a: A[String]) extends HKEnum[A]
+
+  case class Box1(l: Long) extends AnyVal derives Schema
+
+  case class Box2(s: String) extends AnyVal derives Schema
 }
-
-/** Variant: Color */
-enum Color(val rgb: Int) derives Schema:
-  /** Term: Red */
-  @Modifier.config("term-key-1", "term-value-1") @Modifier.config("term-key-1", "term-value-2") case Red
-      extends Color(0xff0000)
-
-  /** Term: Green */
-  @Modifier.config("term-key-2", "term-value-1") @Modifier.config("term-key-2", "term-value-2") case Green
-      extends Color(0x00ff00)
-
-  /** Term: Blue */
-  @Modifier.config("term-key-3", "term-value-1") @Modifier.config("term-key-3", "term-value-2") case Blue
-      extends Color(0x0000ff)
-
-  /** Type: Mix */
-  @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2") case Mix(mix: Int)
-      extends Color(mix)
-
-object Color extends CompanionOptics[Color] {
-  val red: Prism[Color, Color.Red.type]     = $(_.when[Color.Red.type])
-  val green: Prism[Color, Color.Green.type] = $(_.when[Color.Green.type])
-  val blue: Prism[Color, Color.Blue.type]   = $(_.when[Color.Blue.type])
-  val mix: Prism[Color, Color.Mix]          = $(_.when[Color.Mix])
-  val mix_mix: Optional[Color, Int]         = $(_.when[Color.Mix].mix)
-}
-
-enum FruitEnum[T <: FruitEnum[T]]:
-  case Apple(color: String)      extends FruitEnum[Apple]
-  case Banana(curvature: Double) extends FruitEnum[Banana]
-
-enum LinkedList[+T]:
-  case End
-  case Node(value: T, next: LinkedList[T])
-
-enum HKEnum[A[_]]:
-  case Case1[A[_]](a: A[Int])    extends HKEnum[A]
-  case Case2[A[_]](a: A[String]) extends HKEnum[A]
