@@ -45,10 +45,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("encodes values using provided formats and outputs") {
-        val result = encodeToString { out =>
-          Schema[Byte].encode(ToStringFormat)(out)(1: Byte)
-        }
-        assert(result)(equalTo("1"))
+        assert(encodeToString(out => Schema[Byte].encode(ToStringFormat)(out)(1: Byte)))(equalTo("1"))
       }
     ),
     suite("Reflect.Record")(
@@ -559,6 +556,31 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
+      test("derives schema for case class with value class fields using a macro call") {
+        case class Record9(b1: Box1, b2: Box2)
+
+        object Record9 extends CompanionOptics[Record9] {
+          implicit val schema: Schema[Record9] = Schema.derived
+          val b1: Lens[Record9, Box1]          = optic(_.b1)
+          val b2: Lens[Record9, Box2]          = optic(_.b2)
+          val b1_l: Lens[Record9, Long]        = optic(_.b1.l)
+          val b2_s: Lens[Record9, String]      = optic(_.b2.s)
+        }
+
+        val record = Record9.schema.reflect.asRecord
+        val value  = Record9(Box1(1L), Box2("VVV"))
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(Record9.b1.get(value))(equalTo(Box1(1L))) &&
+        assert(Record9.b2.get(value))(equalTo(Box2("VVV"))) &&
+        assert(Record9.b1_l.get(value))(equalTo(1L)) &&
+        assert(Record9.b2_s.get(value))(equalTo("VVV")) &&
+        assert(Record9.b1.replace(value, Box1(2L)))(equalTo(Record9(Box1(2L), Box2("VVV")))) &&
+        assert(Record9.b2.replace(value, Box2("WWW")))(equalTo(Record9(Box1(1L), Box2("WWW")))) &&
+        assert(Record9.b1_l.replace(value, 2L))(equalTo(Record9(Box1(2L), Box2("VVV")))) &&
+        assert(Record9.b2_s.replace(value, "WWW"))(equalTo(Record9(Box1(1L), Box2("WWW")))) &&
+        assert(Record9.schema.fromDynamicValue(Record9.schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      },
       test("derives schema for case classes with more than 22 fields using a macro call") {
         case class Record24(
           i1: Int,
@@ -602,10 +624,9 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record24.schema.fromDynamicValue(Record24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("encodes values using provided formats and outputs") {
-        val result = encodeToString { out =>
+        assert(encodeToString { out =>
           Schema[Record].encode(ToStringFormat)(out)(Record(1: Byte, 2))
-        }
-        assert(result)(equalTo("Record(1,2)"))
+        })(equalTo("Record(1,2)"))
       },
       test("doesn't generate schema for classes without a primary constructor") {
         typeCheck {
@@ -957,21 +978,14 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Error[String]("error"))))(
           isRight(equalTo(Error[String]("error")))
         ) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(Fatal("fatal"))))(
-          isRight(equalTo(Fatal("fatal")))
-        ) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(Success[Int](1))))(
-          isRight(equalTo(Success[Int](1)))
-        ) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(Timeout())))(
-          isRight(equalTo(Timeout()))
-        )
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Fatal("fatal"))))(isRight(equalTo(Fatal("fatal")))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Success[Int](1))))(isRight(equalTo(Success[Int](1)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Timeout())))(isRight(equalTo(Timeout())))
       },
       test("encodes values using provided formats and outputs") {
-        val result = encodeToString { out =>
+        assert(encodeToString { out =>
           Schema[Variant].encode(ToStringFormat)(out)(Case1('a'))
-        }
-        assert(result)(equalTo("Case1(a)"))
+        })(equalTo("Case1(a)"))
       },
       test("doesn't generate schema when all generic type parameters cannot be resolved") {
         typeCheck {
@@ -1061,9 +1075,7 @@ object SchemaSpec extends ZIOSpecDefault {
             .derived[Array[Array[Int]]]
             .fromDynamicValue(Schema.derived[Array[Array[Int]]].toDynamicValue(Array(Array(1, 2), Array(3, 4))))
             .map(_.map(_.toSeq).toSeq)
-        )(
-          isRight(equalTo(Seq(Seq(1, 2), Seq(3, 4))))
-        ) &&
+        )(isRight(equalTo(Seq(Seq(1, 2), Seq(3, 4))))) &&
         assert(Schema[List[Boolean]].fromDynamicValue(Schema[List[Boolean]].toDynamicValue(List(true, false))))(
           isRight(equalTo(List(true, false)))
         ) &&
@@ -1075,9 +1087,7 @@ object SchemaSpec extends ZIOSpecDefault {
         ) &&
         assert(
           Schema[List[Short]].fromDynamicValue(Schema[List[Short]].toDynamicValue(List(1: Short, 2: Short, 3: Short)))
-        )(
-          isRight(equalTo(List(1: Short, 2: Short, 3: Short)))
-        ) &&
+        )(isRight(equalTo(List(1: Short, 2: Short, 3: Short)))) &&
         assert(Schema[List[Float]].fromDynamicValue(Schema[List[Float]].toDynamicValue(List(1.0f, 2.0f, 3.0f))))(
           isRight(equalTo(List(1.0f, 2.0f, 3.0f)))
         ) &&
@@ -1185,10 +1195,9 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Set[Long]].get(elements2.toDynamic))(equalTo(Schema[Set[Long]].get(elements2)))
       },
       test("encodes values using provided formats and outputs") {
-        val result = encodeToString { out =>
+        assert(encodeToString { out =>
           Schema[List[Int]].encode(ToStringFormat)(out)(List(1, 2, 3))
-        }
-        assert(result)(equalTo("List(1, 2, 3)"))
+        })(equalTo("List(1, 2, 3)"))
       }
     ),
     suite("Reflect.Map")(
@@ -1303,10 +1312,9 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Map[Int, Long]].get(mapValues.toDynamic))(equalTo(Schema[Map[Int, Long]].get(mapValues)))
       },
       test("encodes values using provided formats and outputs") {
-        val result = encodeToString { out =>
+        assert(encodeToString { out =>
           Schema[Map[Int, Char]].encode(ToStringFormat)(out)(Map(1 -> 'a', 2 -> 'b', 3 -> 'c'))
-        }
-        assert(result)(equalTo("Map(1 -> a, 2 -> b, 3 -> c)"))
+        })(equalTo("Map(1 -> a, 2 -> b, 3 -> c)"))
       }
     ),
     suite("Reflect.Dynamic")(
@@ -1335,10 +1343,9 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("encodes values using provided formats and outputs") {
-        val result = encodeToString { out =>
+        assert(encodeToString { out =>
           Schema[DynamicValue].encode(ToStringFormat)(out)(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        }
-        assert(result)(equalTo("Primitive(Int(1))"))
+        })(equalTo("Primitive(Int(1))"))
       }
     ),
     suite("Reflect.Deferred")(
