@@ -46,6 +46,9 @@ lazy val root = project
     streams.jvm,
     streams.js,
     streams.native,
+    scalaNextTests.jvm,
+    scalaNextTests.js,
+    scalaNextTests.native,
     benchmarks
   )
 
@@ -84,6 +87,28 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     )
   )
+
+lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .dependsOn(schema)
+  .settings(crossProjectSettings)
+  .settings(
+    name                     := "zio-blocks-scala-next-tests",
+    crossScalaVersions       := Seq("3.7.2"),
+    ThisBuild / scalaVersion := "3.7.2",
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.20" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.20" % Test
+    ),
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    Test / parallelExecution := true,
+    Compile / fork           := true,
+    Test / fork              := true, // set fork to `true` to improve log readability
+    publish / skip           := true,
+    mimaPreviousArtifacts    := Set()
+  )
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)

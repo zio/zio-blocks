@@ -11,6 +11,8 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
+  type TupleBounded[T <: Tuple] = T
+
   private val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
   private implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
@@ -70,8 +72,8 @@ private object SchemaVersionSpecific {
     }
 
     def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(ntTpe, _) if ntTpe =:= TypeRepr.of[NamedTuple.NamedTuple] => true
-      case _                                                                     => false
+      case AppliedType(ntTpe, _) if ntTpe.dealias.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple" => true
+      case _                                                                                            => false
     }
 
     def namedGenericTupleNames(tpe: TypeRepr): List[String] = tpe match {
@@ -571,8 +573,7 @@ private object SchemaVersionSpecific {
         }
       } else if (isGenericTuple(tpe)) {
         tpe.asType match {
-          case '[
-              type tt <: Tuple; tt] =>
+          case '[TupleBounded[tt]] =>
             val genericTupleInfo         = new GenericTupleInfo[tt]()
             val (packages, values, name) = typeName(tpe)
             '{
@@ -710,38 +711,33 @@ private object SchemaVersionSpecific {
         tpe match {
           case AppliedType(_, List(nTpe @ AppliedType(_, nameConstants), tTpe)) =>
             nTpe.asType match {
-              case '[
-                  type nt <: Tuple; nt] =>
+              case '[TupleBounded[nt]] =>
                 tTpe.asType match {
-                  case '[
-                      type tt <: Tuple; tt] =>
+                  case '[TupleBounded[tt]] =>
                     val (nameOverrides, typeInfo) =
                       if (isGenericTuple(tTpe)) (namedGenericTupleNames(nTpe), new GenericTupleInfo[tt]())
                       else (nameConstants.collect { case ConstantType(StringConstant(x)) => x }, new ClassInfo[tt]())
                     '{
                       new Schema(
-                        reflect = new Reflect.Record[Binding, NamedTuple.NamedTuple[nt, tt]](
-                          fields = Vector(${ typeInfo.fields[NamedTuple.NamedTuple[nt, tt]](nameOverrides) }*),
+                        reflect = new Reflect.Record[Binding, T](
+                          fields = Vector(${ typeInfo.fields[T](nameOverrides) }*),
                           typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
                           recordBinding = new Binding.Record(
-                            constructor = new Constructor[NamedTuple.NamedTuple[nt, tt]] {
+                            constructor = new Constructor[T] {
                               def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                              def construct(
-                                in: Registers,
-                                baseOffset: RegisterOffset
-                              ): NamedTuple.NamedTuple[nt, tt] =
-                                NamedTuple.apply[nt, tt](${ typeInfo.constructor('in, 'baseOffset) })
+                              def construct(in: Registers, baseOffset: RegisterOffset): T = ${
+                                val t = typeInfo.constructor('in, 'baseOffset)
+                                // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
+                                Typed(t.asTerm, TypeTree.of(using Type.of[T])).asExprOf[T]
+                              }
                             },
-                            deconstructor = new Deconstructor[NamedTuple.NamedTuple[nt, tt]] {
+                            deconstructor = new Deconstructor[T] {
                               def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                              def deconstruct(
-                                out: Registers,
-                                baseOffset: RegisterOffset,
-                                in: NamedTuple.NamedTuple[nt, tt]
-                              ): Unit = {
-                                val t = in.toTuple
+                              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
+                                // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
+                                val t = ${ Typed('in.asTerm, TypeTree.of(using Type.of[tt])).asExprOf[tt] }
                                 ${ typeInfo.deconstructor('out, 'baseOffset, 't) }
                               }
                             }
