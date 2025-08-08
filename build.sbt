@@ -72,14 +72,32 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         Seq(
           "org.scala-lang" % "scala-reflect" % scalaVersion.value
         )
-      case _ => Seq()
+      case _ =>
+        Seq()
+    })
+  )
+  .jvmSettings(
+    libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %%% "neotype" % "0.3.25" % Test
+        )
     })
   )
   .jsSettings(
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    )
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %%% "neotype" % "0.3.25" % Test
+        )
+    })
   )
   .nativeSettings(
     libraryDependencies ++= Seq(
