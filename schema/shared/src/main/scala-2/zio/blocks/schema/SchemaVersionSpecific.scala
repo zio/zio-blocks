@@ -43,6 +43,8 @@ private object SchemaVersionSpecific {
     def isNonAbstractScalaClass(tpe: Type): Boolean =
       tpe.typeSymbol.isClass && !tpe.typeSymbol.isAbstract && !tpe.typeSymbol.isJava
 
+    def isValueClass(tpe: Type): Boolean = tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isDerivedValueClass
+
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
     def isOption(tpe: Type): Boolean = tpe <:< typeOf[Option[_]]
@@ -114,12 +116,12 @@ private object SchemaVersionSpecific {
 
     def isNonRecursive(tpe: Type, nestedTpes: List[Type] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
-      tpe =:= typeOf[String] || tpe =:= definitions.IntTpe || tpe =:= definitions.FloatTpe ||
-        tpe =:= definitions.DoubleTpe || tpe =:= definitions.LongTpe || tpe =:= definitions.BooleanTpe ||
-        tpe =:= definitions.ByteTpe || tpe =:= definitions.CharTpe || tpe =:= definitions.ShortTpe ||
-        tpe =:= typeOf[BigDecimal] || tpe =:= typeOf[BigInt] || tpe =:= definitions.UnitTpe ||
+      tpe <:< typeOf[String] || tpe <:< definitions.IntTpe || tpe <:< definitions.FloatTpe ||
+        tpe <:< definitions.DoubleTpe || tpe <:< definitions.LongTpe || tpe <:< definitions.BooleanTpe ||
+        tpe <:< definitions.ByteTpe || tpe <:< definitions.CharTpe || tpe <:< definitions.ShortTpe ||
+        tpe <:< typeOf[BigDecimal] || tpe <:< typeOf[BigInt] || tpe <:< definitions.UnitTpe ||
         tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
-        tpe =:= typeOf[java.util.Currency] || tpe =:= typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
+        tpe <:< typeOf[java.util.Currency] || tpe <:< typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
         isDynamicValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
@@ -259,16 +261,16 @@ private object SchemaVersionSpecific {
               if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
               else None
             val offset =
-              if (fTpe =:= definitions.IntTpe) RegisterOffset(ints = 1)
-              else if (fTpe =:= definitions.FloatTpe) RegisterOffset(floats = 1)
-              else if (fTpe =:= definitions.LongTpe) RegisterOffset(longs = 1)
-              else if (fTpe =:= definitions.DoubleTpe) RegisterOffset(doubles = 1)
-              else if (fTpe =:= definitions.BooleanTpe) RegisterOffset(booleans = 1)
-              else if (fTpe =:= definitions.ByteTpe) RegisterOffset(bytes = 1)
-              else if (fTpe =:= definitions.CharTpe) RegisterOffset(chars = 1)
-              else if (fTpe =:= definitions.ShortTpe) RegisterOffset(shorts = 1)
-              else if (fTpe =:= definitions.UnitTpe) RegisterOffset.Zero
-              else if (fTpe <:< definitions.AnyRefTpe || fTpe <:< definitions.AnyValTpe) RegisterOffset(objects = 1)
+              if (fTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
+              else if (fTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
+              else if (fTpe <:< definitions.LongTpe) RegisterOffset(longs = 1)
+              else if (fTpe <:< definitions.DoubleTpe) RegisterOffset(doubles = 1)
+              else if (fTpe <:< definitions.BooleanTpe) RegisterOffset(booleans = 1)
+              else if (fTpe <:< definitions.ByteTpe) RegisterOffset(bytes = 1)
+              else if (fTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
+              else if (fTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
+              else if (fTpe <:< definitions.UnitTpe) RegisterOffset.Zero
+              else if (fTpe <:< definitions.AnyRefTpe || isValueClass(fTpe)) RegisterOffset(objects = 1)
               else unsupportedFieldType(fTpe)
             val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
@@ -305,9 +307,20 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bs)"
             else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bs)"
             else if (fTpe =:= definitions.UnitTpe) q"()"
-            else if (fTpe <:< definitions.AnyRefTpe || fTpe <:< definitions.AnyValTpe) {
+            else if (fTpe <:< definitions.AnyRefTpe || isValueClass(fTpe)) {
               q"in.getObject(baseOffset, $objs).asInstanceOf[$fTpe]"
-            } else unsupportedFieldType(fTpe)
+            } else {
+              if (fTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bs).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
+              else unsupportedFieldType(fTpe)
+            }
           q"${fieldInfo.symbol} = $constructor"
         })
         q"new $tpe(...$argss)"
@@ -318,17 +331,17 @@ private object SchemaVersionSpecific {
         val getter    = fieldInfo.getter
         lazy val bs   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
         lazy val objs = RegisterOffset.getObjects(fieldInfo.usedRegisters)
-        if (fTpe =:= definitions.IntTpe) q"out.setInt(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.FloatTpe) q"out.setFloat(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.LongTpe) q"out.setLong(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.DoubleTpe) q"out.setDouble(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.ByteTpe) q"out.setByte(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.CharTpe) q"out.setChar(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.ShortTpe) q"out.setShort(baseOffset, $bs, in.$getter)"
-        else if (fTpe =:= definitions.UnitTpe) q"()"
+        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bs, in.$getter)"
+        else if (fTpe <:< definitions.UnitTpe) q"()"
         else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objs, in.$getter)"
-        else if (fTpe <:< definitions.AnyValTpe) {
+        else if (isValueClass(fTpe)) {
           q"out.setObject(baseOffset, $objs, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
         } else unsupportedFieldType(fTpe)
       })
