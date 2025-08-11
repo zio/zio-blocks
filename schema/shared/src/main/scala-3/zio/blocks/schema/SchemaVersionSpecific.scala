@@ -11,7 +11,7 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  type TupleBounded[T <: Tuple] = T
+  private type TupleBounded[T <: Tuple] = T
 
   private val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
   private implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
@@ -64,8 +64,8 @@ private object SchemaVersionSpecific {
     }
 
     def isGenericTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(tTpe, _) if tTpe =:= TypeRepr.of[*:] => true
-      case _                                                => false
+      case AppliedType(gtTpe, _) if gtTpe =:= TypeRepr.of[*:] => true
+      case _                                                  => false
     }
 
     def genericTupleTypeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
@@ -206,7 +206,7 @@ private object SchemaVersionSpecific {
       else {
         var packages  = List.empty[String]
         var values    = List.empty[String]
-        var tpeSymbol = tpe.typeSymbol
+        val tpeSymbol = tpe.typeSymbol
         var name      = tpeSymbol.name
         if (isEnumValue(tpe)) {
           name = tpe.termSymbol.name
@@ -451,7 +451,7 @@ private object SchemaVersionSpecific {
           case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
         }
         val argss = fieldInfos.map(_.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo).asTerm))
-        argss.tail.foldLeft(Apply(constructor, argss.head))((acc, args) => Apply(acc, args))
+        argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _))
       }.asExprOf[T]
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
@@ -500,10 +500,10 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] = {
-        val names = nameOverrides.toArray
+      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] =
         Expr.ofSeq(fieldInfos.map {
-          var idx = -1
+          val names = nameOverrides.toArray
+          var idx   = -1
           fieldInfo =>
             idx += 1
             val fTpe = fieldInfo.tpe
@@ -516,7 +516,6 @@ private object SchemaVersionSpecific {
                 '{ $reflectExpr.asTerm[S](${ Expr(name) }) }
             }
         })
-      }
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] =
         Expr.ofTupleFromSeq(fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))).asExprOf[T]
@@ -580,8 +579,8 @@ private object SchemaVersionSpecific {
                 '{
                   implicit val ct: reflect.ClassTag[et] = $classTag
                   new SeqConstructor.ArrayConstructor {
-                    override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-                      new Builder(new Array[et](sizeHint).asInstanceOf[Array[A]], 0)
+                    override def newObjectBuilder[A0](sizeHint: Int): Builder[A0] =
+                      new Builder(new Array[et](sizeHint).asInstanceOf[Array[A0]], 0)
                   }
                 }
               } else '{ SeqConstructor.arrayConstructor }
@@ -737,41 +736,39 @@ private object SchemaVersionSpecific {
       } else if (isNamedTuple(tpe)) {
         tpe match {
           case AppliedType(_, List(nTpe @ AppliedType(_, nameConstants), tTpe)) =>
-            nTpe.asType match {
-              case '[TupleBounded[nt]] =>
-                tTpe.asType match {
-                  case '[TupleBounded[tt]] =>
-                    val (nameOverrides, typeInfo) =
-                      if (isGenericTuple(tTpe)) (namedGenericTupleNames(nTpe), new GenericTupleInfo[tt]())
-                      else (nameConstants.collect { case ConstantType(StringConstant(x)) => x }, new ClassInfo[tt]())
-                    '{
-                      new Schema(
-                        reflect = new Reflect.Record[Binding, T](
-                          fields = Vector(${ typeInfo.fields[T](nameOverrides) }*),
-                          typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
-                          recordBinding = new Binding.Record(
-                            constructor = new Constructor[T] {
-                              def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
+            val tupleTpe = tTpe.asType
+            tupleTpe match {
+              case '[TupleBounded[tt]] =>
+                val (nameOverrides, typeInfo) =
+                  if (isGenericTuple(tTpe)) (namedGenericTupleNames(nTpe), new GenericTupleInfo[tt]())
+                  else (nameConstants.collect { case ConstantType(StringConstant(x)) => x }, new ClassInfo[tt]())
+                '{
+                  new Schema(
+                    reflect = new Reflect.Record[Binding, T](
+                      fields = Vector(${ typeInfo.fields[T](nameOverrides) }*),
+                      typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
+                      recordBinding = new Binding.Record(
+                        constructor = new Constructor[T] {
+                          def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                              def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                                val t = typeInfo.constructor('in, 'baseOffset)
-                                // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                                Typed(t.asTerm, TypeTree.of(using Type.of[T])).asExprOf[T]
-                              }
-                            },
-                            deconstructor = new Deconstructor[T] {
-                              def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
+                          def construct(in: Registers, baseOffset: RegisterOffset): T = ${
+                            val t = typeInfo.constructor('in, 'baseOffset)
+                            // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
+                            Typed(t.asTerm, TypeTree.of(using Type.of[T])).asExprOf[T]
+                          }
+                        },
+                        deconstructor = new Deconstructor[T] {
+                          def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
-                                // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                                val t = ${ Typed('in.asTerm, TypeTree.of(using Type.of[tt])).asExprOf[tt] }
-                                ${ typeInfo.deconstructor('out, 'baseOffset, 't) }
-                              }
-                            }
-                          )
-                        )
+                          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
+                            // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
+                            val t = ${ Typed('in.asTerm, TypeTree.of(using tupleTpe)).asExprOf[tt] }
+                            ${ typeInfo.deconstructor('out, 'baseOffset, 't) }
+                          }
+                        }
                       )
-                    }
+                    )
+                  )
                 }
             }
           case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
