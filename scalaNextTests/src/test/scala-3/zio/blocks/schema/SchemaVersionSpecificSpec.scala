@@ -54,6 +54,80 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for named tuples of generic tuple for value types") {
+        type NamedTuple2 = NamedTuple.NamedTuple[("i", "s"), Int *: String *: EmptyTuple]
+
+        object NamedTupleOfIntAndString extends CompanionOptics[NamedTuple2] {
+          implicit val schema: Schema[NamedTuple2] = Schema.derived
+          val i: Lens[NamedTuple2, Int]            = $(_.i)
+          val s: Lens[NamedTuple2, String]         = $(_.s)
+        }
+
+        val record = NamedTupleOfIntAndString.schema.reflect.asRecord
+        val value  = (i = 1, s = "VVV")
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 1, objects = 1)))) &&
+        assert(NamedTupleOfIntAndString.i.get(value))(equalTo(1)) &&
+        assert(NamedTupleOfIntAndString.s.get(value))(equalTo("VVV")) &&
+        assert(NamedTupleOfIntAndString.i.replace(value, 2))(equalTo((i = 2, s = "VVV"))) &&
+        assert(NamedTupleOfIntAndString.s.replace(value, "WWW"))(equalTo((i = 1, s = "WWW"))) &&
+        assert(NamedTupleOfIntAndString.schema.fromDynamicValue(NamedTupleOfIntAndString.schema.toDynamicValue(value)))(
+          isRight(equalTo(value))
+        ) &&
+        assert(NamedTupleOfIntAndString.schema)(
+          equalTo(
+            new Schema[NamedTuple2](
+              reflect = Reflect.Record[Binding, NamedTuple2](
+                fields = Vector(
+                  Schema[Int].reflect.asTerm("i"),
+                  Schema[String].reflect.asTerm("s")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
+                  name = "NamedTuple"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for named tuples of generic tuple for names") {
+        type NamedTuple2 = NamedTuple.NamedTuple["i" *: "s" *: EmptyTuple, (Int, String)]
+
+        object NamedTupleOfIntAndString extends CompanionOptics[NamedTuple2] {
+          implicit val schema: Schema[NamedTuple2] = Schema.derived
+          val i: Lens[NamedTuple2, Int]            = $(_.i)
+          val s: Lens[NamedTuple2, String]         = $(_.s)
+        }
+
+        val record = NamedTupleOfIntAndString.schema.reflect.asRecord
+        val value  = (i = 1, s = "VVV")
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 1, objects = 1)))) &&
+        assert(NamedTupleOfIntAndString.i.get(value))(equalTo(1)) &&
+        assert(NamedTupleOfIntAndString.s.get(value))(equalTo("VVV")) &&
+        assert(NamedTupleOfIntAndString.i.replace(value, 2))(equalTo((i = 2, s = "VVV"))) &&
+        assert(NamedTupleOfIntAndString.s.replace(value, "WWW"))(equalTo((i = 1, s = "WWW"))) &&
+        assert(NamedTupleOfIntAndString.schema.fromDynamicValue(NamedTupleOfIntAndString.schema.toDynamicValue(value)))(
+          isRight(equalTo(value))
+        ) &&
+        assert(NamedTupleOfIntAndString.schema)(
+          equalTo(
+            new Schema[NamedTuple2](
+              reflect = Reflect.Record[Binding, NamedTuple2](
+                fields = Vector(
+                  Schema[Int].reflect.asTerm("i"),
+                  Schema[String].reflect.asTerm("s")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
+                  name = "NamedTuple"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
       test("derives schema for generic named tuples") {
         type GenericNamedTuple2[A, B] = (a: A, b: B)
 
@@ -68,8 +142,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 1, objects = 1)))) &&
         assert(NamedTupleOfIntAndString.a.get(value))(equalTo(1)) &&
         assert(NamedTupleOfIntAndString.b.get(value))(equalTo("VVV")) &&
-        assert(NamedTupleOfIntAndString.a.replace(value, 2))(equalTo((a = 2, s = "VVV"))) &&
-        assert(NamedTupleOfIntAndString.b.replace(value, "WWW"))(equalTo((a = 1, s = "WWW"))) &&
+        assert(NamedTupleOfIntAndString.a.replace(value, 2))(equalTo((a = 2, b = "VVV"))) &&
+        assert(NamedTupleOfIntAndString.b.replace(value, "WWW"))(equalTo((a = 1, b = "WWW"))) &&
         assert(NamedTupleOfIntAndString.schema.fromDynamicValue(NamedTupleOfIntAndString.schema.toDynamicValue(value)))(
           isRight(equalTo(value))
         ) &&
