@@ -90,8 +90,8 @@ private object SchemaVersionSpecific {
     def isDynamicValue(tpe: TypeRepr): Boolean = tpe =:= TypeRepr.of[DynamicValue]
 
     def isCollection(tpe: TypeRepr): Boolean =
-      tpe <:< TypeRepr.of[IterableOnce[?]] || tpe <:< TypeRepr.of[Array[?]] ||
-        tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
+      tpe <:< TypeRepr.of[Array[?]] || tpe.typeSymbol.fullName == "scala.IArray$package$.IArray" ||
+        (tpe <:< TypeRepr.of[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
     def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
       def resolveParentTypeArg(
