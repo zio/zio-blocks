@@ -53,7 +53,8 @@ private object SchemaVersionSpecific {
 
     def isDynamicValue(tpe: Type): Boolean = tpe =:= typeOf[DynamicValue]
 
-    def isCollection(tpe: Type): Boolean = tpe <:< typeOf[IterableOnce[_]] || tpe <:< typeOf[Array[_]]
+    def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[_]] ||
+      (tpe <:< typeOf[IterableOnce[_]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
     def companion(tpe: Type): Symbol = {
       val comp = tpe.typeSymbol.companion
