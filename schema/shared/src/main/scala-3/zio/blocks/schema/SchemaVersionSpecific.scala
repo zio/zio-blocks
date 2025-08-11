@@ -90,7 +90,7 @@ private object SchemaVersionSpecific {
     def isDynamicValue(tpe: TypeRepr): Boolean = tpe =:= TypeRepr.of[DynamicValue]
 
     def isCollection(tpe: TypeRepr): Boolean =
-      tpe <:< TypeRepr.of[Iterable[?]] || tpe <:< TypeRepr.of[Iterator[?]] || tpe <:< TypeRepr.of[Array[?]] ||
+      tpe <:< TypeRepr.of[IterableOnce[?]] || tpe <:< TypeRepr.of[Array[?]] ||
         tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
     def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
@@ -328,7 +328,8 @@ private object SchemaVersionSpecific {
         else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs) }
         else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
         else {
-          fTpe.asType match {
+          val fType = fTpe.asType
+          fType match {
             case '[ft] =>
               if (fTpe <:< TypeRepr.of[AnyRef] || isValueClass(fTpe)) {
                 '{ $in.getObject($baseOffset, $objs).asInstanceOf[ft] }
@@ -346,7 +347,7 @@ private object SchemaVersionSpecific {
                     else if (fTpe <:< TypeRepr.of[Unit]) '{ () }
                     else unsupportedFieldType(fTpe)
                   }.asTerm,
-                  TypeTree.of(using Type.of[ft])
+                  TypeTree.of(using fType)
                 ).asExprOf[ft]
               }
           }
@@ -739,9 +740,12 @@ private object SchemaVersionSpecific {
             val tupleTpe = tTpe.asType
             tupleTpe match {
               case '[TupleBounded[tt]] =>
-                val (nameOverrides, typeInfo) =
-                  if (isGenericTuple(tTpe)) (namedGenericTupleNames(nTpe), new GenericTupleInfo[tt]())
-                  else (nameConstants.collect { case ConstantType(StringConstant(x)) => x }, new ClassInfo[tt]())
+                val nameOverrides =
+                  if (isGenericTuple(nTpe)) namedGenericTupleNames(nTpe)
+                  else nameConstants.collect { case ConstantType(StringConstant(x)) => x }
+                val typeInfo =
+                  if (isGenericTuple(tTpe)) new GenericTupleInfo[tt]()
+                  else new ClassInfo[tt]()
                 '{
                   new Schema(
                     reflect = new Reflect.Record[Binding, T](
