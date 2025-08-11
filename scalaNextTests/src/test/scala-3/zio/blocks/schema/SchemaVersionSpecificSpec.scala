@@ -54,6 +54,80 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for generic named tuples") {
+        type GenericNamedTuple2[A, B] = (a: A, b: B)
+
+        object NamedTupleOfIntAndString extends CompanionOptics[GenericNamedTuple2[Int, String]] {
+          implicit val schema: Schema[GenericNamedTuple2[Int, String]] = Schema.derived
+          val a: Lens[GenericNamedTuple2[Int, String], Int]            = $(_.a)
+          val b: Lens[GenericNamedTuple2[Int, String], String]         = $(_.b)
+        }
+
+        val record = NamedTupleOfIntAndString.schema.reflect.asRecord
+        val value  = (a = 1, b = "VVV")
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 1, objects = 1)))) &&
+        assert(NamedTupleOfIntAndString.a.get(value))(equalTo(1)) &&
+        assert(NamedTupleOfIntAndString.b.get(value))(equalTo("VVV")) &&
+        assert(NamedTupleOfIntAndString.a.replace(value, 2))(equalTo((a = 2, s = "VVV"))) &&
+        assert(NamedTupleOfIntAndString.b.replace(value, "WWW"))(equalTo((a = 1, s = "WWW"))) &&
+        assert(NamedTupleOfIntAndString.schema.fromDynamicValue(NamedTupleOfIntAndString.schema.toDynamicValue(value)))(
+          isRight(equalTo(value))
+        ) &&
+        assert(NamedTupleOfIntAndString.schema)(
+          equalTo(
+            new Schema[GenericNamedTuple2[Int, String]](
+              reflect = Reflect.Record[Binding, GenericNamedTuple2[Int, String]](
+                fields = Vector(
+                  Schema[Int].reflect.asTerm("a"),
+                  Schema[String].reflect.asTerm("b")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
+                  name = "NamedTuple"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for higher-kind named tuples") {
+        type HKNamedTuple2[F[_]] = (a: F[Int], b: F[String])
+
+        object NamedTupleOfIntAndStringLists extends CompanionOptics[HKNamedTuple2[List]] {
+          implicit val schema: Schema[HKNamedTuple2[List]] = Schema.derived
+          val a: Traversal[HKNamedTuple2[List], Int]       = $(_.a.each)
+          val b: Traversal[HKNamedTuple2[List], String]    = $(_.b.each)
+        }
+
+        val record = NamedTupleOfIntAndStringLists.schema.reflect.asRecord
+        val value  = (a = List(1, 2, 3), b = List("VVV"))
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(NamedTupleOfIntAndStringLists.a.fold(value)(0, _ + _))(equalTo(6)) &&
+        assert(NamedTupleOfIntAndStringLists.b.fold(value)("", _ + _))(equalTo("VVV")) &&
+        assert(
+          NamedTupleOfIntAndStringLists.schema.fromDynamicValue(
+            NamedTupleOfIntAndStringLists.schema.toDynamicValue(value)
+          )
+        )(isRight(equalTo(value))) &&
+        assert(NamedTupleOfIntAndStringLists.schema)(
+          equalTo(
+            new Schema[HKNamedTuple2[List]](
+              reflect = Reflect.Record[Binding, HKNamedTuple2[List]](
+                fields = Vector(
+                  Schema[List[Int]].reflect.asTerm("a"),
+                  Schema[List[String]].reflect.asTerm("b")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
+                  name = "NamedTuple"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        )
+      },
       test("derives schema for named tuples with more than 22 fields") {
         type NamedTuple24 = (
           i1: Int,

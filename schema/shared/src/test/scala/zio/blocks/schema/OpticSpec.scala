@@ -3348,7 +3348,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mvs.reduceOrFail(Map('a' -> "1", 'b' -> "2", 'c' -> "3"))(_ + _))(isRight(equalTo("123"))) &&
         assert(Collections.lc1_d.reduceOrFail(List(Case1(0.1), Case1(0.4)))(_ + _))(isRight(equalTo(0.5)))
       },
-      test("doesn't reduce for non-matching cases returnung an error") {
+      test("doesn't reduce for non-matching cases returning an error") {
         assert(Variant2.c3_v1_v2_c4_lr3.reduceOrFail(Case4(Nil))((_, x) => x))(
           isLeft(
             equalTo(
