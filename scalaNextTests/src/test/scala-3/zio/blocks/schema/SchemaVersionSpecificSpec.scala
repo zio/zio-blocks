@@ -58,20 +58,20 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val expectedFields =
           Vector(Schema[Int].reflect.asTerm("i"), Schema[String].reflect.asTerm("s"))
         val schema1: Schema[NamedTuple.NamedTuple[("i", "s"), Int *: String *: EmptyTuple]] = Schema.derived
-        assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields))
         val schema2: Schema[NamedTuple.NamedTuple["i" *: "s" *: EmptyTuple, (Int, String)]] = Schema.derived
-        assert(schema2.reflect.asRecord.get.fields)(equalTo(expectedFields))
-        val schema3: Schema[NamedTuple.Reverse[(s: String, i: Int)]] = Schema.derived
-        assert(schema3.reflect.asRecord.get.fields)(equalTo(expectedFields))
-        val schema4: Schema[NamedTuple.Tail[(l: Long, i: Int, s: String)]] = Schema.derived
-        assert(schema4.reflect.asRecord.get.fields)(equalTo(expectedFields))
-        val schema5: Schema[NamedTuple.Init[(i: Int, s: String, l: Long)]] = Schema.derived
-        assert(schema5.reflect.asRecord.get.fields)(equalTo(expectedFields))
-        val schema6: Schema[NamedTuple.Drop[(l: Long, i: Int, s: String), 1]] = Schema.derived
-        assert(schema6.reflect.asRecord.get.fields)(equalTo(expectedFields))
-        val schema7: Schema[NamedTuple.Take[(i: Int, s: String, l: Long), 2]] = Schema.derived
-        assert(schema7.reflect.asRecord.get.fields)(equalTo(expectedFields))
-        val schema8: Schema[NamedTuple.Concat[(i: Int), (s: String)]] = Schema.derived
+        val schema3: Schema[NamedTuple.Reverse[(s: String, i: Int)]]                        = Schema.derived
+        val schema4: Schema[NamedTuple.Tail[(l: Long, i: Int, s: String)]]                  = Schema.derived
+        val schema5: Schema[NamedTuple.Init[(i: Int, s: String, l: Long)]]                  = Schema.derived
+        val schema6: Schema[NamedTuple.Drop[(l: Long, i: Int, s: String), 1]]               = Schema.derived
+        val schema7: Schema[NamedTuple.Take[(i: Int, s: String, l: Long), 2]]               = Schema.derived
+        val schema8: Schema[NamedTuple.Concat[(i: Int), (s: String)]]                       = Schema.derived
+        assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema2.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema3.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema4.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema5.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema6.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema7.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
         assert(schema8.reflect.asRecord.get.fields)(equalTo(expectedFields))
       },
       test("derives schema for generic named tuples") {
