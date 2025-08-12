@@ -68,19 +68,14 @@ private object SchemaVersionSpecific {
       case _                                                  => false
     }
 
-    def genericTupleTypeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
-      case AppliedType(_, List(typeArg, tail)) => typeArg.dealias :: genericTupleTypeArgs(tail)
-      case _                                   => Nil
+    def genericTupleTypeArgs(t: Type[?]): List[TypeRepr] = t match {
+      case '[head *: tail] => TypeRepr.of[head] :: genericTupleTypeArgs(Type.of[tail])
+      case _               => Nil
     }
 
     def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
       case AppliedType(ntTpe, _) if ntTpe.dealias.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple" => true
       case _                                                                                            => false
-    }
-
-    def namedGenericTupleNames(tpe: TypeRepr): List[String] = tpe match {
-      case AppliedType(_, List(ConstantType(StringConstant(name)), tail)) => name :: namedGenericTupleNames(tail)
-      case _                                                              => Nil
     }
 
     def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[?]]
@@ -172,7 +167,7 @@ private object SchemaVersionSpecific {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isGenericTuple(tpe)) {
             val nestedTpes_ = tpe :: nestedTpes
-            genericTupleTypeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
+            genericTupleTypeArgs(tpe.asType).forall(isNonRecursive(_, nestedTpes_))
           } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNamedTuple(tpe)) {
@@ -483,7 +478,7 @@ private object SchemaVersionSpecific {
 
     case class GenericTupleInfo[T <: Tuple: Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
-        val fTpes         = genericTupleTypeArgs(tpe)
+        val fTpes         = genericTupleTypeArgs(tpe.asType)
         val noSymbol      = Symbol.noSymbol
         var usedRegisters = RegisterOffset.Zero
         (
@@ -737,9 +732,10 @@ private object SchemaVersionSpecific {
             val tupleType = tTpe.asType
             tupleType match {
               case '[TupleBounded[tt]] =>
-                val nameOverrides =
-                  if (isGenericTuple(nTpe)) namedGenericTupleNames(nTpe)
-                  else nameConstants.collect { case ConstantType(StringConstant(x)) => x }
+                val nameOverrides = {
+                  if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe.asType)
+                  else typeArgs(nTpe)
+                }.map { case ConstantType(StringConstant(x)) => x }
                 val typeInfo =
                   if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
                   else new ClassInfo[tt](tTpe)

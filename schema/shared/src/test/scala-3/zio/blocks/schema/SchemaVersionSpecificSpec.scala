@@ -132,6 +132,20 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for complex generic tuples") {
+        val expectedFields =
+          Vector(Schema[Int].reflect.asTerm("_1"), Schema[String].reflect.asTerm("_2"))
+        val schema1: Schema[Tuple.Tail[(Long, Int, String)]] = Schema.derived
+        assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields))
+        val schema2: Schema[Tuple.Init[(Int, String, Long)]] = Schema.derived
+        assert(schema2.reflect.asRecord.get.fields)(equalTo(expectedFields))
+        val schema3: Schema[Tuple.Drop[(Long, Int, String), 1]] = Schema.derived
+        assert(schema3.reflect.asRecord.get.fields)(equalTo(expectedFields))
+        val schema4: Schema[Tuple.Take[(Int, String, Long), 2]] = Schema.derived
+        assert(schema4.reflect.asRecord.get.fields)(equalTo(expectedFields))
+        val schema5: Schema[Tuple.Concat[Tuple1[Int], Tuple1[String]]] = Schema.derived
+        assert(schema5.reflect.asRecord.get.fields)(equalTo(expectedFields))
+      },
       test("derives schema for tuples with more than 22 fields") {
         type Tuple24 = (
           Int,

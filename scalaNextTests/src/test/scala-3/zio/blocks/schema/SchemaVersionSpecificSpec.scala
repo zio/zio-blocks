@@ -55,7 +55,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for complex named tuples") {
-        val expectedFields = Vector(Schema[Int].reflect.asTerm("i"), Schema[String].reflect.asTerm("s"))
+        val expectedFields =
+          Vector(Schema[Int].reflect.asTerm("i"), Schema[String].reflect.asTerm("s"))
         val schema1: Schema[NamedTuple.NamedTuple[("i", "s"), Int *: String *: EmptyTuple]] = Schema.derived
         assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields))
         val schema2: Schema[NamedTuple.NamedTuple["i" *: "s" *: EmptyTuple, (Int, String)]] = Schema.derived
@@ -70,6 +71,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema6.reflect.asRecord.get.fields)(equalTo(expectedFields))
         val schema7: Schema[NamedTuple.Take[(i: Int, s: String, l: Long), 2]] = Schema.derived
         assert(schema7.reflect.asRecord.get.fields)(equalTo(expectedFields))
+        val schema8: Schema[NamedTuple.Concat[(i: Int), (s: String)]] = Schema.derived
+        assert(schema8.reflect.asRecord.get.fields)(equalTo(expectedFields))
       },
       test("derives schema for generic named tuples") {
         type GenericNamedTuple2[A, B] = (a: A, b: B)
