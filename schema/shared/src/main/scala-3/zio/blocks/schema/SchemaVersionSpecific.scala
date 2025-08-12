@@ -250,8 +250,7 @@ private object SchemaVersionSpecific {
     val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
     val derivedSchemaDefs = new mutable.ListBuffer[ValDef]
 
-    def findImplicitOrDeriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
-      val tpe            = TypeRepr.of[T]
+    def findImplicitOrDeriveSchema[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
       lazy val schemaTpe = TypeRepr.of[Schema[T]]
       val inferredSchema = inferredSchemas.getOrElseUpdate(
         tpe,
@@ -273,7 +272,7 @@ private object SchemaVersionSpecific {
               val ref    = Ref(symbol).asExprOf[Schema[?]]
               // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
               derivedSchemaRefs.update(tpe, ref)
-              val schema = deriveSchema[T]
+              val schema = deriveSchema[T](tpe)
               derivedSchemaDefs.addOne(ValDef(symbol, Some(schema.asTerm.changeOwner(symbol))))
               ref
             }
@@ -292,7 +291,7 @@ private object SchemaVersionSpecific {
       config: List[(String, String)]
     )
 
-    abstract class TypeInfo[T: Type]()(using Quotes) {
+    abstract class TypeInfo[T: Type](tpe: TypeRepr)(using Quotes) {
       def usedRegisters: Expr[RegisterOffset]
 
       def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]]
@@ -357,8 +356,7 @@ private object SchemaVersionSpecific {
       def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
     }
 
-    case class ClassInfo[T: Type]()(using Quotes) extends TypeInfo[T]() {
-      private[this] val tpe                = TypeRepr.of[T]
+    case class ClassInfo[T: Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
       private[this] val tpeClassSymbol     = tpe.classSymbol.get
       private[this] val primaryConstructor = tpeClassSymbol.primaryConstructor
       if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
@@ -427,7 +425,7 @@ private object SchemaVersionSpecific {
           fTpe.asType match {
             case '[ft] =>
               idx += 1
-              var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft] }.reflect }
+              var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
               reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
                 '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
               }
@@ -483,9 +481,9 @@ private object SchemaVersionSpecific {
         }))
     }
 
-    case class GenericTupleInfo[T <: Tuple: Type]()(using Quotes) extends TypeInfo[T]() {
+    case class GenericTupleInfo[T <: Tuple: Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
-        val fTpes         = genericTupleTypeArgs(TypeRepr.of[T])
+        val fTpes         = genericTupleTypeArgs(tpe)
         val noSymbol      = Symbol.noSymbol
         var usedRegisters = RegisterOffset.Zero
         (
@@ -510,7 +508,7 @@ private object SchemaVersionSpecific {
             val fTpe = fieldInfo.tpe
             fTpe.asType match {
               case '[ft] =>
-                var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft] }.reflect }
+                var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
                 if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
                 var name = fieldInfo.name
                 if (idx < names.length) name = names(idx)
@@ -548,8 +546,7 @@ private object SchemaVersionSpecific {
         })
     }
 
-    def deriveSchema[T: Type](using Quotes): Expr[Schema[T]] = {
-      val tpe = TypeRepr.of[T]
+    def deriveSchema[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
       if (isEnumOrModuleValue(tpe)) {
         val (packages, values, name) = typeName(tpe)
         '{
@@ -569,14 +566,14 @@ private object SchemaVersionSpecific {
           )
         }
       } else if (tpe <:< TypeRepr.of[Array[?]]) {
-        val elementTpe = typeArgs(tpe).head
-        elementTpe.asType match {
+        val eTpe = typeArgs(tpe).head
+        eTpe.asType match {
           case '[et] =>
-            var reflectExpr = '{ ${ findImplicitOrDeriveSchema[et] }.reflect }
+            var reflectExpr = '{ ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect }
             val constructor =
-              if (elementTpe <:< TypeRepr.of[AnyRef]) {
+              if (eTpe <:< TypeRepr.of[AnyRef]) {
                 val classTag =
-                  Expr.summon[reflect.ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${elementTpe.show}"))
+                  Expr.summon[reflect.ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
                 '{
                   implicit val ct: reflect.ClassTag[et] = $classTag
                   new SeqConstructor.ArrayConstructor {
@@ -601,7 +598,7 @@ private object SchemaVersionSpecific {
       } else if (isGenericTuple(tpe)) {
         tpe.asType match {
           case '[TupleBounded[tt]] =>
-            val genericTupleInfo         = new GenericTupleInfo[tt]()
+            val genericTupleInfo         = new GenericTupleInfo[tt](tpe)
             val (packages, values, name) = typeName(tpe)
             '{
               new Schema(
@@ -690,7 +687,7 @@ private object SchemaVersionSpecific {
           sTpe.asType match {
             case '[st] =>
               '{
-                ${ findImplicitOrDeriveSchema[st] }.reflect.asTerm[T](${
+                ${ findImplicitOrDeriveSchema[st](sTpe) }.reflect.asTerm[T](${
                   Expr(toTermName(fullName, maxCommonPrefixLength))
                 })
               }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
@@ -737,15 +734,15 @@ private object SchemaVersionSpecific {
       } else if (isNamedTuple(tpe)) {
         tpe match {
           case AppliedType(_, List(nTpe @ AppliedType(_, nameConstants), tTpe)) =>
-            val tupleTpe = tTpe.asType
-            tupleTpe match {
+            val tupleType = tTpe.asType
+            tupleType match {
               case '[TupleBounded[tt]] =>
                 val nameOverrides =
                   if (isGenericTuple(nTpe)) namedGenericTupleNames(nTpe)
                   else nameConstants.collect { case ConstantType(StringConstant(x)) => x }
                 val typeInfo =
-                  if (isGenericTuple(tTpe)) new GenericTupleInfo[tt]()
-                  else new ClassInfo[tt]()
+                  if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
+                  else new ClassInfo[tt](tTpe)
                 '{
                   new Schema(
                     reflect = new Reflect.Record[Binding, T](
@@ -766,7 +763,7 @@ private object SchemaVersionSpecific {
 
                           def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
                             // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                            val t = ${ Typed('in.asTerm, TypeTree.of(using tupleTpe)).asExprOf[tt] }
+                            val t = ${ Typed('in.asTerm, TypeTree.of(using tupleType)).asExprOf[tt] }
                             ${ typeInfo.deconstructor('out, 'baseOffset, 't) }
                           }
                         }
@@ -778,7 +775,7 @@ private object SchemaVersionSpecific {
           case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
         }
       } else if (isNonAbstractScalaClass(tpe)) {
-        val classInfo                = new ClassInfo[T]()
+        val classInfo                = new ClassInfo[T](tpe)
         val (packages, values, name) = typeName(tpe)
         '{
           new Schema(
@@ -809,7 +806,8 @@ private object SchemaVersionSpecific {
       } else fail(s"Cannot derive schema for '${tpe.show}'.")
     }.asExprOf[Schema[T]]
 
-    val schema      = TypeRepr.of[A].dealias.asType match { case '[t] => deriveSchema[t] }
+    val aTpe        = TypeRepr.of[A].dealias
+    val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
     val schemaBlock = Block(derivedSchemaDefs.toList, schema.asTerm).asExprOf[Schema[A]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
