@@ -138,15 +138,17 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema3: Schema[Tuple.Drop[(Long, Int, String), 1]]                      = Schema.derived
         val schema4: Schema[Tuple.Take[(Int, String, Long), 2]]                      = Schema.derived
         val schema5: Schema[Tuple.Concat[Tuple1[Int], Tuple1[String]]]               = Schema.derived
-        val schema6: Schema[Tuple.Zip[(Int, String), (Long, String)]]                = Schema.derived
-        val schema7: Schema[Tuple.InverseMap[(Option[Int], Option[String]), Option]] = Schema.derived
-        val schema8: Schema[Tuple.Map[(Int, String), Option]]                        = Schema.derived
+        val schema6: Schema[Tuple.Append[Tuple1[Int], String]]                       = Schema.derived
+        val schema7: Schema[Tuple.Zip[(Int, String), (Long, String)]]                = Schema.derived
+        val schema8: Schema[Tuple.InverseMap[(Option[Int], Option[String]), Option]] = Schema.derived
+        val schema9: Schema[Tuple.Map[(Int, String), Option]]                        = Schema.derived
         assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
         assert(schema2.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
         assert(schema3.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
         assert(schema4.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
         assert(schema5.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
-        assert(schema6.reflect.asRecord.get.fields)(
+        assert(schema6.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema7.reflect.asRecord.get.fields)(
           equalTo(
             Vector(
               Schema.derived[(Int, Long)].reflect.asTerm("_1"),
@@ -154,8 +156,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
-        assert(schema7.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
-        assert(schema8.reflect.asRecord.get.fields)(
+        assert(schema8.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema9.reflect.asRecord.get.fields)(
           equalTo(
             Vector(Schema[Option[Int]].reflect.asTerm("_1"), Schema[Option[String]].reflect.asTerm("_2"))
           )
