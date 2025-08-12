@@ -93,6 +93,14 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         ) &&
         assert(schema11.reflect.asRecord.get.fields)(equalTo(expectedFields))
       },
+      test("derives schema for complex generic and named tuples") {
+        val expectedFields =
+          Vector(Schema[Int].reflect.asTerm("_1"), Schema[String].reflect.asTerm("_2"))
+        val schema1: Schema[Tuple.Reverse[(String, Int)]]              = Schema.derived
+        val schema2: Schema[NamedTuple.DropNames[(i: Int, s: String)]] = Schema.derived
+        assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema2.reflect.asRecord.get.fields)(equalTo(expectedFields))
+      },
       test("derives schema for generic named tuples") {
         type GenericNamedTuple2[A, B] = (a: A, b: B)
 
