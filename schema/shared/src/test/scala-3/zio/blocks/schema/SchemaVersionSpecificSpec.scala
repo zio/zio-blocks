@@ -131,6 +131,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for complex generic tuples") {
+        val value1 = (1, "VVV")
+        val value2 = ((1, 2L), ("VVV", "WWW"))
+        val value3 = (Some(1), Some("VVV"))
         val expectedFields =
           Vector(Schema[Int].reflect.asTerm("_1"), Schema[String].reflect.asTerm("_2"))
         val schema1: Schema[Tuple.Tail[(Long, Int, String)]]                         = Schema.derived
@@ -143,11 +146,17 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema8: Schema[Tuple.InverseMap[(Option[Int], Option[String]), Option]] = Schema.derived
         val schema9: Schema[Tuple.Map[(Int, String), Option]]                        = Schema.derived
         assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema2.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema2.fromDynamicValue(schema2.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema3.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema3.fromDynamicValue(schema3.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema4.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema4.fromDynamicValue(schema4.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema5.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema5.fromDynamicValue(schema5.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema6.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema6.fromDynamicValue(schema6.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema7.reflect.asRecord.get.fields)(
           equalTo(
             Vector(
@@ -156,12 +165,15 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
+        assert(schema7.fromDynamicValue(schema7.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
         assert(schema8.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema8.fromDynamicValue(schema8.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema9.reflect.asRecord.get.fields)(
           equalTo(
             Vector(Schema[Option[Int]].reflect.asTerm("_1"), Schema[Option[String]].reflect.asTerm("_2"))
           )
-        )
+        ) &&
+        assert(schema9.fromDynamicValue(schema9.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
       test("derives schema for tuples with more than 22 fields") {
         type Tuple24 = (
