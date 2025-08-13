@@ -330,21 +330,16 @@ private object SchemaVersionSpecific {
               if (fTpe <:< TypeRepr.of[AnyRef] || isValueClass(fTpe)) {
                 '{ $in.getObject($baseOffset, $objs).asInstanceOf[ft] }
               } else {
-                Typed(
-                  {
-                    if (fTpe <:< TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs) }
-                    else if (fTpe <:< TypeRepr.of[Unit]) '{ () }
-                    else unsupportedFieldType(fTpe)
-                  }.asTerm,
-                  Inferred(fTpe)
-                ).asExprOf[ft]
+                if (fTpe <:< TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Unit]) '{ ().asInstanceOf[ft] }
+                else unsupportedFieldType(fTpe)
               }
           }
         }
