@@ -363,47 +363,44 @@ private object SchemaVersionSpecific {
         (
           tpeParams.map(_.map { symbol =>
             idx += 1
-            val name = symbol.name
             var fTpe = tpe.memberType(symbol).dealias
             if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
-            fTpe.asType match {
-              case '[ft] =>
-                var getter = tpeClassSymbol.fieldMember(name)
-                if (!getter.exists) {
-                  val getters = tpeClassSymbol
-                    .methodMember(name)
-                    .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
-                  if (getters.isEmpty) {
-                    fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
-                  }
-                  getter = getters.head
-                }
-                val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
-                val config = getter.annotations
-                  .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-                  .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
-                  .reverse
-                val defaultValue =
-                  if (symbol.flags.is(Flags.HasDefault)) {
-                    (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + idx) match {
-                      case methodSymbol :: _ =>
-                        val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
-                        methodSymbol.paramSymss match {
-                          case Nil =>
-                            Some(dvSelectNoTArgs)
-                          case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
-                            Some(TypeApply(dvSelectNoTArgs, tpeTypeArgs.map(Inferred(_))))
-                          case _ =>
-                            None
-                        }
+            val name = symbol.name
+            var getter = tpeClassSymbol.fieldMember(name)
+            if (!getter.exists) {
+              val getters = tpeClassSymbol
+                .methodMember(name)
+                .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
+              if (getters.isEmpty) {
+                fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
+              }
+              getter = getters.head
+            }
+            val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
+            val config = getter.annotations
+              .filter(_.tpe =:= TypeRepr.of[Modifier.config])
+              .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
+              .reverse
+            val defaultValue =
+              if (symbol.flags.is(Flags.HasDefault)) {
+                (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + idx) match {
+                  case methodSymbol :: _ =>
+                    val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
+                    methodSymbol.paramSymss match {
+                      case Nil =>
+                        Some(dvSelectNoTArgs)
+                      case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
+                        Some(TypeApply(dvSelectNoTArgs, tpeTypeArgs.map(Inferred(_))))
                       case _ =>
                         None
-                    }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
-                  } else None
-                val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
-                usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
-                fieldInfo
-            }
+                    }
+                  case _ =>
+                    None
+                }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
+              } else None
+            val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
+            usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
+            fieldInfo
           }),
           Expr(usedRegisters)
         )
