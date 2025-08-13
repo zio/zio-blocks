@@ -11,8 +11,6 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private type TupleBounded[T <: Tuple] = T
-
   private val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
   private implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
@@ -322,8 +320,7 @@ private object SchemaVersionSpecific {
         else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs) }
         else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
         else {
-          val fType = fTpe.asType
-          fType match {
+          fTpe.asType match {
             case '[ft] =>
               if (fTpe <:< TypeRepr.of[AnyRef] || isValueClass(fTpe)) {
                 '{ $in.getObject($baseOffset, $objs).asInstanceOf[ft] }
@@ -341,7 +338,7 @@ private object SchemaVersionSpecific {
                     else if (fTpe <:< TypeRepr.of[Unit]) '{ () }
                     else unsupportedFieldType(fTpe)
                   }.asTerm,
-                  TypeTree.of(using fType)
+                  Inferred(fTpe)
                 ).asExprOf[ft]
               }
           }
@@ -476,7 +473,7 @@ private object SchemaVersionSpecific {
         }))
     }
 
-    case class GenericTupleInfo[T <: Tuple: Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
+    case class GenericTupleInfo[T : Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
         val fTpes         = genericTupleTypeArgs(tpe.asType)
         val noSymbol      = Symbol.noSymbol
@@ -592,7 +589,7 @@ private object SchemaVersionSpecific {
         }
       } else if (isGenericTuple(tpe)) {
         tpe.asType match {
-          case '[TupleBounded[tt]] =>
+          case '[tt] =>
             val genericTupleInfo         = new GenericTupleInfo[tt](tpe)
             val (packages, values, name) = typeName(tpe)
             '{
@@ -729,15 +726,14 @@ private object SchemaVersionSpecific {
       } else if (isNamedTuple(tpe)) {
         tpe match {
           case AppliedType(_, List(tpe1, tpe2)) =>
-            val nTpe      = tpe1.dealias
-            val tTpe      = tpe2.dealias
-            val tupleType = tTpe.asType
-            tupleType match {
-              case '[TupleBounded[tt]] =>
-                val nameOverrides = {
-                  if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe.asType)
-                  else typeArgs(nTpe)
-                }.map { case ConstantType(StringConstant(x)) => x }
+            val nTpe = tpe1.dealias
+            val nameOverrides = {
+              if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe.asType)
+              else typeArgs(nTpe)
+            }.map { case ConstantType(StringConstant(x)) => x }
+            val tTpe = tpe2.dealias
+            tTpe.asType match {
+              case '[tt] =>
                 val typeInfo =
                   if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
                   else new ClassInfo[tt](tTpe)
@@ -753,7 +749,7 @@ private object SchemaVersionSpecific {
                           def construct(in: Registers, baseOffset: RegisterOffset): T = ${
                             val t = typeInfo.constructor('in, 'baseOffset)
                             // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                            Typed(t.asTerm, TypeTree.of(using tpe.asType)).asExprOf[T]
+                            Typed(t.asTerm, Inferred(tpe)).asExprOf[T]
                           }
                         },
                         deconstructor = new Deconstructor[T] {
@@ -761,7 +757,7 @@ private object SchemaVersionSpecific {
 
                           def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
                             // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                            val t = ${ Typed('in.asTerm, TypeTree.of(using tupleType)).asExprOf[tt] }
+                            val t = ${ Typed('in.asTerm, Inferred(tTpe)).asExprOf[tt] }
                             ${ typeInfo.deconstructor('out, 'baseOffset, 't) }
                           }
                         }
