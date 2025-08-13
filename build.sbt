@@ -109,6 +109,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .dependsOn(schema)
+  .settings(stdSettings("zio-blocks-scala-next-tests"))
   .settings(crossProjectSettings)
   .settings(
     name                     := "zio-blocks-scala-next-tests",
