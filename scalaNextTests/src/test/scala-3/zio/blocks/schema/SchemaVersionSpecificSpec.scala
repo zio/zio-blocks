@@ -57,6 +57,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema for complex named tuples") {
         case class Product(i: Int, s: String)
 
+        val value1 = (i = 1, s = "VVV")
+        val value2 = (i = (1, 2L), s = ("VVV", "WWW"))
+        val value3 = (i = Some(1), s = Some("VVV"))
         val expectedFields =
           Vector(Schema[Int].reflect.asTerm("i"), Schema[String].reflect.asTerm("s"))
         val schema1: Schema[NamedTuple.NamedTuple[("i", "s"), Int *: String *: EmptyTuple]] = Schema.derived
@@ -71,13 +74,21 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema10: Schema[NamedTuple.Map[(i: Int, s: String), Option]]                   = Schema.derived
         val schema11: Schema[NamedTuple.From[Product]]                                      = Schema.derived
         assert(schema1.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema2.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema2.fromDynamicValue(schema2.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema3.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema3.fromDynamicValue(schema3.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema4.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema4.fromDynamicValue(schema4.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema5.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema5.fromDynamicValue(schema5.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema6.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema6.fromDynamicValue(schema6.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema7.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema7.fromDynamicValue(schema7.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema8.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema8.fromDynamicValue(schema8.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema9.reflect.asRecord.get.fields)(
           equalTo(
             Vector(
@@ -86,12 +97,15 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
+        assert(schema9.fromDynamicValue(schema9.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
         assert(schema10.reflect.asRecord.get.fields)(
           equalTo(
             Vector(Schema[Option[Int]].reflect.asTerm("i"), Schema[Option[String]].reflect.asTerm("s"))
           )
         ) &&
-        assert(schema11.reflect.asRecord.get.fields)(equalTo(expectedFields))
+        assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
+        assert(schema11.reflect.asRecord.get.fields)(equalTo(expectedFields)) &&
+        assert(schema11.fromDynamicValue(schema11.toDynamicValue(value1)))(isRight(equalTo(value1)))
       },
       test("derives schema for complex generic and named tuples") {
         val expectedFields =
