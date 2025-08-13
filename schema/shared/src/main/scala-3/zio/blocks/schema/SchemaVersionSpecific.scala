@@ -762,10 +762,25 @@ private object SchemaVersionSpecific {
                         deconstructor = new Deconstructor[T] {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
-                            // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                            val t = ${ Typed('in.asTerm, Inferred(tTpe)).asExprOf[tt] }
-                            ${ typeInfo.deconstructor('out, 'baseOffset, 't) }
+                          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
+                            val valDef = ValDef(
+                              Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol),
+                              Some(
+                                Apply(
+                                  Select
+                                    .unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
+                                    .appliedToTypeTrees(tpe.typeArgs.map { typeArg =>
+                                      typeArg.asType match
+                                        case '[t] => TypeTree.of[t]
+                                    }),
+                                  List('in.asTerm)
+                                )
+                              )
+                            )
+                            Block(
+                              List(valDef),
+                              typeInfo.deconstructor('out, 'baseOffset, Ref(valDef.symbol).asExprOf[tt]).asTerm
+                            ).asExprOf[Unit]
                           }
                         }
                       )
