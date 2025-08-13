@@ -285,14 +285,16 @@ private object SchemaVersionSpecific {
       config: List[(String, String)]
     )
 
-    abstract class TypeInfo[T: Type](tpe: TypeRepr)(using Quotes) {
+    abstract class TypeInfo[T: Type](tpe: TypeRepr) {
       def usedRegisters: Expr[RegisterOffset]
 
-      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]]
+      def fields[S: Type](nameOverrides: List[String] = Nil)(using
+        Quotes
+      ): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]]
 
-      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T]
+      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T]
 
-      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit]
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit]
 
       def fieldOffset(tpe: TypeRepr): RegisterOffset =
         if (tpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
@@ -307,7 +309,9 @@ private object SchemaVersionSpecific {
         else if (tpe <:< TypeRepr.of[AnyRef] || isValueClass(tpe)) RegisterOffset(objects = 1)
         else unsupportedFieldType(tpe)
 
-      def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo): Expr[?] = {
+      def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo)(using
+        Quotes
+      ): Expr[?] = {
         val fTpe      = fieldInfo.tpe
         lazy val bs   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
         lazy val objs = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
@@ -349,7 +353,7 @@ private object SchemaVersionSpecific {
       def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
     }
 
-    case class ClassInfo[T: Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
+    case class ClassInfo[T: Type](tpe: TypeRepr) extends TypeInfo[T](tpe) {
       private[this] val tpeClassSymbol     = tpe.classSymbol.get
       private[this] val primaryConstructor = tpeClassSymbol.primaryConstructor
       if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
@@ -410,7 +414,9 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] = {
+      def fields[S: Type](
+        nameOverrides: List[String] = Nil
+      )(using Quotes): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] = {
         val names = nameOverrides.toArray
         var idx   = -1
         Expr.ofSeq(fieldInfos.flatMap(_.map { fieldInfo =>
@@ -436,7 +442,7 @@ private object SchemaVersionSpecific {
         }))
       }
 
-      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] = {
+      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
         val constructorNoTypes = Select(New(Inferred(tpe)), primaryConstructor)
         val constructor = typeArgs(tpe) match {
           case Nil      => constructorNoTypes
@@ -446,7 +452,7 @@ private object SchemaVersionSpecific {
         argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _))
       }.asExprOf[T]
 
-      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
         toBlock(fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe      = fieldInfo.tpe
           val getter    = Select(in.asTerm, fieldInfo.getter)
@@ -474,7 +480,7 @@ private object SchemaVersionSpecific {
         }))
     }
 
-    case class GenericTupleInfo[T: Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
+    case class GenericTupleInfo[T: Type](tpe: TypeRepr) extends TypeInfo[T](tpe) {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
         val fTpes         = genericTupleTypeArgs(tpe.asType)
         val noSymbol      = Symbol.noSymbol
@@ -492,7 +498,9 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](nameOverrides: List[String] = Nil): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] =
+      def fields[S: Type](
+        nameOverrides: List[String] = Nil
+      )(using Quotes): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] =
         Expr.ofSeq(fieldInfos.map {
           val names = nameOverrides.toArray
           var idx   = -1
@@ -509,10 +517,10 @@ private object SchemaVersionSpecific {
             }
         })
 
-      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset]): Expr[T] =
+      def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] =
         Expr.ofTupleFromSeq(fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))).asExprOf[T]
 
-      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T]): Expr[Unit] =
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
         toBlock(fieldInfos.map {
           var idx = -1
           fieldInfo =>
