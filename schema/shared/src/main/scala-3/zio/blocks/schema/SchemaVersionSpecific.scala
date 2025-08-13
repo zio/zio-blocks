@@ -231,13 +231,14 @@ private object SchemaVersionSpecific {
       (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
         .fold('{ Doc.Empty }.asExprOf[Doc])(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
 
-    def modifiers(tpe: TypeRepr)(using Quotes): List[Expr[Modifier.config]] =
+    def modifiers(tpe: TypeRepr)(using Quotes): Expr[List[Modifier.config]] = Expr.ofList(
       (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).annotations
         .filter(_.tpe =:= TypeRepr.of[Modifier.config])
         .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
           '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
         }
         .reverse
+    )
 
     val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
     val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
@@ -473,7 +474,7 @@ private object SchemaVersionSpecific {
         }))
     }
 
-    case class GenericTupleInfo[T : Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
+    case class GenericTupleInfo[T: Type](tpe: TypeRepr)(using Quotes) extends TypeInfo[T](tpe) {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
         val fTpes         = genericTupleTypeArgs(tpe.asType)
         val noSymbol      = Symbol.noSymbol
@@ -553,7 +554,7 @@ private object SchemaVersionSpecific {
                 deconstructor = new ConstantDeconstructor[T]
               ),
               doc = ${ doc(tpe) },
-              modifiers = ${ Expr.ofList(modifiers(tpe)) }
+              modifiers = ${ modifiers(tpe) }
             )
           )
         }
@@ -719,7 +720,7 @@ private object SchemaVersionSpecific {
                 matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
               ),
               doc = ${ doc(tpe) },
-              modifiers = ${ Expr.ofList(modifiers(tpe)) }
+              modifiers = ${ modifiers(tpe) }
             )
           )
         }
@@ -747,9 +748,7 @@ private object SchemaVersionSpecific {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                           def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                            val t = typeInfo.constructor('in, 'baseOffset)
-                            // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                            Typed(t.asTerm, Inferred(tpe)).asExprOf[T]
+                            typeInfo.constructor('in, 'baseOffset).asExprOf[T]
                           }
                         },
                         deconstructor = new Deconstructor[T] {
@@ -793,7 +792,7 @@ private object SchemaVersionSpecific {
                 }
               ),
               doc = ${ doc(tpe) },
-              modifiers = ${ Expr.ofList(modifiers(tpe)) }
+              modifiers = ${ modifiers(tpe) }
             )
           )
         }
