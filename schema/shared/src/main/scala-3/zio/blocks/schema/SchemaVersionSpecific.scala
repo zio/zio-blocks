@@ -64,12 +64,12 @@ private object SchemaVersionSpecific {
     }
 
     def isGenericTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(gtTpe, _) if gtTpe =:= TypeRepr.of[*:] => true
-      case _                                                  => false
+      case AppliedType(gtTpe, _) if gtTpe.dealias =:= TypeRepr.of[*:] => true
+      case _                                                          => false
     }
 
     def genericTupleTypeArgs(t: Type[?]): List[TypeRepr] = t match {
-      case '[head *: tail] => TypeRepr.of[head] :: genericTupleTypeArgs(Type.of[tail])
+      case '[head *: tail] => TypeRepr.of[head].dealias :: genericTupleTypeArgs(Type.of[tail])
       case _               => Nil
     }
 
@@ -172,7 +172,7 @@ private object SchemaVersionSpecific {
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNamedTuple(tpe)) {
             tpe match {
-              case AppliedType(_, List(_, tTpe)) => isNonRecursive(tTpe, nestedTpes)
+              case AppliedType(_, List(_, tTpe)) => isNonRecursive(tTpe.dealias, nestedTpes)
               case _                             => false
             }
           } else {
@@ -728,7 +728,9 @@ private object SchemaVersionSpecific {
         }
       } else if (isNamedTuple(tpe)) {
         tpe match {
-          case AppliedType(_, List(nTpe @ AppliedType(_, nameConstants), tTpe)) =>
+          case AppliedType(_, List(tpe1, tpe2)) =>
+            val nTpe      = tpe1.dealias
+            val tTpe      = tpe2.dealias
             val tupleType = tTpe.asType
             tupleType match {
               case '[TupleBounded[tt]] =>
