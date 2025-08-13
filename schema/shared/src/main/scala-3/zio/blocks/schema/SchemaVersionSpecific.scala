@@ -747,9 +747,7 @@ private object SchemaVersionSpecific {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                           def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                            val t = typeInfo.constructor('in, 'baseOffset)
-                            // Borrowed from an amazing work of Aleksander Rainko: https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/ProductConstructor.scala#L22
-                            Typed(t.asTerm, Inferred(tpe)).asExprOf[T]
+                            typeInfo.constructor('in, 'baseOffset).asExprOf[T]
                           }
                         },
                         deconstructor = new Deconstructor[T] {
