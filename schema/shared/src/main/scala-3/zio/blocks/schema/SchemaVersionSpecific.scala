@@ -66,9 +66,23 @@ private object SchemaVersionSpecific {
       case _                                                          => false
     }
 
+    // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L253-L270
     def genericTupleTypeArgs(t: Type[?]): List[TypeRepr] = t match {
       case '[head *: tail] => TypeRepr.of[head].dealias :: genericTupleTypeArgs(Type.of[tail])
       case _               => Nil
+    }
+
+    // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L277-L295
+    def normalizeTuple(tpe: TypeRepr): TypeRepr = {
+      val typeArgs = genericTupleTypeArgs(tpe.asType)
+      val size     = typeArgs.size
+      if (size > 0 && size <= 22) defn.TupleClass(size).typeRef.appliedTo(typeArgs)
+      else {
+        typeArgs.foldRight(TypeRepr.of[EmptyTuple]) {
+          val tupleCons = TypeRepr.of[*:]
+          (curr, acc) => tupleCons.appliedTo(List(curr, acc))
+        }
+      }
     }
 
     def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
@@ -365,7 +379,7 @@ private object SchemaVersionSpecific {
             idx += 1
             var fTpe = tpe.memberType(symbol).dealias
             if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
-            val name = symbol.name
+            val name   = symbol.name
             var getter = tpeClassSymbol.fieldMember(name)
             if (!getter.exists) {
               val getters = tpeClassSymbol
@@ -589,28 +603,31 @@ private object SchemaVersionSpecific {
             }
         }
       } else if (isGenericTuple(tpe)) {
-        tpe.asType match {
+        val tTpe = normalizeTuple(tpe)
+        tTpe.asType match {
           case '[tt] =>
-            val genericTupleInfo         = new GenericTupleInfo[tt](tpe)
-            val (packages, values, name) = typeName(tpe)
+            val typeInfo =
+              if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
+              else new ClassInfo[tt](tTpe)
+            val (packages, values, name) = typeName(tTpe)
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
-                  fields = Vector(${ genericTupleInfo.fields[tt]() }*),
+                  fields = Vector(${ typeInfo.fields[tt]() }*),
                   typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
                   recordBinding = new Binding.Record(
                     constructor = new Constructor[tt] {
-                      def usedRegisters: RegisterOffset = ${ genericTupleInfo.usedRegisters }
+                      def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                       def construct(in: Registers, baseOffset: RegisterOffset): tt = ${
-                        genericTupleInfo.constructor('in, 'baseOffset)
+                        typeInfo.constructor('in, 'baseOffset)
                       }
                     },
                     deconstructor = new Deconstructor[tt] {
-                      def usedRegisters: RegisterOffset = ${ genericTupleInfo.usedRegisters }
+                      def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: tt): Unit = ${
-                        genericTupleInfo.deconstructor('out, 'baseOffset, 'in)
+                        typeInfo.deconstructor('out, 'baseOffset, 'in)
                       }
                     }
                   )
@@ -732,7 +749,7 @@ private object SchemaVersionSpecific {
               if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe.asType)
               else typeArgs(nTpe)
             }.map { case ConstantType(StringConstant(x)) => x }
-            val tTpe = tpe2.dealias
+            val tTpe = normalizeTuple(tpe2.dealias)
             tTpe.asType match {
               case '[tt] =>
                 val typeInfo =
