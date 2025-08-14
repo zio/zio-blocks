@@ -123,7 +123,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "*:"),
+                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "Tuple4"),
                 recordBinding = null
               )
             )
