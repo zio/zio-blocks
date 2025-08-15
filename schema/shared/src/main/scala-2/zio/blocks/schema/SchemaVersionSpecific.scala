@@ -294,30 +294,30 @@ private object SchemaVersionSpecific {
 
       def constructor: Tree = {
         val argss = fieldInfos.map(_.map { fieldInfo =>
-          val fTpe      = fieldInfo.tpe
-          lazy val bs   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
-          lazy val objs = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+          val fTpe         = fieldInfo.tpe
+          lazy val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+          lazy val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
           val constructor =
-            if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bs)"
-            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bs)"
-            else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bs)"
-            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bs)"
-            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bs)"
-            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bs)"
-            else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bs)"
-            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bs)"
+            if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
+            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
+            else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
+            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
+            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
+            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
+            else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
+            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
             else if (fTpe =:= definitions.UnitTpe) q"()"
             else if (fTpe <:< definitions.AnyRefTpe || isValueClass(fTpe)) {
-              q"in.getObject(baseOffset, $objs).asInstanceOf[$fTpe]"
+              q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
             } else {
-              if (fTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bs).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bs).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bs).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bs).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bs).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bs).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bs).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bs).asInstanceOf[$fTpe]"
+              if (fTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (fTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
               else if (fTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
               else unsupportedFieldType(fTpe)
             }
@@ -327,22 +327,22 @@ private object SchemaVersionSpecific {
       }
 
       def deconstructor: List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
-        val fTpe      = fieldInfo.tpe
-        val getter    = fieldInfo.getter
-        lazy val bs   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
-        lazy val objs = RegisterOffset.getObjects(fieldInfo.usedRegisters)
-        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bs, in.$getter)"
-        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bs, in.$getter)"
-        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bs, in.$getter)"
-        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bs, in.$getter)"
-        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bs, in.$getter)"
-        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bs, in.$getter)"
-        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bs, in.$getter)"
-        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bs, in.$getter)"
+        val fTpe         = fieldInfo.tpe
+        val getter       = fieldInfo.getter
+        lazy val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+        lazy val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, in.$getter)"
+        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, in.$getter)"
+        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bytes, in.$getter)"
+        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, in.$getter)"
+        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
+        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, in.$getter)"
+        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bytes, in.$getter)"
+        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, in.$getter)"
         else if (fTpe <:< definitions.UnitTpe) q"()"
-        else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objs, in.$getter)"
+        else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
         else if (isValueClass(fTpe)) {
-          q"out.setObject(baseOffset, $objs, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
+          q"out.setObject(baseOffset, $objects, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
         } else unsupportedFieldType(fTpe)
       })
 
