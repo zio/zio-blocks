@@ -66,12 +66,14 @@ private object SchemaVersionSpecific {
       case _                                                          => false
     }
 
+    // Borrowed from an amazing work of Aleksander Rainko:
     // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L253-L270
     def genericTupleTypeArgs(t: Type[?]): List[TypeRepr] = t match {
       case '[head *: tail] => TypeRepr.of[head].dealias :: genericTupleTypeArgs(Type.of[tail])
       case _               => Nil
     }
 
+    // Borrowed from an amazing work of Aleksander Rainko:
     // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L277-L295
     def normalizeTuple(tpe: TypeRepr): TypeRepr = {
       val typeArgs = genericTupleTypeArgs(tpe.asType)
@@ -326,32 +328,32 @@ private object SchemaVersionSpecific {
       def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo)(using
         Quotes
       ): Expr[?] = {
-        val fTpe      = fieldInfo.tpe
-        lazy val bs   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
-        lazy val objs = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
-        if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bs) }
-        else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bs) }
-        else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bs) }
-        else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bs) }
-        else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bs) }
-        else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bs) }
-        else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bs) }
-        else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs) }
+        val fTpe         = fieldInfo.tpe
+        lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
+        lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
+        if (fTpe =:= TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes) }
+        else if (fTpe =:= TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes) }
+        else if (fTpe =:= TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes) }
+        else if (fTpe =:= TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes) }
+        else if (fTpe =:= TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes) }
+        else if (fTpe =:= TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes) }
+        else if (fTpe =:= TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes) }
+        else if (fTpe =:= TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes) }
         else if (fTpe =:= TypeRepr.of[Unit]) '{ () }
         else {
           fTpe.asType match {
             case '[ft] =>
               if (fTpe <:< TypeRepr.of[AnyRef] || isValueClass(fTpe)) {
-                '{ $in.getObject($baseOffset, $objs).asInstanceOf[ft] }
+                '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }
               } else {
-                if (fTpe <:< TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bs).asInstanceOf[ft] }
-                else if (fTpe <:< TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bs).asInstanceOf[ft] }
-                else if (fTpe <:< TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bs).asInstanceOf[ft] }
-                else if (fTpe <:< TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bs).asInstanceOf[ft] }
-                else if (fTpe <:< TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bs).asInstanceOf[ft] }
-                else if (fTpe <:< TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bs).asInstanceOf[ft] }
-                else if (fTpe <:< TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bs).asInstanceOf[ft] }
-                else if (fTpe <:< TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bs).asInstanceOf[ft] }
+                if (fTpe <:< TypeRepr.of[Int]) '{ $in.getInt($baseOffset, $bytes).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Float]) '{ $in.getFloat($baseOffset, $bytes).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Long]) '{ $in.getLong($baseOffset, $bytes).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Double]) '{ $in.getDouble($baseOffset, $bytes).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Boolean]) '{ $in.getBoolean($baseOffset, $bytes).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Byte]) '{ $in.getByte($baseOffset, $bytes).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes).asInstanceOf[ft] }
+                else if (fTpe <:< TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes).asInstanceOf[ft] }
                 else if (fTpe <:< TypeRepr.of[Unit]) '{ ().asInstanceOf[ft] }
                 else unsupportedFieldType(fTpe)
               }
@@ -458,26 +460,28 @@ private object SchemaVersionSpecific {
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
         toBlock(fieldInfos.flatMap(_.map { fieldInfo =>
-          val fTpe      = fieldInfo.tpe
-          val getter    = Select(in.asTerm, fieldInfo.getter)
-          lazy val bs   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
-          lazy val objs = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
+          val fTpe         = fieldInfo.tpe
+          val getter       = Select(in.asTerm, fieldInfo.getter)
+          lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
+          lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
           {
-            if (fTpe <:< TypeRepr.of[Int]) '{ $out.setInt($baseOffset, $bs, ${ getter.asExprOf[Int] }) }
-            else if (fTpe <:< TypeRepr.of[Float]) '{ $out.setFloat($baseOffset, $bs, ${ getter.asExprOf[Float] }) }
-            else if (fTpe <:< TypeRepr.of[Long]) '{ $out.setLong($baseOffset, $bs, ${ getter.asExprOf[Long] }) }
-            else if (fTpe <:< TypeRepr.of[Double]) '{ $out.setDouble($baseOffset, $bs, ${ getter.asExprOf[Double] }) }
-            else if (fTpe <:< TypeRepr.of[Boolean]) {
-              '{ $out.setBoolean($baseOffset, $bs, ${ getter.asExprOf[Boolean] }) }
-            } else if (fTpe <:< TypeRepr.of[Byte]) '{ $out.setByte($baseOffset, $bs, ${ getter.asExprOf[Byte] }) }
-            else if (fTpe <:< TypeRepr.of[Char]) '{ $out.setChar($baseOffset, $bs, ${ getter.asExprOf[Char] }) }
-            else if (fTpe <:< TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bs, ${ getter.asExprOf[Short] }) }
+            if (fTpe <:< TypeRepr.of[Int]) '{ $out.setInt($baseOffset, $bytes, ${ getter.asExprOf[Int] }) }
+            else if (fTpe <:< TypeRepr.of[Float]) '{ $out.setFloat($baseOffset, $bytes, ${ getter.asExprOf[Float] }) }
+            else if (fTpe <:< TypeRepr.of[Long]) '{ $out.setLong($baseOffset, $bytes, ${ getter.asExprOf[Long] }) }
+            else if (fTpe <:< TypeRepr.of[Double]) {
+              '{ $out.setDouble($baseOffset, $bytes, ${ getter.asExprOf[Double] }) }
+            } else if (fTpe <:< TypeRepr.of[Boolean]) {
+              '{ $out.setBoolean($baseOffset, $bytes, ${ getter.asExprOf[Boolean] }) }
+            } else if (fTpe <:< TypeRepr.of[Byte]) '{ $out.setByte($baseOffset, $bytes, ${ getter.asExprOf[Byte] }) }
+            else if (fTpe <:< TypeRepr.of[Char]) '{ $out.setChar($baseOffset, $bytes, ${ getter.asExprOf[Char] }) }
+            else if (fTpe <:< TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bytes, ${ getter.asExprOf[Short] }) }
             else if (fTpe <:< TypeRepr.of[Unit]) '{ () }
-            else if (fTpe <:< TypeRepr.of[AnyRef]) '{ $out.setObject($baseOffset, $objs, ${ getter.asExprOf[AnyRef] }) }
-            else if (isValueClass(fTpe)) {
+            else if (fTpe <:< TypeRepr.of[AnyRef]) {
+              '{ $out.setObject($baseOffset, $objects, ${ getter.asExprOf[AnyRef] }) }
+            } else if (isValueClass(fTpe)) {
               fTpe.asType match {
                 case '[ft] =>
-                  '{ $out.setObject($baseOffset, $objs, ${ getter.asExprOf[ft] }.asInstanceOf[AnyRef]) }
+                  '{ $out.setObject($baseOffset, $objects, ${ getter.asExprOf[ft] }.asInstanceOf[AnyRef]) }
               }
             } else unsupportedFieldType(fTpe)
           }.asTerm
@@ -529,23 +533,25 @@ private object SchemaVersionSpecific {
           var idx = -1
           fieldInfo =>
             idx += 1
-            val fTpe      = fieldInfo.tpe
-            val getter    = Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
-            lazy val bs   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
-            lazy val objs = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
+            val fTpe         = fieldInfo.tpe
+            val getter       = Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
+            lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
+            lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
             {
-              if (fTpe <:< TypeRepr.of[Int]) '{ $out.setInt($baseOffset, $bs, $getter.asInstanceOf[Int]) }
-              else if (fTpe <:< TypeRepr.of[Float]) '{ $out.setFloat($baseOffset, $bs, $getter.asInstanceOf[Float]) }
-              else if (fTpe <:< TypeRepr.of[Long]) '{ $out.setLong($baseOffset, $bs, $getter.asInstanceOf[Long]) }
-              else if (fTpe <:< TypeRepr.of[Double]) '{ $out.setDouble($baseOffset, $bs, $getter.asInstanceOf[Double]) }
-              else if (fTpe <:< TypeRepr.of[Boolean]) {
-                '{ $out.setBoolean($baseOffset, $bs, $getter.asInstanceOf[Boolean]) }
-              } else if (fTpe <:< TypeRepr.of[Byte]) '{ $out.setByte($baseOffset, $bs, $getter.asInstanceOf[Byte]) }
-              else if (fTpe <:< TypeRepr.of[Char]) '{ $out.setChar($baseOffset, $bs, $getter.asInstanceOf[Char]) }
-              else if (fTpe <:< TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bs, $getter.asInstanceOf[Short]) }
+              if (fTpe <:< TypeRepr.of[Int]) '{ $out.setInt($baseOffset, $bytes, $getter.asInstanceOf[Int]) }
+              else if (fTpe <:< TypeRepr.of[Float]) {
+                '{ $out.setFloat($baseOffset, $bytes, $getter.asInstanceOf[Float]) }
+              } else if (fTpe <:< TypeRepr.of[Long]) '{ $out.setLong($baseOffset, $bytes, $getter.asInstanceOf[Long]) }
+              else if (fTpe <:< TypeRepr.of[Double]) {
+                '{ $out.setDouble($baseOffset, $bytes, $getter.asInstanceOf[Double]) }
+              } else if (fTpe <:< TypeRepr.of[Boolean]) {
+                '{ $out.setBoolean($baseOffset, $bytes, $getter.asInstanceOf[Boolean]) }
+              } else if (fTpe <:< TypeRepr.of[Byte]) '{ $out.setByte($baseOffset, $bytes, $getter.asInstanceOf[Byte]) }
+              else if (fTpe <:< TypeRepr.of[Char]) '{ $out.setChar($baseOffset, $bytes, $getter.asInstanceOf[Char]) }
+              else if (fTpe <:< TypeRepr.of[Short]) '{ $out.setShort($baseOffset, $bytes, $getter.asInstanceOf[Short]) }
               else if (fTpe <:< TypeRepr.of[Unit]) '{ () }
               else if (fTpe <:< TypeRepr.of[AnyRef] || isValueClass(fTpe)) {
-                '{ $out.setObject($baseOffset, $objs, $getter.asInstanceOf[AnyRef]) }
+                '{ $out.setObject($baseOffset, $objects, $getter.asInstanceOf[AnyRef]) }
               } else unsupportedFieldType(fTpe)
             }.asTerm
         })
@@ -680,7 +686,7 @@ private object SchemaVersionSpecific {
           }
           val minLength = Math.min(minFullName.length, maxFullName.length)
           var idx       = 0
-          while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+          while (idx < minLength && minFullName(idx).equals(maxFullName(idx))) idx += 1
           idx
         }
         val cases = Expr.ofSeq(subTypes.zip(fullNames).map { case (sTpe, fullName) =>
