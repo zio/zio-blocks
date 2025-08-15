@@ -15,7 +15,7 @@ import scala.collection.immutable.ArraySeq
  * the reflection type `Int` that has a record binding (and therefore, both a
  * constructor and a deconstructor).
  */
-sealed trait Binding[T, A] { self =>
+sealed trait Binding[T, A] {
 
   /**
    * An optional generator for a default value for the type `A`.
