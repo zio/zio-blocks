@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
-import zio.blocks.schema.derive.Deriver
+import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import java.util.concurrent.ConcurrentHashMap
 import scala.collection.immutable.ArraySeq
 
@@ -29,9 +29,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
 
-  def deriving[TC[_]](deriver: Deriver[TC]): zio.blocks.schema.derive.DerivationBuilder[TC, A] =
-    zio.blocks.schema.derive
-      .DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
+  def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
+    DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
 
   def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[SchemaError, A] =
     getInstance(format).decode(decodeInput)
@@ -70,8 +69,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def updated[B](optic: Optic[A, B])(f: Reflect.Bound[B] => Reflect.Bound[B]): Option[Schema[A]] =
     reflect.updated(optic)(f).map(Schema(_))
 
-  def @@[Min >: A, Max <: A](aspect: SchemaAspect[Min, Max, Binding]): Schema[A] =
-    new Schema(reflect.aspect(aspect))
+  def @@[Min >: A, Max <: A](aspect: SchemaAspect[Min, Max, Binding]): Schema[A] = new Schema(reflect.aspect(aspect))
 
   def @@[B](part: Optic[A, B], aspect: SchemaAspect[B, B, Binding]) = new Schema(reflect.aspect(part, aspect))
 }
