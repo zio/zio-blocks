@@ -7,7 +7,7 @@ final case class Term[F[_, _], S, A](
   value: Reflect[F, A],
   doc: Doc = Doc.Empty,
   modifiers: Seq[Modifier.Term] = Nil
-) extends Reflectable[A] { self =>
+) extends Reflectable[A] {
   require(value ne null)
 
   type Source = S

@@ -22,8 +22,7 @@ object SchemaAspect {
   }
 
   def examples[A0](value: A0, values: A0*): SchemaAspect[A0, A0, Binding] = new SchemaAspect[A0, A0, Binding] {
-    def apply[A >: A0 <: A0](reflect: Reflect.Bound[A]): Reflect.Bound[A] =
-      reflect.examples(value, values: _*)
+    def apply[A >: A0 <: A0](reflect: Reflect.Bound[A]): Reflect.Bound[A] = reflect.examples(value, values: _*)
 
     def recursive(implicit ev1: Any <:< A0, ev2: A0 <:< Nothing): SchemaAspect[A0, A0, Binding] =
       examples(value, values)

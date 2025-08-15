@@ -385,9 +385,7 @@ private object SchemaVersionSpecific {
               val getters = tpeClassSymbol
                 .methodMember(name)
                 .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
-              if (getters.isEmpty) {
-                fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
-              }
+              if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
               getter = getters.head
             }
             val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
@@ -667,33 +665,25 @@ private object SchemaVersionSpecific {
           if (isUnionType) allUnionTypes(tpe).distinct
           else directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-        var minFullName: Array[String] = null
-        var maxFullName: Array[String] = null
         val fullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
-          val fullName                 = toFullName(packages, values, name)
-          if (minFullName eq null) {
-            minFullName = fullName
-            maxFullName = fullName
-          } else {
-            if (fullNameOrdering.compare(minFullName, fullName) > 0) minFullName = fullName
-            if (fullNameOrdering.compare(maxFullName, fullName) < 0) maxFullName = fullName
-          }
-          fullName
+          toFullName(packages, values, name)
         }
         val (packages, values, name) = typeName(tpe)
-        if (!isUnionType) {
-          val tpeFullName = toFullName(packages, values, name)
-          if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
-          if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
-        }
         val maxCommonPrefixLength = {
+          var minFullName = fullNames.min
+          var maxFullName = fullNames.max
+          if (!isUnionType) {
+            val tpeFullName = toFullName(packages, values, name)
+            minFullName = fullNameOrdering.min(minFullName, tpeFullName)
+            maxFullName = fullNameOrdering.max(maxFullName, tpeFullName)
+          }
           val minLength = Math.min(minFullName.length, maxFullName.length)
           var idx       = 0
           while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
           idx
         }
-        val cases = subTypes.zip(fullNames).map { case (sTpe, fullName) =>
+        val cases = Expr.ofSeq(subTypes.zip(fullNames).map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
               '{
@@ -702,14 +692,8 @@ private object SchemaVersionSpecific {
                 })
               }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
           }
-        }
-        val discrCases = subTypes.map {
-          var idx = -1
-          sTpe =>
-            idx += 1
-            CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Literal(IntConstant(idx)))
-        }
-        val matcherCases = subTypes.map { sTpe =>
+        })
+        val matcherCases = Expr.ofSeq(subTypes.map { sTpe =>
           sTpe.asType match {
             case '[st] =>
               '{
@@ -721,20 +705,27 @@ private object SchemaVersionSpecific {
                 }
               }.asExprOf[Matcher[? <: T]]
           }
-        }
+        })
         '{
           new Schema(
             reflect = new Reflect.Variant[Binding, T](
-              cases = Vector(${ Expr.ofSeq(cases) }*),
+              cases = Vector($cases*),
               typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[T] {
                   def discriminate(a: T): Int = ${
-                    val v = 'a
-                    Match('{ $v: @scala.unchecked }.asTerm, discrCases).asExprOf[Int]
+                    val v   = 'a
+                    var idx = -1
+                    Match(
+                      '{ $v: @scala.unchecked }.asTerm,
+                      subTypes.map { sTpe =>
+                        idx += 1
+                        CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Literal(IntConstant(idx)))
+                      }
+                    ).asExprOf[Int]
                   }
                 },
-                matchers = Matchers(${ Expr.ofSeq(matcherCases) }*)
+                matchers = Matchers($matcherCases*)
               ),
               doc = ${ doc(tpe) },
               modifiers = ${ modifiers(tpe) }
