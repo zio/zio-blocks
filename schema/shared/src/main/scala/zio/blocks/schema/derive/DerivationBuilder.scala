@@ -1,9 +1,8 @@
 package zio.blocks.schema.derive
 
 import zio.blocks.schema._
-import zio.blocks.schema.binding.{Binding, BindingType, HasBinding}
+import zio.blocks.schema.binding.{Binding, BindingType}
 import zio.blocks.schema.derive.InstanceOverride._
-import scala.collection.immutable.{Map => ScalaMap}
 
 /**
  * A `DerivationBuilder` is capable of deriving a type class instance for any
@@ -47,7 +46,7 @@ final case class DerivationBuilder[TC[_], A](
       instanceOverrides.collect { case InstanceOverride(By.Optic(optic), instance) => optic -> instance }.toMap
     val instanceByTypeMap =
       instanceOverrides.collect { case InstanceOverride(By.Type(name), instance) => name -> instance }.toMap
-    val modifierMap = modifierOverrides.foldLeft[ScalaMap[DynamicOptic, Vector[Modifier]]](ScalaMap.empty) {
+    val modifierMap = modifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier]]](Map.empty) {
       case (acc, override_) =>
         acc + (override_.optic -> acc.getOrElse(override_.optic, Vector.empty).appended(override_.modifier))
     }
@@ -64,60 +63,60 @@ final case class DerivationBuilder[TC[_], A](
       }).asInstanceOf[Vector[reflect.ModifierType]]
     }
 
-    def getCustomInstance[A](path: DynamicOptic, typeName: TypeName[A]): Option[Lazy[TC[A]]] =
+    def getCustomInstance[A0](path: DynamicOptic, typeName: TypeName[A0]): Option[Lazy[TC[A0]]] =
       // first try to find an instance by optic (more precise)
       instanceByOpticMap
         .get(path)
         // then try to find an instance by type name (more general)
         .orElse(instanceByTypeMap.get(typeName.asInstanceOf[TypeName[Any]]))
-        .map(_.asInstanceOf[Lazy[TC[A]]])
+        .map(_.asInstanceOf[Lazy[TC[A0]]])
 
-    type F[T, A] = Binding[T, A]
-    type G[T, A] = BindingInstance[TC, T, A]
+    type F[T, A0] = Binding[T, A0]
+    type G[T, A0] = BindingInstance[TC, T, A0]
 
     schema.reflect
       .transform[G](
         DynamicOptic.root,
         new ReflectTransformer[F, G] {
-          override def transformRecord[A](
+          override def transformRecord[A0](
             path: DynamicOptic,
-            fields: IndexedSeq[Term[G, A, ?]],
-            typeName: TypeName[A],
-            metadata: F[BindingType.Record, A],
+            fields: IndexedSeq[Term[G, A0, ?]],
+            typeName: TypeName[A0],
+            metadata: F[BindingType.Record, A0],
             doc: Doc,
             modifiers: Seq[Modifier.Record]
-          ): Lazy[Reflect.Record[G, A]] = {
-            val instance = getCustomInstance[A](path, typeName).getOrElse(
+          ): Lazy[Reflect.Record[G, A0]] = {
+            val instance = getCustomInstance[A0](path, typeName).getOrElse(
               deriver
                 .deriveRecord(fields, typeName, metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Record, path))
             )
             Lazy(Reflect.Record(fields, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
-          override def transformVariant[A](
+          override def transformVariant[A0](
             path: DynamicOptic,
-            cases: IndexedSeq[Term[G, A, ? <: A]],
-            typeName: TypeName[A],
-            metadata: F[BindingType.Variant, A],
+            cases: IndexedSeq[Term[G, A0, ? <: A0]],
+            typeName: TypeName[A0],
+            metadata: F[BindingType.Variant, A0],
             doc: Doc,
             modifiers: Seq[Modifier.Variant]
-          ): Lazy[Reflect.Variant[G, A]] = {
-            val instance = getCustomInstance[A](path, typeName).getOrElse(
+          ): Lazy[Reflect.Variant[G, A0]] = {
+            val instance = getCustomInstance[A0](path, typeName).getOrElse(
               deriver
                 .deriveVariant(cases, typeName, metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Variant, path))
             )
             Lazy(Reflect.Variant(cases, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
-          override def transformSequence[A, C[_]](
+          override def transformSequence[A0, C[_]](
             path: DynamicOptic,
-            element: Reflect[G, A],
-            typeName: TypeName[C[A]],
-            metadata: F[BindingType.Seq[C], C[A]],
+            element: Reflect[G, A0],
+            typeName: TypeName[C[A0]],
+            metadata: F[BindingType.Seq[C], C[A0]],
             doc: Doc,
             modifiers: Seq[Modifier.Seq]
-          ): Lazy[Reflect.Sequence[G, A, C]] = {
-            val instance = getCustomInstance[C[A]](path, typeName).getOrElse(
+          ): Lazy[Reflect.Sequence[G, A0, C]] = {
+            val instance = getCustomInstance[C[A0]](path, typeName).getOrElse(
               deriver.deriveSequence(
                 element,
                 typeName,
@@ -158,15 +157,15 @@ final case class DerivationBuilder[TC[_], A](
             Lazy(Reflect.Dynamic(BindingInstance(metadata, instance), doc, modifiers))
           }
 
-          override def transformPrimitive[A](
+          override def transformPrimitive[A0](
             path: DynamicOptic,
-            primitiveType: PrimitiveType[A],
-            typeName: TypeName[A],
-            metadata: F[BindingType.Primitive, A],
+            primitiveType: PrimitiveType[A0],
+            typeName: TypeName[A0],
+            metadata: F[BindingType.Primitive, A0],
             doc: Doc,
             modifiers: Seq[Modifier.Primitive]
-          ): Lazy[Reflect.Primitive[G, A]] = {
-            val instance = getCustomInstance[A](path, typeName).getOrElse(
+          ): Lazy[Reflect.Primitive[G, A0]] = {
+            val instance = getCustomInstance[A0](path, typeName).getOrElse(
               deriver.derivePrimitive(
                 primitiveType,
                 typeName,
@@ -178,15 +177,15 @@ final case class DerivationBuilder[TC[_], A](
             Lazy(Reflect.Primitive(primitiveType, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
-          override def transformWrapper[A, B](
+          override def transformWrapper[A0, B](
             path: DynamicOptic,
             wrapped: Reflect[G, B],
-            typeName: TypeName[A],
-            metadata: F[BindingType.Wrapper[A, B], A],
+            typeName: TypeName[A0],
+            metadata: F[BindingType.Wrapper[A0, B], A0],
             doc: Doc,
             modifiers: Seq[Modifier.Wrapper]
-          ): Lazy[Reflect.Wrapper[G, A, B]] = {
-            val instance = getCustomInstance[A](path, typeName).getOrElse(
+          ): Lazy[Reflect.Wrapper[G, A0, B]] = {
+            val instance = getCustomInstance[A0](path, typeName).getOrElse(
               deriver.deriveWrapper(
                 wrapped,
                 typeName,
