@@ -5,8 +5,6 @@ import zio.test.Assertion.{equalTo, isNone, isSome}
 import zio.test.{Spec, TestEnvironment, ZIOSpecDefault, assert}
 
 object DynamicOpticSpec extends ZIOSpecDefault {
-  import DynamicOpticSpecTypes._
-
   def spec: Spec[TestEnvironment, Any] = suite("DynamicOpticSpec")(
     test("composition using apply, field, caseOf, at, atKey, elements, mapKeys, and mapValues methods") {
       assert(
@@ -20,6 +18,11 @@ object DynamicOpticSpec extends ZIOSpecDefault {
           .apply(DynamicOptic(Vector(DynamicOptic.Node.AtIndex(0))))
           .apply(DynamicOptic(Vector(DynamicOptic.Node.AtMapKey("Z"))))
       )(equalTo(DynamicOptic.root.at(0).atKey("Z"))) &&
+      assert(
+        DynamicOptic.root
+          .apply(DynamicOptic(Vector(DynamicOptic.Node.AtIndices(Seq(0, 1, 2)))))
+          .apply(DynamicOptic(Vector(DynamicOptic.Node.AtMapKeys(Seq("X", "Y", "Z")))))
+      )(equalTo(DynamicOptic.root.atIndices(0, 1, 2).atKeys("X", "Y", "Z"))) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped)(
         equalTo(
           DynamicOptic.root(DynamicOptic.elements)(DynamicOptic.mapKeys)(DynamicOptic.mapValues)(DynamicOptic.wrapped)
@@ -33,6 +36,12 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       assert(DynamicOptic.root.at(0).atKey("Z").apply(Schema[List[Map[Int, Long]]].reflect): Option[Any])(
         isSome(equalTo(Reflect.long[Binding]))
       ) &&
+      assert(
+        DynamicOptic.root
+          .atIndices(0, 1, 2)
+          .atKeys("X", "Y", "Z")
+          .apply(Schema[List[Map[Int, Long]]].reflect): Option[Any]
+      )(isSome(equalTo(Reflect.long[Binding]))) &&
       assert(DynamicOptic.elements.apply(Schema[List[Int]].reflect): Option[Any])(
         isSome(equalTo(Reflect.int[Binding]))
       ) &&
@@ -40,6 +49,9 @@ object DynamicOpticSpec extends ZIOSpecDefault {
         isSome(equalTo(Reflect.int[Binding]))
       ) &&
       assert(DynamicOptic.mapValues.apply(Schema[Map[Long, Int]].reflect): Option[Any])(
+        isSome(equalTo(Reflect.int[Binding]))
+      ) &&
+      assert(DynamicOptic.wrapped.apply(Schema[PosInt].reflect): Option[Any])(
         isSome(equalTo(Reflect.int[Binding]))
       )
     },
@@ -49,7 +61,9 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       assert(DynamicOptic.root.caseOf("Z").apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.root.caseOf("X").field("x").apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.root.at(0).apply(Schema[A].reflect): Option[Any])(isNone) &&
+      assert(DynamicOptic.root.atIndices(0, 1, 2).apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.root.atKey("Z").apply(Schema[A].reflect): Option[Any])(isNone) &&
+      assert(DynamicOptic.root.atKeys("X", "Y", "Z").apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.elements.apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.mapKeys.apply(Schema[A].reflect): Option[Any])(isNone) &&
       assert(DynamicOptic.mapValues.apply(Schema[A].reflect): Option[Any])(isNone) &&
@@ -60,12 +74,13 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       assert(A.x(X.y).toDynamic.toString)(equalTo(".when[X].y")) &&
       assert(A.x(X.y)(Y.z).toDynamic.toString)(equalTo(".when[X].y.z")) &&
       assert(DynamicOptic.root.at(0).atKey("Z").toString)(equalTo(".at(0).atKey(<key>)")) &&
+      assert(DynamicOptic.root.atIndices(0, 1, 2).atKeys("X", "Y", "Z").toString)(
+        equalTo(".atIndices(<indices>).atKeys(<keys>)")
+      ) &&
       assert(DynamicOptic.root.elements.mapKeys.mapValues.wrapped.toString)(equalTo(".each.eachKey.eachValue.wrapped"))
     }
   )
-}
 
-object DynamicOpticSpecTypes {
   sealed trait A
 
   case class X(y: Y) extends A
@@ -86,5 +101,27 @@ object DynamicOpticSpecTypes {
     implicit val schema: Schema[A] = Schema.derived
     val x: Prism[A, X]             = optic(_.when[X])
     val y: Prism[A, Y]             = optic(_.when[Y])
+  }
+
+  case class PosInt private(value: Int) extends AnyVal
+
+  object PosInt extends CompanionOptics[PosInt] {
+    def apply(value: Int): Either[String, PosInt] =
+      if (value >= 0) new Right(new PosInt(value))
+      else new Left("Unexpected 'PosInt' value")
+
+    def applyUnsafe(value: Int): PosInt =
+      if (value >= 0) new PosInt(value)
+      else throw new IllegalArgumentException("Unexpected 'PosInt' value")
+
+    val reflect: Reflect.Wrapper[Binding, PosInt, Int] = new Reflect.Wrapper(
+      wrapped = Schema[Int].reflect,
+      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("DynamicOpticSpec")), "PosInt"),
+      wrapperBinding = new Binding.Wrapper(
+        wrap = PosInt.apply,
+        unwrap = (x: PosInt) => x.value
+      )
+    )
+    implicit val schema: Schema[PosInt] = new Schema(reflect)
   }
 }
