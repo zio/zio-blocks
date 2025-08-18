@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
+import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues, Wrapped}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
 import zio.blocks.schema.binding._
@@ -1240,19 +1240,19 @@ object SchemaSpec extends ZIOSpecDefault {
           equalTo(Map(1 -> 2L, 2 -> 3L, 3 -> 4L) :: Nil)
         )
       },
-      test("gets and updates default values of sequence elements using optic focus") {
+      test("gets and updates default values of map keys and values using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].defaultValue(mapKeys, 1).getDefaultValue(mapKeys))(isSome(equalTo(1))) &&
         assert(Schema[Map[Int, Long]].defaultValue(mapValues, 1L).getDefaultValue(mapValues))(isSome(equalTo(1L)))
       },
-      test("gets and updates documentation of sequence elements using optic focus") {
+      test("gets and updates documentation of map keys and values using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].doc(mapKeys, "Int").doc(mapKeys))(equalTo(Doc("Int"))) &&
         assert(Schema[Map[Int, Long]].doc(mapValues, "Long").doc(mapValues))(equalTo(Doc("Long")))
       },
-      test("gets and updates examples of sequence elements using optic focus") {
+      test("gets and updates examples of map keys and values using optic focus") {
         val mapKeys   = Traversal.mapKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         val mapValues = Traversal.mapValues(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]))
         assert(Schema[Map[Int, Long]].examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
@@ -1490,6 +1490,74 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(fieldValue2.asMapUnknown)(isNone)
       }
     ),
+    suite("Reflect.Wrapper")(
+      test("has consistent equals and hashCode") {
+        assert(Schema[PosInt])(equalTo(Schema[PosInt])) &&
+        assert(Schema[PosInt].hashCode)(equalTo(Schema[PosInt].hashCode))
+      },
+      test("gets and updates wrapper default value") {
+        val value = PosInt.applyUnsafe(1)
+        assert(Schema[PosInt].getDefaultValue)(isNone) &&
+        assert(Schema[PosInt].defaultValue(value).getDefaultValue)(isSome(equalTo(value)))
+      },
+      test("gets and updates wrapper documentation") {
+        assert(Schema[PosInt].doc)(equalTo(Doc.Empty)) &&
+        assert(Schema[PosInt].doc("Dynamic (updated)").doc)(equalTo(Doc("Dynamic (updated)")))
+      },
+      test("gets and updates wrapper examples") {
+        val value = PosInt.applyUnsafe(1)
+        assert(Schema[PosInt].examples)(equalTo(Seq.empty)) &&
+        assert(Schema[PosInt].examples(value).examples)(equalTo(value :: Nil))
+      },
+      test("gets and updates default values of wrapped schema using optic focus") {
+        assert(PosInt.schema.defaultValue(PosInt.wrapped, 1).getDefaultValue(PosInt.wrapped))(isSome(equalTo(1)))
+      },
+      test("gets and updates documentation of wrapped schema using optic focus") {
+        assert(PosInt.schema.doc(PosInt.wrapped, "Int").doc(PosInt.wrapped))(equalTo(Doc("Int")))
+      },
+      test("gets and updates examples of wrapped schema using optic focus") {
+        assert(PosInt.schema.examples(PosInt.wrapped, 2).examples(PosInt.wrapped))(equalTo(Seq(2)))
+      },
+      test("has consistent toDynamicValue and fromDynamicValue") {
+        val value = PosInt.applyUnsafe(1)
+        assert(Schema[PosInt].fromDynamicValue(Schema[PosInt].toDynamicValue(value)))(isRight(equalTo(value))) &&
+        assert(Schema[PosInt].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(-1))))(
+          isLeft(
+            equalTo(
+              SchemaError(
+                errors = ::(
+                  InvalidType(
+                    source = DynamicOptic(nodes = Vector()),
+                    expectation = "Expected PosInt: Expected positive value"
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        ) &&
+        assert(Schema[PosInt].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("WWW"))))(
+          isLeft(
+            equalTo(
+              SchemaError(
+                errors = ::(
+                  InvalidType(
+                    source = DynamicOptic(nodes = Vector()),
+                    expectation = "Expected Int"
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
+      },
+      test("encodes values using provided formats and outputs") {
+        assert(encodeToString { out =>
+          Schema[PosInt].encode(ToStringFormat)(out)(PosInt.applyUnsafe(1))
+        })(equalTo("PosInt(1)"))
+      }
+    ),
     test("doesn't generate schema for unsupported classes") {
       typeCheck {
         "Schema.derived[java.util.Date]"
@@ -1543,6 +1611,31 @@ object SchemaSpec extends ZIOSpecDefault {
 
   object Box2 extends CompanionOptics[Box2] {
     implicit val schema: Schema[Box2] = Schema.derived
+  }
+
+  case class PosInt private (value: Int) extends AnyVal
+
+  object PosInt extends CompanionOptics[PosInt] {
+    def apply(value: Int): Either[String, PosInt] =
+      if (value >= 0) new Right(new PosInt(value))
+      else new Left("Expected positive value")
+
+    def applyUnsafe(value: Int): PosInt =
+      if (value >= 0) new PosInt(value)
+      else throw new IllegalArgumentException("Expected positive value")
+
+    implicit val schema: Schema[PosInt] = new Schema(
+      new Reflect.Wrapper(
+        wrapped = Schema[Int].reflect,
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("DynamicOpticSpec")), "PosInt"),
+        wrapperBinding = new Binding.Wrapper(
+          wrap = PosInt.apply,
+          unwrap = (x: PosInt) => x.value
+        )
+      )
+    )
+
+    val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
   }
 
   def encodeToString(f: CharBuffer => Unit): String = {

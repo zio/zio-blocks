@@ -103,25 +103,26 @@ object DynamicOpticSpec extends ZIOSpecDefault {
     val y: Prism[A, Y]             = optic(_.when[Y])
   }
 
-  case class PosInt private(value: Int) extends AnyVal
+  case class PosInt private (value: Int) extends AnyVal
 
   object PosInt extends CompanionOptics[PosInt] {
     def apply(value: Int): Either[String, PosInt] =
       if (value >= 0) new Right(new PosInt(value))
-      else new Left("Unexpected 'PosInt' value")
+      else new Left("Expected positive value")
 
     def applyUnsafe(value: Int): PosInt =
       if (value >= 0) new PosInt(value)
-      else throw new IllegalArgumentException("Unexpected 'PosInt' value")
+      else throw new IllegalArgumentException("Expected positive value")
 
-    val reflect: Reflect.Wrapper[Binding, PosInt, Int] = new Reflect.Wrapper(
-      wrapped = Schema[Int].reflect,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("DynamicOpticSpec")), "PosInt"),
-      wrapperBinding = new Binding.Wrapper(
-        wrap = PosInt.apply,
-        unwrap = (x: PosInt) => x.value
+    implicit val schema: Schema[PosInt] = new Schema(
+      new Reflect.Wrapper(
+        wrapped = Schema[Int].reflect,
+        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("DynamicOpticSpec")), "PosInt"),
+        wrapperBinding = new Binding.Wrapper(
+          wrap = PosInt.apply,
+          unwrap = (x: PosInt) => x.value
+        )
       )
     )
-    implicit val schema: Schema[PosInt] = new Schema(reflect)
   }
 }
