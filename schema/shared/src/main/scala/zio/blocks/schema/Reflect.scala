@@ -284,7 +284,7 @@ object Reflect {
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Record] = Nil
   ) extends Reflect[F, A] { self =>
-    private[this] val fieldValues = fields.map(_.value).toArray
+    private[this] val fieldValues      = fields.map(_.value).toArray
     private[this] val fieldIndexByName = new StringToIntMap(fields.length) {
       fields.foreach {
         var idx = 0

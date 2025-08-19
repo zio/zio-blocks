@@ -1573,7 +1573,7 @@ object SchemaSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Record] = Schema.derived
     val b: Lens[Record, Byte]           = $(_.b)
     val i: Lens[Record, Int]            = $(_.i)
-    val x: Lens[Record, Boolean] = // invalid lens
+    val x: Lens[Record, Boolean]        = // invalid lens
       Lens(schema.reflect.asRecord.get, Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[Record, Boolean]])
   }
 

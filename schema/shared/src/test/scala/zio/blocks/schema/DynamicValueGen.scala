@@ -14,7 +14,7 @@ object DynamicValueGen {
       Gen.long(Long.MinValue / 60, Long.MaxValue / 60).map(Duration.ofMinutes),
       Gen.long(Long.MinValue, Long.MaxValue).map(Duration.ofSeconds)
     )
-    val genYear = Gen.oneOf(Gen.int(-9999, 9999), Gen.int(-999999999, 999999999)).map(Year.of)
+    val genYear    = Gen.oneOf(Gen.int(-9999, 9999), Gen.int(-999999999, 999999999)).map(Year.of)
     val genInstant = for {
       epochSecond    <- Gen.long(Instant.MIN.getEpochSecond, Instant.MAX.getEpochSecond)
       nanoAdjustment <- Gen.long(Long.MinValue, Long.MaxValue)

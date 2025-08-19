@@ -40,7 +40,7 @@ object PatchSpec extends ZIOSpecDefault {
           CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
         )
       )
-      val patch = Patch.replace(Person.payPalPaymentMethods, PayPal("y@gmail.com"))
+      val patch   = Patch.replace(Person.payPalPaymentMethods, PayPal("y@gmail.com"))
       val person2 = person1.copy(paymentMethods =
         List(
           PayPal("y@gmail.com"),

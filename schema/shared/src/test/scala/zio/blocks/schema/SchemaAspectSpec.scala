@@ -11,7 +11,7 @@ object SchemaAspectSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Person] = Schema.derived
     val name: Lens[Person, String]      = optic(_.name)
     val age: Lens[Person, Int]          = optic(_.age)
-    val x: Lens[Person, Boolean] = // invalid lens
+    val x: Lens[Person, Boolean]        = // invalid lens
       Lens(schema.reflect.asRecord.get, Reflect.boolean[Binding].asTerm("x").asInstanceOf[Term.Bound[Person, Boolean]])
   }
 

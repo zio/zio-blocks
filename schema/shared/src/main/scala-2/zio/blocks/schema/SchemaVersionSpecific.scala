@@ -13,7 +13,7 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private[this] val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
+  private[this] val isNonRecursiveCache                                = TrieMap.empty[Any, Boolean]
   private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
@@ -61,7 +61,7 @@ private object SchemaVersionSpecific {
       if (comp.isModule) comp
       else {
         val ownerChainOf = (s: Symbol) => Iterator.iterate(s)(_.owner).takeWhile(_ != NoSymbol).toArray.reverseIterator
-        val path = ownerChainOf(tpe.typeSymbol)
+        val path         = ownerChainOf(tpe.typeSymbol)
           .zipAll(ownerChainOf(enclosingOwner), NoSymbol, NoSymbol)
           .dropWhile(x => x._1 == x._2)
           .takeWhile(x => x._1 != NoSymbol)
@@ -154,7 +154,7 @@ private object SchemaVersionSpecific {
       val tpeSymbol = tpe.typeSymbol
       var name      = NameTransformer.decode(tpeSymbol.name.toString)
       val comp      = companion(tpe)
-      var owner =
+      var owner     =
         if (comp == null) tpeSymbol
         else if (comp == NoSymbol) {
           name += ".type"
@@ -252,7 +252,7 @@ private object SchemaVersionSpecific {
               getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
             val anns        = annotations.getOrElse(name, Nil)
             val isTransient = anns.exists(_.tree.tpe =:= typeOf[Modifier.transient])
-            val config = anns
+            val config      = anns
               .filter(_.tree.tpe =:= typeOf[Modifier.config])
               .collect(_.tree.children match {
                 case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => (k, v)
@@ -297,7 +297,7 @@ private object SchemaVersionSpecific {
           val fTpe         = fieldInfo.tpe
           lazy val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
           lazy val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
-          val constructor =
+          val constructor  =
             if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
             else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
             else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
@@ -414,7 +414,7 @@ private object SchemaVersionSpecific {
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
         var minFullName: Array[String] = null
         var maxFullName: Array[String] = null
-        val fullNames = subTypes.map { sTpe =>
+        val fullNames                  = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
           val fullName                 = toFullName(packages, values, name)
           if (minFullName eq null) {
@@ -495,7 +495,7 @@ private object SchemaVersionSpecific {
       } else fail(s"Cannot derive schema for '$tpe'.")
     }
 
-    val schema = deriveSchema(weakTypeOf[A].dealias)
+    val schema      = deriveSchema(weakTypeOf[A].dealias)
     val schemaBlock =
       q"""{
             import _root_.zio.blocks.schema._

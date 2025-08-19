@@ -16,11 +16,11 @@ object LazySpec extends ZIOSpecDefault {
     },
     test("toString") {
       assert(Lazy(42).toString)(equalTo("Lazy(<not evaluated>)")) &&
-      assert({
+      assert {
         val lazyValue = Lazy(42)
         lazyValue.force
         lazyValue.toString
-      })(equalTo("Lazy(42)"))
+      }(equalTo("Lazy(42)"))
     },
     test("isEvaluated") {
       val lazyValue = Lazy(42)
@@ -29,11 +29,11 @@ object LazySpec extends ZIOSpecDefault {
       assert(lazyValue.isEvaluated)(isTrue)
     },
     test("force (success result)") {
-      var world = List.empty[Int]
-      val lazyValue = Lazy({
+      var world     = List.empty[Int]
+      val lazyValue = Lazy {
         world = world :+ 42
         world
-      })
+      }
       assert(world)(equalTo(List.empty[Int])) &&
       assert(lazyValue.force)(equalTo(List(42))) &&
       assert(world)(equalTo(List(42))) &&
@@ -49,15 +49,15 @@ object LazySpec extends ZIOSpecDefault {
       }
     },
     test("ensuring (success result)") {
-      var world = List.empty[Int]
-      val finalizer = Lazy({
+      var world     = List.empty[Int]
+      val finalizer = Lazy {
         world = world :+ 43
         world
-      })
-      val lazyValue = Lazy({
+      }
+      val lazyValue = Lazy {
         world = world :+ 42
         world
-      }).ensuring(finalizer)
+      }.ensuring(finalizer)
       assert(world)(equalTo(List.empty[Int])) &&
       assert(lazyValue.force)(equalTo(List(42))) &&
       assert(world)(equalTo(List(42, 43))) &&
@@ -65,11 +65,11 @@ object LazySpec extends ZIOSpecDefault {
       assert(finalizer.force)(equalTo(List(42, 43)))
     },
     test("ensuring (error result)") {
-      var world = List.empty[Int]
-      val finalizer = Lazy({
+      var world     = List.empty[Int]
+      val finalizer = Lazy {
         world = world :+ 43
         world
-      })
+      }
       ZIO.attempt(Lazy[Int](sys.error("test")).ensuring(finalizer).force).flip.map { e =>
         assertTrue(e.isInstanceOf[Throwable]) &&
         assert(world)(equalTo(List(43))) &&
