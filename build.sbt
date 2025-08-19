@@ -24,15 +24,8 @@ inThisBuild(
 addCommandAlias("build", "; fmt; coverage; root/test; coverageReport")
 addCommandAlias("fmt", "all root/scalafmtSbt root/scalafmtAll")
 addCommandAlias("fmtCheck", "all root/scalafmtSbtCheck root/scalafmtCheckAll")
-addCommandAlias(
-  "check",
-  "; scalafmtSbtCheck; scalafmtCheckAll"
-)
-
-addCommandAlias(
-  "mimaChecks",
-  "all schemaJVM/mimaReportBinaryIssues"
-)
+addCommandAlias("check", "; scalafmtSbtCheck; scalafmtCheckAll")
+addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 
 lazy val root = project
   .in(file("."))
@@ -106,28 +99,6 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     )
   )
 
-lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
-  .crossType(CrossType.Pure)
-  .dependsOn(schema)
-  .settings(stdSettings("zio-blocks-scala-next-tests"))
-  .settings(crossProjectSettings)
-  .settings(
-    crossScalaVersions       := Seq("3.7.2"),
-    ThisBuild / scalaVersion := "3.7.2",
-    libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.20" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.20" % Test
-    ),
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
-    Test / parallelExecution := true,
-    Compile / fork           := true,
-    Test / fork              := true, // set fork to `true` to improve log readability
-    publish / skip           := true,
-    mimaPreviousArtifacts    := Set()
-  )
-  .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
-
 lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-streams"))
@@ -143,6 +114,24 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test-sbt" % "2.1.20" % Test
     )
   )
+
+lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .dependsOn(schema)
+  .settings(stdSettings("zio-blocks-scala-next-tests"))
+  .settings(crossProjectSettings)
+  .settings(
+    crossScalaVersions       := Seq("3.7.2"),
+    ThisBuild / scalaVersion := "3.7.2",
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.20" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.20" % Test
+    ),
+    publish / skip        := true,
+    mimaPreviousArtifacts := Set()
+  )
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
 
 lazy val benchmarks = project
   .dependsOn(schema.jvm)
