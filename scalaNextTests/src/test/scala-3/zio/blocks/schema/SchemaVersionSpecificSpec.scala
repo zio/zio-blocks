@@ -57,9 +57,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema for complex named tuples") {
         case class Product(i: Int, s: String)
 
-        val value1 = (i = 1, s = "VVV")
-        val value2 = (i = (1, 2L), s = ("VVV", "WWW"))
-        val value3 = (i = Some(1), s = Some("VVV"))
+        val value1         = (i = 1, s = "VVV")
+        val value2         = (i = (1, 2L), s = ("VVV", "WWW"))
+        val value3         = (i = Some(1), s = Some("VVV"))
         val expectedFields =
           Vector(Schema[Int].reflect.asTerm("i"), Schema[String].reflect.asTerm("s"))
         val schema1: Schema[NamedTuple.NamedTuple[("i", "s"), Int *: String *: EmptyTuple]] = Schema.derived
@@ -226,7 +226,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         }
 
         val record = NamedTuple24.schema.reflect.asRecord
-        val value = (
+        val value  = (
           i1 = 1,
           i2 = 2,
           i3 = 3,

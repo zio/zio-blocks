@@ -99,24 +99,22 @@ object OpticSpec extends ZIOSpecDefault {
         ZIO.attempt(Lens(null, Case4.reflect.fields(0))).flip.map(e => assertTrue(e.isInstanceOf[Throwable]))
       } @@ jvmOnly,
       test("optic macro requires record for creation") {
-        ZIO
-          .attempt({
-            sealed trait Variant {
-              def b: String
-            }
+        ZIO.attempt {
+          sealed trait Variant {
+            def b: String
+          }
 
-            case class Case(b: String) extends Variant
+          case class Case(b: String) extends Variant
 
-            case class Test(a: Variant)
+          case class Test(a: Variant)
 
-            object Test extends CompanionOptics[Test] {
-              implicit val schema: Schema[Test] = Schema.derived
-              val lens                          = optic(_.a.b)
-            }
+          object Test extends CompanionOptics[Test] {
+            implicit val schema: Schema[Test] = Schema.derived
+            val lens                          = optic(_.a.b)
+          }
 
-            Test.lens
-          })
-          .flip
+          Test.lens
+        }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a record")))
       },
       test("fail to generate lens") {
@@ -286,18 +284,16 @@ object OpticSpec extends ZIOSpecDefault {
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
       } @@ jvmOnly,
       test("optic macro requires variant for creation") {
-        ZIO
-          .attempt({
-            case class Test(a: Double)
+        ZIO.attempt {
+          case class Test(a: Double)
 
-            object Test extends CompanionOptics[Test] {
-              implicit val schema: Schema[Test] = Schema.derived
-              val prism                         = optic(_.when[Test])
-            }
+          object Test extends CompanionOptics[Test] {
+            implicit val schema: Schema[Test] = Schema.derived
+            val prism                         = optic(_.when[Test])
+          }
 
-            Test.prism
-          })
-          .flip
+          Test.prism
+        }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a variant")))
       },
       test("has consistent equals and hashCode") {
@@ -2605,44 +2601,38 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Test5.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(3L))
       },
       test("optic macro requires sequence or map for creation") {
-        ZIO
-          .attempt({
-            case class Test(a: Array[Map[Int, String]])
+        ZIO.attempt {
+          case class Test(a: Array[Map[Int, String]])
 
-            object Test extends CompanionOptics[Test] {
-              implicit val schema: Schema[Test] = Schema.derived
-              val traversal                     = optic(_.a.each.each)
-            }
+          object Test extends CompanionOptics[Test] {
+            implicit val schema: Schema[Test] = Schema.derived
+            val traversal                     = optic(_.a.each.each)
+          }
 
-            Test.traversal
-          })
-          .flip
+          Test.traversal
+        }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a sequence"))) &&
-        ZIO
-          .attempt({
-            case class Test(a: Map[Set[Int], String])
+        ZIO.attempt {
+          case class Test(a: Map[Set[Int], String])
 
-            object Test extends CompanionOptics[Test] {
-              implicit val schema: Schema[Test] = Schema.derived
-              val traversal                     = optic(_.a.eachKey.eachKey)
-            }
+          object Test extends CompanionOptics[Test] {
+            implicit val schema: Schema[Test] = Schema.derived
+            val traversal                     = optic(_.a.eachKey.eachKey)
+          }
 
-            Test.traversal
-          })
-          .flip
+          Test.traversal
+        }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a map"))) &&
-        ZIO
-          .attempt({
-            case class Test(a: Map[Int, Set[String]])
+        ZIO.attempt {
+          case class Test(a: Map[Int, Set[String]])
 
-            object Test extends CompanionOptics[Test] {
-              implicit val schema: Schema[Test] = Schema.derived
-              val traversal                     = optic(_.a.eachValue.eachValue)
-            }
+          object Test extends CompanionOptics[Test] {
+            implicit val schema: Schema[Test] = Schema.derived
+            val traversal                     = optic(_.a.eachValue.eachValue)
+          }
 
-            Test.traversal
-          })
-          .flip
+          Test.traversal
+        }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a map")))
       },
       test("has consistent equals and hashCode") {
@@ -3577,9 +3567,9 @@ object OpticSpecTypes {
   }
 
   object Collections {
-    val alb: Optional[List[Byte], Byte]       = Optional.at(Reflect.list(Reflect.byte), 1)
-    val ailb: Traversal[List[Byte], Byte]     = Traversal.atIndices(Reflect.list(Reflect.byte), Seq(1, 2))
-    val alc1_d: Optional[List[Case1], Double] = Optional.at(Reflect.list(Case1.reflect), 1)(Case1.d)
+    val alb: Optional[List[Byte], Byte]         = Optional.at(Reflect.list(Reflect.byte), 1)
+    val ailb: Traversal[List[Byte], Byte]       = Traversal.atIndices(Reflect.list(Reflect.byte), Seq(1, 2))
+    val alc1_d: Optional[List[Case1], Double]   = Optional.at(Reflect.list(Case1.reflect), 1)(Case1.d)
     val aabl: Optional[Array[Boolean], Boolean] =
       Optional.at(
         Schema
@@ -3679,8 +3669,8 @@ object OpticSpecTypes {
           .asInstanceOf[Reflect.Sequence[Binding, String, Array]],
         1
       )
-    val lb: Traversal[List[Byte], Byte]     = Traversal.listValues(Reflect.byte)
-    val vs: Traversal[Vector[Short], Short] = Traversal.vectorValues(Reflect.short)
+    val lb: Traversal[List[Byte], Byte]         = Traversal.listValues(Reflect.byte)
+    val vs: Traversal[Vector[Short], Short]     = Traversal.vectorValues(Reflect.short)
     val abl: Traversal[Array[Boolean], Boolean] =
       Traversal.seqValues(
         Schema
@@ -3805,7 +3795,7 @@ object OpticSpecTypes {
     val lc4_lr3: Traversal[List[Case4], Record3]    = Traversal.listValues(Case4.reflect)(Case4.lr3)
     val lc1: Traversal[List[Variant1], Case1]       = Traversal.listValues(Variant1.reflect)(Variant1.c1)
     val lc1_d: Traversal[List[Variant1], Double]    = Traversal.listValues(Variant1.reflect)(Variant1.c1_d)
-    val mkc: Traversal[Map[Char, String], Char] =
+    val mkc: Traversal[Map[Char, String], Char]     =
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
     val mvs: Traversal[Map[Char, String], String] =
       Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))

@@ -62,7 +62,8 @@ sealed trait Lazy[+A] {
            error = e
            throw e
        }
-     } else value).asInstanceOf[A]
+     } else value)
+    .asInstanceOf[A]
   }
 
   final def isEvaluated: Boolean = value != null || (error ne null)

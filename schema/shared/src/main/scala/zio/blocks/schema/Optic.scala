@@ -711,9 +711,9 @@ object Optional {
             val lastX = x
             x = prismBinding.matcher.downcastOrNull(x)
             if (x == null) {
-              val actualCaseIdx = prismBinding.discriminator.discriminate(lastX)
-              val actualCase    = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
-              val focusTermName = focusTerms(idx).name
+              val actualCaseIdx  = prismBinding.discriminator.discriminate(lastX)
+              val actualCase     = sources(idx).asInstanceOf[Reflect.Variant.Bound[Any]].cases(actualCaseIdx).name
+              val focusTermName  = focusTerms(idx).name
               val unexpectedCase =
                 new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
               return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
@@ -846,7 +846,7 @@ object Optional {
       if (bindings eq null) init()
       try {
         var success = false
-        val x = modifyRecursive(
+        val x       = modifyRecursive(
           Registers(usedRegisters),
           0,
           s,
@@ -866,7 +866,7 @@ object Optional {
       if (bindings eq null) init()
       try {
         var success = false
-        val x = modifyRecursive(
+        val x       = modifyRecursive(
           Registers(usedRegisters),
           0,
           s,
@@ -1117,7 +1117,7 @@ object Optional {
       if (bindings eq null) init()
       try {
         var success = false
-        val x = modifyRecursive(
+        val x       = modifyRecursive(
           Registers(usedRegisters),
           0,
           s,
@@ -1137,7 +1137,7 @@ object Optional {
       if (bindings eq null) init()
       try {
         var success = false
-        val x = modifyRecursive(
+        val x       = modifyRecursive(
           Registers(usedRegisters),
           0,
           s,
@@ -1201,7 +1201,7 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
   def fold[Z](s: S)(zero: Z, f: (Z, A) => Z): Z
 
   def reduceOrFail(s: S)(f: (A, A) => A): Either[OpticCheck, A] = {
-    var one = false
+    var one     = false
     val reduced = fold[A](s)(
       null.asInstanceOf[A],
       (acc, a) => {
@@ -2766,7 +2766,7 @@ object Traversal {
       if (bindings eq null) init()
       try {
         var modified = false
-        val x = modifyRecursive(
+        val x        = modifyRecursive(
           Registers(usedRegisters),
           0,
           s,
@@ -2786,7 +2786,7 @@ object Traversal {
       if (bindings eq null) init()
       try {
         var modified = false
-        val x = modifyRecursive(
+        val x        = modifyRecursive(
           Registers(usedRegisters),
           0,
           s,

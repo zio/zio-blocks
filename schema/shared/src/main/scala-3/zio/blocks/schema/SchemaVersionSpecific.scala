@@ -11,7 +11,7 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private val isNonRecursiveCache = TrieMap.empty[Any, Boolean]
+  private val isNonRecursiveCache                                = TrieMap.empty[Any, Boolean]
   private implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
@@ -139,7 +139,7 @@ private object SchemaVersionSpecific {
         if (symbol.isType) {
           val nudeSubtype = TypeIdent(symbol).tpe
           nudeSubtype.memberType(symbol.primaryConstructor) match {
-            case MethodType(_, _, _) => nudeSubtype
+            case MethodType(_, _, _)                => nudeSubtype
             case PolyType(names, bounds, resPolyTp) =>
               val binding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
                 .zip(typeArgs(tpe))
@@ -274,7 +274,7 @@ private object SchemaVersionSpecific {
         derivedSchemaRefs
           .getOrElse(
             tpe, {
-              val name = "s" + derivedSchemaRefs.size
+              val name  = "s" + derivedSchemaRefs.size
               val flags =
                 if (isNonRecursive(tpe)) Flags.Implicit
                 else Flags.Implicit | Flags.Lazy
@@ -391,7 +391,7 @@ private object SchemaVersionSpecific {
               getter = getters.head
             }
             val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
-            val config = getter.annotations
+            val config      = getter.annotations
               .filter(_.tpe =:= TypeRepr.of[Modifier.config])
               .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
               .reverse
@@ -438,7 +438,7 @@ private object SchemaVersionSpecific {
               var name = fieldInfo.name
               if (idx < names.length) name = names(idx)
               var fieldTermExpr = '{ $reflectExpr.asTerm[S](${ Expr(name) }) }
-              var modifiers = fieldInfo.config.map { case (k, v) =>
+              var modifiers     = fieldInfo.config.map { case (k, v) =>
                 '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
               }
               if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
@@ -450,7 +450,7 @@ private object SchemaVersionSpecific {
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
         val constructorNoTypes = Select(New(Inferred(tpe)), primaryConstructor)
-        val constructor = typeArgs(tpe) match {
+        val constructor        = typeArgs(tpe) match {
           case Nil      => constructorNoTypes
           case typeArgs => TypeApply(constructorNoTypes, typeArgs.map(Inferred(_)))
         }
@@ -528,10 +528,10 @@ private object SchemaVersionSpecific {
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] =
         (if (fieldInfos.isEmpty) Expr(EmptyTuple)
          else {
-           val args   = fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))
-           val sym    = Symbol.newVal(Symbol.spliceOwner, "as", TypeRepr.of[Array[Any]], Flags.EmptyFlags, Symbol.noSymbol)
-           val ref    = Ref(sym).asExprOf[Array[Any]]
-           val valDef = ValDef(sym, Some('{ new Array[Any](${ Expr(fieldInfos.size) }) }.asTerm))
+           val args        = fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))
+           val sym         = Symbol.newVal(Symbol.spliceOwner, "as", TypeRepr.of[Array[Any]], Flags.EmptyFlags, Symbol.noSymbol)
+           val ref         = Ref(sym).asExprOf[Array[Any]]
+           val valDef      = ValDef(sym, Some('{ new Array[Any](${ Expr(fieldInfos.size) }) }.asTerm))
            val assignments = args.map {
              var i = -1
              term =>
@@ -683,7 +683,7 @@ private object SchemaVersionSpecific {
         }
 
         val isUnionType = isUnion(tpe)
-        val subTypes =
+        val subTypes    =
           if (isUnionType) allUnionTypes(tpe).distinct
           else directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
@@ -692,7 +692,7 @@ private object SchemaVersionSpecific {
           toFullName(packages, values, name)
         }
         val (packages, values, name) = typeName(tpe)
-        val maxCommonPrefixLength = {
+        val maxCommonPrefixLength    = {
           var minFullName = fullNames.min
           var maxFullName = fullNames.max
           if (!isUnionType) {
@@ -757,7 +757,7 @@ private object SchemaVersionSpecific {
       } else if (isNamedTuple(tpe)) {
         tpe match {
           case AppliedType(_, List(tpe1, tpe2)) =>
-            val nTpe = tpe1.dealias
+            val nTpe          = tpe1.dealias
             val nameOverrides = {
               if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe.asType)
               else typeArgs(nTpe)

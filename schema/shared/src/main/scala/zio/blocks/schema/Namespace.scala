@@ -5,9 +5,9 @@ final case class Namespace(packages: Seq[String], values: Seq[String]) {
 }
 
 object Namespace {
-  private[schema] val javaTime: Namespace = new Namespace("java" :: "time" :: Nil, Nil)
-  private[schema] val javaUtil: Namespace = new Namespace("java" :: "util" :: Nil, Nil)
-  private[schema] val scala: Namespace    = new Namespace("scala" :: Nil, Nil)
+  private[schema] val javaTime: Namespace                 = new Namespace("java" :: "time" :: Nil, Nil)
+  private[schema] val javaUtil: Namespace                 = new Namespace("java" :: "util" :: Nil, Nil)
+  private[schema] val scala: Namespace                    = new Namespace("scala" :: Nil, Nil)
   private[schema] val scalaCollectionImmutable: Namespace =
     new Namespace("scala" :: "collection" :: "immutable" :: Nil, Nil)
   private[schema] val zioSchema: Namespace = new Namespace("zio" :: "blocks" :: "schema" :: Nil, Nil)
