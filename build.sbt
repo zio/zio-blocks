@@ -7,7 +7,7 @@ inThisBuild(
   List(
     organization := "dev.zio",
     homepage     := Some(url("https://zio.dev")),
-    licenses := List(
+    licenses     := List(
       "Apache-2.0" -> url("https://www.apache.org/licenses/LICENSE-2.0")
     ),
     developers := List(
@@ -140,19 +140,21 @@ lazy val benchmarks = project
   .settings(
     crossScalaVersions       := Seq("3.7.2"),
     ThisBuild / scalaVersion := "3.7.2",
-    publish / skip           := true,
     libraryDependencies ++= Seq(
+      "io.github.arainko"          %% "chanterelle"   % "0.1.0",
       "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
       "dev.optics"                 %% "monocle-core"  % "3.3.0",
       "dev.optics"                 %% "monocle-macro" % "3.3.0",
       "dev.zio"                    %% "zio-test"      % "2.1.20" % Test,
       "dev.zio"                    %% "zio-test-sbt"  % "2.1.20" % Test
     ),
-    assembly / assemblyJarName := "benchmarks.jar",
+    assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
       case PathList("module-info.class") => MergeStrategy.discard
       case path                          => MergeStrategy.defaultMergeStrategy(path)
     },
     assembly / fullClasspath := (Jmh / fullClasspath).value,
-    assembly / mainClass     := Some("org.openjdk.jmh.Main")
+    assembly / mainClass     := Some("org.openjdk.jmh.Main"),
+    publish / skip           := true,
+    mimaPreviousArtifacts    := Set()
   )

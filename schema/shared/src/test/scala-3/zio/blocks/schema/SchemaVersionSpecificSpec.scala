@@ -131,9 +131,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for complex generic tuples") {
-        val value1 = (1, "VVV")
-        val value2 = ((1, 2L), ("VVV", "WWW"))
-        val value3 = (Some(1), Some("VVV"))
+        val value1         = (1, "VVV")
+        val value2         = ((1, 2L), ("VVV", "WWW"))
+        val value3         = (Some(1), Some("VVV"))
         val expectedFields =
           Vector(Schema[Int].reflect.asTerm("_1"), Schema[String].reflect.asTerm("_2"))
         val schema1: Schema[Tuple.Tail[(Long, Int, String)]]                         = Schema.derived
@@ -212,7 +212,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         }
 
         val record = Tuple24.schema.reflect.asRecord
-        val value =
+        val value  =
           (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Box1(21L), Box2("22"), 23, "24")
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&

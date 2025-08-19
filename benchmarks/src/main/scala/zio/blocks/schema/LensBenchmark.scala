@@ -42,21 +42,20 @@ class LensReplaceBenchmark extends BaseBenchmark {
   def zioBlocks: A = A.b_c_d_e_s.replace(a, "test2")
 }
 
-/* FIXME: sbt fmt fails to format it
-class NamedTupleLensBenchmark extends BaseBenchmark {
+class NamedTupleLensGetBenchmark extends BaseBenchmark {
   import zio.blocks.schema.LensDomain._
 
   var namedTuple: NamedTuple25 = (
-    s01 = "",
-    s02 = "",
-    s03 = "",
-    s04 = "",
-    s05 = "",
-    s06 = "",
-    s07 = "",
-    s08 = "",
-    s09 = "",
-    s10 = "",
+    i01 = 1,
+    i02 = 2,
+    i03 = 3,
+    i04 = 4,
+    i05 = 5,
+    i06 = 6,
+    i07 = 7,
+    i08 = 8,
+    i09 = 9,
+    i10 = 10,
     s11 = "",
     s12 = "",
     s13 = "",
@@ -75,12 +74,51 @@ class NamedTupleLensBenchmark extends BaseBenchmark {
   )
 
   @Benchmark
-  def get: String = NamedTuple25.s25.get(namedTuple)
+  def direct: String = namedTuple.s25
 
   @Benchmark
-  def replace: NamedTuple25 = NamedTuple25.s25.replace(namedTuple, "test")
+  def zioBlocks: String = NamedTuple25.s25.get(namedTuple)
 }
- */
+
+import chanterelle._
+
+class NamedTupleLensReplaceBenchmark extends BaseBenchmark {
+  import zio.blocks.schema.LensDomain._
+
+  var namedTuple: NamedTuple25 = (
+    i01 = 1,
+    i02 = 2,
+    i03 = 3,
+    i04 = 4,
+    i05 = 5,
+    i06 = 6,
+    i07 = 7,
+    i08 = 8,
+    i09 = 9,
+    i10 = 10,
+    s11 = "",
+    s12 = "",
+    s13 = "",
+    s14 = "",
+    s15 = "",
+    s16 = "",
+    s17 = "",
+    s18 = "",
+    s19 = "",
+    s20 = "",
+    s21 = "",
+    s22 = "",
+    s23 = "",
+    s24 = "",
+    s25 = ""
+  )
+
+  @Benchmark
+  def chanterelle: NamedTuple25 = namedTuple.transform(_.update(_.s25)(_ => "test"))
+
+  @Benchmark
+  def zioBlocks: NamedTuple25 = NamedTuple25.s25.replace(namedTuple, "test")
+}
 
 object LensDomain {
   case class E(s: String)
@@ -110,18 +148,18 @@ object LensDomain {
     val b_c_d_e_s_monocle: PLens[A, A, String, String] =
       Focus[A](_.b).andThen(Focus[B](_.c)).andThen(Focus[C](_.d)).andThen(Focus[D](_.e)).andThen(Focus[E](_.s))
   }
-  /* FIXME: sbt fmt fails to format it
+
   type NamedTuple25 = (
-    s01: String,
-    s02: String,
-    s03: String,
-    s04: String,
-    s05: String,
-    s06: String,
-    s07: String,
-    s08: String,
-    s09: String,
-    s10: String,
+    i01: Int,
+    i02: Int,
+    i03: Int,
+    i04: Int,
+    i05: Int,
+    i06: Int,
+    i07: Int,
+    i08: Int,
+    i09: Int,
+    i10: Int,
     s11: String,
     s12: String,
     s13: String,
@@ -143,5 +181,4 @@ object LensDomain {
     implicit val schema: Schema[NamedTuple25] = Schema.derived
     val s25: Lens[NamedTuple25, String]       = $(_.s25)
   }
-   */
 }

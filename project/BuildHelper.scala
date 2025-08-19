@@ -48,7 +48,7 @@ object BuildHelper {
       case Some((3, _))  => Seq("2.13+")
       case _             => Seq()
     }
-    platformSpecificSources(platform, conf, baseDir)(versions *)
+    platformSpecificSources(platform, conf, baseDir)(versions*)
   }
 
   def crossProjectSettings: Seq[Def.Setting[?]] = Seq(
@@ -74,7 +74,7 @@ object BuildHelper {
     name                     := prjName,
     crossScalaVersions       := Seq(Scala213, Scala3),
     ThisBuild / scalaVersion := Scala213,
-    ThisBuild / publishTo := {
+    ThisBuild / publishTo    := {
       val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
       if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
       else localStaging.value

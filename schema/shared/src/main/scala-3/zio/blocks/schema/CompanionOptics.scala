@@ -510,7 +510,7 @@ private object CompanionOptics {
         val (parent, idx) = term match {
           case Apply(Apply(_, List(p)), List(Literal(IntConstant(i))))                => (p, i)
           case Apply(TypeApply(Select(p, "apply"), _), List(Literal(IntConstant(i)))) => (p, i)
-          case _ =>
+          case _                                                                      =>
             fail(
               s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '${term.show}'"
             )
