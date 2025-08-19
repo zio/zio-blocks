@@ -526,7 +526,23 @@ private object SchemaVersionSpecific {
         })
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] =
-        Expr.ofTupleFromSeq(fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))).asExprOf[T]
+        (if (fieldInfos.isEmpty) Expr(EmptyTuple)
+         else {
+           val args   = fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))
+           val sym    = Symbol.newVal(Symbol.spliceOwner, "as", TypeRepr.of[Array[Any]], Flags.EmptyFlags, Symbol.noSymbol)
+           val ref    = Ref(sym).asExprOf[Array[Any]]
+           val valDef = ValDef(sym, Some('{ new Array[Any](${ Expr(fieldInfos.size) }) }.asTerm))
+           val assignments = args.map {
+             var i = -1
+             term =>
+               i += 1
+               '{ $ref(${ Expr(i) }) = ${ term.asExprOf[Any] } }.asTerm
+           }
+           val block = Block(valDef :: assignments, ref.asTerm).asExprOf[Array[Any]]
+           tpe.asType match {
+             case '[tt] => '{ scala.runtime.TupleXXL.fromIArray($block.asInstanceOf[IArray[Object]]).asInstanceOf[tt] }
+           }
+         }).asExprOf[T]
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
         toBlock(fieldInfos.map {
