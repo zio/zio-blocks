@@ -142,6 +142,8 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
+  def typeName: TypeName[A]
+
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
       def update[C](reflect: Reflect[F, C]): Reflect[F, C] =
@@ -952,6 +954,8 @@ object Reflect {
         dynamic <- f.transformDynamic(path, dynamicBinding, doc, modifiers)
       } yield dynamic
 
+    def typeName: TypeName[DynamicValue] = TypeName.dynamicValue
+
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
     override def asDynamic: Option[Reflect.Dynamic[F]] = new Some(this)
@@ -1324,6 +1328,16 @@ object Reflect {
       }
     }
 
+    def typeName: TypeName[A] = {
+      val v = visited.get
+      if (v.containsKey(this)) null // exit from recursion
+      else {
+        v.put(this, ())
+        try value.typeName
+        finally v.remove(this)
+      }
+    }
+
     private[this] val visited =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
         override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap[AnyRef, Unit]
@@ -1427,157 +1441,197 @@ object Reflect {
   def dynamic[F[_, _]](implicit F: FromBinding[F]): Dynamic[F] = new Dynamic(F.fromBinding(Binding.Dynamic()))
 
   private[this] def some[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.some))
+    new Record(Vector(new Term("value", element)), TypeName.some(element.typeName), F.fromBinding(Binding.Record.some))
 
   private[this] def someDouble[F[_, _]](
     element: Reflect[F, Double]
   )(implicit F: FromBinding[F]): Record[F, Some[Double]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someDouble))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someDouble)
+    )
 
   private[this] def someLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Record[F, Some[Long]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someLong))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someLong)
+    )
 
   private[this] def someFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Record[F, Some[Float]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someFloat))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someFloat)
+    )
 
   private[this] def someInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Record[F, Some[Int]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someInt))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someInt)
+    )
 
   private[this] def someChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Record[F, Some[Char]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someChar))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someChar)
+    )
 
   private[this] def someShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Record[F, Some[Short]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someShort))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someShort)
+    )
 
   private[this] def someBoolean[F[_, _]](
     element: Reflect[F, Boolean]
   )(implicit F: FromBinding[F]): Record[F, Some[Boolean]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someBoolean))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someBoolean)
+    )
 
   private[this] def someByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Record[F, Some[Byte]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someByte))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someByte)
+    )
 
   private[this] def someUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Record[F, Some[Unit]] =
-    new Record(Vector(new Term("value", element)), TypeName.some, F.fromBinding(Binding.Record.someUnit))
+    new Record(
+      Vector(new Term("value", element)),
+      TypeName.some(element.typeName),
+      F.fromBinding(Binding.Record.someUnit)
+    )
 
   private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
     new Record(Vector(), TypeName.none, F.fromBinding(Binding.Record.none))
 
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
     new Variant(
-      Vector(
-        new Term("Some", some(element)),
-        new Term("None", none)
-      ),
-      TypeName.option,
+      Vector(new Term("Some", some(element)), new Term("None", none)),
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(
       Vector(new Term("Some", someDouble(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Variant[F, Option[Long]] =
     new Variant(
       Vector(new Term("Some", someLong(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Variant[F, Option[Float]] =
     new Variant(
       Vector(new Term("Some", someFloat(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Variant[F, Option[Int]] =
     new Variant(
       Vector(new Term("Some", someInt(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Variant[F, Option[Char]] =
     new Variant(
       Vector(new Term("Some", someChar(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Variant[F, Option[Short]] =
     new Variant(
       Vector(new Term("Some", someShort(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Variant[F, Option[Boolean]] =
     new Variant(
       Vector(new Term("Some", someBoolean(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Variant[F, Option[Byte]] =
     new Variant(
       Vector(new Term("Some", someByte(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Variant[F, Option[Unit]] =
     new Variant(
       Vector(new Term("Some", someUnit(element)), new Term("None", none)),
-      TypeName.option,
+      TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
-    new Sequence(element, TypeName.set, F.fromBinding(Binding.Seq.set))
+    new Sequence(element, TypeName.set(element.typeName), F.fromBinding(Binding.Seq.set))
 
   def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, List] =
-    new Sequence(element, TypeName.list, F.fromBinding(Binding.Seq.list))
+    new Sequence(element, TypeName.list(element.typeName), F.fromBinding(Binding.Seq.list))
 
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
-    new Sequence(element, TypeName.vector, F.fromBinding(Binding.Seq.vector))
+    new Sequence(element, TypeName.vector(element.typeName), F.fromBinding(Binding.Seq.vector))
 
   def arraySeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, ArraySeq] =
-    new Sequence(element, TypeName.arraySeq, F.fromBinding(Binding.Seq.arraySeq))
+    new Sequence(element, TypeName.arraySeq(element.typeName), F.fromBinding(Binding.Seq.arraySeq))
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
-  ): Map[F, K, V, collection.immutable.Map] = new Map(key, value, TypeName.map, F.fromBinding(Binding.Map.map))
+  ): Map[F, K, V, collection.immutable.Map] = {
+    val typeName = TypeName.map(key.typeName, value.typeName)
+    new Map(key, value, typeName, F.fromBinding(Binding.Map.map))
+  }
 
   object Extractors {
     object List {
       def unapply[F[_, _], A](reflect: Reflect[F, List[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.list => x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.list(x.sequence.element.typeName) =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Vector {
       def unapply[F[_, _], A](reflect: Reflect[F, Vector[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.vector => x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.vector(x.sequence.element.typeName) =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object Set {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.set => x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.set(x.sequence.element.typeName) =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
 
     object ArraySeq {
       def unapply[F[_, _], A](reflect: Reflect[F, ArraySeq[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.arraySeq => x.sequence.element.asInstanceOf[Reflect[F, A]]
+          case x if x.sequence.typeName == TypeName.arraySeq(x.sequence.element.typeName) =>
+            x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
   }
