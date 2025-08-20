@@ -3555,8 +3555,8 @@ object OpticSpecTypes {
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
-      typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("OpticSpec")), "Wrapper"),
-      wrapperBinding = new Binding.Wrapper(
+      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Wrapper"),
+      wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,
         unwrap = (x: Wrapper) => x.value
       )

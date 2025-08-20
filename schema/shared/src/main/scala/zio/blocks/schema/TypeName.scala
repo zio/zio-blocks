@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
 
-final case class TypeName[A](namespace: Namespace, name: String)
+final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil)
 
 object TypeName {
   val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
@@ -69,19 +69,25 @@ object TypeName {
 
   val dynamicValue: TypeName[DynamicValue] = new TypeName(Namespace.zioSchema, "DynamicValue")
 
-  def some[A]: TypeName[Some[A]] = _some.asInstanceOf[TypeName[Some[A]]]
+  def some[A](element: TypeName[A]): TypeName[Some[A]] =
+    _some.copy(params = Seq(element)).asInstanceOf[TypeName[Some[A]]]
 
-  def option[A]: TypeName[Option[A]] = _option.asInstanceOf[TypeName[Option[A]]]
+  def option[A](element: TypeName[A]): TypeName[Option[A]] =
+    _option.copy(params = Seq(element)).asInstanceOf[TypeName[Option[A]]]
 
-  def list[A]: TypeName[List[A]] = _list.asInstanceOf[TypeName[List[A]]]
+  def list[A](element: TypeName[A]): TypeName[List[A]] =
+    _list.copy(params = Seq(element)).asInstanceOf[TypeName[List[A]]]
 
-  def map[K, V]: TypeName[Map[K, V]] = _map.asInstanceOf[TypeName[Map[K, V]]]
+  def map[K, V](key: TypeName[K], value: TypeName[V]): TypeName[Map[K, V]] =
+    _map.copy(params = Seq(key, value)).asInstanceOf[TypeName[Map[K, V]]]
 
-  def set[A]: TypeName[Set[A]] = _set.asInstanceOf[TypeName[Set[A]]]
+  def set[A](element: TypeName[A]): TypeName[Set[A]] = _set.copy(params = Seq(element)).asInstanceOf[TypeName[Set[A]]]
 
-  def vector[A]: TypeName[Vector[A]] = _vector.asInstanceOf[TypeName[Vector[A]]]
+  def vector[A](element: TypeName[A]): TypeName[Vector[A]] =
+    _vector.copy(params = Seq(element)).asInstanceOf[TypeName[Vector[A]]]
 
-  def arraySeq[A]: TypeName[ArraySeq[A]] = _arraySeq.asInstanceOf[TypeName[ArraySeq[A]]]
+  def arraySeq[A](element: TypeName[A]): TypeName[ArraySeq[A]] =
+    _arraySeq.copy(params = Seq(element)).asInstanceOf[TypeName[ArraySeq[A]]]
 
   private[this] val _some     = new TypeName(Namespace.scala, "Some")
   private[this] val _option   = new TypeName(Namespace.scala, "Option")
