@@ -412,28 +412,20 @@ private object SchemaVersionSpecific {
 
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-        var minFullName: Array[String] = null
-        var maxFullName: Array[String] = null
-        val fullNames                  = subTypes.map { sTpe =>
+        val fullNames = subTypes.map { sTpe =>
           val (packages, values, name) = typeName(sTpe)
-          val fullName                 = toFullName(packages, values, name)
-          if (minFullName eq null) {
-            minFullName = fullName
-            maxFullName = fullName
-          } else {
-            if (fullNameOrdering.compare(minFullName, fullName) > 0) minFullName = fullName
-            if (fullNameOrdering.compare(maxFullName, fullName) < 0) maxFullName = fullName
-          }
-          fullName
+          toFullName(packages, values, name)
         }
         val (packages, values, name) = typeName(tpe)
-        val tpeFullName              = toFullName(packages, values, name)
-        if (fullNameOrdering.compare(minFullName, tpeFullName) > 0) minFullName = tpeFullName
-        if (fullNameOrdering.compare(maxFullName, tpeFullName) < 0) maxFullName = tpeFullName
-        val maxCommonPrefixLength = {
+        val maxCommonPrefixLength    = {
+          var minFullName = fullNames.min
+          var maxFullName = fullNames.max
+          val tpeFullName = toFullName(packages, values, name)
+          minFullName = fullNameOrdering.min(minFullName, tpeFullName)
+          maxFullName = fullNameOrdering.max(maxFullName, tpeFullName)
           val minLength = Math.min(minFullName.length, maxFullName.length)
           var idx       = 0
-          while (idx < minLength && minFullName(idx).compareTo(maxFullName(idx)) == 0) idx += 1
+          while (idx < minLength && minFullName(idx).equals(maxFullName(idx))) idx += 1
           idx
         }
         val cases = subTypes.zip(fullNames).map { case (sTpe, fullName) =>
