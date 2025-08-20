@@ -90,13 +90,15 @@ object BuildHelper {
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
-          "-opt:l:method"
+          "-opt:l:method",
+          "-Ywarn-unused"
         )
       case _ =>
         Seq(
           "-explain",
           "-explain-cyclic",
           "-Xcheck-macros",
+          "-Wunused:all",
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s"

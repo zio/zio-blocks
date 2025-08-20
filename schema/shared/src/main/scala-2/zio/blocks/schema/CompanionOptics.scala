@@ -46,9 +46,7 @@ private object CompanionOptics {
   import scala.reflect.macros.whitebox
   import scala.reflect.NameTransformer
 
-  def optic[S: c.WeakTypeTag, A: c.WeakTypeTag](
-    c: whitebox.Context
-  )(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
+  def optic[S, A](c: whitebox.Context)(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
     import c.universe._
 
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)

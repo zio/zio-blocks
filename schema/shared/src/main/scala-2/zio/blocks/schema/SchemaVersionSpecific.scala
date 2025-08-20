@@ -292,11 +292,11 @@ private object SchemaVersionSpecific {
       }
 
       def fields(schemaTpe: Type): List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
-        val fTpe              = fieldInfo.tpe
-        var reflectTree: Tree = q"${findImplicitOrDeriveSchema(fTpe)}.reflect"
-        reflectTree = fieldInfo.defaultValue.fold(reflectTree)(dv => q"$reflectTree.defaultValue($dv)")
-        if (!isNonRecursive(fTpe)) reflectTree = q"Reflect.Deferred(() => $reflectTree)"
-        var fieldTermTree = q"$reflectTree.asTerm[$schemaTpe](${fieldInfo.name})"
+        val fTpe          = fieldInfo.tpe
+        var reflect: Tree = q"${findImplicitOrDeriveSchema(fTpe)}.reflect"
+        reflect = fieldInfo.defaultValue.fold(reflect)(dv => q"$reflect.defaultValue($dv)")
+        if (!isNonRecursive(fTpe)) reflect = q"Reflect.Deferred(() => $reflect)"
+        var fieldTermTree = q"$reflect.asTerm[$schemaTpe](${fieldInfo.name})"
         var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
         if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
         if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = $modifiers)"
@@ -376,7 +376,6 @@ private object SchemaVersionSpecific {
             )"""
       } else if (tpe <:< typeOf[Array[_]]) {
         val elementTpe  = typeArgs(tpe).head
-        val reflectTree = q"${findImplicitOrDeriveSchema(elementTpe)}.reflect"
         val constructor =
           if (elementTpe <:< definitions.AnyRefTpe) {
             q"""new SeqConstructor.ArrayConstructor {
@@ -387,7 +386,7 @@ private object SchemaVersionSpecific {
         val tpeName = typeName(tpe)
         q"""new Schema(
               reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
-                element = $reflectTree,
+                element = ${findImplicitOrDeriveSchema(elementTpe)}.reflect,
                 typeName = ${toTree(tpeName)},
                 seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
                   constructor = $constructor,
