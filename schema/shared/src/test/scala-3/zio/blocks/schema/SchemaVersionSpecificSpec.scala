@@ -79,7 +79,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "Tuple4"),
+                typeName = TypeName(
+                  namespace = Namespace(packages = Seq("scala"), values = Nil),
+                  name = "Tuple4",
+                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                ),
                 recordBinding = null
               )
             )
@@ -123,7 +127,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "Tuple4"),
+                typeName = TypeName(
+                  namespace = Namespace(packages = Seq("scala"), values = Nil),
+                  name = "Tuple4",
+                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                ),
                 recordBinding = null
               )
             )
@@ -344,7 +352,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               TypeName(
                 namespace =
                   Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
-                name = "FruitEnum"
+                name = "FruitEnum",
+                params = Seq(TypeName(Namespace(Seq("scala"), Nil), "Any"))
               )
             )
           )
@@ -388,7 +397,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               TypeName(
                 namespace =
                   Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
-                name = "LinkedList"
+                name = "LinkedList",
+                params = Seq(TypeName.int)
               )
             )
           )
@@ -410,7 +420,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               TypeName(
                 namespace =
                   Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
-                name = "HKEnum"
+                name = "HKEnum",
+                params = Seq(TypeName(Namespace(Seq("scala"), Nil), "Option"))
               )
             )
           )

@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues, Wrapped}
+import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
 import zio.blocks.schema.binding._
@@ -153,7 +153,11 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(namespace = Namespace(packages = Seq("scala"), values = Nil), name = "Tuple4"),
+                typeName = TypeName(
+                  namespace = Namespace(packages = Seq("scala"), values = Nil),
+                  name = "Tuple4",
+                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                ),
                 recordBinding = null
               )
             )
@@ -263,7 +267,8 @@ object SchemaSpec extends ZIOSpecDefault {
                     packages = Seq("zio", "blocks", "schema"),
                     values = Seq("SchemaSpec", "spec")
                   ),
-                  name = "Record-2"
+                  name = "Record-2",
+                  params = Seq(TypeName.byte, TypeName.int)
                 ),
                 recordBinding = null
               )
@@ -272,7 +277,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
       test("derives schema for record with multi list constructor using a macro call") {
-        case class Record3(val s: Short = 0: Short)(val l: Long)
+        case class Record3(s: Short = 0: Short)(val l: Long)
 
         object Record3 extends CompanionOptics[Record3] {
           implicit val schema: Schema[Record3] = Schema.derived
@@ -876,7 +881,8 @@ object SchemaSpec extends ZIOSpecDefault {
                   packages = Seq("zio", "blocks", "schema"),
                   values = Seq("SchemaSpec", "spec")
                 ),
-                name = "Variant-2"
+                name = "Variant-2",
+                params = Seq(TypeName.string)
               )
             )
           )
@@ -942,7 +948,8 @@ object SchemaSpec extends ZIOSpecDefault {
                   packages = Seq("zio", "blocks", "schema"),
                   values = Seq("SchemaSpec", "spec")
                 ),
-                name = "Variant-3"
+                name = "Variant-3",
+                params = Seq(TypeName(Namespace(Seq("scala"), Nil), "Option"))
               )
             )
           )
@@ -970,7 +977,8 @@ object SchemaSpec extends ZIOSpecDefault {
                   packages = Seq("zio", "blocks", "schema"),
                   values = Seq("SchemaSpec", "spec")
                 ),
-                name = "Variant4"
+                name = "Variant4",
+                params = Seq(TypeName.string, TypeName.int)
               )
             )
           )
@@ -1228,7 +1236,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeName = TypeName.map[Int, Long],
+          typeName = TypeName.map(TypeName.int, TypeName.long),
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
@@ -1627,8 +1635,8 @@ object SchemaSpec extends ZIOSpecDefault {
     implicit val schema: Schema[PosInt] = new Schema(
       new Reflect.Wrapper(
         wrapped = Schema[Int].reflect,
-        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("DynamicOpticSpec")), "PosInt"),
-        wrapperBinding = new Binding.Wrapper(
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("DynamicOpticSpec")), "PosInt"),
+        wrapperBinding = Binding.Wrapper(
           wrap = PosInt.apply,
           unwrap = (x: PosInt) => x.value
         )

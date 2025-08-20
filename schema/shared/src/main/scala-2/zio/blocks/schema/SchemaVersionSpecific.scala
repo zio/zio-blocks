@@ -148,27 +148,38 @@ private object SchemaVersionSpecific {
         }
     )
 
-    def typeName(tpe: Type): (List[String], List[String], String) = {
-      var packages  = List.empty[String]
-      var values    = List.empty[String]
-      val tpeSymbol = tpe.typeSymbol
-      var name      = NameTransformer.decode(tpeSymbol.name.toString)
-      val comp      = companion(tpe)
-      var owner     =
-        if (comp == null) tpeSymbol
-        else if (comp == NoSymbol) {
-          name += ".type"
-          tpeSymbol.asClass.module
-        } else comp
-      while ({
-        owner = owner.owner
-        owner.owner != NoSymbol
-      }) {
-        val ownerName = NameTransformer.decode(owner.name.toString)
-        if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
-        else values = ownerName :: values
+    def typeName(tpe: Type): zio.blocks.schema.TypeName[_] =
+      if (tpe =:= typeOf[java.lang.String]) zio.blocks.schema.TypeName.string
+      else {
+        var packages  = List.empty[String]
+        var values    = List.empty[String]
+        val tpeSymbol = tpe.typeSymbol
+        var name      = NameTransformer.decode(tpeSymbol.name.toString)
+        val comp      = companion(tpe)
+        var owner     =
+          if (comp == null) tpeSymbol
+          else if (comp == NoSymbol) {
+            name += ".type"
+            tpeSymbol.asClass.module
+          } else comp
+        while ({
+          owner = owner.owner
+          owner.owner != NoSymbol
+        }) {
+          val ownerName = NameTransformer.decode(owner.name.toString)
+          if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
+          else values = ownerName :: values
+        }
+        val tpeTypeArgs = typeArgs(tpe)
+        new zio.blocks.schema.TypeName(new Namespace(packages, values), name, tpeTypeArgs.map(typeName))
       }
-      (packages, values, name)
+
+    def toTree(tpeName: zio.blocks.schema.TypeName[_]): Tree = {
+      val packages = tpeName.namespace.packages.toList
+      val values   = tpeName.namespace.values.toList
+      val name     = tpeName.name
+      val params   = tpeName.params.map(toTree).toList
+      q"new TypeName(new Namespace($packages, $values), $name, $params)"
     }
 
     def modifiers(tpe: Type): List[Tree] = tpe.typeSymbol.annotations
@@ -351,11 +362,11 @@ private object SchemaVersionSpecific {
 
     def deriveSchema(tpe: Type): Tree = {
       if (isEnumOrModuleValue(tpe)) {
-        val (packages, values, name) = typeName(tpe)
+        val tpeName = typeName(tpe)
         q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector.empty,
-                typeName = new TypeName(new Namespace($packages, $values), $name),
+                typeName = ${toTree(tpeName)},
                 recordBinding = new Binding.Record(
                   constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                   deconstructor = new ConstantDeconstructor[$tpe]
@@ -373,10 +384,11 @@ private object SchemaVersionSpecific {
                     new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
                 }"""
           } else q"SeqConstructor.arrayConstructor"
+        val tpeName = typeName(tpe)
         q"""new Schema(
               reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                 element = $reflectTree,
-                typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
+                typeName = ${toTree(tpeName)},
                 seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
                   constructor = $constructor,
                   deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -384,7 +396,9 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isSealedTraitOrAbstractClass(tpe)) {
-        def toFullName(packages: List[String], values: List[String], name: String): Array[String] = {
+        def toFullName(tpeName: zio.blocks.schema.TypeName[_]): Array[String] = {
+          val packages = tpeName.namespace.packages
+          val values   = tpeName.namespace.values
           val fullName = new Array[String](packages.size + values.size + 1)
           var idx      = 0
           packages.foreach { p =>
@@ -395,7 +409,7 @@ private object SchemaVersionSpecific {
             fullName(idx) = p
             idx += 1
           }
-          fullName(idx) = name
+          fullName(idx) = tpeName.name
           fullName
         }
 
@@ -412,15 +426,12 @@ private object SchemaVersionSpecific {
 
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-        val fullNames = subTypes.map { sTpe =>
-          val (packages, values, name) = typeName(sTpe)
-          toFullName(packages, values, name)
-        }
-        val (packages, values, name) = typeName(tpe)
-        val maxCommonPrefixLength    = {
+        val fullNames             = subTypes.map(sTpe => toFullName(typeName(sTpe)))
+        val tpeName               = typeName(tpe)
+        val maxCommonPrefixLength = {
           var minFullName = fullNames.min
           var maxFullName = fullNames.max
-          val tpeFullName = toFullName(packages, values, name)
+          val tpeFullName = toFullName(tpeName)
           minFullName = fullNameOrdering.min(minFullName, tpeFullName)
           maxFullName = fullNameOrdering.max(maxFullName, tpeFullName)
           val minLength = Math.min(minFullName.length, maxFullName.length)
@@ -448,7 +459,7 @@ private object SchemaVersionSpecific {
         q"""new Schema(
               reflect = new Reflect.Variant[Binding, $tpe](
                 cases = _root_.scala.Vector(..$cases),
-                typeName = new TypeName(new Namespace($packages, $values), $name),
+                typeName = ${toTree(tpeName)},
                 variantBinding = new Binding.Variant(
                   discriminator = new Discriminator[$tpe] {
                     def discriminate(a: $tpe): Int = a match {
@@ -461,12 +472,12 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isNonAbstractScalaClass(tpe)) {
-        val classInfo                = new ClassInfo(tpe)
-        val (packages, values, name) = typeName(tpe)
+        val classInfo = new ClassInfo(tpe)
+        val tpeName   = typeName(tpe)
         q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
-                typeName = new TypeName(new Namespace($packages, $values), $name),
+                typeName = ${toTree(tpeName)},
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[$tpe] {
                     def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}

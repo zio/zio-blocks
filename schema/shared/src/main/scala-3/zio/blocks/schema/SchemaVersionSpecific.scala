@@ -210,8 +210,10 @@ private object SchemaVersionSpecific {
         }
     )
 
-    def typeName(tpe: TypeRepr): (List[String], List[String], String) =
-      if (isUnion(tpe)) (Nil, Nil, "|")
+    def typeName[T: Type](tpe: TypeRepr): TypeName[T] =
+      if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string.asInstanceOf[TypeName[T]]
+      else if (tpe <:< TypeRepr.of[List[?]]) TypeName.list(typeName(typeArgs(tpe).head)).asInstanceOf[TypeName[T]]
+      else if (isUnion(tpe)) new TypeName(new Namespace(Nil, Nil), "|")
       else {
         var packages  = List.empty[String]
         var values    = List.empty[String]
@@ -233,8 +235,31 @@ private object SchemaVersionSpecific {
             owner = owner.owner
           }
         }
-        (packages, values, name)
+        val tpeTypeArgs =
+          if (isNamedTuple(tpe)) {
+            tpe match {
+              case AppliedType(_, List(_, tpe2)) =>
+                val tTpe = tpe2.dealias
+                if (isGenericTuple(tTpe)) genericTupleTypeArgs(tTpe.asType)
+                else typeArgs(tTpe)
+              case _ => Nil
+            }
+          } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe.asType)
+          else if (isUnion(tpe)) allUnionTypes(tpe)
+          else typeArgs(tpe)
+        new TypeName(new Namespace(packages, values), name, tpeTypeArgs.map(typeName))
       }
+
+    def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = '{
+      new TypeName[T](
+        namespace = new Namespace(
+          packages = ${ Expr.ofList(tpeName.namespace.packages.map(Expr(_))) },
+          values = ${ Expr.ofList(tpeName.namespace.values.map(Expr(_))) }
+        ),
+        name = ${ Expr(tpeName.name) },
+        params = ${ Expr.ofList(tpeName.params.map(x => toExpr(x.asInstanceOf[TypeName[T]]))) }
+      )
+    }
 
     def toBlock(terms: List[Term]): Expr[Unit] = {
       val size = terms.size
@@ -575,12 +600,12 @@ private object SchemaVersionSpecific {
 
     def deriveSchema[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
       if (isEnumOrModuleValue(tpe)) {
-        val (packages, values, name) = typeName(tpe)
+        val tpeName = typeName[T](tpe)
         '{
           new Schema(
             reflect = new Reflect.Record[Binding, T](
               fields = Vector.empty,
-              typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = ${ toExpr(tpeName) },
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[T](${
                   Ref(if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol.companionModule).asExprOf[T]
@@ -609,11 +634,12 @@ private object SchemaVersionSpecific {
                   }
                 }
               } else '{ SeqConstructor.arrayConstructor }
+            val tpeName = typeName[Array[et]](tpe)
             '{
               new Schema(
                 reflect = new Reflect.Sequence[Binding, et, Array](
                   element = $reflectExpr,
-                  typeName = new TypeName(new Namespace(List("scala"), Nil), "Array"),
+                  typeName = ${ toExpr(tpeName) },
                   seqBinding = new Binding.Seq[Array, et](
                     constructor = $constructor,
                     deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -629,12 +655,12 @@ private object SchemaVersionSpecific {
             val typeInfo =
               if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
               else new ClassInfo[tt](tTpe)
-            val (packages, values, name) = typeName(tTpe)
+            val tTpeName = typeName[tt](tTpe)
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
                   fields = Vector(${ typeInfo.fields[tt]() }*),
-                  typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+                  typeName = ${ toExpr(tTpeName) },
                   recordBinding = new Binding.Record(
                     constructor = new Constructor[tt] {
                       def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -656,7 +682,9 @@ private object SchemaVersionSpecific {
             }
         }
       } else if (isSealedTraitOrAbstractClass(tpe) || isUnion(tpe)) {
-        def toFullName(packages: List[String], values: List[String], name: String): Array[String] = {
+        def toFullName(tpeName: TypeName[?]): Array[String] = {
+          val packages = tpeName.namespace.packages
+          val values   = tpeName.namespace.values
           val fullName = new Array[String](packages.size + values.size + 1)
           var idx      = 0
           packages.foreach { p =>
@@ -667,7 +695,7 @@ private object SchemaVersionSpecific {
             fullName(idx) = p
             idx += 1
           }
-          fullName(idx) = name
+          fullName(idx) = tpeName.name
           fullName
         }
 
@@ -687,16 +715,13 @@ private object SchemaVersionSpecific {
           if (isUnionType) allUnionTypes(tpe).distinct
           else directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-        val fullNames = subTypes.map { sTpe =>
-          val (packages, values, name) = typeName(sTpe)
-          toFullName(packages, values, name)
-        }
-        val (packages, values, name) = typeName(tpe)
-        val maxCommonPrefixLength    = {
+        val fullNames             = subTypes.map(sTpe => toFullName(typeName(sTpe)))
+        val tpeName               = typeName(tpe)
+        val maxCommonPrefixLength = {
           var minFullName = fullNames.min
           var maxFullName = fullNames.max
           if (!isUnionType) {
-            val tpeFullName = toFullName(packages, values, name)
+            val tpeFullName = toFullName(tpeName)
             minFullName = fullNameOrdering.min(minFullName, tpeFullName)
             maxFullName = fullNameOrdering.max(maxFullName, tpeFullName)
           }
@@ -732,7 +757,7 @@ private object SchemaVersionSpecific {
           new Schema(
             reflect = new Reflect.Variant[Binding, T](
               cases = Vector($cases*),
-              typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = ${ toExpr(tpeName) },
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[T] {
                   def discriminate(a: T): Int = ${
@@ -768,11 +793,12 @@ private object SchemaVersionSpecific {
                 val typeInfo =
                   if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
                   else new ClassInfo[tt](tTpe)
+                val tpeName = typeName[T](tpe)
                 '{
                   new Schema(
                     reflect = new Reflect.Record[Binding, T](
                       fields = Vector(${ typeInfo.fields[T](nameOverrides) }*),
-                      typeName = new TypeName(new Namespace(List("scala"), List("NamedTuple")), "NamedTuple"),
+                      typeName = ${ toExpr(tpeName) },
                       recordBinding = new Binding.Record(
                         constructor = new Constructor[T] {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -813,13 +839,13 @@ private object SchemaVersionSpecific {
           case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
         }
       } else if (isNonAbstractScalaClass(tpe)) {
-        val classInfo                = new ClassInfo[T](tpe)
-        val (packages, values, name) = typeName(tpe)
+        val classInfo = new ClassInfo[T](tpe)
+        val tpeName   = typeName(tpe)
         '{
           new Schema(
             reflect = new Reflect.Record[Binding, T](
               fields = Vector(${ classInfo.fields[T]() }*),
-              typeName = new TypeName(new Namespace(${ Expr(packages) }, ${ Expr(values) }), ${ Expr(name) }),
+              typeName = ${ toExpr(tpeName) },
               recordBinding = new Binding.Record(
                 constructor = new Constructor[T] {
                   def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }

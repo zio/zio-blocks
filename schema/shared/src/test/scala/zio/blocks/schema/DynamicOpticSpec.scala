@@ -107,8 +107,8 @@ object DynamicOpticSpec extends ZIOSpecDefault {
 
   object PosInt extends CompanionOptics[PosInt] {
     def apply(value: Int): Either[String, PosInt] =
-      if (value >= 0) new Right(new PosInt(value))
-      else new Left("Expected positive value")
+      if (value >= 0) Right(new PosInt(value))
+      else Left("Expected positive value")
 
     def applyUnsafe(value: Int): PosInt =
       if (value >= 0) new PosInt(value)
@@ -117,8 +117,8 @@ object DynamicOpticSpec extends ZIOSpecDefault {
     implicit val schema: Schema[PosInt] = new Schema(
       new Reflect.Wrapper(
         wrapped = Schema[Int].reflect,
-        typeName = new TypeName(new Namespace(List("zio", "blocks", "schema"), List("DynamicOpticSpec")), "PosInt"),
-        wrapperBinding = new Binding.Wrapper(
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("DynamicOpticSpec")), "PosInt"),
+        wrapperBinding = Binding.Wrapper(
           wrap = PosInt.apply,
           unwrap = (x: PosInt) => x.value
         )
