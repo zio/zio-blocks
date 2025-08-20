@@ -2819,7 +2819,7 @@ object Traversal {
               new DynamicOptic.Node.Field(focusTerms(idx).name)
             case _: PrismBinding =>
               new DynamicOptic.Node.Case(focusTerms(idx).name)
-            case wrapped: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
+            case _: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
               DynamicOptic.Node.Wrapped
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)

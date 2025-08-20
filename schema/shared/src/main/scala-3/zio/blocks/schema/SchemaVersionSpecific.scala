@@ -5,6 +5,7 @@ import scala.collection.mutable
 import scala.quoted._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
+import scala.reflect.ClassTag
 
 trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecific.derived }
@@ -326,7 +327,7 @@ private object SchemaVersionSpecific {
       config: List[(String, String)]
     )
 
-    abstract class TypeInfo[T: Type](tpe: TypeRepr) {
+    abstract class TypeInfo[T: Type] {
       def usedRegisters: Expr[RegisterOffset]
 
       def fields[S: Type](nameOverrides: List[String] = Nil)(using
@@ -389,7 +390,7 @@ private object SchemaVersionSpecific {
       def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
     }
 
-    case class ClassInfo[T: Type](tpe: TypeRepr) extends TypeInfo[T](tpe) {
+    case class ClassInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
       private[this] val tpeClassSymbol     = tpe.classSymbol.get
       private[this] val primaryConstructor = tpeClassSymbol.primaryConstructor
       if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
@@ -455,14 +456,14 @@ private object SchemaVersionSpecific {
           fTpe.asType match {
             case '[ft] =>
               idx += 1
-              var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
-              reflectExpr = fieldInfo.defaultValue.fold(reflectExpr) { dv =>
-                '{ $reflectExpr.defaultValue(${ dv.asExprOf[ft] }) }
+              var reflect = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
+              reflect = fieldInfo.defaultValue.fold(reflect) { dv =>
+                '{ $reflect.defaultValue(${ dv.asExprOf[ft] }) }
               }
-              if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+              if (!isNonRecursive(fTpe)) reflect = '{ Reflect.Deferred(() => $reflect) }
               var name = fieldInfo.name
               if (idx < names.length) name = names(idx)
-              var fieldTermExpr = '{ $reflectExpr.asTerm[S](${ Expr(name) }) }
+              var fieldTermExpr = '{ $reflect.asTerm[S](${ Expr(name) }) }
               var modifiers     = fieldInfo.config.map { case (k, v) =>
                 '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
               }
@@ -513,7 +514,7 @@ private object SchemaVersionSpecific {
         }))
     }
 
-    case class GenericTupleInfo[T: Type](tpe: TypeRepr) extends TypeInfo[T](tpe) {
+    case class GenericTupleInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
         val fTpes         = genericTupleTypeArgs(tpe.asType)
         val noSymbol      = Symbol.noSymbol
@@ -542,11 +543,11 @@ private object SchemaVersionSpecific {
             val fTpe = fieldInfo.tpe
             fTpe.asType match {
               case '[ft] =>
-                var reflectExpr = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
-                if (!isNonRecursive(fTpe)) reflectExpr = '{ Reflect.Deferred(() => $reflectExpr) }
+                var reflect = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
+                if (!isNonRecursive(fTpe)) reflect = '{ Reflect.Deferred(() => $reflect) }
                 var name = fieldInfo.name
                 if (idx < names.length) name = names(idx)
-                '{ $reflectExpr.asTerm[S](${ Expr(name) }) }
+                '{ $reflect.asTerm[S](${ Expr(name) }) }
             }
         })
 
@@ -621,13 +622,12 @@ private object SchemaVersionSpecific {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            var reflectExpr = '{ ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect }
             val constructor =
               if (eTpe <:< TypeRepr.of[AnyRef]) {
                 val classTag =
-                  Expr.summon[reflect.ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
+                  Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
                 '{
-                  implicit val ct: reflect.ClassTag[et] = $classTag
+                  implicit val ct: ClassTag[et] = $classTag
                   new SeqConstructor.ArrayConstructor {
                     override def newObjectBuilder[A0](sizeHint: Int): Builder[A0] =
                       new Builder(new Array[et](sizeHint).asInstanceOf[Array[A0]], 0)
@@ -638,7 +638,7 @@ private object SchemaVersionSpecific {
             '{
               new Schema(
                 reflect = new Reflect.Sequence[Binding, et, Array](
-                  element = $reflectExpr,
+                  element = ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect,
                   typeName = ${ toExpr(tpeName) },
                   seqBinding = new Binding.Seq[Array, et](
                     constructor = $constructor,
