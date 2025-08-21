@@ -13,8 +13,8 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private[this] val isNonRecursiveCache                                = TrieMap.empty[Any, Boolean]
-  private[this] implicit val fullNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
+  private[this] val isNonRecursiveCache                                    = TrieMap.empty[Any, Boolean]
+  private[this] implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
       var idx    = 0
@@ -148,7 +148,10 @@ private object SchemaVersionSpecific {
         }
     )
 
-    def typeName(tpe: Type): zio.blocks.schema.TypeName[_] =
+    val typeNames = new mutable.HashMap[Type, zio.blocks.schema.TypeName[_]]
+
+    def typeName(tpe: Type): zio.blocks.schema.TypeName[_] = typeNames.getOrElseUpdate(
+      tpe,
       if (tpe =:= typeOf[java.lang.String]) zio.blocks.schema.TypeName.string
       else {
         var packages  = List.empty[String]
@@ -173,6 +176,7 @@ private object SchemaVersionSpecific {
         val tpeTypeArgs = typeArgs(tpe)
         new zio.blocks.schema.TypeName(new Namespace(packages, values), name, tpeTypeArgs.map(typeName))
       }
+    )
 
     def toTree(tpeName: zio.blocks.schema.TypeName[_]): Tree = {
       val packages = tpeName.namespace.packages.toList
@@ -376,6 +380,7 @@ private object SchemaVersionSpecific {
             )"""
       } else if (tpe <:< typeOf[Array[_]]) {
         val elementTpe  = typeArgs(tpe).head
+        val tpeName     = typeName(tpe)
         val constructor =
           if (elementTpe <:< definitions.AnyRefTpe) {
             q"""new SeqConstructor.ArrayConstructor {
@@ -383,7 +388,6 @@ private object SchemaVersionSpecific {
                     new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
                 }"""
           } else q"SeqConstructor.arrayConstructor"
-        val tpeName = typeName(tpe)
         q"""new Schema(
               reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                 element = ${findImplicitOrDeriveSchema(elementTpe)}.reflect,
@@ -395,24 +399,24 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isSealedTraitOrAbstractClass(tpe)) {
-        def toFullName(tpeName: zio.blocks.schema.TypeName[_]): Array[String] = {
-          val packages = tpeName.namespace.packages
-          val values   = tpeName.namespace.values
-          val fullName = new Array[String](packages.size + values.size + 1)
-          var idx      = 0
+        def toFullTermName(tpeName: zio.blocks.schema.TypeName[_]): Array[String] = {
+          val packages     = tpeName.namespace.packages
+          val values       = tpeName.namespace.values
+          val fullTermName = new Array[String](packages.size + values.size + 1)
+          var idx          = 0
           packages.foreach { p =>
-            fullName(idx) = p
+            fullTermName(idx) = p
             idx += 1
           }
           values.foreach { p =>
-            fullName(idx) = p
+            fullTermName(idx) = p
             idx += 1
           }
-          fullName(idx) = tpeName.name
-          fullName
+          fullTermName(idx) = tpeName.name
+          fullTermName
         }
 
-        def toTermName(fullName: Array[String], from: Int): String = {
+        def toShortTermName(fullName: Array[String], from: Int): String = {
           val str = new java.lang.StringBuilder
           var idx = from
           while (idx < fullName.length) {
@@ -425,21 +429,21 @@ private object SchemaVersionSpecific {
 
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-        val fullNames             = subTypes.map(sTpe => toFullName(typeName(sTpe)))
+        val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
         val tpeName               = typeName(tpe)
         val maxCommonPrefixLength = {
-          var minFullName = fullNames.min
-          var maxFullName = fullNames.max
-          val tpeFullName = toFullName(tpeName)
-          minFullName = fullNameOrdering.min(minFullName, tpeFullName)
-          maxFullName = fullNameOrdering.max(maxFullName, tpeFullName)
-          val minLength = Math.min(minFullName.length, maxFullName.length)
+          var minFullTermName = fullTermNames.min
+          var maxFullTermName = fullTermNames.max
+          val tpeFullTermName = toFullTermName(tpeName)
+          minFullTermName = fullTermNameOrdering.min(minFullTermName, tpeFullTermName)
+          maxFullTermName = fullTermNameOrdering.max(maxFullTermName, tpeFullTermName)
+          val minLength = Math.min(minFullTermName.length, maxFullTermName.length)
           var idx       = 0
-          while (idx < minLength && minFullName(idx).equals(maxFullName(idx))) idx += 1
+          while (idx < minLength && minFullTermName(idx).equals(maxFullTermName(idx))) idx += 1
           idx
         }
-        val cases = subTypes.zip(fullNames).map { case (sTpe, fullName) =>
-          q"${findImplicitOrDeriveSchema(sTpe)}.reflect.asTerm(${toTermName(fullName, maxCommonPrefixLength)})"
+        val cases = subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
+          q"${findImplicitOrDeriveSchema(sTpe)}.reflect.asTerm(${toShortTermName(fullName, maxCommonPrefixLength)})"
         }
         val discrCases = subTypes.map {
           var idx = -1
@@ -471,8 +475,8 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isNonAbstractScalaClass(tpe)) {
-        val classInfo = new ClassInfo(tpe)
         val tpeName   = typeName(tpe)
+        val classInfo = new ClassInfo(tpe)
         q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
