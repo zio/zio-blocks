@@ -239,8 +239,14 @@ private object SchemaVersionSpecific {
         val tpeTypeArgs =
           if (isNamedTuple(tpe)) {
             tpe match {
-              case AppliedType(_, List(_, tpe2)) =>
-                val tTpe = tpe2.dealias
+              case AppliedType(_, List(tpe1, tpe2)) =>
+                val nTpe   = tpe1.dealias
+                val tTpe   = tpe2.dealias
+                val labels = {
+                  if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe.asType)
+                  else typeArgs(nTpe)
+                }.map { case ConstantType(StringConstant(x)) => x }
+                name = labels.mkString(name + "[", ",", "]")
                 if (isGenericTuple(tTpe)) genericTupleTypeArgs(tTpe.asType)
                 else typeArgs(tTpe)
               case _ => Nil
@@ -622,6 +628,7 @@ private object SchemaVersionSpecific {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
+            val tpeName = typeName[Array[et]](tpe)
             val constructor =
               if (eTpe <:< TypeRepr.of[AnyRef]) {
                 val classTag =
@@ -634,7 +641,6 @@ private object SchemaVersionSpecific {
                   }
                 }
               } else '{ SeqConstructor.arrayConstructor }
-            val tpeName = typeName[Array[et]](tpe)
             '{
               new Schema(
                 reflect = new Reflect.Sequence[Binding, et, Array](
@@ -652,10 +658,10 @@ private object SchemaVersionSpecific {
         val tTpe = normalizeTuple(tpe)
         tTpe.asType match {
           case '[tt] =>
+            val tTpeName = typeName(tTpe)
             val typeInfo =
               if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
               else new ClassInfo[tt](tTpe)
-            val tTpeName = typeName[tt](tTpe)
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
@@ -782,6 +788,7 @@ private object SchemaVersionSpecific {
       } else if (isNamedTuple(tpe)) {
         tpe match {
           case AppliedType(_, List(tpe1, tpe2)) =>
+            val tpeName       = typeName(tpe)
             val nTpe          = tpe1.dealias
             val nameOverrides = {
               if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe.asType)
@@ -793,7 +800,6 @@ private object SchemaVersionSpecific {
                 val typeInfo =
                   if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
                   else new ClassInfo[tt](tTpe)
-                val tpeName = typeName[T](tpe)
                 '{
                   new Schema(
                     reflect = new Reflect.Record[Binding, T](
@@ -839,8 +845,8 @@ private object SchemaVersionSpecific {
           case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
         }
       } else if (isNonAbstractScalaClass(tpe)) {
-        val classInfo = new ClassInfo[T](tpe)
         val tpeName   = typeName(tpe)
+        val classInfo = new ClassInfo[T](tpe)
         '{
           new Schema(
             reflect = new Reflect.Record[Binding, T](
