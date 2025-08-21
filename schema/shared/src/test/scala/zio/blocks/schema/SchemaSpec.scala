@@ -559,6 +559,20 @@ object SchemaSpec extends ZIOSpecDefault {
         val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
+        assert(record.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[Record8[Option]](
+                namespace = Namespace(
+                  packages = Seq("zio", "blocks", "schema"),
+                  values = Seq("SchemaSpec", "spec")
+                ),
+                name = "Record8",
+                params = Seq(TypeName(Namespace(Seq("scala"), Nil), "Option"))
+              )
+            )
+          )
+        ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("derives schema for case class with value class fields using a macro call") {
