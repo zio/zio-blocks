@@ -47,7 +47,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
-                  name = "NamedTuple",
+                  name = "NamedTuple[b,sh,i,l]",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
                 ),
                 recordBinding = null
@@ -147,7 +147,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
-                  name = "NamedTuple",
+                  name = "NamedTuple[a,b]",
                   params = Seq(TypeName.int, TypeName.string)
                 ),
                 recordBinding = null
@@ -157,16 +157,16 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for higher-kind named tuples") {
-        type HKNamedTuple2[F[_]] = (a: F[Int], b: F[String])
+        type HKNamedTuple2[F[_], G[_]] = (a: F[Int], b: G[String])
 
-        object NamedTupleOfIntAndStringLists extends CompanionOptics[HKNamedTuple2[List]] {
-          implicit val schema: Schema[HKNamedTuple2[List]] = Schema.derived
-          val a: Traversal[HKNamedTuple2[List], Int]       = $(_.a.each)
-          val b: Traversal[HKNamedTuple2[List], String]    = $(_.b.each)
+        object NamedTupleOfIntAndStringLists extends CompanionOptics[HKNamedTuple2[List, Set]] {
+          implicit val schema: Schema[HKNamedTuple2[List, Set]] = Schema.derived
+          val a: Traversal[HKNamedTuple2[List, Set], Int]       = $(_.a.each)
+          val b: Traversal[HKNamedTuple2[List, Set], String]    = $(_.b.each)
         }
 
         val record = NamedTupleOfIntAndStringLists.schema.reflect.asRecord
-        val value  = (a = List(1, 2, 3), b = List("VVV"))
+        val value  = (a = List(1, 2, 3), b = Set("VVV"))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(NamedTupleOfIntAndStringLists.a.fold(value)(0, _ + _))(equalTo(6)) &&
         assert(NamedTupleOfIntAndStringLists.b.fold(value)("", _ + _))(equalTo("VVV")) &&
@@ -177,16 +177,16 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )(isRight(equalTo(value))) &&
         assert(NamedTupleOfIntAndStringLists.schema)(
           equalTo(
-            new Schema[HKNamedTuple2[List]](
-              reflect = Reflect.Record[Binding, HKNamedTuple2[List]](
+            new Schema[HKNamedTuple2[List, Set]](
+              reflect = Reflect.Record[Binding, HKNamedTuple2[List, Set]](
                 fields = Vector(
                   Schema[List[Int]].reflect.asTerm("a"),
-                  Schema[List[String]].reflect.asTerm("b")
+                  Schema[Set[String]].reflect.asTerm("b")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(packages = Seq("scala"), values = Seq("NamedTuple")),
-                  name = "NamedTuple",
-                  params = Seq(TypeName.list(TypeName.int), TypeName.list(TypeName.string))
+                  name = "NamedTuple[a,b]",
+                  params = Seq(TypeName.list(TypeName.int), TypeName.set(TypeName.string))
                 ),
                 recordBinding = null
               )
