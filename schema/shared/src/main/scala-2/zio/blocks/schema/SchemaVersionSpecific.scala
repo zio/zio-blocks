@@ -13,7 +13,6 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private[this] val isNonRecursiveCache                                    = TrieMap.empty[Any, Boolean]
   private[this] implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
@@ -114,6 +113,8 @@ private object SchemaVersionSpecific {
         .toList
     }
 
+    val isNonRecursiveCache = new mutable.HashMap[Type, Boolean]
+
     def isNonRecursive(tpe: Type, nestedTpes: List[Type] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
       tpe <:< typeOf[String] || tpe <:< definitions.IntTpe || tpe <:< definitions.FloatTpe ||
@@ -148,9 +149,9 @@ private object SchemaVersionSpecific {
         }
     )
 
-    val typeNames = new mutable.HashMap[Type, zio.blocks.schema.TypeName[_]]
+    val typeNameCache = new mutable.HashMap[Type, zio.blocks.schema.TypeName[_]]
 
-    def typeName(tpe: Type): zio.blocks.schema.TypeName[_] = typeNames.getOrElseUpdate(
+    def typeName(tpe: Type): zio.blocks.schema.TypeName[_] = typeNameCache.getOrElseUpdate(
       tpe,
       if (tpe =:= typeOf[java.lang.String]) zio.blocks.schema.TypeName.string
       else {

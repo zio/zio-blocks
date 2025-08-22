@@ -12,7 +12,6 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private val isNonRecursiveCache                                    = TrieMap.empty[Any, Boolean]
   private implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
@@ -170,6 +169,8 @@ private object SchemaVersionSpecific {
       }
     }
 
+    val isNonRecursiveCache = new mutable.HashMap[TypeRepr, Boolean]
+
     def isNonRecursive(tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
       tpe <:< TypeRepr.of[String] || tpe <:< TypeRepr.of[Int] || tpe <:< TypeRepr.of[Float] ||
@@ -211,9 +212,9 @@ private object SchemaVersionSpecific {
         }
     )
 
-    val typeNames = new mutable.HashMap[TypeRepr, TypeName[?]]
+    val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
 
-    def typeName[T: Type](tpe: TypeRepr): TypeName[T] = typeNames
+    def typeName[T: Type](tpe: TypeRepr): TypeName[T] = typeNameCache
       .getOrElseUpdate(
         tpe,
         if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
