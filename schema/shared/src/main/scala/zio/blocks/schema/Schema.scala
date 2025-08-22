@@ -72,6 +72,10 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def @@[Min >: A, Max <: A](aspect: SchemaAspect[Min, Max, Binding]): Schema[A] = new Schema(reflect.aspect(aspect))
 
   def @@[B](part: Optic[A, B], aspect: SchemaAspect[B, B, Binding]) = new Schema(reflect.aspect(part, aspect))
+
+  def modifier(modifier: reflect.ModifierType): Schema[A] = new Schema(reflect.modifier(modifier))
+
+  def modifiers(modifiers: Iterable[reflect.ModifierType]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 }
 
 object Schema extends SchemaVersionSpecific {
