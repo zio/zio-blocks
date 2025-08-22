@@ -150,8 +150,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema5: Schema[Tuple.Concat[Tuple1[Int], Tuple1[String]]]               = Schema.derived
         val schema6: Schema[Tuple.Append[Tuple1[Int], String]]                       = Schema.derived
         val schema7: Schema[Tuple.InverseMap[(Option[Int], Option[String]), Option]] = Schema.derived
-        val schema8: Schema[Tuple.Zip[(Int, String), (Long, String)]]                = Schema.derived
-        val schema9: Schema[Tuple.Map[(Int, String), Option]]                        = Schema.derived
+        val schema8: Schema[Int *: Tuple1[String]]                                   = Schema.derived
+        val schema9: Schema[Tuple.Zip[(Int, String), (Long, String)]]                = Schema.derived
+        val schema10: Schema[Tuple.Map[(Int, String), Option]]                       = Schema.derived
         assert(schema1)(
           equalTo(
             new Schema[(Int, String)](
@@ -176,7 +177,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema1)(equalTo(schema5)) &&
         assert(schema1)(equalTo(schema6)) &&
         assert(schema1)(equalTo(schema7)) &&
-        assert(schema8)(
+        assert(schema1)(equalTo(schema8)) &&
+        assert(schema9)(
           equalTo(
             new Schema[((Int, Long), (String, String))](
               reflect = Reflect.Record[Binding, ((Int, Long), (String, String))](
@@ -197,7 +199,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
-        assert(schema9)(
+        assert(schema10)(
           equalTo(
             new Schema[(Int, String)](
               reflect = Reflect.Record[Binding, (Int, String)](
@@ -222,8 +224,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema5.fromDynamicValue(schema5.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema6.fromDynamicValue(schema6.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema7.fromDynamicValue(schema7.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
-        assert(schema8.fromDynamicValue(schema8.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
-        assert(schema9.fromDynamicValue(schema9.toDynamicValue(value3)))(isRight(equalTo(value3)))
+        assert(schema9.fromDynamicValue(schema9.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
+        assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
       test("derives schema for tuples with more than 22 fields") {
         type Tuple24 = (
