@@ -153,7 +153,7 @@ object ReflectSpec extends ZIOSpecDefault {
           typeName = TypeName.long
         )
         val long2 = long1.copy(primitiveType = PrimitiveType.Long(Validation.Numeric.Positive))
-        val long3 = long1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Long1"))
+        val long3 = long1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema")), "Long1"))
         val long4 = long1.copy(doc = Doc("text"))
         val long5 = long1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(long1)(equalTo(long1)) &&
@@ -209,7 +209,7 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("Reflect.Record")(
       test("has consistent equals and hashCode") {
         val record1 = tuple4Reflect
-        val record2 = record1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Tuple4"))
+        val record2 = record1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema")), "Tuple4"))
         val record3 = record1.copy(fields = record1.fields.reverse)
         val record4 = record1.copy(doc = Doc("text"))
         val record5 = record1.copy(modifiers = Seq(Modifier.config("key", "value")))
@@ -386,7 +386,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val sequence2 = sequence1.copy(element =
           Primitive(PrimitiveType.Double(Validation.None), TypeName.double, Binding.Primitive.double, Doc("text"))
         )
-        val sequence3 = sequence1.copy(typeName = TypeName[List[Double]](Namespace("scala" :: Nil, Nil), "List2"))
+        val sequence3 = sequence1.copy(typeName = TypeName[List[Double]](Namespace.scala, "List2"))
         val sequence4 = sequence1.copy(doc = Doc("text"))
         val sequence5 = sequence1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(sequence1)(equalTo(sequence1)) &&
@@ -480,7 +480,7 @@ object ReflectSpec extends ZIOSpecDefault {
         val map3 = map1.copy(value =
           Primitive(PrimitiveType.Float(Validation.None), TypeName.float, Binding.Primitive.float, Doc("text"))
         )
-        val map4 = map1.copy(typeName = TypeName[Map[Short, Float]](Namespace("scala" :: Nil, Nil), "Map2"))
+        val map4 = map1.copy(typeName = TypeName[Map[Short, Float]](Namespace.scala, "Map2"))
         val map5 = map1.copy(doc = Doc("text"))
         val map6 = map1.copy(modifiers = Seq(Modifier.config("key", "value")))
         assert(map1)(equalTo(map1)) &&
@@ -611,7 +611,7 @@ object ReflectSpec extends ZIOSpecDefault {
     suite("Reflect.Wrapper")(
       test("has consistent equals and hashCode") {
         val wrapper1 = wrapperReflect
-        val wrapper2 = wrapper1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Nil), "Tuple4"))
+        val wrapper2 = wrapper1.copy(typeName = TypeName(Namespace(Seq("zio", "blocks", "schema")), "Tuple4"))
         val wrapper3 = wrapper1.copy(wrapped = Reflect.long[Binding].doc("Long (updated)"))
         val wrapper4 = wrapper1.copy(doc = Doc("text"))
         val wrapper5 = wrapper1.copy(modifiers = Seq(Modifier.config("key", "value")))
