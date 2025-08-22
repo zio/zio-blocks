@@ -568,7 +568,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   values = Seq("SchemaSpec", "spec")
                 ),
                 name = "Record8",
-                params = Seq(TypeName(Namespace(Seq("scala"), Nil), "Option"))
+                params = Seq(TypeName(Namespace.scala, "Option"))
               )
             )
           )
@@ -963,7 +963,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   values = Seq("SchemaSpec", "spec")
                 ),
                 name = "Variant-3",
-                params = Seq(TypeName(Namespace(Seq("scala"), Nil), "Option"))
+                params = Seq(TypeName(Namespace.scala, "Option"))
               )
             )
           )
