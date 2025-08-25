@@ -227,6 +227,31 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema9.fromDynamicValue(schema9.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
         assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
+      test("derives schema for case class with opaque type fields") {
+        val value  = Opaque("VVV", 1)
+        val schema = Schema[Opaque]
+        assert(schema)(
+          equalTo(
+            new Schema[Opaque](
+              reflect = Reflect.Record[Binding, Opaque](
+                fields = Vector(
+                  Schema[Id].reflect.asTerm("id"),
+                  Schema[Value].reflect.asTerm("value")
+                ),
+                typeName = TypeName(
+                  namespace = Namespace(
+                    packages = Seq("zio", "blocks", "schema"),
+                    values = Seq("SchemaVersionSpecificSpec")
+                  ),
+                  name = "Opaque"
+                ),
+                recordBinding = null
+              )
+            )
+          )
+        ) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      },
       test("derives schema for tuples with more than 22 fields") {
         type Tuple24 = (
           Int,
@@ -515,4 +540,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   case class Box1(l: Long) extends AnyVal derives Schema
 
   case class Box2(s: String) extends AnyVal derives Schema
+
+  opaque type Id    = String
+  opaque type Value = Int
+
+  case class Opaque(id: Id, value: Value) derives Schema
 }
