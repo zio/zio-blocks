@@ -38,6 +38,21 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Int].examples)(equalTo(Nil)) &&
         assert(Schema[Int].examples(1, 2, 3).examples)(equalTo(Seq(1, 2, 3)))
       },
+      test("appends primitive modifiers") {
+        val schema1 = Schema[Int]
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
+      },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Byte].fromDynamicValue(Schema[Byte].toDynamicValue(1)))(isRight(equalTo(1: Byte))) &&
         assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
@@ -84,6 +99,21 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record.schema.examples(Record.b, 2: Byte).examples(Record.b))(equalTo(Seq(2: Byte))) &&
         assert(Record.schema.examples(Record.i, 2000).examples(Record.i))(equalTo(Seq(2000))) &&
         assert(Record.schema.examples(Record.x, true).examples(Record.x))(equalTo(Seq())) // invalid lens
+      },
+      test("appends record modifiers") {
+        val schema1 = Record.schema
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Box1.schema.fromDynamicValue(Box1.schema.toDynamicValue(Box1(4L))))(isRight(equalTo(Box1(4L)))) &&
@@ -732,6 +762,21 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Variant.schema.examples(Variant.case1, Case1('1')).examples(Variant.case1))(equalTo(Seq(Case1('1')))) &&
         assert(Variant.schema.examples(Variant.case2, Case2("VVV")).examples(Variant.case2))(equalTo(Seq(Case2("VVV"))))
       },
+      test("appends variant modifiers") {
+        val schema1 = Variant.schema
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
+      },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Variant.schema.fromDynamicValue(Variant.schema.toDynamicValue(Case1('1'))))(
           isRight(equalTo(Case1('1')))
@@ -1088,6 +1133,21 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[List[Int]].examples(elements1, 2).examples(elements1))(equalTo(Seq(2))) &&
         assert(Schema[Set[Long]].examples(elements2, 2L).examples(elements2))(equalTo(Seq(2L)))
       },
+      test("appends sequence modifiers") {
+        val schema1 = Schema[List[Int]]
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
+      },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[ArraySeq[Int]].fromDynamicValue(Schema[ArraySeq[Int]].toDynamicValue(ArraySeq(1, 2, 3))))(
           isRight(equalTo(ArraySeq(1, 2, 3)))
@@ -1280,6 +1340,21 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[Map[Int, Long]].examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
         assert(Schema[Map[Int, Long]].examples(mapValues, 2L).examples(mapValues))(equalTo(Seq(2L)))
       },
+      test("appends map modifiers") {
+        val schema1 = Schema[Map[Int, Long]]
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
+      },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(Schema[Map[Int, Long]].toDynamicValue(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))
@@ -1357,6 +1432,21 @@ object SchemaSpec extends ZIOSpecDefault {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
         assert(Schema[DynamicValue].examples)(equalTo(Seq.empty)) &&
         assert(Schema[DynamicValue].examples(value).examples)(equalTo(value :: Nil))
+      },
+      test("appends dynamic modifiers") {
+        val schema1 = Schema[DynamicValue]
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
@@ -1451,6 +1541,21 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema(deferred4).examples(mapKeys, 2).examples(mapKeys))(equalTo(Seq(2))) &&
         assert(Schema(deferred4).examples(mapValues, 2L).examples(mapValues))(equalTo(Seq(2L)))
       },
+      test("appends deferred modifiers") {
+        val schema1 = Schema(Reflect.Deferred[Binding, Record](() => Record.schema.reflect))
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
+      },
       test("has consistent toDynamicValue and fromDynamicValue") {
         val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
         val deferred2 = Reflect.Deferred[Binding, Variant](() => Variant.schema.reflect)
@@ -1539,6 +1644,21 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates examples of wrapped schema using optic focus") {
         assert(PosInt.schema.examples(PosInt.wrapped, 2).examples(PosInt.wrapped))(equalTo(Seq(2)))
+      },
+      test("appends wrapped modifiers") {
+        val schema1 = PosInt.schema
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
+        assert(
+          schema2
+            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
+            .reflect
+            .modifiers: Any
+        )(
+          equalTo(
+            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
+          )
+        )
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         val value = PosInt.applyUnsafe(1)
