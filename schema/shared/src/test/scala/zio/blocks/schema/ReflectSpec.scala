@@ -729,7 +729,8 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred1.asMapUnknown)(isNone) &&
         assert(deferred1.isMap)(equalTo(false)) &&
         assert(deferred1.asWrapperUnknown)(isNone) &&
-        assert(deferred1.isWrapper)(equalTo(false))
+        assert(deferred1.isWrapper)(equalTo(false)) &&
+        assert(deferred1.typeName)(equalTo(null))
       }
     )
   )
