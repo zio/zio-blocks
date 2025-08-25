@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.quoted._
 import zio.blocks.schema.binding._
@@ -140,7 +139,7 @@ private object SchemaVersionSpecific {
           val nudeSubtype = TypeIdent(symbol).tpe
           nudeSubtype.memberType(symbol.primaryConstructor) match {
             case MethodType(_, _, _)                => nudeSubtype
-            case PolyType(names, bounds, resPolyTp) =>
+            case PolyType(names, _, resPolyTp) =>
               val binding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
                 .zip(typeArgs(tpe))
                 .foldLeft(Map.empty[String, TypeRepr])((b, e) => resolveParentTypeArg(symbol, e._1, e._2, b))
@@ -162,7 +161,7 @@ private object SchemaVersionSpecific {
                   case _                                          => polyRes.appliedTo(ctArgs)
                 }
               }
-            case other => fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
+            case _ => fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
           }
         } else if (symbol.isTerm) Ref(symbol).tpe
         else fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
@@ -664,7 +663,7 @@ private object SchemaVersionSpecific {
         val tTpe = normalizeTuple(tpe)
         tTpe.asType match {
           case '[tt] =>
-            val tTpeName = typeName(tTpe)
+            val tTpeName = typeName[tt](tTpe)
             val typeInfo =
               if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
               else new ClassInfo[tt](tTpe)
