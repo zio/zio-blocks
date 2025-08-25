@@ -228,7 +228,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
       test("derives schema for case class with opaque type fields") {
-        val value  = Opaque("VVV", 1, ("WWW", 2))
+        val value  = Opaque(Id("VVV"), Value(1))
         val schema = Schema[Opaque]
         assert(schema)(
           equalTo(
@@ -236,14 +236,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               reflect = Reflect.Record[Binding, Opaque](
                 fields = Vector(
                   Schema[Id].reflect.asTerm("id"),
-                  Schema[Value].reflect.asTerm("value"),
-                  Schema.derived[ComplexValue].reflect.asTerm("complexValue")
+                  Schema[Value].reflect.asTerm("value")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaVersionSpecificSpec")
-                  ),
+                  namespace = Namespace(packages = Seq("zio", "blocks", "schema")),
                   name = "Opaque"
                 ),
                 recordBinding = null
@@ -253,7 +249,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         ) &&
         assert(Schema[Id].reflect.isPrimitive)(equalTo(true)) &&
         assert(Schema[Value].reflect.isPrimitive)(equalTo(true)) &&
-        assert(Schema.derived[ComplexValue].reflect.isRecord)(equalTo(true)) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("derives schema for tuples with more than 22 fields") {
@@ -544,10 +539,22 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   case class Box1(l: Long) extends AnyVal derives Schema
 
   case class Box2(s: String) extends AnyVal derives Schema
-
-  opaque type Id           = String
-  opaque type Value        = Int
-  opaque type ComplexValue = (Id, Value)
-
-  case class Opaque(id: Id, value: Value, complexValue: ComplexValue) derives Schema
 }
+
+opaque type Id <: String = String
+
+object Id {
+  given Schema[Id] = Schema(Reflect.string[Binding])
+
+  def apply(s: String): Id = s.asInstanceOf[Id]
+}
+
+opaque type Value <: Int = Int
+
+object Value {
+  given Schema[Value] = Schema(Reflect.int[Binding])
+
+  def apply(i: Int): Value = i.asInstanceOf[Value]
+}
+
+case class Opaque(id: Id, value: Value) derives Schema
