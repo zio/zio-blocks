@@ -138,7 +138,7 @@ private object SchemaVersionSpecific {
         if (symbol.isType) {
           val nudeSubtype = TypeIdent(symbol).tpe
           nudeSubtype.memberType(symbol.primaryConstructor) match {
-            case MethodType(_, _, _)                => nudeSubtype
+            case MethodType(_, _, _)           => nudeSubtype
             case PolyType(names, _, resPolyTp) =>
               val binding = typeArgs(nudeSubtype.baseType(tpe.typeSymbol))
                 .zip(typeArgs(tpe))
