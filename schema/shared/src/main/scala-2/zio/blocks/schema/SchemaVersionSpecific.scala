@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset
-import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
