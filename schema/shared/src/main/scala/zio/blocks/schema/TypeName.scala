@@ -67,7 +67,7 @@ object TypeName {
 
   val none: TypeName[None.type] = new TypeName(Namespace.scala, "None")
 
-  val dynamicValue: TypeName[DynamicValue] = new TypeName(Namespace.zioSchema, "DynamicValue")
+  val dynamicValue: TypeName[DynamicValue] = new TypeName(Namespace.zioBlocksSchema, "DynamicValue")
 
   def some[A](element: TypeName[A]): TypeName[Some[A]] =
     _some.copy(params = Seq(element)).asInstanceOf[TypeName[Some[A]]]
