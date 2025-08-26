@@ -1138,9 +1138,12 @@ object Reflect {
       Lazy[Lazy[Reflect[G, A]]] {
         val v = visited.get
         if (v.containsKey(this))
-          if (value.isInstanceOf[Reflect[G, A]])
-            Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion when we can
-          else value.transform(path, f)
+          try {
+            val v = value.asInstanceOf[Reflect[G, A]] // exit from recursion when we can
+            Lazy(v)
+          } catch {
+            case _: ClassCastException => value.transform(path, f) // can't exit from recursion, continue
+          }
         else {
           v.put(this, ())
           value.transform(path, f).ensuring(Lazy(v.remove(this)))
