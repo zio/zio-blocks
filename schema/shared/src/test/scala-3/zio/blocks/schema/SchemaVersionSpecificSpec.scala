@@ -644,7 +644,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   opaque type InnerValue = OpaqueInt
 
   object InnerValue {
-    def apply(i: Int): InnerValue = i
+    inline def apply(i: Int): InnerValue = i
   }
 }
 
@@ -679,7 +679,7 @@ object Id {
 opaque type Value <: Int = Int
 
 object Value {
-  def apply(i: Int): Value = i
+  inline def apply(i: Int): Value = i
 }
 
 case class Opaque(id: Id, value: Value) derives Schema
