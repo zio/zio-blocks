@@ -5,42 +5,20 @@ import zio.test._
 
 object NeotypeSupportSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
-    test("fail to derive schemas for newtypes") {
-      typeCheck {
-        """import neotype.*
-           object Name extends Newtype[String] {
-             implicit val schema: Schema[Name.Type] = Schema.derived
-           }"""
-      }.map(assert(_)(isLeft(equalTo("Cannot derive schema for 'Name.Type'."))))
-    },
-    test("fail to derive schemas for subtypes") {
-      typeCheck {
-        """import neotype.*
-           object Name extends Subtype[String] {
-             implicit val schema: Schema[Name.Type] = Schema.derived
-           }"""
-      }.map(assert(_)(isLeft(equalTo("Cannot derive schema for 'Name.Type'."))))
-    },
     test("derive schemas for cases classes with subtype fields that have provided schema implicits") {
       import neotype.*
 
       type Name = Name.Type
 
-      object Name extends Subtype[String] {
-        implicit val schema: Schema[Name] = Schema[String].asInstanceOf[Schema[Name]]
-      }
+      object Name extends Newtype[String]
 
       type Kilogram = Kilogram.Type
 
-      object Kilogram extends Subtype[Double] {
-        implicit val schema: Schema[Kilogram] = Schema[Double].asInstanceOf[Schema[Kilogram]]
-      }
+      object Kilogram extends Subtype[Double]
 
       type Meter = Meter.Type
 
-      object Meter extends Subtype[Double] {
-        implicit val schema: Schema[Meter] = Schema[Double].asInstanceOf[Schema[Meter]]
-      }
+      object Meter extends Newtype[Double]
 
       case class Planet(name: Name, mass: Kilogram, radius: Meter)
 

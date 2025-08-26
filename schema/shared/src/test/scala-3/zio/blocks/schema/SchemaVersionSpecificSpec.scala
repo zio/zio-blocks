@@ -235,7 +235,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               reflect = Reflect.Record[Binding, Opaque](
                 fields = Vector(
                   Schema[Id].reflect.asTerm("id"),
-                  Schema[Value].reflect.asTerm("value")
+                  Schema[Int].reflect.asTerm("value")
                 ),
                 typeName = TypeName(Namespace.zioBlocksSchema, "Opaque"),
                 recordBinding = null
@@ -243,8 +243,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
-        assert(Schema[Id].reflect.isWrapper)(equalTo(true)) &&
-        assert(Schema[Value].reflect.isPrimitive)(equalTo(true)) &&
         assert(Opaque.id.get(value1))(equalTo(Id.applyUnsafe("VVV"))) &&
         assert(Opaque.id_wrapped.getOption(value2))(isSome(equalTo("!!!"))) &&
         assert(Opaque.value.get(value1))(equalTo(Value(1))) &&
@@ -267,8 +265,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("derives schema for inner case class with opaque type fields") {
-        import InnerId.given
+      test("derives schema for case class with inner opaque type fields") {
         import InnerId.given
 
         val value1 = InnerOpaque(InnerId.applyUnsafe("VVV"), InnerValue(1))
@@ -280,7 +277,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               reflect = Reflect.Record[Binding, InnerOpaque](
                 fields = Vector(
                   Schema[InnerId].reflect.asTerm("id"),
-                  Schema[InnerValue].reflect.asTerm("value")
+                  Schema[Int].reflect.asTerm("value")
                 ),
                 typeName = TypeName(Namespace.zioBlocksSchema, "InnerOpaque"),
                 recordBinding = null
@@ -288,11 +285,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
-        assert(Schema[InnerId].reflect.isWrapper)(equalTo(true)) &&
-        assert(Schema[InnerValue].reflect.isPrimitive)(equalTo(true)) &&
         assert(InnerOpaque.id.get(value1))(equalTo(InnerId.applyUnsafe("VVV"))) &&
         assert(InnerOpaque.id_wrapped.getOption(value2))(isSome(equalTo("!!!"))) &&
-        assert(InnerOpaque.value.get(value1))(equalTo(Value(1))) &&
+        assert(InnerOpaque.value.get(value1))(equalTo(InnerValue(1))) &&
         assert(InnerOpaque.id.replace(value1, InnerId.applyUnsafe("!!!")))(equalTo(value2)) &&
         assert(InnerOpaque.id_wrapped.replace(value1, "!!!"))(equalTo(value1)) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
@@ -330,10 +325,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           Int,
           Int,
           Int,
-          Int,
-          Int,
-          Int,
-          Int,
+          InnerValue,
+          InnerId,
+          Value,
+          Id,
           Box1,
           Box2,
           Int,
@@ -342,6 +337,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         object Tuple24 extends CompanionOptics[Tuple24] {
           implicit val schema: Schema[Tuple24] = Schema.derived
+          val i17: Lens[Tuple24, InnerValue]   = $(_(16))
+          val i18: Lens[Tuple24, InnerId]      = $(_.apply(17))
+          val o19: Lens[Tuple24, Value]        = $(_(18))
+          val o20: Lens[Tuple24, Id]           = $(_.apply(19))
           val b21: Lens[Tuple24, Box1]         = $(_(20))
           val b22: Lens[Tuple24, Box2]         = $(_.apply(21))
           val i23: Lens[Tuple24, Int]          = $(_(22))
@@ -349,10 +348,38 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         }
 
         val record = Tuple24.schema.reflect.asRecord
-        val value  =
-          (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, Box1(21L), Box2("22"), 23, "24")
-        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&
-        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 21, objects = 3)))) &&
+        val value  = (
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          InnerValue(17),
+          InnerId.applyUnsafe("18"),
+          Value(19),
+          Id.applyUnsafe("20"),
+          Box1(21L),
+          Box2("22"),
+          23,
+          "24"
+        )
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
+        assert(Tuple24.i17.get(value))(equalTo(InnerValue(17))) &&
+        assert(Tuple24.i18.get(value))(equalTo(InnerId.applyUnsafe("18"))) &&
+        assert(Tuple24.o19.get(value))(equalTo(Value(19))) &&
+        assert(Tuple24.o20.get(value))(equalTo(Id.applyUnsafe("20"))) &&
         assert(Tuple24.b21.get(value))(equalTo(Box1(21L))) &&
         assert(Tuple24.b22.get(value))(equalTo(Box2("22"))) &&
         assert(Tuple24.i23.get(value))(equalTo(23)) &&
@@ -612,11 +639,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
     def applyUnsafe(s: String): InnerId = s
   }
 
-  opaque type InnerValue <: Int = Int
+  opaque type OpaqueInt = Int
+
+  opaque type InnerValue = OpaqueInt
 
   object InnerValue {
-    given Schema[InnerValue] = Schema(Reflect.int[Binding]) // Cannot use `Schema[Int]` here
-
     def apply(i: Int): InnerValue = i
   }
 }
@@ -629,7 +656,9 @@ object InnerOpaque extends CompanionOptics[InnerOpaque] {
   val id_wrapped: Optional[InnerOpaque, String] = $(_.id.wrapped[String])
 }
 
-opaque type Id <: String = String
+opaque type OpaqueString = String
+
+opaque type Id = OpaqueString
 
 object Id {
   given Schema[Id] = Schema(
@@ -650,8 +679,6 @@ object Id {
 opaque type Value <: Int = Int
 
 object Value {
-  given Schema[Value] = Schema(Reflect.int[Binding]) // Cannot use `Schema[Int]` here
-
   def apply(i: Int): Value = i
 }
 
