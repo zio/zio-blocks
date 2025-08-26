@@ -33,10 +33,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaVersionSpecificSpec", "spec")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec", "spec")),
                 name = "Record1"
               )
             )
@@ -80,7 +77,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Long].reflect.asTerm("_4")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(packages = Seq("scala"), values = Nil),
+                  namespace = Namespace(packages = Seq("scala")),
                   name = "Tuple4",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
                 ),
@@ -128,7 +125,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Long].reflect.asTerm("_4")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(packages = Seq("scala"), values = Nil),
+                  namespace = Namespace(packages = Seq("scala")),
                   name = "Tuple4",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
                 ),
@@ -228,7 +225,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
       test("derives schema for case class with opaque type fields") {
-        val value  = Opaque(Id("VVV"), Value(1))
+        val value1 = Opaque(Id.applyUnsafe("VVV"), Value(1))
+        val value2 = Opaque(Id.applyUnsafe("!!!"), Value(1))
         val schema = Schema[Opaque]
         assert(schema)(
           equalTo(
@@ -238,18 +236,35 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Id].reflect.asTerm("id"),
                   Schema[Value].reflect.asTerm("value")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(packages = Seq("zio", "blocks", "schema")),
-                  name = "Opaque"
-                ),
+                typeName = TypeName(Namespace.zioSchema, "Opaque"),
                 recordBinding = null
               )
             )
           )
         ) &&
-        assert(Schema[Id].reflect.isPrimitive)(equalTo(true)) &&
+        assert(Schema[Id].reflect.isWrapper)(equalTo(true)) &&
         assert(Schema[Value].reflect.isPrimitive)(equalTo(true)) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+        assert(Opaque.id.get(value1))(equalTo(Id.applyUnsafe("VVV"))) &&
+        assert(Opaque.id_wrapped.getOption(value2))(isSome(equalTo("!!!"))) &&
+        assert(Opaque.value.get(value1))(equalTo(Value(1))) &&
+        assert(Opaque.id.replace(value1, Id.applyUnsafe("!!!")))(equalTo(value2)) &&
+        assert(Opaque.id_wrapped.replace(value1, "!!!"))(equalTo(value1)) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
+          isLeft(
+            equalTo(
+              SchemaError(errors =
+                ::(
+                  SchemaError.InvalidType(
+                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
+                    expectation = "Expected Id: Expected a string with letter or digit characters"
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
       },
       test("derives schema for tuples with more than 22 fields") {
         type Tuple24 = (
@@ -336,10 +351,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaVersionSpecificSpec", "spec")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec", "spec")),
                 name = "Variant1"
               )
             )
@@ -395,8 +407,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace =
-                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
                 name = "Color"
               )
             )
@@ -418,8 +429,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace =
-                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
                 name = "FruitEnum",
                 params = Seq(TypeName(Namespace.scala, "Any"))
               )
@@ -447,7 +457,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "Boolean")))) &&
         assert(variant.map(_.typeName))(
-          isSome(equalTo(TypeName(namespace = Namespace(packages = Nil, values = Nil), name = "|")))
+          isSome(equalTo(TypeName(namespace = Namespace(packages = Nil), name = "|")))
         )
       },
       test("derives schema for recursive generic Scala 3 enums") {
@@ -463,8 +473,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace =
-                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
                 name = "LinkedList",
                 params = Seq(TypeName.int)
               )
@@ -486,8 +495,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                namespace =
-                  Namespace(packages = Seq("zio", "blocks", "schema"), values = Seq("SchemaVersionSpecificSpec")),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
                 name = "HKEnum",
                 params = Seq(TypeName(Namespace.scala, "Option"))
               )
@@ -544,17 +552,33 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 opaque type Id <: String = String
 
 object Id {
-  given Schema[Id] = Schema(Reflect.string[Binding])
+  given Schema[Id] = Schema(
+    Reflect.Wrapper(
+      wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
+      typeName = TypeName(Namespace.zioSchema, "Id"),
+      wrapperBinding = Binding.Wrapper(s => Id(s), identity)
+    )
+  )
 
-  def apply(s: String): Id = s.asInstanceOf[Id]
+  def apply(s: String): Either[String, Id] =
+    if (s.forall(_.isLetterOrDigit)) Right(s)
+    else Left("Expected a string with letter or digit characters")
+
+  def applyUnsafe(s: String): Id = s
 }
 
 opaque type Value <: Int = Int
 
 object Value {
-  given Schema[Value] = Schema(Reflect.int[Binding])
+  given Schema[Value] = Schema(Reflect.int[Binding]) // Cannot use `Schema[Int]` here
 
-  def apply(i: Int): Value = i.asInstanceOf[Value]
+  def apply(i: Int): Value = i
 }
 
 case class Opaque(id: Id, value: Value) derives Schema
+
+object Opaque extends CompanionOptics[Opaque] {
+  val id: Lens[Opaque, Id]                 = $(_.id)
+  val value: Lens[Opaque, Value]           = $(_.value)
+  val id_wrapped: Optional[Opaque, String] = $(_.id.wrapped[String])
+}
