@@ -1135,17 +1135,16 @@ object Reflect {
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = this.value.toDynamicValue(value)
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
-      Lazy[Lazy[Reflect[G, A]]] {
-        val v = visited.get
-        if (v.containsKey(this))
-          if (value.isInstanceOf[Reflect[G, A]])
-            Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion when we can
-          else value.transform(path, f)
+      Lazy {
+        val c = cache.get
+        if (c.containsKey(this))
+          c.get(this).asInstanceOf[Reflect[G, A]]
         else {
-          v.put(this, ())
-          value.transform(path, f).ensuring(Lazy(v.remove(this)))
+          val result = Deferred(() => value.transform(path, f).force)
+          c.put(this, result)
+          result
         }
-      }.flatten
+      }
 
     override def hashCode: Int = {
       val v = visited.get
@@ -1344,6 +1343,12 @@ object Reflect {
     private[this] val visited =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
         override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap[AnyRef, Unit]
+      }
+
+    private[this] val cache =
+      new ThreadLocal[java.util.IdentityHashMap[AnyRef, AnyRef]] {
+        override def initialValue: java.util.IdentityHashMap[AnyRef, AnyRef] =
+          new java.util.IdentityHashMap[AnyRef, AnyRef]
       }
 
     def nodeType = value.nodeType
