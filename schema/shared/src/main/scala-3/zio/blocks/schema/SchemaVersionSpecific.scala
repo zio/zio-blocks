@@ -1,10 +1,9 @@
 package zio.blocks.schema
 
 import scala.collection.mutable
-import scala.quoted.*
-import zio.blocks.schema.binding.*
-import zio.blocks.schema.binding.RegisterOffset.*
-
+import scala.quoted._
+import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.RegisterOffset._
 import scala.annotation.tailrec
 import scala.reflect.ClassTag
 
