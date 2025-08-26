@@ -1137,7 +1137,10 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
       Lazy[Lazy[Reflect[G, A]]] {
         val v = visited.get
-        if (v.containsKey(this)) Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion
+        if (v.containsKey(this))
+          if (value.isInstanceOf[Reflect[G, A]])
+            Lazy(value.asInstanceOf[Reflect[G, A]]) // exit from recursion when we can
+          else value.transform(path, f)
         else {
           v.put(this, ())
           value.transform(path, f).ensuring(Lazy(v.remove(this)))
