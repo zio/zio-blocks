@@ -1,8 +1,9 @@
 package zio.blocks.schema
 
-import zio.blocks.schema.binding._
-import zio.test.Assertion._
-import zio.test._
+import zio.blocks.schema.SchemaVersionSpecificSpec.{InnerId, InnerValue}
+import zio.blocks.schema.binding.*
+import zio.test.Assertion.*
+import zio.test.*
 
 object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
@@ -224,7 +225,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema9.fromDynamicValue(schema9.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
         assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
-      test("derives schema for case class with opaque type fields") {
+      test("derives schema for case class with opaque subtype fields") {
         val value1 = Opaque(Id.applyUnsafe("VVV"), Value(1))
         val value2 = Opaque(Id.applyUnsafe("!!!"), Value(1))
         val schema = Schema[Opaque]
@@ -236,7 +237,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Id].reflect.asTerm("id"),
                   Schema[Value].reflect.asTerm("value")
                 ),
-                typeName = TypeName(Namespace.zioSchema, "Opaque"),
+                typeName = TypeName(Namespace.zioBlocksSchema, "Opaque"),
                 recordBinding = null
               )
             )
@@ -258,6 +259,51 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   SchemaError.InvalidType(
                     source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
                     expectation = "Expected Id: Expected a string with letter or digit characters"
+                  ),
+                  Nil
+                )
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for inner case class with opaque type fields") {
+        import InnerId.given
+        import InnerId.given
+
+        val value1 = InnerOpaque(InnerId.applyUnsafe("VVV"), InnerValue(1))
+        val value2 = InnerOpaque(InnerId.applyUnsafe("!!!"), InnerValue(1))
+        val schema = Schema[InnerOpaque]
+        assert(schema)(
+          equalTo(
+            new Schema[InnerOpaque](
+              reflect = Reflect.Record[Binding, InnerOpaque](
+                fields = Vector(
+                  Schema[InnerId].reflect.asTerm("id"),
+                  Schema[InnerValue].reflect.asTerm("value")
+                ),
+                typeName = TypeName(Namespace.zioBlocksSchema, "InnerOpaque"),
+                recordBinding = null
+              )
+            )
+          )
+        ) &&
+        assert(Schema[InnerId].reflect.isWrapper)(equalTo(true)) &&
+        assert(Schema[InnerValue].reflect.isPrimitive)(equalTo(true)) &&
+        assert(InnerOpaque.id.get(value1))(equalTo(InnerId.applyUnsafe("VVV"))) &&
+        assert(InnerOpaque.id_wrapped.getOption(value2))(isSome(equalTo("!!!"))) &&
+        assert(InnerOpaque.value.get(value1))(equalTo(Value(1))) &&
+        assert(InnerOpaque.id.replace(value1, InnerId.applyUnsafe("!!!")))(equalTo(value2)) &&
+        assert(InnerOpaque.id_wrapped.replace(value1, "!!!"))(equalTo(value1)) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(
+          isLeft(
+            equalTo(
+              SchemaError(errors =
+                ::(
+                  SchemaError.InvalidType(
+                    source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
+                    expectation = "Expected InnerId: Expected a string with letter or digit characters"
                   ),
                   Nil
                 )
@@ -547,6 +593,40 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   case class Box1(l: Long) extends AnyVal derives Schema
 
   case class Box2(s: String) extends AnyVal derives Schema
+
+  opaque type InnerId <: String = String
+
+  object InnerId {
+    given Schema[InnerId] = Schema(
+      Reflect.Wrapper(
+        wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")), "InnerId"),
+        wrapperBinding = Binding.Wrapper(s => InnerId(s), identity)
+      )
+    )
+
+    def apply(s: String): Either[String, InnerId] =
+      if (s.forall(_.isLetterOrDigit)) Right(s)
+      else Left("Expected a string with letter or digit characters")
+
+    def applyUnsafe(s: String): InnerId = s
+  }
+
+  opaque type InnerValue <: Int = Int
+
+  object InnerValue {
+    given Schema[InnerValue] = Schema(Reflect.int[Binding]) // Cannot use `Schema[Int]` here
+
+    def apply(i: Int): InnerValue = i
+  }
+}
+
+case class InnerOpaque(id: InnerId, value: InnerValue) derives Schema
+
+object InnerOpaque extends CompanionOptics[InnerOpaque] {
+  val id: Lens[InnerOpaque, InnerId]            = $(_.id)
+  val value: Lens[InnerOpaque, InnerValue]      = $(_.value)
+  val id_wrapped: Optional[InnerOpaque, String] = $(_.id.wrapped[String])
 }
 
 opaque type Id <: String = String
@@ -555,7 +635,7 @@ object Id {
   given Schema[Id] = Schema(
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
-      typeName = TypeName(Namespace.zioSchema, "Id"),
+      typeName = TypeName(Namespace.zioBlocksSchema, "Id"),
       wrapperBinding = Binding.Wrapper(s => Id(s), identity)
     )
   )
