@@ -241,10 +241,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
+                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record-1"
                 ),
                 recordBinding = null,
@@ -293,10 +290,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("i")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
+                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record-2",
                   params = Seq(TypeName.byte, TypeName.int)
                 ),
@@ -336,10 +330,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Long].reflect.asTerm("l")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
+                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record3"
                 ),
                 recordBinding = null
@@ -387,10 +378,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
+                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record4"
                 ),
                 recordBinding = null
@@ -427,10 +415,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[List[Unit]].reflect.asTerm("lu")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
+                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record5"
                 ),
                 recordBinding = null
@@ -569,10 +554,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[List[DynamicValue]].reflect.asTerm("ld")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(
-                    packages = Seq("zio", "blocks", "schema"),
-                    values = Seq("SchemaSpec", "spec")
-                  ),
+                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record7"
                 ),
                 recordBinding = null
@@ -593,10 +575,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName[Record8[Option]](
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaSpec", "spec")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                 name = "Record8",
                 params = Seq(TypeName(Namespace.scala, "Option"))
               )
@@ -877,10 +856,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName[`Variant-1`](
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaSpec", "spec")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                 name = "Variant-1"
               )
             )
@@ -936,10 +912,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName[`Variant-2`[String]](
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaSpec", "spec")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                 name = "Variant-2",
                 params = Seq(TypeName.string)
               )
@@ -962,10 +935,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName[Level1.MultiLevel](
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaSpec", "Level1")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "Level1")),
                 name = "MultiLevel"
               )
             )
@@ -1003,10 +973,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName[`Variant-3`[Option]](
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaSpec", "spec")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                 name = "Variant-3",
                 params = Seq(TypeName(Namespace.scala, "Option"))
               )
@@ -1032,10 +999,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName[Variant4[String, Int]](
-                namespace = Namespace(
-                  packages = Seq("zio", "blocks", "schema"),
-                  values = Seq("SchemaSpec", "spec")
-                ),
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                 name = "Variant4",
                 params = Seq(TypeName.string, TypeName.int)
               )
@@ -1769,7 +1733,7 @@ object SchemaSpec extends ZIOSpecDefault {
     implicit val schema: Schema[PosInt] = new Schema(
       new Reflect.Wrapper(
         wrapped = Schema[Int].reflect,
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("DynamicOpticSpec")), "PosInt"),
+        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "PosInt"),
         wrapperBinding = Binding.Wrapper(
           wrap = PosInt.apply,
           unwrap = (x: PosInt) => x.value
