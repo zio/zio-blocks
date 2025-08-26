@@ -1136,12 +1136,13 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
       Lazy {
-        val c = cache.get
-        if (c.containsKey(this))
-          c.get(this).asInstanceOf[Reflect[G, A]]
+        val c      = cache.get
+        val key    = (this, f)
+        val cached = c.get(key)
+        if (cached ne null) cached.asInstanceOf[Reflect[G, A]]
         else {
           val result = Deferred(() => value.transform(path, f).force)
-          c.put(this, result)
+          c.put(key, result)
           result
         }
       }
@@ -1346,9 +1347,9 @@ object Reflect {
       }
 
     private[this] val cache =
-      new ThreadLocal[java.util.IdentityHashMap[AnyRef, AnyRef]] {
-        override def initialValue: java.util.IdentityHashMap[AnyRef, AnyRef] =
-          new java.util.IdentityHashMap[AnyRef, AnyRef]
+      new ThreadLocal[java.util.HashMap[AnyRef, AnyRef]] {
+        override def initialValue: java.util.HashMap[AnyRef, AnyRef] =
+          new java.util.HashMap[AnyRef, AnyRef]
       }
 
     def nodeType = value.nodeType
