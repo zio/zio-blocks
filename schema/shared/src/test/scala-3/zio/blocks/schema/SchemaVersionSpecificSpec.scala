@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.collection.immutable.ArraySeq
 import zio.blocks.schema.SchemaVersionSpecificSpec.{InnerId, InnerValue}
 import zio.blocks.schema.binding.*
 import zio.test.Assertion.*
@@ -41,6 +42,33 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(record.map(_.doc))(isSome(equalTo(Doc("/** Record: Record1 */"))))
+      },
+      test("derives schema recursively for options and supported collections using 'derives' keyword") {
+        case class Foo(
+          as: ArraySeq[Bar],
+          l: List[Bar],
+          m: Map[Bar, Bar],
+          o: Option[Bar],
+          v: Vector[Bar],
+          s: Set[Bar]
+        ) derives Schema
+
+        case class Bar(id: Int)
+
+        val schema = Schema[Foo]
+        val record = schema.reflect.asRecord
+        val value  = Foo(
+          ArraySeq(Bar(1)),
+          List(Bar(2)),
+          Map(Bar(3) -> Bar(4)),
+          Option(Bar(5)),
+          Vector(Bar(6)),
+          Set(Bar(7))
+        )
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 6)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 6)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+        assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("as", "l", "m", "o", "v", "s"))))
       },
       test("derives schema for tuples") {
         type Tuple4 = (Byte, Short, Int, Long)
@@ -695,14 +723,14 @@ object Description {
   inline def apply(os: Option[String]): Description = os
 }
 
-*/
+ */
 import Id.given
 
-case class Opaque(id: Id, value: Value/*, descr: Description = Description.Empty*/) derives Schema
+case class Opaque(id: Id, value: Value /*, descr: Description = Description.Empty*/ ) derives Schema
 
 object Opaque extends CompanionOptics[Opaque] {
-  val id: Lens[Opaque, Id]                 = $(_.id)
-  val value: Lens[Opaque, Value]           = $(_.value)
-  //val descr: Lens[Opaque, Description]     = $(_.descr)
+  val id: Lens[Opaque, Id]       = $(_.id)
+  val value: Lens[Opaque, Value] = $(_.value)
+  // val descr: Lens[Opaque, Description]     = $(_.descr)
   val id_wrapped: Optional[Opaque, String] = $(_.id.wrapped[String])
 }
