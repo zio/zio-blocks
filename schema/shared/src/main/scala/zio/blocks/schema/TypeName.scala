@@ -91,9 +91,9 @@ object TypeName {
 
   private[this] val _some     = new TypeName(Namespace.scala, "Some")
   private[this] val _option   = new TypeName(Namespace.scala, "Option")
-  private[this] val _list     = new TypeName(Namespace.scala, "List")
+  private[this] val _list     = new TypeName(Namespace.scalaCollectionImmutable, "List")
   private[this] val _map      = new TypeName(Namespace.scalaCollectionImmutable, "Map")
   private[this] val _set      = new TypeName(Namespace.scalaCollectionImmutable, "Set")
-  private[this] val _vector   = new TypeName(Namespace.scala, "Vector")
+  private[this] val _vector   = new TypeName(Namespace.scalaCollectionImmutable, "Vector")
   private[this] val _arraySeq = new TypeName(Namespace.scalaCollectionImmutable, "ArraySeq")
 }

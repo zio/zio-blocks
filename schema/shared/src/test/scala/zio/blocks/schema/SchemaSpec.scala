@@ -387,6 +387,33 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema recursively for options and supported collections using a macro call") {
+        case class Foo(
+          as: ArraySeq[Bar],
+          l: List[Bar],
+          m: Map[Bar, Bar],
+          o: Option[Bar],
+          v: Vector[Bar],
+          s: Set[Bar]
+        )
+
+        case class Bar(id: Int)
+
+        val schema = Schema.derived[Foo]
+        val record = schema.reflect.asRecord
+        val value  = Foo(
+          ArraySeq(Bar(1)),
+          List(Bar(2)),
+          Map(Bar(3) -> Bar(4)),
+          Option(Bar(5)),
+          Vector(Bar(6)),
+          Set(Bar(7))
+        )
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 6)))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 6)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+        assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("as", "l", "m", "o", "v", "s"))))
+      },
       test("derives schema for record with unit types") {
         case class Record5(u: Unit, lu: List[Unit])
 
