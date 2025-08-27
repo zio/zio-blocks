@@ -226,6 +226,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
       test("derives schema for case class with opaque subtype fields") {
+        import Id.given
+
         val value1 = Opaque(Id.applyUnsafe("VVV"), Value(1))
         val value2 = Opaque(Id.applyUnsafe("!!!"), Value(1))
         val schema = Schema[Opaque]
@@ -656,9 +658,11 @@ object InnerOpaque extends CompanionOptics[InnerOpaque] {
   val id_wrapped: Optional[InnerOpaque, String] = $(_.id.wrapped[String])
 }
 
-opaque type OpaqueString = String
+opaque type UniqueId[+A] = String
 
-opaque type Id = OpaqueString
+trait SomeType
+
+type Id = UniqueId[SomeType]
 
 object Id {
   given Schema[Id] = Schema(
@@ -681,6 +685,8 @@ opaque type Value <: Int = Int
 object Value {
   inline def apply(i: Int): Value = i
 }
+
+import Id.given
 
 case class Opaque(id: Id, value: Value) derives Schema
 
