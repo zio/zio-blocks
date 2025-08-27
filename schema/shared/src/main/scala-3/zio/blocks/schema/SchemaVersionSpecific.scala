@@ -42,6 +42,8 @@ private object SchemaVersionSpecific {
     @tailrec
     def opaqueDealias(tpe: TypeRepr): TypeRepr = tpe match {
       case trTpe @ TypeRef(_, _) if trTpe.isOpaqueAlias => opaqueDealias(trTpe.translucentSuperType.dealias)
+      case AppliedType(atTpe, _)                        => opaqueDealias(atTpe.dealias)
+      case TypeLambda(_, _, tlTpe)                      => opaqueDealias(tlTpe.dealias)
       case _                                            => tpe
     }
 
