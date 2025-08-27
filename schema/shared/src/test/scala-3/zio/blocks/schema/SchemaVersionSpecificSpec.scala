@@ -675,6 +675,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
   object InnerValue {
     inline def apply(i: Int): InnerValue = i
+
+    extension (x: InnerValue) {
+      inline def toInt: Int = x
+    }
   }
 }
 
@@ -714,23 +718,12 @@ object Value {
   inline def apply(i: Int): Value = i
 }
 
-/*
-opaque type Description <: Option[String] = Option[String]
-
-object Description {
-  val Empty: Description = apply(None)
-  
-  inline def apply(os: Option[String]): Description = os
-}
-
- */
 import Id.given
 
-case class Opaque(id: Id, value: Value /*, descr: Description = Description.Empty*/ ) derives Schema
+case class Opaque(id: Id, value: Value) derives Schema
 
 object Opaque extends CompanionOptics[Opaque] {
-  val id: Lens[Opaque, Id]       = $(_.id)
-  val value: Lens[Opaque, Value] = $(_.value)
-  // val descr: Lens[Opaque, Description]     = $(_.descr)
+  val id: Lens[Opaque, Id]                 = $(_.id)
+  val value: Lens[Opaque, Value]           = $(_.value)
   val id_wrapped: Optional[Opaque, String] = $(_.id.wrapped[String])
 }
