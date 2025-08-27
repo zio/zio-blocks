@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
@@ -398,6 +399,20 @@ private object SchemaVersionSpecific {
                 )
               )
             )"""
+      } else if (tpe <:< typeOf[ArraySeq[_]]) {
+        q"new Schema(Reflect.arraySeq(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+      } else if (tpe <:< typeOf[List[_]]) {
+        q"new Schema(Reflect.list(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+      } else if (tpe <:< typeOf[Map[_, _]]) {
+        val tpeTypeArgs = typeArgs(tpe)
+        q"""new Schema(Reflect.map(
+              ${findImplicitOrDeriveSchema(tpeTypeArgs.head)}.reflect,
+              ${findImplicitOrDeriveSchema(tpeTypeArgs.last)}.reflect,
+            ))"""
+      } else if (tpe <:< typeOf[Set[_]]) {
+        q"new Schema(Reflect.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+      } else if (tpe <:< typeOf[Vector[_]]) {
+        q"new Schema(Reflect.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         def toFullTermName(tpeName: zio.blocks.schema.TypeName[_]): Array[String] = {
           val packages     = tpeName.namespace.packages

@@ -1,11 +1,12 @@
 package zio.blocks.schema
 
+import scala.annotation.tailrec
+import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
+import scala.reflect.ClassTag
 import scala.quoted._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
-import scala.annotation.tailrec
-import scala.reflect.ClassTag
 
 trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecific.derived }
@@ -226,7 +227,6 @@ private object SchemaVersionSpecific {
       .getOrElseUpdate(
         tpe,
         if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
-        else if (tpe <:< TypeRepr.of[List[?]]) TypeName.list(typeName(typeArgs(tpe).head))
         else if (isUnion(tpe)) new TypeName(new Namespace(Nil, Nil), "|")
         else {
           var packages  = List.empty[String]
@@ -359,20 +359,31 @@ private object SchemaVersionSpecific {
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit]
 
-      def fieldOffset(tpe: TypeRepr): RegisterOffset = {
-        val sTpe = opaqueDealias(tpe)
-        if (sTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
-        else if (sTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
-        else if (sTpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
-        else if (sTpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-        else if (sTpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-        else if (sTpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-        else if (sTpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
-        else if (sTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-        else if (sTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
-        else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) RegisterOffset(objects = 1)
-        else unsupportedFieldType(sTpe)
-      }
+      def fieldOffset(tpe: TypeRepr): RegisterOffset =
+        if (tpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
+        else if (tpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
+        else if (tpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
+        else if (tpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+        else if (tpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+        else if (tpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+        else if (tpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
+        else if (tpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+        else if (tpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
+        else if (tpe <:< TypeRepr.of[AnyRef] || isValueClass(tpe)) RegisterOffset(objects = 1)
+        else {
+          val sTpe = opaqueDealias(tpe)
+          if (sTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
+          else if (sTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
+          else if (sTpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
+          else if (sTpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+          else if (sTpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+          else if (sTpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+          else if (sTpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
+          else if (sTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+          else if (sTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
+          else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) RegisterOffset(objects = 1)
+          else unsupportedFieldType(sTpe)
+        }
 
       def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo)(using
         Quotes
@@ -687,6 +698,44 @@ private object SchemaVersionSpecific {
                 )
               )
             }
+        }
+      } else if (tpe <:< TypeRepr.of[ArraySeq[?]]) {
+        val eTpe = typeArgs(tpe).head
+        eTpe.asType match {
+          case '[et] => '{ new Schema(Reflect.arraySeq(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
+        }
+      } else if (tpe <:< TypeRepr.of[List[?]]) {
+        val eTpe = typeArgs(tpe).head
+        eTpe.asType match {
+          case '[et] => '{ new Schema(Reflect.list(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
+        }
+      } else if (tpe <:< TypeRepr.of[Map[?, ?]]) {
+        val tpeTypeArgs = typeArgs(tpe)
+        val kTpe        = tpeTypeArgs.head
+        val vTpe        = tpeTypeArgs.last
+        kTpe.asType match {
+          case '[kt] =>
+            vTpe.asType match {
+              case '[vt] =>
+                '{
+                  new Schema(
+                    Reflect.map(
+                      ${ findImplicitOrDeriveSchema[kt](kTpe) }.reflect,
+                      ${ findImplicitOrDeriveSchema[vt](vTpe) }.reflect
+                    )
+                  )
+                }
+            }
+        }
+      } else if (tpe <:< TypeRepr.of[Set[?]]) {
+        val eTpe = typeArgs(tpe).head
+        eTpe.asType match {
+          case '[et] => '{ new Schema(Reflect.set(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
+        }
+      } else if (tpe <:< TypeRepr.of[Vector[?]]) {
+        val eTpe = typeArgs(tpe).head
+        eTpe.asType match {
+          case '[et] => '{ new Schema(Reflect.vector(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
         }
       } else if (isGenericTuple(tpe)) {
         val tTpe = normalizeTuple(tpe)
