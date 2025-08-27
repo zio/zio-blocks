@@ -40,6 +40,8 @@ private object SchemaVersionSpecific {
       flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
     }
 
+    def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
+
     @tailrec
     def opaqueDealias(tpe: TypeRepr): TypeRepr = tpe match {
       case trTpe @ TypeRef(_, _) if trTpe.isOpaqueAlias => opaqueDealias(trTpe.translucentSuperType.dealias)
@@ -200,8 +202,8 @@ private object SchemaVersionSpecific {
               case AppliedType(_, List(_, tTpe)) => isNonRecursive(tTpe.dealias, nestedTpes)
               case _                             => false
             }
-          } else {
-            isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
+          } else if (isNonAbstractScalaClass(tpe)) {
+            !nestedTpes.contains(tpe) && {
               val primaryConstructor = tpe.classSymbol.get.primaryConstructor
               primaryConstructor.exists && {
                 val nestedTpes_ = tpe :: nestedTpes
@@ -217,7 +219,7 @@ private object SchemaVersionSpecific {
                 }
               }
             }
-          }
+          } else isOpaque(tpe) && isNonRecursive(opaqueDealias(tpe), nestedTpes)
         }
     )
 
@@ -956,13 +958,13 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else {
+      } else if (isOpaque(tpe)) {
         val sTpe = opaqueDealias(tpe)
-        if (sTpe =:= tpe) fail(s"Cannot derive schema for '${tpe.show}'.")
+        if (sTpe =:= tpe) fail(s"Cannot dealias opaque type: ${tpe.show}")
         sTpe.asType match {
           case '[s] => '{ ${ findImplicitOrDeriveSchema[s](sTpe) }.asInstanceOf[Schema[T]] }
         }
-      }
+      } else fail(s"Cannot derive schema for '${tpe.show}'.")
     }.asExprOf[Schema[T]]
 
     val aTpe        = TypeRepr.of[A].dealias
