@@ -360,18 +360,30 @@ private object SchemaVersionSpecific {
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit]
 
       def fieldOffset(tpe: TypeRepr): RegisterOffset = {
-        val sTpe = opaqueDealias(tpe)
-        if (sTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
-        else if (sTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
-        else if (sTpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
-        else if (sTpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-        else if (sTpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-        else if (sTpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-        else if (sTpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
-        else if (sTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-        else if (sTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
-        else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) RegisterOffset(objects = 1)
-        else unsupportedFieldType(sTpe)
+        if (tpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
+        else if (tpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
+        else if (tpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
+        else if (tpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+        else if (tpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+        else if (tpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+        else if (tpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
+        else if (tpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+        else if (tpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
+        else if (tpe <:< TypeRepr.of[AnyRef] || isValueClass(tpe)) RegisterOffset(objects = 1)
+        else {
+          val sTpe = opaqueDealias(tpe)
+          if (sTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
+          else if (sTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
+          else if (sTpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
+          else if (sTpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+          else if (sTpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+          else if (sTpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+          else if (sTpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
+          else if (sTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+          else if (sTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
+          else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) RegisterOffset(objects = 1)
+          else unsupportedFieldType(sTpe)
+        }
       }
 
       def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo)(using
