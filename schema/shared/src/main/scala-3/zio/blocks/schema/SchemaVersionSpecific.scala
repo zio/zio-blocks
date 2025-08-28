@@ -361,31 +361,22 @@ private object SchemaVersionSpecific {
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit]
 
-      def fieldOffset(tpe: TypeRepr): RegisterOffset =
-        if (tpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
-        else if (tpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
-        else if (tpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
-        else if (tpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-        else if (tpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-        else if (tpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-        else if (tpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
-        else if (tpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-        else if (tpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
-        else if (tpe <:< TypeRepr.of[AnyRef] || isValueClass(tpe)) RegisterOffset(objects = 1)
-        else {
-          val sTpe = opaqueDealias(tpe)
-          if (sTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
-          else if (sTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
-          else if (sTpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
-          else if (sTpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
-          else if (sTpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
-          else if (sTpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
-          else if (sTpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
-          else if (sTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
-          else if (sTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
-          else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) RegisterOffset(objects = 1)
-          else unsupportedFieldType(sTpe)
-        }
+      def fieldOffset(fTpe: TypeRepr): RegisterOffset = {
+        val sTpe =
+          if (isOpaque(fTpe)) opaqueDealias(fTpe)
+          else fTpe
+        if (sTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
+        else if (sTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
+        else if (sTpe <:< TypeRepr.of[Long]) RegisterOffset(longs = 1)
+        else if (sTpe <:< TypeRepr.of[Double]) RegisterOffset(doubles = 1)
+        else if (sTpe <:< TypeRepr.of[Boolean]) RegisterOffset(booleans = 1)
+        else if (sTpe <:< TypeRepr.of[Byte]) RegisterOffset(bytes = 1)
+        else if (sTpe <:< TypeRepr.of[Char]) RegisterOffset(chars = 1)
+        else if (sTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
+        else if (sTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
+        else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) RegisterOffset(objects = 1)
+        else unsupportedFieldType(sTpe)
+      }
 
       def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo)(using
         Quotes
@@ -405,7 +396,9 @@ private object SchemaVersionSpecific {
         else {
           fTpe.asType match {
             case '[ft] =>
-              val sTpe = opaqueDealias(fTpe)
+              val sTpe =
+                if (isOpaque(fTpe)) opaqueDealias(fTpe)
+                else fTpe
               if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) {
                 '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }
               } else {
@@ -542,7 +535,9 @@ private object SchemaVersionSpecific {
             else if (fTpe <:< TypeRepr.of[AnyRef]) {
               '{ $out.setObject($baseOffset, $objects, ${ getter.asExprOf[AnyRef] }) }
             } else {
-              val sTpe = opaqueDealias(fTpe)
+              val sTpe =
+                if (isOpaque(fTpe)) opaqueDealias(fTpe)
+                else fTpe
               if (sTpe <:< TypeRepr.of[Int]) {
                 '{ $out.setInt($baseOffset, $bytes, ${ getter.asExprOf[Any] }.asInstanceOf[Int]) }
               } else if (sTpe <:< TypeRepr.of[Float]) {
@@ -629,7 +624,10 @@ private object SchemaVersionSpecific {
           var idx = -1
           fieldInfo =>
             idx += 1
-            val sTpe         = opaqueDealias(fieldInfo.tpe)
+            val fTpe = fieldInfo.tpe
+            val sTpe =
+              if (isOpaque(fTpe)) opaqueDealias(fTpe)
+              else fTpe
             val getter       = Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
             lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
             lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
@@ -672,73 +670,75 @@ private object SchemaVersionSpecific {
             )
           )
         }
-      } else if (tpe <:< TypeRepr.of[Array[?]]) {
-        val eTpe = typeArgs(tpe).head
-        eTpe.asType match {
-          case '[et] =>
-            val tpeName     = typeName[Array[et]](tpe)
-            val constructor =
-              if (eTpe <:< TypeRepr.of[AnyRef]) {
-                val classTag = Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
-                '{
-                  implicit val ct: ClassTag[et] = $classTag
-                  new SeqConstructor.ArrayConstructor {
-                    override def newObjectBuilder[A0](sizeHint: Int): Builder[A0] =
-                      new Builder(new Array[et](sizeHint).asInstanceOf[Array[A0]], 0)
+      } else if (isCollection(tpe)) {
+        if (tpe <:< TypeRepr.of[Array[?]]) {
+          val eTpe = typeArgs(tpe).head
+          eTpe.asType match {
+            case '[et] =>
+              val tpeName     = typeName[Array[et]](tpe)
+              val constructor =
+                if (eTpe <:< TypeRepr.of[AnyRef]) {
+                  val classTag = Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
+                  '{
+                    implicit val ct: ClassTag[et] = $classTag
+                    new SeqConstructor.ArrayConstructor {
+                      override def newObjectBuilder[A0](sizeHint: Int): Builder[A0] =
+                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[A0]], 0)
+                    }
                   }
-                }
-              } else '{ SeqConstructor.arrayConstructor }
-            '{
-              new Schema(
-                reflect = new Reflect.Sequence[Binding, et, Array](
-                  element = ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect,
-                  typeName = ${ toExpr(tpeName) },
-                  seqBinding = new Binding.Seq[Array, et](
-                    constructor = $constructor,
-                    deconstructor = SeqDeconstructor.arrayDeconstructor
-                  )
-                )
-              )
-            }
-        }
-      } else if (tpe <:< TypeRepr.of[ArraySeq[?]]) {
-        val eTpe = typeArgs(tpe).head
-        eTpe.asType match {
-          case '[et] => '{ new Schema(Reflect.arraySeq(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-        }
-      } else if (tpe <:< TypeRepr.of[List[?]]) {
-        val eTpe = typeArgs(tpe).head
-        eTpe.asType match {
-          case '[et] => '{ new Schema(Reflect.list(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-        }
-      } else if (tpe <:< TypeRepr.of[Map[?, ?]]) {
-        val tpeTypeArgs = typeArgs(tpe)
-        val kTpe        = tpeTypeArgs.head
-        val vTpe        = tpeTypeArgs.last
-        kTpe.asType match {
-          case '[kt] =>
-            vTpe.asType match {
-              case '[vt] =>
-                '{
-                  new Schema(
-                    Reflect.map(
-                      ${ findImplicitOrDeriveSchema[kt](kTpe) }.reflect,
-                      ${ findImplicitOrDeriveSchema[vt](vTpe) }.reflect
+                } else '{ SeqConstructor.arrayConstructor }
+              '{
+                new Schema(
+                  reflect = new Reflect.Sequence[Binding, et, Array](
+                    element = ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect,
+                    typeName = ${ toExpr(tpeName) },
+                    seqBinding = new Binding.Seq[Array, et](
+                      constructor = $constructor,
+                      deconstructor = SeqDeconstructor.arrayDeconstructor
                     )
                   )
-                }
-            }
-        }
-      } else if (tpe <:< TypeRepr.of[Set[?]]) {
-        val eTpe = typeArgs(tpe).head
-        eTpe.asType match {
-          case '[et] => '{ new Schema(Reflect.set(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-        }
-      } else if (tpe <:< TypeRepr.of[Vector[?]]) {
-        val eTpe = typeArgs(tpe).head
-        eTpe.asType match {
-          case '[et] => '{ new Schema(Reflect.vector(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-        }
+                )
+              }
+          }
+        } else if (tpe <:< TypeRepr.of[ArraySeq[?]]) {
+          val eTpe = typeArgs(tpe).head
+          eTpe.asType match {
+            case '[et] => '{ new Schema(Reflect.arraySeq(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
+          }
+        } else if (tpe <:< TypeRepr.of[List[?]]) {
+          val eTpe = typeArgs(tpe).head
+          eTpe.asType match {
+            case '[et] => '{ new Schema(Reflect.list(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
+          }
+        } else if (tpe <:< TypeRepr.of[Map[?, ?]]) {
+          val tpeTypeArgs = typeArgs(tpe)
+          val kTpe        = tpeTypeArgs.head
+          val vTpe        = tpeTypeArgs.last
+          kTpe.asType match {
+            case '[kt] =>
+              vTpe.asType match {
+                case '[vt] =>
+                  '{
+                    new Schema(
+                      Reflect.map(
+                        ${ findImplicitOrDeriveSchema[kt](kTpe) }.reflect,
+                        ${ findImplicitOrDeriveSchema[vt](vTpe) }.reflect
+                      )
+                    )
+                  }
+              }
+          }
+        } else if (tpe <:< TypeRepr.of[Set[?]]) {
+          val eTpe = typeArgs(tpe).head
+          eTpe.asType match {
+            case '[et] => '{ new Schema(Reflect.set(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
+          }
+        } else if (tpe <:< TypeRepr.of[Vector[?]]) {
+          val eTpe = typeArgs(tpe).head
+          eTpe.asType match {
+            case '[et] => '{ new Schema(Reflect.vector(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
+          }
+        } else fail(s"Cannot derive schema for '${tpe.show}'.")
       } else if (isGenericTuple(tpe)) {
         val tTpe = normalizeTuple(tpe)
         tTpe.asType match {
