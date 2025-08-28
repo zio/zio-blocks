@@ -565,11 +565,10 @@ private object SchemaVersionSpecific {
 
     case class GenericTupleInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
-        val fTpes         = genericTupleTypeArgs(tpe.asType)
         val noSymbol      = Symbol.noSymbol
         var usedRegisters = RegisterOffset.Zero
         (
-          fTpes.map {
+          genericTupleTypeArgs(tpe.asType).map {
             var idx = 0
             fTpe =>
               idx += 1
@@ -745,8 +744,8 @@ private object SchemaVersionSpecific {
           case '[tt] =>
             val tTpeName = typeName[tt](tTpe)
             val typeInfo =
-              if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
-              else new ClassInfo[tt](tTpe)
+              if (isGenericTuple(tTpe)) GenericTupleInfo[tt](tTpe)
+              else ClassInfo[tt](tTpe)
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
@@ -883,8 +882,8 @@ private object SchemaVersionSpecific {
             tTpe.asType match {
               case '[tt] =>
                 val typeInfo =
-                  if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
-                  else new ClassInfo[tt](tTpe)
+                  if (isGenericTuple(tTpe)) GenericTupleInfo[tt](tTpe)
+                  else ClassInfo[tt](tTpe)
                 '{
                   new Schema(
                     reflect = new Reflect.Record[Binding, T](

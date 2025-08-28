@@ -113,7 +113,7 @@ object OpticSpec extends ZIOSpecDefault {
             val lens                          = optic(_.a.b)
           }
 
-          Test.lens
+          Test.lens.get(Test(Case("VVV")))
         }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a record")))
       },
@@ -1186,6 +1186,19 @@ object OpticSpec extends ZIOSpecDefault {
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
       } @@ jvmOnly,
+      test("optic macro requires wrapper for creation") {
+        ZIO.attempt {
+          case class Test(a: String)
+
+          object Test extends CompanionOptics[Test] {
+            implicit val schema: Schema[Test] = Schema.derived
+            val optional                      = optic(_.wrapped[String])
+          }
+
+          Test.optional
+        }.flip
+          .map(e => assert(e.getMessage)(equalTo("Expected a wrapper")))
+      },
       test("check") {
         assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
           isSome(
