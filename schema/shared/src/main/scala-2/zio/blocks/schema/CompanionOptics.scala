@@ -17,7 +17,7 @@ trait CompanionOptics[S] {
     def at(index: Int): A = ???
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def atIndices(index: Int*): A = ???
+    def atIndices(indices: Int*): A = ???
 
     @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
     def each: A = ???
