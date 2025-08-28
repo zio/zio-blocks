@@ -254,7 +254,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
       },
       test("derives schema for case class with opaque subtype fields") {
-        import Id.given
+        import Id.schema
 
         val value1 = Opaque(Id.applyUnsafe("VVV"), Value(1))
         val value2 = Opaque(Id.applyUnsafe("!!!"), Value(1))
@@ -296,7 +296,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for case class with inner opaque type fields") {
-        import InnerId.given
+        import InnerId.schema
 
         val value1 = InnerOpaque(InnerId.applyUnsafe("VVV"), InnerValue(1))
         val value2 = InnerOpaque(InnerId.applyUnsafe("!!!"), InnerValue(1))
@@ -543,7 +543,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema for Scala 3 unions") {
         type Value = Int | Boolean
 
-        given schema: Schema[Value] = Schema.derived
+        implicit val schema: Schema[Value] = Schema.derived
 
         object Value extends CompanionOptics[Value] {
           val int: Prism[Value, Int]         = $(_.when[Int])
@@ -564,10 +564,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for recursive generic Scala 3 enums") {
-        // `given` declaration is lazy that helps to avoid endless loops on recursive data structures,
-        // see: https://users.scala-lang.org/t/how-to-deal-with-given-being-always-lazy/10844/5
-        given schema: Schema[LinkedList[Int]] = Schema.derived
-        val variant                           = schema.reflect.asVariant
+        val schema  = Schema.derived[LinkedList[Int]]
+        val variant = schema.reflect.asVariant
         assert(schema.fromDynamicValue(schema.toDynamicValue(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End)))))(
           isRight(equalTo(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End))))
         ) &&
@@ -654,7 +652,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   opaque type InnerId <: String = String
 
   object InnerId {
-    given Schema[InnerId] = Schema(
+    implicit val schema: Schema[InnerId] = Schema(
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")), "InnerId"),
@@ -697,7 +695,7 @@ trait SomeType
 type Id = UniqueId[SomeType]
 
 object Id {
-  given Schema[Id] = Schema(
+  implicit val schema: Schema[Id] = Schema(
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeName = TypeName(Namespace.zioBlocksSchema, "Id"),
@@ -718,7 +716,7 @@ object Value {
   inline def apply(i: Int): Value = i
 }
 
-import Id.given
+import Id.schema
 
 case class Opaque(id: Id, value: Value) derives Schema
 
