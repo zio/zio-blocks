@@ -379,17 +379,18 @@ private object SchemaVersionSpecific {
                 modifiers = ${modifiers(tpe)}
               )
             )"""
-      } else if (tpe <:< typeOf[Array[_]]) {
-        val elementTpe  = typeArgs(tpe).head
-        val tpeName     = typeName(tpe)
-        val constructor =
-          if (elementTpe <:< definitions.AnyRefTpe) {
-            q"""new SeqConstructor.ArrayConstructor {
+      } else if (isCollection(tpe)) {
+        if (tpe <:< typeOf[Array[_]]) {
+          val elementTpe  = typeArgs(tpe).head
+          val tpeName     = typeName(tpe)
+          val constructor =
+            if (elementTpe <:< definitions.AnyRefTpe) {
+              q"""new SeqConstructor.ArrayConstructor {
                   override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
                     new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
                 }"""
-          } else q"SeqConstructor.arrayConstructor"
-        q"""new Schema(
+            } else q"SeqConstructor.arrayConstructor"
+          q"""new Schema(
               reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                 element = ${findImplicitOrDeriveSchema(elementTpe)}.reflect,
                 typeName = ${toTree(tpeName)},
@@ -399,20 +400,21 @@ private object SchemaVersionSpecific {
                 )
               )
             )"""
-      } else if (tpe <:< typeOf[ArraySeq[_]]) {
-        q"new Schema(Reflect.arraySeq(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
-      } else if (tpe <:< typeOf[List[_]]) {
-        q"new Schema(Reflect.list(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
-      } else if (tpe <:< typeOf[Map[_, _]]) {
-        val tpeTypeArgs = typeArgs(tpe)
-        q"""new Schema(Reflect.map(
+        } else if (tpe <:< typeOf[ArraySeq[_]]) {
+          q"new Schema(Reflect.arraySeq(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+        } else if (tpe <:< typeOf[List[_]]) {
+          q"new Schema(Reflect.list(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+        } else if (tpe <:< typeOf[Map[_, _]]) {
+          val tpeTypeArgs = typeArgs(tpe)
+          q"""new Schema(Reflect.map(
               ${findImplicitOrDeriveSchema(tpeTypeArgs.head)}.reflect,
               ${findImplicitOrDeriveSchema(tpeTypeArgs.last)}.reflect,
             ))"""
-      } else if (tpe <:< typeOf[Set[_]]) {
-        q"new Schema(Reflect.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
-      } else if (tpe <:< typeOf[Vector[_]]) {
-        q"new Schema(Reflect.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+        } else if (tpe <:< typeOf[Set[_]]) {
+          q"new Schema(Reflect.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+        } else if (tpe <:< typeOf[Vector[_]]) {
+          q"new Schema(Reflect.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+        } else fail(s"Cannot derive schema for '$tpe'.")
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         def toFullTermName(tpeName: zio.blocks.schema.TypeName[_]): Array[String] = {
           val packages     = tpeName.namespace.packages
