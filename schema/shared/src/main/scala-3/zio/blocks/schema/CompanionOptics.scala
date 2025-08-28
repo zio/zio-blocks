@@ -1,41 +1,32 @@
 package zio.blocks.schema
 
+import scala.annotation.tailrec
+import scala.compiletime.error
 import zio.blocks.schema.binding._
 
-trait CompanionOptics[S] {
-  import scala.annotation.compileTimeOnly
-
+transparent trait CompanionOptics[S] {
   extension [A](a: A) {
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def when[B <: A]: B = ???
+    inline def when[B <: A]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def wrapped[B]: B = ???
+    inline def wrapped[B]: B = error("Can only be used inside `$(_)` and `optic(_)` macros")
   }
 
   extension [C[_], A](c: C[A]) {
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def at(index: Int): A = ???
+    inline def at(index: Int): A = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def atIndices(index: Int*): A = ???
+    inline def atIndices(indices: Int*): A = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def each: A = ???
+    inline def each: A = error("Can only be used inside `$(_)` and `optic(_)` macros")
   }
 
   extension [M[_, _], K, V](m: M[K, V]) {
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def atKey(key: K): V = ???
+    inline def atKey(key: K): V = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def atKeys(key: K*): V = ???
+    inline def atKeys(keys: K*): V = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def eachKey: K = ???
+    inline def eachKey: K = error("Can only be used inside `$(_)` and `optic(_)` macros")
 
-    @compileTimeOnly("Can only be used inside `$(_)` and `optic(_)` macros")
-    def eachValue: V = ???
+    inline def eachValue: V = error("Can only be used inside `$(_)` and `optic(_)` macros")
   }
 
   transparent inline def $[A](inline path: S => A)(using schema: Schema[S]): Any =
@@ -53,6 +44,7 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
+    @tailrec
     def toPathBody(term: Term): Term = term match {
       case Inlined(_, _, inlinedBlock) =>
         toPathBody(inlinedBlock)
@@ -69,8 +61,7 @@ private object CompanionOptics {
     }
 
     def toOptic(term: Term)(using q: Quotes): Option[Expr[Any]] = term match {
-      case Apply(TypeApply(elementTerm, _), idents) if hasName(elementTerm, "each") =>
-        val parent     = idents.head
+      case Apply(TypeApply(elementTerm, _), List(parent)) if hasName(elementTerm, "each") =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
         Some(parentTpe.asType match {
@@ -97,8 +88,7 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(TypeApply(keyTerm, _), idents) if hasName(keyTerm, "eachKey") =>
-        val parent    = idents.head
+      case Apply(TypeApply(keyTerm, _), List(parent)) if hasName(keyTerm, "eachKey") =>
         val parentTpe = parent.tpe.dealias.widen
         val keyTpe    = term.tpe.dealias.widen
         Some(parentTpe.asType match {
@@ -112,7 +102,7 @@ private object CompanionOptics {
                       .getOrElse(sys.error("Expected a map"))
                       .asInstanceOf[Traversal[p, k]]
                   }
-                } { case x =>
+                } { x =>
                   '{
                     val optic = ${ x.asExprOf[Optic[S, p]] }
                     optic.apply(
@@ -125,8 +115,7 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(TypeApply(valueTerm, _), idents) if hasName(valueTerm, "eachValue") =>
-        val parent    = idents.head
+      case Apply(TypeApply(valueTerm, _), List(parent)) if hasName(valueTerm, "eachValue") =>
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
         Some(parentTpe.asType match {
@@ -140,7 +129,7 @@ private object CompanionOptics {
                       .getOrElse(sys.error("Expected a map"))
                       .asInstanceOf[Traversal[p, v]]
                   }
-                } { case x =>
+                } { x =>
                   '{
                     val optic = ${ x.asExprOf[Optic[S, p]] }
                     optic.apply(
@@ -153,10 +142,9 @@ private object CompanionOptics {
                 }
             }
         })
-      case TypeApply(Apply(TypeApply(caseTerm, _), idents), typeTrees) if hasName(caseTerm, "when") =>
-        val parent    = idents.head
+      case TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree)) if hasName(caseTerm, "when") =>
         val parentTpe = parent.tpe.dealias.widen
-        val caseTpe   = typeTrees.head.tpe.dealias
+        val caseTpe   = typeTree.tpe.dealias
         var caseName  = caseTpe.typeSymbol.name
         if (caseTpe.termSymbol.flags.is(Flags.Enum)) caseName = caseTpe.termSymbol.name
         else if (caseTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
@@ -212,10 +200,10 @@ private object CompanionOptics {
                 }
             }
         })
-      case TypeApply(Apply(TypeApply(wrapperTerm, _), idents), typeTrees) if hasName(wrapperTerm, "wrapped") =>
-        val parent     = idents.head
+      case TypeApply(Apply(TypeApply(wrapperTerm, _), List(parent)), List(typeTree))
+          if hasName(wrapperTerm, "wrapped") =>
         val parentTpe  = parent.tpe.dealias.widen
-        val wrapperTpe = typeTrees.head.tpe.dealias
+        val wrapperTpe = typeTree.tpe.dealias
         Some(parentTpe.asType match {
           case '[p] =>
             wrapperTpe.asType match {
@@ -272,9 +260,8 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(Apply(TypeApply(elementTerm, _), idents), List(index))
+      case Apply(Apply(TypeApply(elementTerm, _), List(parent)), List(index))
           if hasName(elementTerm, "at") && index.tpe.dealias.widen =:= TypeRepr.of[Int] =>
-        val parent     = idents.head
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
         Some(parentTpe.asType match {
@@ -333,8 +320,7 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(Apply(TypeApply(valueTerm, _), idents), List(key)) if hasName(valueTerm, "atKey") =>
-        val parent    = idents.head
+      case Apply(Apply(TypeApply(valueTerm, _), List(parent)), List(key)) if hasName(valueTerm, "atKey") =>
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
         Some(parentTpe.asType match {
@@ -393,9 +379,8 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(Apply(TypeApply(elementTerm, _), idents), List(Typed(Repeated(indices, _), _)))
+      case Apply(Apply(TypeApply(elementTerm, _), List(parent)), List(Typed(Repeated(indices, _), _)))
           if hasName(elementTerm, "atIndices") && indices.forall(_.tpe.dealias.widen =:= TypeRepr.of[Int]) =>
-        val parent     = idents.head
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
         Some(parentTpe.asType match {
@@ -422,8 +407,7 @@ private object CompanionOptics {
                 }
             }
         })
-      case Apply(Apply(TypeApply(valueTerm, _), idents), List(keys)) if hasName(valueTerm, "atKeys") =>
-        val parent    = idents.head
+      case Apply(Apply(TypeApply(valueTerm, _), List(parent)), List(keys)) if hasName(valueTerm, "atKeys") =>
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
         Some(parentTpe.asType match {
