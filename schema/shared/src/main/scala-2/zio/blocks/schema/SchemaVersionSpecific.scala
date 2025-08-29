@@ -55,6 +55,25 @@ private object SchemaVersionSpecific {
     def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[_]] ||
       (tpe <:< typeOf[IterableOnce[_]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
+    def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
+      case TypeRef(SingleType(NoPrefix, objSym), typeSym, Nil) =>
+        typeSym.name.toString == "Type" && objSym.typeSignature.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+      case _ =>
+        false
+    }
+
+    def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
+      case TypeRef(SingleType(_, objSym), _, _) =>
+        val objTpe = objSym.typeSignature
+        objTpe.baseClasses
+          .filter(_.fullName == "zio.prelude.Newtype")
+          .map(objTpe.baseType)
+          .collectFirst { case TypeRef(_, _, List(typeArg)) => typeArg.dealias }
+          .getOrElse(tpe)
+      case _ =>
+        tpe
+    }
+
     def companion(tpe: Type): Symbol = {
       val comp = tpe.typeSymbol.companion
       if (comp.isModule) comp
@@ -126,8 +145,8 @@ private object SchemaVersionSpecific {
         isDynamicValue(tpe) || {
           if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
-          else {
-            isNonAbstractScalaClass(tpe) && !nestedTpes.contains(tpe) && {
+          else if (isNonAbstractScalaClass(tpe)) {
+            !nestedTpes.contains(tpe) && {
               tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m } match {
                 case Some(primaryConstructor) =>
                   val nestedTpes_ = tpe :: nestedTpes
@@ -145,7 +164,7 @@ private object SchemaVersionSpecific {
                 case _ => false
               }
             }
-          }
+          } else isZioPreludeNewtype(tpe) && isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes)
         }
     )
 
@@ -276,17 +295,20 @@ private object SchemaVersionSpecific {
             val defaultValue =
               if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
               else None
+            val sTpe =
+              if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
+              else fTpe
             val offset =
-              if (fTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
-              else if (fTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
-              else if (fTpe <:< definitions.LongTpe) RegisterOffset(longs = 1)
-              else if (fTpe <:< definitions.DoubleTpe) RegisterOffset(doubles = 1)
-              else if (fTpe <:< definitions.BooleanTpe) RegisterOffset(booleans = 1)
-              else if (fTpe <:< definitions.ByteTpe) RegisterOffset(bytes = 1)
-              else if (fTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
-              else if (fTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
-              else if (fTpe <:< definitions.UnitTpe) RegisterOffset.Zero
-              else if (fTpe <:< definitions.AnyRefTpe || isValueClass(fTpe)) RegisterOffset(objects = 1)
+              if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
+              else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
+              else if (sTpe <:< definitions.LongTpe) RegisterOffset(longs = 1)
+              else if (sTpe <:< definitions.DoubleTpe) RegisterOffset(doubles = 1)
+              else if (sTpe <:< definitions.BooleanTpe) RegisterOffset(booleans = 1)
+              else if (sTpe <:< definitions.ByteTpe) RegisterOffset(bytes = 1)
+              else if (sTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
+              else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
+              else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
+              else if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) RegisterOffset(objects = 1)
               else unsupportedFieldType(fTpe)
             val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
@@ -323,19 +345,24 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
             else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
             else if (fTpe =:= definitions.UnitTpe) q"()"
-            else if (fTpe <:< definitions.AnyRefTpe || isValueClass(fTpe)) {
-              q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
-            } else {
-              if (fTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (fTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
-              else unsupportedFieldType(fTpe)
+            else {
+              val sTpe =
+                if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
+                else fTpe
+              if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) {
+                q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+              } else {
+                if (sTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
+                else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
+                else unsupportedFieldType(fTpe)
+              }
             }
           q"${fieldInfo.symbol} = $constructor"
         })
@@ -359,7 +386,31 @@ private object SchemaVersionSpecific {
         else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
         else if (isValueClass(fTpe)) {
           q"out.setObject(baseOffset, $objects, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
-        } else unsupportedFieldType(fTpe)
+        } else {
+          val sTpe =
+            if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
+            else fTpe
+          if (sTpe <:< definitions.IntTpe) {
+            q"out.setInt(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Int])"
+          } else if (sTpe <:< definitions.FloatTpe) {
+            q"out.setFloat(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Float])"
+          } else if (sTpe <:< definitions.LongTpe) {
+            q"out.setLong(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Long])"
+          } else if (sTpe <:< definitions.DoubleTpe) {
+            q"out.setDouble(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Double])"
+          } else if (sTpe <:< definitions.BooleanTpe) {
+            q"out.setBoolean(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Boolean])"
+          } else if (sTpe <:< definitions.ByteTpe) {
+            q"out.setByte(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Byte])"
+          } else if (sTpe <:< definitions.CharTpe) {
+            q"out.setChar(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Char])"
+          } else if (sTpe <:< definitions.ShortTpe) {
+            q"out.setShort(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Short])"
+          } else if (sTpe <:< definitions.UnitTpe) q"()"
+          else if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) {
+            q"out.setObject(baseOffset, $objects, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
+          } else unsupportedFieldType(fTpe)
+        }
       })
 
       def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")
@@ -515,6 +566,10 @@ private object SchemaVersionSpecific {
                 modifiers = ${modifiers(tpe)},
               )
             )"""
+      } else if (isZioPreludeNewtype(tpe)) {
+        val sTpe = zioPreludeNewtypeDealias(tpe)
+        if (sTpe =:= tpe) fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
+        q"${findImplicitOrDeriveSchema(sTpe)}.asInstanceOf[Schema[$tpe]]"
       } else fail(s"Cannot derive schema for '$tpe'.")
     }
 
