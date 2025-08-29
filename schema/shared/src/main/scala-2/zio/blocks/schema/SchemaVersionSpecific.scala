@@ -56,22 +56,22 @@ private object SchemaVersionSpecific {
       (tpe <:< typeOf[IterableOnce[_]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
     def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
-      case TypeRef(SingleType(NoPrefix, objSym), typeSym, Nil) =>
-        typeSym.name.toString == "Type" && objSym.typeSignature.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-      case _ =>
-        false
+      case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
+        compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+      case _ => false
     }
 
     def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
-      case TypeRef(SingleType(_, objSym), _, _) =>
-        val objTpe = objSym.typeSignature
-        objTpe.baseClasses
-          .filter(_.fullName == "zio.prelude.Newtype")
-          .map(objTpe.baseType)
-          .collectFirst { case TypeRef(_, _, List(typeArg)) => typeArg.dealias }
+      case TypeRef(compTpe, _, _) =>
+        compTpe.baseClasses.collectFirst {
+          case cls if cls.fullName == "zio.prelude.Newtype" =>
+            compTpe.baseType(cls) match {
+              case TypeRef(_, _, List(typeArg)) => typeArg.dealias
+              case _                            => tpe
+            }
+        }
           .getOrElse(tpe)
-      case _ =>
-        tpe
+      case _ => tpe
     }
 
     def companion(tpe: Type): Symbol = {
