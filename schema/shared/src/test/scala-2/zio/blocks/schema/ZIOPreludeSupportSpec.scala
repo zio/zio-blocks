@@ -1,23 +1,29 @@
 package zio.blocks.schema
 
-import neotype._
 import zio.blocks.schema.binding.Binding
-import zio.test.Assertion._
+import zio.prelude.{Newtype, Subtype}
 import zio.test._
+import zio.test.Assertion._
 
-object NeotypeSupportSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment, Any] = suite("NeotypeSupportSpec")(
+object ZIOPreludeSupportSpec extends ZIOSpecDefault {
+  def spec: Spec[TestEnvironment, Any] = suite("ZIOPreludeSupportSpec")(
     test("derive schemas for cases classes with subtype and newtype fields") {
       type Name = Name.Type
 
       object Name extends Newtype[String] {
-        override inline def validate(string: String): Boolean = string.length > 0
+        override def assertion = assert(!zio.prelude.Assertion.isEmptyString)
 
         implicit val schema: Schema[Name] = Schema(
           reflect = Reflect.Wrapper(
             wrapped = Schema[String].reflect,
-            typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name"),
-            wrapperBinding = Binding.Wrapper(Name.make, _.unwrap)
+            typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name"),
+            wrapperBinding = Binding.Wrapper[Name, String](
+              s => {
+                if (s.length > 0) new Right(s.asInstanceOf[Name])
+                else new Left("String must not be empty")
+              },
+              _.asInstanceOf[String]
+            )
           )
         )
       }
