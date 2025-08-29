@@ -50,6 +50,23 @@ private object SchemaVersionSpecific {
       case _                                            => tpe
     }
 
+    def isZioPreludeNewtype(tpe: TypeRepr): Boolean = tpe match {
+      case TypeRef(qual, "Type") => qual.termSymbol.typeRef.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+      case _                     => false
+    }
+
+    def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
+      case TypeRef(qual, _) =>
+        val objTpe = qual.termSymbol.typeRef
+        objTpe.baseClasses
+          .filter(_.fullName == "zio.prelude.Newtype")
+          .map(objTpe.baseType)
+          .collectFirst { case AppliedType(_, List(typeArg)) => typeArg.dealias }
+          .getOrElse(tpe)
+      case _ =>
+        tpe
+    }
+
     def isUnion(tpe: TypeRepr): Boolean = tpe match {
       case OrType(_, _) => true
       case _            => false
@@ -219,7 +236,9 @@ private object SchemaVersionSpecific {
                 }
               }
             }
-          } else isOpaque(tpe) && isNonRecursive(opaqueDealias(tpe), nestedTpes)
+          } else if (isOpaque(tpe)) {
+            isNonRecursive(opaqueDealias(tpe), nestedTpes)
+          } else isZioPreludeNewtype(tpe) && isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes)
         }
     )
 
@@ -364,6 +383,7 @@ private object SchemaVersionSpecific {
       def fieldOffset(fTpe: TypeRepr): RegisterOffset = {
         val sTpe =
           if (isOpaque(fTpe)) opaqueDealias(fTpe)
+          else if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
           else fTpe
         if (sTpe <:< TypeRepr.of[Int]) RegisterOffset(ints = 1)
         else if (sTpe <:< TypeRepr.of[Float]) RegisterOffset(floats = 1)
@@ -375,7 +395,7 @@ private object SchemaVersionSpecific {
         else if (sTpe <:< TypeRepr.of[Short]) RegisterOffset(shorts = 1)
         else if (sTpe <:< TypeRepr.of[Unit]) RegisterOffset.Zero
         else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) RegisterOffset(objects = 1)
-        else unsupportedFieldType(sTpe)
+        else unsupportedFieldType(fTpe)
       }
 
       def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo)(using
@@ -398,6 +418,7 @@ private object SchemaVersionSpecific {
             case '[ft] =>
               val sTpe =
                 if (isOpaque(fTpe)) opaqueDealias(fTpe)
+                else if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
                 else fTpe
               if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) {
                 '{ $in.getObject($baseOffset, $objects).asInstanceOf[ft] }
@@ -411,7 +432,7 @@ private object SchemaVersionSpecific {
                 else if (sTpe <:< TypeRepr.of[Char]) '{ $in.getChar($baseOffset, $bytes).asInstanceOf[ft] }
                 else if (sTpe <:< TypeRepr.of[Short]) '{ $in.getShort($baseOffset, $bytes).asInstanceOf[ft] }
                 else if (sTpe <:< TypeRepr.of[Unit]) '{ ().asInstanceOf[ft] }
-                else unsupportedFieldType(sTpe)
+                else unsupportedFieldType(fTpe)
               }
           }
         }
@@ -537,6 +558,7 @@ private object SchemaVersionSpecific {
             } else {
               val sTpe =
                 if (isOpaque(fTpe)) opaqueDealias(fTpe)
+                else if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
                 else fTpe
               if (sTpe <:< TypeRepr.of[Int]) {
                 '{ $out.setInt($baseOffset, $bytes, ${ getter.asExprOf[Any] }.asInstanceOf[Int]) }
@@ -557,7 +579,7 @@ private object SchemaVersionSpecific {
               } else if (sTpe <:< TypeRepr.of[Unit]) '{ () }
               else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) {
                 '{ $out.setObject($baseOffset, $objects, ${ getter.asExprOf[Any] }.asInstanceOf[AnyRef]) }
-              } else unsupportedFieldType(sTpe)
+              } else unsupportedFieldType(fTpe)
             }
           }.asTerm
         }))
@@ -626,6 +648,7 @@ private object SchemaVersionSpecific {
             val fTpe = fieldInfo.tpe
             val sTpe =
               if (isOpaque(fTpe)) opaqueDealias(fTpe)
+              else if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
               else fTpe
             val getter       = Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
             lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
@@ -645,7 +668,7 @@ private object SchemaVersionSpecific {
               else if (sTpe <:< TypeRepr.of[Unit]) '{ () }
               else if (sTpe <:< TypeRepr.of[AnyRef] || isValueClass(sTpe)) {
                 '{ $out.setObject($baseOffset, $objects, $getter.asInstanceOf[AnyRef]) }
-              } else unsupportedFieldType(sTpe)
+              } else unsupportedFieldType(fTpe)
             }.asTerm
         })
     }
@@ -959,7 +982,13 @@ private object SchemaVersionSpecific {
         }
       } else if (isOpaque(tpe)) {
         val sTpe = opaqueDealias(tpe)
-        if (sTpe =:= tpe) fail(s"Cannot dealias opaque type: ${tpe.show}")
+        if (sTpe =:= tpe) fail(s"Cannot dealias opaque type: ${tpe.show}.")
+        sTpe.asType match {
+          case '[s] => '{ ${ findImplicitOrDeriveSchema[s](sTpe) }.asInstanceOf[Schema[T]] }
+        }
+      } else if (isZioPreludeNewtype(tpe)) {
+        val sTpe = zioPreludeNewtypeDealias(tpe)
+        if (sTpe =:= tpe) fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}.")
         sTpe.asType match {
           case '[s] => '{ ${ findImplicitOrDeriveSchema[s](sTpe) }.asInstanceOf[Schema[T]] }
         }
