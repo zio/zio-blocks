@@ -2,9 +2,9 @@ package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
 import zio.blocks.schema.SchemaVersionSpecificSpec.{InnerId, InnerValue}
-import zio.blocks.schema.binding.*
-import zio.test.Assertion.*
-import zio.test.*
+import zio.blocks.schema.binding._
+import zio.test.Assertion._
+import zio.test._
 
 object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
