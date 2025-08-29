@@ -51,20 +51,21 @@ private object SchemaVersionSpecific {
     }
 
     def isZioPreludeNewtype(tpe: TypeRepr): Boolean = tpe match {
-      case TypeRef(qual, "Type") => qual.termSymbol.typeRef.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
-      case _                     => false
+      case TypeRef(compTpe, "Type") => compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
+      case _                        => false
     }
 
     def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
-      case TypeRef(qual, _) =>
-        val objTpe = qual.termSymbol.typeRef
-        objTpe.baseClasses
-          .filter(_.fullName == "zio.prelude.Newtype")
-          .map(objTpe.baseType)
-          .collectFirst { case AppliedType(_, List(typeArg)) => typeArg.dealias }
+      case TypeRef(compTpe, _) =>
+        compTpe.baseClasses.collectFirst {
+          case cls if cls.fullName == "zio.prelude.Newtype" =>
+            compTpe.baseType(cls) match {
+              case AppliedType(_, List(typeArg)) => typeArg.dealias
+              case _                             => tpe
+            }
+        }
           .getOrElse(tpe)
-      case _ =>
-        tpe
+      case _ => tpe
     }
 
     def isUnion(tpe: TypeRepr): Boolean = tpe match {
