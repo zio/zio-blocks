@@ -141,7 +141,7 @@ lazy val benchmarks = project
     crossScalaVersions       := Seq("3.7.2"),
     ThisBuild / scalaVersion := "3.7.2",
     libraryDependencies ++= Seq(
-      "io.github.arainko"          %% "chanterelle"   % "0.1.0",
+      "io.github.arainko"          %% "chanterelle"   % "0.1.1",
       "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
       "dev.optics"                 %% "monocle-core"  % "3.3.0",
       "dev.optics"                 %% "monocle-macro" % "3.3.0",
