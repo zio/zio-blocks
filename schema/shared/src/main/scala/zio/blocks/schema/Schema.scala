@@ -76,6 +76,10 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def modifier(modifier: reflect.ModifierType): Schema[A] = new Schema(reflect.modifier(modifier))
 
   def modifiers(modifiers: Iterable[reflect.ModifierType]): Schema[A] = new Schema(reflect.modifiers(modifiers))
+
+  def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
+    new Reflect.Wrapper[Binding, A, B](Schema[B].reflect, reflect.typeName, new Binding.Wrapper(wrap, unwrap))
+  )
 }
 
 object Schema extends SchemaVersionSpecific {
