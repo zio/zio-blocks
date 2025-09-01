@@ -20,7 +20,22 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
       assert(Planet.mass.replace(value, Kilogram(5.970001e24)))(
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0)))
       ) &&
-      assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+      assert(Planet.name.focus.typeName)(
+        equalTo(
+          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+        )
+      ) &&
+      assert(Planet.mass.focus.typeName)(
+        equalTo(
+          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+        )
+      ) &&
+      assert(Planet.radius.focus.typeName)(
+        equalTo(
+          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+        )
+      )
     }
   )
 

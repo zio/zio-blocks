@@ -432,8 +432,8 @@ private object SchemaVersionSpecific {
             )"""
       } else if (isCollection(tpe)) {
         if (tpe <:< typeOf[Array[_]]) {
-          val elementTpe  = typeArgs(tpe).head
           val tpeName     = typeName(tpe)
+          val elementTpe  = typeArgs(tpe).head
           val constructor =
             if (elementTpe <:< definitions.AnyRefTpe) {
               q"""new SeqConstructor.ArrayConstructor {
@@ -495,10 +495,10 @@ private object SchemaVersionSpecific {
           str.toString
         }
 
+        val tpeName  = typeName(tpe)
         val subTypes = directSubTypes(tpe)
         if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
         val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
-        val tpeName               = typeName(tpe)
         val maxCommonPrefixLength = {
           var minFullTermName = fullTermNames.min
           var maxFullTermName = fullTermNames.max
@@ -567,9 +567,15 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isZioPreludeNewtype(tpe)) {
+        var tpeName = typeName(tpe match {
+          case TypeRef(compTpe, _, _) => compTpe
+          case _                      => tpe
+        })
+        if (tpeName.name.endsWith(".type")) tpeName = tpeName.copy(name = tpeName.name.stripSuffix(".type"))
         val sTpe = zioPreludeNewtypeDealias(tpe)
         if (sTpe =:= tpe) fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
-        q"${findImplicitOrDeriveSchema(sTpe)}.asInstanceOf[Schema[$tpe]]"
+        val schema = findImplicitOrDeriveSchema(sTpe)
+        q"new Schema($schema.reflect.typeName(${toTree(tpeName)})).asInstanceOf[Schema[$tpe]]"
       } else fail(s"Cannot derive schema for '$tpe'.")
     }
 
