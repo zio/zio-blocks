@@ -29,13 +29,7 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
   object Name extends Newtype[String] {
     override inline def validate(string: String): Boolean = string.length > 0
 
-    implicit val schema: Schema[Name] = Schema(
-      reflect = Reflect.Wrapper(
-        wrapped = Schema[String].reflect,
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name"),
-        wrapperBinding = Binding.Wrapper(Name.make, _.unwrap)
-      )
-    )
+    implicit val schema: Schema[Name] = Schema.derived.wrap(Name.make, _.unwrap)
   }
 
   type Kilogram = Kilogram.Type

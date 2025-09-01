@@ -29,19 +29,14 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
   object Name extends Newtype[String] {
     override def assertion = assert(!zio.prelude.Assertion.isEmptyString)
 
-    implicit val schema: Schema[Name] = Schema(
-      reflect = Reflect.Wrapper(
-        wrapped = Schema[String].reflect,
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name"),
-        wrapperBinding = Binding.Wrapper[Name, String](
-          s => {
-            if (s.length > 0) new Right(s.asInstanceOf[Name])
-            else new Left("String must not be empty")
-          },
-          _.asInstanceOf[String]
-        )
+    implicit val schema: Schema[Name] = Schema.derived
+      .wrap(
+        (s: String) => {
+          if (s.length > 0) new Right(s.asInstanceOf[Name])
+          else new Left("String must not be empty")
+        },
+        _.asInstanceOf[String]
       )
-    )
   }
 
   type Kilogram = Kilogram.Type
