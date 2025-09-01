@@ -42,6 +42,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
 
   def transformDynamic(
     path: DynamicOptic,
+    typeName: TypeName[DynamicValue],
     metadata: F[BindingType.Dynamic, DynamicValue],
     doc: Doc,
     modifiers: Seq[Modifier.Dynamic]
@@ -121,13 +122,14 @@ object ReflectTransformer {
 
     def transformDynamic(
       path: DynamicOptic,
+      typeName: TypeName[DynamicValue],
       metadata: F[BindingType.Dynamic, DynamicValue],
       doc: Doc,
       modifiers: Seq[Modifier.Dynamic]
     ): Lazy[Reflect.Dynamic[G]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Dynamic(binding, doc, modifiers)
+      } yield Reflect.Dynamic(binding, typeName, doc, modifiers)
 
     def transformPrimitive[A](
       path: DynamicOptic,

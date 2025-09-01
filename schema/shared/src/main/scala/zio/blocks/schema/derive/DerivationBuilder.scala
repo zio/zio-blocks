@@ -146,6 +146,7 @@ final case class DerivationBuilder[TC[_], A](
 
           override def transformDynamic(
             path: DynamicOptic,
+            typeName: TypeName[DynamicValue],
             metadata: F[BindingType.Dynamic, DynamicValue],
             doc: Doc,
             modifiers: Seq[Modifier.Dynamic]
@@ -154,7 +155,7 @@ final case class DerivationBuilder[TC[_], A](
               .getOrElse(
                 deriver.deriveDynamic[G](metadata, doc, modifiers ++ extraModifiers(Reflect.Type.Dynamic, path))
               )
-            Lazy(Reflect.Dynamic(BindingInstance(metadata, instance), doc, modifiers))
+            Lazy(Reflect.Dynamic(BindingInstance(metadata, instance), typeName, doc, modifiers))
           }
 
           override def transformPrimitive[A0](
