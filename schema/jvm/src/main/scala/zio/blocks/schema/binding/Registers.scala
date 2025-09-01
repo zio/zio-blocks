@@ -99,7 +99,7 @@ class Registers private (userRegister: RegisterOffset) {
   def setRegisters(baseOffset: RegisterOffset, registers: Registers): Unit = {
     val bytes       = registers.getBytes
     val bytesLength = bytes.length
-    val byteIndex   = RegisterOffset.getObjects(baseOffset)
+    val byteIndex   = RegisterOffset.getBytes(baseOffset)
     if (bytesLength + byteIndex >= this.bytes.length) growBytes(bytesLength + byteIndex)
     System.arraycopy(bytes, 0, this.bytes, byteIndex, bytesLength)
     val objects       = registers.getObjects
