@@ -265,7 +265,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               reflect = Reflect.Record[Binding, Opaque](
                 fields = Vector(
                   Schema[Id].reflect.asTerm("id"),
-                  Schema[Int].reflect.asTerm("value")
+                  Schema.derived[Value].reflect.asTerm("value")
                 ),
                 typeName = TypeName(Namespace.zioBlocksSchema, "Opaque"),
                 recordBinding = null
@@ -307,7 +307,14 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               reflect = Reflect.Record[Binding, InnerOpaque](
                 fields = Vector(
                   Schema[InnerId].reflect.asTerm("id"),
-                  Schema[Int].reflect.asTerm("value")
+                  Schema[Int].reflect
+                    .typeName(
+                      TypeName(
+                        namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
+                        name = "InnerValue"
+                      )
+                    )
+                    .asTerm("value")
                 ),
                 typeName = TypeName(Namespace.zioBlocksSchema, "InnerOpaque"),
                 recordBinding = null
