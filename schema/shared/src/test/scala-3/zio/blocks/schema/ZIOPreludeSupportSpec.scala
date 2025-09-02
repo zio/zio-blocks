@@ -45,8 +45,8 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
     override inline def assertion: zio.prelude.Assertion[String] = !zio.prelude.Assertion.isEmptyString
 
     implicit val schema: Schema[Name] = Schema.derived
-      .wrap(
-        (s: String) => {
+      .wrap[String](
+        s => {
           if (s.length > 0) new Right(s.asInstanceOf[Name])
           else new Left("String must not be empty")
         },
