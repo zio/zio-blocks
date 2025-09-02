@@ -1611,7 +1611,10 @@ object SchemaSpec extends ZIOSpecDefault {
     suite("Reflect.Wrapper")(
       test("has consistent equals and hashCode") {
         assert(Schema[PosInt])(equalTo(Schema[PosInt])) &&
-        assert(Schema[PosInt].hashCode)(equalTo(Schema[PosInt].hashCode))
+        assert(Schema[PosInt].hashCode)(equalTo(Schema[PosInt].hashCode)) &&
+        assert(Schema[Email])(equalTo(Schema[Email])) &&
+        assert(Schema[Email].hashCode)(equalTo(Schema[Email].hashCode)) &&
+        assert(Schema[PosInt]: Any)(not(equalTo(Schema[Email])))
       },
       test("gets and updates wrapper default value") {
         val value = PosInt.applyUnsafe(1)
@@ -1628,13 +1631,20 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Schema[PosInt].examples(value).examples)(equalTo(value :: Nil))
       },
       test("gets and updates default values of wrapped schema using optic focus") {
-        assert(PosInt.schema.defaultValue(PosInt.wrapped, 1).getDefaultValue(PosInt.wrapped))(isSome(equalTo(1)))
+        assert(PosInt.schema.defaultValue(PosInt.wrapped, 1).getDefaultValue(PosInt.wrapped))(isSome(equalTo(1))) &&
+        assert(Email.schema.defaultValue(Email.wrapped, "test@gmail.com").getDefaultValue(Email.wrapped))(
+          isSome(equalTo("test@gmail.com"))
+        )
       },
       test("gets and updates documentation of wrapped schema using optic focus") {
-        assert(PosInt.schema.doc(PosInt.wrapped, "Int").doc(PosInt.wrapped))(equalTo(Doc("Int")))
+        assert(PosInt.schema.doc(PosInt.wrapped, "Int").doc(PosInt.wrapped))(equalTo(Doc("Int"))) &&
+        assert(Email.schema.doc(Email.wrapped, "String").doc(Email.wrapped))(equalTo(Doc("String")))
       },
       test("gets and updates examples of wrapped schema using optic focus") {
-        assert(PosInt.schema.examples(PosInt.wrapped, 2).examples(PosInt.wrapped))(equalTo(Seq(2)))
+        assert(PosInt.schema.examples(PosInt.wrapped, 2).examples(PosInt.wrapped))(equalTo(Seq(2))) &&
+        assert(Email.schema.examples(Email.wrapped, "abc@gmail.com").examples(Email.wrapped))(
+          equalTo(Seq("abc@gmail.com"))
+        )
       },
       test("appends wrapped modifiers") {
         val schema1 = PosInt.schema
@@ -1757,18 +1767,15 @@ object SchemaSpec extends ZIOSpecDefault {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = new Schema(
-      new Reflect.Wrapper(
-        wrapped = Schema[Int].reflect,
-        typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "PosInt"),
-        wrapperBinding = Binding.Wrapper(
-          wrap = PosInt.apply,
-          unwrap = (x: PosInt) => x.value
-        )
-      )
-    )
+    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    val wrapped: Optional[PosInt, Int]  = $(_.wrapped[Int])
+  }
 
-    val wrapped: Optional[PosInt, Int] = $(_.wrapped[Int])
+  case class Email(value: String)
+
+  object Email extends CompanionOptics[Email] {
+    implicit val schema: Schema[Email]   = Schema.derived.wrapTotal(x => new Email(x), _.value)
+    val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 
   def encodeToString(f: CharBuffer => Unit): String = {
