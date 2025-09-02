@@ -172,23 +172,23 @@ object SeqConstructor {
     type CharBuilder      = Builder[Char]
 
     def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      new Builder(new Array[AnyRef](sizeHint).asInstanceOf[Array[A]], 0)
+      new Builder(new Array[AnyRef](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
 
-    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](sizeHint), 0)
+    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](Math.max(sizeHint, 1)), 0)
 
-    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](sizeHint), 0)
+    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](Math.max(sizeHint, 1)), 0)
 
-    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](sizeHint), 0)
+    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](Math.max(sizeHint, 1)), 0)
 
-    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](sizeHint), 0)
+    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](Math.max(sizeHint, 1)), 0)
 
-    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](sizeHint), 0)
+    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](Math.max(sizeHint, 1)), 0)
 
-    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](sizeHint), 0)
+    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](Math.max(sizeHint, 1)), 0)
 
-    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](sizeHint), 0)
+    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 1)), 0)
 
-    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](sizeHint), 0)
+    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
       var buf = builder.buffer
@@ -353,7 +353,7 @@ object SeqConstructor {
     }
   }
 
-  val arrayConstructor = new ArrayConstructor
+  val arrayConstructor: SeqConstructor[Array] = new ArrayConstructor
 
   class ArrayConstructor extends SeqConstructor[Array] {
     case class Builder[A](var buffer: Array[A], var size: Int)
@@ -369,23 +369,23 @@ object SeqConstructor {
     type CharBuilder      = Builder[Char]
 
     def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-      new Builder(new Array[AnyRef](sizeHint).asInstanceOf[Array[A]], 0)
+      new Builder(new Array[AnyRef](Math.max(sizeHint, 1)).asInstanceOf[Array[A]], 0)
 
-    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](sizeHint), 0)
+    def newBooleanBuilder(sizeHint: Int): BooleanBuilder = new Builder(new Array[Boolean](Math.max(sizeHint, 1)), 0)
 
-    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](sizeHint), 0)
+    def newByteBuilder(sizeHint: Int): ByteBuilder = new Builder(new Array[Byte](Math.max(sizeHint, 1)), 0)
 
-    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](sizeHint), 0)
+    def newShortBuilder(sizeHint: Int): ShortBuilder = new Builder(new Array[Short](Math.max(sizeHint, 1)), 0)
 
-    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](sizeHint), 0)
+    def newIntBuilder(sizeHint: Int): IntBuilder = new Builder(new Array[Int](Math.max(sizeHint, 1)), 0)
 
-    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](sizeHint), 0)
+    def newLongBuilder(sizeHint: Int): LongBuilder = new Builder(new Array[Long](Math.max(sizeHint, 1)), 0)
 
-    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](sizeHint), 0)
+    def newFloatBuilder(sizeHint: Int): FloatBuilder = new Builder(new Array[Float](Math.max(sizeHint, 1)), 0)
 
-    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](sizeHint), 0)
+    def newDoubleBuilder(sizeHint: Int): DoubleBuilder = new Builder(new Array[Double](Math.max(sizeHint, 1)), 0)
 
-    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](sizeHint), 0)
+    def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
 
     def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
       var buf = builder.buffer
