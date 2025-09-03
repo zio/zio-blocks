@@ -5,6 +5,7 @@ import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.quoted._
+import zio.blocks.schema.Term as SchemaTerm
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 
@@ -373,9 +374,7 @@ private object SchemaVersionSpecific {
     abstract class TypeInfo[T: Type] {
       def usedRegisters: Expr[RegisterOffset]
 
-      def fields[S: Type](nameOverrides: List[String] = Nil)(using
-        Quotes
-      ): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]]
+      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]]
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T]
 
@@ -498,9 +497,7 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](
-        nameOverrides: List[String] = Nil
-      )(using Quotes): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] = {
+      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] = {
         val names = nameOverrides.toArray
         var idx   = -1
         Expr.ofSeq(fieldInfos.flatMap(_.map { fieldInfo =>
@@ -603,9 +600,7 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](
-        nameOverrides: List[String] = Nil
-      )(using Quotes): Expr[Seq[zio.blocks.schema.Term[Binding, S, ?]]] =
+      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] =
         Expr.ofSeq(fieldInfos.map {
           val names = nameOverrides.toArray
           var idx   = -1
@@ -627,15 +622,15 @@ private object SchemaVersionSpecific {
          else {
            val args        = fieldInfos.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo))
            val sym         = Symbol.newVal(Symbol.spliceOwner, "as", TypeRepr.of[Array[Any]], Flags.EmptyFlags, Symbol.noSymbol)
-           val ref         = Ref(sym).asExprOf[Array[Any]]
-           val valDef      = ValDef(sym, Some('{ new Array[Any](${ Expr(fieldInfos.size) }) }.asTerm))
+           val update      = Select.unique(Ref(sym), "update")
            val assignments = args.map {
-             var i = -1
-             term =>
-               i += 1
-               '{ $ref(${ Expr(i) }) = ${ term.asExprOf[Any] } }.asTerm
+             var idx = -1
+             arg =>
+               idx += 1
+               Apply(update, List(Literal(IntConstant(idx)), arg.asTerm))
            }
-           val block = Block(valDef :: assignments, ref.asTerm).asExprOf[Array[Any]]
+           val valDef = ValDef(sym, Some('{ new Array[Any](${ Expr(fieldInfos.size) }) }.asTerm))
+           val block  = Block(valDef :: assignments, Ref(sym)).asExprOf[Array[Any]]
            tpe.asType match {
              case '[tt] => '{ scala.runtime.TupleXXL.fromIArray($block.asInstanceOf[IArray[Object]]).asInstanceOf[tt] }
            }
@@ -851,7 +846,7 @@ private object SchemaVersionSpecific {
                 ${ findImplicitOrDeriveSchema[st](sTpe) }.reflect.asTerm[T](${
                   Expr(toShortTermName(fullName, maxCommonPrefixLength))
                 })
-              }.asExprOf[zio.blocks.schema.Term[Binding, T, ? <: T]]
+              }.asExprOf[SchemaTerm[Binding, T, ? <: T]]
           }
         })
         val matcherCases = Expr.ofSeq(subTypes.map { sTpe =>
@@ -931,10 +926,7 @@ private object SchemaVersionSpecific {
                                 Apply(
                                   Select
                                     .unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
-                                    .appliedToTypeTrees(tpe.typeArgs.map { typeArg =>
-                                      typeArg.asType match
-                                        case '[t] => TypeTree.of[t]
-                                    }),
+                                    .appliedToTypes(tpe.typeArgs),
                                   List('in.asTerm)
                                 )
                               )
