@@ -42,11 +42,14 @@ final case class DerivationBuilder[TC[_], A](
   }
 
   lazy val derive: TC[A] = {
+    val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
+    val allModifierOverrides = modifierOverrides ++ deriver.modifierOverrides
+
     val instanceByOpticMap =
-      instanceOverrides.collect { case InstanceOverride(By.Optic(optic), instance) => optic -> instance }.toMap
+      allInstanceOverrides.collect { case InstanceOverride(By.Optic(optic), instance) => optic -> instance }.toMap
     val instanceByTypeMap =
-      instanceOverrides.collect { case InstanceOverride(By.Type(name), instance) => name -> instance }.toMap
-    val modifierMap = modifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier]]](Map.empty) {
+      allInstanceOverrides.collect { case InstanceOverride(By.Type(name), instance) => name -> instance }.toMap
+    val modifierMap = allModifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier]]](Map.empty) {
       case (acc, override_) =>
         acc + (override_.optic -> acc.getOrElse(override_.optic, Vector.empty).appended(override_.modifier))
     }
