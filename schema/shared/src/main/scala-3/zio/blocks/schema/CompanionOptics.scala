@@ -64,7 +64,7 @@ private object CompanionOptics {
       case Apply(TypeApply(elementTerm, _), List(parent)) if hasName(elementTerm, "each") =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             elementTpe.asType match {
               case '[e] =>
@@ -91,7 +91,7 @@ private object CompanionOptics {
       case Apply(TypeApply(keyTerm, _), List(parent)) if hasName(keyTerm, "eachKey") =>
         val parentTpe = parent.tpe.dealias.widen
         val keyTpe    = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             keyTpe.asType match {
               case '[k] =>
@@ -118,7 +118,7 @@ private object CompanionOptics {
       case Apply(TypeApply(valueTerm, _), List(parent)) if hasName(valueTerm, "eachValue") =>
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             valueTpe.asType match {
               case '[v] =>
@@ -148,7 +148,7 @@ private object CompanionOptics {
         var caseName  = caseTpe.typeSymbol.name
         if (caseTpe.termSymbol.flags.is(Flags.Enum)) caseName = caseTpe.termSymbol.name
         else if (caseTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             caseTpe.asType match {
               case '[c] =>
@@ -204,7 +204,7 @@ private object CompanionOptics {
           if hasName(wrapperTerm, "wrapped") =>
         val parentTpe  = parent.tpe.dealias.widen
         val wrapperTpe = typeTree.tpe.dealias
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             wrapperTpe.asType match {
               case '[w] =>
@@ -264,7 +264,7 @@ private object CompanionOptics {
           if hasName(elementTerm, "at") && index.tpe.dealias.widen =:= TypeRepr.of[Int] =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             elementTpe.asType match {
               case '[e] =>
@@ -323,7 +323,7 @@ private object CompanionOptics {
       case Apply(Apply(TypeApply(valueTerm, _), List(parent)), List(key)) if hasName(valueTerm, "atKey") =>
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             valueTpe.asType match {
               case '[v] =>
@@ -383,7 +383,7 @@ private object CompanionOptics {
           if hasName(elementTerm, "atIndices") && indices.forall(_.tpe.dealias.widen =:= TypeRepr.of[Int]) =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             elementTpe.asType match {
               case '[e] =>
@@ -410,7 +410,7 @@ private object CompanionOptics {
       case Apply(Apply(TypeApply(valueTerm, _), List(parent)), List(keys)) if hasName(valueTerm, "atKeys") =>
         val parentTpe = parent.tpe.dealias.widen
         val valueTpe  = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             valueTpe.asType match {
               case '[v] =>
@@ -437,7 +437,7 @@ private object CompanionOptics {
       case Select(parent, fieldName) =>
         val parentTpe = parent.tpe.dealias.widen
         val childTpe  = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             childTpe.asType match {
               case '[c] =>
@@ -501,7 +501,7 @@ private object CompanionOptics {
         }
         val parentTpe = parent.tpe.dealias.widen
         val childTpe  = term.tpe.dealias.widen
-        Some(parentTpe.asType match {
+        new Some(parentTpe.asType match {
           case '[p] =>
             childTpe.asType match {
               case '[c] =>

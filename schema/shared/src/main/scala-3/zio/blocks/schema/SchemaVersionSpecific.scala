@@ -328,18 +328,26 @@ private object SchemaVersionSpecific {
       else Literal(UnitConstant())
     }.asExprOf[Unit]
 
-    def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] =
-      (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).docstring
-        .fold('{ Doc.Empty }.asExprOf[Doc])(s => '{ new Doc.Text(${ Expr(s) }) }.asExprOf[Doc])
+    def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
+      if (isEnumValue(tpe)) tpe.termSymbol
+      else tpe.typeSymbol
+    }.docstring
+      .fold('{ Doc.Empty })(s => '{ new Doc.Text(${ Expr(s) }) })
+      .asExprOf[Doc]
 
-    def modifiers(tpe: TypeRepr)(using Quotes): Expr[List[Modifier.config]] = Expr.ofList(
-      (if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol).annotations
-        .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-        .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
-          '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config]
+    def modifiers(tpe: TypeRepr)(using Quotes): Expr[List[Modifier.config]] = Expr.ofList {
+      var config: List[Expr[Modifier.config]] = Nil
+      {
+        if (isEnumValue(tpe)) tpe.termSymbol
+        else tpe.typeSymbol
+      }.annotations.foreach { annotation =>
+        if (annotation.tpe =:= TypeRepr.of[Modifier.config]) annotation match {
+          case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
+            config = '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config] :: config
         }
-        .reverse
-    )
+      }
+      config
+    }
 
     val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
     val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
@@ -368,7 +376,7 @@ private object SchemaVersionSpecific {
               // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
               derivedSchemaRefs.update(tpe, ref)
               val schema = deriveSchema(tpe)
-              derivedSchemaDefs.addOne(ValDef(symbol, Some(schema.asTerm.changeOwner(symbol))))
+              derivedSchemaDefs.addOne(ValDef(symbol, new Some(schema.asTerm.changeOwner(symbol))))
               ref
             }
           )
@@ -387,6 +395,8 @@ private object SchemaVersionSpecific {
     )
 
     abstract class TypeInfo[T: Type] {
+      def tpeTypeArgs: List[TypeRepr]
+
       def usedRegisters: Expr[RegisterOffset]
 
       def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]]
@@ -454,14 +464,16 @@ private object SchemaVersionSpecific {
       private val tpeClassSymbol     = tpe.classSymbol.get
       private val primaryConstructor = tpeClassSymbol.primaryConstructor
       if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
+      val tpeTypeArgs: List[TypeRepr]                                              = typeArgs(tpe)
       val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
         val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
           case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
           case ps                                     => (Nil, ps)
         }
-        val tpeTypeArgs   = typeArgs(tpe)
-        var usedRegisters = RegisterOffset.Zero
-        var idx           = 0
+        lazy val companionClass     = tpe.typeSymbol.companionClass
+        lazy val companionModuleRef = Ref(tpe.typeSymbol.companionModule)
+        var usedRegisters           = RegisterOffset.Zero
+        var idx                     = 0
         (
           tpeParams.map(_.map { symbol =>
             idx += 1
@@ -470,27 +482,30 @@ private object SchemaVersionSpecific {
             val name   = symbol.name
             var getter = tpeClassSymbol.fieldMember(name)
             if (!getter.exists) {
-              val getters = tpeClassSymbol
-                .methodMember(name)
-                .filter(_.flags.is(Flags.CaseAccessor | Flags.FieldAccessor | Flags.ParamAccessor))
+              val getterFlags = Flags.FieldAccessor | Flags.ParamAccessor
+              val getters     = tpeClassSymbol.methodMember(name).filter(_.flags.is(getterFlags))
               if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
               getter = getters.head
             }
-            val isTransient = getter.annotations.exists(_.tpe =:= TypeRepr.of[Modifier.transient])
-            val config      = getter.annotations
-              .filter(_.tpe =:= TypeRepr.of[Modifier.config])
-              .collect { case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => (k, v) }
-              .reverse
+            var isTransient                    = false
+            var config: List[(String, String)] = Nil
+            getter.annotations.foreach { annotation =>
+              if (annotation.tpe =:= TypeRepr.of[Modifier.transient]) isTransient = true
+              else if (annotation.tpe =:= TypeRepr.of[Modifier.config]) annotation match {
+                case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => config = (k, v) :: config
+                case _                                                                      =>
+              }
+            }
             val defaultValue =
               if (symbol.flags.is(Flags.HasDefault)) {
-                (tpe.typeSymbol.companionClass.methodMember("$lessinit$greater$default$" + idx) match {
+                (companionClass.methodMember("$lessinit$greater$default$" + idx) match {
                   case methodSymbol :: _ =>
-                    val dvSelectNoTArgs = Ref(tpe.typeSymbol.companionModule).select(methodSymbol)
+                    val dvSelectNoTArgs = companionModuleRef.select(methodSymbol)
                     methodSymbol.paramSymss match {
                       case Nil =>
-                        Some(dvSelectNoTArgs)
+                        new Some(dvSelectNoTArgs)
                       case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
-                        Some(dvSelectNoTArgs.appliedToTypes(tpeTypeArgs))
+                        new Some(dvSelectNoTArgs.appliedToTypes(tpeTypeArgs))
                       case _ =>
                         None
                     }
@@ -498,7 +513,7 @@ private object SchemaVersionSpecific {
                     None
                 }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
               } else None
-            val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
+            val fieldInfo = new FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
             usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
             fieldInfo
           }),
@@ -533,7 +548,7 @@ private object SchemaVersionSpecific {
       }
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
-        val constructor = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(typeArgs(tpe))
+        val constructor = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(tpeTypeArgs)
         val argss       = fieldInfos.map(_.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo).asTerm))
         argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _)).asExprOf[T]
       }
@@ -586,15 +601,16 @@ private object SchemaVersionSpecific {
     }
 
     case class GenericTupleInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
+      val tpeTypeArgs: List[TypeRepr]                                        = genericTupleTypeArgs(tpe.asType)
       val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
         val noSymbol      = Symbol.noSymbol
         var usedRegisters = RegisterOffset.Zero
         (
-          genericTupleTypeArgs(tpe.asType).map {
+          tpeTypeArgs.map {
             var idx = 0
             fTpe =>
               idx += 1
-              val fieldInfo = FieldInfo(noSymbol, s"_$idx", fTpe, None, noSymbol, usedRegisters, false, Nil)
+              val fieldInfo = new FieldInfo(noSymbol, s"_$idx", fTpe, None, noSymbol, usedRegisters, false, Nil)
               usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
               fieldInfo
           },
@@ -631,7 +647,7 @@ private object SchemaVersionSpecific {
                idx += 1
                Apply(update, List(Literal(IntConstant(idx)), arg.asTerm))
            }
-           val valDef = ValDef(sym, Some('{ new Array[Any](${ Expr(fieldInfos.size) }) }.asTerm))
+           val valDef = ValDef(sym, new Some('{ new Array[Any](${ Expr(fieldInfos.size) }) }.asTerm))
            val block  = Block(valDef :: assignments, Ref(sym)).asExprOf[Array[Any]]
            tpe.asType match {
              case '[tt] => '{ scala.runtime.TupleXXL.fromIArray($block.asInstanceOf[IArray[AnyRef]]).asInstanceOf[tt] }
@@ -640,12 +656,13 @@ private object SchemaVersionSpecific {
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
         toBlock(fieldInfos.map {
-          var idx = -1
+          val productElement = Select.unique(in.asTerm, "productElement")
+          var idx            = -1
           fieldInfo =>
             idx += 1
             val fTpe         = fieldInfo.tpe
             val sTpe         = dealiasOnDemand(fTpe)
-            val getter       = Select.unique(in.asTerm, "productElement").appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
+            val getter       = productElement.appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
             lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
             lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
             {
@@ -678,7 +695,10 @@ private object SchemaVersionSpecific {
               typeName = ${ toExpr(tpeName) },
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor(${
-                  Ref(if (isEnumValue(tpe)) tpe.termSymbol else tpe.typeSymbol.companionModule).asExprOf[T]
+                  Ref(
+                    if (isEnumValue(tpe)) tpe.termSymbol
+                    else tpe.typeSymbol.companionModule
+                  ).asExprOf[T]
                 }),
                 deconstructor = new ConstantDeconstructor
               ),
@@ -706,7 +726,7 @@ private object SchemaVersionSpecific {
                 } else '{ SeqConstructor.arrayConstructor }
               '{
                 new Schema(
-                  reflect = new Reflect.Sequence[Binding, et, Array](
+                  reflect = new Reflect.Sequence(
                     element = ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect,
                     typeName = ${ toExpr(tpeName) },
                     seqBinding = new Binding.Seq(
@@ -869,13 +889,14 @@ private object SchemaVersionSpecific {
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator {
                   def discriminate(a: T): Int = ${
-                    val v   = 'a
-                    var idx = -1
+                    val v = 'a
                     Match(
                       '{ $v: @scala.unchecked }.asTerm,
-                      subTypes.map { sTpe =>
-                        idx += 1
-                        CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Literal(IntConstant(idx)))
+                      subTypes.map {
+                        var idx = -1
+                        sTpe =>
+                          idx += 1
+                          CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Literal(IntConstant(idx)))
                       }
                     ).asExprOf[Int]
                   }
@@ -921,7 +942,7 @@ private object SchemaVersionSpecific {
                           def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
                             val valDef = ValDef(
                               Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol),
-                              Some(
+                              new Some(
                                 Apply(
                                   Select
                                     .unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
