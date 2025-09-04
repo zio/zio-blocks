@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset
+import zio.blocks.schema.{TypeName => SchemaTypeName}
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.language.experimental.macros
@@ -97,8 +98,8 @@ private object SchemaVersionSpecific {
       }
     }
 
-    implicit lazy val positionOrdering: Ordering[c.universe.Symbol] =
-      (x: c.universe.Symbol, y: c.universe.Symbol) => {
+    implicit lazy val positionOrdering: Ordering[Symbol] =
+      (x: Symbol, y: Symbol) => {
         val xPos  = x.pos
         val yPos  = y.pos
         val xFile = xPos.source.file.absolute
@@ -176,11 +177,11 @@ private object SchemaVersionSpecific {
         }
     )
 
-    val typeNameCache = new mutable.HashMap[Type, zio.blocks.schema.TypeName[_]]
+    val typeNameCache = new mutable.HashMap[Type, SchemaTypeName[_]]
 
-    def typeName(tpe: Type): zio.blocks.schema.TypeName[_] = typeNameCache.getOrElseUpdate(
+    def typeName(tpe: Type): SchemaTypeName[_] = typeNameCache.getOrElseUpdate(
       tpe,
-      if (tpe =:= typeOf[java.lang.String]) zio.blocks.schema.TypeName.string
+      if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
       else {
         var packages  = List.empty[String]
         var values    = List.empty[String]
@@ -201,12 +202,11 @@ private object SchemaVersionSpecific {
           if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
           else values = ownerName :: values
         }
-        val tpeTypeArgs = typeArgs(tpe)
-        new zio.blocks.schema.TypeName(new Namespace(packages, values), name, tpeTypeArgs.map(typeName))
+        new SchemaTypeName(new Namespace(packages, values), name, typeArgs(tpe).map(typeName))
       }
     )
 
-    def toTree(tpeName: zio.blocks.schema.TypeName[_]): Tree = {
+    def toTree(tpeName: SchemaTypeName[_]): Tree = {
       val packages = tpeName.namespace.packages.toList
       val values   = tpeName.namespace.values.toList
       val name     = tpeName.name
@@ -214,11 +214,18 @@ private object SchemaVersionSpecific {
       q"new TypeName(new Namespace($packages, $values), $name, $params)"
     }
 
-    def modifiers(tpe: Type): List[Tree] = tpe.typeSymbol.annotations
-      .filter(_.tree.tpe =:= typeOf[Modifier.config])
-      .collect(_.tree.children match {
-        case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => q"Modifier.config($k, $v)"
-      })
+    def modifiers(tpe: Type): List[Tree] = {
+      val config = new mutable.ListBuffer[Tree]
+      tpe.typeSymbol.annotations.foreach { annotation =>
+        val tree = annotation.tree
+        if (tree.tpe =:= typeOf[Modifier.config]) tree.children match {
+          case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) =>
+            config.addOne(q"Modifier.config($k, $v)")
+          case _ =>
+        }
+      }
+      config.toList
+    }
 
     val inferredSchemas   = new mutable.HashMap[Type, Tree]
     val derivedSchemaRefs = new mutable.HashMap[Type, Ident]
@@ -260,32 +267,27 @@ private object SchemaVersionSpecific {
     )
 
     case class ClassInfo(tpe: Type) {
+      val tpeTypeArgs: List[Type]                                            = typeArgs(tpe)
       val (fieldInfos: List[List[FieldInfo]], usedRegisters: RegisterOffset) = {
         val primaryConstructor = tpe.decls.collectFirst {
           case m: MethodSymbol if m.isPrimaryConstructor => m
         }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
-        var getters = Map.empty[String, MethodSymbol]
+        var getters     = Map.empty[String, MethodSymbol]
+        var annotations = Map.empty[String, List[Annotation]]
         tpe.members.foreach {
           case m: MethodSymbol if m.isParamAccessor =>
             getters = getters.updated(NameTransformer.decode(m.name.toString), m)
-          case _ =>
-        }
-        var annotations = Map.empty[String, List[Annotation]]
-        tpe.members.foreach {
           case m: TermSymbol =>
-            m.info: Unit // to enforce the type information completeness and availability of annotations
             val anns = m.annotations.filter(_.tree.tpe <:< typeOf[Modifier.Term])
             if (anns.nonEmpty) annotations = annotations.updated(NameTransformer.decode(m.name.toString.trim), anns)
           case _ =>
         }
-        lazy val module   = companion(tpe).asModule
-        val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
-        val tpeParams     = primaryConstructor.paramLists
-        val tpeTypeArgs   = typeArgs(tpe)
-        var usedRegisters = RegisterOffset.Zero
-        var idx           = 0
+        lazy val module        = companion(tpe).asModule
+        lazy val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
+        var usedRegisters      = RegisterOffset.Zero
+        var idx                = 0
         (
-          tpeParams.map(_.map { param =>
+          primaryConstructor.paramLists.map(_.map { param =>
             idx += 1
             val symbol = param.asTerm
             val name   = NameTransformer.decode(symbol.name.toString)
@@ -293,15 +295,18 @@ private object SchemaVersionSpecific {
             if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
             val getter =
               getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
-            val anns        = annotations.getOrElse(name, Nil)
-            val isTransient = anns.exists(_.tree.tpe =:= typeOf[Modifier.transient])
-            val config      = anns
-              .filter(_.tree.tpe =:= typeOf[Modifier.config])
-              .collect(_.tree.children match {
-                case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => (k, v)
-              })
+            var isTransient = false
+            val config      = new mutable.ListBuffer[(String, String)]
+            annotations.getOrElse(name, Nil).foreach { annotation =>
+              val tree = annotation.tree
+              if (tree.tpe =:= typeOf[Modifier.transient]) isTransient = true
+              else if (tree.tpe =:= typeOf[Modifier.config]) tree.children match {
+                case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) => config.addOne((k, v))
+                case _                                                                   =>
+              }
+            }
             val defaultValue =
-              if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
+              if (symbol.isParamWithDefault) new Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
               else None
             val sTpe   = dealiasOnDemand(fTpe)
             val offset =
@@ -316,7 +321,8 @@ private object SchemaVersionSpecific {
               else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
               else if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) RegisterOffset(objects = 1)
               else unsupportedFieldType(fTpe)
-            val fieldInfo = FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
+            val fieldInfo =
+              new FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config.toList)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
             fieldInfo
           }),
@@ -328,7 +334,7 @@ private object SchemaVersionSpecific {
         val fTpe          = fieldInfo.tpe
         var reflect: Tree = q"${findImplicitOrDeriveSchema(fTpe)}.reflect"
         reflect = fieldInfo.defaultValue.fold(reflect)(dv => q"$reflect.defaultValue($dv)")
-        if (!isNonRecursive(fTpe)) reflect = q"Reflect.Deferred(() => $reflect)"
+        if (!isNonRecursive(fTpe)) reflect = q"new Reflect.Deferred(() => $reflect)"
         var fieldTermTree = q"$reflect.asTerm[$schemaTpe](${fieldInfo.name})"
         var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
         if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
@@ -447,7 +453,7 @@ private object SchemaVersionSpecific {
               reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                 element = ${findImplicitOrDeriveSchema(elementTpe)}.reflect,
                 typeName = ${toTree(tpeName)},
-                seqBinding = new Binding.Seq[_root_.scala.Array, $elementTpe](
+                seqBinding = new Binding.Seq(
                   constructor = $constructor,
                   deconstructor = SeqDeconstructor.arrayDeconstructor
                 )
@@ -469,7 +475,7 @@ private object SchemaVersionSpecific {
           q"new Schema(Reflect.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
         } else fail(s"Cannot derive schema for '$tpe'.")
       } else if (isSealedTraitOrAbstractClass(tpe)) {
-        def toFullTermName(tpeName: zio.blocks.schema.TypeName[_]): Array[String] = {
+        def toFullTermName(tpeName: SchemaTypeName[_]): Array[String] = {
           val packages     = tpeName.namespace.packages
           val values       = tpeName.namespace.values
           val fullTermName = new Array[String](packages.size + values.size + 1)
