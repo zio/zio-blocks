@@ -17,10 +17,10 @@ class TraversalFoldBenchmark extends BaseBenchmark {
   @Benchmark
   def direct: Int = {
     var res = 0
-    var i   = 0
-    while (i < ai.length) {
-      res += ai(i)
-      i += 1
+    var idx = 0
+    while (idx < ai.length) {
+      res += ai(idx)
+      idx += 1
     }
     res
   }
@@ -43,10 +43,10 @@ class TraversalModifyBenchmark extends BaseBenchmark {
   @Benchmark
   def direct: Array[Int] = {
     val res = new Array[Int](ai.length)
-    var i   = 0
-    while (i < ai.length) {
-      res(i) = ai(i) + 1
-      i += 1
+    var idx = 0
+    while (idx < ai.length) {
+      res(idx) = ai(idx) + 1
+      idx += 1
     }
     res
   }

@@ -61,18 +61,26 @@ private object SchemaVersionSpecific {
       case _ => false
     }
 
-    def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
-      case TypeRef(compTpe, _, _) =>
-        compTpe.baseClasses.collectFirst {
-          case cls if cls.fullName == "zio.prelude.Newtype" =>
-            compTpe.baseType(cls) match {
-              case TypeRef(_, _, List(typeArg)) => typeArg.dealias
-              case _                            => tpe
-            }
-        }
-          .getOrElse(tpe)
-      case _ => tpe
+    def zioPreludeNewtypeDealias(tpe: Type): Type = {
+      def cannotDealias(tpe: Type): Nothing = fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
+
+      tpe match {
+        case TypeRef(compTpe, _, _) =>
+          compTpe.baseClasses.collectFirst {
+            case cls if cls.fullName == "zio.prelude.Newtype" =>
+              compTpe.baseType(cls) match {
+                case TypeRef(_, _, List(typeArg)) => typeArg.dealias
+                case _                            => cannotDealias(tpe)
+              }
+          }
+            .getOrElse(cannotDealias(tpe))
+        case _ => cannotDealias(tpe)
+      }
     }
+
+    def dealiasOnDemand(tpe: Type): Type =
+      if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
+      else tpe
 
     def companion(tpe: Type): Symbol = {
       val comp = tpe.typeSymbol.companion
@@ -295,9 +303,7 @@ private object SchemaVersionSpecific {
             val defaultValue =
               if (symbol.isParamWithDefault) Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
               else None
-            val sTpe =
-              if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
-              else fTpe
+            val sTpe   = dealiasOnDemand(fTpe)
             val offset =
               if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
               else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
@@ -346,9 +352,7 @@ private object SchemaVersionSpecific {
             else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
             else if (fTpe =:= definitions.UnitTpe) q"()"
             else {
-              val sTpe =
-                if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
-                else fTpe
+              val sTpe = dealiasOnDemand(fTpe)
               if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) {
                 q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
               } else {
@@ -387,9 +391,7 @@ private object SchemaVersionSpecific {
         else if (isValueClass(fTpe)) {
           q"out.setObject(baseOffset, $objects, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
         } else {
-          val sTpe =
-            if (isZioPreludeNewtype(fTpe)) zioPreludeNewtypeDealias(fTpe)
-            else fTpe
+          val sTpe = dealiasOnDemand(fTpe)
           if (sTpe <:< definitions.IntTpe) {
             q"out.setInt(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Int])"
           } else if (sTpe <:< definitions.FloatTpe) {
@@ -437,8 +439,8 @@ private object SchemaVersionSpecific {
           val constructor =
             if (elementTpe <:< definitions.AnyRefTpe) {
               q"""new SeqConstructor.ArrayConstructor {
-                  override def newObjectBuilder[A](sizeHint: Int): Builder[A] =
-                    new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[A]], 0)
+                  override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                    new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
                 }"""
             } else q"SeqConstructor.arrayConstructor"
           q"""new Schema(
@@ -572,9 +574,7 @@ private object SchemaVersionSpecific {
           case _                      => tpe
         })
         if (tpeName.name.endsWith(".type")) tpeName = tpeName.copy(name = tpeName.name.stripSuffix(".type"))
-        val sTpe = zioPreludeNewtypeDealias(tpe)
-        if (sTpe =:= tpe) fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
-        val schema = findImplicitOrDeriveSchema(sTpe)
+        val schema = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
         q"new Schema($schema.reflect.typeName(${toTree(tpeName)})).asInstanceOf[Schema[$tpe]]"
       } else fail(s"Cannot derive schema for '$tpe'.")
     }
