@@ -261,9 +261,8 @@ private object SchemaVersionSpecific {
 
     val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
 
-    def typeName[T: Type](tpe: TypeRepr): TypeName[T] = typeNameCache
-      .getOrElseUpdate(
-        tpe,
+    def typeName[T: Type](tpe: TypeRepr): TypeName[T] = {
+      def calculateTypeName(tpe: TypeRepr): TypeName[?] =
         if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
         else if (isUnion(tpe)) new TypeName(new Namespace(Nil, Nil), "|")
         else {
@@ -307,8 +306,17 @@ private object SchemaVersionSpecific {
             else typeArgs(tpe)
           new TypeName(new Namespace(packages, values), name, tpeTypeArgs.map(typeName))
         }
-      )
-      .asInstanceOf[TypeName[T]]
+
+      typeNameCache
+        .getOrElseUpdate(
+          tpe,
+          calculateTypeName(tpe match {
+            case TypeRef(compTpe, "Type") => compTpe
+            case _                        => tpe
+          })
+        )
+        .asInstanceOf[TypeName[T]]
+    }
 
     def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = '{
       new TypeName(
@@ -997,22 +1005,16 @@ private object SchemaVersionSpecific {
         val sTpe = opaqueDealias(tpe)
         sTpe.asType match {
           case '[s] =>
-            val tpeName = typeName[s](tpe match {
-              case TypeRef(compTpe, _) if tpe.typeSymbol.fullName.startsWith("neotype.") => compTpe
-              case _                                                                     => tpe
-            })
-            val schema = findImplicitOrDeriveSchema[s](sTpe)
+            val tpeName = typeName[s](tpe)
+            val schema  = findImplicitOrDeriveSchema[s](sTpe)
             '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
         }
       } else if (isZioPreludeNewtype(tpe)) {
         val sTpe = zioPreludeNewtypeDealias(tpe)
         sTpe.asType match {
           case '[s] =>
-            val tpeName = typeName[s](tpe match {
-              case TypeRef(compTpe, _) => compTpe
-              case _                   => tpe
-            })
-            val schema = findImplicitOrDeriveSchema[s](sTpe)
+            val tpeName = typeName[s](tpe)
+            val schema  = findImplicitOrDeriveSchema[s](sTpe)
             '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
         }
       } else fail(s"Cannot derive schema for '${tpe.show}'.")

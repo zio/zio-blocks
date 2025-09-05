@@ -179,32 +179,44 @@ private object SchemaVersionSpecific {
 
     val typeNameCache = new mutable.HashMap[Type, SchemaTypeName[_]]
 
-    def typeName(tpe: Type): SchemaTypeName[_] = typeNameCache.getOrElseUpdate(
-      tpe,
-      if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
-      else {
-        var packages  = List.empty[String]
-        var values    = List.empty[String]
-        val tpeSymbol = tpe.typeSymbol
-        var name      = NameTransformer.decode(tpeSymbol.name.toString)
-        val comp      = companion(tpe)
-        var owner     =
-          if (comp == null) tpeSymbol
-          else if (comp == NoSymbol) {
-            name += ".type"
-            tpeSymbol.asClass.module
-          } else comp
-        while ({
-          owner = owner.owner
-          owner.owner != NoSymbol
-        }) {
-          val ownerName = NameTransformer.decode(owner.name.toString)
-          if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
-          else values = ownerName :: values
+    def typeName(tpe: Type): SchemaTypeName[_] = {
+      def calculateTypeName(tpe: Type): SchemaTypeName[_] =
+        if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
+        else {
+          var packages  = List.empty[String]
+          var values    = List.empty[String]
+          val tpeSymbol = tpe.typeSymbol
+          var name      = NameTransformer.decode(tpeSymbol.name.toString)
+          val comp      = companion(tpe)
+          var owner     =
+            if (comp == null) tpeSymbol
+            else if (comp == NoSymbol) {
+              name += ".type"
+              tpeSymbol.asClass.module
+            } else comp
+          while ({
+            owner = owner.owner
+            owner.owner != NoSymbol
+          }) {
+            val ownerName = NameTransformer.decode(owner.name.toString)
+            if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
+            else values = ownerName :: values
+          }
+          new SchemaTypeName(new Namespace(packages, values), name, typeArgs(tpe).map(typeName))
         }
-        new SchemaTypeName(new Namespace(packages, values), name, typeArgs(tpe).map(typeName))
-      }
-    )
+
+      typeNameCache.getOrElseUpdate(
+        tpe,
+        tpe match {
+          case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
+            var tpeName = calculateTypeName(compTpe)
+            if (tpeName.name.endsWith(".type")) tpeName = tpeName.copy(name = tpeName.name.stripSuffix(".type"))
+            tpeName
+          case _ =>
+            calculateTypeName(tpe)
+        }
+      )
+    }
 
     def toTree(tpeName: SchemaTypeName[_]): Tree = {
       val packages = tpeName.namespace.packages.toList
@@ -575,12 +587,8 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isZioPreludeNewtype(tpe)) {
-        var tpeName = typeName(tpe match {
-          case TypeRef(compTpe, _, _) => compTpe
-          case _                      => tpe
-        })
-        if (tpeName.name.endsWith(".type")) tpeName = tpeName.copy(name = tpeName.name.stripSuffix(".type"))
-        val schema = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
+        val tpeName = typeName(tpe)
+        val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
         q"new Schema($schema.reflect.typeName(${toTree(tpeName)})).asInstanceOf[Schema[$tpe]]"
       } else fail(s"Cannot derive schema for '$tpe'.")
     }
