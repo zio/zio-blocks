@@ -424,6 +424,38 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(Tuple24.schema.fromDynamicValue(Tuple24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       }
     ),
+    suite("Reflect.Sequence")(
+      test("derives schema for IArray") {
+        val schema1 = Schema.derived[IArray[Int]]
+        val schema2 = Schema.derived[IArray[Long]]
+        val schema3 = Schema.derived[IArray[Char]]
+        val schema4 = Schema.derived[IArray[String]]
+        assert(schema1.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.int)))
+        ) &&
+        assert(schema2.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.long)))
+        ) &&
+        assert(schema3.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.char)))
+        ) &&
+        assert(schema4.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.string)))
+        ) &&
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(IArray(1, 2))).map(_.toSeq))(
+          isRight(equalTo(Seq(1, 2)))
+        ) &&
+        assert(schema2.fromDynamicValue(schema2.toDynamicValue(IArray(1L, 2L))).map(_.toSeq))(
+          isRight(equalTo(Seq(1L, 2L)))
+        ) &&
+        assert(schema3.fromDynamicValue(schema3.toDynamicValue(IArray('1', '2'))).map(_.toSeq))(
+          isRight(equalTo(Seq('1', '2')))
+        ) &&
+        assert(schema4.fromDynamicValue(schema4.toDynamicValue(IArray("1", "2"))).map(_.toSeq))(
+          isRight(equalTo(Seq("1", "2")))
+        )
+      }
+    ),
     suite("Reflect.Variant")(
       test("derives schema for sealed traits using 'derives' keyword") {
 
