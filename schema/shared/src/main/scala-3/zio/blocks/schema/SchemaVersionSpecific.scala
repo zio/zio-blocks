@@ -745,6 +745,35 @@ private object SchemaVersionSpecific {
                 )
               }
           }
+        } else if (tpe.typeSymbol.fullName == "scala.IArray$package$.IArray") {
+          val eTpe = typeArgs(tpe).head
+          eTpe.asType match {
+            case '[et] =>
+              val tpeName     = typeName[IArray[et]](tpe)
+              val constructor =
+                if (eTpe <:< TypeRepr.of[AnyRef]) {
+                  val classTag = Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
+                  '{
+                    implicit val ct: ClassTag[et] = $classTag
+                    new SeqConstructor.IArrayConstructor {
+                      override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
+                    }
+                  }
+                } else '{ SeqConstructor.iArrayConstructor }
+              '{
+                new Schema(
+                  reflect = new Reflect.Sequence(
+                    element = ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect,
+                    typeName = ${ toExpr(tpeName) },
+                    seqBinding = new Binding.Seq(
+                      constructor = $constructor,
+                      deconstructor = SeqDeconstructor.iArrayDeconstructor
+                    )
+                  )
+                )
+              }
+          }
         } else if (tpe <:< TypeRepr.of[ArraySeq[?]]) {
           val eTpe = typeArgs(tpe).head
           eTpe.asType match {
