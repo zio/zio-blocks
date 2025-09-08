@@ -679,7 +679,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "Boolean")))) &&
         assert(variant.map(_.typeName))(
-          isSome(equalTo(TypeName(namespace = Namespace(packages = Nil), name = "|")))
+          isSome(equalTo(TypeName(Namespace(Nil), "|", Seq(TypeName.int, TypeName.boolean))))
         )
       },
       test("derives schema for recursive generic Scala 3 enums") {
