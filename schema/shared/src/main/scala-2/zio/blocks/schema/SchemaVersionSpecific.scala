@@ -473,19 +473,16 @@ private object SchemaVersionSpecific {
               )
             )"""
         } else if (tpe <:< typeOf[ArraySeq[_]]) {
-          q"new Schema(Reflect.arraySeq(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+          q"Schema.arraySeq(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
         } else if (tpe <:< typeOf[List[_]]) {
-          q"new Schema(Reflect.list(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+          q"Schema.list(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
         } else if (tpe <:< typeOf[Map[_, _]]) {
           val tpeTypeArgs = typeArgs(tpe)
-          q"""new Schema(Reflect.map(
-              ${findImplicitOrDeriveSchema(tpeTypeArgs.head)}.reflect,
-              ${findImplicitOrDeriveSchema(tpeTypeArgs.last)}.reflect,
-            ))"""
+          q"Schema.map(${findImplicitOrDeriveSchema(tpeTypeArgs.head)},${findImplicitOrDeriveSchema(tpeTypeArgs.last)})"
         } else if (tpe <:< typeOf[Set[_]]) {
-          q"new Schema(Reflect.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+          q"Schema.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
         } else if (tpe <:< typeOf[Vector[_]]) {
-          q"new Schema(Reflect.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)}.reflect))"
+          q"Schema.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
         } else fail(s"Cannot derive schema for '$tpe'.")
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         def toFullTermName(tpeName: SchemaTypeName[_]): Array[String] = {

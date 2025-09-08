@@ -776,14 +776,10 @@ private object SchemaVersionSpecific {
           }
         } else if (tpe <:< TypeRepr.of[ArraySeq[?]]) {
           val eTpe = typeArgs(tpe).head
-          eTpe.asType match {
-            case '[et] => '{ new Schema(Reflect.arraySeq(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-          }
+          eTpe.asType match { case '[et] => '{ Schema.arraySeq(${ findImplicitOrDeriveSchema[et](eTpe) }) } }
         } else if (tpe <:< TypeRepr.of[List[?]]) {
           val eTpe = typeArgs(tpe).head
-          eTpe.asType match {
-            case '[et] => '{ new Schema(Reflect.list(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-          }
+          eTpe.asType match { case '[et] => '{ Schema.list(${ findImplicitOrDeriveSchema[et](eTpe) }) } }
         } else if (tpe <:< TypeRepr.of[Map[?, ?]]) {
           val tpeTypeArgs = typeArgs(tpe)
           val kTpe        = tpeTypeArgs.head
@@ -792,26 +788,15 @@ private object SchemaVersionSpecific {
             case '[kt] =>
               vTpe.asType match {
                 case '[vt] =>
-                  '{
-                    new Schema(
-                      Reflect.map(
-                        ${ findImplicitOrDeriveSchema[kt](kTpe) }.reflect,
-                        ${ findImplicitOrDeriveSchema[vt](vTpe) }.reflect
-                      )
-                    )
-                  }
+                  '{ Schema.map(${ findImplicitOrDeriveSchema[kt](kTpe) }, ${ findImplicitOrDeriveSchema[vt](vTpe) }) }
               }
           }
         } else if (tpe <:< TypeRepr.of[Set[?]]) {
           val eTpe = typeArgs(tpe).head
-          eTpe.asType match {
-            case '[et] => '{ new Schema(Reflect.set(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-          }
+          eTpe.asType match { case '[et] => '{ Schema.set(${ findImplicitOrDeriveSchema[et](eTpe) }) } }
         } else if (tpe <:< TypeRepr.of[Vector[?]]) {
           val eTpe = typeArgs(tpe).head
-          eTpe.asType match {
-            case '[et] => '{ new Schema(Reflect.vector(${ findImplicitOrDeriveSchema[et](eTpe) }.reflect)) }
-          }
+          eTpe.asType match { case '[et] => '{ Schema.vector(${ findImplicitOrDeriveSchema[et](eTpe) }) } }
         } else fail(s"Cannot derive schema for '${tpe.show}'.")
       } else if (isGenericTuple(tpe)) {
         val tTpe = normalizeTuple(tpe)
