@@ -426,10 +426,51 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
     ),
     suite("Reflect.Sequence")(
       test("derives schema for IArray") {
-        val schema1 = Schema.derived[IArray[Int]]
-        val schema2 = Schema.derived[IArray[Long]]
-        val schema3 = Schema.derived[IArray[Char]]
-        val schema4 = Schema.derived[IArray[String]]
+        val schema1                                 = Schema.derived[IArray[Int]]
+        val schema2                                 = Schema.derived[IArray[Long]]
+        val schema3                                 = Schema.derived[IArray[Char]]
+        val schema4                                 = Schema.derived[IArray[String]]
+        val schema5                                 = Schema.derived[IArray[Boolean]]
+        val schema6                                 = Schema.derived[IArray[Byte]]
+        val schema7                                 = Schema.derived[IArray[Short]]
+        val schema8                                 = Schema.derived[IArray[Float]]
+        val schema9                                 = Schema.derived[IArray[Double]]
+        val traversal1: Traversal[IArray[Int], Int] =
+          Traversal.seqValues(
+            schema1.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Int, IArray]]
+          )
+        val traversal2: Traversal[IArray[Long], Long] =
+          Traversal.seqValues(
+            schema2.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Long, IArray]]
+          )
+        val traversal3: Traversal[IArray[Char], Char] =
+          Traversal.seqValues(
+            schema3.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Char, IArray]]
+          )
+        val traversal4: Traversal[IArray[String], String] =
+          Traversal.seqValues(
+            schema4.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, String, IArray]]
+          )
+        val traversal5: Traversal[IArray[Boolean], Boolean] =
+          Traversal.seqValues(
+            schema5.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Boolean, IArray]]
+          )
+        val traversal6: Traversal[IArray[Byte], Byte] =
+          Traversal.seqValues(
+            schema6.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Byte, IArray]]
+          )
+        val traversal7: Traversal[IArray[Short], Short] =
+          Traversal.seqValues(
+            schema7.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Short, IArray]]
+          )
+        val traversal8: Traversal[IArray[Float], Float] =
+          Traversal.seqValues(
+            schema8.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Float, IArray]]
+          )
+        val traversal9: Traversal[IArray[Double], Double] =
+          Traversal.seqValues(
+            schema9.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Double, IArray]]
+          )
         assert(schema1.reflect.typeName)(
           equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.int)))
         ) &&
@@ -442,18 +483,57 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema4.reflect.typeName)(
           equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.string)))
         ) &&
-        assert(schema1.fromDynamicValue(schema1.toDynamicValue(IArray(1, 2))).map(_.toSeq))(
-          isRight(equalTo(Seq(1, 2)))
+        assert(schema5.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.boolean)))
         ) &&
-        assert(schema2.fromDynamicValue(schema2.toDynamicValue(IArray(1L, 2L))).map(_.toSeq))(
-          isRight(equalTo(Seq(1L, 2L)))
+        assert(schema6.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.byte)))
         ) &&
-        assert(schema3.fromDynamicValue(schema3.toDynamicValue(IArray('1', '2'))).map(_.toSeq))(
-          isRight(equalTo(Seq('1', '2')))
+        assert(schema7.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.short)))
         ) &&
-        assert(schema4.fromDynamicValue(schema4.toDynamicValue(IArray("1", "2"))).map(_.toSeq))(
-          isRight(equalTo(Seq("1", "2")))
-        )
+        assert(schema8.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.float)))
+        ) &&
+        assert(schema9.reflect.typeName)(
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.double)))
+        ) &&
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(IArray(1, 2, 3))).map(_.toSeq))(
+          isRight(equalTo(Seq(1, 2, 3)))
+        ) &&
+        assert(schema2.fromDynamicValue(schema2.toDynamicValue(IArray(1L, 2L, 3L))).map(_.toSeq))(
+          isRight(equalTo(Seq(1L, 2L, 3L)))
+        ) &&
+        assert(schema3.fromDynamicValue(schema3.toDynamicValue(IArray('1', '2', '3'))).map(_.toSeq))(
+          isRight(equalTo(Seq('1', '2', '3')))
+        ) &&
+        assert(schema4.fromDynamicValue(schema4.toDynamicValue(IArray("1", "2", "3"))).map(_.toSeq))(
+          isRight(equalTo(Seq("1", "2", "3")))
+        ) &&
+        assert(schema5.fromDynamicValue(schema5.toDynamicValue(IArray(true, false, true))).map(_.toSeq))(
+          isRight(equalTo(Seq(true, false, true)))
+        ) &&
+        assert(schema6.fromDynamicValue(schema6.toDynamicValue(IArray(1: Byte, 2: Byte, 3: Byte))).map(_.toSeq))(
+          isRight(equalTo(Seq(1: Byte, 2: Byte, 3: Byte)))
+        ) &&
+        assert(schema7.fromDynamicValue(schema7.toDynamicValue(IArray(1: Short, 2: Short, 3: Short))).map(_.toSeq))(
+          isRight(equalTo(Seq(1: Short, 2: Short, 3: Short)))
+        ) &&
+        assert(schema8.fromDynamicValue(schema8.toDynamicValue(IArray(1.0f, 2.0f, 3.0f))).map(_.toSeq))(
+          isRight(equalTo(Seq(1.0f, 2.0f, 3.0f)))
+        ) &&
+        assert(schema9.fromDynamicValue(schema9.toDynamicValue(IArray(1.0, 2.0, 3.0))).map(_.toSeq))(
+          isRight(equalTo(Seq(1.0, 2.0, 3.0)))
+        ) &&
+        assert(traversal1.fold(IArray(1, 2, 3))(0, _ + _))(equalTo(6)) &&
+        assert(traversal2.fold(IArray(1L, 2L, 3L))(0L, _ + _))(equalTo(6L)) &&
+        assert(traversal3.fold(IArray('1', '2', '3'))("", _ + _))(equalTo("123")) &&
+        assert(traversal4.fold(IArray("1", "2", "3"))("", _ + _))(equalTo("123")) &&
+        assert(traversal5.fold(IArray(true, false, true))(false, _ | _))(equalTo(true)) &&
+        assert(traversal6.fold(IArray(1: Byte, 2: Byte, 3: Byte))(0, _ + _))(equalTo(6)) &&
+        assert(traversal7.fold(IArray(1: Short, 2: Short, 3: Short))(0, _ + _))(equalTo(6)) &&
+        assert(traversal8.fold(IArray(1.0f, 2.0f, 3.0f))(0.0f, _ + _))(equalTo(6.0f)) &&
+        assert(traversal9.fold(IArray(1.0, 2.0, 3.0))(0.0, _ + _))(equalTo(6.0))
       }
     ),
     suite("Reflect.Variant")(

@@ -119,15 +119,15 @@ object SeqDeconstructor {
     def deconstruct[A](c: IArray[A]): Iterator[A] = c.iterator
 
     def elementType[A](c: IArray[A]): RegisterType[A] = (c match {
-      case _: IArray[Boolean] => RegisterType.Boolean
-      case _: IArray[Byte]    => RegisterType.Byte
-      case _: IArray[Short]   => RegisterType.Short
-      case _: IArray[Int]     => RegisterType.Int
-      case _: IArray[Long]    => RegisterType.Long
-      case _: IArray[Float]   => RegisterType.Float
-      case _: IArray[Double]  => RegisterType.Double
-      case _: IArray[Char]    => RegisterType.Char
-      case _                  => RegisterType.Object()
+      case _: Array[Boolean] => RegisterType.Boolean
+      case _: Array[Byte]    => RegisterType.Byte
+      case _: Array[Short]   => RegisterType.Short
+      case _: Array[Int]     => RegisterType.Int
+      case _: Array[Long]    => RegisterType.Long
+      case _: Array[Float]   => RegisterType.Float
+      case _: Array[Double]  => RegisterType.Double
+      case _: Array[Char]    => RegisterType.Char
+      case _                 => RegisterType.Object()
     }).asInstanceOf[RegisterType[A]]
 
     def length[A](c: IArray[A]): Int = c.length
