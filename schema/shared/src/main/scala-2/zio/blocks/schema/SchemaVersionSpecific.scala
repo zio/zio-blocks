@@ -290,6 +290,7 @@ private object SchemaVersionSpecific {
           case m: MethodSymbol if m.isParamAccessor =>
             getters = getters.updated(NameTransformer.decode(m.name.toString), m)
           case m: TermSymbol =>
+            m.info: Unit // required to enforce the type information completeness and availability of annotations
             val anns = m.annotations.filter(_.tree.tpe <:< typeOf[Modifier.Term])
             if (anns.nonEmpty) annotations = annotations.updated(NameTransformer.decode(m.name.toString.trim), anns)
           case _ =>
