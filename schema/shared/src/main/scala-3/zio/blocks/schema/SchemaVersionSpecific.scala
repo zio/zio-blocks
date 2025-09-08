@@ -264,7 +264,7 @@ private object SchemaVersionSpecific {
     def typeName[T: Type](tpe: TypeRepr): TypeName[T] = {
       def calculateTypeName(tpe: TypeRepr): TypeName[?] =
         if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
-        else if (isUnion(tpe)) new TypeName(new Namespace(Nil, Nil), "|")
+        else if (isUnion(tpe)) new TypeName(new Namespace(Nil, Nil), "|", allUnionTypes(tpe).map(typeName))
         else {
           var packages  = List.empty[String]
           var values    = List.empty[String]
@@ -302,7 +302,6 @@ private object SchemaVersionSpecific {
                 case _ => Nil
               }
             } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe.asType)
-            else if (isUnion(tpe)) allUnionTypes(tpe)
             else typeArgs(tpe)
           new TypeName(new Namespace(packages, values), name, tpeTypeArgs.map(typeName))
         }
