@@ -406,7 +406,7 @@ private object SchemaVersionSpecific {
 
       def usedRegisters: Expr[RegisterOffset]
 
-      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]]
+      def fields[S: Type](nameOverrides: List[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]]
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T]
 
@@ -528,7 +528,7 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] = {
+      def fields[S: Type](nameOverrides: List[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] = {
         val names = nameOverrides.toArray
         var idx   = -1
         Expr.ofSeq(fieldInfos.flatMap(_.map { fieldInfo =>
@@ -625,7 +625,7 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] =
+      def fields[S: Type](nameOverrides: List[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] =
         Expr.ofSeq(fieldInfos.map {
           val names = nameOverrides.toArray
           var idx   = -1
@@ -808,7 +808,7 @@ private object SchemaVersionSpecific {
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
-                  fields = Vector(${ typeInfo.fields[tt]() }*),
+                  fields = Vector(${ typeInfo.fields[tt](Nil) }*),
                   typeName = ${ toExpr(tTpeName) },
                   recordBinding = new Binding.Record(
                     constructor = new Constructor[tt] {
@@ -991,7 +991,7 @@ private object SchemaVersionSpecific {
         '{
           new Schema(
             reflect = new Reflect.Record[Binding, T](
-              fields = Vector(${ classInfo.fields() }*),
+              fields = Vector(${ classInfo.fields(Nil) }*),
               typeName = ${ toExpr(tpeName) },
               recordBinding = new Binding.Record(
                 constructor = new Constructor {
