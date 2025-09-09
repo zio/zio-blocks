@@ -121,8 +121,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(stdSettings("zio-blocks-scala-next-tests"))
   .settings(crossProjectSettings)
   .settings(
-    crossScalaVersions       := Seq("3.7.2"),
-    ThisBuild / scalaVersion := "3.7.2",
+    crossScalaVersions       := Seq("3.7.3"),
+    ThisBuild / scalaVersion := "3.7.3",
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.21" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.21" % Test
@@ -138,8 +138,8 @@ lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks"))
   .enablePlugins(JmhPlugin)
   .settings(
-    crossScalaVersions       := Seq("3.7.2"),
-    ThisBuild / scalaVersion := "3.7.2",
+    crossScalaVersions       := Seq("3.7.3"),
+    ThisBuild / scalaVersion := "3.7.3",
     libraryDependencies ++= Seq(
       "io.github.arainko"          %% "chanterelle"   % "0.1.1",
       "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
