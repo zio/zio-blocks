@@ -168,6 +168,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val value1 = (1, "VVV")
         val value2 = ((1, 2L), ("VVV", "WWW"))
         val value3 = (Some(1), Some("VVV"))
+        val value4 = EmptyTuple
 
         val schema1: Schema[Tuple.Tail[(Long, Int, String)]]                         = Schema.derived
         val schema2: Schema[Tuple.Init[(Int, String, Long)]]                         = Schema.derived
@@ -179,6 +180,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema8: Schema[Int *: Tuple1[String]]                                   = Schema.derived
         val schema9: Schema[Tuple.Zip[(Int, String), (Long, String)]]                = Schema.derived
         val schema10: Schema[Tuple.Map[(Int, String), Option]]                       = Schema.derived
+        val schema11: Schema[EmptyTuple]                                             = Schema.derived
         assert(schema1)(
           equalTo(
             new Schema[(Int, String)](
@@ -243,6 +245,17 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
+        assert(schema11)(
+          equalTo(
+            new Schema[EmptyTuple](
+              reflect = Reflect.Record[Binding, EmptyTuple](
+                fields = Vector(),
+                typeName = TypeName(Namespace(Seq("scala"), Seq("Tuple$package")), "EmptyTuple"),
+                recordBinding = null
+              )
+            )
+          )
+        ) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema3.fromDynamicValue(schema3.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
@@ -251,7 +264,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema6.fromDynamicValue(schema6.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema7.fromDynamicValue(schema7.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema9.fromDynamicValue(schema9.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
-        assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3)))
+        assert(schema10.fromDynamicValue(schema10.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
+        assert(schema11.fromDynamicValue(schema11.toDynamicValue(value4)))(isRight(equalTo(value4)))
       },
       test("derives schema for case class with opaque subtype fields") {
         import Id.schema

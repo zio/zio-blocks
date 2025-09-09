@@ -941,6 +941,7 @@ private object SchemaVersionSpecific {
                 val typeInfo =
                   if (isGenericTuple(tTpe)) GenericTupleInfo[tt](tTpe)
                   else ClassInfo[tt](tTpe)
+                val ref = Ref(Symbol.requiredModule("scala.NamedTuple"))
                 '{
                   new Schema(
                     reflect = new Reflect.Record[Binding, T](
@@ -951,7 +952,8 @@ private object SchemaVersionSpecific {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                           def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                            typeInfo.constructor('in, 'baseOffset).asExprOf[T]
+                            if (typeInfo.tpeTypeArgs.nonEmpty) typeInfo.constructor('in, 'baseOffset).asExprOf[T]
+                            else Select.unique(ref, "Empty").asExprOf[T]
                           }
                         },
                         deconstructor = new Deconstructor {
@@ -961,12 +963,7 @@ private object SchemaVersionSpecific {
                             val valDef = ValDef(
                               Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol),
                               new Some(
-                                Apply(
-                                  Select
-                                    .unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
-                                    .appliedToTypes(tpe.typeArgs),
-                                  List('in.asTerm)
-                                )
+                                Apply(Select.unique(ref, "toTuple").appliedToTypes(tpe.typeArgs), List('in.asTerm))
                               )
                             )
                             Block(
