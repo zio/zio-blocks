@@ -1209,6 +1209,17 @@ object OpticSpec extends ZIOSpecDefault {
         }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a wrapper")))
       },
+      test("optic macro generates optionals for sequence or map") {
+        object Test1 extends CompanionOptics[Vector[String]] {
+          val optional: Optional[Vector[String], String] = optic[String](_.at(1))
+        }
+        object Test2 extends CompanionOptics[Map[Int, Long]] {
+          val optional: Optional[Map[Int, Long], Long] = optic[Long](_.atKey(1))
+        }
+
+        assert(Test1.optional.getOption(Vector("a", "b", "c")))(isSome(equalTo("b"))) &&
+        assert(Test2.optional.getOption(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))(isSome(equalTo(1L)))
+      },
       test("check") {
         assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
           isSome(
@@ -1323,7 +1334,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case5.aas.source)(equalTo(Case5.reflect)) &&
         assert(Case6.akmil.source)(equalTo(Case6.reflect)) &&
         assert(Wrapper.r1.source)(equalTo(Wrapper.reflect)) &&
-        assert(Wrapper.r1_b.source)(equalTo(Wrapper.reflect))
+        assert(Wrapper.r1_b.source)(equalTo(Wrapper.reflect)) &&
+        assert(Wrappers.w_wr1.source)(equalTo(Wrappers.reflect)) &&
+        assert(Record4.w_w_wr1.source)(equalTo(Record4.reflect))
       },
       test("returns a focus structure") {
         assert(Variant1.c1_d.focus)(equalTo(Reflect.double[Binding])) &&
@@ -1343,7 +1356,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case5.aas.focus)(equalTo(Reflect.string[Binding])) &&
         assert(Case6.akmil.focus)(equalTo(Reflect.long[Binding])) &&
         assert(Wrapper.r1.focus)(equalTo(Record1.reflect)) &&
-        assert(Wrapper.r1_b.focus)(equalTo(Reflect.boolean[Binding]))
+        assert(Wrapper.r1_b.focus)(equalTo(Reflect.boolean[Binding])) &&
+        assert(Wrappers.w_wr1.focus)(equalTo(Record1.reflect)) &&
+        assert(Record4.w_w_wr1.focus)(equalTo(Record1.reflect))
       },
       test("passes check if a focus value exists") {
         assert(Variant1.c2_r3_r1.check(Case2(Record3(Record1(true, 0.1f), null, null))))(isNone) &&
@@ -2600,29 +2615,6 @@ object OpticSpec extends ZIOSpecDefault {
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable]))
       } @@ jvmOnly,
-      test("optic macro generates traversals for sequence or map") {
-        object Test1 extends CompanionOptics[Vector[String]] {
-          val traversal: Traversal[Vector[String], String] = optic[String](_.each)
-        }
-        object Test2 extends CompanionOptics[Vector[String]] {
-          val traversal: Traversal[Vector[String], String] = optic[String](_.atIndices(1, 2))
-        }
-        object Test3 extends CompanionOptics[Map[Int, Long]] {
-          val traversal: Traversal[Map[Int, Long], Int] = optic[Int](_.eachKey)
-        }
-        object Test4 extends CompanionOptics[Map[Int, Long]] {
-          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.eachValue)
-        }
-        object Test5 extends CompanionOptics[Map[Int, Long]] {
-          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.atKeys(1, 2))
-        }
-
-        assert(Test1.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("abc")) &&
-        assert(Test2.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("bc")) &&
-        assert(Test3.traversal.fold[Int](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6)) &&
-        assert(Test4.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6L)) &&
-        assert(Test5.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(3L))
-      },
       test("optic macro requires sequence or map for creation") {
         ZIO.attempt {
           case class Test(a: Array[Map[Int, String]])
@@ -2657,6 +2649,29 @@ object OpticSpec extends ZIOSpecDefault {
           Test.traversal
         }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a map")))
+      },
+      test("optic macro generates traversals for sequence or map") {
+        object Test1 extends CompanionOptics[Vector[String]] {
+          val traversal: Traversal[Vector[String], String] = optic[String](_.each)
+        }
+        object Test2 extends CompanionOptics[Vector[String]] {
+          val traversal: Traversal[Vector[String], String] = optic[String](_.atIndices(1, 2))
+        }
+        object Test3 extends CompanionOptics[Map[Int, Long]] {
+          val traversal: Traversal[Map[Int, Long], Int] = optic[Int](_.eachKey)
+        }
+        object Test4 extends CompanionOptics[Map[Int, Long]] {
+          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.eachValue)
+        }
+        object Test5 extends CompanionOptics[Map[Int, Long]] {
+          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.atKeys(1, 2))
+        }
+
+        assert(Test1.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("abc")) &&
+        assert(Test2.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("bc")) &&
+        assert(Test3.traversal.fold[Int](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6)) &&
+        assert(Test4.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6L)) &&
+        assert(Test5.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(3L))
       },
       test("has consistent equals and hashCode") {
         assert(Record2.vi)(equalTo(Record2.vi)) &&
@@ -2694,7 +2709,10 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case4.lr3.source)(equalTo(Case4.reflect)) &&
         assert(Case4.lr3_r2_r1.source)(equalTo(Case4.reflect)) &&
         assert(Variant2.c4_lr3.source)(equalTo(Variant2.reflect)) &&
-        assert(Variant2.c3_v1_v2_c4_lr3.source)(equalTo(Variant2.reflect))
+        assert(Variant2.c3_v1_v2_c4_lr3.source)(equalTo(Variant2.reflect)) &&
+        assert(Record4.vw_wr1_b.source)(equalTo(Record4.reflect)) &&
+        assert(Case5.aias.source)(equalTo(Case5.reflect)) &&
+        assert(Case6.aksmil.source)(equalTo(Case6.reflect))
       },
       test("returns a focus structure") {
         assert(Collections.ai.focus)(equalTo(Reflect.int[Binding])) &&
@@ -2708,7 +2726,10 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case4.lr3.focus)(equalTo(Record3.reflect)) &&
         assert(Case4.lr3_r2_r1.focus)(equalTo(Record1.reflect)) &&
         assert(Variant2.c4_lr3.focus)(equalTo(Record3.reflect)) &&
-        assert(Variant2.c3_v1_v2_c4_lr3.focus)(equalTo(Record3.reflect))
+        assert(Variant2.c3_v1_v2_c4_lr3.focus)(equalTo(Record3.reflect)) &&
+        assert(Record4.vw_wr1_b.focus)(equalTo(Reflect.boolean[Binding])) &&
+        assert(Case5.aias.focus)(equalTo(Reflect.string[Binding])) &&
+        assert(Case6.aksmil.focus)(equalTo(Reflect.long[Binding]))
       },
       test("checks collection values and returns none if they will be modified") {
         assert(Collections.mkc.check(Map('a' -> "1", 'b' -> "2", 'c' -> "3")))(isNone) &&
@@ -3538,6 +3559,7 @@ object OpticSpecTypes {
     val si: Traversal[Case5, Int]              = optic(_.si.each)
     val as: Traversal[Case5, String]           = optic(_.as.each)
     val aas: Optional[Case5, String]           = optic(_.as.at(1))
+    val aias: Traversal[Case5, String]         = optic(_.as.atIndices(1, 2))
   }
 
   case class Case6(mil: Map[Int, Long]) extends Variant3
@@ -3548,6 +3570,7 @@ object OpticSpecTypes {
     val milk: Traversal[Case6, Int]          = optic(_.mil.eachKey)
     val milv: Traversal[Case6, Long]         = optic(_.mil.eachValue)
     val akmil: Optional[Case6, Long]         = optic(_.mil.atKey(1))
+    val aksmil: Traversal[Case6, Long]       = optic(_.mil.atKeys(1, 2))
   }
 
   case class Box1(l: Long) extends AnyVal
@@ -3565,7 +3588,15 @@ object OpticSpecTypes {
     val r1_b: Lens[Box2, Boolean]     = optic(_.r1.b)
   }
 
-  case class Wrapper private (value: Record1) extends AnyVal
+  sealed trait Wrappers
+
+  object Wrappers extends CompanionOptics[Wrappers] {
+    implicit val schema: Schema[Wrappers]        = Schema.derived
+    val reflect: Reflect.Variant.Bound[Wrappers] = schema.reflect.asVariant.get
+    val w_wr1: Optional[Wrappers, Record1]       = optic(_.when[Wrapper].wrapped[Record1])
+  }
+
+  case class Wrapper private (value: Record1) extends Wrappers
 
   object Wrapper extends CompanionOptics[Wrapper] {
     def apply(value: Record1): Either[String, Wrapper] =
@@ -3587,6 +3618,15 @@ object OpticSpecTypes {
     implicit val schema: Schema[Wrapper] = new Schema(reflect)
     val r1: Optional[Wrapper, Record1]   = optic(_.wrapped[Record1])
     val r1_b: Optional[Wrapper, Boolean] = optic(_.wrapped[Record1].b)
+  }
+
+  case class Record4(vw: Vector[Wrapper], w: Wrappers)
+
+  object Record4 extends CompanionOptics[Record4] {
+    implicit val schema: Schema[Record4]       = Schema.derived
+    val reflect: Reflect.Record.Bound[Record4] = schema.reflect.asRecord.get
+    val vw_wr1_b: Traversal[Record4, Boolean]  = optic(_.vw.each.wrapped[Record1].b)
+    val w_w_wr1: Optional[Record4, Record1]    = optic(_.w.when[Wrapper].wrapped[Record1])
   }
 
   object Collections {

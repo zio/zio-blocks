@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import scala.annotation.tailrec
 import scala.compiletime.error
-import zio.blocks.schema.binding._
 
 transparent trait CompanionOptics[S] {
   extension [A](a: A) {
@@ -208,7 +207,7 @@ private object CompanionOptics {
                 toOptic(parent).fold {
                   '{
                     $schema.reflect.asWrapperUnknown
-                      .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                      .map(x => Optional.wrapped(x.wrapper))
                       .getOrElse(sys.error("Expected a wrapper"))
                       .asInstanceOf[Optional[p, w]]
                   }
@@ -218,7 +217,7 @@ private object CompanionOptics {
                       val optic = ${ x.asExprOf[Lens[S, p]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
-                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .map(x => Optional.wrapped(x.wrapper))
                           .getOrElse(sys.error("Expected a wrapper"))
                           .asInstanceOf[Optional[p, w]]
                       )
@@ -228,7 +227,7 @@ private object CompanionOptics {
                       val optic = ${ x.asExprOf[Prism[S, p & S]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
-                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .map(x => Optional.wrapped(x.wrapper))
                           .getOrElse(sys.error("Expected a wrapper"))
                           .asInstanceOf[Optional[p & S, w]]
                       )
@@ -238,7 +237,7 @@ private object CompanionOptics {
                       val optic = ${ x.asExprOf[Optional[S, p]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
-                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .map(x => Optional.wrapped(x.wrapper))
                           .getOrElse(sys.error("Expected a wrapper"))
                           .asInstanceOf[Optional[p, w]]
                       )
@@ -248,7 +247,7 @@ private object CompanionOptics {
                       val optic = ${ x.asExprOf[Traversal[S, p]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
-                          .map(x => Optional.wrapped(x.wrapper.asInstanceOf[Reflect.Wrapper[Binding, p, w]]))
+                          .map(x => Optional.wrapped(x.wrapper))
                           .getOrElse(sys.error("Expected a wrapper"))
                           .asInstanceOf[Optional[p, w]]
                       )
