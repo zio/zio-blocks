@@ -723,7 +723,20 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       }
-    )
+    ),
+    test("doesn't generate schema for unsupported collections") {
+      typeCheck {
+        "Schema.derived[scala.collection.mutable.CollisionProofHashMap[String, Int]]"
+      }.map(
+        assert(_)(
+          isLeft(
+            containsString(
+              "Cannot derive schema for 'scala.collection.mutable.CollisionProofHashMap[scala.Predef.String, scala.Int]'."
+            )
+          )
+        )
+      )
+    }
   )
 
   /** Variant: Color */
