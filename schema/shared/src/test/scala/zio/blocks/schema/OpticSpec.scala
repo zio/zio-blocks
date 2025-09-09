@@ -296,6 +296,16 @@ object OpticSpec extends ZIOSpecDefault {
         }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected a variant")))
       },
+      test("fail to generate prism") {
+        typeCheck {
+          """case class Test(a: Double)
+
+             object Test extends CompanionOptics[Test] {
+               implicit val schema: Schema[Test] = Schema.derived
+               val prism                         = optic(null.asInstanceOf[Test => Double])
+             }"""
+        }.map(assert(_)(isLeft(startsWithString("Expected a lambda expression, got: 'null.asInstanceOf["))))
+      },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1)(equalTo(Variant1.c1)) &&
         assert(Variant1.c1.hashCode)(equalTo(Variant1.c1.hashCode)) &&
