@@ -46,12 +46,9 @@ private object CompanionOptics {
 
     @tailrec
     def toPathBody(term: Term): Term = term match {
-      case Inlined(_, _, inlinedBlock) =>
-        toPathBody(inlinedBlock)
-      case Block(List(DefDef(_, _, _, Some(pathBody))), _) =>
-        pathBody
-      case _ =>
-        fail(s"Expected a lambda expression, got: ${term.show(using Printer.TreeStructure)}")
+      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
+      case _                                               => fail(s"Expected a lambda expression, got: '${term.show}'")
     }
 
     def hasName(term: Term, name: String): Boolean = term match {

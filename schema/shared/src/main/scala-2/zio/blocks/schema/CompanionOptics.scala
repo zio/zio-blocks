@@ -53,7 +53,7 @@ private object CompanionOptics {
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody
-      case _                    => fail(s"Expected a lambda expression, got: ${showRaw(tree)}")
+      case _                    => fail(s"Expected a lambda expression, got: '$tree'")
     }
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
