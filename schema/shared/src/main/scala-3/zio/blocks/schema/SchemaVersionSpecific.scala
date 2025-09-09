@@ -239,18 +239,16 @@ private object SchemaVersionSpecific {
           } else if (isNonAbstractScalaClass(tpe)) {
             !nestedTpes.contains(tpe) && {
               val primaryConstructor = tpe.classSymbol.get.primaryConstructor
-              primaryConstructor.exists && {
-                val nestedTpes_ = tpe :: nestedTpes
-                primaryConstructor.paramSymss match {
-                  case tpeTypeParams :: tpeParams if tpeTypeParams.exists(_.isTypeParam) =>
-                    val tpeTypeArgs = typeArgs(tpe)
-                    tpeParams.forall(_.forall { symbol =>
-                      val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
-                      isNonRecursive(fTpe, nestedTpes_)
-                    })
-                  case tpeParams =>
-                    tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
-                }
+              val nestedTpes_        = tpe :: nestedTpes
+              primaryConstructor.paramSymss match {
+                case tpeTypeParams :: tpeParams if tpeTypeParams.exists(_.isTypeParam) =>
+                  val tpeTypeArgs = typeArgs(tpe)
+                  tpeParams.forall(_.forall { symbol =>
+                    val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                    isNonRecursive(fTpe, nestedTpes_)
+                  })
+                case tpeParams =>
+                  tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
               }
             }
           } else if (isOpaque(tpe)) {
@@ -406,7 +404,7 @@ private object SchemaVersionSpecific {
 
       def usedRegisters: Expr[RegisterOffset]
 
-      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]]
+      def fields[S: Type](nameOverrides: List[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]]
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T]
 
@@ -468,9 +466,8 @@ private object SchemaVersionSpecific {
     }
 
     case class ClassInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
-      private val tpeClassSymbol     = tpe.classSymbol.get
-      private val primaryConstructor = tpeClassSymbol.primaryConstructor
-      if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
+      private val tpeClassSymbol                                                   = tpe.classSymbol.get
+      private val primaryConstructor                                               = tpeClassSymbol.primaryConstructor
       val tpeTypeArgs: List[TypeRepr]                                              = typeArgs(tpe)
       val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
         val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
@@ -528,7 +525,7 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] = {
+      def fields[S: Type](nameOverrides: List[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] = {
         val names = nameOverrides.toArray
         var idx   = -1
         Expr.ofSeq(fieldInfos.flatMap(_.map { fieldInfo =>
@@ -625,7 +622,7 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields[S: Type](nameOverrides: List[String] = Nil)(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] =
+      def fields[S: Type](nameOverrides: List[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] =
         Expr.ofSeq(fieldInfos.map {
           val names = nameOverrides.toArray
           var idx   = -1
@@ -808,7 +805,7 @@ private object SchemaVersionSpecific {
             '{
               new Schema(
                 reflect = new Reflect.Record[Binding, tt](
-                  fields = Vector(${ typeInfo.fields[tt]() }*),
+                  fields = Vector(${ typeInfo.fields[tt](Nil) }*),
                   typeName = ${ toExpr(tTpeName) },
                   recordBinding = new Binding.Record(
                     constructor = new Constructor[tt] {
@@ -991,7 +988,7 @@ private object SchemaVersionSpecific {
         '{
           new Schema(
             reflect = new Reflect.Record[Binding, T](
-              fields = Vector(${ classInfo.fields() }*),
+              fields = Vector(${ classInfo.fields(Nil) }*),
               typeName = ${ toExpr(tpeName) },
               recordBinding = new Binding.Record(
                 constructor = new Constructor {
