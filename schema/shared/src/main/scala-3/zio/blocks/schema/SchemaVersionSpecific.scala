@@ -239,18 +239,16 @@ private object SchemaVersionSpecific {
           } else if (isNonAbstractScalaClass(tpe)) {
             !nestedTpes.contains(tpe) && {
               val primaryConstructor = tpe.classSymbol.get.primaryConstructor
-              primaryConstructor.exists && {
-                val nestedTpes_ = tpe :: nestedTpes
-                primaryConstructor.paramSymss match {
-                  case tpeTypeParams :: tpeParams if tpeTypeParams.exists(_.isTypeParam) =>
-                    val tpeTypeArgs = typeArgs(tpe)
-                    tpeParams.forall(_.forall { symbol =>
-                      val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
-                      isNonRecursive(fTpe, nestedTpes_)
-                    })
-                  case tpeParams =>
-                    tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
-                }
+              val nestedTpes_        = tpe :: nestedTpes
+              primaryConstructor.paramSymss match {
+                case tpeTypeParams :: tpeParams if tpeTypeParams.exists(_.isTypeParam) =>
+                  val tpeTypeArgs = typeArgs(tpe)
+                  tpeParams.forall(_.forall { symbol =>
+                    val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                    isNonRecursive(fTpe, nestedTpes_)
+                  })
+                case tpeParams =>
+                  tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
               }
             }
           } else if (isOpaque(tpe)) {
@@ -468,9 +466,8 @@ private object SchemaVersionSpecific {
     }
 
     case class ClassInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
-      private val tpeClassSymbol     = tpe.classSymbol.get
-      private val primaryConstructor = tpeClassSymbol.primaryConstructor
-      if (!primaryConstructor.exists) fail(s"Cannot find a primary constructor for '${tpe.show}'.")
+      private val tpeClassSymbol                                                   = tpe.classSymbol.get
+      private val primaryConstructor                                               = tpeClassSymbol.primaryConstructor
       val tpeTypeArgs: List[TypeRepr]                                              = typeArgs(tpe)
       val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
         val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
