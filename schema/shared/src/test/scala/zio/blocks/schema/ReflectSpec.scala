@@ -209,10 +209,10 @@ object ReflectSpec extends ZIOSpecDefault {
       test("gets and appends primitive modifiers") {
         val int1 = Reflect.int[Binding]
         assert(int1.modifiers)(equalTo(Seq.empty)) &&
-        assert(int1.modifier(Modifier.config("key", "value").asInstanceOf[int1.ModifierType]).modifiers: Any)(
+        assert(int1.modifier(Modifier.config("key", "value")).modifiers)(
           equalTo(Seq(Modifier.config("key", "value")))
         ) &&
-        assert(int1.modifiers(Seq(Modifier.config("key", "value").asInstanceOf[int1.ModifierType])).modifiers: Any)(
+        assert(int1.modifiers(Seq(Modifier.config("key", "value"))).modifiers)(
           equalTo(Seq(Modifier.config("key", "value")))
         )
       }
@@ -813,13 +813,11 @@ object ReflectSpec extends ZIOSpecDefault {
       test("gets and updates modifiers") {
         val deferred1 = Reflect.Deferred[Binding, UUID](() => Reflect.uuid)
         assert(deferred1.modifiers)(equalTo(Seq.empty)) &&
-        assert(deferred1.modifier(Modifier.config("key", "value").asInstanceOf[deferred1.ModifierType]).modifiers: Any)(
+        assert(deferred1.modifier(Modifier.config("key", "value")).modifiers)(
           equalTo(Seq(Modifier.config("key", "value")))
         ) &&
         assert(
-          deferred1
-            .modifiers(Seq(Modifier.config("key", "value")).asInstanceOf[Seq[deferred1.ModifierType]])
-            .modifiers: Any
+          deferred1.modifiers(Seq(Modifier.config("key", "value"))).modifiers
         )(equalTo(Seq(Modifier.config("key", "value"))))
       },
       test("avoids stack overflow for circulary dependent structures") {

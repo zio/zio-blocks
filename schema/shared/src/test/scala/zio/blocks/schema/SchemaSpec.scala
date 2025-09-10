@@ -40,18 +40,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends primitive modifiers") {
         val schema1 = Schema[Int]
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Byte].fromDynamicValue(Schema[Byte].toDynamicValue(1)))(isRight(equalTo(1: Byte))) &&
@@ -102,18 +95,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends record modifiers") {
         val schema1 = Record.schema
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Box1.schema.fromDynamicValue(Box1.schema.toDynamicValue(Box1(4L))))(isRight(equalTo(Box1(4L)))) &&
@@ -770,18 +756,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends variant modifiers") {
         val schema1 = Variant.schema
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Variant.schema.fromDynamicValue(Variant.schema.toDynamicValue(Case1('1'))))(
@@ -1126,18 +1105,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends sequence modifiers") {
         val schema1 = Schema[List[Int]]
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[ArraySeq[Int]].fromDynamicValue(Schema[ArraySeq[Int]].toDynamicValue(ArraySeq(1, 2, 3))))(
@@ -1333,18 +1305,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends map modifiers") {
         val schema1 = Schema[Map[Int, Long]]
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(
@@ -1426,18 +1391,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends dynamic modifiers") {
         val schema1 = Schema[DynamicValue]
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(1))
@@ -1534,18 +1492,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends deferred modifiers") {
         val schema1 = Schema(Reflect.Deferred[Binding, Record](() => Record.schema.reflect))
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         val deferred1 = Reflect.Deferred[Binding, Record](() => Record.schema.reflect)
@@ -1648,18 +1599,11 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("appends wrapped modifiers") {
         val schema1 = PosInt.schema
-        val schema2 = schema1.modifier(Modifier.config("key1", "value1").asInstanceOf[schema1.reflect.ModifierType])
+        val schema2 = schema1.modifier(Modifier.config("key1", "value1"))
         assert(schema2.reflect.modifiers: Any)(equalTo(Seq(Modifier.config("key1", "value1")))) &&
         assert(
-          schema2
-            .modifiers(Seq(Modifier.config("key2", "value2").asInstanceOf[schema2.reflect.ModifierType]))
-            .reflect
-            .modifiers: Any
-        )(
-          equalTo(
-            Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))
-          )
-        )
+          schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
+        )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         val value = PosInt.applyUnsafe(1)
@@ -1793,7 +1737,7 @@ object SchemaSpec extends ZIOSpecDefault {
             typeName: TypeName[A],
             binding: Binding[BindingType.Primitive, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Primitive]
+            modifiers: Seq[Modifier.Reflect]
           ): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -1806,7 +1750,7 @@ object SchemaSpec extends ZIOSpecDefault {
             typeName: TypeName[A],
             binding: Binding[BindingType.Record, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Record]
+            modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -1819,7 +1763,7 @@ object SchemaSpec extends ZIOSpecDefault {
             typeName: TypeName[A],
             binding: Binding[BindingType.Variant, A],
             doc: Doc,
-            modifiers: Seq[Modifier.Variant]
+            modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
@@ -1832,7 +1776,7 @@ object SchemaSpec extends ZIOSpecDefault {
             typeName: TypeName[C[A]],
             binding: Binding[BindingType.Seq[C], C[A]],
             doc: Doc,
-            modifiers: Seq[Modifier.Seq]
+            modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
             Lazy(new TextCodec[C[A]] {
               override def encode(value: C[A], output: CharBuffer): Unit = output.append(value.toString)
@@ -1846,7 +1790,7 @@ object SchemaSpec extends ZIOSpecDefault {
             typeName: TypeName[M[K, V]],
             binding: Binding[BindingType.Map[M], M[K, V]],
             doc: Doc,
-            modifiers: Seq[Modifier.Map]
+            modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
             Lazy(new TextCodec[M[K, V]] {
               override def encode(value: M[K, V], output: CharBuffer): Unit = output.append(value.toString)
@@ -1857,7 +1801,7 @@ object SchemaSpec extends ZIOSpecDefault {
           override def deriveDynamic[F[_, _]](
             binding: Binding[BindingType.Dynamic, DynamicValue],
             doc: Doc,
-            modifiers: Seq[Modifier.Dynamic]
+            modifiers: Seq[Modifier.Reflect]
           )(implicit
             F: HasBinding[F],
             D: HasInstance[F]
@@ -1873,7 +1817,7 @@ object SchemaSpec extends ZIOSpecDefault {
             typeName: TypeName[A],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
-            modifiers: Seq[Modifier.Wrapper]
+            modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
