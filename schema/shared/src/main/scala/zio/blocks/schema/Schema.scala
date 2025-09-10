@@ -73,9 +73,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def @@[B](part: Optic[A, B], aspect: SchemaAspect[B, B, Binding]) = new Schema(reflect.aspect(part, aspect))
 
-  def modifier(modifier: reflect.ModifierType): Schema[A] = new Schema(reflect.modifier(modifier))
+  def modifier(modifier: Modifier.Reflect): Schema[A] = new Schema(reflect.modifier(modifier))
 
-  def modifiers(modifiers: Iterable[reflect.ModifierType]): Schema[A] = new Schema(reflect.modifiers(modifiers))
+  def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](Schema[B].reflect, reflect.typeName, new Binding.Wrapper(wrap, unwrap))
