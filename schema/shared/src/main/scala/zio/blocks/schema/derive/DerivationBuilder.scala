@@ -15,7 +15,7 @@ import zio.blocks.schema.binding.{Binding, BindingType}
  * val personEq: Eq[Person] = personSchema
  *   .deriving[Eq]
  *   .instance(Person.age, Eq[Int])
- *   .modifier(Person.name, Term.transient)
+ *   .modifier(Person.name, Modifier.config("rename", "fullName"))
  *   .derive
  * }}}
  */
@@ -23,7 +23,7 @@ final case class DerivationBuilder[TC[_], A](
   schema: Schema[A],
   deriver: Deriver[TC],
   instanceOverrides: IndexedSeq[InstanceOverride[TC, ?]],
-  modifierOverrides: IndexedSeq[ModifierOverride[?]]
+  modifierOverrides: IndexedSeq[ModifierOverride]
 ) {
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] = {
     val override_ = InstanceOverride(InstanceOverride.By.Optic(optic.toDynamic), Lazy(instance))
@@ -35,13 +35,18 @@ final case class DerivationBuilder[TC[_], A](
     copy(instanceOverrides = instanceOverrides :+ override_)
   }
 
-  def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A] = {
-    val override_ = ModifierOverride(ModifierOverride.By.Optic(optic.toDynamic), modifier)
+  def modifier[B](optic: Optic[A, B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] = {
+    val override_ = ModifierReflectOverride(ModifierReflectOverride.By.Optic(optic.toDynamic), modifier)
     copy(modifierOverrides = modifierOverrides :+ override_)
   }
 
-  def modifier[B](typeName: TypeName[B], modifier: Modifier): DerivationBuilder[TC, A] = {
-    val override_ = ModifierOverride(ModifierOverride.By.Type(typeName), modifier)
+  def modifier[B](typeName: TypeName[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] = {
+    val override_ = ModifierReflectOverride(ModifierReflectOverride.By.Type(typeName), modifier)
+    copy(modifierOverrides = modifierOverrides :+ override_)
+  }
+
+  def modifier[B](typeName: TypeName[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] = {
+    val override_ = ModifierTermOverride(ModifierTermOverride.By.Type(typeName, termName), modifier)
     copy(modifierOverrides = modifierOverrides :+ override_)
   }
 
@@ -57,20 +62,28 @@ final case class DerivationBuilder[TC[_], A](
       allInstanceOverrides.collect { case InstanceOverride(InstanceOverride.By.Type(name), instance) =>
         name -> instance
       }.toMap
-    val modifierByOpticMap = allModifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier]]](Map.empty) {
-      case (acc, ModifierOverride(ModifierOverride.By.Optic(optic), modifier)) =>
-        acc + (optic -> acc.getOrElse(optic, Vector.empty).appended(modifier))
-      case (acc, _) => acc
-    }
-    val modifierByTypeMap = allModifierOverrides.foldLeft[Map[TypeName[?], Vector[Modifier]]](Map.empty) {
-      case (acc, ModifierOverride(ModifierOverride.By.Type(name), modifier)) =>
-        acc + (name -> acc.getOrElse(name, Vector.empty).appended(modifier))
-      case (acc, _) => acc
-    }
+    val modifierReflectByOpticMap =
+      allModifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier.Reflect]]](Map.empty) {
+        case (acc, ModifierReflectOverride(ModifierReflectOverride.By.Optic(optic), modifier)) =>
+          acc + (optic -> acc.getOrElse(optic, Vector.empty).appended(modifier))
+        case (acc, _) => acc
+      }
+    val modifierReflectByTypeMap =
+      allModifierOverrides.foldLeft[Map[TypeName[?], Vector[Modifier.Reflect]]](Map.empty) {
+        case (acc, ModifierReflectOverride(ModifierReflectOverride.By.Type(name), modifier)) =>
+          acc + (name -> acc.getOrElse(name, Vector.empty).appended(modifier))
+        case (acc, _) => acc
+      }
+    val modifierTermByTypeMap =
+      allModifierOverrides.foldLeft[Map[TypeName[?], Vector[(String, Modifier.Term)]]](Map.empty) {
+        case (acc, ModifierTermOverride(ModifierTermOverride.By.Type(name, termName), modifier)) =>
+          acc + (name -> acc.getOrElse(name, Vector.empty).appended(termName -> modifier))
+        case (acc, _) => acc
+      }
 
     def extraModifiers[A0](path: DynamicOptic, typeName: TypeName[A0]) =
-      (modifierByOpticMap.getOrElse(path, Vector.empty) ++
-        modifierByTypeMap.getOrElse(typeName, Vector.empty)).collect { case m: Modifier.Reflect => m }
+      modifierReflectByOpticMap.getOrElse(path, Vector.empty) ++
+        modifierReflectByTypeMap.getOrElse(typeName, Vector.empty)
 
     def getCustomInstance[A0](path: DynamicOptic, typeName: TypeName[A0]): Option[Lazy[TC[A0]]] =
       // first try to find an instance by optic (more precise)
@@ -95,11 +108,24 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Record[G, A0]] = {
+            val modifierToAdd = modifierTermByTypeMap.getOrElse(typeName, Vector.empty)
+            val updatedFields =
+              if (modifierToAdd.isEmpty) fields
+              else {
+                fields.map { field =>
+                  field
+                    .copy(modifiers = field.modifiers ++ modifierToAdd.collect {
+                      case (name, modifier) if name == field.name => modifier
+                    })
+                    .asInstanceOf[Term[G, A0, ?]]
+                }
+              }
             val instance = getCustomInstance[A0](path, typeName)
               .getOrElse(
-                deriver.deriveRecord(fields, typeName, metadata, doc, modifiers ++ extraModifiers(path, typeName))
+                deriver
+                  .deriveRecord(updatedFields, typeName, metadata, doc, modifiers ++ extraModifiers(path, typeName))
               )
-            Lazy(Reflect.Record(fields, typeName, BindingInstance(metadata, instance), doc, modifiers))
+            Lazy(Reflect.Record(updatedFields, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
           override def transformVariant[A0](
@@ -110,11 +136,24 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Variant[G, A0]] = {
+            val modifierToAdd = modifierTermByTypeMap.getOrElse(typeName, Vector.empty)
+            val updatedCases  =
+              if (modifierToAdd.isEmpty) cases
+              else {
+                cases.map { case_ =>
+                  case_
+                    .copy(modifiers = case_.modifiers ++ modifierToAdd.collect {
+                      case (name, modifier) if name == case_.name => modifier
+                    })
+                    .asInstanceOf[Term[G, A0, ? <: A0]]
+                }
+              }
             val instance = getCustomInstance[A0](path, typeName)
               .getOrElse(
-                deriver.deriveVariant(cases, typeName, metadata, doc, modifiers ++ extraModifiers(path, typeName))
+                deriver
+                  .deriveVariant(updatedCases, typeName, metadata, doc, modifiers ++ extraModifiers(path, typeName))
               )
-            Lazy(Reflect.Variant(cases, typeName, BindingInstance(metadata, instance), doc, modifiers))
+            Lazy(Reflect.Variant(updatedCases, typeName, BindingInstance(metadata, instance), doc, modifiers))
           }
 
           override def transformSequence[A0, C[_]](

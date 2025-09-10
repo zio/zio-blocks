@@ -67,5 +67,5 @@ trait Deriver[TC[_]] { self =>
 
   def instanceOverrides: IndexedSeq[InstanceOverride[TC, ?]] = IndexedSeq.empty
 
-  def modifierOverrides: IndexedSeq[ModifierOverride[?]] = IndexedSeq.empty
+  def modifierOverrides: IndexedSeq[ModifierOverride] = IndexedSeq.empty
 }
