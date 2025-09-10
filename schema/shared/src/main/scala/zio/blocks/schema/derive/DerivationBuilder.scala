@@ -41,8 +41,8 @@ final case class DerivationBuilder[TC[_], A](
     copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverride(typeName, termName, modifier))
 
   lazy val derive: TC[A] = {
-    val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
-    val allModifierOverrides = modifierOverrides ++ deriver.modifierOverrides
+    val allInstanceOverrides = deriver.instanceOverrides ++ instanceOverrides
+    val allModifierOverrides = deriver.modifierOverrides ++ modifierOverrides
 
     val instanceByOpticMap =
       allInstanceOverrides.collect { case InstanceOverrideByOptic(optic, instance) => (optic, instance) }.toMap
