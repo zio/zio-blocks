@@ -1,8 +1,8 @@
 package zio.blocks.schema
+
 import zio.ZIO
 import zio.test.Assertion._
 import zio.test._
-import scala.collection.immutable.ArraySeq
 
 object LazySpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("LazySpec")(
