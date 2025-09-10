@@ -1,8 +1,5 @@
 package zio.blocks.schema
 
-import scala.collection.immutable.ArraySeq
-import scala.reflect.ClassTag
-
 sealed trait Lazy[+A] {
   import Lazy._
 
@@ -95,39 +92,14 @@ object Lazy {
 
   @inline def apply[A](expression: => A): Lazy[A] = new Defer(() => expression)
 
-  def collectAll[A](values: List[Lazy[A]]): Lazy[List[A]] =
+  def collectAll[A](values: IndexedSeq[Lazy[A]]): Lazy[IndexedSeq[A]] =
     values
-      .foldLeft(Lazy(List.newBuilder[A]))((lazyResult, lazyValue) =>
+      .foldLeft(Lazy(IndexedSeq.newBuilder[A]))((lazyResult, lazyValue) =>
         lazyValue.flatMap(value => lazyResult.map(_.addOne(value)))
       )
       .map(_.result())
-
-  def collectAll[A](values: Vector[Lazy[A]]): Lazy[Vector[A]] =
-    values
-      .foldLeft(Lazy(Vector.newBuilder[A]))((lazyResult, lazyValue) =>
-        lazyValue.flatMap(value => lazyResult.map(_.addOne(value)))
-      )
-      .map(_.result())
-
-  def collectAll[A: ClassTag](values: ArraySeq[Lazy[A]]): Lazy[ArraySeq[A]] =
-    values
-      .foldLeft(Lazy(ArraySeq.newBuilder[A]))((lazyResult, lazyValue) =>
-        lazyValue.flatMap(value => lazyResult.map(_.addOne(value)))
-      )
-      .map(_.result())
-
-  def collectAll[A](values: Set[Lazy[A]]): Lazy[Set[A]] =
-    values.foldLeft(Lazy(Set.empty[A]))((lazyResult, lazyValue) =>
-      lazyValue.flatMap(value => lazyResult.map(values => values + value))
-    )
 
   @inline def fail(throwable: Throwable): Lazy[Nothing] = new Defer(() => throw throwable)
 
-  def foreach[A, B](values: List[A])(f: A => Lazy[B]): Lazy[List[B]] = collectAll(values.map(f))
-
-  def foreach[A, B](values: Vector[A])(f: A => Lazy[B]): Lazy[Vector[B]] = collectAll(values.map(f))
-
-  def foreach[A, B: ClassTag](values: ArraySeq[A])(f: A => Lazy[B]): Lazy[ArraySeq[B]] = collectAll(values.map(f))
-
-  def foreach[A, B](values: Set[A])(f: A => Lazy[B]): Lazy[Set[B]] = collectAll(values.map(f))
+  def foreach[A, B](values: IndexedSeq[A])(f: A => Lazy[B]): Lazy[IndexedSeq[B]] = collectAll(values.map(f))
 }
