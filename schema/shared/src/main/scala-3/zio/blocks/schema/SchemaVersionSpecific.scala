@@ -46,10 +46,12 @@ private object SchemaVersionSpecific {
     def opaqueDealias(tpe: TypeRepr): TypeRepr = {
       @tailrec
       def loop(tpe: TypeRepr): TypeRepr = tpe match {
-        case trTpe @ TypeRef(_, _) if trTpe.isOpaqueAlias => loop(trTpe.translucentSuperType.dealias)
-        case AppliedType(atTpe, _)                        => loop(atTpe.dealias)
-        case TypeLambda(_, _, tlTpe)                      => loop(tlTpe.dealias)
-        case _                                            => tpe
+        case trTpe @ TypeRef(_, _) =>
+          if (trTpe.isOpaqueAlias) loop(trTpe.translucentSuperType.dealias)
+          else tpe
+        case AppliedType(atTpe, _)   => loop(atTpe.dealias)
+        case TypeLambda(_, _, tlTpe) => loop(tlTpe.dealias)
+        case _                       => tpe
       }
 
       val sTpe = loop(tpe)
@@ -107,8 +109,8 @@ private object SchemaVersionSpecific {
     }
 
     def isGenericTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(gtTpe, _) if gtTpe.dealias =:= TypeRepr.of[*:] => true
-      case _                                                          => false
+      case AppliedType(gtTpe, _) => gtTpe.dealias =:= TypeRepr.of[*:]
+      case _                     => false
     }
 
     // Borrowed from an amazing work of Aleksander Rainko:
@@ -133,8 +135,8 @@ private object SchemaVersionSpecific {
     }
 
     def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(ntTpe, _) if ntTpe.dealias.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple" => true
-      case _                                                                                            => false
+      case AppliedType(ntTpe, _) => ntTpe.dealias.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
+      case _                     => false
     }
 
     def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[?]]
@@ -143,9 +145,10 @@ private object SchemaVersionSpecific {
 
     def isDynamicValue(tpe: TypeRepr): Boolean = tpe =:= TypeRepr.of[DynamicValue]
 
-    def isCollection(tpe: TypeRepr): Boolean =
-      tpe <:< TypeRepr.of[Array[?]] || tpe.typeSymbol.fullName == "scala.IArray$package$.IArray" ||
-        (tpe <:< TypeRepr.of[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
+    def isIArray(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
+
+    def isCollection(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Array[?]] || isIArray(tpe) ||
+      (tpe <:< TypeRepr.of[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
     def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
       def resolveParentTypeArg(
@@ -165,8 +168,7 @@ private object SchemaVersionSpecific {
                     s"'${tpe.show}' two times differently, with '${existingBinding.show}' and '${parentTypeArg.show}'"
                 )
               }
-            case _ =>
-              binding.updated(paramName, parentTypeArg)
+            case _ => binding.updated(paramName, parentTypeArg)
           }
         } else if (nudeChildTypeArg <:< parentTypeArg) binding
         else {
@@ -175,8 +177,7 @@ private object SchemaVersionSpecific {
               cta.zip(pta).foldLeft(resolveParentTypeArg(child, ctc, ptc, binding)) { (b, e) =>
                 resolveParentTypeArg(child, e._1, e._2, b)
               }
-            case _ =>
-              fail(s"Failed unification of type parameters of '${tpe.show}'.")
+            case _ => fail(s"Failed unification of type parameters of '${tpe.show}'.")
           }
         }
 
@@ -354,6 +355,9 @@ private object SchemaVersionSpecific {
       config
     }
 
+    def summonClassTag[T: Type](using Quotes): Expr[ClassTag[T]] =
+      Expr.summon[ClassTag[T]].getOrElse(fail(s"No ClassTag available for ${TypeRepr.of[T].show}"))
+
     val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
     val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
     val derivedSchemaDefs = new mutable.ListBuffer[ValDef]
@@ -486,11 +490,13 @@ private object SchemaVersionSpecific {
             val name   = symbol.name
             var getter = tpeClassSymbol.fieldMember(name)
             if (!getter.exists) {
-              val getterFlags = Flags.FieldAccessor | Flags.ParamAccessor
-              val getters     = tpeClassSymbol.methodMember(name).filter(_.flags.is(getterFlags))
-              if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
-              getter = getters.head
+              val flags = Flags.FieldAccessor | Flags.ParamAccessor
+              getter = tpeClassSymbol.methodMember(name).filter(_.flags.is(flags)).headOption.getOrElse(Symbol.noSymbol)
             }
+            if (!getter.exists || getter.flags.is(Flags.PrivateLocal))
+              fail(
+                s"Field or getter '$name' of '${tpe.show}' should be defined as 'val' or 'var' in the primary constructor."
+              )
             var isTransient                    = false
             var config: List[(String, String)] = Nil
             getter.annotations.foreach { annotation =>
@@ -506,15 +512,12 @@ private object SchemaVersionSpecific {
                   case methodSymbol :: _ =>
                     val dvSelectNoTArgs = companionModuleRef.select(methodSymbol)
                     methodSymbol.paramSymss match {
-                      case Nil =>
-                        new Some(dvSelectNoTArgs)
+                      case Nil                                                                  => new Some(dvSelectNoTArgs)
                       case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
                         new Some(dvSelectNoTArgs.appliedToTypes(tpeTypeArgs))
-                      case _ =>
-                        None
+                      case _ => None
                     }
-                  case _ =>
-                    None
+                  case _ => None
                 }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
               } else None
             val fieldInfo = new FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
@@ -719,7 +722,7 @@ private object SchemaVersionSpecific {
               val tpeName     = typeName[Array[et]](tpe)
               val constructor =
                 if (eTpe <:< TypeRepr.of[AnyRef]) {
-                  val classTag = Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
+                  val classTag = summonClassTag[et]
                   '{
                     implicit val ct: ClassTag[et] = $classTag
                     new SeqConstructor.ArrayConstructor {
@@ -741,14 +744,14 @@ private object SchemaVersionSpecific {
                 )
               }
           }
-        } else if (tpe.typeSymbol.fullName == "scala.IArray$package$.IArray") {
+        } else if (isIArray(tpe)) {
           val eTpe = typeArgs(tpe).head
           eTpe.asType match {
             case '[et] =>
               val tpeName     = typeName[IArray[et]](tpe)
               val constructor =
                 if (eTpe <:< TypeRepr.of[AnyRef]) {
-                  val classTag = Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
+                  val classTag = summonClassTag[et]
                   '{
                     implicit val ct: ClassTag[et] = $classTag
                     new SeqConstructor.IArrayConstructor {
@@ -793,7 +796,7 @@ private object SchemaVersionSpecific {
         } else if (tpe <:< TypeRepr.of[Vector[?]]) {
           val eTpe = typeArgs(tpe).head
           eTpe.asType match { case '[et] => '{ Schema.vector(${ findImplicitOrDeriveSchema[et](eTpe) }) } }
-        } else fail(s"Cannot derive schema for '${tpe.show}'.")
+        } else cannotDeriveSchema(tpe)
       } else if (isGenericTuple(tpe)) {
         val tTpe = normalizeTuple(tpe)
         tTpe.asType match {
@@ -977,7 +980,7 @@ private object SchemaVersionSpecific {
                   )
                 }
             }
-          case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
+          case _ => cannotDeriveSchema(tpe)
         }
       } else if (isNonAbstractScalaClass(tpe)) {
         val tpeName   = typeName(tpe)
@@ -1024,8 +1027,10 @@ private object SchemaVersionSpecific {
             val schema  = findImplicitOrDeriveSchema[s](sTpe)
             '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
         }
-      } else fail(s"Cannot derive schema for '${tpe.show}'.")
+      } else cannotDeriveSchema(tpe)
     }.asExprOf[Schema[T]]
+
+    def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
     val aTpe        = TypeRepr.of[A].dealias
     val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }

@@ -1649,6 +1649,36 @@ object SchemaSpec extends ZIOSpecDefault {
       typeCheck {
         "Schema.derived[java.util.Date]"
       }.map(assert(_)(isLeft(containsString("Cannot derive schema for 'java.util.Date'."))))
+    },
+    test("doesn't generate schema for case classes with non public parameters of the primary constructor") {
+      typeCheck {
+        """case class MultiListOfArgsWithNonPublicParam(i: Int)(l: Long)
+
+           Schema.derived[MultiListOfArgsWithNonPublicParam]"""
+      }.map(
+        assert(_)(
+          isLeft(
+            containsString(
+              "Field or getter 'l' of 'MultiListOfArgsWithNonPublicParam' should be defined as 'val' or 'var' in the primary constructor."
+            )
+          )
+        )
+      )
+    },
+    test("doesn't generate schema for classes with parameters in a primary constructor that have no accessor for read") {
+      typeCheck {
+        """class ParamHasNoAccessor(val i: Int, a: String)
+
+           Schema.derived[ParamHasNoAccessor]"""
+      }.map(
+        assert(_)(
+          isLeft(
+            containsString(
+              "Field or getter 'a' of 'ParamHasNoAccessor' should be defined as 'val' or 'var' in the primary constructor."
+            )
+          )
+        )
+      )
     }
   )
 
