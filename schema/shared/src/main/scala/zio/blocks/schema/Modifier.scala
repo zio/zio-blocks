@@ -11,19 +11,7 @@ object Modifier {
 
   @field case class transient() extends Term
 
-  sealed trait Record extends Modifier
-
-  sealed trait Variant extends Modifier
-
-  sealed trait Dynamic extends Modifier
-
-  sealed trait Seq extends Modifier
-
-  sealed trait Map extends Modifier
-
-  sealed trait Primitive extends Modifier
-
-  sealed trait Wrapper extends Modifier
+  sealed trait Reflect extends Modifier
 
   /**
    * A configuration key-value pair, which can be attached to any type of
@@ -31,13 +19,5 @@ object Modifier {
    * example, `protobuf.field-id` is a key that specifies the field id for a
    * protobuf format.
    */
-  @field case class config(key: String, value: String)
-      extends Term
-      with Record
-      with Variant
-      with Dynamic
-      with Seq
-      with Map
-      with Primitive
-      with Wrapper
+  @field case class config(key: String, value: String) extends Term with Reflect
 }
