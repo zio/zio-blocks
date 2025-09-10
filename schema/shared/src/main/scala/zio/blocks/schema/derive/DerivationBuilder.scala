@@ -69,9 +69,8 @@ final case class DerivationBuilder[TC[_], A](
     }
 
     def extraModifiers[A0](path: DynamicOptic, typeName: TypeName[A0]) =
-      modifierByOpticMap.getOrElse(path, modifierByTypeMap.getOrElse(typeName, Vector.empty)).collect {
-        case m: Modifier.Reflect => m
-      }
+      (modifierByOpticMap.getOrElse(path, Vector.empty) ++
+        modifierByTypeMap.getOrElse(typeName, Vector.empty)).collect { case m: Modifier.Reflect => m }
 
     def getCustomInstance[A0](path: DynamicOptic, typeName: TypeName[A0]): Option[Lazy[TC[A0]]] =
       // first try to find an instance by optic (more precise)
