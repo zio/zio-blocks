@@ -65,7 +65,7 @@ trait Deriver[TC[_]] { self =>
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 
-  def instanceOverrides: IndexedSeq[InstanceOverride[TC, ?]] = IndexedSeq.empty
+  def instanceOverrides: IndexedSeq[InstanceOverride] = IndexedSeq.empty
 
   def modifierOverrides: IndexedSeq[ModifierOverride] = IndexedSeq.empty
 }

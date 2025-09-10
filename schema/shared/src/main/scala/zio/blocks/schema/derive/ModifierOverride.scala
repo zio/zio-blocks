@@ -4,25 +4,9 @@ import zio.blocks.schema._
 
 sealed trait ModifierOverride
 
-case class ModifierReflectOverride[A](overrideBy: ModifierReflectOverride.By[A], modifier: Modifier.Reflect)
+case class ModifierReflectOverrideByOptic(optic: DynamicOptic, modifier: Modifier.Reflect) extends ModifierOverride
+
+case class ModifierReflectOverrideByType[A](typeName: TypeName[A], modifier: Modifier.Reflect) extends ModifierOverride
+
+case class ModifierTermOverride[A](typeName: TypeName[A], termName: String, modifier: Modifier.Term)
     extends ModifierOverride
-
-object ModifierReflectOverride {
-  sealed trait By[A]
-
-  object By {
-    case class Optic[A](optic: DynamicOptic) extends By[A]
-    case class Type[A](name: TypeName[A])    extends By[A]
-  }
-}
-
-case class ModifierTermOverride[A](overrideBy: ModifierTermOverride.By[A], modifier: Modifier.Term)
-    extends ModifierOverride
-
-object ModifierTermOverride {
-  sealed trait By[A]
-
-  object By {
-    case class Type[A](name: TypeName[A], termName: String) extends By[A]
-  }
-}
