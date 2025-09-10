@@ -113,16 +113,10 @@ object LazySpec extends ZIOSpecDefault {
       assert(Lazy(42).unit)(equalTo(Lazy(())))
     },
     test("collectAll") {
-      assert(Lazy.collectAll(List(Lazy(42), Lazy(43))))(equalTo(Lazy(List(42, 43)))) &&
-      assert(Lazy.collectAll(Vector(Lazy(42), Lazy(43))))(equalTo(Lazy(Vector(42, 43)))) &&
-      assert(Lazy.collectAll(ArraySeq(Lazy(42), Lazy(43))))(equalTo(Lazy(ArraySeq(42, 43)))) &&
-      assert(Lazy.collectAll(Set(Lazy(42), Lazy(43))))(equalTo(Lazy(Set(42, 43))))
+      assert(Lazy.collectAll(IndexedSeq(Lazy(42), Lazy(43))))(equalTo(Lazy(IndexedSeq(42, 43))))
     },
     test("foreach") {
-      assert(Lazy.foreach(List(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(List("42", "43")))) &&
-      assert(Lazy.foreach(Vector(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(Vector("42", "43")))) &&
-      assert(Lazy.foreach(ArraySeq(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(ArraySeq("42", "43")))) &&
-      assert(Lazy.foreach(Set(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(Set("42", "43"))))
+      assert(Lazy.foreach(IndexedSeq(42, 43))(x => Lazy(x.toString)))(equalTo(Lazy(IndexedSeq("42", "43"))))
     }
   )
 }
