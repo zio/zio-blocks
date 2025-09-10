@@ -306,8 +306,10 @@ private object SchemaVersionSpecific {
             val name   = NameTransformer.decode(symbol.name.toString)
             var fTpe   = symbol.typeSignature.dealias
             if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
-            val getter =
-              getters.getOrElse(name, fail(s"Cannot find '$name' parameter of '$tpe' in the primary constructor."))
+            val getter = getters.getOrElse(
+              name,
+              fail(s"Field or getter '$name' of '$tpe' should be defined as 'val' or 'var' in the primary constructor.")
+            )
             var isTransient = false
             val config      = new mutable.ListBuffer[(String, String)]
             annotations.getOrElse(name, Nil).foreach { annotation =>

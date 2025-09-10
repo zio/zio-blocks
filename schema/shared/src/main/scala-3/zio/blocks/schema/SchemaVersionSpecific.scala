@@ -46,10 +46,12 @@ private object SchemaVersionSpecific {
     def opaqueDealias(tpe: TypeRepr): TypeRepr = {
       @tailrec
       def loop(tpe: TypeRepr): TypeRepr = tpe match {
-        case trTpe @ TypeRef(_, _) if trTpe.isOpaqueAlias => loop(trTpe.translucentSuperType.dealias)
-        case AppliedType(atTpe, _)                        => loop(atTpe.dealias)
-        case TypeLambda(_, _, tlTpe)                      => loop(tlTpe.dealias)
-        case _                                            => tpe
+        case trTpe @ TypeRef(_, _) =>
+          if (trTpe.isOpaqueAlias) loop(trTpe.translucentSuperType.dealias)
+          else tpe
+        case AppliedType(atTpe, _)   => loop(atTpe.dealias)
+        case TypeLambda(_, _, tlTpe) => loop(tlTpe.dealias)
+        case _                       => tpe
       }
 
       val sTpe = loop(tpe)
@@ -107,8 +109,8 @@ private object SchemaVersionSpecific {
     }
 
     def isGenericTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(gtTpe, _) if gtTpe.dealias =:= TypeRepr.of[*:] => true
-      case _                                                          => false
+      case AppliedType(gtTpe, _) => gtTpe.dealias =:= TypeRepr.of[*:]
+      case _                     => false
     }
 
     // Borrowed from an amazing work of Aleksander Rainko:
@@ -133,8 +135,8 @@ private object SchemaVersionSpecific {
     }
 
     def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(ntTpe, _) if ntTpe.dealias.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple" => true
-      case _                                                                                            => false
+      case AppliedType(ntTpe, _) => ntTpe.dealias.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
+      case _                     => false
     }
 
     def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[?]]
@@ -166,8 +168,7 @@ private object SchemaVersionSpecific {
                     s"'${tpe.show}' two times differently, with '${existingBinding.show}' and '${parentTypeArg.show}'"
                 )
               }
-            case _ =>
-              binding.updated(paramName, parentTypeArg)
+            case _ => binding.updated(paramName, parentTypeArg)
           }
         } else if (nudeChildTypeArg <:< parentTypeArg) binding
         else {
@@ -176,8 +177,7 @@ private object SchemaVersionSpecific {
               cta.zip(pta).foldLeft(resolveParentTypeArg(child, ctc, ptc, binding)) { (b, e) =>
                 resolveParentTypeArg(child, e._1, e._2, b)
               }
-            case _ =>
-              fail(s"Failed unification of type parameters of '${tpe.show}'.")
+            case _ => fail(s"Failed unification of type parameters of '${tpe.show}'.")
           }
         }
 
@@ -490,11 +490,13 @@ private object SchemaVersionSpecific {
             val name   = symbol.name
             var getter = tpeClassSymbol.fieldMember(name)
             if (!getter.exists) {
-              val getterFlags = Flags.FieldAccessor | Flags.ParamAccessor
-              val getters     = tpeClassSymbol.methodMember(name).filter(_.flags.is(getterFlags))
-              if (getters.isEmpty) fail(s"Cannot find '$name' parameter of '${tpe.show}' in the primary constructor.")
-              getter = getters.head
+              val flags = Flags.FieldAccessor | Flags.ParamAccessor
+              getter = tpeClassSymbol.methodMember(name).filter(_.flags.is(flags)).headOption.getOrElse(Symbol.noSymbol)
             }
+            if (!getter.exists || getter.flags.is(Flags.PrivateLocal))
+              fail(
+                s"Field or getter '$name' of '${tpe.show}' should be defined as 'val' or 'var' in the primary constructor."
+              )
             var isTransient                    = false
             var config: List[(String, String)] = Nil
             getter.annotations.foreach { annotation =>
@@ -510,15 +512,12 @@ private object SchemaVersionSpecific {
                   case methodSymbol :: _ =>
                     val dvSelectNoTArgs = companionModuleRef.select(methodSymbol)
                     methodSymbol.paramSymss match {
-                      case Nil =>
-                        new Some(dvSelectNoTArgs)
+                      case Nil                                                                  => new Some(dvSelectNoTArgs)
                       case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
                         new Some(dvSelectNoTArgs.appliedToTypes(tpeTypeArgs))
-                      case _ =>
-                        None
+                      case _ => None
                     }
-                  case _ =>
-                    None
+                  case _ => None
                 }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
               } else None
             val fieldInfo = new FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
