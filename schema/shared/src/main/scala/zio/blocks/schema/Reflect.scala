@@ -408,7 +408,7 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
-        fields <- Lazy.foreach(fields.toVector)(_.transform(path, Term.Type.Record, f))
+        fields <- Lazy.foreach(fields)(_.transform(path, Term.Type.Record, f))
         record <- f.transformRecord(path, fields, typeName, recordBinding, doc, modifiers)
       } yield record
 
@@ -579,7 +579,7 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
-        cases   <- Lazy.foreach(cases.toVector)(_.transform(path, Term.Type.Variant, f))
+        cases   <- Lazy.foreach(cases)(_.transform(path, Term.Type.Variant, f))
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
 

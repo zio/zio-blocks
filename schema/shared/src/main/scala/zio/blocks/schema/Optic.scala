@@ -330,7 +330,7 @@ object Lens {
     def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = new Right(modify(s, f))
 
     lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(focusTerms.map(term => new DynamicOptic.Node.Field(term.name)).toVector)
+      new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
@@ -510,7 +510,7 @@ object Prism {
     }
 
     lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(focusTerms.map(term => new DynamicOptic.Node.Case(term.name)).toVector)
+      new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Case(term.name))))
 
     override def hashCode: Int = java.util.Arrays.hashCode(sources.asInstanceOf[Array[AnyRef]]) ^
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])

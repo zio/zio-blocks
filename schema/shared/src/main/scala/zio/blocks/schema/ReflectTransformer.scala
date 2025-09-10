@@ -81,7 +81,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Record[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Record(fields, typeName, binding, doc, modifiers)
+      } yield new Reflect.Record(fields, typeName, binding, doc, modifiers)
 
     def transformVariant[A](
       path: DynamicOptic,
@@ -93,7 +93,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Variant[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Variant(cases, typeName, binding, doc, modifiers)
+      } yield new Reflect.Variant(cases, typeName, binding, doc, modifiers)
 
     def transformSequence[A, C[_]](
       path: DynamicOptic,
@@ -105,7 +105,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Sequence[G, A, C]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Sequence(element, typeName, binding, doc, modifiers)
+      } yield new Reflect.Sequence(element, typeName, binding, doc, modifiers)
 
     def transformMap[Key, Value, M[_, _]](
       path: DynamicOptic,
@@ -129,7 +129,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Dynamic[G]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Dynamic(binding, typeName, doc, modifiers)
+      } yield new Reflect.Dynamic(binding, typeName, doc, modifiers)
 
     def transformPrimitive[A](
       path: DynamicOptic,
@@ -141,7 +141,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Primitive[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)
+      } yield new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)
 
     def transformWrapper[A, B](
       path: DynamicOptic,
@@ -153,7 +153,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Wrapper[G, A, B]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Wrapper(wrapped, typeName, binding, doc, modifiers)
+      } yield new Reflect.Wrapper(wrapped, typeName, binding, doc, modifiers)
   }
 
   private type Any2[_, _] = Any

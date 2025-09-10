@@ -3,9 +3,9 @@ package zio.blocks.schema
 import scala.collection.immutable.ArraySeq
 
 sealed trait Doc {
-  def +(that: Doc): Doc = Doc.Concat(this.flatten.toVector ++ that.flatten.toVector)
+  def +(that: Doc): Doc = Doc.Concat(this.flatten ++ that.flatten)
 
-  def flatten: Seq[Doc.Leaf]
+  def flatten: IndexedSeq[Doc.Leaf]
 
   override def hashCode: Int = flatten.hashCode
 
@@ -19,11 +19,11 @@ object Doc {
   sealed trait Leaf extends Doc
 
   case object Empty extends Leaf {
-    def flatten: Seq[Leaf] = Nil
+    def flatten: IndexedSeq[Leaf] = IndexedSeq.empty
   }
 
   case class Text(value: String) extends Leaf {
-    lazy val flatten: Seq[Leaf] = ArraySeq(this)
+    lazy val flatten: IndexedSeq[Leaf] = ArraySeq(this)
 
     override def hashCode: Int = value.hashCode
 
@@ -34,10 +34,10 @@ object Doc {
     }
   }
 
-  case class Concat(flatten: Vector[Leaf]) extends Doc
+  case class Concat(flatten: IndexedSeq[Leaf]) extends Doc
 
   object Concat {
-    def apply(docs: Doc*): Concat = new Concat(docs.toVector.flatMap(_.flatten))
+    def apply(docs: Doc*): Concat = new Concat(docs.toIndexedSeq.flatMap(_.flatten))
   }
 
   def apply(value: String): Doc = new Text(value)
