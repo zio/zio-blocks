@@ -30,7 +30,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =
-    DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
+    new DerivationBuilder[TC, A](this, deriver, IndexedSeq.empty, IndexedSeq.empty)
 
   def decode[F <: codec.Format](format: F)(decodeInput: format.DecodeInput): Either[SchemaError, A] =
     getInstance(format).decode(decodeInput)

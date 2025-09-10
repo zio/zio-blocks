@@ -22,62 +22,48 @@ import zio.blocks.schema.binding.{Binding, BindingType}
 final case class DerivationBuilder[TC[_], A](
   schema: Schema[A],
   deriver: Deriver[TC],
-  instanceOverrides: IndexedSeq[InstanceOverride[TC, ?]],
+  instanceOverrides: IndexedSeq[InstanceOverride],
   modifierOverrides: IndexedSeq[ModifierOverride]
 ) {
-  def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] = {
-    val override_ = InstanceOverride(InstanceOverride.By.Optic(optic.toDynamic), Lazy(instance))
-    copy(instanceOverrides = instanceOverrides :+ override_)
-  }
+  def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] =
+    copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByOptic(optic.toDynamic, Lazy(instance)))
 
-  def instance[B](typeName: TypeName[B], instance: => TC[B]): DerivationBuilder[TC, A] = {
-    val override_ = InstanceOverride(InstanceOverride.By.Type(typeName), Lazy(instance))
-    copy(instanceOverrides = instanceOverrides :+ override_)
-  }
+  def instance[B](typeName: TypeName[B], instance: => TC[B]): DerivationBuilder[TC, A] =
+    copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByType(typeName, Lazy(instance)))
 
-  def modifier[B](optic: Optic[A, B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] = {
-    val override_ = ModifierReflectOverride(ModifierReflectOverride.By.Optic(optic.toDynamic), modifier)
-    copy(modifierOverrides = modifierOverrides :+ override_)
-  }
+  def modifier[B](optic: Optic[A, B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
+    copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByOptic(optic.toDynamic, modifier))
 
-  def modifier[B](typeName: TypeName[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] = {
-    val override_ = ModifierReflectOverride(ModifierReflectOverride.By.Type(typeName), modifier)
-    copy(modifierOverrides = modifierOverrides :+ override_)
-  }
+  def modifier[B](typeName: TypeName[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
+    copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByType(typeName, modifier))
 
-  def modifier[B](typeName: TypeName[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] = {
-    val override_ = ModifierTermOverride(ModifierTermOverride.By.Type(typeName, termName), modifier)
-    copy(modifierOverrides = modifierOverrides :+ override_)
-  }
+  def modifier[B](typeName: TypeName[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
+    copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverride(typeName, termName, modifier))
 
   lazy val derive: TC[A] = {
     val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
     val allModifierOverrides = modifierOverrides ++ deriver.modifierOverrides
 
     val instanceByOpticMap =
-      allInstanceOverrides.collect { case InstanceOverride(InstanceOverride.By.Optic(optic), instance) =>
-        optic -> instance
-      }.toMap
+      allInstanceOverrides.collect { case InstanceOverrideByOptic(optic, instance) => (optic, instance) }.toMap
     val instanceByTypeMap =
-      allInstanceOverrides.collect { case InstanceOverride(InstanceOverride.By.Type(name), instance) =>
-        name -> instance
-      }.toMap
+      allInstanceOverrides.collect { case InstanceOverrideByType(typeName, instance) => (typeName, instance) }.toMap
     val modifierReflectByOpticMap =
       allModifierOverrides.foldLeft[Map[DynamicOptic, Vector[Modifier.Reflect]]](Map.empty) {
-        case (acc, ModifierReflectOverride(ModifierReflectOverride.By.Optic(optic), modifier)) =>
-          acc + (optic -> acc.getOrElse(optic, Vector.empty).appended(modifier))
+        case (acc, ModifierReflectOverrideByOptic(optic, modifier)) =>
+          acc.updated(optic, acc.getOrElse(optic, Vector.empty).appended(modifier))
         case (acc, _) => acc
       }
     val modifierReflectByTypeMap =
       allModifierOverrides.foldLeft[Map[TypeName[?], Vector[Modifier.Reflect]]](Map.empty) {
-        case (acc, ModifierReflectOverride(ModifierReflectOverride.By.Type(name), modifier)) =>
-          acc + (name -> acc.getOrElse(name, Vector.empty).appended(modifier))
+        case (acc, ModifierReflectOverrideByType(typeName, modifier)) =>
+          acc.updated(typeName, acc.getOrElse(typeName, Vector.empty).appended(modifier))
         case (acc, _) => acc
       }
     val modifierTermByTypeMap =
       allModifierOverrides.foldLeft[Map[TypeName[?], Vector[(String, Modifier.Term)]]](Map.empty) {
-        case (acc, ModifierTermOverride(ModifierTermOverride.By.Type(name, termName), modifier)) =>
-          acc + (name -> acc.getOrElse(name, Vector.empty).appended(termName -> modifier))
+        case (acc, ModifierTermOverride(typeName, termName, modifier)) =>
+          acc.updated(typeName, acc.getOrElse(typeName, Vector.empty).appended((termName, modifier)))
         case (acc, _) => acc
       }
 
@@ -90,7 +76,7 @@ final case class DerivationBuilder[TC[_], A](
       instanceByOpticMap
         .get(path)
         // then try to find an instance by type name (more general)
-        .orElse(instanceByTypeMap.get(typeName))
+        .orElse(instanceByTypeMap.get(typeName.asInstanceOf[TypeName[Any]]))
         .map(_.asInstanceOf[Lazy[TC[A0]]])
 
     type F[T, A0] = Binding[T, A0]
