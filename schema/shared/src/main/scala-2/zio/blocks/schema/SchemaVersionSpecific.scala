@@ -483,7 +483,7 @@ private object SchemaVersionSpecific {
           q"Schema.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
         } else if (tpe <:< typeOf[Vector[_]]) {
           q"Schema.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
-        } else fail(s"Cannot derive schema for '$tpe'.")
+        } else cannotDeriveSchema(tpe)
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         def toFullTermName(tpeName: SchemaTypeName[_]): Array[String] = {
           val packages     = tpeName.namespace.packages
@@ -588,8 +588,10 @@ private object SchemaVersionSpecific {
         val tpeName = typeName(tpe)
         val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
         q"new Schema($schema.reflect.typeName(${toTree(tpeName)})).asInstanceOf[Schema[$tpe]]"
-      } else fail(s"Cannot derive schema for '$tpe'.")
+      } else cannotDeriveSchema(tpe)
     }
+
+    def cannotDeriveSchema(tpe: Type): Nothing = fail(s"Cannot derive schema for '$tpe'.")
 
     val schema      = deriveSchema(weakTypeOf[A].dealias)
     val schemaBlock =

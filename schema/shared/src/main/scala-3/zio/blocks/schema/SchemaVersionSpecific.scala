@@ -143,9 +143,10 @@ private object SchemaVersionSpecific {
 
     def isDynamicValue(tpe: TypeRepr): Boolean = tpe =:= TypeRepr.of[DynamicValue]
 
-    def isCollection(tpe: TypeRepr): Boolean =
-      tpe <:< TypeRepr.of[Array[?]] || tpe.typeSymbol.fullName == "scala.IArray$package$.IArray" ||
-        (tpe <:< TypeRepr.of[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
+    def isIArray(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
+
+    def isCollection(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Array[?]] || isIArray(tpe) ||
+      (tpe <:< TypeRepr.of[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
     def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
       def resolveParentTypeArg(
@@ -353,6 +354,9 @@ private object SchemaVersionSpecific {
       }
       config
     }
+
+    def summonClassTag[T: Type](using Quotes): Expr[ClassTag[T]] =
+      Expr.summon[ClassTag[T]].getOrElse(fail(s"No ClassTag available for ${TypeRepr.of[T].show}"))
 
     val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
     val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
@@ -719,7 +723,7 @@ private object SchemaVersionSpecific {
               val tpeName     = typeName[Array[et]](tpe)
               val constructor =
                 if (eTpe <:< TypeRepr.of[AnyRef]) {
-                  val classTag = Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
+                  val classTag = summonClassTag[et]
                   '{
                     implicit val ct: ClassTag[et] = $classTag
                     new SeqConstructor.ArrayConstructor {
@@ -741,14 +745,14 @@ private object SchemaVersionSpecific {
                 )
               }
           }
-        } else if (tpe.typeSymbol.fullName == "scala.IArray$package$.IArray") {
+        } else if (isIArray(tpe)) {
           val eTpe = typeArgs(tpe).head
           eTpe.asType match {
             case '[et] =>
               val tpeName     = typeName[IArray[et]](tpe)
               val constructor =
                 if (eTpe <:< TypeRepr.of[AnyRef]) {
-                  val classTag = Expr.summon[ClassTag[et]].getOrElse(fail(s"No ClassTag available for ${eTpe.show}"))
+                  val classTag = summonClassTag[et]
                   '{
                     implicit val ct: ClassTag[et] = $classTag
                     new SeqConstructor.IArrayConstructor {
@@ -793,7 +797,7 @@ private object SchemaVersionSpecific {
         } else if (tpe <:< TypeRepr.of[Vector[?]]) {
           val eTpe = typeArgs(tpe).head
           eTpe.asType match { case '[et] => '{ Schema.vector(${ findImplicitOrDeriveSchema[et](eTpe) }) } }
-        } else fail(s"Cannot derive schema for '${tpe.show}'.")
+        } else cannotDeriveSchema(tpe)
       } else if (isGenericTuple(tpe)) {
         val tTpe = normalizeTuple(tpe)
         tTpe.asType match {
@@ -977,7 +981,7 @@ private object SchemaVersionSpecific {
                   )
                 }
             }
-          case _ => fail(s"Cannot derive schema for '${tpe.show}'.")
+          case _ => cannotDeriveSchema(tpe)
         }
       } else if (isNonAbstractScalaClass(tpe)) {
         val tpeName   = typeName(tpe)
@@ -1024,8 +1028,10 @@ private object SchemaVersionSpecific {
             val schema  = findImplicitOrDeriveSchema[s](sTpe)
             '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
         }
-      } else fail(s"Cannot derive schema for '${tpe.show}'.")
+      } else cannotDeriveSchema(tpe)
     }.asExprOf[Schema[T]]
+
+    def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
     val aTpe        = TypeRepr.of[A].dealias
     val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
