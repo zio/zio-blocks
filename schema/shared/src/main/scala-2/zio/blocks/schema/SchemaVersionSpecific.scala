@@ -47,14 +47,14 @@ private object SchemaVersionSpecific {
 
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
-    def isOption(tpe: Type): Boolean = tpe <:< typeOf[Option[_]]
+    def isOption(tpe: Type): Boolean = tpe <:< typeOf[Option[?]]
 
-    def isEither(tpe: Type): Boolean = tpe <:< typeOf[Either[_, _]]
+    def isEither(tpe: Type): Boolean = tpe <:< typeOf[Either[?, ?]]
 
     def isDynamicValue(tpe: Type): Boolean = tpe =:= typeOf[DynamicValue]
 
-    def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[_]] ||
-      (tpe <:< typeOf[IterableOnce[_]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
+    def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[?]] ||
+      (tpe <:< typeOf[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
     def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
       case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
@@ -177,10 +177,10 @@ private object SchemaVersionSpecific {
         }
     )
 
-    val typeNameCache = new mutable.HashMap[Type, SchemaTypeName[_]]
+    val typeNameCache = new mutable.HashMap[Type, SchemaTypeName[?]]
 
-    def typeName(tpe: Type): SchemaTypeName[_] = {
-      def calculateTypeName(tpe: Type): SchemaTypeName[_] =
+    def typeName(tpe: Type): SchemaTypeName[?] = {
+      def calculateTypeName(tpe: Type): SchemaTypeName[?] =
         if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
         else {
           var packages  = List.empty[String]
@@ -218,7 +218,7 @@ private object SchemaVersionSpecific {
       )
     }
 
-    def toTree(tpeName: SchemaTypeName[_]): Tree = {
+    def toTree(tpeName: SchemaTypeName[?]): Tree = {
       val packages = tpeName.namespace.packages.toList
       val values   = tpeName.namespace.values.toList
       val name     = tpeName.name
@@ -454,7 +454,7 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isCollection(tpe)) {
-        if (tpe <:< typeOf[Array[_]]) {
+        if (tpe <:< typeOf[Array[?]]) {
           val tpeName     = typeName(tpe)
           val elementTpe  = typeArgs(tpe).head
           val constructor =
@@ -474,20 +474,20 @@ private object SchemaVersionSpecific {
                 )
               )
             )"""
-        } else if (tpe <:< typeOf[ArraySeq[_]]) {
+        } else if (tpe <:< typeOf[ArraySeq[?]]) {
           q"Schema.arraySeq(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
-        } else if (tpe <:< typeOf[List[_]]) {
+        } else if (tpe <:< typeOf[List[?]]) {
           q"Schema.list(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
-        } else if (tpe <:< typeOf[Map[_, _]]) {
+        } else if (tpe <:< typeOf[Map[?, ?]]) {
           val tpeTypeArgs = typeArgs(tpe)
           q"Schema.map(${findImplicitOrDeriveSchema(tpeTypeArgs.head)},${findImplicitOrDeriveSchema(tpeTypeArgs.last)})"
-        } else if (tpe <:< typeOf[Set[_]]) {
+        } else if (tpe <:< typeOf[Set[?]]) {
           q"Schema.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
-        } else if (tpe <:< typeOf[Vector[_]]) {
+        } else if (tpe <:< typeOf[Vector[?]]) {
           q"Schema.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
         } else cannotDeriveSchema(tpe)
       } else if (isSealedTraitOrAbstractClass(tpe)) {
-        def toFullTermName(tpeName: SchemaTypeName[_]): Array[String] = {
+        def toFullTermName(tpeName: SchemaTypeName[?]): Array[String] = {
           val packages     = tpeName.namespace.packages
           val values       = tpeName.namespace.values
           val fullTermName = new Array[String](packages.size + values.size + 1)

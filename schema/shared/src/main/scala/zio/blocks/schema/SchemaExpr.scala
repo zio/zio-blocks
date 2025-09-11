@@ -45,19 +45,19 @@ object SchemaExpr {
 
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
     def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
-      case l: Lens[_, _] =>
+      case l: Lens[?, ?] =>
         new Right(l.get(input) :: Nil)
-      case p: Prism[_, _] =>
+      case p: Prism[?, ?] =>
         p.getOrFail(input) match {
           case Right(x: B @scala.unchecked) => new Right(x :: Nil)
           case left                         => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
         }
-      case o: Optional[_, _] =>
+      case o: Optional[?, ?] =>
         o.getOrFail(input) match {
           case Right(x) => new Right(x :: Nil)
           case left     => left.asInstanceOf[Either[OpticCheck, Seq[B]]]
         }
-      case t: Traversal[_, _] =>
+      case t: Traversal[?, ?] =>
         val sb = Seq.newBuilder[B]
         t.fold[Unit](input)((), (_, a) => sb.addOne(a))
         val r = sb.result()
@@ -66,19 +66,19 @@ object SchemaExpr {
     }
 
     def evalDynamic(input: A): Either[OpticCheck, Seq[DynamicValue]] = optic match {
-      case l: Lens[_, _] =>
+      case l: Lens[?, ?] =>
         new Right(toDynamicValue(l.get(input)) :: Nil)
-      case p: Prism[_, _] =>
+      case p: Prism[?, ?] =>
         p.getOrFail(input) match {
           case Right(x: B @scala.unchecked) => new Right(toDynamicValue(x) :: Nil)
           case left                         => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
         }
-      case o: Optional[_, _] =>
+      case o: Optional[?, ?] =>
         o.getOrFail(input) match {
           case Right(x) => new Right(toDynamicValue(x) :: Nil)
           case left     => left.asInstanceOf[Either[OpticCheck, Seq[DynamicValue]]]
         }
-      case t: Traversal[_, _] =>
+      case t: Traversal[?, ?] =>
         val sb = Seq.newBuilder[DynamicValue]
         t.fold[Unit](input)((), (_, a) => sb.addOne(toDynamicValue(a)))
         val r = sb.result()
