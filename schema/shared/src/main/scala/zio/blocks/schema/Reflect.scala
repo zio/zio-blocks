@@ -48,7 +48,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def doc(value: String): Reflect[F, A] = doc(Doc.Text(value))
 
   override def equals(obj: Any): Boolean = obj match {
-    case that: Reflect[_, _] => (this eq that) || inner == that.inner
+    case that: Reflect[?, ?] => (this eq that) || inner == that.inner
     case _                   => false
   }
 
@@ -1160,7 +1160,7 @@ object Reflect {
     }
 
     override def equals(obj: Any): Boolean = obj match {
-      case that: Reflect[_, _] =>
+      case that: Reflect[?, ?] =>
         (this eq that) || {
           val v = visited.get
           if (v.containsKey(this)) true // exit from recursion
