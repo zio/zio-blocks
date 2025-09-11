@@ -81,22 +81,19 @@ private object SchemaVersionSpecific {
       case _                        => false
     }
 
-    def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = {
-      def cannotDealias(tpe: TypeRepr): Nothing = fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}.")
-
-      tpe match {
-        case TypeRef(compTpe, _) =>
-          compTpe.baseClasses.collectFirst {
-            case cls if cls.fullName == "zio.prelude.Newtype" =>
-              compTpe.baseType(cls) match {
-                case AppliedType(_, List(typeArg)) => typeArg.dealias
-                case _                             => cannotDealias(tpe)
-              }
-          }
-            .getOrElse(cannotDealias(tpe))
-        case _ => cannotDealias(tpe)
-      }
+    def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
+      case TypeRef(compTpe, _) =>
+        compTpe.baseClasses.collectFirst {
+          case cls if cls.fullName == "zio.prelude.Newtype" => compTpe.baseType(cls).typeArgs.head.dealias
+        } match {
+          case Some(sTpe) => sTpe
+          case _          => cannotDealiasZioPreludeNewtype(tpe)
+        }
+      case _ => cannotDealiasZioPreludeNewtype(tpe)
     }
+
+    def cannotDealiasZioPreludeNewtype(tpe: TypeRepr): Nothing =
+      fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}.")
 
     def dealiasOnDemand(tpe: TypeRepr): TypeRepr =
       if (isOpaque(tpe)) opaqueDealias(tpe)
@@ -281,10 +278,10 @@ private object SchemaVersionSpecific {
                   val labels = new java.lang.StringBuilder(name)
                   labels.append('[')
                   tpeNameArgs.foreach {
-                    case ConstantType(StringConstant(x)) =>
+                    case ConstantType(StringConstant(str)) =>
                       if (comma) labels.append(',')
                       else comma = true
-                      labels.append(x)
+                      labels.append(str)
                     case _ =>
                   }
                   labels.append(']')
@@ -316,7 +313,7 @@ private object SchemaVersionSpecific {
           values = ${ Expr.ofList(tpeName.namespace.values.map(Expr(_))) }
         ),
         name = ${ Expr(tpeName.name) },
-        params = ${ Expr.ofList(tpeName.params.map(x => toExpr(x.asInstanceOf[TypeName[T]]))) }
+        params = ${ Expr.ofList(tpeName.params.map(param => toExpr(param.asInstanceOf[TypeName[T]]))) }
       )
     }
 
@@ -484,10 +481,10 @@ private object SchemaVersionSpecific {
             var getter = tpeClassSymbol.fieldMember(name)
             if (!getter.exists) {
               val flags = Flags.FieldAccessor | Flags.ParamAccessor
-              getter = tpeClassSymbol
-                .methodMember(name)
-                .collectFirst { case x if x.flags.is(flags) => x }
-                .getOrElse(Symbol.noSymbol)
+              tpeClassSymbol.methodMember(name).collectFirst { case sym if sym.flags.is(flags) => sym } match {
+                case Some(sym) => getter = sym
+                case _         =>
+              }
             }
             if (!getter.exists || getter.flags.is(Flags.PrivateLocal))
               fail(
@@ -924,11 +921,12 @@ private object SchemaVersionSpecific {
               tpeNameArg =>
                 idx += 1
                 tpeNameArg match {
-                  case ConstantType(StringConstant(x)) => nameOverrides(idx) = x
-                  case _                               =>
+                  case ConstantType(StringConstant(str)) => nameOverrides(idx) = str
+                  case _                                 =>
                 }
             }
-            val tTpe = normalizeTuple(tpe2.dealias)
+            var tTpe = tpe2.dealias
+            if (!defn.isTupleClass(tTpe.typeSymbol)) tTpe = normalizeTuple(tTpe)
             tTpe.asType match {
               case '[tt] =>
                 val typeInfo =
