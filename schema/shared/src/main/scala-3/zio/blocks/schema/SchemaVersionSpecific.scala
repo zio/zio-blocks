@@ -123,7 +123,7 @@ private object SchemaVersionSpecific {
     }
 
     def isGenericTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(gtTpe, _) => gtTpe.dealias =:= TypeRepr.of[*:]
+      case AppliedType(gtTpe, _) => gtTpe =:= TypeRepr.of[*:]
       case _                     => false
     }
 
@@ -144,7 +144,7 @@ private object SchemaVersionSpecific {
 
     // Borrowed from an amazing work of Aleksander Rainko:
     // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L277-L295
-    def normalizeTuple(tpe: TypeRepr): TypeRepr = {
+    def normalizeGenericTuple(tpe: TypeRepr): TypeRepr = {
       val typeArgs = genericTupleTypeArgs(tpe)
       val size     = typeArgs.size
       if (size > 0 && size <= 22) defn.TupleClass(size).typeRef.appliedTo(typeArgs)
@@ -776,7 +776,7 @@ private object SchemaVersionSpecific {
           eTpe.asType match { case '[et] => '{ Schema.vector(${ findImplicitOrDeriveSchema[et](eTpe) }) } }
         } else cannotDeriveSchema(tpe)
       } else if (isGenericTuple(tpe)) {
-        val tTpe = normalizeTuple(tpe)
+        val tTpe = normalizeGenericTuple(tpe)
         tTpe.asType match {
           case '[tt] =>
             val tTpeName = typeName[tt](tTpe)
@@ -926,7 +926,7 @@ private object SchemaVersionSpecific {
                 }
             }
             var tTpe = tpe2.dealias
-            if (!defn.isTupleClass(tTpe.typeSymbol)) tTpe = normalizeTuple(tTpe)
+            if (isGenericTuple(tTpe)) tTpe = normalizeGenericTuple(tTpe)
             tTpe.asType match {
               case '[tt] =>
                 val typeInfo =
