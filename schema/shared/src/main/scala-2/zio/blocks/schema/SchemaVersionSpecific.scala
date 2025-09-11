@@ -47,12 +47,6 @@ private object SchemaVersionSpecific {
 
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
-    def isOption(tpe: Type): Boolean = tpe <:< typeOf[Option[?]]
-
-    def isEither(tpe: Type): Boolean = tpe <:< typeOf[Either[?, ?]]
-
-    def isDynamicValue(tpe: Type): Boolean = tpe =:= typeOf[DynamicValue]
-
     def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[?]] ||
       (tpe <:< typeOf[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
@@ -148,12 +142,13 @@ private object SchemaVersionSpecific {
       tpe <:< typeOf[String] || tpe <:< definitions.IntTpe || tpe <:< definitions.FloatTpe ||
         tpe <:< definitions.DoubleTpe || tpe <:< definitions.LongTpe || tpe <:< definitions.BooleanTpe ||
         tpe <:< definitions.ByteTpe || tpe <:< definitions.CharTpe || tpe <:< definitions.ShortTpe ||
-        tpe <:< typeOf[BigDecimal] || tpe <:< typeOf[BigInt] || tpe <:< definitions.UnitTpe ||
+        tpe <:< definitions.UnitTpe || tpe <:< typeOf[BigDecimal] || tpe <:< typeOf[BigInt] ||
         tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
         tpe <:< typeOf[java.util.Currency] || tpe <:< typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
-        isDynamicValue(tpe) || {
-          if (isOption(tpe) || isEither(tpe) || isCollection(tpe)) typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
-          else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+        tpe <:< typeOf[DynamicValue] || {
+          if (tpe <:< typeOf[Option[?]] || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
+            typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
+          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNonAbstractScalaClass(tpe)) {
             !nestedTpes.contains(tpe) && {
               tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m } match {
