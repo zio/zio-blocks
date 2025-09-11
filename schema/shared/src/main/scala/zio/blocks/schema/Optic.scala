@@ -336,7 +336,7 @@ object Lens {
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: LensImpl[_, _] =>
+      case other: LensImpl[?, ?] =>
         java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
@@ -516,7 +516,7 @@ object Prism {
       java.util.Arrays.hashCode(focusTerms.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: PrismImpl[_, _] =>
+      case other: PrismImpl[?, ?] =>
         java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
@@ -653,7 +653,7 @@ object Optional {
       while (idx < len) {
         val focusTermName = focusTerms(idx).name
         sources(idx) match {
-          case record: Reflect.Record.Bound[_] =>
+          case record: Reflect.Record.Bound[?] =>
             bindings(idx) = new LensBinding(
               deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
               constructor = record.constructor.asInstanceOf[Constructor[Any]],
@@ -661,7 +661,7 @@ object Optional {
               offset = offset
             )
             offset = RegisterOffset.add(offset, record.usedRegisters)
-          case variant: Reflect.Variant.Bound[_] =>
+          case variant: Reflect.Variant.Bound[?] =>
             bindings(idx) = new PrismBinding(
               matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
@@ -1188,7 +1188,7 @@ object Optional {
       java.util.Arrays.hashCode(params.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: OptionalImpl[_, _] =>
+      case other: OptionalImpl[?, ?] =>
         java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.params.asInstanceOf[Array[AnyRef]], params.asInstanceOf[Array[AnyRef]])
@@ -1358,7 +1358,7 @@ object Traversal {
       while (idx < len) {
         val focusTermName = focusTerms(idx).name
         sources(idx) match {
-          case record: Reflect.Record.Bound[_] =>
+          case record: Reflect.Record.Bound[?] =>
             bindings(idx) = new LensBinding(
               deconstructor = record.deconstructor.asInstanceOf[Deconstructor[Any]],
               constructor = record.constructor.asInstanceOf[Constructor[Any]],
@@ -1366,7 +1366,7 @@ object Traversal {
               offset = offset
             )
             offset = RegisterOffset.add(offset, record.usedRegisters)
-          case variant: Reflect.Variant.Bound[_] =>
+          case variant: Reflect.Variant.Bound[?] =>
             bindings(idx) = new PrismBinding(
               matcher = variant.matchers.apply(variant.caseIndexByName(focusTermName)),
               discriminator = variant.discriminator.asInstanceOf[Discriminator[Any]]
@@ -2847,7 +2847,7 @@ object Traversal {
       java.util.Arrays.hashCode(params.asInstanceOf[Array[AnyRef]])
 
     override def equals(obj: Any): Boolean = obj match {
-      case other: TraversalImpl[_, _] =>
+      case other: TraversalImpl[?, ?] =>
         java.util.Arrays.equals(other.sources.asInstanceOf[Array[AnyRef]], sources.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]]) &&
         java.util.Arrays.equals(other.params.asInstanceOf[Array[AnyRef]], params.asInstanceOf[Array[AnyRef]])
