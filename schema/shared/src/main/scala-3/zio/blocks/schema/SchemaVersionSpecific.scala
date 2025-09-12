@@ -122,10 +122,7 @@ private object SchemaVersionSpecific {
       case _                        => Nil
     }
 
-    def isGenericTuple(tpe: TypeRepr): Boolean = tpe match {
-      case AppliedType(gtTpe, _) => gtTpe =:= TypeRepr.of[*:]
-      case _                     => false
-    }
+    def isGenericTuple(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Tuple] && !defn.isTupleClass(tpe.typeSymbol)
 
     val genericTupleTypeArgsCache = new mutable.HashMap[TypeRepr, List[TypeRepr]]
 
@@ -133,7 +130,7 @@ private object SchemaVersionSpecific {
       tpe, {
         // Borrowed from an amazing work of Aleksander Rainko:
         // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L253-L270
-        def loop(t: Type[?]): List[TypeRepr] = t match {
+        def loop(tp: Type[?]): List[TypeRepr] = tp match {
           case '[h *: t] => TypeRepr.of[h].dealias :: loop(Type.of[t])
           case _         => Nil
         }
@@ -269,20 +266,18 @@ private object SchemaVersionSpecific {
             if (isNamedTuple(tpe)) {
               tpe match {
                 case AppliedType(_, List(tpe1, tpe2)) =>
-                  val nTpe        = tpe1.dealias
-                  val tTpe        = tpe2.dealias
-                  val tpeNameArgs =
+                  val nTpe      = tpe1.dealias
+                  val tTpe      = tpe2.dealias
+                  val nTypeArgs =
                     if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
                     else typeArgs(nTpe)
                   var comma  = false
                   val labels = new java.lang.StringBuilder(name)
                   labels.append('[')
-                  tpeNameArgs.foreach {
-                    case ConstantType(StringConstant(str)) =>
-                      if (comma) labels.append(',')
-                      else comma = true
-                      labels.append(str)
-                    case _ =>
+                  nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
+                    if (comma) labels.append(',')
+                    else comma = true
+                    labels.append(str)
                   }
                   labels.append(']')
                   name = labels.toString
@@ -910,22 +905,18 @@ private object SchemaVersionSpecific {
       } else if (isNamedTuple(tpe)) {
         tpe match {
           case AppliedType(_, List(tpe1, tpe2)) =>
-            val tpeName     = typeName(tpe)
-            val nTpe        = tpe1.dealias
-            val tpeNameArgs =
+            val tpeName   = typeName(tpe)
+            val nTpe      = tpe1.dealias
+            var tTpe      = tpe2.dealias
+            val nTypeArgs =
               if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
               else typeArgs(nTpe)
-            val nameOverrides = new Array[String](tpeNameArgs.size)
-            tpeNameArgs.foreach {
-              var idx = -1
-              tpeNameArg =>
-                idx += 1
-                tpeNameArg match {
-                  case ConstantType(StringConstant(str)) => nameOverrides(idx) = str
-                  case _                                 =>
-                }
+            val nameOverrides = new Array[String](nTypeArgs.size)
+            var idx           = -1
+            nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
+              idx += 1
+              nameOverrides(idx) = str
             }
-            var tTpe = tpe2.dealias
             if (isGenericTuple(tTpe)) tTpe = normalizeGenericTuple(tTpe)
             tTpe.asType match {
               case '[tt] =>
