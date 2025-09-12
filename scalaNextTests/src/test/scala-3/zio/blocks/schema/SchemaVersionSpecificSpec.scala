@@ -80,6 +80,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema12: Schema[NamedTuple.Map[(i: Int, s: String), Option]]                   = Schema.derived
         val schema13: Schema[NamedTuple.From[Product]]                                      = Schema.derived
         val schema14: Schema[NamedTuple.Empty]                                              = Schema.derived
+        val schema15: Schema[NamedTuple.Drop[(l: Long, i: Int, s: String), 3]]              = Schema.derived
         assert(schema1)(
           equalTo(
             new Schema[(i: Int, s: String)](
@@ -158,6 +159,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         ) &&
+        assert(schema15)(equalTo(schema14)) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value4)))(isRight(equalTo(value1))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
@@ -181,7 +183,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema11.fromDynamicValue(schema11.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
         assert(schema12.fromDynamicValue(schema12.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
         assert(schema13.fromDynamicValue(schema13.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
-        assert(schema14.fromDynamicValue(schema14.toDynamicValue(value5)))(isRight(equalTo(value5)))
+        assert(schema14.fromDynamicValue(schema14.toDynamicValue(value5)))(isRight(equalTo(value5))) &&
+        assert(schema15.fromDynamicValue(schema15.toDynamicValue(value5)))(isRight(equalTo(value5)))
       },
       test("derives schema for complex generic tuples") {
         val value1 = (1, "VVV")
