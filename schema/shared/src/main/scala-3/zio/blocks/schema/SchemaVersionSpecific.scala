@@ -934,8 +934,7 @@ private object SchemaVersionSpecific {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                           def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                            if (typeInfo.tpeTypeArgs.nonEmpty) typeInfo.constructor('in, 'baseOffset).asExprOf[T]
-                            else Select.unique(ref, "Empty").asExprOf[T]
+                            typeInfo.constructor('in, 'baseOffset).asExprOf[T]
                           }
                         },
                         deconstructor = new Deconstructor {
