@@ -234,33 +234,28 @@ private object SchemaVersionSpecific {
       config.toList
     }
 
-    val inferredSchemas   = new mutable.HashMap[Type, Tree]
-    val derivedSchemaRefs = new mutable.HashMap[Type, Ident]
-    val derivedSchemaDefs = new mutable.ListBuffer[Tree]
+    val schemaRefs = new mutable.HashMap[Type, Tree]
+    val schemaDefs = new mutable.ListBuffer[Tree]
 
-    def findImplicitOrDeriveSchema(tpe: Type): Tree = {
-      lazy val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
-      val inferredSchema =
-        inferredSchemas.getOrElseUpdate(tpe, c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe))
-      if (inferredSchema.nonEmpty) inferredSchema
-      else {
-        derivedSchemaRefs
-          .getOrElse(
-            tpe, {
-              val name  = TermName("s" + derivedSchemaRefs.size)
-              val ident = Ident(name)
-              // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
-              derivedSchemaRefs.update(tpe, ident)
-              val schema = deriveSchema(tpe)
-              derivedSchemaDefs.addOne {
-                if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
-                else q"implicit lazy val $name: $schemaTpe = $schema"
-              }
-              ident
-            }
-          )
+    def findImplicitOrDeriveSchema(tpe: Type): Tree = schemaRefs.getOrElseUpdate(
+      tpe, {
+        val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
+        var schema    = c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe)
+        if (schema.nonEmpty) schema
+        else {
+          val name = TermName("s" + schemaRefs.size)
+          val ref  = Ident(name)
+          // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
+          schemaRefs.update(tpe, ref)
+          schema = deriveSchema(tpe)
+          schemaDefs.addOne {
+            if (isNonRecursive(tpe)) q"implicit val $name: $schemaTpe = $schema"
+            else q"implicit lazy val $name: $schemaTpe = $schema"
+          }
+          ref
+        }
       }
-    }
+    )
 
     case class FieldInfo(
       symbol: Symbol,
@@ -597,7 +592,7 @@ private object SchemaVersionSpecific {
             import _root_.zio.blocks.schema.binding._
             import _root_.zio.blocks.schema.binding.RegisterOffset._
 
-            ..$derivedSchemaDefs
+            ..$schemaDefs
             $schema
           }"""
     // c.info(c.enclosingPosition, s"Generated schema:\n${showCode(schemaBlock)}", force = true)

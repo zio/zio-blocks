@@ -41,11 +41,10 @@ private object SchemaVersionSpecific {
     val unitTpe            = defn.UnitClass.typeRef
     val anyRefTpe          = defn.AnyRefClass.typeRef
     val anyValTpe          = defn.AnyValClass.typeRef
+    val schemaTpe          = TypeRepr.of[Schema]
     lazy val arrayOfAnyTpe = defn.ArrayClass.typeRef.appliedTo(defn.AnyClass.typeRef)
-    lazy val newArrayOfAny = TypeApply(
-      Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor),
-      List(Inferred(defn.AnyClass.typeRef))
-    )
+    lazy val newArrayOfAny =
+      Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor).appliedToType(defn.AnyClass.typeRef)
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
@@ -317,14 +316,14 @@ private object SchemaVersionSpecific {
       if (size > 1) Block(terms.init, terms.last)
       else if (size > 0) terms.head
       else Literal(UnitConstant())
-    }.asExprOf[Unit]
+    }.asExpr.asInstanceOf[Expr[Unit]]
 
     def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
       if (isEnumValue(tpe)) tpe.termSymbol
       else tpe.typeSymbol
     }.docstring
       .fold('{ Doc.Empty })(s => '{ new Doc.Text(${ Expr(s) }) })
-      .asExprOf[Doc]
+      .asInstanceOf[Expr[Doc]]
 
     def modifiers(tpe: TypeRepr)(using Quotes): Expr[List[Modifier.config]] = Expr.ofList {
       var config: List[Expr[Modifier.config]] = Nil
@@ -334,7 +333,7 @@ private object SchemaVersionSpecific {
       }.annotations.foreach { annotation =>
         if (annotation.tpe =:= TypeRepr.of[Modifier.config]) annotation match {
           case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
-            config = '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.config] :: config
+            config = '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asInstanceOf[Expr[Modifier.config]] :: config
         }
       }
       config
@@ -343,39 +342,31 @@ private object SchemaVersionSpecific {
     def summonClassTag[T: Type](using Quotes): Expr[ClassTag[T]] =
       Expr.summon[ClassTag[T]].getOrElse(fail(s"No ClassTag available for ${TypeRepr.of[T].show}"))
 
-    val inferredSchemas   = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
-    val derivedSchemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
-    val derivedSchemaDefs = new mutable.ListBuffer[ValDef]
+    val schemaRefs = new mutable.HashMap[TypeRepr, Expr[Schema[?]]]
+    val schemaDefs = new mutable.ListBuffer[ValDef]
 
-    def findImplicitOrDeriveSchema[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
-      lazy val schemaTpe = TypeRepr.of[Schema[T]]
-      val inferredSchema = inferredSchemas.getOrElseUpdate(
-        tpe,
-        Implicits.search(schemaTpe) match {
-          case v: ImplicitSearchSuccess => v.tree.asExprOf[Schema[?]]
-          case _                        => null
-        }
-      )
-      if (inferredSchema ne null) inferredSchema
-      else {
-        derivedSchemaRefs
-          .getOrElse(
-            tpe, {
-              val name  = "s" + derivedSchemaRefs.size
+    def findImplicitOrDeriveSchema[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = schemaRefs
+      .getOrElseUpdate(
+        tpe, {
+          val schemaTpeApplied = schemaTpe.appliedTo(tpe)
+          Implicits.search(schemaTpeApplied) match {
+            case v: ImplicitSearchSuccess => v.tree.asExpr.asInstanceOf[Expr[Schema[?]]]
+            case _                        =>
+              val name  = "s" + schemaRefs.size
               val flags =
                 if (isNonRecursive(tpe)) Flags.Implicit
                 else Flags.Implicit | Flags.Lazy
-              val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpe, flags, Symbol.noSymbol)
-              val ref    = Ref(symbol).asExprOf[Schema[?]]
+              val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpeApplied, flags, Symbol.noSymbol)
+              val ref    = Ref(symbol).asExpr.asInstanceOf[Expr[Schema[?]]]
               // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
-              derivedSchemaRefs.update(tpe, ref)
+              schemaRefs.update(tpe, ref)
               val schema = deriveSchema(tpe)
-              derivedSchemaDefs.addOne(ValDef(symbol, new Some(schema.asTerm.changeOwner(symbol))))
+              schemaDefs.addOne(ValDef(symbol, new Some(schema.asTerm.changeOwner(symbol))))
               ref
-            }
-          )
-      }
-    }.asExprOf[Schema[T]]
+          }
+        }
+      )
+      .asInstanceOf[Expr[Schema[T]]]
 
     case class FieldInfo(
       symbol: Symbol,
@@ -500,7 +491,8 @@ private object SchemaVersionSpecific {
                   case methodSymbol :: _ =>
                     val dvSelectNoTArgs = companionModuleRef.select(methodSymbol)
                     methodSymbol.paramSymss match {
-                      case Nil                                                                  => new Some(dvSelectNoTArgs)
+                      case Nil =>
+                        new Some(dvSelectNoTArgs)
                       case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
                         new Some(dvSelectNoTArgs.appliedToTypes(tpeTypeArgs))
                       case _ => None
@@ -525,16 +517,18 @@ private object SchemaVersionSpecific {
               idx += 1
               var reflect = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
               reflect = fieldInfo.defaultValue.fold(reflect) { dv =>
-                '{ $reflect.defaultValue(${ dv.asExprOf[ft] }) }
+                '{ $reflect.defaultValue(${ dv.asExpr.asInstanceOf[Expr[ft]] }) }
               }
               if (!isNonRecursive(fTpe)) reflect = '{ new Reflect.Deferred(() => $reflect) }
               var name = fieldInfo.name
               if (idx < nameOverrides.length) name = nameOverrides(idx)
               var fieldTermExpr = '{ $reflect.asTerm[S](${ Expr(name) }) }
               var modifiers     = fieldInfo.config.map { case (k, v) =>
-                '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asExprOf[Modifier.Term]
+                '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asInstanceOf[Expr[Modifier.Term]]
               }
-              if (fieldInfo.isTransient) modifiers = modifiers :+ '{ Modifier.transient() }.asExprOf[Modifier.Term]
+              if (fieldInfo.isTransient) {
+                modifiers = modifiers :+ '{ Modifier.transient() }.asInstanceOf[Expr[Modifier.Term]]
+              }
               if (modifiers.nonEmpty) fieldTermExpr = '{ $fieldTermExpr.copy(modifiers = ${ Expr.ofSeq(modifiers) }) }
               fieldTermExpr
           }
@@ -544,40 +538,42 @@ private object SchemaVersionSpecific {
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
         val constructor = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(tpeTypeArgs)
         val argss       = fieldInfos.map(_.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo).asTerm))
-        argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _)).asExprOf[T]
+        argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _)).asExpr.asInstanceOf[Expr[T]]
       }
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
         toBlock(fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe         = fieldInfo.tpe
-          val getter       = Select(in.asTerm, fieldInfo.getter)
+          val getter       = Select(in.asTerm, fieldInfo.getter).asExpr
           lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
           lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
           {
-            if (fTpe <:< intTpe) '{ $out.setInt($baseOffset, $bytes, ${ getter.asExprOf[Int] }) }
-            else if (fTpe <:< floatTpe) '{ $out.setFloat($baseOffset, $bytes, ${ getter.asExprOf[Float] }) }
-            else if (fTpe <:< longTpe) '{ $out.setLong($baseOffset, $bytes, ${ getter.asExprOf[Long] }) }
-            else if (fTpe <:< doubleTpe) '{ $out.setDouble($baseOffset, $bytes, ${ getter.asExprOf[Double] }) }
-            else if (fTpe <:< booleanTpe) '{ $out.setBoolean($baseOffset, $bytes, ${ getter.asExprOf[Boolean] }) }
-            else if (fTpe <:< byteTpe) '{ $out.setByte($baseOffset, $bytes, ${ getter.asExprOf[Byte] }) }
-            else if (fTpe <:< charTpe) '{ $out.setChar($baseOffset, $bytes, ${ getter.asExprOf[Char] }) }
-            else if (fTpe <:< shortTpe) '{ $out.setShort($baseOffset, $bytes, ${ getter.asExprOf[Short] }) }
+            if (fTpe <:< intTpe) '{ $out.setInt($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Int]] }) }
+            else if (fTpe <:< floatTpe) '{ $out.setFloat($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Float]] }) }
+            else if (fTpe <:< longTpe) '{ $out.setLong($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Long]] }) }
+            else if (fTpe <:< doubleTpe) {
+              '{ $out.setDouble($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Double]] }) }
+            } else if (fTpe <:< booleanTpe) {
+              '{ $out.setBoolean($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Boolean]] }) }
+            } else if (fTpe <:< byteTpe) '{ $out.setByte($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Byte]] }) }
+            else if (fTpe <:< charTpe) '{ $out.setChar($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Char]] }) }
+            else if (fTpe <:< shortTpe) '{ $out.setShort($baseOffset, $bytes, ${ getter.asInstanceOf[Expr[Short]] }) }
             else if (fTpe <:< unitTpe) '{ () }
-            else if (fTpe <:< anyRefTpe) '{ $out.setObject($baseOffset, $objects, ${ getter.asExprOf[AnyRef] }) }
-            else {
-              val sTpe       = dealiasOnDemand(fTpe)
-              val getterExpr = getter.asExprOf[Any]
-              if (sTpe <:< intTpe) '{ $out.setInt($baseOffset, $bytes, $getterExpr.asInstanceOf[Int]) }
-              else if (sTpe <:< floatTpe) '{ $out.setFloat($baseOffset, $bytes, $getterExpr.asInstanceOf[Float]) }
-              else if (sTpe <:< longTpe) '{ $out.setLong($baseOffset, $bytes, $getterExpr.asInstanceOf[Long]) }
-              else if (sTpe <:< doubleTpe) '{ $out.setDouble($baseOffset, $bytes, $getterExpr.asInstanceOf[Double]) }
-              else if (sTpe <:< booleanTpe) '{ $out.setBoolean($baseOffset, $bytes, $getterExpr.asInstanceOf[Boolean]) }
-              else if (sTpe <:< byteTpe) '{ $out.setByte($baseOffset, $bytes, $getterExpr.asInstanceOf[Byte]) }
-              else if (sTpe <:< charTpe) '{ $out.setChar($baseOffset, $bytes, $getterExpr.asInstanceOf[Char]) }
-              else if (sTpe <:< shortTpe) '{ $out.setShort($baseOffset, $bytes, $getterExpr.asInstanceOf[Short]) }
+            else if (fTpe <:< anyRefTpe) {
+              '{ $out.setObject($baseOffset, $objects, ${ getter.asInstanceOf[Expr[AnyRef]] }) }
+            } else {
+              val sTpe = dealiasOnDemand(fTpe)
+              if (sTpe <:< intTpe) '{ $out.setInt($baseOffset, $bytes, $getter.asInstanceOf[Int]) }
+              else if (sTpe <:< floatTpe) '{ $out.setFloat($baseOffset, $bytes, $getter.asInstanceOf[Float]) }
+              else if (sTpe <:< longTpe) '{ $out.setLong($baseOffset, $bytes, $getter.asInstanceOf[Long]) }
+              else if (sTpe <:< doubleTpe) '{ $out.setDouble($baseOffset, $bytes, $getter.asInstanceOf[Double]) }
+              else if (sTpe <:< booleanTpe) '{ $out.setBoolean($baseOffset, $bytes, $getter.asInstanceOf[Boolean]) }
+              else if (sTpe <:< byteTpe) '{ $out.setByte($baseOffset, $bytes, $getter.asInstanceOf[Byte]) }
+              else if (sTpe <:< charTpe) '{ $out.setChar($baseOffset, $bytes, $getter.asInstanceOf[Char]) }
+              else if (sTpe <:< shortTpe) '{ $out.setShort($baseOffset, $bytes, $getter.asInstanceOf[Short]) }
               else if (sTpe <:< unitTpe) '{ () }
               else if (sTpe <:< anyRefTpe || isValueClass(sTpe)) {
-                '{ $out.setObject($baseOffset, $objects, $getterExpr.asInstanceOf[AnyRef]) }
+                '{ $out.setObject($baseOffset, $objects, $getter.asInstanceOf[AnyRef]) }
               } else unsupportedFieldType(fTpe)
             }
           }.asTerm
@@ -631,11 +627,11 @@ private object SchemaVersionSpecific {
                Apply(update, List(Literal(IntConstant(idx)), fieldConstructor(in, baseOffset, fieldInfo).asTerm))
            }
            val valDef = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
-           val block  = Block(valDef :: assignments, ref).asExprOf[Array[Any]]
+           val block  = Block(valDef :: assignments, ref).asExpr
            tpe.asType match {
              case '[tt] => '{ scala.runtime.TupleXXL.fromIArray($block.asInstanceOf[IArray[AnyRef]]).asInstanceOf[tt] }
            }
-         }).asExprOf[T]
+         }).asInstanceOf[Expr[T]]
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
         toBlock(fieldInfos.map {
@@ -645,7 +641,7 @@ private object SchemaVersionSpecific {
             idx += 1
             val fTpe         = fieldInfo.tpe
             val sTpe         = dealiasOnDemand(fTpe)
-            val getter       = productElement.appliedTo(Literal(IntConstant(idx))).asExprOf[Any]
+            val getter       = productElement.appliedTo(Literal(IntConstant(idx))).asExpr
             lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
             lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
             {
@@ -678,7 +674,7 @@ private object SchemaVersionSpecific {
                   Ref(
                     if (isEnumValue(tpe)) tpe.termSymbol
                     else tpe.typeSymbol.companionModule
-                  ).asExprOf[T]
+                  ).asExpr.asInstanceOf[Expr[T]]
                 }),
                 deconstructor = new ConstantDeconstructor
               ),
@@ -859,7 +855,7 @@ private object SchemaVersionSpecific {
                 ${ findImplicitOrDeriveSchema[st](sTpe) }.reflect.asTerm[T](${
                   Expr(toShortTermName(fullName, maxCommonPrefixLength))
                 })
-              }.asExprOf[SchemaTerm[Binding, T, ? <: T]]
+              }.asInstanceOf[Expr[SchemaTerm[Binding, T, ? <: T]]]
           }
         })
         val matcherCases = Expr.ofSeq(subTypes.map { sTpe =>
@@ -872,7 +868,7 @@ private object SchemaVersionSpecific {
                     case _     => null.asInstanceOf[st]
                   }
                 }
-              }.asExprOf[Matcher[? <: T]]
+              }.asInstanceOf[Expr[Matcher[? <: T]]]
           }
         })
         '{
@@ -892,7 +888,7 @@ private object SchemaVersionSpecific {
                           idx += 1
                           CaseDef(Typed(Wildcard(), Inferred(sTpe)), None, Literal(IntConstant(idx)))
                       }
-                    ).asExprOf[Int]
+                    ).asExpr.asInstanceOf[Expr[Int]]
                   }
                 },
                 matchers = Matchers($matcherCases*)
@@ -934,7 +930,7 @@ private object SchemaVersionSpecific {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                           def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                            typeInfo.constructor('in, 'baseOffset).asExprOf[T]
+                            typeInfo.constructor('in, 'baseOffset).asInstanceOf[Expr[T]]
                           }
                         },
                         deconstructor = new Deconstructor {
@@ -947,10 +943,11 @@ private object SchemaVersionSpecific {
                                 Apply(Select.unique(ref, "toTuple").appliedToTypes(tpe.typeArgs), List('in.asTerm))
                               )
                             )
+                            val expr = Ref(valDef.symbol).asExpr.asInstanceOf[Expr[tt]]
                             Block(
                               List(valDef),
-                              typeInfo.deconstructor('out, 'baseOffset, Ref(valDef.symbol).asExprOf[tt]).asTerm
-                            ).asExprOf[Unit]
+                              typeInfo.deconstructor('out, 'baseOffset, expr).asTerm
+                            ).asExpr
                           }
                         }
                       )
@@ -1006,13 +1003,13 @@ private object SchemaVersionSpecific {
             '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
         }
       } else cannotDeriveSchema(tpe)
-    }.asExprOf[Schema[T]]
+    }.asInstanceOf[Expr[Schema[T]]]
 
     def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
     val aTpe        = TypeRepr.of[A].dealias
     val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
-    val schemaBlock = Block(derivedSchemaDefs.toList, schema.asTerm).asExprOf[Schema[A]]
+    val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
   }
