@@ -45,6 +45,7 @@ private object SchemaVersionSpecific {
     lazy val arrayOfAnyTpe = defn.ArrayClass.typeRef.appliedTo(defn.AnyClass.typeRef)
     lazy val newArrayOfAny =
       Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor).appliedToType(defn.AnyClass.typeRef)
+    lazy val toTuple = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
@@ -919,7 +920,6 @@ private object SchemaVersionSpecific {
                 val typeInfo =
                   if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
                   else new ClassInfo[tt](tTpe)
-                val ref = Ref(Symbol.requiredModule("scala.NamedTuple"))
                 '{
                   new Schema(
                     reflect = new Reflect.Record[Binding, T](
@@ -937,17 +937,11 @@ private object SchemaVersionSpecific {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                           def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
-                            val valDef = ValDef(
-                              Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol),
-                              new Some(
-                                Apply(Select.unique(ref, "toTuple").appliedToTypes(tpe.typeArgs), List('in.asTerm))
-                              )
-                            )
-                            val expr = Ref(valDef.symbol).asExpr.asInstanceOf[Expr[tt]]
-                            Block(
-                              List(valDef),
-                              typeInfo.deconstructor('out, 'baseOffset, expr).asTerm
-                            ).asExpr
+                            val value  = Apply(toTuple.appliedToTypes(tpe.typeArgs), List('in.asTerm))
+                            val symbol = Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol)
+                            val valDef = ValDef(symbol, new Some(value))
+                            val expr   = Ref(symbol).asExpr.asInstanceOf[Expr[tt]]
+                            Block(List(valDef), typeInfo.deconstructor('out, 'baseOffset, expr).asTerm).asExpr
                           }
                         }
                       )
