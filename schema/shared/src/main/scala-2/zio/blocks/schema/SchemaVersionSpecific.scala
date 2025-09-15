@@ -258,7 +258,6 @@ private object SchemaVersionSpecific {
     )
 
     case class FieldInfo(
-      symbol: Symbol,
       name: String,
       tpe: Type,
       defaultValue: Option[Tree],
@@ -326,8 +325,7 @@ private object SchemaVersionSpecific {
               else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
               else if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) RegisterOffset(objects = 1)
               else unsupportedFieldType(fTpe)
-            val fieldInfo =
-              new FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config.toList)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, config.toList)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
             fieldInfo
           }),
@@ -335,16 +333,23 @@ private object SchemaVersionSpecific {
         )
       }
 
-      def fields(schemaTpe: Type): List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
-        val fTpe          = fieldInfo.tpe
-        var reflect: Tree = q"${findImplicitOrDeriveSchema(fTpe)}.reflect"
-        reflect = fieldInfo.defaultValue.fold(reflect)(dv => q"$reflect.defaultValue($dv)")
-        if (!isNonRecursive(fTpe)) reflect = q"new Reflect.Deferred(() => $reflect)"
-        var fieldTermTree = q"$reflect.asTerm[$schemaTpe](${fieldInfo.name})"
-        var modifiers     = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
+      def fields(sTpe: Type): List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
+        val fTpe            = fieldInfo.tpe
+        val schema          = findImplicitOrDeriveSchema(fTpe)
+        val isNonRec        = isNonRecursive(fTpe)
+        val name            = fieldInfo.name
+        var fieldTerm: Tree = fieldInfo.defaultValue match {
+          case Some(dv) =>
+            if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name)"
+            else q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name)"
+          case _ =>
+            if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name)"
+            else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name)"
+        }
+        var modifiers = fieldInfo.config.map { case (k, v) => q"Modifier.config($k, $v)" }
         if (fieldInfo.isTransient) modifiers = modifiers :+ q"Modifier.transient()"
-        if (modifiers.nonEmpty) fieldTermTree = q"$fieldTermTree.copy(modifiers = $modifiers)"
-        fieldTermTree
+        if (modifiers.nonEmpty) fieldTerm = q"$fieldTerm.copy(modifiers = $modifiers)"
+        fieldTerm
       })
 
       def constructor: Tree = {
@@ -352,34 +357,32 @@ private object SchemaVersionSpecific {
           val fTpe         = fieldInfo.tpe
           lazy val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
           lazy val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
-          val constructor  =
-            if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
-            else if (fTpe =:= definitions.UnitTpe) q"()"
-            else {
-              val sTpe = dealiasOnDemand(fTpe)
-              if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) {
-                q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
-              } else {
-                if (sTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
-                else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
-                else unsupportedFieldType(fTpe)
-              }
+          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.UnitTpe) q"()"
+          else {
+            val sTpe = dealiasOnDemand(fTpe)
+            if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) {
+              q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            } else {
+              if (sTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
+              else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
+              else unsupportedFieldType(fTpe)
             }
-          q"${fieldInfo.symbol} = $constructor"
+          }
         })
         q"new $tpe(...$argss)"
       }
