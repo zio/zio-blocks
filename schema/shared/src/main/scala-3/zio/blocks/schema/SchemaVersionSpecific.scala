@@ -304,11 +304,11 @@ private object SchemaVersionSpecific {
     def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = '{
       new TypeName(
         namespace = new Namespace(
-          packages = ${ Expr.ofList(tpeName.namespace.packages.map(Expr(_))) },
-          values = ${ Expr.ofList(tpeName.namespace.values.map(Expr(_))) }
+          packages = ${ Varargs(tpeName.namespace.packages.map(Expr(_))) },
+          values = ${ Varargs(tpeName.namespace.values.map(Expr(_))) }
         ),
         name = ${ Expr(tpeName.name) },
-        params = ${ Expr.ofList(tpeName.params.map(param => toExpr(param.asInstanceOf[TypeName[T]]))) }
+        params = ${ Varargs(tpeName.params.map(param => toExpr(param.asInstanceOf[TypeName[T]]))) }
       )
     }
 
@@ -326,8 +326,8 @@ private object SchemaVersionSpecific {
       .fold('{ Doc.Empty })(s => '{ new Doc.Text(${ Expr(s) }) })
       .asInstanceOf[Expr[Doc]]
 
-    def modifiers(tpe: TypeRepr)(using Quotes): Expr[List[Modifier.config]] = Expr.ofList {
-      var config: List[Expr[Modifier.config]] = Nil
+    def modifiers(tpe: TypeRepr)(using Quotes): Expr[Seq[Modifier.config]] = Varargs {
+      var config = List.empty[Expr[Modifier.config]]
       {
         if (isEnumValue(tpe)) tpe.termSymbol
         else tpe.typeSymbol
@@ -370,7 +370,6 @@ private object SchemaVersionSpecific {
       .asInstanceOf[Expr[Schema[T]]]
 
     case class FieldInfo(
-      symbol: Symbol,
       name: String,
       tpe: TypeRepr,
       defaultValue: Option[Term],
@@ -501,7 +500,7 @@ private object SchemaVersionSpecific {
                   case _ => None
                 }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
               } else None
-            val fieldInfo = new FieldInfo(symbol, name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
             usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
             fieldInfo
           }),
@@ -511,27 +510,34 @@ private object SchemaVersionSpecific {
 
       def fields[S: Type](nameOverrides: Array[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] = {
         var idx = -1
-        Expr.ofSeq(fieldInfos.flatMap(_.map { fieldInfo =>
+        Varargs(fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe = fieldInfo.tpe
           fTpe.asType match {
             case '[ft] =>
               idx += 1
-              var reflect = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
-              reflect = fieldInfo.defaultValue.fold(reflect) { dv =>
-                '{ $reflect.defaultValue(${ dv.asExpr.asInstanceOf[Expr[ft]] }) }
+              val schema   = findImplicitOrDeriveSchema[ft](fTpe)
+              val isNonRec = isNonRecursive(fTpe)
+              val name     = Expr {
+                if (idx < nameOverrides.length) nameOverrides(idx)
+                else fieldInfo.name
               }
-              if (!isNonRecursive(fTpe)) reflect = '{ new Reflect.Deferred(() => $reflect) }
-              var name = fieldInfo.name
-              if (idx < nameOverrides.length) name = nameOverrides(idx)
-              var fieldTermExpr = '{ $reflect.asTerm[S](${ Expr(name) }) }
-              var modifiers     = fieldInfo.config.map { case (k, v) =>
+              var fieldTerm = fieldInfo.defaultValue match {
+                case Some(dvSelect) =>
+                  val dv = dvSelect.asExpr.asInstanceOf[Expr[ft]]
+                  if (isNonRec) '{ $schema.reflect.defaultValue($dv).asTerm[S]($name) }
+                  else '{ new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[S]($name) }
+                case _ =>
+                  if (isNonRec) '{ $schema.reflect.asTerm[S]($name) }
+                  else '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name) }
+              }
+              var modifiers = fieldInfo.config.map { case (k, v) =>
                 '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asInstanceOf[Expr[Modifier.Term]]
               }
               if (fieldInfo.isTransient) {
                 modifiers = modifiers :+ '{ Modifier.transient() }.asInstanceOf[Expr[Modifier.Term]]
               }
-              if (modifiers.nonEmpty) fieldTermExpr = '{ $fieldTermExpr.copy(modifiers = ${ Expr.ofSeq(modifiers) }) }
-              fieldTermExpr
+              if (modifiers.nonEmpty) fieldTerm = '{ $fieldTerm.copy(modifiers = ${ Varargs(modifiers) }) }
+              fieldTerm
           }
         }))
       }
@@ -590,8 +596,7 @@ private object SchemaVersionSpecific {
             var idx = 0
             fTpe =>
               idx += 1
-              val fieldInfo =
-                new FieldInfo(Symbol.spliceOwner, s"_$idx", fTpe, None, Symbol.noSymbol, usedRegisters, false, Nil)
+              val fieldInfo = new FieldInfo(s"_$idx", fTpe, None, Symbol.noSymbol, usedRegisters, false, Nil)
               usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
               fieldInfo
           },
@@ -600,18 +605,20 @@ private object SchemaVersionSpecific {
       }
 
       def fields[S: Type](nameOverrides: Array[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] =
-        Expr.ofSeq(fieldInfos.map {
+        Varargs(fieldInfos.map {
           var idx = -1
           fieldInfo =>
             idx += 1
             val fTpe = fieldInfo.tpe
             fTpe.asType match {
               case '[ft] =>
-                var reflect = '{ ${ findImplicitOrDeriveSchema[ft](fTpe) }.reflect }
-                if (!isNonRecursive(fTpe)) reflect = '{ new Reflect.Deferred(() => $reflect) }
-                var name = fieldInfo.name
-                if (idx < nameOverrides.length) name = nameOverrides(idx)
-                '{ $reflect.asTerm[S](${ Expr(name) }) }
+                val schema = findImplicitOrDeriveSchema[ft](fTpe)
+                val name   = Expr {
+                  if (idx < nameOverrides.length) nameOverrides(idx)
+                  else fieldInfo.name
+                }
+                if (isNonRecursive(fTpe)) '{ $schema.reflect.asTerm[S]($name) }
+                else '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name) }
             }
         })
 
@@ -849,7 +856,7 @@ private object SchemaVersionSpecific {
           while (idx < minLength && minFullTermName(idx).equals(maxFullTermName(idx))) idx += 1
           idx
         }
-        val cases = Expr.ofSeq(subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
+        val cases = Varargs(subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
           sTpe.asType match {
             case '[st] =>
               '{
@@ -859,7 +866,7 @@ private object SchemaVersionSpecific {
               }.asInstanceOf[Expr[SchemaTerm[Binding, T, ? <: T]]]
           }
         })
-        val matcherCases = Expr.ofSeq(subTypes.map { sTpe =>
+        val matcherCases = Varargs(subTypes.map { sTpe =>
           sTpe.asType match {
             case '[st] =>
               '{
@@ -984,16 +991,16 @@ private object SchemaVersionSpecific {
         val sTpe = opaqueDealias(tpe)
         sTpe.asType match {
           case '[s] =>
-            val tpeName = typeName[s](tpe)
-            val schema  = findImplicitOrDeriveSchema[s](sTpe)
+            val tpeName = typeName(tpe)
+            val schema  = findImplicitOrDeriveSchema(sTpe)
             '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
         }
       } else if (isZioPreludeNewtype(tpe)) {
         val sTpe = zioPreludeNewtypeDealias(tpe)
         sTpe.asType match {
           case '[s] =>
-            val tpeName = typeName[s](tpe)
-            val schema  = findImplicitOrDeriveSchema[s](sTpe)
+            val tpeName = typeName(tpe)
+            val schema  = findImplicitOrDeriveSchema(sTpe)
             '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
         }
       } else cannotDeriveSchema(tpe)
@@ -1002,7 +1009,7 @@ private object SchemaVersionSpecific {
     def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
     val aTpe        = TypeRepr.of[A].dealias
-    val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
+    val schema      = aTpe.asType match { case '[a] => deriveSchema(aTpe) }
     val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
