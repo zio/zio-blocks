@@ -83,11 +83,9 @@ private object SchemaVersionSpecific {
 
     def zioPreludeNewtypeDealias(tpe: TypeRepr): TypeRepr = tpe match {
       case TypeRef(compTpe, _) =>
-        compTpe.baseClasses.collectFirst {
-          case cls if cls.fullName == "zio.prelude.Newtype" => compTpe.baseType(cls).typeArgs.head.dealias
-        } match {
-          case Some(sTpe) => sTpe
-          case _          => cannotDealiasZioPreludeNewtype(tpe)
+        compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
+          case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+          case _         => cannotDealiasZioPreludeNewtype(tpe)
         }
       case _ => cannotDealiasZioPreludeNewtype(tpe)
     }
@@ -112,7 +110,7 @@ private object SchemaVersionSpecific {
 
     def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
       val flags = symbol.flags
-      !flags.is(Flags.Abstract) && !flags.is(Flags.JavaDefined) && !flags.is(Flags.Trait)
+      !(flags.is(Flags.Abstract) || flags.is(Flags.JavaDefined) || flags.is(Flags.Trait))
     }
 
     def isValueClass(tpe: TypeRepr): Boolean = tpe <:< anyValTpe && isNonAbstractScalaClass(tpe)
@@ -216,18 +214,18 @@ private object SchemaVersionSpecific {
             }
           } else if (isNonAbstractScalaClass(tpe)) {
             !nestedTpes.contains(tpe) && {
-              val primaryConstructor = tpe.classSymbol.get.primaryConstructor
-              val nestedTpes_        = tpe :: nestedTpes
-              primaryConstructor.paramSymss match {
-                case tpeTypeParams :: tpeParams if tpeTypeParams.exists(_.isTypeParam) =>
-                  val tpeTypeArgs = typeArgs(tpe)
-                  tpeParams.forall(_.forall { symbol =>
-                    val fTpe = tpe.memberType(symbol).dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
-                    isNonRecursive(fTpe, nestedTpes_)
-                  })
-                case tpeParams =>
-                  tpeParams.forall(_.forall(symbol => isNonRecursive(tpe.memberType(symbol).dealias, nestedTpes_)))
+              val primaryConstructor         = tpe.classSymbol.get.primaryConstructor
+              val nestedTpes_                = tpe :: nestedTpes
+              val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
+                case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
+                case ps                                     => (Nil, ps)
               }
+              lazy val tpeTypeArgs = typeArgs(tpe)
+              tpeParams.forall(_.forall { symbol =>
+                var fTpe = tpe.memberType(symbol).dealias
+                if (tpeTypeParams ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                isNonRecursive(fTpe, nestedTpes_)
+              })
             }
           } else if (isOpaque(tpe)) {
             isNonRecursive(opaqueDealias(tpe), nestedTpes)
@@ -240,19 +238,19 @@ private object SchemaVersionSpecific {
     def typeName[T: Type](tpe: TypeRepr): TypeName[T] = {
       def calculateTypeName(tpe: TypeRepr): TypeName[?] =
         if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
-        else if (isUnion(tpe)) new TypeName(new Namespace(Nil, Nil), "|", allUnionTypes(tpe).map(typeName))
         else {
-          var packages  = List.empty[String]
-          var values    = List.empty[String]
-          val tpeSymbol = tpe.typeSymbol
-          var name      = tpeSymbol.name
-          if (isEnumValue(tpe)) {
-            name = tpe.termSymbol.name
-            var ownerName = tpeSymbol.name
-            if (tpeSymbol.flags.is(Flags.Module)) ownerName = ownerName.substring(0, ownerName.length - 1)
-            values = ownerName :: values
-          } else if (tpeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-          if (tpeSymbol != Symbol.noSymbol) {
+          var packages: List[String] = Nil
+          var values: List[String]   = Nil
+          var name: String           = null
+          val isUnionTpe             = isUnion(tpe)
+          if (isUnionTpe) name = "|"
+          else {
+            val tpeSymbol = tpe.typeSymbol
+            name = tpeSymbol.name
+            if (isEnumValue(tpe)) {
+              values = name :: values
+              name = tpe.termSymbol.name
+            } else if (tpeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
             var owner = tpeSymbol.owner
             while (owner != defn.RootClass) {
               val ownerName = owner.name
@@ -263,7 +261,8 @@ private object SchemaVersionSpecific {
             }
           }
           val tpeTypeArgs =
-            if (isNamedTuple(tpe)) {
+            if (isUnionTpe) allUnionTypes(tpe)
+            else if (isNamedTuple(tpe)) {
               tpe match {
                 case AppliedType(_, List(tpe1, tpe2)) =>
                   val nTpe      = tpe1.dealias
@@ -326,18 +325,17 @@ private object SchemaVersionSpecific {
       .fold('{ Doc.Empty })(s => '{ new Doc.Text(${ Expr(s) }) })
       .asInstanceOf[Expr[Doc]]
 
-    def modifiers(tpe: TypeRepr)(using Quotes): Expr[Seq[Modifier.config]] = Varargs {
-      var config = List.empty[Expr[Modifier.config]]
+    def modifiers(tpe: TypeRepr)(using Quotes): Expr[Seq[Modifier.Reflect]] = Varargs {
+      var modifiers: List[Expr[Modifier.Reflect]] = Nil
       {
         if (isEnumValue(tpe)) tpe.termSymbol
         else tpe.typeSymbol
       }.annotations.foreach { annotation =>
-        if (annotation.tpe =:= TypeRepr.of[Modifier.config]) annotation match {
-          case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) =>
-            config = '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asInstanceOf[Expr[Modifier.config]] :: config
+        if (annotation.tpe <:< TypeRepr.of[Modifier.Reflect]) {
+          modifiers = annotation.asExpr.asInstanceOf[Expr[Modifier.Reflect]] :: modifiers
         }
       }
-      config
+      modifiers
     }
 
     def summonClassTag[T: Type](using Quotes): Expr[ClassTag[T]] =
@@ -466,21 +464,20 @@ private object SchemaVersionSpecific {
             val name   = symbol.name
             var getter = tpeClassSymbol.fieldMember(name)
             if (!getter.exists) {
-              val flags = Flags.FieldAccessor | Flags.ParamAccessor
-              tpeClassSymbol.methodMember(name).collectFirst { case sym if sym.flags.is(flags) => sym } match {
-                case Some(sym) => getter = sym
-                case _         =>
+              tpeClassSymbol.methodMember(name).find(_.flags.is(Flags.FieldAccessor)) match {
+                case Some(method) => getter = method
+                case _            =>
               }
             }
             if (!getter.exists || getter.flags.is(Flags.PrivateLocal)) fail {
               s"Field or getter '$name' of '${tpe.show}' should be defined as 'val' or 'var' in the primary constructor."
             }
-            var isTransient               = false
-            var termModifiers: List[Term] = Nil
+            var isTransient           = false
+            var modifiers: List[Term] = Nil
             getter.annotations.foreach { annotation =>
               val aTpe = annotation.tpe
               if (aTpe <:< TypeRepr.of[Modifier.Term]) {
-                termModifiers = annotation :: termModifiers
+                modifiers = annotation :: modifiers
                 if (aTpe =:= TypeRepr.of[Modifier.transient]) isTransient = true
               }
             }
@@ -499,7 +496,7 @@ private object SchemaVersionSpecific {
                     }
                 })
               } else None
-            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, termModifiers)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, modifiers)
             usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
             fieldInfo
           }),

@@ -56,22 +56,16 @@ private object SchemaVersionSpecific {
       case _ => false
     }
 
-    def zioPreludeNewtypeDealias(tpe: Type): Type = {
-      def cannotDealias(tpe: Type): Nothing = fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
-
-      tpe match {
-        case TypeRef(compTpe, _, _) =>
-          compTpe.baseClasses.collectFirst {
-            case cls if cls.fullName == "zio.prelude.Newtype" =>
-              compTpe.baseType(cls) match {
-                case TypeRef(_, _, List(typeArg)) => typeArg.dealias
-                case _                            => cannotDealias(tpe)
-              }
-          }
-            .getOrElse(cannotDealias(tpe))
-        case _ => cannotDealias(tpe)
-      }
+    def zioPreludeNewtypeDealias(tpe: Type): Type = tpe match {
+      case TypeRef(compTpe, _, _) =>
+        compTpe.baseClasses.find(_.fullName == "zio.prelude.Newtype") match {
+          case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+          case _         => cannotDealiasZioPreludeNewtype(tpe)
+        }
+      case _ => cannotDealiasZioPreludeNewtype(tpe)
     }
+
+    def cannotDealiasZioPreludeNewtype(tpe: Type): Nothing = fail(s"Cannot dealias zio-prelude newtype '$tpe'.")
 
     def dealiasOnDemand(tpe: Type): Type =
       if (isZioPreludeNewtype(tpe)) zioPreludeNewtypeDealias(tpe)
@@ -91,6 +85,10 @@ private object SchemaVersionSpecific {
         else c.typecheck(path.foldLeft[Tree](Ident(path.next()))(Select(_, _)), silent = true).symbol
       }
     }
+
+    def primaryConstructor(tpe: Type): MethodSymbol = tpe.decls.collectFirst {
+      case m: MethodSymbol if m.isPrimaryConstructor => m
+    }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
 
     implicit lazy val positionOrdering: Ordering[Symbol] =
       (x: Symbol, y: Symbol) => {
@@ -151,22 +149,15 @@ private object SchemaVersionSpecific {
           } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNonAbstractScalaClass(tpe)) {
             !nestedTpes.contains(tpe) && {
-              tpe.decls.collectFirst { case m: MethodSymbol if m.isPrimaryConstructor => m } match {
-                case Some(primaryConstructor) =>
-                  val nestedTpes_ = tpe :: nestedTpes
-                  val tpeParams   = primaryConstructor.paramLists
-                  val tpeTypeArgs = typeArgs(tpe)
-                  if (tpeTypeArgs eq Nil) {
-                    tpeParams.forall(_.forall(param => isNonRecursive(param.asTerm.typeSignature.dealias, nestedTpes_)))
-                  } else {
-                    val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
-                    tpeParams.forall(_.forall { param =>
-                      val fTpe = param.asTerm.typeSignature.dealias.substituteTypes(tpeTypeParams, tpeTypeArgs)
-                      isNonRecursive(fTpe, nestedTpes_)
-                    })
-                  }
-                case _ => false
-              }
+              val tpeParams          = primaryConstructor(tpe).paramLists
+              val tpeTypeArgs        = typeArgs(tpe)
+              val nestedTpes_        = tpe :: nestedTpes
+              lazy val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
+              tpeParams.forall(_.forall { param =>
+                var fTpe = param.asTerm.typeSignature.dealias
+                if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
+                isNonRecursive(fTpe, nestedTpes_)
+              })
             }
           } else isZioPreludeNewtype(tpe) && isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes)
         }
@@ -222,16 +213,13 @@ private object SchemaVersionSpecific {
     }
 
     def modifiers(tpe: Type): List[Tree] = {
-      val config = new mutable.ListBuffer[Tree]
+      val modifiers = new mutable.ListBuffer[Tree]
       tpe.typeSymbol.annotations.foreach { annotation =>
         val tree = annotation.tree
-        if (tree.tpe =:= typeOf[Modifier.config]) tree.children match {
-          case List(_, Literal(Constant(k: String)), Literal(Constant(v: String))) =>
-            config.addOne(q"Modifier.config($k, $v)")
-          case _ =>
-        }
+        val aTpe = tree.tpe
+        if (aTpe <:< typeOf[Modifier.Reflect]) modifiers.addOne(q"new $aTpe(..${tree.children.tail})")
       }
-      config.toList
+      modifiers.toList
     }
 
     val schemaRefs = new mutable.HashMap[Type, Tree]
@@ -270,9 +258,6 @@ private object SchemaVersionSpecific {
     case class ClassInfo(tpe: Type) {
       val tpeTypeArgs: List[Type]                                            = typeArgs(tpe)
       val (fieldInfos: List[List[FieldInfo]], usedRegisters: RegisterOffset) = {
-        val primaryConstructor = tpe.decls.collectFirst {
-          case m: MethodSymbol if m.isPrimaryConstructor => m
-        }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
         var getters     = Map.empty[String, MethodSymbol]
         var annotations = Map.empty[String, List[Tree]]
         tpe.members.foreach {
@@ -291,7 +276,7 @@ private object SchemaVersionSpecific {
         var usedRegisters      = RegisterOffset.Zero
         var idx                = 0
         (
-          primaryConstructor.paramLists.map(_.map { param =>
+          primaryConstructor(tpe).paramLists.map(_.map { param =>
             idx += 1
             val symbol = param.asTerm
             val name   = NameTransformer.decode(symbol.name.toString)
