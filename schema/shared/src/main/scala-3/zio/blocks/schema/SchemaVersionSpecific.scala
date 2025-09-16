@@ -472,10 +472,9 @@ private object SchemaVersionSpecific {
                 case _         =>
               }
             }
-            if (!getter.exists || getter.flags.is(Flags.PrivateLocal))
-              fail(
-                s"Field or getter '$name' of '${tpe.show}' should be defined as 'val' or 'var' in the primary constructor."
-              )
+            if (!getter.exists || getter.flags.is(Flags.PrivateLocal)) fail {
+              s"Field or getter '$name' of '${tpe.show}' should be defined as 'val' or 'var' in the primary constructor."
+            }
             var isTransient                    = false
             var config: List[(String, String)] = Nil
             getter.annotations.foreach { annotation =>
@@ -487,18 +486,18 @@ private object SchemaVersionSpecific {
             }
             val defaultValue =
               if (symbol.flags.is(Flags.HasDefault)) {
-                (companionClass.methodMember("$lessinit$greater$default$" + idx) match {
-                  case methodSymbol :: _ =>
-                    val dvSelectNoTArgs = companionModuleRef.select(methodSymbol)
-                    methodSymbol.paramSymss match {
-                      case Nil =>
-                        new Some(dvSelectNoTArgs)
-                      case List(params) if params.exists(_.isTypeParam) && tpeTypeArgs.nonEmpty =>
-                        new Some(dvSelectNoTArgs.appliedToTypes(tpeTypeArgs))
-                      case _ => None
+                val methodSymbols = companionClass.methodMember("$lessinit$greater$default$" + idx)
+                if (methodSymbols.isEmpty) fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'.")
+                val methodSymbol    = methodSymbols.head
+                val dvSelectNoTArgs = companionModuleRef.select(methodSymbol)
+                new Some(methodSymbol.paramSymss match {
+                  case Nil                                          => dvSelectNoTArgs
+                  case List(params) if params.exists(_.isTypeParam) => dvSelectNoTArgs.appliedToTypes(tpeTypeArgs)
+                  case _                                            =>
+                    fail {
+                      s"Default values of non-first parameter lists are not supported for '$symbol' in class '${tpe.show}'."
                     }
-                  case _ => None
-                }).orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
+                })
               } else None
             val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
             usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
