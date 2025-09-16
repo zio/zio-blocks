@@ -705,8 +705,28 @@ object SchemaSpec extends ZIOSpecDefault {
             isLeft(
               containsString(
                 "missing argument list for method <init>$default$2 in object MultiListWithDefaults"
-              ) ||                                                                                        // Scala 2
-                containsString("Cannot find default value for 'val l' in class 'MultiListWithDefaults'.") // Scala 3
+              ) || // Scala 2
+                containsString(
+                  "Default values of non-first parameter lists are not supported for 'val l' in class 'MultiListWithDefaults'."
+                ) // Scala 3
+            )
+          )
+        )
+      },
+      test("doesn't generate schema for generic constructor with default values of wrong type") {
+        typeCheck {
+          """case class PolymorphicDefaults[A, B](i: A = 1, cs: List[B] = Nil)
+
+             Schema.derived[PolymorphicDefaults[String, Int]]"""
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString(
+                "polymorphic expression cannot be instantiated to expected type"
+              ) || // Scala 2
+                containsString(
+                  "Type Mismatch"
+                ) // Scala 3
             )
           )
         )
