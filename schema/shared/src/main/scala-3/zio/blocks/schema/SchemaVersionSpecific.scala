@@ -376,7 +376,7 @@ private object SchemaVersionSpecific {
       getter: Symbol,
       usedRegisters: RegisterOffset,
       isTransient: Boolean,
-      config: List[(String, String)]
+      modifiers: List[Term]
     )
 
     abstract class TypeInfo[T: Type] {
@@ -462,7 +462,7 @@ private object SchemaVersionSpecific {
           tpeParams.map(_.map { symbol =>
             idx += 1
             var fTpe = tpe.memberType(symbol).dealias
-            if (tpeTypeArgs.nonEmpty) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
+            if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
             val name   = symbol.name
             var getter = tpeClassSymbol.fieldMember(name)
             if (!getter.exists) {
@@ -475,19 +475,19 @@ private object SchemaVersionSpecific {
             if (!getter.exists || getter.flags.is(Flags.PrivateLocal)) fail {
               s"Field or getter '$name' of '${tpe.show}' should be defined as 'val' or 'var' in the primary constructor."
             }
-            var isTransient                    = false
-            var config: List[(String, String)] = Nil
+            var isTransient               = false
+            var termModifiers: List[Term] = Nil
             getter.annotations.foreach { annotation =>
-              if (annotation.tpe =:= TypeRepr.of[Modifier.transient]) isTransient = true
-              else if (annotation.tpe =:= TypeRepr.of[Modifier.config]) annotation match {
-                case Apply(_, List(Literal(StringConstant(k)), Literal(StringConstant(v)))) => config = (k, v) :: config
-                case _                                                                      =>
+              val aTpe = annotation.tpe
+              if (aTpe <:< TypeRepr.of[Modifier.Term]) {
+                termModifiers = annotation :: termModifiers
+                if (aTpe =:= TypeRepr.of[Modifier.transient]) isTransient = true
               }
             }
             val defaultValue =
               if (symbol.flags.is(Flags.HasDefault)) {
                 val methodSymbols = companionClass.methodMember("$lessinit$greater$default$" + idx)
-                if (methodSymbols.isEmpty) fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'.")
+                if (methodSymbols eq Nil) fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'.")
                 val methodSymbol    = methodSymbols.head
                 val dvSelectNoTArgs = companionModuleRef.select(methodSymbol)
                 new Some(methodSymbol.paramSymss match {
@@ -499,7 +499,7 @@ private object SchemaVersionSpecific {
                     }
                 })
               } else None
-            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, config)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, termModifiers)
             usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
             fieldInfo
           }),
@@ -520,23 +520,34 @@ private object SchemaVersionSpecific {
                 if (idx < nameOverrides.length) nameOverrides(idx)
                 else fieldInfo.name
               }
-              var fieldTerm = fieldInfo.defaultValue match {
+              val modifiers = fieldInfo.modifiers
+              lazy val ms   = Varargs(modifiers.map(_.asExpr.asInstanceOf[Expr[Modifier.Term]]))
+              fieldInfo.defaultValue match {
                 case Some(dvSelect) =>
                   val dv = dvSelect.asExpr.asInstanceOf[Expr[ft]]
-                  if (isNonRec) '{ $schema.reflect.defaultValue($dv).asTerm[S]($name) }
-                  else '{ new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[S]($name) }
+                  if (modifiers eq Nil) {
+                    if (isNonRec) '{ $schema.reflect.defaultValue($dv).asTerm[S]($name) }
+                    else '{ new Reflect.Deferred(() => $schema.reflect).defaultValue($dv).asTerm[S]($name) }
+                  } else {
+                    if (isNonRec) '{ $schema.reflect.defaultValue($dv).asTerm[S]($name).copy(modifiers = $ms) }
+                    else {
+                      '{
+                        new Reflect.Deferred(() => $schema.reflect)
+                          .defaultValue($dv)
+                          .asTerm[S]($name)
+                          .copy(modifiers = $ms)
+                      }
+                    }
+                  }
                 case _ =>
-                  if (isNonRec) '{ $schema.reflect.asTerm[S]($name) }
-                  else '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name) }
+                  if (modifiers eq Nil) {
+                    if (isNonRec) '{ $schema.reflect.asTerm[S]($name) }
+                    else '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name) }
+                  } else {
+                    if (isNonRec) '{ $schema.reflect.asTerm[S]($name).copy(modifiers = $ms) }
+                    else '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name).copy(modifiers = $ms) }
+                  }
               }
-              var modifiers = fieldInfo.config.map { case (k, v) =>
-                '{ Modifier.config(${ Expr(k) }, ${ Expr(v) }) }.asInstanceOf[Expr[Modifier.Term]]
-              }
-              if (fieldInfo.isTransient) {
-                modifiers = modifiers :+ '{ Modifier.transient() }.asInstanceOf[Expr[Modifier.Term]]
-              }
-              if (modifiers.nonEmpty) fieldTerm = '{ $fieldTerm.copy(modifiers = ${ Varargs(modifiers) }) }
-              fieldTerm
           }
         }))
       }
@@ -622,7 +633,7 @@ private object SchemaVersionSpecific {
         })
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] =
-        (if (fieldInfos.isEmpty) Expr(EmptyTuple)
+        (if (fieldInfos eq Nil) Expr(EmptyTuple)
          else {
            val symbol      = Symbol.newVal(Symbol.spliceOwner, "as", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
            val ref         = Ref(symbol)
@@ -840,7 +851,7 @@ private object SchemaVersionSpecific {
         val subTypes    =
           if (isUnionType) allUnionTypes(tpe).distinct
           else directSubTypes(tpe)
-        if (subTypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
+        if (subTypes eq Nil) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
         val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
         val maxCommonPrefixLength = {
           var minFullTermName = fullTermNames.min
