@@ -311,13 +311,6 @@ private object SchemaVersionSpecific {
       )
     }
 
-    def toBlock(terms: List[Term]): Expr[Unit] = {
-      val size = terms.size
-      if (size > 1) Block(terms.init, terms.last)
-      else if (size > 0) terms.head
-      else Literal(UnitConstant())
-    }.asExpr.asInstanceOf[Expr[Unit]]
-
     def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
       if (isEnumValue(tpe)) tpe.termSymbol
       else tpe.typeSymbol
@@ -357,7 +350,7 @@ private object SchemaVersionSpecific {
                 else Flags.Implicit | Flags.Lazy
               val symbol = Symbol.newVal(Symbol.spliceOwner, name, schemaTpeApplied, flags, Symbol.noSymbol)
               val ref    = Ref(symbol).asExpr.asInstanceOf[Expr[Schema[?]]]
-              // adding the schema reference before schema derivation to avoid an endless loop on recursive data structures
+              // adding the schema reference before its derivation to avoid an endless loop on recursive data structures
               schemaRefs.update(tpe, ref)
               val schema = deriveSchema(tpe)
               schemaDefs.addOne(ValDef(symbol, new Some(schema.asTerm.changeOwner(symbol))))
@@ -386,7 +379,7 @@ private object SchemaVersionSpecific {
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T]
 
-      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit]
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Term
 
       def fieldOffset(fTpe: TypeRepr): RegisterOffset = {
         val sTpe = dealiasOnDemand(fTpe)
@@ -405,7 +398,7 @@ private object SchemaVersionSpecific {
 
       def fieldConstructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset], fieldInfo: FieldInfo)(using
         Quotes
-      ): Expr[?] = {
+      ): Term = {
         val fTpe         = fieldInfo.tpe
         lazy val bytes   = Expr(RegisterOffset.getBytes(fieldInfo.usedRegisters))
         lazy val objects = Expr(RegisterOffset.getObjects(fieldInfo.usedRegisters))
@@ -438,6 +431,13 @@ private object SchemaVersionSpecific {
               }
           }
         }
+      }.asTerm
+
+      def toBlock(terms: List[Term]): Term = {
+        val size = terms.size
+        if (size > 1) Block(terms.init, terms.last)
+        else if (size > 0) terms.head
+        else Literal(UnitConstant())
       }
 
       def unsupportedFieldType(tpe: TypeRepr): Nothing = fail(s"Unsupported field type '${tpe.show}'.")
@@ -551,11 +551,11 @@ private object SchemaVersionSpecific {
 
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
         val constructor = Select(New(Inferred(tpe)), primaryConstructor).appliedToTypes(tpeTypeArgs)
-        val argss       = fieldInfos.map(_.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo).asTerm))
+        val argss       = fieldInfos.map(_.map(fieldInfo => fieldConstructor(in, baseOffset, fieldInfo)))
         argss.tail.foldLeft(Apply(constructor, argss.head))(Apply(_, _)).asExpr.asInstanceOf[Expr[T]]
       }
 
-      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Term =
         toBlock(fieldInfos.flatMap(_.map { fieldInfo =>
           val fTpe         = fieldInfo.tpe
           val getter       = Select(in.asTerm, fieldInfo.getter).asExpr
@@ -639,7 +639,7 @@ private object SchemaVersionSpecific {
              var idx = -1
              fieldInfo =>
                idx += 1
-               Apply(update, List(Literal(IntConstant(idx)), fieldConstructor(in, baseOffset, fieldInfo).asTerm))
+               Apply(update, List(Literal(IntConstant(idx)), fieldConstructor(in, baseOffset, fieldInfo)))
            }
            val valDef = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
            val block  = Block(valDef :: assignments, ref).asExpr
@@ -648,7 +648,7 @@ private object SchemaVersionSpecific {
            }
          }).asInstanceOf[Expr[T]]
 
-      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Expr[Unit] =
+      def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Term =
         toBlock(fieldInfos.map {
           val productElement = Select.unique(in.asTerm, "productElement")
           var idx            = -1
@@ -700,10 +700,10 @@ private object SchemaVersionSpecific {
         }
       } else if (isCollection(tpe)) {
         if (tpe <:< TypeRepr.of[Array[?]]) {
-          val eTpe = typeArgs(tpe).head
+          val tpeName = typeName(tpe)
+          val eTpe    = typeArgs(tpe).head
           eTpe.asType match {
             case '[et] =>
-              val tpeName     = typeName[Array[et]](tpe)
               val constructor =
                 if (eTpe <:< anyRefTpe) {
                   val classTag = summonClassTag[et]
@@ -719,7 +719,7 @@ private object SchemaVersionSpecific {
                 new Schema(
                   reflect = new Reflect.Sequence(
                     element = ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect,
-                    typeName = ${ toExpr(tpeName) },
+                    typeName = ${ toExpr(tpeName.asInstanceOf[TypeName[Array[et]]]) },
                     seqBinding = new Binding.Seq(
                       constructor = $constructor,
                       deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -729,10 +729,10 @@ private object SchemaVersionSpecific {
               }
           }
         } else if (isIArray(tpe)) {
-          val eTpe = typeArgs(tpe).head
+          val tpeName = typeName(tpe)
+          val eTpe    = typeArgs(tpe).head
           eTpe.asType match {
             case '[et] =>
-              val tpeName     = typeName[IArray[et]](tpe)
               val constructor =
                 if (eTpe <:< anyRefTpe) {
                   val classTag = summonClassTag[et]
@@ -748,7 +748,7 @@ private object SchemaVersionSpecific {
                 new Schema(
                   reflect = new Reflect.Sequence(
                     element = ${ findImplicitOrDeriveSchema[et](eTpe) }.reflect,
-                    typeName = ${ toExpr(tpeName) },
+                    typeName = ${ toExpr(tpeName.asInstanceOf[TypeName[IArray[et]]]) },
                     seqBinding = new Binding.Seq(
                       constructor = $constructor,
                       deconstructor = SeqDeconstructor.iArrayDeconstructor
@@ -806,7 +806,7 @@ private object SchemaVersionSpecific {
                       def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: tt): Unit = ${
-                        typeInfo.deconstructor('out, 'baseOffset, 'in)
+                        typeInfo.deconstructor('out, 'baseOffset, 'in).asExpr
                       }
                     }
                   )
@@ -955,7 +955,7 @@ private object SchemaVersionSpecific {
                             val symbol = Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol)
                             val valDef = ValDef(symbol, new Some(value))
                             val expr   = Ref(symbol).asExpr.asInstanceOf[Expr[tt]]
-                            Block(List(valDef), typeInfo.deconstructor('out, 'baseOffset, expr).asTerm).asExpr
+                            Block(List(valDef), typeInfo.deconstructor('out, 'baseOffset, expr)).asExpr
                           }
                         }
                       )
@@ -985,7 +985,7 @@ private object SchemaVersionSpecific {
                   def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
 
                   def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
-                    classInfo.deconstructor('out, 'baseOffset, 'in)
+                    classInfo.deconstructor('out, 'baseOffset, 'in).asExpr
                   }
                 }
               ),
@@ -995,20 +995,26 @@ private object SchemaVersionSpecific {
           )
         }
       } else if (isOpaque(tpe)) {
-        val sTpe = opaqueDealias(tpe)
+        val tpeName = typeName(tpe)
+        val sTpe    = opaqueDealias(tpe)
         sTpe.asType match {
           case '[s] =>
-            val tpeName = typeName(tpe)
-            val schema  = findImplicitOrDeriveSchema(sTpe)
-            '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
+            val schema = findImplicitOrDeriveSchema[s](sTpe)
+            '{
+              new Schema($schema.reflect.typeName(${ toExpr(tpeName.asInstanceOf[TypeName[s]]) }))
+                .asInstanceOf[Schema[T]]
+            }
         }
       } else if (isZioPreludeNewtype(tpe)) {
-        val sTpe = zioPreludeNewtypeDealias(tpe)
+        val tpeName = typeName(tpe)
+        val sTpe    = zioPreludeNewtypeDealias(tpe)
         sTpe.asType match {
           case '[s] =>
-            val tpeName = typeName(tpe)
-            val schema  = findImplicitOrDeriveSchema(sTpe)
-            '{ new Schema($schema.reflect.typeName(${ toExpr(tpeName) })).asInstanceOf[Schema[T]] }
+            val schema = findImplicitOrDeriveSchema[s](sTpe)
+            '{
+              new Schema($schema.reflect.typeName(${ toExpr(tpeName.asInstanceOf[TypeName[s]]) }))
+                .asInstanceOf[Schema[T]]
+            }
         }
       } else cannotDeriveSchema(tpe)
     }.asInstanceOf[Expr[Schema[T]]]
