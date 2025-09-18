@@ -251,7 +251,6 @@ private object SchemaVersionSpecific {
       defaultValue: Option[Tree],
       getter: MethodSymbol,
       usedRegisters: RegisterOffset,
-      isTransient: Boolean,
       modifiers: List[Tree]
     )
 
@@ -287,7 +286,6 @@ private object SchemaVersionSpecific {
               fail(s"Field or getter '$name' of '$tpe' should be defined as 'val' or 'var' in the primary constructor.")
             )
             val modifiers    = annotations.getOrElse(name, Nil)
-            val isTransient  = modifiers.exists(_.tpe =:= typeOf[Modifier.transient])
             val defaultValue =
               if (symbol.isParamWithDefault) new Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
               else None
@@ -304,7 +302,7 @@ private object SchemaVersionSpecific {
               else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
               else if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) RegisterOffset(objects = 1)
               else unsupportedFieldType(fTpe)
-            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, modifiers)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
             fieldInfo
           }),
