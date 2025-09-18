@@ -42,10 +42,15 @@ private object SchemaVersionSpecific {
     val anyRefTpe          = defn.AnyRefClass.typeRef
     val anyValTpe          = defn.AnyValClass.typeRef
     val schemaTpe          = TypeRepr.of[Schema]
-    lazy val arrayOfAnyTpe = defn.ArrayClass.typeRef.appliedTo(defn.AnyClass.typeRef)
+    lazy val anyTpe        = defn.AnyClass.typeRef
+    lazy val arrayOfAnyTpe = defn.ArrayClass.typeRef.appliedTo(anyTpe)
     lazy val newArrayOfAny =
-      Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor).appliedToType(defn.AnyClass.typeRef)
-    lazy val toTuple = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
+      Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor).appliedToType(anyTpe)
+    lazy val toTupleMethod        = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
+    lazy val iArrayOfAnyRefTpe    = TypeRepr.of[IArray[AnyRef]]
+    lazy val fromIArrayMethod     = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
+    lazy val asInstanceOfMethod   = anyTpe.typeSymbol.methodMember("asInstanceOf").head
+    lazy val productElementMethod = TypeRepr.of[Product].typeSymbol.methodMember("productElement").head
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
@@ -344,7 +349,7 @@ private object SchemaVersionSpecific {
           Implicits.search(schemaTpeApplied) match {
             case v: ImplicitSearchSuccess => v.tree.asExpr.asInstanceOf[Expr[Schema[?]]]
             case _                        =>
-              val name  = "s" + schemaRefs.size
+              val name  = s"s${schemaRefs.size}"
               val flags =
                 if (isNonRecursive(tpe)) Flags.Implicit
                 else Flags.Implicit | Flags.Lazy
@@ -366,7 +371,6 @@ private object SchemaVersionSpecific {
       defaultValue: Option[Term],
       getter: Symbol,
       usedRegisters: RegisterOffset,
-      isTransient: Boolean,
       modifiers: List[Term]
     )
 
@@ -472,14 +476,10 @@ private object SchemaVersionSpecific {
             if (!getter.exists || getter.flags.is(Flags.PrivateLocal)) fail {
               s"Field or getter '$name' of '${tpe.show}' should be defined as 'val' or 'var' in the primary constructor."
             }
-            var isTransient           = false
             var modifiers: List[Term] = Nil
             getter.annotations.foreach { annotation =>
               val aTpe = annotation.tpe
-              if (aTpe <:< TypeRepr.of[Modifier.Term]) {
-                modifiers = annotation :: modifiers
-                if (aTpe =:= TypeRepr.of[Modifier.transient]) isTransient = true
-              }
+              if (aTpe <:< TypeRepr.of[Modifier.Term]) modifiers = annotation :: modifiers
             }
             val defaultValue =
               if (symbol.flags.is(Flags.HasDefault)) {
@@ -496,7 +496,7 @@ private object SchemaVersionSpecific {
                     }
                 })
               } else None
-            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, isTransient, modifiers)
+            val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers)
             usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
             fieldInfo
           }),
@@ -603,7 +603,7 @@ private object SchemaVersionSpecific {
             var idx = 0
             fTpe =>
               idx += 1
-              val fieldInfo = new FieldInfo(s"_$idx", fTpe, None, Symbol.noSymbol, usedRegisters, false, Nil)
+              val fieldInfo = new FieldInfo(s"_$idx", fTpe, None, Symbol.noSymbol, usedRegisters, Nil)
               usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
               fieldInfo
           },
@@ -632,7 +632,7 @@ private object SchemaVersionSpecific {
       def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] =
         (if (fieldInfos eq Nil) Expr(EmptyTuple)
          else {
-           val symbol      = Symbol.newVal(Symbol.spliceOwner, "as", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
+           val symbol      = Symbol.newVal(Symbol.spliceOwner, "xs", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
            val ref         = Ref(symbol)
            val update      = Select(ref, defn.Array_update)
            val assignments = fieldInfos.map {
@@ -641,16 +641,15 @@ private object SchemaVersionSpecific {
                idx += 1
                Apply(update, List(Literal(IntConstant(idx)), fieldConstructor(in, baseOffset, fieldInfo)))
            }
-           val valDef = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
-           val block  = Block(valDef :: assignments, ref).asExpr
-           tpe.asType match {
-             case '[tt] => '{ scala.runtime.TupleXXL.fromIArray($block.asInstanceOf[IArray[AnyRef]]).asInstanceOf[tt] }
-           }
+           val valDef   = ValDef(symbol, new Some(Apply(newArrayOfAny, List(Literal(IntConstant(fieldInfos.size))))))
+           val block    = Block(valDef :: assignments, ref)
+           val typeCast = Select(block, asInstanceOfMethod).appliedToType(iArrayOfAnyRefTpe)
+           Select(Apply(fromIArrayMethod, List(typeCast)), asInstanceOfMethod).appliedToType(tpe).asExpr
          }).asInstanceOf[Expr[T]]
 
       def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Term =
         toBlock(fieldInfos.map {
-          val productElement = Select.unique(in.asTerm, "productElement")
+          val productElement = Select(in.asTerm, productElementMethod)
           var idx            = -1
           fieldInfo =>
             idx += 1
@@ -951,7 +950,7 @@ private object SchemaVersionSpecific {
                           def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
                           def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
-                            val value  = Apply(toTuple.appliedToTypes(tpe.typeArgs), List('in.asTerm))
+                            val value  = Apply(toTupleMethod.appliedToTypes(tpe.typeArgs), List('in.asTerm))
                             val symbol = Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol)
                             val valDef = ValDef(symbol, new Some(value))
                             val expr   = Ref(symbol).asExpr.asInstanceOf[Expr[tt]]
