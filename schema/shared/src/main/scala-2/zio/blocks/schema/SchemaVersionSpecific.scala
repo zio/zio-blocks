@@ -90,7 +90,7 @@ private object SchemaVersionSpecific {
       case m: MethodSymbol if m.isPrimaryConstructor => m
     }.getOrElse(fail(s"Cannot find a primary constructor for '$tpe'"))
 
-    implicit lazy val positionOrdering: Ordering[Symbol] =
+    implicit val positionOrdering: Ordering[Symbol] =
       (x: Symbol, y: Symbol) => {
         val xPos  = x.pos
         val yPos  = y.pos
@@ -245,13 +245,13 @@ private object SchemaVersionSpecific {
       }
     )
 
-    case class FieldInfo(
-      name: String,
-      tpe: Type,
-      defaultValue: Option[Tree],
-      getter: MethodSymbol,
-      usedRegisters: RegisterOffset,
-      modifiers: List[Tree]
+    class FieldInfo(
+      val name: String,
+      val tpe: Type,
+      val defaultValue: Option[Tree],
+      val getter: MethodSymbol,
+      val usedRegisters: RegisterOffset,
+      val modifiers: List[Tree]
     )
 
     case class ClassInfo(tpe: Type) {
