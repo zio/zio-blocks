@@ -693,7 +693,7 @@ object SchemaSpec extends ZIOSpecDefault {
              object GenDoc {
                implicit def schema[A, B : Schema, C : Schema]: Schema[GenDoc[A, B, C]] = Schema.derived
              }"""
-        }.map(assert(_)(isLeft(containsString("Unsupported field type 'A'."))))
+        }.map(assert(_)(isLeft(containsString("Cannot derive schema for 'A'."))))
       },
       test("doesn't generate schema for multi list constructor with default values in non-first list of arguments") {
         typeCheck {

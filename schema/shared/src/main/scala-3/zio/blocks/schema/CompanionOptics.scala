@@ -56,6 +56,32 @@ private object CompanionOptics {
       case _            => false
     }
 
+    def isGenericTuple(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Tuple] && !defn.isTupleClass(tpe.typeSymbol)
+
+    // Borrowed from an amazing work of Aleksander Rainko:
+    // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L253-L270
+    def genericTupleTypeArgs(tpe: TypeRepr): List[TypeRepr] = {
+      def loop(tp: Type[?]): List[TypeRepr] = tp match {
+        case '[h *: t] => TypeRepr.of[h].dealias :: loop(Type.of[t])
+        case _         => Nil
+      }
+
+      loop(tpe.asType)
+    }
+
+    // Borrowed from an amazing work of Aleksander Rainko:
+    // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L277-L295
+    def normalizeGenericTuple(typeArgs: List[TypeRepr]): TypeRepr = {
+      val size = typeArgs.size
+      if (size > 0 && size <= 22) defn.TupleClass(size).typeRef.appliedTo(typeArgs)
+      else {
+        typeArgs.foldRight(TypeRepr.of[EmptyTuple]) {
+          val tupleCons = TypeRepr.of[*:]
+          (curr, acc) => tupleCons.appliedTo(List(curr, acc))
+        }
+      }
+    }
+
     def toOptic(term: Term)(using q: Quotes): Option[Expr[Any]] = term match {
       case Apply(TypeApply(elementTerm, _), List(parent)) if hasName(elementTerm, "each") =>
         val parentTpe  = parent.tpe.dealias.widen
@@ -495,8 +521,13 @@ private object CompanionOptics {
               s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '${term.show}'"
             )
         }
-        val parentTpe = parent.tpe.dealias.widen
-        val childTpe  = term.tpe.dealias.widen
+        var parentTpe = parent.tpe.dealias.widen
+        var childTpe  = term.tpe.dealias.widen
+        if (isGenericTuple(parentTpe)) {
+          val typeArgs = genericTupleTypeArgs(parentTpe)
+          parentTpe = normalizeGenericTuple(typeArgs)
+          childTpe = typeArgs(idx)
+        }
         new Some(parentTpe.asType match {
           case '[p] =>
             childTpe.asType match {

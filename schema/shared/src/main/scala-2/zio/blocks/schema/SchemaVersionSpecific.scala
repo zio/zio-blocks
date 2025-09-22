@@ -43,8 +43,6 @@ private object SchemaVersionSpecific {
     def isNonAbstractScalaClass(tpe: Type): Boolean =
       tpe.typeSymbol.isClass && !tpe.typeSymbol.isAbstract && !tpe.typeSymbol.isJava
 
-    def isValueClass(tpe: Type): Boolean = tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isDerivedValueClass
-
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
     def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[?]] ||
@@ -108,19 +106,23 @@ private object SchemaVersionSpecific {
       }
 
     def directSubTypes(tpe: Type): List[Type] = {
-      val tpeClass               = tpe.typeSymbol.asClass
-      lazy val typeParamsAndArgs = tpeClass.typeParams.map(_.toString).zip(tpe.typeArgs).toMap
+      val tpeClass         = tpe.typeSymbol.asClass
+      val tpeTypeArgs      = tpe.typeArgs
+      val tpeParamsAndArgs =
+        if (tpeTypeArgs ne Nil) tpeClass.typeParams.map(_.toString).zip(tpeTypeArgs).toMap
+        else Map.empty[String, Type]
       tpeClass.knownDirectSubclasses.toArray
         .sortInPlace()
         .map { symbol =>
           val classSymbol = symbol.asClass
           val typeParams  = classSymbol.typeParams
-          if (typeParams eq Nil) classSymbol.toType
+          val classType   = classSymbol.toType
+          if (typeParams eq Nil) classType
           else {
-            classSymbol.toType.substituteTypes(
+            classType.substituteTypes(
               typeParams,
               typeParams.map { typeParam =>
-                typeParamsAndArgs.getOrElse(
+                tpeParamsAndArgs.getOrElse(
                   typeParam.toString,
                   fail(
                     s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
@@ -149,10 +151,12 @@ private object SchemaVersionSpecific {
           } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
           else if (isNonAbstractScalaClass(tpe)) {
             !nestedTpes.contains(tpe) && {
-              val tpeParams          = primaryConstructor(tpe).paramLists
-              val tpeTypeArgs        = typeArgs(tpe)
-              val nestedTpes_        = tpe :: nestedTpes
-              lazy val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
+              val tpeParams     = primaryConstructor(tpe).paramLists
+              val nestedTpes_   = tpe :: nestedTpes
+              val tpeTypeArgs   = typeArgs(tpe)
+              val tpeTypeParams =
+                if (tpeTypeArgs ne Nil) tpe.typeSymbol.asClass.typeParams
+                else Nil
               tpeParams.forall(_.forall { param =>
                 var fTpe = param.asTerm.typeSignature.dealias
                 if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
@@ -254,7 +258,7 @@ private object SchemaVersionSpecific {
       val modifiers: List[Tree]
     )
 
-    case class ClassInfo(tpe: Type) {
+    class ClassInfo(tpe: Type) {
       val tpeTypeArgs: List[Type]                                            = typeArgs(tpe)
       val (fieldInfos: List[List[FieldInfo]], usedRegisters: RegisterOffset) = {
         var getters     = Map.empty[String, MethodSymbol]
@@ -270,10 +274,12 @@ private object SchemaVersionSpecific {
             }
           case _ =>
         }
-        lazy val module        = companion(tpe).asModule
-        lazy val tpeTypeParams = tpe.typeSymbol.asClass.typeParams
-        var usedRegisters      = RegisterOffset.Zero
-        var idx                = 0
+        lazy val module   = companion(tpe).asModule
+        val tpeTypeParams =
+          if (tpeTypeArgs ne Nil) tpe.typeSymbol.asClass.typeParams
+          else Nil
+        var usedRegisters = RegisterOffset.Zero
+        var idx           = 0
         (
           primaryConstructor(tpe).paramLists.map(_.map { param =>
             idx += 1
@@ -300,8 +306,7 @@ private object SchemaVersionSpecific {
               else if (sTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
               else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
               else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
-              else if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) RegisterOffset(objects = 1)
-              else unsupportedFieldType(fTpe)
+              else RegisterOffset(objects = 1)
             val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers)
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
             fieldInfo
@@ -336,9 +341,9 @@ private object SchemaVersionSpecific {
 
       def constructor: Tree = {
         val argss = fieldInfos.map(_.map { fieldInfo =>
-          val fTpe         = fieldInfo.tpe
-          lazy val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
-          lazy val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+          val fTpe    = fieldInfo.tpe
+          val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+          val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
           if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
           else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
           else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
@@ -350,30 +355,26 @@ private object SchemaVersionSpecific {
           else if (fTpe =:= definitions.UnitTpe) q"()"
           else {
             val sTpe = dealiasOnDemand(fTpe)
-            if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) {
-              q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
-            } else {
-              if (sTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
-              else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
-              else unsupportedFieldType(fTpe)
-            }
+            if (sTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
+            else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
           }
         })
         q"new $tpe(...$argss)"
       }
 
       def deconstructor: List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
-        val fTpe         = fieldInfo.tpe
-        val getter       = fieldInfo.getter
-        lazy val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
-        lazy val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+        val fTpe    = fieldInfo.tpe
+        val getter  = fieldInfo.getter
+        val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+        val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
         if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, in.$getter)"
         else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, in.$getter)"
         else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bytes, in.$getter)"
@@ -384,9 +385,7 @@ private object SchemaVersionSpecific {
         else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, in.$getter)"
         else if (fTpe <:< definitions.UnitTpe) q"()"
         else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
-        else if (isValueClass(fTpe)) {
-          q"out.setObject(baseOffset, $objects, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
-        } else {
+        else {
           val sTpe = dealiasOnDemand(fTpe)
           if (sTpe <:< definitions.IntTpe) {
             q"out.setInt(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Int])"
@@ -405,13 +404,11 @@ private object SchemaVersionSpecific {
           } else if (sTpe <:< definitions.ShortTpe) {
             q"out.setShort(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Short])"
           } else if (sTpe <:< definitions.UnitTpe) q"()"
-          else if (sTpe <:< definitions.AnyRefTpe || isValueClass(sTpe)) {
+          else {
             q"out.setObject(baseOffset, $objects, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
-          } else unsupportedFieldType(fTpe)
+          }
         }
       })
-
-      def unsupportedFieldType(tpe: Type): Nothing = fail(s"Unsupported field type '$tpe'.")
     }
 
     def deriveSchema(tpe: Type): Tree = {
