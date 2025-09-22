@@ -141,7 +141,7 @@ private object CompanionOptics {
               .getOrElse(sys.error("Expected a wrapper"))
               .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $wrappedTpe]])"""
         }
-      case q"$_[..$_]($parent).at(..$args)" if args.size == 1 && args.head.tpe.dealias.widen =:= definitions.IntTpe =>
+      case q"$_[..$_]($parent).at(..$args)" if args.size == 1 && args.head.tpe.dealias.widen <:< definitions.IntTpe =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = tree.tpe.dealias.widen
         val optic      = toOptic(parent)
@@ -178,7 +178,7 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $valueTpe]])"""
         }
       case q"$_[..$_]($parent).atIndices(..$args)"
-          if args.nonEmpty && args.forall(_.tpe.dealias.widen =:= definitions.IntTpe) =>
+          if args.nonEmpty && args.forall(_.tpe.dealias.widen <:< definitions.IntTpe) =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = tree.tpe.dealias.widen
         val optic      = toOptic(parent)

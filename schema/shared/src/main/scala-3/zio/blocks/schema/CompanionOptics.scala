@@ -43,6 +43,8 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
+    def unsupportedOpticType(expr: Expr[?]): Nothing = fail(s"Unsupported optic type: ${expr.asTerm.tpe.show}")
+
     @tailrec
     def toPathBody(term: Term): Term = term match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
@@ -98,15 +100,17 @@ private object CompanionOptics {
                       .asInstanceOf[Traversal[p, e]]
                   }
                 } { x =>
-                  '{
-                    val optic = ${ x.asExprOf[Optic[S, p]] }
-                    optic.apply(
-                      optic.focus.asSequenceUnknown
-                        .map(x => Traversal.seqValues(x.sequence))
-                        .getOrElse(sys.error("Expected a sequence"))
-                        .asInstanceOf[Traversal[p, e]]
-                    )
-                  }
+                  if (x.isExprOf[Optic[S, p]]) {
+                    '{
+                      val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
+                      optic.apply(
+                        optic.focus.asSequenceUnknown
+                          .map(x => Traversal.seqValues(x.sequence))
+                          .getOrElse(sys.error("Expected a sequence"))
+                          .asInstanceOf[Traversal[p, e]]
+                      )
+                    }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -125,15 +129,17 @@ private object CompanionOptics {
                       .asInstanceOf[Traversal[p, k]]
                   }
                 } { x =>
-                  '{
-                    val optic = ${ x.asExprOf[Optic[S, p]] }
-                    optic.apply(
-                      optic.focus.asMapUnknown
-                        .map(x => Traversal.mapKeys(x.map))
-                        .getOrElse(sys.error("Expected a map"))
-                        .asInstanceOf[Traversal[p, k]]
-                    )
-                  }
+                  if (x.isExprOf[Optic[S, p]]) {
+                    '{
+                      val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
+                      optic.apply(
+                        optic.focus.asMapUnknown
+                          .map(x => Traversal.mapKeys(x.map))
+                          .getOrElse(sys.error("Expected a map"))
+                          .asInstanceOf[Traversal[p, k]]
+                      )
+                    }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -152,15 +158,17 @@ private object CompanionOptics {
                       .asInstanceOf[Traversal[p, v]]
                   }
                 } { x =>
-                  '{
-                    val optic = ${ x.asExprOf[Optic[S, p]] }
-                    optic.apply(
-                      optic.focus.asMapUnknown
-                        .map(x => Traversal.mapValues(x.map))
-                        .getOrElse(sys.error("Expected a map"))
-                        .asInstanceOf[Traversal[p, v]]
-                    )
-                  }
+                  if (x.isExprOf[Optic[S, p]]) {
+                    '{
+                      val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
+                      optic.apply(
+                        optic.focus.asMapUnknown
+                          .map(x => Traversal.mapValues(x.map))
+                          .getOrElse(sys.error("Expected a map"))
+                          .asInstanceOf[Traversal[p, v]]
+                      )
+                    }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -184,7 +192,7 @@ private object CompanionOptics {
                 } { x =>
                   if (x.isExprOf[Lens[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asVariant
                           .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
@@ -193,7 +201,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Prism[S, p & S]]) {
                     '{
-                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asVariant
                           .flatMap(_.prismByName[c & p & S](${ Expr(caseName) }))
@@ -202,23 +210,23 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Optional[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asVariant
                           .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
                           .getOrElse(sys.error("Expected a variant"))
                       )
                     }
-                  } else {
+                  } else if (x.isExprOf[Traversal[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asVariant
                           .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
                           .getOrElse(sys.error("Expected a variant"))
                       )
                     }
-                  }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -240,7 +248,7 @@ private object CompanionOptics {
                 } { x =>
                   if (x.isExprOf[Lens[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
                           .map(x => Optional.wrapped(x.wrapper))
@@ -250,7 +258,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Prism[S, p & S]]) {
                     '{
-                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
                           .map(x => Optional.wrapped(x.wrapper))
@@ -260,7 +268,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Optional[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
                           .map(x => Optional.wrapped(x.wrapper))
@@ -268,9 +276,9 @@ private object CompanionOptics {
                           .asInstanceOf[Optional[p, w]]
                       )
                     }
-                  } else {
+                  } else if (x.isExprOf[Traversal[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asWrapperUnknown
                           .map(x => Optional.wrapped(x.wrapper))
@@ -278,12 +286,12 @@ private object CompanionOptics {
                           .asInstanceOf[Optional[p, w]]
                       )
                     }
-                  }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
       case Apply(Apply(TypeApply(elementTerm, _), List(parent)), List(index))
-          if hasName(elementTerm, "at") && index.tpe.dealias.widen =:= TypeRepr.of[Int] =>
+          if hasName(elementTerm, "at") && index.tpe.dealias.widen <:< TypeRepr.of[Int] =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
         new Some(parentTpe.asType match {
@@ -300,7 +308,7 @@ private object CompanionOptics {
                 } { x =>
                   if (x.isExprOf[Lens[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
                           .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
@@ -310,7 +318,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Prism[S, p & S]]) {
                     '{
-                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
                           .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
@@ -320,7 +328,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Optional[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
                           .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
@@ -328,9 +336,9 @@ private object CompanionOptics {
                           .asInstanceOf[Optional[p, e]]
                       )
                     }
-                  } else {
+                  } else if (x.isExprOf[Traversal[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
                           .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
@@ -338,7 +346,7 @@ private object CompanionOptics {
                           .asInstanceOf[Optional[p, e]]
                       )
                     }
-                  }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -359,7 +367,7 @@ private object CompanionOptics {
                 } { x =>
                   if (x.isExprOf[Lens[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
                           .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
@@ -369,7 +377,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Prism[S, p & S]]) {
                     '{
-                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
                           .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
@@ -379,7 +387,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Optional[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
                           .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
@@ -387,9 +395,9 @@ private object CompanionOptics {
                           .asInstanceOf[Optional[p, v]]
                       )
                     }
-                  } else {
+                  } else if (x.isExprOf[Traversal[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
                           .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
@@ -397,12 +405,12 @@ private object CompanionOptics {
                           .asInstanceOf[Optional[p, v]]
                       )
                     }
-                  }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
       case Apply(Apply(TypeApply(elementTerm, _), List(parent)), List(Typed(Repeated(indices, _), _)))
-          if hasName(elementTerm, "atIndices") && indices.forall(_.tpe.dealias.widen =:= TypeRepr.of[Int]) =>
+          if hasName(elementTerm, "atIndices") && indices.forall(_.tpe.dealias.widen <:< TypeRepr.of[Int]) =>
         val parentTpe  = parent.tpe.dealias.widen
         val elementTpe = term.tpe.dealias.widen
         new Some(parentTpe.asType match {
@@ -417,15 +425,17 @@ private object CompanionOptics {
                       .asInstanceOf[Traversal[p, e]]
                   }
                 } { x =>
-                  '{
-                    val optic = ${ x.asExprOf[Optic[S, p]] }
-                    optic.apply(
-                      optic.focus.asSequenceUnknown
-                        .map(x => Traversal.atIndices(x.sequence, ${ Expr.ofSeq(indices.map(_.asExprOf[Int])) }))
-                        .getOrElse(sys.error("Expected a sequence"))
-                        .asInstanceOf[Traversal[p, e]]
-                    )
-                  }
+                  if (x.isExprOf[Optic[S, p]]) {
+                    '{
+                      val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
+                      optic.apply(
+                        optic.focus.asSequenceUnknown
+                          .map(x => Traversal.atIndices(x.sequence, ${ Expr.ofSeq(indices.map(_.asExprOf[Int])) }))
+                          .getOrElse(sys.error("Expected a sequence"))
+                          .asInstanceOf[Traversal[p, e]]
+                      )
+                    }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -444,15 +454,17 @@ private object CompanionOptics {
                       .asInstanceOf[Traversal[p, v]]
                   }
                 } { x =>
-                  '{
-                    val optic = ${ x.asExprOf[Optic[S, p]] }
-                    optic.apply(
-                      optic.focus.asMapUnknown
-                        .map(x => Traversal.atKeys(x.map, ${ keys.asExprOf[Seq[Any]] }.asInstanceOf[Seq[x.KeyType]]))
-                        .getOrElse(sys.error("Expected a map"))
-                        .asInstanceOf[Traversal[p, v]]
-                    )
-                  }
+                  if (x.isExprOf[Optic[S, p]]) {
+                    '{
+                      val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
+                      optic.apply(
+                        optic.focus.asMapUnknown
+                          .map(x => Traversal.atKeys(x.map, ${ keys.asExprOf[Seq[Any]] }.asInstanceOf[Seq[x.KeyType]]))
+                          .getOrElse(sys.error("Expected a map"))
+                          .asInstanceOf[Traversal[p, v]]
+                      )
+                    }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -472,7 +484,7 @@ private object CompanionOptics {
                 } { x =>
                   if (x.isExprOf[Lens[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByName[c](${ Expr(fieldName) }))
@@ -481,7 +493,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Prism[S, p & S]]) {
                     '{
-                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByName[c](${ Expr(fieldName) }))
@@ -490,23 +502,23 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Optional[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByName[c](${ Expr(fieldName) }))
                           .getOrElse(sys.error("Expected a record"))
                       )
                     }
-                  } else {
+                  } else if (x.isExprOf[Traversal[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByName[c](${ Expr(fieldName) }))
                           .getOrElse(sys.error("Expected a record"))
                       )
                     }
-                  }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
@@ -541,7 +553,7 @@ private object CompanionOptics {
                 } { x =>
                   if (x.isExprOf[Lens[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Lens[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByIndex[c](${ Expr(idx) }))
@@ -550,7 +562,7 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Prism[S, p & S]]) {
                     '{
-                      val optic = ${ x.asExprOf[Prism[S, p & S]] }
+                      val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByIndex[c](${ Expr(idx) }))
@@ -559,23 +571,23 @@ private object CompanionOptics {
                     }
                   } else if (x.isExprOf[Optional[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Optional[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByIndex[c](${ Expr(idx) }))
                           .getOrElse(sys.error("Expected a record"))
                       )
                     }
-                  } else {
+                  } else if (x.isExprOf[Traversal[S, p]]) {
                     '{
-                      val optic = ${ x.asExprOf[Traversal[S, p]] }
+                      val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asRecord
                           .flatMap(_.lensByIndex[c](${ Expr(idx) }))
                           .getOrElse(sys.error("Expected a record"))
                       )
                     }
-                  }
+                  } else unsupportedOpticType(x)
                 }
             }
         })
