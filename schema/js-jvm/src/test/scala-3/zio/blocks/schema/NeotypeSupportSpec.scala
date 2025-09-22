@@ -43,6 +43,22 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
           )
         )
       )
+    },
+    test("derive schemas for cases classes and generic tuples with newtypes") {
+      val value = new NRecord(
+        NInt(1),
+        NFloat(2.0f),
+        NLong(3L),
+        NDouble(4.0),
+        NBoolean(true),
+        NByte(6: Byte),
+        NChar('7'),
+        NShort(8: Short),
+        NUnit(()),
+        NString("VVV")
+      )
+      val schema = Schema.derived[NRecord]
+      assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
     }
   )
 
@@ -72,4 +88,37 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     val distanceFromSun: Lens[Planet, Option[Meter]] = $(_.distanceFromSun)
     val name_wrapped: Optional[Planet, String]       = $(_.name.wrapped[String])
   }
+
+  object NInt extends Newtype[Int]
+
+  object NFloat extends Newtype[Float]
+
+  object NLong extends Newtype[Long]
+
+  object NDouble extends Newtype[Double]
+
+  object NBoolean extends Newtype[Boolean]
+
+  object NByte extends Newtype[Byte]
+
+  object NChar extends Newtype[Char]
+
+  object NShort extends Newtype[Short]
+
+  object NUnit extends Newtype[Unit]
+
+  object NString extends Newtype[String]
+
+  case class NRecord(
+    i: NInt.Type,
+    f: NFloat.Type,
+    l: NLong.Type,
+    d: NDouble.Type,
+    bl: NBoolean.Type,
+    b: NByte.Type,
+    c: NChar.Type,
+    sh: NShort.Type,
+    u: NUnit.Type,
+    s: NString.Type
+  )
 }

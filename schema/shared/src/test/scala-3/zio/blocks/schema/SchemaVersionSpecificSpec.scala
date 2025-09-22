@@ -364,14 +364,14 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema for tuples with more than 22 fields") {
         type Tuple24 = (
           Int,
-          Int,
-          Int,
-          Int,
-          Int,
-          Int,
-          Int,
-          Int,
-          Int,
+          Float,
+          Long,
+          Double,
+          Boolean,
+          Byte,
+          Char,
+          Short,
+          Unit,
           Int,
           Int,
           Int,
@@ -404,14 +404,14 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val record = Tuple24.schema.reflect.asRecord
         val value  = (
           1,
-          2,
-          3,
-          4,
-          5,
-          6,
-          7,
-          8,
-          9,
+          2.0f,
+          3L,
+          4.0,
+          true,
+          6: Byte,
+          '7',
+          8: Short,
+          (),
           10,
           11,
           12,
@@ -428,8 +428,19 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           23,
           "24"
         )
-        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
-        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
+        val offset = RegisterOffset(
+          ints = 11,
+          floats = 1,
+          longs = 1,
+          doubles = 1,
+          booleans = 1,
+          bytes = 1,
+          chars = 1,
+          shorts = 1,
+          objects = 5
+        )
+        assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(offset))) &&
+        assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(offset))) &&
         assert(Tuple24.i17.get(value))(equalTo(InnerValue(17))) &&
         assert(Tuple24.i18.get(value))(equalTo(InnerId.applyUnsafe("18"))) &&
         assert(Tuple24.o19.get(value))(equalTo(Value(19))) &&
