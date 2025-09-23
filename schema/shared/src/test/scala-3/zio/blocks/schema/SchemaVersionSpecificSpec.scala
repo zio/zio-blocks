@@ -688,26 +688,44 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for Scala 3 unions") {
-        type Value = Int | Boolean
+        type Value = Int | Boolean | (Int, Boolean)
 
         implicit val schema: Schema[Value] = Schema.derived
 
         object Value extends CompanionOptics[Value] {
-          val int: Prism[Value, Int]         = $(_.when[Int])
-          val boolean: Prism[Value, Boolean] = $(_.when[Boolean])
+          val int: Prism[Value, Int]              = $(_.when[Int])
+          val boolean: Prism[Value, Boolean]      = $(_.when[Boolean])
+          val tuple: Prism[Value, (Int, Boolean)] = $(_.when[(Int, Boolean)])
+          val tuple_1: Optional[Value, Int]       = $(_.when[(Int, Boolean)](0))
         }
 
         val variant = schema.reflect.asVariant
         assert(Value.int.getOption(123))(isSome(equalTo(123))) &&
         assert(Value.boolean.getOption(true))(isSome(equalTo(true))) &&
+        assert(Value.tuple.getOption(true))(isNone) &&
+        assert(Value.tuple_1.getOption((1, true)))(isSome(equalTo(1))) &&
         assert(Value.int.replace(123, 321))(equalTo(321)) &&
         assert(Value.boolean.replace(true, false))(equalTo(false)) &&
+        assert(Value.tuple.replace((1, true), (1, false)))(equalTo((1, false))) &&
+        assert(Value.tuple_1.replace((1, true), 2))(equalTo((2, true))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(123)))(isRight(equalTo(123))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "Boolean")))) &&
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "Boolean", "Tuple2")))) &&
         assert(variant.map(_.typeName))(
-          isSome(equalTo(TypeName(Namespace(Nil), "|", Seq(TypeName.int, TypeName.boolean))))
+          isSome(
+            equalTo(
+              TypeName(
+                Namespace(Nil),
+                "|",
+                Seq(
+                  TypeName.int,
+                  TypeName.boolean,
+                  TypeName[(Int, Boolean)](Namespace(Seq("scala")), "Tuple2", Seq(TypeName.int, TypeName.boolean))
+                )
+              )
+            )
+          )
         )
       },
       test("derives schema for recursive generic Scala 3 enums") {
