@@ -472,7 +472,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
     // caching of expensive calls of field and method member gathering
     private var fieldMembers: List[Symbol]                                       = null
     private var methodMembers: List[Symbol]                                      = null
-    private var companionRefAndMembers: (Ref, List[Symbol])                      = null
+    private var companionRefAndClass: (Ref, Symbol)                              = null
     val tpeTypeArgs: List[TypeRepr]                                              = typeArgs(tpe)
     val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
       val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
@@ -508,23 +508,20 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
             if (aTpe <:< modifierTermTpe) modifiers = annotation :: modifiers
           }
           val defaultValue = if (symbol.flags.is(Flags.HasDefault)) {
-            val dvMethodName = "$lessinit$greater$default$" + idx
-            if (companionRefAndMembers eq null) {
+            if (companionRefAndClass eq null) {
               val tpeTypeSymbol = tpe.typeSymbol
-              companionRefAndMembers = (Ref(tpeTypeSymbol.companionModule), tpeTypeSymbol.companionClass.methodMembers)
+              companionRefAndClass = (Ref(tpeTypeSymbol.companionModule), tpeTypeSymbol.companionClass)
             }
-            companionRefAndMembers._2.collectFirst {
-              case dvMethod if dvMethod.name == dvMethodName =>
-                val dvSelectNoTypes = Select(companionRefAndMembers._1, dvMethod)
-                dvMethod.paramSymss match {
-                  case Nil                                          => dvSelectNoTypes
-                  case List(params) if params.exists(_.isTypeParam) => dvSelectNoTypes.appliedToTypes(tpeTypeArgs)
-                  case _                                            =>
-                    fail {
-                      s"Default values of non-first parameter lists are not supported for '$symbol' in class '${tpe.show}'."
-                    }
+            val dvMethod        = companionRefAndClass._2.declaredMethod("$lessinit$greater$default$" + idx).head
+            val dvSelectNoTypes = Select(companionRefAndClass._1, dvMethod)
+            new Some(dvMethod.paramSymss match {
+              case Nil                                          => dvSelectNoTypes
+              case List(params) if params.exists(_.isTypeParam) => dvSelectNoTypes.appliedToTypes(tpeTypeArgs)
+              case _                                            =>
+                fail {
+                  s"Default values of non-first parameter lists are not supported for '$symbol' in class '${tpe.show}'."
                 }
-            }.orElse(fail(s"Cannot find default value for '$symbol' in class '${tpe.show}'."))
+            })
           } else None
           val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers)
           usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
