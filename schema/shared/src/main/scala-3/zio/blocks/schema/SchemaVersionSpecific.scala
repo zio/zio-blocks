@@ -49,6 +49,8 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
   private val newArrayOfAny =
     Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor).appliedToType(anyTpe)
   private val iArrayOfAnyRefTpe    = TypeRepr.of[IArray[AnyRef]]
+  private val modifierReflectTpe   = TypeRepr.of[Modifier.Reflect]
+  private val modifierTermTpe      = TypeRepr.of[Modifier.Term]
   private val fromIArrayMethod     = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
   private val asInstanceOfMethod   = anyTpe.typeSymbol.methodMember("asInstanceOf").head
   private val productElementMethod = tupleTpe.typeSymbol.methodMember("productElement").head
@@ -70,7 +72,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
   private def opaqueDealias(tpe: TypeRepr): TypeRepr = {
     @tailrec
     def loop(tpe: TypeRepr): TypeRepr = tpe match {
-      case trTpe @ TypeRef(_, _) =>
+      case trTpe: TypeRef =>
         if (trTpe.isOpaqueAlias) loop(trTpe.translucentSuperType.dealias)
         else tpe
       case AppliedType(atTpe, _)   => loop(atTpe.dealias)
@@ -101,28 +103,17 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
     fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}.")
 
   private def isTypeRef(tpe: TypeRepr): Boolean = tpe match {
-    case tRef: TypeRef =>
-      tRef.typeSymbol.tree match {
-        case tDef: TypeDef =>
-          tDef.rhs match {
-            case _: TypeTree => true
-            case _           => false
-          }
-        case _ => false
-      }
+    case trTpe: TypeRef =>
+      val typeSymbol = trTpe.typeSymbol
+      typeSymbol.isTypeDef && typeSymbol.isAliasType
     case _ => false
   }
 
   private def typeRefDealias(tpe: TypeRepr): TypeRepr = tpe match {
-    case tRef: TypeRef =>
-      tRef.typeSymbol.tree match {
-        case tDef: TypeDef =>
-          tDef.rhs match {
-            case tTree: TypeTree => tTree.tpe
-            case _               => cannotDealiasTypeRef(tpe)
-          }
-        case _ => cannotDealiasTypeRef(tpe)
-      }
+    case trTpe: TypeRef =>
+      val sTpe = trTpe.translucentSuperType.dealias
+      if (sTpe == trTpe) cannotDealiasTypeRef(tpe)
+      sTpe
     case _ => cannotDealiasTypeRef(tpe)
   }
 
@@ -136,8 +127,8 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
     else tpe
 
   private def isUnion(tpe: TypeRepr): Boolean = tpe match {
-    case OrType(_, _) => true
-    case _            => false
+    case _: OrType => true
+    case _         => false
   }
 
   private def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = tpe.dealias match {
@@ -187,7 +178,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
   }
 
   private def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
-    case AppliedType(ntTpe, _) => ntTpe.dealias.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
+    case AppliedType(ntTpe, _) => ntTpe.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
     case _                     => false
   }
 
@@ -196,30 +187,33 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
   private def isCollection(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Array[?]] || isIArray(tpe) ||
     (tpe <:< TypeRepr.of[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
 
-  private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = tpe.typeSymbol.children.map { symbol =>
-    if (symbol.isType) {
-      val subtype = symbol.typeRef
-      subtype.memberType(symbol.primaryConstructor) match {
-        case MethodType(_, _, _)                                        => subtype
-        case PolyType(names, _, MethodType(_, _, AppliedType(base, _))) =>
-          base.appliedTo(names.map {
-            val binding = typeArgs(subtype.baseType(tpe.typeSymbol))
-              .zip(typeArgs(tpe))
-              .foldLeft(Map.empty[String, TypeRepr]) { case (binding, (childTypeArg, parentTypeArg)) =>
-                val typeSymbol = childTypeArg.typeSymbol
-                if (typeSymbol.isTypeParam) binding.updated(typeSymbol.name, parentTypeArg)
-                else binding
-              }
-            name =>
-              binding.getOrElse(
-                name,
-                fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of '${tpe.show}'.")
-              )
-          })
-        case _ => cannotResolveTypeParameterOfADT(tpe)
-      }
-    } else if (symbol.isTerm) Ref(symbol).tpe
-    else cannotResolveTypeParameterOfADT(tpe)
+  private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
+    val tpeTypeSymbol = tpe.typeSymbol
+    tpeTypeSymbol.children.map { symbol =>
+      if (symbol.isType) {
+        val subtype = symbol.typeRef
+        subtype.memberType(symbol.primaryConstructor) match {
+          case _: MethodType                                              => subtype
+          case PolyType(names, _, MethodType(_, _, AppliedType(base, _))) =>
+            base.appliedTo(names.map {
+              val binding = typeArgs(subtype.baseType(tpeTypeSymbol))
+                .zip(typeArgs(tpe))
+                .foldLeft(Map.empty[String, TypeRepr]) { case (binding, (childTypeArg, parentTypeArg)) =>
+                  val childTypeSymbol = childTypeArg.typeSymbol
+                  if (childTypeSymbol.isTypeParam) binding.updated(childTypeSymbol.name, parentTypeArg)
+                  else binding
+                }
+              name =>
+                binding.getOrElse(
+                  name,
+                  fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of '${tpe.show}'.")
+                )
+            })
+          case _ => cannotResolveTypeParameterOfADT(tpe)
+        }
+      } else if (symbol.isTerm) Ref(symbol).tpe
+      else cannotResolveTypeParameterOfADT(tpe)
+    }
   }
 
   private def cannotResolveTypeParameterOfADT(tpe: TypeRepr): Nothing =
@@ -278,13 +272,13 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
         val isUnionTpe             = isUnion(tpe)
         if (isUnionTpe) name = "|"
         else {
-          val tpeSymbol = tpe.typeSymbol
-          name = tpeSymbol.name
+          val tpeTypeSymbol = tpe.typeSymbol
+          name = tpeTypeSymbol.name
           if (isEnumValue(tpe)) {
             values = name :: values
             name = tpe.termSymbol.name
-          } else if (tpeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-          var owner = tpeSymbol.owner
+          } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+          var owner = tpeTypeSymbol.owner
           while (owner != defn.RootClass) {
             val ownerName = owner.name
             if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
@@ -323,7 +317,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
           new Namespace(packages, values),
           name,
           tpeTypeArgs.map { x =>
-            if (nestedTpes.contains(x)) typeName[Any](TypeRepr.of[Any])
+            if (nestedTpes.contains(x)) typeName[Any](anyTpe)
             else typeName(x, x :: nestedTpes)
           }
         )
@@ -361,7 +355,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
       if (isEnumValue(tpe)) tpe.termSymbol
       else tpe.typeSymbol
     }.annotations.foreach { annotation =>
-      if (annotation.tpe <:< TypeRepr.of[Modifier.Reflect]) {
+      if (annotation.tpe <:< modifierReflectTpe) {
         modifiers = annotation.asExpr.asInstanceOf[Expr[Modifier.Reflect]] :: modifiers
       }
     }
@@ -478,17 +472,16 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
     // caching of expensive calls of field and method member gathering
     private var fieldMembers: List[Symbol]                                       = null
     private var methodMembers: List[Symbol]                                      = null
-    private var companionClassMethodMembers: List[Symbol]                        = null
+    private var companionRefAndMembers: (Ref, List[Symbol])                      = null
     val tpeTypeArgs: List[TypeRepr]                                              = typeArgs(tpe)
     val (fieldInfos: List[List[FieldInfo]], usedRegisters: Expr[RegisterOffset]) = {
       val (tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
         case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
         case ps                                     => (Nil, ps)
       }
-      val caseFields         = tpeClassSymbol.caseFields
-      val companionModuleRef = Ref(tpe.typeSymbol.companionModule)
-      var usedRegisters      = RegisterOffset.Zero
-      var idx                = 0
+      val caseFields    = tpeClassSymbol.caseFields
+      var usedRegisters = RegisterOffset.Zero
+      var idx           = 0
       (
         tpeParams.map(_.map { symbol =>
           idx += 1
@@ -503,7 +496,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
             }
             .orElse {
               if (methodMembers eq null) methodMembers = tpeClassSymbol.methodMembers
-              methodMembers.find(x => x.flags.is(Flags.FieldAccessor) && x.name == name)
+              methodMembers.find(member => member.name == name && member.flags.is(Flags.FieldAccessor))
             }
             .getOrElse(Symbol.noSymbol)
           if (!getter.exists || getter.flags.is(Flags.PrivateLocal)) fail {
@@ -512,16 +505,17 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
           var modifiers: List[Term] = Nil
           getter.annotations.foreach { annotation =>
             val aTpe = annotation.tpe
-            if (aTpe <:< TypeRepr.of[Modifier.Term]) modifiers = annotation :: modifiers
+            if (aTpe <:< modifierTermTpe) modifiers = annotation :: modifiers
           }
           val defaultValue = if (symbol.flags.is(Flags.HasDefault)) {
             val dvMethodName = "$lessinit$greater$default$" + idx
-            if (companionClassMethodMembers eq null) {
-              companionClassMethodMembers = tpe.typeSymbol.companionClass.methodMembers
+            if (companionRefAndMembers eq null) {
+              val tpeTypeSymbol = tpe.typeSymbol
+              companionRefAndMembers = (Ref(tpeTypeSymbol.companionModule), tpeTypeSymbol.companionClass.methodMembers)
             }
-            companionClassMethodMembers.collectFirst {
+            companionRefAndMembers._2.collectFirst {
               case dvMethod if dvMethod.name == dvMethodName =>
-                val dvSelectNoTypes = Select(companionModuleRef, dvMethod)
+                val dvSelectNoTypes = Select(companionRefAndMembers._1, dvMethod)
                 dvMethod.paramSymss match {
                   case Nil                                          => dvSelectNoTypes
                   case List(params) if params.exists(_.isTypeParam) => dvSelectNoTypes.appliedToTypes(tpeTypeArgs)
@@ -1057,8 +1051,8 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
           }
       }
     } else if (isTypeRef(tpe)) {
-      val trTpe = typeRefDealias(tpe)
-      trTpe.asType match { case '[tr] => deriveSchema[tr](trTpe) }
+      val sTpe = typeRefDealias(tpe)
+      sTpe.asType match { case '[s] => deriveSchema[s](sTpe) }
     } else cannotDeriveSchema(tpe)
   }.asInstanceOf[Expr[Schema[T]]]
 
