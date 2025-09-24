@@ -10,15 +10,11 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 
 trait SchemaVersionSpecific {
-  inline def derived[A]: Schema[A] = ${ SchemaVersionSpecific.derived }
+  inline def derived[A]: Schema[A] = ${ SchemaVersionSpecificImpl.derived }
 }
 
-private object SchemaVersionSpecific {
-  def derived[A: Type](using Quotes): Expr[Schema[A]] = new SchemaVersionSpecificInstance().derived[A]
-}
-
-private class SchemaVersionSpecificInstance()(using Quotes) {
-  import quotes.reflect._
+private object SchemaVersionSpecificImpl {
+  def derived[A: Type](using Quotes): Expr[Schema[A]] = new SchemaVersionSpecificImpl().derived[A]
 
   private implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
@@ -32,6 +28,12 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
       x.length.compare(y.length)
     }
   }
+}
+
+private class SchemaVersionSpecificImpl(using Quotes) {
+  import quotes.reflect._
+  import SchemaVersionSpecificImpl.fullTermNameOrdering
+
   private val intTpe        = defn.IntClass.typeRef
   private val floatTpe      = defn.FloatClass.typeRef
   private val longTpe       = defn.LongClass.typeRef
@@ -43,16 +45,18 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
   private val unitTpe       = defn.UnitClass.typeRef
   private val anyRefTpe     = defn.AnyRefClass.typeRef
   private val anyTpe        = defn.AnyClass.typeRef
-  private val schemaTpe     = TypeRepr.of[Schema]
-  private val tupleTpe      = TypeRepr.of[Tuple]
+  private val stringTpe     = defn.StringClass.typeRef
+  private val schemaTpe     = Symbol.requiredClass("zio.blocks.schema.Schema").typeRef
+  private val tupleTpe      = Symbol.requiredClass("scala.Tuple").typeRef
   private val arrayOfAnyTpe = defn.ArrayClass.typeRef.appliedTo(anyTpe)
   private val newArrayOfAny =
     Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor).appliedToType(anyTpe)
+  private val arrayOfWildcardTpe   = defn.ArrayClass.typeRef.appliedTo(TypeBounds(defn.NothingClass.typeRef, anyTpe))
   private val iArrayOfAnyRefTpe    = TypeRepr.of[IArray[AnyRef]]
-  private val modifierReflectTpe   = TypeRepr.of[Modifier.Reflect]
-  private val modifierTermTpe      = TypeRepr.of[Modifier.Term]
+  private val modifierReflectTpe   = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
+  private val modifierTermTpe      = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
   private val fromIArrayMethod     = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
-  private val asInstanceOfMethod   = anyTpe.typeSymbol.methodMember("asInstanceOf").head
+  private val asInstanceOfMethod   = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
   private val productElementMethod = tupleTpe.typeSymbol.methodMember("productElement").head
   private lazy val toTupleMethod   = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
 
@@ -182,10 +186,13 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
     case _                     => false
   }
 
+  private def isJavaTime(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName.startsWith("java.time.") &&
+    (tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount])
+
   private def isIArray(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
-  private def isCollection(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Array[?]] || isIArray(tpe) ||
-    (tpe <:< TypeRepr.of[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
+  private def isCollection(tpe: TypeRepr): Boolean = tpe <:< arrayOfWildcardTpe || isIArray(tpe) ||
+    (tpe.typeSymbol.fullName.startsWith("scala.collection.") && tpe <:< TypeRepr.of[IterableOnce[?]])
 
   private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
     val tpeTypeSymbol = tpe.typeSymbol
@@ -211,7 +218,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
             })
           case _ => cannotResolveTypeParameterOfADT(tpe)
         }
-      } else if (symbol.isTerm) Ref(symbol).tpe
+      } else if (symbol.isTerm) symbol.termRef
       else cannotResolveTypeParameterOfADT(tpe)
     }
   }
@@ -226,26 +233,19 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
       tpe,
       tpe <:< intTpe || tpe <:< floatTpe || tpe <:< longTpe || tpe <:< doubleTpe || tpe <:< booleanTpe ||
         tpe <:< byteTpe || tpe <:< charTpe || tpe <:< shortTpe || tpe <:< unitTpe ||
-        tpe <:< TypeRepr.of[String] || tpe <:< TypeRepr.of[BigDecimal] || tpe <:< TypeRepr.of[BigInt] ||
-        tpe <:< TypeRepr.of[java.time.temporal.Temporal] || tpe <:< TypeRepr.of[java.time.temporal.TemporalAmount] ||
+        tpe <:< stringTpe || tpe <:< TypeRepr.of[BigDecimal] || tpe <:< TypeRepr.of[BigInt] || isJavaTime(tpe) ||
         tpe <:< TypeRepr.of[java.util.Currency] || tpe <:< TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) ||
         tpe <:< TypeRepr.of[DynamicValue] || !nestedTpes.contains(tpe) && {
+          val nestedTpes_ = tpe :: nestedTpes
           if (tpe <:< TypeRepr.of[Option[?]] || tpe <:< TypeRepr.of[Either[?, ?]] || isCollection(tpe)) {
-            typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
+            typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isGenericTuple(tpe)) {
-            val nestedTpes_ = tpe :: nestedTpes
             genericTupleTypeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
-          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
-          else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes))
-          else if (isNamedTuple(tpe)) {
-            tpe match {
-              case AppliedType(_, List(_, tTpe)) => isNonRecursive(tTpe.dealias, nestedTpes)
-              case _                             => false
-            }
-          } else if (isNonAbstractScalaClass(tpe)) {
-            val primaryConstructor                      = tpe.classSymbol.get.primaryConstructor
-            val nestedTpes_                             = tpe :: nestedTpes
-            val (tpeTypeArgs, tpeTypeParams, tpeParams) = primaryConstructor.paramSymss match {
+          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
+          else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
+          else if (isNamedTuple(tpe)) isNonRecursive(typeArgs(tpe).last, nestedTpes_)
+          else if (isNonAbstractScalaClass(tpe)) {
+            val (tpeTypeArgs, tpeTypeParams, tpeParams) = tpe.classSymbol.get.primaryConstructor.paramSymss match {
               case tps :: ps if tps.exists(_.isTypeParam) => (typeArgs(tpe), tps, ps)
               case ps                                     => (Nil, Nil, ps)
             }
@@ -255,8 +255,12 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
               isNonRecursive(fTpe, nestedTpes_)
             })
           } else if (isOpaque(tpe)) {
-            isNonRecursive(opaqueDealias(tpe), nestedTpes)
-          } else isZioPreludeNewtype(tpe) && isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes)
+            isNonRecursive(opaqueDealias(tpe), nestedTpes_)
+          } else if (isZioPreludeNewtype(tpe)) {
+            isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes_)
+          } else if (isTypeRef(tpe)) {
+            isNonRecursive(typeRefDealias(tpe), nestedTpes_)
+          } else false
         }
     )
 
@@ -290,27 +294,24 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
         val tpeTypeArgs =
           if (isUnionTpe) allUnionTypes(tpe)
           else if (isNamedTuple(tpe)) {
-            tpe match {
-              case AppliedType(_, List(tpe1, tpe2)) =>
-                val nTpe      = tpe1.dealias
-                val tTpe      = tpe2.dealias
-                val nTypeArgs =
-                  if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
-                  else typeArgs(nTpe)
-                var comma  = false
-                val labels = new java.lang.StringBuilder(name)
-                labels.append('[')
-                nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
-                  if (comma) labels.append(',')
-                  else comma = true
-                  labels.append(str)
-                }
-                labels.append(']')
-                name = labels.toString
-                if (isGenericTuple(tTpe)) genericTupleTypeArgs(tTpe)
-                else typeArgs(tTpe)
-              case _ => Nil
+            val tpeTypeArgs = typeArgs(tpe)
+            val nTpe        = tpeTypeArgs.head
+            val tTpe        = tpeTypeArgs.last
+            val nTypeArgs   =
+              if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
+              else typeArgs(nTpe)
+            var comma  = false
+            val labels = new java.lang.StringBuilder(name)
+            labels.append('[')
+            nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
+              if (comma) labels.append(',')
+              else comma = true
+              labels.append(str)
             }
+            labels.append(']')
+            name = labels.toString
+            if (isGenericTuple(tTpe)) genericTupleTypeArgs(tTpe)
+            else typeArgs(tTpe)
           } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
           else typeArgs(tpe)
         new TypeName(
@@ -730,7 +731,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
         )
       }
     } else if (isCollection(tpe)) {
-      if (tpe <:< TypeRepr.of[Array[?]]) {
+      if (tpe <:< arrayOfWildcardTpe) {
         val tpeName = typeName(tpe)
         val eTpe    = typeArgs(tpe).head
         eTpe.asType match {
@@ -945,56 +946,53 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
         )
       }
     } else if (isNamedTuple(tpe)) {
-      tpe match {
-        case AppliedType(_, List(tpe1, tpe2)) =>
-          val tpeName   = typeName(tpe)
-          val nTpe      = tpe1.dealias
-          var tTpe      = tpe2.dealias
-          val nTypeArgs =
-            if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
-            else typeArgs(nTpe)
-          val nameOverrides = new Array[String](nTypeArgs.size)
-          var idx           = -1
-          nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
-            idx += 1
-            nameOverrides(idx) = str
-          }
-          if (isGenericTuple(tTpe)) tTpe = normalizeGenericTuple(tTpe)
-          tTpe.asType match {
-            case '[tt] =>
-              val typeInfo =
-                if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
-                else new ClassInfo[tt](tTpe)
-              '{
-                new Schema(
-                  reflect = new Reflect.Record[Binding, T](
-                    fields = Vector(${ typeInfo.fields[T](nameOverrides) }*),
-                    typeName = ${ toExpr(tpeName) },
-                    recordBinding = new Binding.Record(
-                      constructor = new Constructor {
-                        def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
+      val tpeName     = typeName(tpe)
+      val tpeTypeArgs = typeArgs(tpe)
+      val nTpe        = tpeTypeArgs.head
+      var tTpe        = tpeTypeArgs.last
+      val nTypeArgs   =
+        if (isGenericTuple(nTpe)) genericTupleTypeArgs(nTpe)
+        else typeArgs(nTpe)
+      val nameOverrides = new Array[String](nTypeArgs.size)
+      var idx           = -1
+      nTypeArgs.foreach { case ConstantType(StringConstant(str)) =>
+        idx += 1
+        nameOverrides(idx) = str
+      }
+      if (isGenericTuple(tTpe)) tTpe = normalizeGenericTuple(tTpe)
+      tTpe.asType match {
+        case '[tt] =>
+          val typeInfo =
+            if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
+            else new ClassInfo[tt](tTpe)
+          '{
+            new Schema(
+              reflect = new Reflect.Record[Binding, T](
+                fields = Vector(${ typeInfo.fields[T](nameOverrides) }*),
+                typeName = ${ toExpr(tpeName) },
+                recordBinding = new Binding.Record(
+                  constructor = new Constructor {
+                    def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                        def construct(in: Registers, baseOffset: RegisterOffset): T = ${
-                          typeInfo.constructor('in, 'baseOffset).asInstanceOf[Expr[T]]
-                        }
-                      },
-                      deconstructor = new Deconstructor {
-                        def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
+                    def construct(in: Registers, baseOffset: RegisterOffset): T = ${
+                      typeInfo.constructor('in, 'baseOffset).asInstanceOf[Expr[T]]
+                    }
+                  },
+                  deconstructor = new Deconstructor {
+                    def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
 
-                        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
-                          val value  = Apply(toTupleMethod.appliedToTypes(tpe.typeArgs), List('in.asTerm))
-                          val symbol = Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol)
-                          val valDef = ValDef(symbol, new Some(value))
-                          val expr   = Ref(symbol).asExpr.asInstanceOf[Expr[tt]]
-                          Block(List(valDef), typeInfo.deconstructor('out, 'baseOffset, expr)).asExpr
-                        }
-                      }
-                    )
-                  )
+                    def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
+                      val value  = Apply(toTupleMethod.appliedToTypes(tpe.typeArgs), List('in.asTerm))
+                      val symbol = Symbol.newVal(Symbol.spliceOwner, "t", tTpe, Flags.EmptyFlags, Symbol.noSymbol)
+                      val valDef = ValDef(symbol, new Some(value))
+                      val expr   = Ref(symbol).asExpr.asInstanceOf[Expr[tt]]
+                      Block(List(valDef), typeInfo.deconstructor('out, 'baseOffset, expr)).asExpr
+                    }
+                  }
                 )
-              }
+              )
+            )
           }
-        case _ => cannotDeriveSchema(tpe)
       }
     } else if (isNonAbstractScalaClass(tpe)) {
       val tpeName   = typeName(tpe)
@@ -1055,7 +1053,7 @@ private class SchemaVersionSpecificInstance()(using Quotes) {
 
   private def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
-  def derived[A: Type](using Quotes): Expr[Schema[A]] = {
+  def derived[A: Type]: Expr[Schema[A]] = {
     val aTpe        = TypeRepr.of[A].dealias
     val schema      = aTpe.asType match { case '[a] => deriveSchema(aTpe) }
     val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]

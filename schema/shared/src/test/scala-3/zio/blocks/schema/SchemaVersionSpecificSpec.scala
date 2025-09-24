@@ -728,6 +728,24 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for case classes with Scala 3 union fields") {
+        type Value1 = Int | Boolean
+        type Value2 = Int | String
+
+        case class Unions(v1: Value1, v2: Value2)
+
+        implicit val schema: Schema[Unions] = Schema.derived
+
+        object Unions extends CompanionOptics[Unions] {
+          val v1: Lens[Unions, Value1] = $(_.v1)
+          val v2: Lens[Unions, Value2] = $(_.v2)
+        }
+
+        val value1 = Unions(123, 321)
+        val value2 = Unions(true, "VVV")
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
+      },
       test("derives schema for recursive generic Scala 3 enums") {
         val schema  = Schema.derived[LinkedList[Int]]
         val variant = schema.reflect.asVariant
@@ -735,6 +753,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isRight(equalTo(LinkedList.Node(2, LinkedList.Node(1, LinkedList.End))))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("End", "Node")))) &&
+        assert(variant.flatMap(_.cases(1).value.asRecord.map(_.fields(1).modifiers)))(
+          isSome(
+            equalTo(Seq(Modifier.config("field-key", "field-value")))
+          )
+        ) &&
         assert(variant.map(_.typeName))(
           isSome(
             equalTo(
@@ -817,7 +840,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
   enum LinkedList[+T]:
     case End
-    case Node(value: T, next: LinkedList[T])
+    case Node(value: T, @Modifier.config("field-key", "field-value") next: LinkedList[T])
 
   enum HKEnum[A[_]]:
     case Case1(a: A[Int])    extends HKEnum[A]

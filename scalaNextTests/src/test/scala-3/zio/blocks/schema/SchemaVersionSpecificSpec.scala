@@ -56,6 +56,19 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for case classes with named tuple fields") {
+        case class NamedTuples(v1: (b: Byte, sh: Short), v2: (i: Int, l: Long))
+
+        implicit val schema: Schema[NamedTuples] = Schema.derived
+
+        object NamedTuples extends CompanionOptics[NamedTuples] {
+          val v1: Lens[NamedTuples, (b: Byte, sh: Short)] = $(_.v1)
+          val v2: Lens[NamedTuples, (i: Int, l: Long)]    = $(_.v2)
+        }
+
+        val value = NamedTuples((b = 1: Byte, sh = 2: Short), (i = 3, l = 4L))
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      },
       test("derives schema for complex named tuples") {
         @nowarn
         case class Product(i: Int, s: String)
