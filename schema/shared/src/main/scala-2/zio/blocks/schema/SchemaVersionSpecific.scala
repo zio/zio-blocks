@@ -45,8 +45,11 @@ private object SchemaVersionSpecific {
 
     def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
 
+    def isJavaTime(tpe: Type): Boolean = tpe.typeSymbol.fullName.startsWith("java.time.") &&
+      (tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount])
+
     def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[?]] ||
-      (tpe <:< typeOf[IterableOnce[?]] && tpe.typeSymbol.fullName.startsWith("scala.collection."))
+      (tpe.typeSymbol.fullName.startsWith("scala.collection.") && tpe <:< typeOf[IterableOnce[?]])
 
     def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
       case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
@@ -142,28 +145,27 @@ private object SchemaVersionSpecific {
       tpe <:< typeOf[String] || tpe <:< definitions.IntTpe || tpe <:< definitions.FloatTpe ||
         tpe <:< definitions.DoubleTpe || tpe <:< definitions.LongTpe || tpe <:< definitions.BooleanTpe ||
         tpe <:< definitions.ByteTpe || tpe <:< definitions.CharTpe || tpe <:< definitions.ShortTpe ||
-        tpe <:< definitions.UnitTpe || tpe <:< typeOf[BigDecimal] || tpe <:< typeOf[BigInt] ||
-        tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount] ||
+        tpe <:< definitions.UnitTpe || tpe <:< typeOf[BigDecimal] || tpe <:< typeOf[BigInt] || isJavaTime(tpe) ||
         tpe <:< typeOf[java.util.Currency] || tpe <:< typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
-        tpe <:< typeOf[DynamicValue] || {
+        tpe <:< typeOf[DynamicValue] || !nestedTpes.contains(tpe) && {
+          val nestedTpes_ = tpe :: nestedTpes
           if (tpe <:< typeOf[Option[?]] || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
-            typeArgs(tpe).forall(isNonRecursive(_, nestedTpes))
-          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes))
+            typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
+          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
           else if (isNonAbstractScalaClass(tpe)) {
-            !nestedTpes.contains(tpe) && {
-              val tpeParams     = primaryConstructor(tpe).paramLists
-              val nestedTpes_   = tpe :: nestedTpes
-              val tpeTypeArgs   = typeArgs(tpe)
-              val tpeTypeParams =
-                if (tpeTypeArgs ne Nil) tpe.typeSymbol.asClass.typeParams
-                else Nil
-              tpeParams.forall(_.forall { param =>
-                var fTpe = param.asTerm.typeSignature.dealias
-                if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
-                isNonRecursive(fTpe, nestedTpes_)
-              })
-            }
-          } else isZioPreludeNewtype(tpe) && isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes)
+            val tpeParams     = primaryConstructor(tpe).paramLists
+            val tpeTypeArgs   = typeArgs(tpe)
+            val tpeTypeParams =
+              if (tpeTypeArgs ne Nil) tpe.typeSymbol.asClass.typeParams
+              else Nil
+            tpeParams.forall(_.forall { param =>
+              var fTpe = param.asTerm.typeSignature.dealias
+              if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
+              isNonRecursive(fTpe, nestedTpes_)
+            })
+          } else if (isZioPreludeNewtype(tpe)) {
+            isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes_)
+          } else false
         }
     )
 

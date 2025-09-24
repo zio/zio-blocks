@@ -826,11 +826,11 @@ object SchemaSpec extends ZIOSpecDefault {
 
         @Modifier.config("case-key-1", "case-value-1")
         @Modifier.config("case-key-1", "case-value-2")
-        case class `Case-1`(d: Double) extends Variant1
+        case class `Case-1`(@Modifier.config("field-key-1", "field-value-1") d: Double) extends Variant1
 
         @Modifier.config("case-key-2", "case-value-1")
         @Modifier.config("case-key-2", "case-value-2")
-        case class `Case-2`(f: Float) extends Variant1
+        case class `Case-2`(@Modifier.config("field-key-2", "field-value-2") f: Float) extends Variant1
 
         @Modifier.config("case-key-3", "case-value-1")
         @Modifier.config("case-key-3", "case-value-2")
@@ -852,9 +852,19 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(Seq(Modifier.config("case-key-1", "case-value-1"), Modifier.config("case-key-1", "case-value-2")))
           )
         ) &&
+        assert(record1.map(_.fields.flatMap(_.modifiers)): Option[Any])(
+          isSome(
+            equalTo(Seq(Modifier.config("field-key-1", "field-value-1")))
+          )
+        ) &&
         assert(record2.map(_.modifiers))(
           isSome(
             equalTo(Seq(Modifier.config("case-key-2", "case-value-1"), Modifier.config("case-key-2", "case-value-2")))
+          )
+        ) &&
+        assert(record2.map(_.fields.flatMap(_.modifiers)): Option[Any])(
+          isSome(
+            equalTo(Seq(Modifier.config("field-key-2", "field-value-2")))
           )
         ) &&
         assert(record3.map(_.modifiers))(
@@ -1539,14 +1549,14 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(encodeToString(out => Schema(deferred1).encode(ToStringFormat)(out)(1)))(equalTo("1"))
       },
       test("helps to avoid stack overflow for schemas of recursive data structures") {
-        case class Recursive(a: Int, b: Option[Recursive])
+        case class Recursive(a: Int, @Modifier.config("field-key", "field-value") b: Option[Recursive] = None)
 
         def recursiveSchema: Schema[Recursive] = {
           implicit lazy val schema: Schema[Recursive] = Schema.derived[Recursive]
           schema
         }
 
-        val recursive   = Recursive(1, Some(Recursive(2, Some(Recursive(3, None)))))
+        val recursive   = Recursive(1, Some(Recursive(2, Some(Recursive(3)))))
         val schema1     = recursiveSchema
         val schema2     = recursiveSchema
         val fieldValue1 = schema1.reflect.asRecord.get.fields(0).value
@@ -1563,6 +1573,12 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(schema1.reflect.noBinding: Any)(equalTo(schema1.reflect)) &&
         assert(fieldValue1.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
         assert(fieldValue2.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(true)) &&
+        assert(fieldValue2.getDefaultValue: Option[Any])(isSome(equalTo(None))) &&
+        assert(schema1.reflect.asRecord.get.fields(1).modifiers: Any)(
+          equalTo(
+            Seq(Modifier.config("field-key", "field-value"))
+          )
+        ) &&
         assert(caseValue1.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
         assert(caseValue2.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
         assert(fieldValue3.isInstanceOf[Reflect.Deferred[Binding, ?]])(equalTo(false)) &&
