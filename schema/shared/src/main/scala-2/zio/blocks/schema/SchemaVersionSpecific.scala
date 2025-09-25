@@ -48,8 +48,8 @@ private object SchemaVersionSpecific {
     def isJavaTime(tpe: Type): Boolean = tpe.typeSymbol.fullName.startsWith("java.time.") &&
       (tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount])
 
-    def isCollection(tpe: Type): Boolean = tpe <:< typeOf[Array[?]] ||
-      (tpe.typeSymbol.fullName.startsWith("scala.collection.") && tpe <:< typeOf[IterableOnce[?]])
+    def isCollection(tpe: Type): Boolean =
+      tpe <:< typeOf[Iterable[?]] || tpe <:< typeOf[Iterator[?]] || tpe <:< typeOf[Array[?]]
 
     def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
       case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
