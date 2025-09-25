@@ -34,31 +34,34 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   import quotes.reflect._
   import SchemaVersionSpecificImpl.fullTermNameOrdering
 
-  private val intTpe        = defn.IntClass.typeRef
-  private val floatTpe      = defn.FloatClass.typeRef
-  private val longTpe       = defn.LongClass.typeRef
-  private val doubleTpe     = defn.DoubleClass.typeRef
-  private val booleanTpe    = defn.BooleanClass.typeRef
-  private val byteTpe       = defn.ByteClass.typeRef
-  private val charTpe       = defn.CharClass.typeRef
-  private val shortTpe      = defn.ShortClass.typeRef
-  private val unitTpe       = defn.UnitClass.typeRef
-  private val anyRefTpe     = defn.AnyRefClass.typeRef
-  private val anyTpe        = defn.AnyClass.typeRef
-  private val stringTpe     = defn.StringClass.typeRef
-  private val schemaTpe     = Symbol.requiredClass("zio.blocks.schema.Schema").typeRef
-  private val tupleTpe      = Symbol.requiredClass("scala.Tuple").typeRef
-  private val arrayOfAnyTpe = defn.ArrayClass.typeRef.appliedTo(anyTpe)
-  private val newArrayOfAny =
-    Select(New(TypeIdent(defn.ArrayClass)), defn.ArrayClass.primaryConstructor).appliedToType(anyTpe)
-  private val arrayOfWildcardTpe   = defn.ArrayClass.typeRef.appliedTo(TypeBounds(defn.NothingClass.typeRef, anyTpe))
-  private val iArrayOfAnyRefTpe    = TypeRepr.of[IArray[AnyRef]]
-  private val modifierReflectTpe   = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
-  private val modifierTermTpe      = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
-  private val fromIArrayMethod     = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
-  private val asInstanceOfMethod   = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
-  private val productElementMethod = tupleTpe.typeSymbol.methodMember("productElement").head
-  private lazy val toTupleMethod   = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
+  private val intTpe                = defn.IntClass.typeRef
+  private val floatTpe              = defn.FloatClass.typeRef
+  private val longTpe               = defn.LongClass.typeRef
+  private val doubleTpe             = defn.DoubleClass.typeRef
+  private val booleanTpe            = defn.BooleanClass.typeRef
+  private val byteTpe               = defn.ByteClass.typeRef
+  private val charTpe               = defn.CharClass.typeRef
+  private val shortTpe              = defn.ShortClass.typeRef
+  private val unitTpe               = defn.UnitClass.typeRef
+  private val anyRefTpe             = defn.AnyRefClass.typeRef
+  private val anyTpe                = defn.AnyClass.typeRef
+  private val stringTpe             = defn.StringClass.typeRef
+  private val schemaTpe             = Symbol.requiredClass("zio.blocks.schema.Schema").typeRef
+  private val tupleTpe              = Symbol.requiredClass("scala.Tuple").typeRef
+  private val arrayClass            = defn.ArrayClass
+  private val arrayOfAnyTpe         = arrayClass.typeRef.appliedTo(anyTpe)
+  private val newArrayOfAny         = Select(New(TypeIdent(arrayClass)), arrayClass.primaryConstructor).appliedToType(anyTpe)
+  private val wildcard              = TypeBounds(defn.NothingClass.typeRef, anyTpe)
+  private val arrayOfWildcardTpe    = arrayClass.typeRef.appliedTo(wildcard)
+  private val iterableOfWildcardTpe = Symbol.requiredClass("scala.collection.Iterable").typeRef.appliedTo(wildcard)
+  private val iteratorOfWildcardTpe = Symbol.requiredClass("scala.collection.Iterator").typeRef.appliedTo(wildcard)
+  private val modifierReflectTpe    = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
+  private val modifierTermTpe       = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
+  private val iArrayOfAnyRefTpe     = TypeRepr.of[IArray[AnyRef]]
+  private val fromIArrayMethod      = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
+  private val asInstanceOfMethod    = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
+  private val productElementMethod  = tupleTpe.typeSymbol.methodMember("productElement").head
+  private lazy val toTupleMethod    = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
 
   private def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
@@ -191,8 +194,8 @@ private class SchemaVersionSpecificImpl(using Quotes) {
 
   private def isIArray(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
-  private def isCollection(tpe: TypeRepr): Boolean = tpe <:< arrayOfWildcardTpe || isIArray(tpe) ||
-    (tpe.typeSymbol.fullName.startsWith("scala.collection.") && tpe <:< TypeRepr.of[IterableOnce[?]])
+  private def isCollection(tpe: TypeRepr): Boolean =
+    tpe <:< iterableOfWildcardTpe || tpe <:< iteratorOfWildcardTpe || tpe <:< arrayOfWildcardTpe || isIArray(tpe)
 
   private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
     val tpeTypeSymbol = tpe.typeSymbol
