@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import zio.Chunk
 import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
@@ -1273,6 +1274,22 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(encodeToString { out =>
           Schema[List[Int]].encode(ToStringFormat)(out)(List(1, 2, 3))
         })(equalTo("List(1, 2, 3)"))
+      },
+      test("derives schema for record with fields that have 3rd party collection type") {
+        implicit def chunkSchema[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
+          new Schema(
+            new Reflect.Wrapper[Binding, Chunk[V], List[V]](
+              Schema.list[V].reflect,
+              TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
+              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
+            )
+          )
+
+        case class Test(chunk: Chunk[Int])
+
+        val schema = Schema.derived[Test]
+        val value  = Test(Chunk(1, 2, 3))
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       }
     ),
     suite("Reflect.Map")(
