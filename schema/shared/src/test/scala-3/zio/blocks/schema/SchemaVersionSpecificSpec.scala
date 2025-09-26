@@ -688,7 +688,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for Scala 3 unions") {
-        type Value = Int | Boolean | (Int, Boolean)
+        type Value = Int | Boolean | (Int, Boolean) | List[Int] | Map[Int, Long]
 
         implicit val schema: Schema[Value] = Schema.derived
 
@@ -697,6 +697,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           val boolean: Prism[Value, Boolean]      = $(_.when[Boolean])
           val tuple: Prism[Value, (Int, Boolean)] = $(_.when[(Int, Boolean)])
           val tuple_1: Optional[Value, Int]       = $(_.when[(Int, Boolean)](0))
+          val li: Prism[Value, List[Int]]         = $(_.when[List[Int]])
+          val li_1: Optional[Value, Int]          = $(_.when[List[Int]].at(0))
+          val mil: Prism[Value, Map[Int, Long]]   = $(_.when[Map[Int, Long]])
+          val mil_1: Optional[Value, Long]        = $(_.when[Map[Int, Long]].atKey(1))
         }
 
         val variant = schema.reflect.asVariant
@@ -704,6 +708,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(Value.boolean.getOption(true))(isSome(equalTo(true))) &&
         assert(Value.tuple.getOption(true))(isNone) &&
         assert(Value.tuple_1.getOption((1, true)))(isSome(equalTo(1))) &&
+        assert(Value.li.getOption(List(1, 2, 3)))(isSome(equalTo(List(1, 2, 3)))) &&
+        assert(Value.li_1.getOption(List(1, 2, 3)))(isSome(equalTo(1))) &&
+        assert(Value.mil.getOption(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))(isSome(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))) &&
+        assert(Value.mil_1.getOption(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))(isSome(equalTo(1L))) &&
         assert(Value.int.replace(123, 321))(equalTo(321)) &&
         assert(Value.boolean.replace(true, false))(equalTo(false)) &&
         assert(Value.tuple.replace((1, true), (1, false)))(equalTo((1, false))) &&
@@ -711,7 +719,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema.fromDynamicValue(schema.toDynamicValue(123)))(isRight(equalTo(123))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "Boolean", "Tuple2")))) &&
+        assert(variant.map(_.cases.map(_.name)))(
+          isSome(equalTo(Vector("Int", "Boolean", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
+        ) &&
         assert(variant.map(_.typeName))(
           isSome(
             equalTo(
@@ -721,7 +731,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 Seq(
                   TypeName.int,
                   TypeName.boolean,
-                  TypeName[(Int, Boolean)](Namespace(Seq("scala")), "Tuple2", Seq(TypeName.int, TypeName.boolean))
+                  TypeName[(Int, Boolean)](Namespace(Seq("scala")), "Tuple2", Seq(TypeName.int, TypeName.boolean)),
+                  TypeName.list(TypeName.int),
+                  TypeName.map(TypeName.int, TypeName.long)
                 )
               )
             )

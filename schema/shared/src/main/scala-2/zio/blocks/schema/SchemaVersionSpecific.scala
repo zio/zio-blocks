@@ -110,7 +110,7 @@ private object SchemaVersionSpecific {
 
     def directSubTypes(tpe: Type): List[Type] = {
       val tpeClass         = tpe.typeSymbol.asClass
-      val tpeTypeArgs      = tpe.typeArgs
+      val tpeTypeArgs      = typeArgs(tpe)
       val tpeParamsAndArgs =
         if (tpeTypeArgs ne Nil) tpeClass.typeParams.map(_.toString).zip(tpeTypeArgs).toMap
         else Map.empty[String, Type]

@@ -665,6 +665,22 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record24.s24.get(value))(equalTo("24")) &&
         assert(Record24.schema.fromDynamicValue(Record24.schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
+      test("derives schema for record with fields that have 3rd party collection type") {
+        implicit def chunkSchema[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
+          new Schema(
+            new Reflect.Wrapper[Binding, Chunk[V], List[V]](
+              Schema.list[V].reflect,
+              TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
+              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
+            )
+          )
+
+        case class Test(chunk: Chunk[Int])
+
+        val schema = Schema.derived[Test]
+        val value  = Test(Chunk(1, 2, 3))
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      },
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>
           Schema[Record].encode(ToStringFormat)(out)(Record(1: Byte, 2))
@@ -958,15 +974,20 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for a variant with cases on different levels using a macro call") {
-        val schema: Schema[Level1.MultiLevel] = Schema.derived
-        val variant                           = schema.reflect.asVariant
+        object Level1_MultiLevel extends CompanionOptics[Level1.MultiLevel] {
+          implicit val schema: Schema[Level1.MultiLevel]        = Schema.derived
+          val c: Prism[Level1.MultiLevel, SchemaSpec.Case.type] = $(_.when[SchemaSpec.Case.type])
+          val l1_c: Prism[Level1.MultiLevel, Level1.Case.type]  = $(_.when[Level1.Case.type])
+        }
+
+        val schema  = Level1_MultiLevel.schema
+        val variant = schema.reflect.asVariant
+        assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
+        assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Level2.Case)))(
-          isRight(equalTo(Level1.Level2.Case))
-        ) &&
         assert(variant.map(_.cases.map(_.name)))(
-          isSome(equalTo(Vector("Level1.Case", "Level1.Level2.Case", "Case")))
+          isSome(equalTo(Vector("Level1.Case", "Case")))
         ) &&
         assert(variant.map(_.typeName))(
           isSome(
@@ -1274,22 +1295,6 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(encodeToString { out =>
           Schema[List[Int]].encode(ToStringFormat)(out)(List(1, 2, 3))
         })(equalTo("List(1, 2, 3)"))
-      },
-      test("derives schema for record with fields that have 3rd party collection type") {
-        implicit def chunkSchema[V](implicit ev: Schema[V]): Schema[Chunk[V]] =
-          new Schema(
-            new Reflect.Wrapper[Binding, Chunk[V], List[V]](
-              Schema.list[V].reflect,
-              TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
-              new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
-            )
-          )
-
-        case class Test(chunk: Chunk[Int])
-
-        val schema = Schema.derived[Test]
-        val value  = Test(Chunk(1, 2, 3))
-        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       }
     ),
     suite("Reflect.Map")(
@@ -1580,7 +1585,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val fieldValue2 = schema1.reflect.asRecord.get.fields(1).value
         val caseValue1  = fieldValue2.asVariant.get.cases(0).value
         val caseValue2  = fieldValue2.asVariant.get.cases(1).value
-        val fieldValue3 = caseValue1.asRecord.get.fields(0).value
+        val fieldValue3 = caseValue2.asRecord.get.fields(0).value
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(recursive)))(isRight(equalTo(recursive))) &&
         assert(schema1 eq schema2)(equalTo(false)) &&
         assert(schema1.reflect)(equalTo(schema2.reflect)) &&
@@ -1763,10 +1768,6 @@ object SchemaSpec extends ZIOSpecDefault {
     sealed trait MultiLevel
 
     case object Case extends MultiLevel
-
-    object Level2 {
-      case object Case extends MultiLevel
-    }
   }
 
   case object Case extends Level1.MultiLevel

@@ -56,6 +56,55 @@ private object CompanionOptics {
       case _                    => fail(s"Expected a lambda expression, got: '$tree'")
     }
 
+    def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
+
+    implicit val positionOrdering: Ordering[Symbol] =
+      (x: Symbol, y: Symbol) => {
+        val xPos  = x.pos
+        val yPos  = y.pos
+        val xFile = xPos.source.file.absolute
+        val yFile = yPos.source.file.absolute
+        var diff  = xFile.path.compareTo(yFile.path)
+        if (diff == 0) diff = xFile.name.compareTo(yFile.name)
+        if (diff == 0) diff = xPos.line.compareTo(yPos.line)
+        if (diff == 0) diff = xPos.column.compareTo(yPos.column)
+        if (diff == 0) {
+          // make sorting stable in case of missing sources for sub-project or *.jar dependencies
+          diff = NameTransformer.decode(x.fullName).compareTo(NameTransformer.decode(y.fullName))
+        }
+        diff
+      }
+
+    def directSubTypes(tpe: Type): List[Type] = {
+      val tpeClass         = tpe.typeSymbol.asClass
+      val tpeTypeArgs      = typeArgs(tpe)
+      val tpeParamsAndArgs =
+        if (tpeTypeArgs ne Nil) tpeClass.typeParams.map(_.toString).zip(tpeTypeArgs).toMap
+        else Map.empty[String, Type]
+      tpeClass.knownDirectSubclasses.toArray
+        .sortInPlace()
+        .map { symbol =>
+          val classSymbol = symbol.asClass
+          val typeParams  = classSymbol.typeParams
+          val classType   = classSymbol.toType
+          if (typeParams eq Nil) classType
+          else {
+            classType.substituteTypes(
+              typeParams,
+              typeParams.map { typeParam =>
+                tpeParamsAndArgs.getOrElse(
+                  typeParam.toString,
+                  fail(
+                    s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
+                  )
+                )
+              }
+            )
+          }
+        }
+        .toList
+    }
+
     def toOptic(tree: c.Tree): c.Tree = tree match {
       case q"$_[..$_]($parent).each" =>
         val parentTpe  = parent.tpe.dealias.widen
@@ -112,15 +161,16 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
         }
       case q"$_[..$_]($parent).when[$caseTree]" =>
-        val caseTpe  = caseTree.tpe.dealias
-        val caseName = NameTransformer.decode(caseTpe.typeSymbol.name.toString)
-        val optic    = toOptic(parent)
+        val parentTpe = parent.tpe.widen.dealias
+        val caseTpe   = caseTree.tpe.dealias
+        val caseIdx   = directSubTypes(parentTpe).indexWhere(_ =:= caseTpe, 0)
+        val optic     = toOptic(parent)
         if (optic.isEmpty) {
-          q"""$schema.reflect.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
+          q"""$schema.reflect.asVariant.flatMap(_.prismByIndex[$caseTpe]($caseIdx))
                 .getOrElse(sys.error("Expected a variant"))"""
         } else {
           q"""val optic = $optic
-              optic.apply(optic.focus.asVariant.flatMap(_.prismByName[$caseTpe]($caseName))
+              optic.apply(optic.focus.asVariant.flatMap(_.prismByIndex[$caseTpe]($caseIdx))
                 .getOrElse(sys.error("Expected a variant")))"""
         }
       case q"$_[..$_]($parent).wrapped[$wrappedTree]" =>

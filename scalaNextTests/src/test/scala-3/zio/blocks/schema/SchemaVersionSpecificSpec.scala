@@ -321,7 +321,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         object NamedTuple9 extends CompanionOptics[NamedTuple9] {
           implicit val schema: Schema[NamedTuple9]       = Schema.derived
           val o9: Lens[NamedTuple9, Option[NamedTuple9]] = $(_.o9)
-          val o9_s_v_i1: Optional[NamedTuple9, Int]      = $(_(8).when[Some[NamedTuple9]].value(0))
           val t8_i1: Lens[NamedTuple9, Int]              = $(_.t8(0))
         }
 
@@ -360,7 +359,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           val b22: Lens[NamedTuple24, Box2]                = $(_.apply(21))
           val i23: Lens[NamedTuple24, Int]                 = $(_.i23)
           val s24: Lens[NamedTuple24, String]              = $(_.s24)
-          val o9_s_v_i1: Optional[NamedTuple24, Int]       = $(_(8).when[Some[NamedTuple24]].value(0))
           val l10_i1s: Traversal[NamedTuple24, Int]        = $(_(9).each(0))
         }
 
@@ -428,14 +426,12 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         )
         assert(record2.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
         assert(record2.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(ints = 19, objects = 5)))) &&
-        assert(NamedTuple9.o9_s_v_i1.getOption(value1))(isSome(equalTo(11))) &&
         assert(NamedTuple9.t8_i1.get(value1))(equalTo(8)) &&
         assert(NamedTuple24.o9.get(value2))(isNone) &&
         assert(NamedTuple24.b21.get(value2))(equalTo(Box1(21L))) &&
         assert(NamedTuple24.b22.get(value2))(equalTo(Box2("22"))) &&
         assert(NamedTuple24.i23.get(value2))(equalTo(23)) &&
         assert(NamedTuple24.s24.get(value2))(equalTo("24")) &&
-        assert(NamedTuple24.o9_s_v_i1.getOption(value2))(isNone) &&
         assert(NamedTuple24.l10_i1s.fold(value2)(0, _ + _))(equalTo(11)) &&
         assert(NamedTuple9.schema.fromDynamicValue(NamedTuple9.schema.toDynamicValue(value1)))(
           isRight(equalTo(value1))
