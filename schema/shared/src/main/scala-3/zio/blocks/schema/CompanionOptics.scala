@@ -84,6 +84,53 @@ private object CompanionOptics {
       }
     }
 
+    def isUnion(tpe: TypeRepr): Boolean = tpe match {
+      case _: OrType => true
+      case _         => false
+    }
+
+    def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = tpe.dealias match {
+      case OrType(left, right) => allUnionTypes(left) ++ allUnionTypes(right)
+      case dealiased           => dealiased :: Nil
+    }
+
+    def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
+      case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
+      case _                        => Nil
+    }
+
+    def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
+      val tpeTypeSymbol = tpe.typeSymbol
+      tpeTypeSymbol.children.map { symbol =>
+        if (symbol.isType) {
+          val subtype = symbol.typeRef
+          subtype.memberType(symbol.primaryConstructor) match {
+            case _: MethodType                                              => subtype
+            case PolyType(names, _, MethodType(_, _, AppliedType(base, _))) =>
+              base.appliedTo(names.map {
+                val binding = typeArgs(subtype.baseType(tpeTypeSymbol))
+                  .zip(typeArgs(tpe))
+                  .foldLeft(Map.empty[String, TypeRepr]) { case (binding, (childTypeArg, parentTypeArg)) =>
+                    val childTypeSymbol = childTypeArg.typeSymbol
+                    if (childTypeSymbol.isTypeParam) binding.updated(childTypeSymbol.name, parentTypeArg)
+                    else binding
+                  }
+                name =>
+                  binding.getOrElse(
+                    name,
+                    fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of '${tpe.show}'.")
+                  )
+              })
+            case _ => cannotResolveTypeParameterOfADT(tpe)
+          }
+        } else if (symbol.isTerm) symbol.termRef
+        else cannotResolveTypeParameterOfADT(tpe)
+      }
+    }
+
+    def cannotResolveTypeParameterOfADT(tpe: TypeRepr): Nothing =
+      fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
+
     def toOptic(term: Term)(using q: Quotes): Option[Expr[Any]] = term match {
       case Apply(TypeApply(elementTerm, _), List(parent)) if hasName(elementTerm, "each") =>
         val parentTpe  = parent.tpe.dealias.widen
@@ -173,11 +220,12 @@ private object CompanionOptics {
             }
         })
       case TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree)) if hasName(caseTerm, "when") =>
-        val parentTpe = parent.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
         val caseTpe   = typeTree.tpe.dealias
-        var caseName  = caseTpe.typeSymbol.name
-        if (caseTpe.termSymbol.flags.is(Flags.Enum)) caseName = caseTpe.termSymbol.name
-        else if (caseTpe.typeSymbol.flags.is(Flags.Module)) caseName = caseName.substring(0, caseName.length - 1)
+        val subTypes  =
+          if (isUnion(parentTpe)) allUnionTypes(parentTpe).distinct
+          else directSubTypes(parentTpe)
+        val caseIdx = subTypes.indexWhere(_ =:= caseTpe, 0)
         new Some(parentTpe.asType match {
           case '[p] =>
             caseTpe.asType match {
@@ -186,7 +234,7 @@ private object CompanionOptics {
                   val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[p]]
                   '{
                     $reflect.asVariant
-                      .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
+                      .flatMap(_.prismByIndex[c & p](${ Expr(caseIdx) }))
                       .getOrElse(sys.error("Expected a variant"))
                   }
                 } { x =>
@@ -195,7 +243,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asVariant
-                          .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
+                          .flatMap(_.prismByIndex[c & p](${ Expr(caseIdx) }))
                           .getOrElse(sys.error("Expected a variant"))
                       )
                     }
@@ -204,7 +252,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asVariant
-                          .flatMap(_.prismByName[c & p & S](${ Expr(caseName) }))
+                          .flatMap(_.prismByIndex[c & p & S](${ Expr(caseIdx) }))
                           .getOrElse(sys.error("Expected a variant"))
                       )
                     }
@@ -213,7 +261,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asVariant
-                          .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
+                          .flatMap(_.prismByIndex[c & p](${ Expr(caseIdx) }))
                           .getOrElse(sys.error("Expected a variant"))
                       )
                     }
@@ -222,7 +270,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asVariant
-                          .flatMap(_.prismByName[c & p](${ Expr(caseName) }))
+                          .flatMap(_.prismByIndex[c & p](${ Expr(caseIdx) }))
                           .getOrElse(sys.error("Expected a variant"))
                       )
                     }

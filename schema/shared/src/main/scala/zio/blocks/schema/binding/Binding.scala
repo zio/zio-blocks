@@ -294,21 +294,21 @@ object Binding {
     def option[A]: Variant[Option[A]] = new Variant(
       discriminator = new Discriminator[Option[A]] {
         def discriminate(a: Option[A]): Int = a match {
-          case _: Some[A] @scala.unchecked => 0
-          case _                           => 1
+          case _: Some[A] @scala.unchecked => 1
+          case _                           => 0
         }
       },
       matchers = Matchers(
-        new Matcher[Some[A]] {
-          override def downcastOrNull(any: Any): Some[A] = any match {
-            case x: Some[A] @scala.unchecked => x
-            case _                           => null.asInstanceOf[Some[A]]
-          }
-        },
         new Matcher[None.type] {
           override def downcastOrNull(any: Any): None.type = any match {
             case None => None
             case _    => null.asInstanceOf[None.type]
+          }
+        },
+        new Matcher[Some[A]] {
+          override def downcastOrNull(any: Any): Some[A] = any match {
+            case x: Some[A] @scala.unchecked => x
+            case _                           => null.asInstanceOf[Some[A]]
           }
         }
       )
