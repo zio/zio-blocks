@@ -364,9 +364,9 @@ object Reflect {
 
     def lensByName[B](name: String): Option[Lens[A, B]] = lensByIndex(fieldIndexByName.get(name))
 
-    def lensByIndex[B](idx: Int): Option[Lens[A, B]] =
-      if (idx >= 0 && idx < fields.length) {
-        new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(idx).asInstanceOf[Term.Bound[A, B]]))
+    def lensByIndex[B](index: Int): Option[Lens[A, B]] =
+      if (index >= 0 && index < fields.length) {
+        new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, B]]))
       } else None
 
     def metadata: F[NodeBinding, A] = recordBinding
@@ -565,12 +565,12 @@ object Reflect {
       } else None
     }
 
-    def prismByName[B <: A](name: String): Option[Prism[A, B]] = {
-      val idx = caseIndexByName.get(name)
-      if (idx >= 0) {
-        new Some(Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(idx).asInstanceOf[Term.Bound[A, B]]))
+    def prismByName[B <: A](name: String): Option[Prism[A, B]] = prismByIndex(caseIndexByName.get(name))
+
+    def prismByIndex[B <: A](index: Int): Option[Prism[A, B]] =
+      if (index >= 0 && index < cases.length) {
+        new Some(Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, B]]))
       } else None
-    }
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val case_ = cases(discriminator.discriminate(value))
@@ -1526,70 +1526,70 @@ object Reflect {
 
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
     new Variant(
-      Vector(new Term("Some", some(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", some(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(
-      Vector(new Term("Some", someDouble(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someDouble(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Variant[F, Option[Long]] =
     new Variant(
-      Vector(new Term("Some", someLong(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someLong(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Variant[F, Option[Float]] =
     new Variant(
-      Vector(new Term("Some", someFloat(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someFloat(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Variant[F, Option[Int]] =
     new Variant(
-      Vector(new Term("Some", someInt(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someInt(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Variant[F, Option[Char]] =
     new Variant(
-      Vector(new Term("Some", someChar(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someChar(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Variant[F, Option[Short]] =
     new Variant(
-      Vector(new Term("Some", someShort(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someShort(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Variant[F, Option[Boolean]] =
     new Variant(
-      Vector(new Term("Some", someBoolean(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someBoolean(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Variant[F, Option[Byte]] =
     new Variant(
-      Vector(new Term("Some", someByte(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someByte(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Variant[F, Option[Unit]] =
     new Variant(
-      Vector(new Term("Some", someUnit(element)), new Term("None", none)),
+      Vector(new Term("None", none), new Term("Some", someUnit(element))),
       TypeName.option(element.typeName),
       F.fromBinding(Binding.Variant.option)
     )
@@ -1648,7 +1648,7 @@ object Reflect {
   }
 
   private class StringToIntMap(size: Int) {
-    private[this] val mask   = (Integer.highestOneBit(size) << 2) - 1
+    private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1
     private[this] val keys   = new Array[String](mask + 1)
     private[this] val values = new Array[Int](mask + 1)
 
