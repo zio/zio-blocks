@@ -980,16 +980,31 @@ object SchemaSpec extends ZIOSpecDefault {
           val l1_c: Prism[Level1.MultiLevel, Level1.Case.type]  = $(_.when[Level1.Case.type])
         }
 
-        val schema  = Level1_MultiLevel.schema
-        val variant = schema.reflect.asVariant
+        val schema1  = A.schema
+        val schema2  = Level1_MultiLevel.schema
+        val variant1 = schema1.reflect.asVariant
+        val variant2 = schema2.reflect.asVariant
+        assert(A.a1.getOption(B.A1))(isSome(equalTo(B.A1))) &&
+        assert(A.a2.getOption(B.A2))(isSome(equalTo(B.A2))) &&
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A1)))(isRight(equalTo(B.A1))) &&
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
+        assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
+        assert(variant1.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName[A](
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")),
+                name = "A"
+              )
+            )
+          )
+        ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
-        assert(schema.fromDynamicValue(schema.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
-        assert(variant.map(_.cases.map(_.name)))(
-          isSome(equalTo(Vector("Level1.Case", "Case")))
-        ) &&
-        assert(variant.map(_.typeName))(
+        assert(schema2.fromDynamicValue(schema2.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
+        assert(schema2.fromDynamicValue(schema2.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
+        assert(variant2.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Level1.Case", "Case")))) &&
+        assert(variant2.map(_.typeName))(
           isSome(
             equalTo(
               TypeName[Level1.MultiLevel](
@@ -1763,6 +1778,20 @@ object SchemaSpec extends ZIOSpecDefault {
   case class Case1(c: Char) extends Variant
 
   case class Case2(s: String) extends Variant
+
+  sealed trait A
+
+  object B {
+    case object A1 extends A
+
+    case object A2 extends A
+  }
+
+  object A extends CompanionOptics[A] {
+    implicit val schema: Schema[A] = Schema.derived
+    val a1: Prism[A, B.A1.type]    = $(_.when[B.A1.type])
+    val a2: Prism[A, B.A2.type]    = $(_.when[B.A2.type])
+  }
 
   object Level1 {
     sealed trait MultiLevel
