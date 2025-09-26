@@ -107,8 +107,8 @@ private object CompanionOptics {
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
       case q"$_[..$_]($parent).each" =>
-        val parentTpe  = parent.tpe.dealias.widen
-        val elementTpe = tree.tpe.dealias.widen
+        val parentTpe  = parent.tpe.widen.dealias
+        val elementTpe = tree.tpe.widen.dealias
         val optic      = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asSequenceUnknown.map { x =>
@@ -125,8 +125,8 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]])"""
         }
       case q"$_[..$_]($parent).eachKey" =>
-        val parentTpe = parent.tpe.dealias.widen
-        val keyTpe    = tree.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val keyTpe    = tree.tpe.widen.dealias
         val optic     = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asMapUnknown.map { x =>
@@ -143,8 +143,8 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $keyTpe]])"""
         }
       case q"$_[..$_]($parent).eachValue" =>
-        val parentTpe = parent.tpe.dealias.widen
-        val valueTpe  = tree.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val valueTpe  = tree.tpe.widen.dealias
         val optic     = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asMapUnknown.map { x =>
@@ -174,8 +174,8 @@ private object CompanionOptics {
                 .getOrElse(sys.error("Expected a variant")))"""
         }
       case q"$_[..$_]($parent).wrapped[$wrappedTree]" =>
-        val parentTpe  = parent.tpe.dealias.widen
-        val wrappedTpe = wrappedTree.tpe.dealias.widen
+        val parentTpe  = parent.tpe.widen.dealias
+        val wrappedTpe = wrappedTree.tpe.dealias
         val optic      = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asWrapperUnknown.map { x =>
@@ -191,9 +191,9 @@ private object CompanionOptics {
               .getOrElse(sys.error("Expected a wrapper"))
               .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $wrappedTpe]])"""
         }
-      case q"$_[..$_]($parent).at(..$args)" if args.size == 1 && args.head.tpe.dealias.widen <:< definitions.IntTpe =>
-        val parentTpe  = parent.tpe.dealias.widen
-        val elementTpe = tree.tpe.dealias.widen
+      case q"$_[..$_]($parent).at(..$args)" if args.size == 1 && args.head.tpe.widen.dealias <:< definitions.IntTpe =>
+        val parentTpe  = parent.tpe.widen.dealias
+        val elementTpe = tree.tpe.widen.dealias
         val optic      = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asSequenceUnknown.map { x =>
@@ -210,8 +210,8 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $elementTpe]])"""
         }
       case q"$_[..$_]($parent).atKey(..$args)" if args.size == 1 =>
-        val parentTpe = parent.tpe.dealias.widen
-        val valueTpe  = tree.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val valueTpe  = tree.tpe.widen.dealias
         val optic     = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asMapUnknown.map { x =>
@@ -228,9 +228,9 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Optional[$parentTpe, $valueTpe]])"""
         }
       case q"$_[..$_]($parent).atIndices(..$args)"
-          if args.nonEmpty && args.forall(_.tpe.dealias.widen <:< definitions.IntTpe) =>
-        val parentTpe  = parent.tpe.dealias.widen
-        val elementTpe = tree.tpe.dealias.widen
+          if args.nonEmpty && args.forall(_.tpe.widen.dealias <:< definitions.IntTpe) =>
+        val parentTpe  = parent.tpe.widen.dealias
+        val elementTpe = tree.tpe.widen.dealias
         val optic      = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asSequenceUnknown.map { x =>
@@ -247,8 +247,8 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $elementTpe]])"""
         }
       case q"$_[..$_]($parent).atKeys(..$args)" if args.nonEmpty =>
-        val parentTpe = parent.tpe.dealias.widen
-        val valueTpe  = tree.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val valueTpe  = tree.tpe.widen.dealias
         val optic     = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asMapUnknown.map { x =>
@@ -265,7 +265,7 @@ private object CompanionOptics {
               .asInstanceOf[_root_.zio.blocks.schema.Traversal[$parentTpe, $valueTpe]])"""
         }
       case q"$parent.$child" =>
-        val childTpe  = tree.tpe.dealias.widen
+        val childTpe  = tree.tpe.widen.dealias
         val fieldName = NameTransformer.decode(child.toString)
         val optic     = toOptic(parent)
         if (optic.isEmpty) {

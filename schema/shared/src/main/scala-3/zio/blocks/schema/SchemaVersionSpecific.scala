@@ -124,8 +124,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     case _ => cannotDealiasTypeRef(tpe)
   }
 
-  private def cannotDealiasTypeRef(tpe: TypeRepr): Nothing =
-    fail(s"Cannot dealias type reference: ${tpe.show}.")
+  private def cannotDealiasTypeRef(tpe: TypeRepr): Nothing = fail(s"Cannot dealias type reference: ${tpe.show}.")
 
   private def dealiasOnDemand(tpe: TypeRepr): TypeRepr =
     if (isOpaque(tpe)) opaqueDealias(tpe)

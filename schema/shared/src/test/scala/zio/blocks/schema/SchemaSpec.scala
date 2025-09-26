@@ -990,14 +990,7 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
         assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
         assert(variant1.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[A](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")),
-                name = "A"
-              )
-            )
-          )
+          isSome(equalTo(TypeName[A](Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "A")))
         ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
