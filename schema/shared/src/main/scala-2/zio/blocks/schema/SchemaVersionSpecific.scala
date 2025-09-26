@@ -494,13 +494,10 @@ private object SchemaVersionSpecific {
         if (subTypes eq Nil) fail(s"Cannot find sub-types for ADT base '$tpe'.")
         val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
         val maxCommonPrefixLength = {
-          var minFullTermName = fullTermNames.min
-          var maxFullTermName = fullTermNames.max
-          val tpeFullTermName = toFullTermName(tpeName)
-          minFullTermName = fullTermNameOrdering.min(minFullTermName, tpeFullTermName)
-          maxFullTermName = fullTermNameOrdering.max(maxFullTermName, tpeFullTermName)
-          val minLength = Math.min(minFullTermName.length, maxFullTermName.length)
-          var idx       = 0
+          val minFullTermName = fullTermNames.min
+          val maxFullTermName = fullTermNames.max
+          val minLength       = Math.min(minFullTermName.length, maxFullTermName.length)
+          var idx             = 0
           while (idx < minLength && minFullTermName(idx).equals(maxFullTermName(idx))) idx += 1
           idx
         }

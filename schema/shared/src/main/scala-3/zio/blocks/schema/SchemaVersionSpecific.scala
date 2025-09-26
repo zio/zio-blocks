@@ -878,23 +878,17 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         str.toString
       }
 
-      val tpeName     = typeName(tpe)
-      val isUnionType = isUnion(tpe)
-      val subTypes    =
-        if (isUnionType) allUnionTypes(tpe).distinct
+      val tpeName  = typeName(tpe)
+      val subTypes =
+        if (isUnion(tpe)) allUnionTypes(tpe).distinct
         else directSubTypes(tpe)
       if (subTypes eq Nil) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
       val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
       val maxCommonPrefixLength = {
-        var minFullTermName = fullTermNames.min
-        var maxFullTermName = fullTermNames.max
-        if (!isUnionType) {
-          val tpeFullTermName = toFullTermName(tpeName)
-          minFullTermName = fullTermNameOrdering.min(minFullTermName, tpeFullTermName)
-          maxFullTermName = fullTermNameOrdering.max(maxFullTermName, tpeFullTermName)
-        }
-        val minLength = Math.min(minFullTermName.length, maxFullTermName.length)
-        var idx       = 0
+        val minFullTermName = fullTermNames.min
+        val maxFullTermName = fullTermNames.max
+        val minLength       = Math.min(minFullTermName.length, maxFullTermName.length)
+        var idx             = 0
         while (idx < minLength && minFullTermName(idx).equals(maxFullTermName(idx))) idx += 1
         idx
       }
