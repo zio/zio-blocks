@@ -43,8 +43,6 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
 
-    def unsupportedOpticType(expr: Expr[?]): Nothing = fail(s"Unsupported optic type: ${expr.asTerm.tpe.show}")
-
     @tailrec
     def toPathBody(term: Term): Term = term match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
@@ -133,8 +131,8 @@ private object CompanionOptics {
 
     def toOptic(term: Term)(using q: Quotes): Option[Expr[Any]] = term match {
       case Apply(TypeApply(elementTerm, _), List(parent)) if hasName(elementTerm, "each") =>
-        val parentTpe  = parent.tpe.dealias.widen
-        val elementTpe = term.tpe.dealias.widen
+        val parentTpe  = parent.tpe.widen.dealias
+        val elementTpe = term.tpe.widen.dealias
         new Some(parentTpe.asType match {
           case '[p] =>
             elementTpe.asType match {
@@ -162,8 +160,8 @@ private object CompanionOptics {
             }
         })
       case Apply(TypeApply(keyTerm, _), List(parent)) if hasName(keyTerm, "eachKey") =>
-        val parentTpe = parent.tpe.dealias.widen
-        val keyTpe    = term.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val keyTpe    = term.tpe.widen.dealias
         new Some(parentTpe.asType match {
           case '[p] =>
             keyTpe.asType match {
@@ -191,8 +189,8 @@ private object CompanionOptics {
             }
         })
       case Apply(TypeApply(valueTerm, _), List(parent)) if hasName(valueTerm, "eachValue") =>
-        val parentTpe = parent.tpe.dealias.widen
-        val valueTpe  = term.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val valueTpe  = term.tpe.widen.dealias
         new Some(parentTpe.asType match {
           case '[p] =>
             valueTpe.asType match {
@@ -231,9 +229,8 @@ private object CompanionOptics {
             caseTpe.asType match {
               case '[c] =>
                 toOptic(parent).fold {
-                  val reflect = '{ $schema.reflect }.asExprOf[Reflect.Bound[p]]
                   '{
-                    $reflect.asVariant
+                    ${ schema.asInstanceOf[Expr[Schema[p]]] }.reflect.asVariant
                       .flatMap(_.prismByIndex[c & p](${ Expr(caseIdx) }))
                       .getOrElse(sys.error("Expected a variant"))
                   }
@@ -280,7 +277,7 @@ private object CompanionOptics {
         })
       case TypeApply(Apply(TypeApply(wrapperTerm, _), List(parent)), List(typeTree))
           if hasName(wrapperTerm, "wrapped") =>
-        val parentTpe  = parent.tpe.dealias.widen
+        val parentTpe  = parent.tpe.widen.dealias
         val wrapperTpe = typeTree.tpe.dealias
         new Some(parentTpe.asType match {
           case '[p] =>
@@ -339,9 +336,10 @@ private object CompanionOptics {
             }
         })
       case Apply(Apply(TypeApply(elementTerm, _), List(parent)), List(index))
-          if hasName(elementTerm, "at") && index.tpe.dealias.widen <:< TypeRepr.of[Int] =>
-        val parentTpe  = parent.tpe.dealias.widen
-        val elementTpe = term.tpe.dealias.widen
+          if hasName(elementTerm, "at") && index.tpe.widen.dealias <:< TypeRepr.of[Int] =>
+        val parentTpe  = parent.tpe.widen.dealias
+        val elementTpe = term.tpe.widen.dealias
+        val indexExpr  = index.asExpr.asInstanceOf[Expr[Int]]
         new Some(parentTpe.asType match {
           case '[p] =>
             elementTpe.asType match {
@@ -349,7 +347,7 @@ private object CompanionOptics {
                 toOptic(parent).fold {
                   '{
                     $schema.reflect.asSequenceUnknown
-                      .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
+                      .map(x => Optional.at(x.sequence, $indexExpr))
                       .getOrElse(sys.error("Expected a sequence"))
                       .asInstanceOf[Optional[p, e]]
                   }
@@ -359,7 +357,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
-                          .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
+                          .map(x => Optional.at(x.sequence, $indexExpr))
                           .getOrElse(sys.error("Expected a sequence"))
                           .asInstanceOf[Optional[p, e]]
                       )
@@ -369,7 +367,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
-                          .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
+                          .map(x => Optional.at(x.sequence, $indexExpr))
                           .getOrElse(sys.error("Expected a sequence"))
                           .asInstanceOf[Optional[p & S, e]]
                       )
@@ -379,7 +377,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
-                          .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
+                          .map(x => Optional.at(x.sequence, $indexExpr))
                           .getOrElse(sys.error("Expected a sequence"))
                           .asInstanceOf[Optional[p, e]]
                       )
@@ -389,7 +387,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
-                          .map(x => Optional.at(x.sequence, ${ index.asExprOf[Int] }))
+                          .map(x => Optional.at(x.sequence, $indexExpr))
                           .getOrElse(sys.error("Expected a sequence"))
                           .asInstanceOf[Optional[p, e]]
                       )
@@ -399,8 +397,8 @@ private object CompanionOptics {
             }
         })
       case Apply(Apply(TypeApply(valueTerm, _), List(parent)), List(key)) if hasName(valueTerm, "atKey") =>
-        val parentTpe = parent.tpe.dealias.widen
-        val valueTpe  = term.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val valueTpe  = term.tpe.widen.dealias
         new Some(parentTpe.asType match {
           case '[p] =>
             valueTpe.asType match {
@@ -408,7 +406,7 @@ private object CompanionOptics {
                 toOptic(parent).fold {
                   '{
                     $schema.reflect.asMapUnknown
-                      .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
+                      .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType]))
                       .getOrElse(sys.error("Expected a map"))
                       .asInstanceOf[Optional[p, v]]
                   }
@@ -418,7 +416,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Lens[S, p]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
-                          .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
+                          .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType]))
                           .getOrElse(sys.error("Expected a map"))
                           .asInstanceOf[Optional[p, v]]
                       )
@@ -428,7 +426,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Prism[S, p & S]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
-                          .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
+                          .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType]))
                           .getOrElse(sys.error("Expected a map"))
                           .asInstanceOf[Optional[p & S, v]]
                       )
@@ -438,7 +436,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Optional[S, p]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
-                          .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
+                          .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType]))
                           .getOrElse(sys.error("Expected a map"))
                           .asInstanceOf[Optional[p, v]]
                       )
@@ -448,7 +446,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Traversal[S, p]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
-                          .map(x => Optional.atKey(x.map, ${ key.asExprOf[Any] }.asInstanceOf[x.KeyType]))
+                          .map(x => Optional.atKey(x.map, ${ key.asExpr }.asInstanceOf[x.KeyType]))
                           .getOrElse(sys.error("Expected a map"))
                           .asInstanceOf[Optional[p, v]]
                       )
@@ -458,9 +456,10 @@ private object CompanionOptics {
             }
         })
       case Apply(Apply(TypeApply(elementTerm, _), List(parent)), List(Typed(Repeated(indices, _), _)))
-          if hasName(elementTerm, "atIndices") && indices.forall(_.tpe.dealias.widen <:< TypeRepr.of[Int]) =>
-        val parentTpe  = parent.tpe.dealias.widen
-        val elementTpe = term.tpe.dealias.widen
+          if hasName(elementTerm, "atIndices") && indices.forall(_.tpe.widen.dealias <:< TypeRepr.of[Int]) =>
+        val parentTpe   = parent.tpe.widen.dealias
+        val elementTpe  = term.tpe.widen.dealias
+        val indicesExpr = Expr.ofSeq(indices.map(_.asExpr.asInstanceOf[Expr[Int]]))
         new Some(parentTpe.asType match {
           case '[p] =>
             elementTpe.asType match {
@@ -468,7 +467,7 @@ private object CompanionOptics {
                 toOptic(parent).fold {
                   '{
                     $schema.reflect.asSequenceUnknown
-                      .map(x => Traversal.atIndices(x.sequence, ${ Expr.ofSeq(indices.map(_.asExprOf[Int])) }))
+                      .map(x => Traversal.atIndices(x.sequence, $indicesExpr))
                       .getOrElse(sys.error("Expected a sequence"))
                       .asInstanceOf[Traversal[p, e]]
                   }
@@ -478,7 +477,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
                       optic.apply(
                         optic.focus.asSequenceUnknown
-                          .map(x => Traversal.atIndices(x.sequence, ${ Expr.ofSeq(indices.map(_.asExprOf[Int])) }))
+                          .map(x => Traversal.atIndices(x.sequence, $indicesExpr))
                           .getOrElse(sys.error("Expected a sequence"))
                           .asInstanceOf[Traversal[p, e]]
                       )
@@ -488,8 +487,9 @@ private object CompanionOptics {
             }
         })
       case Apply(Apply(TypeApply(valueTerm, _), List(parent)), List(keys)) if hasName(valueTerm, "atKeys") =>
-        val parentTpe = parent.tpe.dealias.widen
-        val valueTpe  = term.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val valueTpe  = term.tpe.widen.dealias
+        val keysExpr  = keys.asExpr.asInstanceOf[Expr[Seq[Any]]]
         new Some(parentTpe.asType match {
           case '[p] =>
             valueTpe.asType match {
@@ -497,7 +497,7 @@ private object CompanionOptics {
                 toOptic(parent).fold {
                   '{
                     $schema.reflect.asMapUnknown
-                      .map(x => Traversal.atKeys(x.map, ${ keys.asExprOf[Seq[Any]] }.asInstanceOf[Seq[x.KeyType]]))
+                      .map(x => Traversal.atKeys(x.map, $keysExpr.asInstanceOf[Seq[x.KeyType]]))
                       .getOrElse(sys.error("Expected a map"))
                       .asInstanceOf[Traversal[p, v]]
                   }
@@ -507,7 +507,7 @@ private object CompanionOptics {
                       val optic = ${ x.asInstanceOf[Expr[Optic[S, p]]] }
                       optic.apply(
                         optic.focus.asMapUnknown
-                          .map(x => Traversal.atKeys(x.map, ${ keys.asExprOf[Seq[Any]] }.asInstanceOf[Seq[x.KeyType]]))
+                          .map(x => Traversal.atKeys(x.map, $keysExpr.asInstanceOf[Seq[x.KeyType]]))
                           .getOrElse(sys.error("Expected a map"))
                           .asInstanceOf[Traversal[p, v]]
                       )
@@ -517,8 +517,8 @@ private object CompanionOptics {
             }
         })
       case Select(parent, fieldName) =>
-        val parentTpe = parent.tpe.dealias.widen
-        val childTpe  = term.tpe.dealias.widen
+        val parentTpe = parent.tpe.widen.dealias
+        val childTpe  = term.tpe.widen.dealias
         new Some(parentTpe.asType match {
           case '[p] =>
             childTpe.asType match {
@@ -581,8 +581,8 @@ private object CompanionOptics {
               s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '${term.show}'"
             )
         }
-        var parentTpe = parent.tpe.dealias.widen
-        var childTpe  = term.tpe.dealias.widen
+        var parentTpe = parent.tpe.widen.dealias
+        var childTpe  = term.tpe.widen.dealias
         if (isGenericTuple(parentTpe)) {
           val typeArgs = genericTupleTypeArgs(parentTpe)
           parentTpe = normalizeGenericTuple(typeArgs)
@@ -640,6 +640,8 @@ private object CompanionOptics {
             }
         })
     }
+
+    def unsupportedOpticType(expr: Expr[?]): Nothing = fail(s"Unsupported optic type: ${expr.asTerm.tpe.show}")
 
     val optic = toOptic(toPathBody(path.asTerm)).get
     // report.info(s"Generated optic:\n${optic.show}", Position.ofMacroExpansion)

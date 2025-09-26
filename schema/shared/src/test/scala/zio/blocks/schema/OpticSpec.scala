@@ -2548,12 +2548,8 @@ object OpticSpec extends ZIOSpecDefault {
               OpticCheck(
                 errors = ::(
                   EmptySequence(
-                    full = DynamicOptic(
-                      Vector(Field("as"), Elements)
-                    ),
-                    prefix = DynamicOptic(
-                      Vector(Field("as"), Elements)
-                    )
+                    full = DynamicOptic(Vector(Field("as"), Elements)),
+                    prefix = DynamicOptic(Vector(Field("as"), Elements))
                   ),
                   Nil
                 )
@@ -2652,26 +2648,50 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("optic macro generates traversals for sequence or map") {
         object Test1 extends CompanionOptics[Vector[String]] {
-          val traversal: Traversal[Vector[String], String] = optic[String](_.each)
+          val traversal: Traversal[Vector[String], String] = $(_.each)
         }
+
         object Test2 extends CompanionOptics[Vector[String]] {
-          val traversal: Traversal[Vector[String], String] = optic[String](_.atIndices(1, 2))
+          val traversal: Traversal[Vector[String], String] = $(_.atIndices(1, 2))
         }
+
         object Test3 extends CompanionOptics[Map[Int, Long]] {
-          val traversal: Traversal[Map[Int, Long], Int] = optic[Int](_.eachKey)
+          val traversal: Traversal[Map[Int, Long], Int] = $(_.eachKey)
         }
+
         object Test4 extends CompanionOptics[Map[Int, Long]] {
-          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.eachValue)
+          val traversal: Traversal[Map[Int, Long], Long] = $(_.eachValue)
         }
+
         object Test5 extends CompanionOptics[Map[Int, Long]] {
-          val traversal: Traversal[Map[Int, Long], Long] = optic[Long](_.atKeys(1, 2))
+          val traversal: Traversal[Map[Int, Long], Long] = $(_.atKeys(1, 2))
+        }
+
+        object Test6 extends CompanionOptics[Vector[Vector[String]]] {
+          val traversal: Traversal[Vector[Vector[String]], String] = $(_.each.at(1))
+        }
+
+        object Test7 extends CompanionOptics[Vector[Map[Int, Long]]] {
+          val traversal: Traversal[Vector[Map[Int, Long]], Long] = $(_.each.atKey(1))
+        }
+
+        object Test8 extends CompanionOptics[Option[Vector[String]]] {
+          val traversal: Optional[Option[Vector[String]], String] = $(_.when[Some[Vector[String]]].value.at(1))
+        }
+
+        object Test9 extends CompanionOptics[Option[Map[Int, Long]]] {
+          val traversal: Optional[Option[Map[Int, Long]], Long] = $(_.when[Some[Map[Int, Long]]].value.atKey(1))
         }
 
         assert(Test1.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("abc")) &&
         assert(Test2.traversal.fold[String](Vector("a", "b", "c"))("", _ + _))(equalTo("bc")) &&
         assert(Test3.traversal.fold[Int](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6)) &&
         assert(Test4.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(6L)) &&
-        assert(Test5.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(3L))
+        assert(Test5.traversal.fold[Long](Map(1 -> 1L, 2 -> 2L, 3 -> 3L))(0, _ + _))(equalTo(3L)) &&
+        assert(Test6.traversal.fold[String](Vector(Vector("a", "b")))("", _ + _))(equalTo("b")) &&
+        assert(Test7.traversal.fold[Long](Vector(Map(1 -> 1L, 2 -> 2L)))(0, _ + _))(equalTo(1L)) &&
+        assert(Test8.traversal.getOption(Option(Vector("a", "b"))))(isSome(equalTo("b"))) &&
+        assert(Test9.traversal.getOption(Option(Map(1 -> 1L, 2 -> 2L))))(isSome(equalTo(1L)))
       },
       test("has consistent equals and hashCode") {
         assert(Record2.vi)(equalTo(Record2.vi)) &&
