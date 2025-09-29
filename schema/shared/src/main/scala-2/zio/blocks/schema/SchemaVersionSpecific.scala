@@ -231,7 +231,7 @@ private object SchemaVersionSpecific {
     val schemaRefs = new mutable.HashMap[Type, Tree]
     val schemaDefs = new mutable.ListBuffer[Tree]
 
-    def findImplicitOrDeriveSchema(tpe: Type): Tree = schemaRefs.getOrElseUpdate(
+    def findImplicitOrDeriveSchema(tpe: Type): Tree = schemaRefs.getOrElse(
       tpe, {
         val schemaTpe = tq"_root_.zio.blocks.schema.Schema[$tpe]"
         var schema    = c.inferImplicitValue(c.typecheck(schemaTpe, c.TYPEmode).tpe)
@@ -415,11 +415,11 @@ private object SchemaVersionSpecific {
 
     def deriveSchema(tpe: Type): Tree = {
       if (isEnumOrModuleValue(tpe)) {
-        val tpeName = typeName(tpe)
+        val tpeName = toTree(typeName(tpe))
         q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector.empty,
-                typeName = ${toTree(tpeName)},
+                typeName = $tpeName,
                 recordBinding = new Binding.Record(
                   constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                   deconstructor = new ConstantDeconstructor[$tpe]
@@ -429,8 +429,8 @@ private object SchemaVersionSpecific {
             )"""
       } else if (isCollection(tpe)) {
         if (tpe <:< typeOf[Array[?]]) {
-          val tpeName     = typeName(tpe)
           val elementTpe  = typeArgs(tpe).head
+          val schema      = findImplicitOrDeriveSchema(elementTpe)
           val constructor =
             if (elementTpe <:< definitions.AnyRefTpe) {
               q"""new SeqConstructor.ArrayConstructor {
@@ -438,10 +438,11 @@ private object SchemaVersionSpecific {
                     new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
                 }"""
             } else q"SeqConstructor.arrayConstructor"
+          val tpeName = toTree(typeName(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
-                element = ${findImplicitOrDeriveSchema(elementTpe)}.reflect,
-                typeName = ${toTree(tpeName)},
+                element = $schema.reflect,
+                typeName = $tpeName,
                 seqBinding = new Binding.Seq(
                   constructor = $constructor,
                   deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -449,16 +450,22 @@ private object SchemaVersionSpecific {
               )
             )"""
         } else if (tpe <:< typeOf[ArraySeq[?]]) {
-          q"Schema.arraySeq(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
+          val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
+          q"Schema.arraySeq($schema)"
         } else if (tpe <:< typeOf[List[?]]) {
-          q"Schema.list(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
+          val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
+          q"Schema.list($schema)"
         } else if (tpe <:< typeOf[Map[?, ?]]) {
           val tpeTypeArgs = typeArgs(tpe)
-          q"Schema.map(${findImplicitOrDeriveSchema(tpeTypeArgs.head)},${findImplicitOrDeriveSchema(tpeTypeArgs.last)})"
+          val kSchema     = findImplicitOrDeriveSchema(tpeTypeArgs.head)
+          val vSchema     = findImplicitOrDeriveSchema(tpeTypeArgs.last)
+          q"Schema.map($kSchema,$vSchema)"
         } else if (tpe <:< typeOf[Set[?]]) {
-          q"Schema.set(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
+          val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
+          q"Schema.set($schema)"
         } else if (tpe <:< typeOf[Vector[?]]) {
-          q"Schema.vector(${findImplicitOrDeriveSchema(typeArgs(tpe).head)})"
+          val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
+          q"Schema.vector($schema)"
         } else cannotDeriveSchema(tpe)
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         def toFullTermName(tpeName: SchemaTypeName[?]): Array[String] = {
@@ -489,7 +496,6 @@ private object SchemaVersionSpecific {
           str.toString
         }
 
-        val tpeName  = typeName(tpe)
         val subTypes = directSubTypes(tpe)
         if (subTypes eq Nil) fail(s"Cannot find sub-types for ADT base '$tpe'.")
         val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
@@ -502,7 +508,9 @@ private object SchemaVersionSpecific {
           idx
         }
         val cases = subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
-          q"${findImplicitOrDeriveSchema(sTpe)}.reflect.asTerm(${toShortTermName(fullName, maxCommonPrefixLength)})"
+          val caseName = toShortTermName(fullName, maxCommonPrefixLength)
+          val schema   = findImplicitOrDeriveSchema(sTpe)
+          q"$schema.reflect.asTerm($caseName)"
         }
         val discrCases = subTypes.map {
           var idx = -1
@@ -518,10 +526,11 @@ private object SchemaVersionSpecific {
                 }
               }"""
         }
+        val tpeName = toTree(typeName(tpe))
         q"""new Schema(
               reflect = new Reflect.Variant[Binding, $tpe](
                 cases = _root_.scala.Vector(..$cases),
-                typeName = ${toTree(tpeName)},
+                typeName = $tpeName,
                 variantBinding = new Binding.Variant(
                   discriminator = new Discriminator[$tpe] {
                     def discriminate(a: $tpe): Int = a match {
@@ -534,12 +543,12 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isNonAbstractScalaClass(tpe)) {
-        val tpeName   = typeName(tpe)
         val classInfo = new ClassInfo(tpe)
+        val tpeName   = toTree(typeName(tpe))
         q"""new Schema(
               reflect = new Reflect.Record[Binding, $tpe](
                 fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
-                typeName = ${toTree(tpeName)},
+                typeName = $tpeName,
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[$tpe] {
                     def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
@@ -558,9 +567,9 @@ private object SchemaVersionSpecific {
               )
             )"""
       } else if (isZioPreludeNewtype(tpe)) {
-        val tpeName = typeName(tpe)
         val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
-        q"new Schema($schema.reflect.typeName(${toTree(tpeName)})).asInstanceOf[Schema[$tpe]]"
+        val tpeName = toTree(typeName(tpe))
+        q"new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
     }
 
