@@ -496,7 +496,7 @@ private object SchemaVersionSpecific {
         val maxCommonPrefixLength = {
           val minFullTermName = fullTermNames.min
           val maxFullTermName = fullTermNames.max
-          val minLength       = Math.min(minFullTermName.length, maxFullTermName.length)
+          val minLength       = Math.min(minFullTermName.length, maxFullTermName.length) - 1
           var idx             = 0
           while (idx < minLength && minFullTermName(idx).equals(maxFullTermName(idx))) idx += 1
           idx

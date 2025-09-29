@@ -665,6 +665,11 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         ) &&
         assert(variant.map(_.doc))(isSome(equalTo(Doc("/** Variant: Color */"))))
       },
+      test("derives schema for one case enums using 'derives' keyword") {
+        val schema  = Schema[OneCaseEnum]
+        val variant = schema.reflect.asVariant
+        assert(variant.map(_.cases(0).name))(isSome(equalTo("Case1")))
+      },
       test("derives schema for type recursive Scala 3 enums") {
         val schema  = Schema.derived[FruitEnum[?]]
         val variant = schema.reflect.asVariant
@@ -891,6 +896,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       inline def toInt: Int = x
     }
   }
+
+  enum OneCaseEnum derives Schema { case Case1 }
 }
 
 case class InnerOpaque(id: InnerId, value: InnerValue) derives Schema
