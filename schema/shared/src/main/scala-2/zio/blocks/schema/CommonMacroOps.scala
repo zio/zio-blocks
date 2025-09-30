@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.collection.mutable
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
@@ -29,30 +30,35 @@ private[schema] object CommonMacroOps {
       }
     val tpeClass         = tpe.typeSymbol.asClass
     val tpeTypeArgs      = typeArgs(c)(tpe)
-    val tpeParamsAndArgs =
-      if (tpeTypeArgs ne Nil) tpeClass.typeParams.map(_.toString).zip(tpeTypeArgs).toMap
-      else Map.empty[String, Type]
+    var tpeParamsAndArgs = Map.empty[String, Type]
+    if (tpeTypeArgs ne Nil) {
+      tpeClass.typeParams.zip(tpeTypeArgs).foreach { case (typeParam, tpeTypeArg) =>
+        tpeParamsAndArgs = tpeParamsAndArgs.updated(typeParam.toString, tpeTypeArg)
+      }
+    }
+    val subTypes = new mutable.ListBuffer[Type]
     tpeClass.knownDirectSubclasses.toArray
       .sortInPlace()
-      .map { symbol =>
+      .foreach { symbol =>
         val classSymbol = symbol.asClass
-        val typeParams  = classSymbol.typeParams
-        val classType   = classSymbol.toType
-        if (typeParams eq Nil) classType
-        else {
-          classType.substituteTypes(
+        var classType   = classSymbol.toType
+        if (tpeTypeArgs ne Nil) {
+          val typeParams = classSymbol.typeParams
+          classType = classType.substituteTypes(
             typeParams,
             typeParams.map { typeParam =>
-              tpeParamsAndArgs.getOrElse(
-                typeParam.toString,
-                fail(c)(
-                  s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
-                )
-              )
+              tpeParamsAndArgs.get(typeParam.toString) match {
+                case Some(typeArg) => typeArg
+                case _             =>
+                  fail(c)(
+                    s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
+                  )
+              }
             }
           )
         }
+        subTypes.addOne(classType)
       }
-      .toList
+    subTypes.toList
   }
 }
