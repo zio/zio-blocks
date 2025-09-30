@@ -45,64 +45,18 @@ trait CompanionOptics[S] {
 private object CompanionOptics {
   import scala.reflect.macros.whitebox
   import scala.reflect.NameTransformer
+  import zio.blocks.schema.CommonMacroOps
 
   def optic[S, A](c: whitebox.Context)(path: c.Expr[S => A])(schema: c.Expr[Schema[S]]): c.Tree = {
     import c.universe._
 
-    def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
+    def fail(msg: String): Nothing = CommonMacroOps.fail(c)(msg)
+
+    def directSubTypes(tpe: Type): List[Type] = CommonMacroOps.directSubTypes(c)(tpe)
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody
       case _                    => fail(s"Expected a lambda expression, got: '$tree'")
-    }
-
-    def typeArgs(tpe: Type): List[Type] = tpe.typeArgs.map(_.dealias)
-
-    implicit val positionOrdering: Ordering[Symbol] =
-      (x: Symbol, y: Symbol) => {
-        val xPos  = x.pos
-        val yPos  = y.pos
-        val xFile = xPos.source.file.absolute
-        val yFile = yPos.source.file.absolute
-        var diff  = xFile.path.compareTo(yFile.path)
-        if (diff == 0) diff = xFile.name.compareTo(yFile.name)
-        if (diff == 0) diff = xPos.line.compareTo(yPos.line)
-        if (diff == 0) diff = xPos.column.compareTo(yPos.column)
-        if (diff == 0) {
-          // make sorting stable in case of missing sources for sub-project or *.jar dependencies
-          diff = NameTransformer.decode(x.fullName).compareTo(NameTransformer.decode(y.fullName))
-        }
-        diff
-      }
-
-    def directSubTypes(tpe: Type): List[Type] = {
-      val tpeClass         = tpe.typeSymbol.asClass
-      val tpeTypeArgs      = typeArgs(tpe)
-      val tpeParamsAndArgs =
-        if (tpeTypeArgs ne Nil) tpeClass.typeParams.map(_.toString).zip(tpeTypeArgs).toMap
-        else Map.empty[String, Type]
-      tpeClass.knownDirectSubclasses.toArray
-        .sortInPlace()
-        .map { symbol =>
-          val classSymbol = symbol.asClass
-          val typeParams  = classSymbol.typeParams
-          val classType   = classSymbol.toType
-          if (typeParams eq Nil) classType
-          else {
-            classType.substituteTypes(
-              typeParams,
-              typeParams.map { typeParam =>
-                tpeParamsAndArgs.getOrElse(
-                  typeParam.toString,
-                  fail(
-                    s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
-                  )
-                )
-              }
-            )
-          }
-        }
-        .toList
     }
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
