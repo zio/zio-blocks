@@ -747,7 +747,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       },
       test("derives schema for case classes with Scala 3 union fields") {
         type Value1 = Int | Boolean
-        type Value2 = Int | String
+        type Value2 = Int | String | Int
 
         case class Unions(v1: Value1, v2: Value2)
 

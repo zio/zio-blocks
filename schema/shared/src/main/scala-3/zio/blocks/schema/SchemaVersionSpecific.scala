@@ -8,6 +8,7 @@ import scala.quoted._
 import zio.blocks.schema.Term as SchemaTerm
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
+import zio.blocks.schema.CommonMacroOps
 
 trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecificImpl.derived }
@@ -32,7 +33,7 @@ private object SchemaVersionSpecificImpl {
 
 private class SchemaVersionSpecificImpl(using Quotes) {
   import quotes.reflect._
-  import SchemaVersionSpecificImpl.fullTermNameOrdering
+  import zio.blocks.schema.SchemaVersionSpecificImpl.fullTermNameOrdering
 
   private val intTpe                = defn.IntClass.typeRef
   private val floatTpe              = defn.FloatClass.typeRef
@@ -63,7 +64,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   private val productElementMethod  = tupleTpe.typeSymbol.methodMember("productElement").head
   private lazy val toTupleMethod    = Select.unique(Ref(Symbol.requiredModule("scala.NamedTuple")), "toTuple")
 
-  private def fail(msg: String): Nothing = report.errorAndAbort(msg, Position.ofMacroExpansion)
+  private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
   private def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
 
@@ -132,56 +133,26 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     else if (isTypeRef(tpe)) typeRefDealias(tpe)
     else tpe
 
-  private def isUnion(tpe: TypeRepr): Boolean = tpe match {
-    case _: OrType => true
-    case _         => false
-  }
+  private def isUnion(tpe: TypeRepr): Boolean = CommonMacroOps.isUnion(tpe)
 
-  private def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = tpe.dealias match {
-    case OrType(left, right) => allUnionTypes(left) ++ allUnionTypes(right)
-    case dealiased           => dealiased :: Nil
-  }
+  private def allUnionTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.allUnionTypes(tpe)
 
   private def isNonAbstractScalaClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
     val flags = symbol.flags
     !(flags.is(Flags.Abstract) || flags.is(Flags.JavaDefined) || flags.is(Flags.Trait))
   }
 
-  private def typeArgs(tpe: TypeRepr): List[TypeRepr] = tpe match {
-    case AppliedType(_, typeArgs) => typeArgs.map(_.dealias)
-    case _                        => Nil
-  }
+  private def typeArgs(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.typeArgs(tpe)
 
-  private def isGenericTuple(tpe: TypeRepr): Boolean = tpe <:< tupleTpe && !defn.isTupleClass(tpe.typeSymbol)
+  private def isGenericTuple(tpe: TypeRepr): Boolean = CommonMacroOps.isGenericTuple(tpe)
 
   private val genericTupleTypeArgsCache = new mutable.HashMap[TypeRepr, List[TypeRepr]]
 
-  private def genericTupleTypeArgs(tpe: TypeRepr): List[TypeRepr] = genericTupleTypeArgsCache.getOrElseUpdate(
-    tpe, {
-      // Borrowed from an amazing work of Aleksander Rainko:
-      // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L253-L270
-      def loop(tp: Type[?]): List[TypeRepr] = tp match {
-        case '[h *: t] => TypeRepr.of[h].dealias :: loop(Type.of[t])
-        case _         => Nil
-      }
+  private def genericTupleTypeArgs(tpe: TypeRepr): List[TypeRepr] =
+    genericTupleTypeArgsCache.getOrElseUpdate(tpe, CommonMacroOps.genericTupleTypeArgs(tpe))
 
-      loop(tpe.asType)
-    }
-  )
-
-  // Borrowed from an amazing work of Aleksander Rainko:
-  // https://github.com/arainko/ducktape/blob/8d779f0303c23fd45815d3574467ffc321a8db2b/ducktape/src/main/scala/io/github/arainko/ducktape/internal/Structure.scala#L277-L295
-  private def normalizeGenericTuple(tpe: TypeRepr): TypeRepr = {
-    val typeArgs = genericTupleTypeArgs(tpe)
-    val size     = typeArgs.size
-    if (size > 0 && size <= 22) defn.TupleClass(size).typeRef.appliedTo(typeArgs)
-    else {
-      typeArgs.foldRight(TypeRepr.of[EmptyTuple]) {
-        val tupleCons = TypeRepr.of[*:]
-        (curr, acc) => tupleCons.appliedTo(List(curr, acc))
-      }
-    }
-  }
+  private def normalizeGenericTuple(tpe: TypeRepr): TypeRepr =
+    CommonMacroOps.normalizeGenericTuple(genericTupleTypeArgs(tpe))
 
   private def isNamedTuple(tpe: TypeRepr): Boolean = tpe match {
     case AppliedType(ntTpe, _) => ntTpe.typeSymbol.fullName == "scala.NamedTuple$.NamedTuple"
@@ -196,37 +167,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   private def isCollection(tpe: TypeRepr): Boolean =
     tpe <:< iterableOfWildcardTpe || tpe <:< iteratorOfWildcardTpe || tpe <:< arrayOfWildcardTpe || isIArray(tpe)
 
-  private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
-    val tpeTypeSymbol = tpe.typeSymbol
-    tpeTypeSymbol.children.map { symbol =>
-      if (symbol.isType) {
-        val subtype = symbol.typeRef
-        subtype.memberType(symbol.primaryConstructor) match {
-          case _: MethodType                                              => subtype
-          case PolyType(names, _, MethodType(_, _, AppliedType(base, _))) =>
-            base.appliedTo(names.map {
-              val binding = typeArgs(subtype.baseType(tpeTypeSymbol))
-                .zip(typeArgs(tpe))
-                .foldLeft(Map.empty[String, TypeRepr]) { case (binding, (childTypeArg, parentTypeArg)) =>
-                  val childTypeSymbol = childTypeArg.typeSymbol
-                  if (childTypeSymbol.isTypeParam) binding.updated(childTypeSymbol.name, parentTypeArg)
-                  else binding
-                }
-              name =>
-                binding.getOrElse(
-                  name,
-                  fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of '${tpe.show}'.")
-                )
-            })
-          case _ => cannotResolveTypeParameterOfADT(tpe)
-        }
-      } else if (symbol.isTerm) symbol.termRef
-      else cannotResolveTypeParameterOfADT(tpe)
-    }
-  }
-
-  private def cannotResolveTypeParameterOfADT(tpe: TypeRepr): Nothing =
-    fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
+  private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.directSubTypes(tpe)
 
   private val isNonRecursiveCache = new mutable.HashMap[TypeRepr, Boolean]
 
@@ -900,7 +841,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       }
 
       val subTypes =
-        if (isUnion(tpe)) allUnionTypes(tpe).distinct
+        if (isUnion(tpe)) allUnionTypes(tpe)
         else directSubTypes(tpe)
       if (subTypes eq Nil) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
       val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
