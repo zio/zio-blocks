@@ -745,21 +745,34 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("derives schema for case classes with Scala 3 union fields") {
+      test("derives schema for case classes with fields of Scala 3 union types that have duplicated sub-types") {
         type Value1 = Int | Boolean
         type Value2 = Int | String | Int
 
-        case class Unions(v1: Value1, v2: Value2)
+        case class Unions(v1: Value1, v2: Value2, v3: Value1 | Value2)
 
         implicit val schema: Schema[Unions] = Schema.derived
 
         object Unions extends CompanionOptics[Unions] {
-          val v1: Lens[Unions, Value1] = $(_.v1)
-          val v2: Lens[Unions, Value2] = $(_.v2)
+          val v1: Lens[Unions, Value1]          = $(_.v1)
+          val v2: Lens[Unions, Value2]          = $(_.v2)
+          val v3: Lens[Unions, Value1 | Value2] = $(_.v3)
+          val v3_s: Optional[Unions, String]    = $(_.v3.when[String])
         }
 
-        val value1 = Unions(123, 321)
-        val value2 = Unions(true, "VVV")
+        val value1 = Unions(123, 321, "VVV")
+        val value2 = Unions(true, "VVV", 213)
+        val record = schema.reflect.asRecord
+        assert(Unions.v1.get(value2))(equalTo(true)) &&
+        assert(Unions.v2.get(value2))(equalTo("VVV")) &&
+        assert(Unions.v3.get(value2))(equalTo(213)) &&
+        assert(Unions.v3_s.getOption(value1))(isSome(equalTo("VVV"))) &&
+        assert(record.flatMap(_.fields(1).value.asVariant.map(_.cases.map(_.name))))(
+          isSome(equalTo(Seq("Int", "String"))) // deduplicates union cases without re-ordering
+        ) &&
+        assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
+          isSome(equalTo(Seq("Int", "Boolean", "String"))) // deduplicates union cases without re-ordering
+        ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
       },
