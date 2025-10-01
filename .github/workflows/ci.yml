@@ -42,17 +42,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: ['11', '21']
+        java: [11, 25]
         os: ['ubuntu-22.04-arm', 'ubuntu-22.04']
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v5.0.0
         with:
           fetch-depth: 0
+      - name: Set JVM options for JDK 25+
+        if: matrix.java >= 25
+        run: echo "JAVA_TOOL_OPTIONS=-XX:+UseCompactObjectHeaders" >> $GITHUB_ENV
+        shell: bash
       - name: Setup Action
         uses: coursier/setup-action@v1
         with:
           jvm: temurin:${{ matrix.java }}
+          jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
           apps: sbt
       - name: Cache scala dependencies
         uses: coursier/cache-action@v6
