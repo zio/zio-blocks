@@ -6,7 +6,7 @@ import sbtcrossproject.CrossPlugin.autoImport.*
 import scoverage.ScoverageKeys.coverageEnabled
 
 object BuildHelper {
-  val Scala213: String = "2.13.16"
+  val Scala213: String = "2.13.17"
   val Scala3: String   = "3.3.6"
 
   val JdkReleaseVersion: String = "11"
