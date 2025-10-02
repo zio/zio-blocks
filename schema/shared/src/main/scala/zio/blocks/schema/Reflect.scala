@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
+import zio.blocks.schema.registry.{RebindError, TypeRegistry}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
@@ -136,6 +137,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def nodeType: Reflect.Type { type NodeBinding = self.NodeBinding }
 
   lazy val noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
+
+  def rebind(typeRegistry: TypeRegistry): Either[RebindError, Reflect.Bound[A]] = ???
+
+  def toJsonSchema: DynamicValue = ???
 
   def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue
 
@@ -1646,6 +1651,8 @@ object Reflect {
         }
     }
   }
+
+  def fromJsonSchema[F[_, _], A](value: DynamicValue): Reflect[F, A] = ???
 
   private class StringToIntMap(size: Int) {
     private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1
