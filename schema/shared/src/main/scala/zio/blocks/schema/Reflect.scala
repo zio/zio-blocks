@@ -140,7 +140,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def rebind(typeRegistry: TypeRegistry): Either[RebindError, Reflect.Bound[A]] = ???
 
-  def toJsonSchema: DynamicValue = ???
+  def toJsonSchema: DynamicValue
 
   def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue
 
@@ -425,6 +425,48 @@ object Reflect {
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
+    /* Example of JSON Schema for schema of case class Person(id: Long, name: String, age: Int, address: String, childrenAges: List[Int])
+"zio.blocks.schema.Person": {
+  "x-zio-blocks-schema-fields": [{
+    "x-zio-blocks-schema-name": "id",
+    "x-zio-blocks-schema-value": { "$ref": "#/$defs/scala.Long" },
+    "x-zio-blocks-schema-doc": [],
+    "x-zio-blocks-schema-modifiers": []
+  },{
+    "x-zio-blocks-schema-name": "name",
+    "x-zio-blocks-schema-value": { "$ref": "#/$defs/scala.String" },
+    "x-zio-blocks-schema-doc": [],
+    "x-zio-blocks-schema-modifiers": []
+  },{
+    "x-zio-blocks-schema-name": "age",
+    "x-zio-blocks-schema-value": { "$ref": "#/$defs/scala.Int" },
+    "x-zio-blocks-schema-doc": [],
+    "x-zio-blocks-schema-modifiers": []
+  },{
+    "x-zio-blocks-schema-name": "address",
+    "x-zio-blocks-schema-value": { "$ref": "#/$defs/scala.String" },
+    "x-zio-blocks-schema-doc": [],
+    "x-zio-blocks-schema-modifiers": []
+  },{
+    "x-zio-blocks-schema-name": "childrenAges",
+    "x-zio-blocks-schema-value": { "$ref": "#/$defs/scala.collection.immutable.List[scala.Int]" },
+    "x-zio-blocks-schema-doc": [],
+    "x-zio-blocks-schema-modifiers": []
+  }],
+  "x-zio-blocks-schema-type-name": {
+    "x-zio-blocks-schema-namespace": {
+      "x-zio-blocks-schema-packages": ["zio", "blocks", "schema"],
+      "x-zio-blocks-schema-values": []
+    },
+    "x-zio-blocks-schema-name": "Person",
+    "x-zio-blocks-schema-params": []
+  },
+  "x-zio-blocks-schema-doc": [],
+  "x-zio-blocks-schema-modifiers": []
+}
+     */
+    def toJsonSchema: DynamicValue = ???
+
     def typeName(value: TypeName[A]): Record[F, A] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
@@ -589,6 +631,8 @@ object Reflect {
         cases   <- Lazy.foreach(cases)(_.transform(path, Term.Type.Variant, f))
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
+
+    def toJsonSchema: DynamicValue = ???
 
     def typeName(value: TypeName[A]): Variant[F, A] = copy(typeName = value)
 
@@ -775,6 +819,8 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
+    def toJsonSchema: DynamicValue = ???
+
     def typeName(value: TypeName[C[A]]): Sequence[F, A, C] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
@@ -890,6 +936,8 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
+    def toJsonSchema: DynamicValue = ???
+
     def typeName(value: TypeName[M[K, V]]): Map[F, K, V, M] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
@@ -959,6 +1007,8 @@ object Reflect {
         dynamic <- f.transformDynamic(path, typeName, dynamicBinding, doc, modifiers)
       } yield dynamic
 
+    def toJsonSchema: DynamicValue = ???
+
     def typeName(value: TypeName[DynamicValue]): Dynamic[F] = copy(typeName = value)
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
@@ -1014,6 +1064,27 @@ object Reflect {
       for {
         primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
       } yield primitive
+
+    /* Example of JSON Schema for Schema[Long]
+"scala.Int": {
+  "x-zio-blocks-schema-primitive-type": {
+    "x-zio-blocks-schema-primitive-type-double": {
+      "x-zio-blocks-schema-validation-none": {}
+    }
+  },
+  "x-zio-blocks-schema-type-name": {
+    "x-zio-blocks-schema-namespace": {
+      "x-zio-blocks-schema-packages": ["scala"],
+      "x-zio-blocks-schema-values": []
+    },
+    "x-zio-blocks-schema-name": "Int",
+    "x-zio-blocks-schema-params": []
+  },
+  "x-zio-blocks-schema-doc": [],
+  "x-zio-blocks-schema-modifiers": []
+}
+     */
+    def toJsonSchema: DynamicValue = ???
 
     def typeName(value: TypeName[A]): Primitive[F, A] = copy(typeName = value)
 
@@ -1080,6 +1151,8 @@ object Reflect {
         wrapped <- wrapped.transform(path, f)
         wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperBinding, doc, modifiers)
       } yield wrapper
+
+    def toJsonSchema: DynamicValue = ???
 
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
 
@@ -1153,6 +1226,8 @@ object Reflect {
           result
         }
       }
+
+    def toJsonSchema: DynamicValue = ???
 
     def typeName(value: TypeName[A]): Deferred[F, A] = copy(_value = () => _value().typeName(value))
 
