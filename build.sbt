@@ -57,7 +57,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC41" % Test,
+      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC42" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.21"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.21"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
