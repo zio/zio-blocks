@@ -1137,7 +1137,7 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
       Lazy {
         val c      = cache.get
-        val key    = (this, f)
+        val key    = new IdentityTuple(this, f)
         val cached = c.get(key)
         if (cached ne null) cached.asInstanceOf[Reflect[G, A]]
         else {
@@ -1345,16 +1345,25 @@ object Reflect {
 
     private[this] val visited =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
-        override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap[AnyRef, Unit]
+        override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap
       }
 
     private[this] val cache =
-      new ThreadLocal[java.util.HashMap[AnyRef, AnyRef]] {
-        override def initialValue: java.util.HashMap[AnyRef, AnyRef] =
-          new java.util.HashMap[AnyRef, AnyRef]
+      new ThreadLocal[java.util.HashMap[IdentityTuple, AnyRef]] {
+        override def initialValue: java.util.HashMap[IdentityTuple, AnyRef] = new java.util.HashMap
       }
 
     def nodeType = value.nodeType
+  }
+
+  private class IdentityTuple(val v1: AnyRef, val v2: AnyRef) {
+    override def equals(obj: Any): Boolean = obj match {
+      case that: IdentityTuple => (this.v1 eq that.v1) && (this.v2 eq that.v2)
+      case _                   => false
+    }
+
+    override def hashCode(): Int =
+      System.identityHashCode(v1) * 31 + System.identityHashCode(v2)
   }
 
   object Deferred {
