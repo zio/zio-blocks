@@ -44,7 +44,7 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
       },
       test("BigDecimal") {
         roundTrip[BigDecimal](
-          "{\"type\":\"record\",\"name\":\"BigDecimal\",\"fields\":[{\"name\":\"mantissa\",\"type\":\"bytes\"},{\"name\":\"scale\",\"type\":\"int\"},{\"name\":\"precision\",\"type\":\"int\"},{\"name\":\"roundingMode\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"BigDecimal\"}"
+          "{\"type\":\"record\",\"name\":\"BigDecimal\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"mantissa\",\"type\":\"bytes\"},{\"name\":\"scale\",\"type\":\"int\"},{\"name\":\"precision\",\"type\":\"int\"},{\"name\":\"roundingMode\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"BigDecimal\"}"
         )
       },
       test("DayOfWeek") {
@@ -52,27 +52,27 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
       },
       test("Duration") {
         roundTrip[Duration](
-          "{\"type\":\"record\",\"name\":\"Duration\",\"fields\":[{\"name\":\"seconds\",\"type\":\"long\"},{\"name\":\"nanos\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Duration\"}"
+          "{\"type\":\"record\",\"name\":\"Duration\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"seconds\",\"type\":\"long\"},{\"name\":\"nanos\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Duration\"}"
         )
       },
       test("Instant") {
         roundTrip[Instant](
-          "{\"type\":\"record\",\"name\":\"Instant\",\"fields\":[{\"name\":\"epochSecond\",\"type\":\"long\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Instant\"}"
+          "{\"type\":\"record\",\"name\":\"Instant\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"epochSecond\",\"type\":\"long\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Instant\"}"
         )
       },
       test("LocalDate") {
         roundTrip[LocalDate](
-          "{\"type\":\"record\",\"name\":\"LocalDate\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalDate\"}"
+          "{\"type\":\"record\",\"name\":\"LocalDate\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalDate\"}"
         )
       },
       test("LocalDateTime") {
         roundTrip[LocalDateTime](
-          "{\"type\":\"record\",\"name\":\"LocalDateTime\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalDateTime\"}"
+          "{\"type\":\"record\",\"name\":\"LocalDateTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalDateTime\"}"
         )
       },
       test("LocalTime") {
         roundTrip[LocalTime](
-          "{\"type\":\"record\",\"name\":\"LocalTime\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalTime\"}"
+          "{\"type\":\"record\",\"name\":\"LocalTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"LocalTime\"}"
         )
       },
       test("Month") {
@@ -80,22 +80,22 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
       },
       test("MonthDay") {
         roundTrip[MonthDay](
-          "{\"type\":\"record\",\"name\":\"MonthDay\",\"fields\":[{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"MonthDay\"}"
+          "{\"type\":\"record\",\"name\":\"MonthDay\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"MonthDay\"}"
         )
       },
       test("OffsetDateTime") {
         roundTrip[OffsetDateTime](
-          "{\"type\":\"record\",\"name\":\"OffsetDateTime\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"OffsetDateTime\"}"
+          "{\"type\":\"record\",\"name\":\"OffsetDateTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"OffsetDateTime\"}"
         )
       },
       test("OffsetTime") {
         roundTrip[OffsetTime](
-          "{\"type\":\"record\",\"name\":\"OffsetTime\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"OffsetTime\"}"
+          "{\"type\":\"record\",\"name\":\"OffsetTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"OffsetTime\"}"
         )
       },
       test("Period") {
         roundTrip[Period](
-          "{\"type\":\"record\",\"name\":\"Period\",\"fields\":[{\"name\":\"years\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"days\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Period\"}"
+          "{\"type\":\"record\",\"name\":\"Period\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"years\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"days\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"Period\"}"
         )
       },
       test("Year") {
@@ -103,7 +103,7 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
       },
       test("YearMonth") {
         roundTrip[YearMonth](
-          "{\"type\":\"record\",\"name\":\"YearMonth\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"YearMonth\"}"
+          "{\"type\":\"record\",\"name\":\"YearMonth\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"}],\"zio.blocks.avro.primitiveType\":\"YearMonth\"}"
         )
       },
       test("ZoneId") {
@@ -114,7 +114,7 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
       },
       test("ZonedDateTime") {
         roundTrip[ZonedDateTime](
-          "{\"type\":\"record\",\"name\":\"ZonedDateTime\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"},{\"name\":\"zoneId\",\"type\":\"string\"}],\"zio.blocks.avro.primitiveType\":\"ZonedDateTime\"}"
+          "{\"type\":\"record\",\"name\":\"ZonedDateTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"},{\"name\":\"zoneId\",\"type\":\"string\"}],\"zio.blocks.avro.primitiveType\":\"ZonedDateTime\"}"
         )
       },
       test("Currency") {
