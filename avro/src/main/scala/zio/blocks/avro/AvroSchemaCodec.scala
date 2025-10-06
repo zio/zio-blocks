@@ -4,6 +4,7 @@ import zio.blocks.schema._
 import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.binding.Binding
 import java.util
+import scala.collection.mutable
 import scala.jdk.CollectionConverters.SeqHasAsJava
 import scala.util.control.NonFatal
 
@@ -112,12 +113,16 @@ object AvroSchemaCodec extends AvroSchemaCodec {
   private[this] def unsupportedAvroSchema(avroSchema: AvroSchema): Either[Throwable, Reflect[Binding, ?]] =
     new Left(new RuntimeException(s"Unsupported Avro schema: ${avroSchema.getName}"))
 
-  private[this] def toAvroSchema(reflect: Reflect[Binding, ?]): AvroSchema = reflect match {
-    case primitive: Reflect.Primitive[Binding, _] =>
+  private[this] def toAvroSchema(
+    reflect: Reflect[Binding, ?],
+    avroSchemas: mutable.HashMap[TypeName[?], AvroSchema] = new mutable.HashMap
+  ): AvroSchema = {
+    if (reflect.isPrimitive) {
+      val primitive     = reflect.asPrimitive.get
       val primitiveType = primitive.primitiveType
-      val typeName  = primitiveType.typeName
-      val name      = typeName.name
-      val namespace = typeName.namespace.elements.mkString(".")
+      val typeName      = primitiveType.typeName
+      val name          = typeName.name
+      val namespace     = typeName.namespace.elements.mkString(".")
       primitiveType match {
         case _: PrimitiveType.Unit.type  => AvroSchema.create(AvroSchema.Type.NULL)
         case _: PrimitiveType.Boolean    => AvroSchema.create(AvroSchema.Type.BOOLEAN)
@@ -262,17 +267,25 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.UUID     => createFixedAvroSchema(16, name)
         case null                      => sys.error(s"Unsupported primitive type: $name")
       }
-    case record: Reflect.Record[Binding, _] =>
+    } else {
+      val record   = reflect.asRecord.get
       val typeName = record.typeName
-      var name = typeName.name
-      val params = typeName.params
-      if (params.nonEmpty) name += params.mkString("[", ",", "]")
-      val namespace = typeName.namespace.elements.mkString(".")
-      val fields = record.fields.map(field => new AvroSchema.Field(field.name, toAvroSchema(field.value))).asJava
-      AvroSchema.createRecord(name, null, namespace, false, fields)
-    case _ =>
-      // non-primitive types
-      ???
+      avroSchemas.get(typeName) match {
+        case Some(avroSchema) => avroSchema
+        case _                =>
+          var name   = typeName.name
+          val params = typeName.params
+          if (params.nonEmpty) name += params.mkString("[", ",", "]")
+          val namespace  = typeName.namespace.elements.mkString(".")
+          val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
+          avroSchemas.put(typeName, avroSchema)
+          val fields = record.fields.map { field =>
+            new AvroSchema.Field(field.name, toAvroSchema(field.value, avroSchemas))
+          }.asJava
+          avroSchema.setFields(fields)
+          avroSchema
+      }
+    }
   }
 
   private def createAvroSchema(tpe: AvroSchema.Type, name: String): AvroSchema = {
