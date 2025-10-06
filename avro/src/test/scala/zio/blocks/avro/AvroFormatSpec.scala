@@ -103,7 +103,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
     ),
     suite("records")(
       test("simple record") {
-        roundTrip(Record(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 22)
+        roundTrip(Record(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV" /*, null*/ ), 22)
       }
     )
   )
@@ -126,7 +126,18 @@ object AvroFormatSpec extends ZIOSpecDefault {
   def toDirectByteBuffer(bs: Array[Byte]): ByteBuffer =
     ByteBuffer.allocateDirect(1024).put(bs).position(0).limit(bs.length)
 
-  case class Record(bl: Boolean, b: Byte, sh: Short, i: Int, l: Long, f: Float, d: Double, c: Char, s: String)
+  case class Record(
+    bl: Boolean,
+    b: Byte,
+    sh: Short,
+    i: Int,
+    l: Long,
+    f: Float,
+    d: Double,
+    c: Char,
+    s: String /*,
+    r: Record*/
+  )
 
   object Record {
     implicit val schemaRecord: Schema[Record] = Schema.derived
