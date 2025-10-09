@@ -1,6 +1,6 @@
 package zio.blocks.avro
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Namespace, Schema, TypeName}
 import zio.test.Assertion._
 import zio.test._
 import java.time._
@@ -126,12 +126,37 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
         roundTrip[UUID]("{\"type\":\"fixed\",\"name\":\"UUID\",\"size\":16,\"zio.blocks.avro.primitiveType\":\"UUID\"}")
       }
     ),
-    suite("primitives")(
+    suite("records")(
       test("simple record") {
         roundTrip[Record](
           "{\"type\":\"record\",\"name\":\"Record\",\"namespace\":\"zio.blocks.avro.AvroSchemaCodecSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"int\"}]}"
         )
       }
+    ),
+    suite("sequences")(
+      test("list") {
+        roundTrip[List[Int]](
+          "{\"type\":\"array\",\"items\":\"int\"}"
+        )
+      }
+    ),
+    suite("maps")(
+      test("string key map") {
+        roundTrip[Map[String, Int]](
+          "{\"type\":\"map\",\"values\":\"int\"}"
+        )
+      }
+      /*
+    ),
+    suite("variants")(
+      test("option") {
+        implicit val schema: Schema[Option[Int]] =
+          new Schema(Schema.derived[Option[Int]].reflect.typeName(TypeName[Option[Int]](Namespace(Nil, Nil), "|")))
+        roundTrip[Option[Int]](
+          "[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]}]"
+        )
+      }
+       */
     )
   )
 
