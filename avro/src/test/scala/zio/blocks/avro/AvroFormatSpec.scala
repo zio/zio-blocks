@@ -105,6 +105,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("simple record") {
         roundTrip(Record(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV" /*, null*/ ), 22)
       }
+      /*
+    ),
+    suite("enums")(
+      test("option") {
+        roundTrip(Option(42), 2)
+      }
+       */
     )
   )
 

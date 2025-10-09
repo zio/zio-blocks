@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
-import scala.quoted.*
+import scala.quoted._
 
 private[schema] object CommonMacroOps {
   def fail(msg: String)(using q: Quotes): Nothing = {

@@ -93,14 +93,45 @@ object AvroSchemaCodec extends AvroSchemaCodec {
             new Right(record)
         }
       case AvroSchema.Type.UNION =>
-        // sealed traits
-        ???
+        val cases = Vector.newBuilder[Term[Binding, ?, ?]]
+        val it    = avroSchema.getTypes.iterator()
+        while (it.hasNext) {
+          val case_ = it.next()
+          toReflect(case_) match {
+            case Right(reflect) => cases.addOne(new Term(reflect.typeName.name, reflect))
+            case left           => return left
+          }
+        }
+        val variant = Reflect.Variant[Binding, Any](
+          cases = cases.result().asInstanceOf[IndexedSeq[Term[Binding, Any, Any]]],
+          typeName = new TypeName[Any](new Namespace(Nil, Nil), "|"), // same as for Scala 3 union type
+          variantBinding = null
+        )
+        new Right(variant)
       case AvroSchema.Type.ARRAY =>
-        // Seq[_], Map[_, _]
-        ???
+        // TODO add support for Map[_, _] as array of tuples
+        val element = toReflect(avroSchema.getElementType) match {
+          case Right(reflect) => reflect
+          case left           => return left
+        }
+        val sequence = new Reflect.Sequence[Binding, Any, List](
+          element = element.asInstanceOf[Reflect[Binding, Any]],
+          typeName = TypeName.list(element.typeName.asInstanceOf[TypeName[Any]]),
+          seqBinding = null
+        )
+        new Right(sequence)
       case AvroSchema.Type.MAP =>
-        // Map[String, _]
-        ???
+        val value = toReflect(avroSchema.getValueType) match {
+          case Right(reflect) => reflect
+          case left           => return left
+        }
+        val map = new Reflect.Map[Binding, String, Any, Map](
+          key = Reflect.string,
+          value = value.asInstanceOf[Reflect[Binding, Any]],
+          typeName = TypeName.map(TypeName.string, value.typeName.asInstanceOf[TypeName[Any]]),
+          mapBinding = null
+        )
+        new Right(map)
       case _ => unsupportedAvroSchema(avroSchema)
     }
 
@@ -267,15 +298,22 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.UUID     => createFixedAvroSchema(16, name)
         case null                      => sys.error(s"Unsupported primitive type: $name")
       }
+    } else if (reflect.isVariant) {
+      val variant = reflect.asVariant.get
+      val cases   = variant.cases
+      AvroSchema.createUnion(cases.map(case_ => toAvroSchema(case_.value)).asJava)
+    } else if (reflect.isSequence) {
+      AvroSchema.createArray(toAvroSchema(reflect.asSequenceUnknown.get.sequence.element))
+    } else if (reflect.isMap) {
+      // TODO add support of Map[_, _] as an array of tuples
+      AvroSchema.createMap(toAvroSchema(reflect.asMapUnknown.get.map.value))
     } else {
       val record   = reflect.asRecord.get
       val typeName = record.typeName
       avroSchemas.get(typeName) match {
         case Some(avroSchema) => avroSchema
         case _                =>
-          var name   = typeName.name
-          val params = typeName.params
-          if (params.nonEmpty) name += params.mkString("[", ",", "]")
+          val name       = typeName.name
           val namespace  = typeName.namespace.elements.mkString(".")
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchemas.put(typeName, avroSchema)
