@@ -114,6 +114,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
           ),
           44
         )
+      },
+      test("recursive record") {
+        roundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 8)
       }
     ),
     suite("sequences")(
@@ -151,10 +154,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("recursive values") {
         roundTrip(
           List(
-            Recursive(1, List(Recursive(2, Nil), Recursive(3, Nil))),
-            Recursive(4, List(Recursive(5, Nil), Recursive(6, Nil)))
+            Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
+            Recursive(4, List(Recursive(5, List(Recursive(6, Nil)))))
           ),
-          16
+          18
         )
       }
       /*
