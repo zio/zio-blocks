@@ -8,7 +8,7 @@ import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
 import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
-import zio.blocks.schema.derive.{BindingInstance, Deriver}
+import zio.blocks.schema.derive.Deriver
 import java.io.OutputStream
 import java.math.{BigInteger, MathContext, RoundingMode}
 import java.nio.ByteBuffer
@@ -89,11 +89,19 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[C[A]]] =
-          Lazy(new BinaryCodec[C[A]] {
-            override def encode(value: C[A], output: ByteBuffer): Unit = ???
-
-            override def decode(input: ByteBuffer): Either[SchemaError, C[A]] = ???
-          })
+          Lazy(
+            deriveCodec(
+              new Schema(
+                Reflect.Sequence(
+                  element = element.asInstanceOf[Reflect[Binding, A]],
+                  typeName = typeName,
+                  seqBinding = binding,
+                  doc = doc,
+                  modifiers = modifiers
+                )
+              )
+            )
+          )
 
         override def deriveMap[F[_, _], M[_, _], K, V](
           key: Reflect[F, K],
@@ -103,11 +111,20 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[M[K, V]]] =
-          Lazy(new BinaryCodec[M[K, V]] {
-            override def encode(value: M[K, V], output: ByteBuffer): Unit = ???
-
-            override def decode(input: ByteBuffer): Either[SchemaError, M[K, V]] = ???
-          })
+          Lazy(
+            deriveCodec(
+              new Schema(
+                Reflect.Map(
+                  key = key.asInstanceOf[Reflect[Binding, K]],
+                  value = value.asInstanceOf[Reflect[Binding, V]],
+                  typeName = typeName,
+                  mapBinding = binding,
+                  doc = doc,
+                  modifiers = modifiers
+                )
+              )
+            )
+          )
 
         override def deriveDynamic[F[_, _]](
           binding: Binding[BindingType.Dynamic, DynamicValue],
@@ -600,7 +617,15 @@ object AvroFormat
             /*
             val sequence = reflect.asSequenceUnknown.get.sequence
             val element  = sequence.element
-             */
+            val seqBinding = sequence.seqBinding.asInstanceOf[Binding.Seq[?, ?]]
+            val constructor = seqBinding.constructor
+            val deconstructor = seqBinding.deconstructor
+            toAvroBinaryCodec(
+              avroSchema,
+              (x: A) => x.asInstanceOf[B],
+              (x: B) => x.asInstanceOf[A]
+            )
+            */
             ???
           } else if (reflect.isMap) {
             ???
