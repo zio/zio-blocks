@@ -8,7 +8,7 @@ import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
 import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
-import zio.blocks.schema.derive.Deriver
+import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import java.io.OutputStream
 import java.math.{BigInteger, MathContext, RoundingMode}
 import java.nio.ByteBuffer
@@ -152,6 +152,8 @@ object AvroFormat
 
             override def decode(input: ByteBuffer): Either[SchemaError, A] = ???
           })
+
+        type TC[_]
 
         private def deriveCodec[A, B](
           schema: Schema[A],
@@ -625,21 +627,19 @@ object AvroFormat
               (x: A) => x.asInstanceOf[B],
               (x: B) => x.asInstanceOf[A]
             )
-            */
+             */
             ???
           } else if (reflect.isMap) {
             ???
           } else if (reflect.isRecord) {
-            val record = reflect.asRecord.get
+            val record        = reflect.asRecord.get
             val recordBinding =
-//              try {
-              record.recordBinding.asInstanceOf[Binding.Record[A]]
-            /*
+              try {
+                record.recordBinding.asInstanceOf[Binding.Record[A]]
               } catch {
                 case _: Exception =>
-                  record.recordBinding.asInstanceOf[BindingInstance[?, ?, ?]].binding.asInstanceOf[Binding.Record[A]]
+                  record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding.asInstanceOf[Binding.Record[A]]
               }
-             */
             val constructor   = recordBinding.constructor
             val deconstructor = recordBinding.deconstructor
             val fields        = record.fields

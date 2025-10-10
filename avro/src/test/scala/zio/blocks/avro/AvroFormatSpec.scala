@@ -103,7 +103,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
     ),
     suite("records")(
       test("simple record") {
-        roundTrip(Record(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV" /*, null*/ ), 22)
+        roundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 22)
+      },
+      test("nested record") {
+        roundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+          ),
+          44
+        )
       }
       /*
     ),
@@ -133,7 +142,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
   def toDirectByteBuffer(bs: Array[Byte]): ByteBuffer =
     ByteBuffer.allocateDirect(1024).put(bs).position(0).limit(bs.length)
 
-  case class Record(
+  case class Record1(
     bl: Boolean,
     b: Byte,
     sh: Short,
@@ -142,11 +151,19 @@ object AvroFormatSpec extends ZIOSpecDefault {
     f: Float,
     d: Double,
     c: Char,
-    s: String /*,
-    r: Record*/
+    s: String
   )
 
-  object Record {
-    implicit val schemaRecord: Schema[Record] = Schema.derived
+  object Record1 {
+    implicit val schema: Schema[Record1] = Schema.derived
+  }
+
+  case class Record2(
+    r1_1: Record1,
+    r1_2: Record1
+  )
+
+  object Record2 {
+    implicit val schema: Schema[Record2] = Schema.derived
   }
 }
