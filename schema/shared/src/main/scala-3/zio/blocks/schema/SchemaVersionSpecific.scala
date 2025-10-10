@@ -1010,7 +1010,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
 
   def derived[A: Type]: Expr[Schema[A]] = {
     val aTpe        = TypeRepr.of[A].dealias
-    val schema      = aTpe.asType match { case '[a] => deriveSchema(aTpe) }
+    val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
     val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
     schemaBlock
