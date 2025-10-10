@@ -5,7 +5,7 @@ import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.quoted._
-import zio.blocks.schema.Term as SchemaTerm
+import zio.blocks.schema.{Term => SchemaTerm}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps

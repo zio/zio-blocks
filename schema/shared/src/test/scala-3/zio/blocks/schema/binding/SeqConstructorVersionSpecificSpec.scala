@@ -1,7 +1,7 @@
 package zio.blocks.schema.binding
 
-import zio.test.*
-import zio.test.Assertion.*
+import zio.test._
+import zio.test.Assertion._
 
 object SeqConstructorVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("SeqConstructorVersionSpecificSpec")(
