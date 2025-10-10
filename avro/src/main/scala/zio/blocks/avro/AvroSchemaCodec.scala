@@ -301,12 +301,12 @@ object AvroSchemaCodec extends AvroSchemaCodec {
     } else if (reflect.isVariant) {
       val variant = reflect.asVariant.get
       val cases   = variant.cases
-      AvroSchema.createUnion(cases.map(case_ => toAvroSchema(case_.value)).asJava)
+      AvroSchema.createUnion(cases.map(case_ => toAvroSchema(case_.value, avroSchemas)).asJava)
     } else if (reflect.isSequence) {
-      AvroSchema.createArray(toAvroSchema(reflect.asSequenceUnknown.get.sequence.element))
+      AvroSchema.createArray(toAvroSchema(reflect.asSequenceUnknown.get.sequence.element, avroSchemas))
     } else if (reflect.isMap) {
       // TODO add support of Map[_, _] as an array of tuples
-      AvroSchema.createMap(toAvroSchema(reflect.asMapUnknown.get.map.value))
+      AvroSchema.createMap(toAvroSchema(reflect.asMapUnknown.get.map.value, avroSchemas))
     } else {
       val record   = reflect.asRecord.get
       val typeName = record.typeName

@@ -1,7 +1,13 @@
 package zio.blocks.avro
 
 import org.apache.avro.generic.GenericData.Fixed
-import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter, GenericRecordBuilder, IndexedRecord}
+import org.apache.avro.generic.{
+  GenericData,
+  GenericDatumReader,
+  GenericDatumWriter,
+  GenericRecordBuilder,
+  IndexedRecord
+}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.util.Utf8
 import org.apache.avro.{Schema => AvroSchema}
@@ -154,6 +160,7 @@ object AvroFormat
           })
 
         type TC[_]
+        type Col[_]
 
         private def deriveCodec[A, B](
           schema: Schema[A],
@@ -616,19 +623,38 @@ object AvroFormat
              */
             ???
           } else if (reflect.isSequence) {
-            /*
-            val sequence = reflect.asSequenceUnknown.get.sequence
-            val element  = sequence.element
-            val seqBinding = sequence.seqBinding.asInstanceOf[Binding.Seq[?, ?]]
-            val constructor = seqBinding.constructor
+            val sequence   = reflect.asSequenceUnknown.get.sequence
+            val seqBinding =
+              try {
+                sequence.seqBinding.asInstanceOf[Binding.Seq[Col, A]]
+              } catch {
+                case _: Exception =>
+                  sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding.asInstanceOf[Binding.Seq[Col, A]]
+              }
+            val constructor   = seqBinding.constructor
             val deconstructor = seqBinding.deconstructor
-            toAvroBinaryCodec(
+            val element       = sequence.element
+            val elementCodec  = deriveCodec(new Schema(element), cache)
+            val encoder       = elementCodec.encoder.asInstanceOf[A => Any]
+            val decoder       = elementCodec.decoder.asInstanceOf[Any => A]
+            toAvroBinaryCodec[Col[A], Any](
               avroSchema,
-              (x: A) => x.asInstanceOf[B],
-              (x: B) => x.asInstanceOf[A]
+              (x: Col[A]) => {
+                val res = new java.util.ArrayList[Any]
+                val it  = deconstructor.deconstruct(x)
+                while (it.hasNext) res.add(encoder(it.next()))
+                res
+              },
+              (x: Any) => {
+                val array   = x.asInstanceOf[GenericData.AbstractArray[A]]
+                val builder = constructor.newObjectBuilder[A](8)
+                val it      = array.iterator()
+                while (it.hasNext) {
+                  constructor.addObject(builder, decoder(it.next()))
+                }
+                constructor.resultObject[A](builder)
+              }
             )
-             */
-            ???
           } else if (reflect.isMap) {
             ???
           } else if (reflect.isRecord) {

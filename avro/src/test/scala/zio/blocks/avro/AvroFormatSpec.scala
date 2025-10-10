@@ -6,6 +6,7 @@ import zio.test._
 import java.nio.ByteBuffer
 import java.util
 import java.util.UUID
+import scala.collection.immutable.ArraySeq
 
 object AvroFormatSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatSpec")(
@@ -114,12 +115,54 @@ object AvroFormatSpec extends ZIOSpecDefault {
           44
         )
       }
-      /*
     ),
-    suite("enums")(
-      test("option") {
-        roundTrip(Option(42), 2)
+    suite("sequences")(
+      test("primitive values") {
+        implicit val arrayOfUnitSchema: Schema[Array[Unit]]       = Schema.derived
+        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]] = Schema.derived
+        implicit val arrayOfByteSchema: Schema[Array[Byte]]       = Schema.derived
+        implicit val arrayOfShortSchema: Schema[Array[Short]]     = Schema.derived
+        implicit val arrayOfCharSchema: Schema[Array[Char]]       = Schema.derived
+
+        roundTrip(Array[Unit]((), (), ()), 2) &&
+        roundTrip(Array[Boolean](true, false, true), 5) &&
+        roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte), 5) &&
+        roundTrip(Array[Short](1: Short, 2: Short, 3: Short), 5) &&
+        roundTrip(Array('1', '2', '3'), 5) &&
+        roundTrip(List(1, 2, 3), 5) &&
+        roundTrip(ArraySeq(1L, 2L, 3L), 5) &&
+        roundTrip(Set(1.0f, 2.0f, 3.0f), 14) &&
+        roundTrip(Vector(1.0, 2.0, 3.0), 26) &&
+        roundTrip(List("1", "2", "3"), 8) &&
+        roundTrip(List(BigInt(1), BigInt(2), BigInt(3)), 8) &&
+        roundTrip(List(BigDecimal(1.0), BigDecimal(2.0), BigDecimal(3.0)), 17) &&
+        roundTrip(List(java.time.LocalDate.of(2025, 10, 10), java.time.LocalDate.of(2025, 10, 11)), 10) &&
+        roundTrip(List(new java.util.UUID(1L, 1L), new java.util.UUID(2L, 2L), new java.util.UUID(3L, 3L)), 50)
+      },
+      test("complex values") {
+        roundTrip(
+          List(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+          ),
+          46
+        )
+      },
+      test("recursive values") {
+        roundTrip(
+          List(
+            Recursive(1, List(Recursive(2, Nil), Recursive(3, Nil))),
+            Recursive(4, List(Recursive(5, Nil), Recursive(6, Nil)))
+          ),
+          16
+        )
       }
+      /*
+      ),
+      suite("enums")(
+        test("option") {
+          roundTrip(Option(42), 2)
+        }
        */
     )
   )
@@ -165,5 +208,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
 
   object Record2 {
     implicit val schema: Schema[Record2] = Schema.derived
+  }
+
+  case class Recursive(i: Int, ln: List[Recursive])
+
+  object Recursive {
+    implicit val schema: Schema[Recursive] = Schema.derived
   }
 }
