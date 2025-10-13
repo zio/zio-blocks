@@ -130,27 +130,27 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
     suite("records")(
       test("simple record") {
         roundTrip[Record](
-          "{\"type\":\"record\",\"name\":\"Record\",\"namespace\":\"zio.blocks.avro.AvroSchemaCodecSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"int\"}]}"
+          "{\"type\":\"record\",\"name\":\"Record\",\"namespace\":\"zio.blocks.avro.AvroSchemaCodecSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"int\"}],\"zio.blocks.avro.typeName\":{\"namespace\":{\"values\":[\"AvroSchemaCodecSpec\"],\"packages\":[\"zio\",\"blocks\",\"avro\"]},\"name\":\"Record\"}}"
         )
       }
     ),
     suite("sequences")(
       test("list") {
         roundTrip[List[Int]](
-          "{\"type\":\"array\",\"items\":\"int\"}"
+          "{\"type\":\"array\",\"items\":\"int\",\"zio.blocks.avro.typeName\":{\"namespace\":{\"packages\":[\"scala\",\"collection\",\"immutable\"]},\"name\":\"List\",\"params\":[{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Int\"}]}}"
         )
       }
     ),
     suite("maps")(
       test("string key map") {
         roundTrip[Map[String, Int]](
-          "{\"type\":\"map\",\"values\":\"int\"}"
+          "{\"type\":\"map\",\"values\":\"int\",\"zio.blocks.avro.typeName\":{\"namespace\":{\"packages\":[\"scala\",\"collection\",\"immutable\"]},\"name\":\"Map\",\"params\":[{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"String\"},{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Int\"}]}}"
         )
       },
       test("non string key map") {
         ZIO.attempt {
           roundTrip[Map[Int, Int]](
-            "{\"type\":\"map\",\"values\":\"int\"}"
+            "{\"type\":\"map\",\"values\":\"int\",\"zio.blocks.avro.typeName\":{\"namespace\":{\"packages\":[\"scala\",\"collection\",\"immutable\"]},\"name\":\"Map\",\"params\":[{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"String\"},{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Int\"}]}}"
           )
         }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected string keys only")))

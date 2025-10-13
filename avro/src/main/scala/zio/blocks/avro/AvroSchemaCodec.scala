@@ -163,18 +163,19 @@ object AvroSchemaCodec extends AvroSchemaCodec {
       primitiveType match {
         case _: PrimitiveType.Unit.type  => AvroSchema.create(AvroSchema.Type.NULL)
         case _: PrimitiveType.Boolean    => AvroSchema.create(AvroSchema.Type.BOOLEAN)
-        case _: PrimitiveType.Byte       => createAvroSchema(AvroSchema.Type.INT, name)
-        case _: PrimitiveType.Short      => createAvroSchema(AvroSchema.Type.INT, name)
+        case _: PrimitiveType.Byte       => createAvroSchema(AvroSchema.Type.INT, typeName, reflect.typeName)
+        case _: PrimitiveType.Short      => createAvroSchema(AvroSchema.Type.INT, typeName, reflect.typeName)
         case _: PrimitiveType.Int        => AvroSchema.create(AvroSchema.Type.INT)
         case _: PrimitiveType.Long       => AvroSchema.create(AvroSchema.Type.LONG)
         case _: PrimitiveType.Float      => AvroSchema.create(AvroSchema.Type.FLOAT)
         case _: PrimitiveType.Double     => AvroSchema.create(AvroSchema.Type.DOUBLE)
-        case _: PrimitiveType.Char       => createAvroSchema(AvroSchema.Type.INT, name)
+        case _: PrimitiveType.Char       => createAvroSchema(AvroSchema.Type.INT, typeName, reflect.typeName)
         case _: PrimitiveType.String     => AvroSchema.create(AvroSchema.Type.STRING)
-        case _: PrimitiveType.BigInt     => createAvroSchema(AvroSchema.Type.BYTES, name)
+        case _: PrimitiveType.BigInt     => createAvroSchema(AvroSchema.Type.BYTES, typeName, reflect.typeName)
         case _: PrimitiveType.BigDecimal =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("mantissa", AvroSchema.create(AvroSchema.Type.BYTES)))
             add(new AvroSchema.Field("scale", AvroSchema.create(AvroSchema.Type.INT)))
@@ -182,10 +183,11 @@ object AvroSchemaCodec extends AvroSchemaCodec {
             add(new AvroSchema.Field("roundingMode", AvroSchema.create(AvroSchema.Type.INT)))
           })
           avroSchema
-        case _: PrimitiveType.DayOfWeek => createAvroSchema(AvroSchema.Type.INT, name)
+        case _: PrimitiveType.DayOfWeek => createAvroSchema(AvroSchema.Type.INT, typeName, reflect.typeName)
         case _: PrimitiveType.Duration  =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("seconds", AvroSchema.create(AvroSchema.Type.LONG)))
             add(new AvroSchema.Field("nanos", AvroSchema.create(AvroSchema.Type.INT)))
@@ -194,6 +196,7 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.Instant =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("epochSecond", AvroSchema.create(AvroSchema.Type.LONG)))
             add(new AvroSchema.Field("nano", AvroSchema.create(AvroSchema.Type.INT)))
@@ -202,6 +205,7 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.LocalDate =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("year", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("month", AvroSchema.create(AvroSchema.Type.INT)))
@@ -211,6 +215,7 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.LocalDateTime =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("year", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("month", AvroSchema.create(AvroSchema.Type.INT)))
@@ -224,6 +229,7 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.LocalTime =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("hour", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("minute", AvroSchema.create(AvroSchema.Type.INT)))
@@ -231,10 +237,11 @@ object AvroSchemaCodec extends AvroSchemaCodec {
             add(new AvroSchema.Field("nano", AvroSchema.create(AvroSchema.Type.INT)))
           })
           avroSchema
-        case _: PrimitiveType.Month    => createAvroSchema(AvroSchema.Type.INT, name)
+        case _: PrimitiveType.Month    => createAvroSchema(AvroSchema.Type.INT, typeName, reflect.typeName)
         case _: PrimitiveType.MonthDay =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("month", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("day", AvroSchema.create(AvroSchema.Type.INT)))
@@ -243,6 +250,7 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.OffsetDateTime =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("year", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("month", AvroSchema.create(AvroSchema.Type.INT)))
@@ -257,6 +265,7 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.OffsetTime =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("hour", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("minute", AvroSchema.create(AvroSchema.Type.INT)))
@@ -268,26 +277,29 @@ object AvroSchemaCodec extends AvroSchemaCodec {
         case _: PrimitiveType.Period =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("years", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("month", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("days", AvroSchema.create(AvroSchema.Type.INT)))
           })
           avroSchema
-        case _: PrimitiveType.Year      => createAvroSchema(AvroSchema.Type.INT, name)
+        case _: PrimitiveType.Year      => createAvroSchema(AvroSchema.Type.INT, typeName, reflect.typeName)
         case _: PrimitiveType.YearMonth =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("year", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("month", AvroSchema.create(AvroSchema.Type.INT)))
           })
           avroSchema
-        case _: PrimitiveType.ZoneId        => createAvroSchema(AvroSchema.Type.STRING, name)
-        case _: PrimitiveType.ZoneOffset    => createAvroSchema(AvroSchema.Type.INT, name)
+        case _: PrimitiveType.ZoneId        => createAvroSchema(AvroSchema.Type.STRING, typeName, reflect.typeName)
+        case _: PrimitiveType.ZoneOffset    => createAvroSchema(AvroSchema.Type.INT, typeName, reflect.typeName)
         case _: PrimitiveType.ZonedDateTime =>
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
           avroSchema.addProp(primitiveTypePropName, name)
+          if (typeName != reflect.typeName) avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
             add(new AvroSchema.Field("year", AvroSchema.create(AvroSchema.Type.INT)))
             add(new AvroSchema.Field("month", AvroSchema.create(AvroSchema.Type.INT)))
@@ -300,21 +312,27 @@ object AvroSchemaCodec extends AvroSchemaCodec {
             add(new AvroSchema.Field("zoneId", AvroSchema.create(AvroSchema.Type.STRING)))
           })
           avroSchema
-        case _: PrimitiveType.Currency => createFixedAvroSchema(3, name)
-        case _: PrimitiveType.UUID     => createFixedAvroSchema(16, name)
+        case _: PrimitiveType.Currency => createFixedAvroSchema(3, typeName, reflect.typeName)
+        case _: PrimitiveType.UUID     => createFixedAvroSchema(16, typeName, reflect.typeName)
         case null                      => sys.error(s"Unsupported primitive type: $name")
       }
     } else if (reflect.isVariant) {
-      val variant = reflect.asVariant.get
-      val cases   = variant.cases
-      AvroSchema.createUnion(cases.map(case_ => toAvroSchema(case_.value, avroSchemas)).asJava)
+      val variant    = reflect.asVariant.get
+      val cases      = variant.cases
+      val avroSchema = AvroSchema.createUnion(cases.map(case_ => toAvroSchema(case_.value, avroSchemas)).asJava)
+      avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
+      avroSchema
     } else if (reflect.isSequence) {
-      AvroSchema.createArray(toAvroSchema(reflect.asSequenceUnknown.get.sequence.element, avroSchemas))
+      val avroSchema = AvroSchema.createArray(toAvroSchema(reflect.asSequenceUnknown.get.sequence.element, avroSchemas))
+      avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
+      avroSchema
     } else if (reflect.isMap) {
       val map = reflect.asMapUnknown.get.map
       map.key.asPrimitive match {
         case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
-          AvroSchema.createMap(toAvroSchema(map.value, avroSchemas))
+          val avroSchema = AvroSchema.createMap(toAvroSchema(map.value, avroSchemas))
+          avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
+          avroSchema
         case _ => sys.error(s"Expected string keys only")
       }
     } else {
@@ -326,6 +344,7 @@ object AvroSchemaCodec extends AvroSchemaCodec {
           val name       = typeName.name
           val namespace  = typeName.namespace.elements.mkString(".")
           val avroSchema = AvroSchema.createRecord(name, null, namespace, false)
+          avroSchema.addProp(typeNamePropName, toPropValue(typeName))
           avroSchemas.put(typeName, avroSchema)
           val fields = record.fields.map { field =>
             new AvroSchema.Field(field.name, toAvroSchema(field.value, avroSchemas))
@@ -336,17 +355,38 @@ object AvroSchemaCodec extends AvroSchemaCodec {
     }
   }
 
-  private def createAvroSchema(tpe: AvroSchema.Type, name: String): AvroSchema = {
+  private def createAvroSchema(
+    tpe: AvroSchema.Type,
+    privateTypeName: TypeName[?],
+    typeName: TypeName[?]
+  ): AvroSchema = {
     val avroSchema = AvroSchema.create(tpe)
-    avroSchema.addProp(primitiveTypePropName, name)
+    avroSchema.addProp(primitiveTypePropName, privateTypeName.name)
+    if (privateTypeName != typeName) avroSchema.addProp(typeNamePropName, toPropValue(typeName))
     avroSchema
   }
 
-  private def createFixedAvroSchema(size: Int, name: String): AvroSchema = {
+  private def createFixedAvroSchema(size: Int, privateTypeName: TypeName[?], typeName: TypeName[?]): AvroSchema = {
+    val name       = privateTypeName.name
     val avroSchema = AvroSchema.createFixed(name, null, null, size)
     avroSchema.addProp(primitiveTypePropName, name)
+    if (privateTypeName != typeName) avroSchema.addProp(typeNamePropName, toPropValue(typeName))
     avroSchema
   }
 
+  private def toPropValue(typeName: TypeName[?]): AnyRef =
+    new util.HashMap[String, AnyRef] {
+      put("namespace", toPropValue(typeName.namespace))
+      put("name", typeName.name)
+      if (typeName.params.nonEmpty) put("params", typeName.params.map(param => toPropValue(param)).asJava)
+    }
+
+  private def toPropValue(namespace: Namespace): AnyRef =
+    new util.HashMap[String, AnyRef] {
+      if (namespace.packages.nonEmpty) put("packages", namespace.packages.asJava)
+      if (namespace.values.nonEmpty) put("values", namespace.values.asJava)
+    }
+
   private[this] val primitiveTypePropName: String = "zio.blocks.avro.primitiveType"
+  private[this] val typeNamePropName: String      = "zio.blocks.avro.typeName"
 }
