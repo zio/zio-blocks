@@ -203,13 +203,25 @@ object AvroFormatSpec extends ZIOSpecDefault {
         }.flip
           .map(e => assert(e.getMessage)(equalTo("Expected string keys only")))
       }
-      /*
-      ),
-      suite("enums")(
-        test("option") {
-          roundTrip(Option(42), 2)
-        }
-       */
+    ),
+    suite("enums")(
+      test("conatant value enum") {
+        implicit val schema: Schema[TrafficLight] = Schema.derived
+
+        roundTrip[TrafficLight](TrafficLight.Green, 1) &&
+        roundTrip[TrafficLight](TrafficLight.Yellow, 1) &&
+        roundTrip[TrafficLight](TrafficLight.Red, 1)
+      },
+      test("option") {
+        roundTrip(Option(42), 2) &&
+        roundTrip[Option[Int]](None, 1)
+      },
+      test("either") {
+        implicit val schema: Schema[Either[String, Int]] = Schema.derived
+
+        roundTrip[Either[String, Int]](Right(42), 2) &&
+        roundTrip[Either[String, Int]](Left("VVV"), 5)
+      }
     )
   )
 
@@ -260,5 +272,15 @@ object AvroFormatSpec extends ZIOSpecDefault {
 
   object Recursive {
     implicit val schema: Schema[Recursive] = Schema.derived
+  }
+
+  sealed trait TrafficLight
+
+  object TrafficLight {
+    case object Red extends TrafficLight
+
+    case object Yellow extends TrafficLight
+
+    case object Green extends TrafficLight
   }
 }

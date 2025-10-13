@@ -10,15 +10,16 @@ import org.apache.avro.generic.{
 }
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.util.Utf8
-import org.apache.avro.{Schema => AvroSchema}
+import org.apache.avro.Schema as AvroSchema
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
-import zio.blocks.schema._
+import zio.blocks.schema.*
 import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
+
 import java.io.OutputStream
 import java.math.{BigInteger, MathContext, RoundingMode}
 import java.nio.ByteBuffer
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 import scala.collection.mutable
 import scala.util.control.NonFatal
 
@@ -606,11 +607,11 @@ object AvroFormat
                 )
             }
           } else if (reflect.isVariant) {
-            /*
             val variant        = reflect.asVariant.get
             val variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
             val cases          = variant.cases
-            val fieldCodecs    = cache.get(variant.typeName) match {
+            val discriminator  = variantBinding.discriminator
+            val caseCodecs     = cache.get(variant.typeName) match {
               case Some(x) => x
               case _       =>
                 val codecs = new Array[AvroBinaryCodec[?, ?]](cases.length)
@@ -624,8 +625,60 @@ object AvroFormat
                 }
                 codecs
             }
-             */
-            ???
+            val valueReaders = avroSchema.getTypes.asScala.map(as => new GenericDatumReader[Any](as))
+            val valueWriters = avroSchema.getTypes.asScala.map(as => new GenericDatumWriter[Any](as))
+            new AvroBinaryCodec[A, Any](null, null, null, null) {
+              override def encode(value: A, output: ByteBuffer): Unit = {
+                val idx         = discriminator.discriminate(value)
+                val avroEncoder =
+                  EncoderFactory
+                    .get()
+                    .directBinaryEncoder(
+                      new OutputStream {
+                        override def write(b: Int): Unit = output.put(b.toByte)
+
+                        override def write(bs: Array[Byte]): Unit = output.put(bs)
+
+                        override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
+                      },
+                      null
+                    )
+                avroEncoder.writeIndex(idx)
+                valueWriters(idx).write(
+                  caseCodecs(idx).encoder.asInstanceOf[A => Any](value),
+                  avroEncoder
+                )
+              }
+
+              override def decode(input: ByteBuffer): Either[SchemaError, A] = {
+                val bs = new Array[Byte](input.limit - input.position)
+                input.get(bs)
+                val avroDecoder = DecoderFactory.get().binaryDecoder(bs, null)
+                val idx         = avroDecoder.readIndex()
+                if (idx >= 0 && idx <= caseCodecs.length) {
+                  try {
+                    val datum = valueReaders(idx).read(null.asInstanceOf[Any], avroDecoder)
+                    new Right(caseCodecs(idx).decoder.asInstanceOf[Any => A](datum))
+                  } catch {
+                    case error if NonFatal(error) =>
+                      new Left(
+                        new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, error.getMessage), Nil))
+                      )
+                  }
+                } else
+                  new Left(
+                    new SchemaError(
+                      new ::(
+                        new SchemaError.InvalidType(
+                          DynamicOptic.root,
+                          s"Expected discriminator from 0 to ${caseCodecs.length - 1}"
+                        ),
+                        Nil
+                      )
+                    )
+                  )
+              }
+            }
           } else if (reflect.isSequence) {
             val sequence   = reflect.asSequenceUnknown.get.sequence
             val seqBinding =
