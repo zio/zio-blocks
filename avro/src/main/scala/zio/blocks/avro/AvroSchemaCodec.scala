@@ -8,24 +8,19 @@ import scala.collection.mutable
 import scala.jdk.CollectionConverters.SeqHasAsJava
 import scala.util.control.NonFatal
 
-trait AvroSchemaCodec {
-  def encode(schema: Schema[?]): String
-
-  def decode(avroSchemaJson: String): Either[Throwable, Schema[?]]
-}
-
-object AvroSchemaCodec extends AvroSchemaCodec {
-  def toSchema(avroSchema: AvroSchema): Either[Throwable, Schema[?]] = toReflect(avroSchema).map(x => new Schema(x))
+object AvroSchemaCodec {
+  def encode(schema: Schema[?]): String = toAvroSchema(schema).toString
 
   def toAvroSchema(schema: Schema[?]): AvroSchema = toAvroSchema(schema.reflect)
 
-  override def encode(schema: Schema[?]): String = toAvroSchema(schema).toString
-
-  override def decode(avroSchemaJson: String): Either[Throwable, Schema[?]] = {
+  private[avro] def decode(avroSchemaJson: String): Either[Throwable, Schema[?]] = {
     val avroSchemaParser = new AvroSchema.Parser
     try toSchema(avroSchemaParser.parse(avroSchemaJson))
     catch { case error if NonFatal(error) => new Left(error) }
   }
+
+  private[avro] def toSchema(avroSchema: AvroSchema): Either[Throwable, Schema[?]] =
+    toReflect(avroSchema).map(x => new Schema(x))
 
   private[this] def toReflect(avroSchema: AvroSchema): Either[Throwable, Reflect[Binding, ?]] =
     avroSchema.getType match {
