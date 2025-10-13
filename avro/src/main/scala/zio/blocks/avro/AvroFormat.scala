@@ -18,6 +18,7 @@ import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import java.io.OutputStream
 import java.math.{BigInteger, MathContext, RoundingMode}
 import java.nio.ByteBuffer
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.util.control.NonFatal
 
@@ -159,8 +160,12 @@ object AvroFormat
             override def decode(input: ByteBuffer): Either[SchemaError, A] = ???
           })
 
-        type TC[_]
+        type Elem
+        type Key
+        type Value
         type Col[_]
+        type Map[_, _]
+        type TC[_]
 
         private def deriveCodec[A, B](
           schema: Schema[A],
@@ -626,37 +631,88 @@ object AvroFormat
             val sequence   = reflect.asSequenceUnknown.get.sequence
             val seqBinding =
               try {
-                sequence.seqBinding.asInstanceOf[Binding.Seq[Col, A]]
+                sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
               } catch {
                 case _: Exception =>
-                  sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding.asInstanceOf[Binding.Seq[Col, A]]
+                  sequence.seqBinding
+                    .asInstanceOf[BindingInstance[TC, ?, Elem]]
+                    .binding
+                    .asInstanceOf[Binding.Seq[Col, Elem]]
               }
             val constructor   = seqBinding.constructor
             val deconstructor = seqBinding.deconstructor
             val element       = sequence.element
             val elementCodec  = deriveCodec(new Schema(element), cache)
-            val encoder       = elementCodec.encoder.asInstanceOf[A => Any]
-            val decoder       = elementCodec.decoder.asInstanceOf[Any => A]
-            toAvroBinaryCodec[Col[A], Any](
+            val encoder       = elementCodec.encoder.asInstanceOf[Elem => Any]
+            val decoder       = elementCodec.decoder.asInstanceOf[Any => Elem]
+            toAvroBinaryCodec[Col[Elem], Any](
               avroSchema,
-              (x: Col[A]) => {
+              (x: Col[Elem]) => {
                 val res = new java.util.ArrayList[Any]
                 val it  = deconstructor.deconstruct(x)
                 while (it.hasNext) res.add(encoder(it.next()))
                 res
               },
               (x: Any) => {
-                val array   = x.asInstanceOf[GenericData.AbstractArray[A]]
-                val builder = constructor.newObjectBuilder[A](8)
+                val array   = x.asInstanceOf[GenericData.AbstractArray[Elem]]
+                val builder = constructor.newObjectBuilder[Elem](8)
                 val it      = array.iterator()
                 while (it.hasNext) {
                   constructor.addObject(builder, decoder(it.next()))
                 }
-                constructor.resultObject[A](builder)
+                constructor.resultObject[Elem](builder)
               }
             )
           } else if (reflect.isMap) {
-            ???
+            val map = reflect.asMapUnknown.get.map
+            map.key.asPrimitive match {
+              case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
+                val mapBinding =
+                  try {
+                    map.mapBinding.asInstanceOf[Binding.Map[Map, String, Value]]
+                  } catch {
+                    case _: Exception =>
+                      map.mapBinding
+                        .asInstanceOf[BindingInstance[TC, ?, Value]]
+                        .binding
+                        .asInstanceOf[Binding.Map[Map, String, Value]]
+                  }
+                val constructor   = mapBinding.constructor
+                val deconstructor = mapBinding.deconstructor
+                val keyCodec      = deriveCodec(new Schema(primitiveKey), cache)
+                val keyEncoder    = keyCodec.encoder.asInstanceOf[String => Any]
+                val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => String]
+                val value         = map.value
+                val valueCodec    = deriveCodec(new Schema(value), cache)
+                val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
+                val valueDecoder  = valueCodec.decoder.asInstanceOf[Any => Value]
+                toAvroBinaryCodec[Map[String, Value], Any](
+                  avroSchema,
+                  (x: Map[String, Value]) => {
+                    val res = new java.util.HashMap[Any, Any]
+                    val it  = deconstructor.deconstruct(x)
+                    while (it.hasNext) {
+                      val kv    = it.next()
+                      val key   = deconstructor.getKey(kv)
+                      val value = deconstructor.getValue(kv)
+                      res.put(keyEncoder(key), valueEncoder(value))
+                    }
+                    res
+                  },
+                  (x: Any) => {
+                    val map     = x.asInstanceOf[java.util.Map[Any, Any]].asScala
+                    val builder = constructor.newObjectBuilder[String, Value](8)
+                    val it      = map.iterator
+                    while (it.hasNext) {
+                      val kv = it.next()
+
+                      constructor.addObject(builder, keyDecoder(kv._1), valueDecoder(kv._2))
+                    }
+                    constructor.resultObject[String, Value](builder)
+                  }
+                )
+              case _ => ???
+            }
           } else if (reflect.isRecord) {
             val record        = reflect.asRecord.get
             val recordBinding =

@@ -139,7 +139,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(List("1", "2", "3"), 8) &&
         roundTrip(List(BigInt(1), BigInt(2), BigInt(3)), 8) &&
         roundTrip(List(BigDecimal(1.0), BigDecimal(2.0), BigDecimal(3.0)), 17) &&
-        roundTrip(List(java.time.LocalDate.of(2025, 10, 10), java.time.LocalDate.of(2025, 10, 11)), 10) &&
+        roundTrip(List(java.time.LocalDate.of(2025, 1, 1), java.time.LocalDate.of(2025, 1, 2)), 10) &&
         roundTrip(List(new java.util.UUID(1L, 1L), new java.util.UUID(2L, 2L), new java.util.UUID(3L, 3L)), 50)
       },
       test("complex values") {
@@ -158,6 +158,42 @@ object AvroFormatSpec extends ZIOSpecDefault {
             Recursive(4, List(Recursive(5, List(Recursive(6, Nil)))))
           ),
           18
+        )
+      }
+    ),
+    suite("maps")(
+      test("string keys and primitive values") {
+        roundTrip(Map("VVV" -> (), "WWW" -> ()), 10) &&
+        roundTrip(Map("VVV" -> true, "WWW" -> false), 12) &&
+        roundTrip(Map("VVV" -> (1: Byte), "WWW" -> (2: Byte)), 12) &&
+        roundTrip(Map("VVV" -> (1: Short), "WWW" -> (2: Short)), 12) &&
+        roundTrip(Map("VVV" -> '1', "WWW" -> '2'), 12) &&
+        roundTrip(Map("VVV" -> 1, "WWW" -> 2), 12) &&
+        roundTrip(Map("VVV" -> 1L, "WWW" -> 2L), 12) &&
+        roundTrip(Map("VVV" -> 1.0f, "WWW" -> 2.0f), 18) &&
+        roundTrip(Map("VVV" -> 1.0, "WWW" -> 2.0), 26) &&
+        roundTrip(Map("VVV" -> "1", "WWW" -> "2"), 14) &&
+        roundTrip(Map("VVV" -> BigInt(1), "WWW" -> BigInt(2)), 14) &&
+        roundTrip(Map("VVV" -> BigDecimal(1.0), "WWW" -> BigDecimal(2.0)), 20) &&
+        roundTrip(Map("VVV" -> java.time.LocalDate.of(2025, 1, 1), "WWW" -> java.time.LocalDate.of(2025, 1, 2)), 18) &&
+        roundTrip(Map("VVV" -> new java.util.UUID(1L, 1L), "WWW" -> new java.util.UUID(2L, 2L)), 42)
+      },
+      test("string keys and complex values") {
+        roundTrip(
+          Map(
+            "VVV" -> Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            "WWW" -> Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+          ),
+          54
+        )
+      },
+      test("string keys and recursive values") {
+        roundTrip(
+          Map(
+            "VVV" -> Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
+            "WWW" -> Recursive(4, List(Recursive(5, List(Recursive(6, Nil)))))
+          ),
+          26
         )
       }
       /*
