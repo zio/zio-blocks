@@ -161,7 +161,6 @@ object AvroFormat
           })
 
         type Elem
-        type Key
         type Value
         type Col[_]
         type Map[_, _]
@@ -711,7 +710,7 @@ object AvroFormat
                     constructor.resultObject[String, Value](builder)
                   }
                 )
-              case _ => ???
+              case _ => sys.error(s"Expected string keys only")
             }
           } else if (reflect.isRecord) {
             val record        = reflect.asRecord.get

@@ -36,46 +36,46 @@ object AvroSchemaCodec extends AvroSchemaCodec {
       case AvroSchema.Type.DOUBLE  => new Right(Schema.double.reflect)
       case AvroSchema.Type.STRING  =>
         avroSchema.getProp(primitiveTypePropName) match {
-          case "ZoneId" => new Right(Schema.zoneId.reflect)
-          case _        => new Right(Schema.string.reflect)
+          case TypeName.zoneId.name => new Right(Schema.zoneId.reflect)
+          case _                    => new Right(Schema.string.reflect)
         }
       case AvroSchema.Type.BYTES =>
         avroSchema.getProp(primitiveTypePropName) match {
-          case "BigInt" => new Right(Schema.bigInt.reflect)
-          case _        => unsupportedAvroSchema(avroSchema)
+          case TypeName.bigInt.name => new Right(Schema.bigInt.reflect)
+          case _                    => unsupportedAvroSchema(avroSchema)
         }
       case AvroSchema.Type.FIXED =>
         avroSchema.getProp(primitiveTypePropName) match {
-          case "Currency" => new Right(Schema.currency.reflect)
-          case "UUID"     => new Right(Schema.uuid.reflect)
-          case _          => unsupportedAvroSchema(avroSchema)
+          case TypeName.currency.name => new Right(Schema.currency.reflect)
+          case TypeName.uuid.name     => new Right(Schema.uuid.reflect)
+          case _                      => unsupportedAvroSchema(avroSchema)
         }
       case AvroSchema.Type.INT =>
         avroSchema.getProp(primitiveTypePropName) match {
-          case "Byte"       => new Right(Schema.byte.reflect)
-          case "Char"       => new Right(Schema.char.reflect)
-          case "Short"      => new Right(Schema.short.reflect)
-          case "DayOfWeek"  => new Right(Schema.dayOfWeek.reflect)
-          case "Month"      => new Right(Schema.month.reflect)
-          case "Year"       => new Right(Schema.year.reflect)
-          case "ZoneOffset" => new Right(Schema.zoneOffset.reflect)
-          case _            => new Right(Schema.int.reflect)
+          case TypeName.byte.name       => new Right(Schema.byte.reflect)
+          case TypeName.char.name       => new Right(Schema.char.reflect)
+          case TypeName.short.name      => new Right(Schema.short.reflect)
+          case TypeName.dayOfWeek.name  => new Right(Schema.dayOfWeek.reflect)
+          case TypeName.month.name      => new Right(Schema.month.reflect)
+          case TypeName.year.name       => new Right(Schema.year.reflect)
+          case TypeName.zoneOffset.name => new Right(Schema.zoneOffset.reflect)
+          case _                        => new Right(Schema.int.reflect)
         }
       case AvroSchema.Type.RECORD =>
         avroSchema.getProp(primitiveTypePropName) match {
-          case "BigDecimal"     => new Right(Schema.bigDecimal.reflect)
-          case "Duration"       => new Right(Schema.duration.reflect)
-          case "Instant"        => new Right(Schema.instant.reflect)
-          case "LocalDate"      => new Right(Schema.localDate.reflect)
-          case "LocalDateTime"  => new Right(Schema.localDateTime.reflect)
-          case "LocalTime"      => new Right(Schema.localTime.reflect)
-          case "MonthDay"       => new Right(Schema.monthDay.reflect)
-          case "OffsetDateTime" => new Right(Schema.offsetDateTime.reflect)
-          case "OffsetTime"     => new Right(Schema.offsetTime.reflect)
-          case "Period"         => new Right(Schema.period.reflect)
-          case "YearMonth"      => new Right(Schema.yearMonth.reflect)
-          case "ZonedDateTime"  => new Right(Schema.zonedDateTime.reflect)
-          case _                =>
+          case TypeName.bigDecimal.name     => new Right(Schema.bigDecimal.reflect)
+          case TypeName.duration.name       => new Right(Schema.duration.reflect)
+          case TypeName.instant.name        => new Right(Schema.instant.reflect)
+          case TypeName.localDate.name      => new Right(Schema.localDate.reflect)
+          case TypeName.localDateTime.name  => new Right(Schema.localDateTime.reflect)
+          case TypeName.localTime.name      => new Right(Schema.localTime.reflect)
+          case TypeName.monthDay.name       => new Right(Schema.monthDay.reflect)
+          case TypeName.offsetDateTime.name => new Right(Schema.offsetDateTime.reflect)
+          case TypeName.offsetTime.name     => new Right(Schema.offsetTime.reflect)
+          case TypeName.period.name         => new Right(Schema.period.reflect)
+          case TypeName.yearMonth.name      => new Right(Schema.yearMonth.reflect)
+          case TypeName.zonedDateTime.name  => new Right(Schema.zonedDateTime.reflect)
+          case _                            =>
             val fields = Vector.newBuilder[Term[Binding, ?, ?]]
             val it     = avroSchema.getFields.iterator()
             while (it.hasNext) {
@@ -136,9 +136,15 @@ object AvroSchemaCodec extends AvroSchemaCodec {
     }
 
   private[this] def toTypeName(avroSchema: AvroSchema): TypeName[?] = {
-    val path               = Option(avroSchema.getNamespace).fold(Array[String]())(_.split('.'))
-    val (packages, values) = path.splitAt(path.indexWhere(_.headOption.forall(_.isUpper)))
-    new TypeName(new Namespace(packages.toList, values.toList), avroSchema.getName)
+    val namespace = avroSchema.getNamespace
+    val path      =
+      if (namespace eq null) Array[String]()
+      else namespace.split('.')
+    val valueIdx           = path.indexWhere(segment => segment.nonEmpty && Character.isUpperCase(segment.charAt(0)))
+    val (packages, values) =
+      if (valueIdx < 0) (path, Array[String]())
+      else path.splitAt(valueIdx)
+    new TypeName(new Namespace(packages.toSeq, values.toSeq), avroSchema.getName)
   }
 
   private[this] def unsupportedAvroSchema(avroSchema: AvroSchema): Either[Throwable, Reflect[Binding, ?]] =
@@ -305,8 +311,12 @@ object AvroSchemaCodec extends AvroSchemaCodec {
     } else if (reflect.isSequence) {
       AvroSchema.createArray(toAvroSchema(reflect.asSequenceUnknown.get.sequence.element, avroSchemas))
     } else if (reflect.isMap) {
-      // TODO add support of Map[_, _] as an array of tuples
-      AvroSchema.createMap(toAvroSchema(reflect.asMapUnknown.get.map.value, avroSchemas))
+      val map = reflect.asMapUnknown.get.map
+      map.key.asPrimitive match {
+        case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
+          AvroSchema.createMap(toAvroSchema(map.value, avroSchemas))
+        case _ => sys.error(s"Expected string keys only")
+      }
     } else {
       val record   = reflect.asRecord.get
       val typeName = record.typeName

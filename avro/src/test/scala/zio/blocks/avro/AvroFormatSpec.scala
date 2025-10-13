@@ -3,6 +3,7 @@ package zio.blocks.avro
 import zio.blocks.schema.Schema
 import zio.test.Assertion._
 import zio.test._
+import zio.ZIO
 import java.nio.ByteBuffer
 import java.util
 import java.util.UUID
@@ -195,6 +196,12 @@ object AvroFormatSpec extends ZIOSpecDefault {
           ),
           26
         )
+      },
+      test("non string key map") {
+        ZIO.attempt {
+          roundTrip(Map(1 -> 1L, 2 -> 2L), 10)
+        }.flip
+          .map(e => assert(e.getMessage)(equalTo("Expected string keys only")))
       }
       /*
       ),

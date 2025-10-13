@@ -1,5 +1,6 @@
 package zio.blocks.avro
 
+import zio.ZIO
 import zio.blocks.schema.{Namespace, Schema, TypeName}
 import zio.test.Assertion._
 import zio.test._
@@ -145,6 +146,14 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
         roundTrip[Map[String, Int]](
           "{\"type\":\"map\",\"values\":\"int\"}"
         )
+      },
+      test("non string key map") {
+        ZIO.attempt {
+          roundTrip[Map[Int, Int]](
+            "{\"type\":\"map\",\"values\":\"int\"}"
+          )
+        }.flip
+          .map(e => assert(e.getMessage)(equalTo("Expected string keys only")))
       }
       /*
     ),
@@ -160,10 +169,10 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
     )
   )
 
-  def roundTrip[A: Schema](expectedAvroSchemaJson: String): TestResult = {
-    val avroSchemaJson = AvroSchemaCodec.encode(Schema[A])
+  def roundTrip[A](expectedAvroSchemaJson: String)(implicit schema: Schema[A]): TestResult = {
+    val avroSchemaJson = AvroSchemaCodec.encode(schema)
     assert(avroSchemaJson)(equalTo(expectedAvroSchemaJson)) &&
-    assert(AvroSchemaCodec.decode(avroSchemaJson))(isRight(equalTo(Schema[A])))
+    assert(AvroSchemaCodec.decode(avroSchemaJson))(isRight(equalTo(schema)))
   }
 
   case class Record(name: String, value: Int)
