@@ -1,6 +1,5 @@
 package zio.blocks.avro
 
-import zio.ZIO
 import zio.blocks.schema.{Namespace, Schema, TypeName}
 import zio.test.Assertion._
 import zio.test._

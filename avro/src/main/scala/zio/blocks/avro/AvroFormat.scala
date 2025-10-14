@@ -225,9 +225,7 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: BigDecimal) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = {
                         val bd = x.underlying
                         val mc = x.mc
@@ -238,25 +236,13 @@ object AvroFormat
                           case _ => mc.getRoundingMode.ordinal
                         }
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) => {
                     val mantissa     = x.get(0).asInstanceOf[ByteBuffer].array
                     val scale        = x.get(1).asInstanceOf[Int]
                     val precision    = x.get(2).asInstanceOf[Int]
                     val roundingMode = java.math.RoundingMode.valueOf(x.get(3).asInstanceOf[Int])
-                    val mc           = if (roundingMode == RoundingMode.HALF_UP) {
-                      if (precision == 0) MathContext.UNLIMITED
-                      else new MathContext(precision, roundingMode)
-                    } else {
-                      precision match {
-                        case 7  => MathContext.DECIMAL32
-                        case 16 => MathContext.DECIMAL64
-                        case 34 => MathContext.DECIMAL128
-                        case _  => new MathContext(precision, roundingMode)
-                      }
-                    }
+                    val mc           = new MathContext(precision, roundingMode)
                     new BigDecimal(new java.math.BigDecimal(new BigInteger(mantissa), scale), mc)
                   }
                 )
@@ -270,15 +256,11 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.Duration) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getSeconds
                         case _ => x.getNano
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.Duration.ofSeconds(x.get(0).asInstanceOf[Long], x.get(1).asInstanceOf[Int])
@@ -287,15 +269,11 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.Instant) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getEpochSecond
                         case _ => x.getNano
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.Instant.ofEpochSecond(x.get(0).asInstanceOf[Long], x.get(1).asInstanceOf[Int])
@@ -304,16 +282,12 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.LocalDate) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getYear
                         case 1 => x.getMonth.getValue
                         case _ => x.getDayOfMonth
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.LocalDate
@@ -323,9 +297,7 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.LocalDateTime) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getYear
                         case 1 => x.getMonthValue
@@ -335,8 +307,6 @@ object AvroFormat
                         case 5 => x.getSecond
                         case _ => x.getNano
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.LocalDateTime.of(
@@ -353,17 +323,13 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.LocalTime) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getHour
                         case 1 => x.getMinute
                         case 2 => x.getSecond
                         case _ => x.getNano
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.LocalTime.of(
@@ -383,29 +349,19 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.MonthDay) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getMonthValue
                         case _ => x.getDayOfMonth
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
-                  (x: IndexedRecord) =>
-                    java.time.MonthDay.of(
-                      x.get(0).asInstanceOf[Int],
-                      x.get(1).asInstanceOf[Int]
-                    )
+                  (x: IndexedRecord) => java.time.MonthDay.of(x.get(0).asInstanceOf[Int], x.get(1).asInstanceOf[Int])
                 )
               case _: PrimitiveType.OffsetDateTime =>
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.OffsetDateTime) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getYear
                         case 1 => x.getMonthValue
@@ -416,8 +372,6 @@ object AvroFormat
                         case 6 => x.getNano
                         case _ => x.getOffset.getTotalSeconds
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.OffsetDateTime.of(
@@ -435,9 +389,7 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.OffsetTime) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getHour
                         case 1 => x.getMinute
@@ -445,8 +397,6 @@ object AvroFormat
                         case 3 => x.getNano
                         case _ => x.getOffset.getTotalSeconds
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.OffsetTime.of(
@@ -461,16 +411,12 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.Period) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getYears
                         case 1 => x.getMonths
                         case _ => x.getDays
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.Period
@@ -486,21 +432,13 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.YearMonth) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getYear
                         case _ => x.getMonthValue
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
-                  (x: IndexedRecord) =>
-                    java.time.YearMonth.of(
-                      x.get(0).asInstanceOf[Int],
-                      x.get(1).asInstanceOf[Int]
-                    )
+                  (x: IndexedRecord) => java.time.YearMonth.of(x.get(0).asInstanceOf[Int], x.get(1).asInstanceOf[Int])
                 )
               case _: PrimitiveType.ZoneId =>
                 toAvroBinaryCodec(
@@ -518,9 +456,7 @@ object AvroFormat
                 toAvroBinaryCodec(
                   avroSchema,
                   (x: java.time.ZonedDateTime) =>
-                    new IndexedRecord {
-                      override def put(i: Int, v: Any): Unit = ()
-
+                    new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
                         case 0 => x.getYear
                         case 1 => x.getMonthValue
@@ -532,8 +468,6 @@ object AvroFormat
                         case 7 => x.getOffset.getTotalSeconds
                         case _ => new Utf8(x.getZone.toString)
                       }
-
-                      override def getSchema: AvroSchema = avroSchema
                     },
                   (x: IndexedRecord) =>
                     java.time.ZonedDateTime.ofInstant(
@@ -653,10 +587,7 @@ object AvroFormat
                       null
                     )
                 avroEncoder.writeIndex(idx)
-                valueWriters(idx).write(
-                  caseCodecs(idx).encoder.asInstanceOf[A => Any](value),
-                  avroEncoder
-                )
+                valueWriters(idx).write(caseCodecs(idx).encoder.asInstanceOf[A => Any](value), avroEncoder)
               }
 
               override def decode(input: ByteBuffer): Either[SchemaError, A] = {
@@ -967,6 +898,12 @@ object AvroFormat
         }
       }
     )
+
+private abstract class IndexedRecordGetter(avroSchema: AvroSchema) extends IndexedRecord {
+  override def put(i: Int, v: Any): Unit = ()
+
+  override def getSchema: AvroSchema = avroSchema
+}
 
 private case class AvroBinaryCodec[A, B](
   reader: GenericDatumReader[B],
