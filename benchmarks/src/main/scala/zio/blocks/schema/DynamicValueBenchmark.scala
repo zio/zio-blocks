@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 
 class DynamicValueBenchmark extends BaseBenchmark {
   var a: DynamicValueDomain.LinkedList =

@@ -147,23 +147,25 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 
 lazy val benchmarks = project
   .dependsOn(schema.jvm)
+  .dependsOn(avro)
   .settings(stdSettings("zio-blocks-benchmarks"))
   .enablePlugins(JmhPlugin)
   .settings(
     crossScalaVersions       := Seq("3.7.3"),
     ThisBuild / scalaVersion := "3.7.3",
     libraryDependencies ++= Seq(
-      "io.github.arainko"          %% "chanterelle"   % "0.1.1",
-      "com.softwaremill.quicklens" %% "quicklens"     % "1.9.12",
-      "dev.optics"                 %% "monocle-core"  % "3.3.0",
-      "dev.optics"                 %% "monocle-macro" % "3.3.0",
-      "dev.zio"                    %% "zio-test"      % "2.1.21" % Test,
-      "dev.zio"                    %% "zio-test-sbt"  % "2.1.21" % Test
+      "dev.zio"                    %% "zio-schema-avro" % "1.7.5",
+      "io.github.arainko"          %% "chanterelle"     % "0.1.1",
+      "com.softwaremill.quicklens" %% "quicklens"       % "1.9.12",
+      "dev.optics"                 %% "monocle-core"    % "3.3.0",
+      "dev.optics"                 %% "monocle-macro"   % "3.3.0",
+      "dev.zio"                    %% "zio-test"        % "2.1.21" % Test,
+      "dev.zio"                    %% "zio-test-sbt"    % "2.1.21" % Test
     ),
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
-      case PathList("module-info.class") => MergeStrategy.discard
-      case path                          => MergeStrategy.defaultMergeStrategy(path)
+      case x if x.endsWith("module-info.class") => MergeStrategy.discard
+      case path                                 => MergeStrategy.defaultMergeStrategy(path)
     },
     assembly / fullClasspath := (Jmh / fullClasspath).value,
     assembly / mainClass     := Some("org.openjdk.jmh.Main"),
