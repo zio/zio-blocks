@@ -154,14 +154,23 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[A]] =
-          Lazy(new BinaryCodec[A] {
-            override def encode(value: A, output: ByteBuffer): Unit = ???
-
-            override def decode(input: ByteBuffer): Either[SchemaError, A] = ???
-          })
+          Lazy(
+            deriveCodec(
+              new Schema(
+                Reflect.Wrapper(
+                  wrapped = wrapped.asInstanceOf[Reflect[Binding, B]],
+                  typeName = typeName,
+                  wrapperBinding = binding,
+                  doc = doc,
+                  modifiers = modifiers
+                )
+              )
+            )
+          )
 
         type Elem
         type Value
+        type Wrapped
         type Col[_]
         type Map[_, _]
         type TC[_]
@@ -892,6 +901,32 @@ object AvroFormat
                 constructor.construct(registers, RegisterOffset.Zero)
               }
             )
+          } else if (reflect.isWrapper) {
+            val wrapper        = reflect.asWrapperUnknown.get.wrapper
+            val wrapperBinding =
+              try {
+                wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
+              } catch {
+                case _: Exception =>
+                  wrapper.wrapperBinding
+                    .asInstanceOf[BindingInstance[TC, ?, A]]
+                    .binding
+                    .asInstanceOf[Binding.Wrapper[A, Wrapped]]
+              }
+            val wrap   = wrapperBinding.wrap
+            val unwrap = wrapperBinding.unwrap
+            val codec  = deriveCodec(new Schema(wrapper.wrapped), cache)
+            toAvroBinaryCodec[A, Any](
+              avroSchema,
+              (a: A) => codec.encoder.asInstanceOf[Wrapped => Any](unwrap(a)),
+              (a: Any) =>
+                wrap(codec.decoder.asInstanceOf[Any => Wrapped](a)) match {
+                  case Right(x)  => x
+                  case Left(err) => sys.error(err)
+                }
+            )
+          } else if (reflect.isDynamic) {
+            ???
           } else ???
         }.asInstanceOf[AvroBinaryCodec[A, B]]
 

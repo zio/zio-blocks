@@ -330,7 +330,7 @@ object AvroSchemaCodec {
           avroSchema
         case _ => sys.error(s"Expected string keys only")
       }
-    } else {
+    } else if (reflect.isRecord) {
       val record   = reflect.asRecord.get
       val typeName = record.typeName
       avroSchemas.get(typeName) match {
@@ -347,7 +347,10 @@ object AvroSchemaCodec {
           avroSchema.setFields(fields)
           avroSchema
       }
-    }
+    } else if (reflect.isWrapper) {
+      val wrapper = reflect.asWrapperUnknown.get.wrapper
+      toAvroSchema(wrapper.wrapped, avroSchemas)
+    } else ???
   }
 
   private def createAvroSchema(
