@@ -3,11 +3,10 @@ package zio.blocks.avro
 import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import zio.blocks.schema.Schema
-import zio.test.Assertion.*
-import zio.test.*
+import zio.test.Assertion._
+import zio.test._
 import zio.ZIO
-
-import java.io.{ByteArrayOutputStream, OutputStream}
+import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util
 import java.util.UUID
@@ -210,8 +209,6 @@ object AvroFormatSpec extends ZIOSpecDefault {
     ),
     suite("enums")(
       test("conatant value enum") {
-        implicit val schema: Schema[TrafficLight] = Schema.derived
-
         roundTrip[TrafficLight](TrafficLight.Green, 1) &&
         roundTrip[TrafficLight](TrafficLight.Yellow, 1) &&
         roundTrip[TrafficLight](TrafficLight.Red, 1)
@@ -221,8 +218,6 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip[Option[Int]](None, 1)
       },
       test("either") {
-        implicit val schema: Schema[Either[String, Int]] = Schema.derived
-
         roundTrip[Either[String, Int]](Right(42), 2) &&
         roundTrip[Either[String, Int]](Left("VVV"), 5)
       }
@@ -296,10 +291,14 @@ object AvroFormatSpec extends ZIOSpecDefault {
   sealed trait TrafficLight
 
   object TrafficLight {
+    implicit val schema: Schema[TrafficLight] = Schema.derived[TrafficLight]
+
     case object Red extends TrafficLight
 
     case object Yellow extends TrafficLight
 
     case object Green extends TrafficLight
   }
+
+  implicit val eitherSchema: Schema[Either[String, Int]] = Schema.derived[Either[String, Int]]
 }

@@ -10,16 +10,15 @@ import org.apache.avro.generic.{
 }
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.util.Utf8
-import org.apache.avro.Schema as AvroSchema
+import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
-import zio.blocks.schema.*
+import zio.blocks.schema._
 import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
-
 import java.io.OutputStream
 import java.math.{BigInteger, MathContext, RoundingMode}
 import java.nio.ByteBuffer
-import scala.jdk.CollectionConverters.*
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.util.control.NonFatal
 
