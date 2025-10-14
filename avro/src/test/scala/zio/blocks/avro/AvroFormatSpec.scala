@@ -5,7 +5,6 @@ import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import zio.blocks.schema.Schema
 import zio.test.Assertion._
 import zio.test._
-import zio.ZIO
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util
@@ -201,10 +200,14 @@ object AvroFormatSpec extends ZIOSpecDefault {
         )
       },
       test("non string key map") {
-        ZIO.attempt {
-          roundTrip(Map(1 -> 1L, 2 -> 2L), 10)
-        }.flip
-          .map(e => assert(e.getMessage)(equalTo("Expected string keys only")))
+        roundTrip(Map(1 -> 1L, 2 -> 2L), 6) &&
+        roundTrip(
+          Map(
+            Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))) -> 1,
+            Recursive(4, List(Recursive(5, List(Recursive(6, Nil))))) -> 2
+          ),
+          20
+        )
       }
     ),
     suite("enums")(

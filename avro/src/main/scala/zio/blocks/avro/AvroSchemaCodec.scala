@@ -328,7 +328,15 @@ object AvroSchemaCodec {
           val avroSchema = AvroSchema.createMap(toAvroSchema(map.value, avroSchemas))
           avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
           avroSchema
-        case _ => sys.error(s"Expected string keys only")
+        case _ =>
+          val tuple2AvroSchema = AvroSchema.createRecord("Tuple2", null, "scala", false)
+          tuple2AvroSchema.setFields(new util.ArrayList[AvroSchema.Field] {
+            add(new AvroSchema.Field("_1", toAvroSchema(map.key, avroSchemas)))
+            add(new AvroSchema.Field("_2", toAvroSchema(map.value, avroSchemas)))
+          })
+          val avroSchema = AvroSchema.createArray(tuple2AvroSchema)
+          avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
+          avroSchema
       }
     } else if (reflect.isRecord) {
       val record   = reflect.asRecord.get

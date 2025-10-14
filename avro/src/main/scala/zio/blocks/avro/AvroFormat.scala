@@ -169,6 +169,7 @@ object AvroFormat
           )
 
         type Elem
+        type Key
         type Value
         type Wrapped
         type Col[_]
@@ -724,31 +725,30 @@ object AvroFormat
               }
             )
           } else if (reflect.isMap) {
-            val map = reflect.asMapUnknown.get.map
+            val map        = reflect.asMapUnknown.get.map
+            val mapBinding =
+              try {
+                map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
+              } catch {
+                case _: Exception =>
+                  map.mapBinding
+                    .asInstanceOf[BindingInstance[TC, ?, Value]]
+                    .binding
+                    .asInstanceOf[Binding.Map[Map, Key, Value]]
+              }
+            val constructor   = mapBinding.constructor
+            val deconstructor = mapBinding.deconstructor
+            val keyCodec      = deriveCodec(new Schema(map.key), cache)
+            val keyEncoder    = keyCodec.encoder.asInstanceOf[Key => Any]
+            val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => Key]
+            val valueCodec    = deriveCodec(new Schema(map.value), cache)
+            val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
+            val valueDecoder  = valueCodec.decoder.asInstanceOf[Any => Value]
             map.key.asPrimitive match {
               case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
-                val mapBinding =
-                  try {
-                    map.mapBinding.asInstanceOf[Binding.Map[Map, String, Value]]
-                  } catch {
-                    case _: Exception =>
-                      map.mapBinding
-                        .asInstanceOf[BindingInstance[TC, ?, Value]]
-                        .binding
-                        .asInstanceOf[Binding.Map[Map, String, Value]]
-                  }
-                val constructor   = mapBinding.constructor
-                val deconstructor = mapBinding.deconstructor
-                val keyCodec      = deriveCodec(new Schema(primitiveKey), cache)
-                val keyEncoder    = keyCodec.encoder.asInstanceOf[String => Any]
-                val keyDecoder    = keyCodec.decoder.asInstanceOf[Any => String]
-                val value         = map.value
-                val valueCodec    = deriveCodec(new Schema(value), cache)
-                val valueEncoder  = valueCodec.encoder.asInstanceOf[Value => Any]
-                val valueDecoder  = valueCodec.decoder.asInstanceOf[Any => Value]
-                toAvroBinaryCodec[Map[String, Value], Any](
+                toAvroBinaryCodec[Map[Key, Value], Any](
                   avroSchema,
-                  (x: Map[String, Value]) => {
+                  (x: Map[Key, Value]) => {
                     val res = new java.util.HashMap[Any, Any]
                     val it  = deconstructor.deconstruct(x)
                     while (it.hasNext) {
@@ -761,17 +761,43 @@ object AvroFormat
                   },
                   (x: Any) => {
                     val map     = x.asInstanceOf[java.util.Map[Any, Any]].asScala
-                    val builder = constructor.newObjectBuilder[String, Value](8)
+                    val builder = constructor.newObjectBuilder[Key, Value](8)
                     val it      = map.iterator
                     while (it.hasNext) {
                       val kv = it.next()
-
                       constructor.addObject(builder, keyDecoder(kv._1), valueDecoder(kv._2))
                     }
-                    constructor.resultObject[String, Value](builder)
+                    constructor.resultObject[Key, Value](builder)
                   }
                 )
-              case _ => sys.error(s"Expected string keys only")
+              case _ =>
+                toAvroBinaryCodec[Map[Key, Value], Any](
+                  avroSchema,
+                  (x: Map[Key, Value]) => {
+                    val res = new java.util.ArrayList[Any]
+                    val it  = deconstructor.deconstruct(x)
+                    while (it.hasNext) {
+                      val kv    = it.next()
+                      val key   = deconstructor.getKey(kv)
+                      val value = deconstructor.getValue(kv)
+                      res.add(new GenericRecordBuilder(avroSchema.getElementType) {
+                        set(0, keyEncoder(key))
+                        set(1, valueEncoder(value))
+                      }.build())
+                    }
+                    res
+                  },
+                  (x: Any) => {
+                    val map     = x.asInstanceOf[GenericData.AbstractArray[GenericData.Record]].asScala
+                    val builder = constructor.newObjectBuilder[Key, Value](8)
+                    val it      = map.iterator
+                    while (it.hasNext) {
+                      val tuple = it.next()
+                      constructor.addObject(builder, keyDecoder(tuple.get(0)), valueDecoder(tuple.get(1)))
+                    }
+                    constructor.resultObject[Key, Value](builder)
+                  }
+                )
             }
           } else if (reflect.isRecord) {
             val record        = reflect.asRecord.get

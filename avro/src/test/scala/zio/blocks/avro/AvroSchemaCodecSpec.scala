@@ -148,24 +148,18 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
         )
       },
       test("non string key map") {
-        ZIO.attempt {
-          roundTrip[Map[Int, Int]](
-            "{\"type\":\"map\",\"values\":\"int\",\"zio.blocks.avro.typeName\":{\"namespace\":{\"packages\":[\"scala\",\"collection\",\"immutable\"]},\"name\":\"Map\",\"params\":[{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"String\"},{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Int\"}]}}"
-          )
-        }.flip
-          .map(e => assert(e.getMessage)(equalTo("Expected string keys only")))
+        encode[Map[Int, Int]](
+          "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"int\"}]},\"zio.blocks.avro.typeName\":{\"namespace\":{\"packages\":[\"scala\",\"collection\",\"immutable\"]},\"name\":\"Map\",\"params\":[{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Int\"},{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Int\"}]}}"
+        )
       }
-      /*
     ),
     suite("variants")(
       test("option") {
-        implicit val schema: Schema[Option[Int]] =
-          new Schema(Schema.derived[Option[Int]].reflect.typeName(TypeName[Option[Int]](Namespace(Nil, Nil), "|")))
-        roundTrip[Option[Int]](
-          "[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]}]"
+        implicit val schema: Schema[Option[Int]] = Schema.derived
+        encode[Option[Int]](
+          "[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[],\"zio.blocks.avro.typeName\":{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"None\"}},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}],\"zio.blocks.avro.typeName\":{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Some\",\"params\":[{\"namespace\":{\"packages\":[\"scala\"]},\"name\":\"Int\"}]}}]"
         )
       }
-       */
     )
   )
 
@@ -174,6 +168,9 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
     assert(avroSchemaJson)(equalTo(expectedAvroSchemaJson)) &&
     assert(AvroSchemaCodec.decode(avroSchemaJson))(isRight(equalTo(schema)))
   }
+
+  def encode[A](expectedAvroSchemaJson: String)(implicit schema: Schema[A]): TestResult =
+    assert(AvroSchemaCodec.encode(schema))(equalTo(expectedAvroSchemaJson))
 
   case class Record(name: String, value: Int)
 
