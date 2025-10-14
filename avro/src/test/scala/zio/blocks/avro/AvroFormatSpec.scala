@@ -1,9 +1,13 @@
 package zio.blocks.avro
 
+import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
+import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import zio.blocks.schema.Schema
-import zio.test.Assertion._
-import zio.test._
+import zio.test.Assertion.*
+import zio.test.*
 import zio.ZIO
+
+import java.io.{ByteArrayOutputStream, OutputStream}
 import java.nio.ByteBuffer
 import java.util
 import java.util.UUID
@@ -226,10 +230,25 @@ object AvroFormatSpec extends ZIOSpecDefault {
   )
 
   def roundTrip[A: Schema](value: A, expectedLength: Int): TestResult = {
-    val result = encodeToByteArray(out => Schema[A].encode(AvroFormat)(out)(value))
-    assert(result.length)(equalTo(expectedLength)) &&
-    assert(Schema[A].decode(AvroFormat)(toHeapByteBuffer(result)))(isRight(equalTo(value))) &&
-    assert(Schema[A].decode(AvroFormat)(toDirectByteBuffer(result)))(isRight(equalTo(value)))
+    val schema          = Schema[A]
+    val encodedBySchema = encodeToByteArray(out => schema.encode(AvroFormat)(out)(value))
+    val avroSchema      = AvroSchemaCodec.toAvroSchema(schema)
+    val reader          = new GenericDatumReader[A](avroSchema)
+    val datum           = reader.read(null.asInstanceOf[A], DecoderFactory.get().binaryDecoder(encodedBySchema, null))
+    val writer          = new GenericDatumWriter[Any](avroSchema)
+    val encodedByAvro   = new ByteArrayOutputStream(1024)
+    val binaryEncoder   = EncoderFactory.get().directBinaryEncoder(encodedByAvro, null)
+    writer.write(datum, binaryEncoder)
+    /*
+    val valueStr =
+      if (value.isInstanceOf[Array[?]]) value.asInstanceOf[Array[?]].toList.toString
+      else value.toString
+    println(valueStr + "\n" + datum + "\n" + HexUtils.hexDump(encodedBySchema) + "\n" + HexUtils.hexDump(encodedByAvro.toByteArray) + "\n")
+     */
+    assert(encodedBySchema.length)(equalTo(expectedLength)) &&
+    assert(schema.decode(AvroFormat)(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
+    assert(schema.decode(AvroFormat)(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
+    assert(util.Arrays.compare(encodedBySchema, encodedByAvro.toByteArray))(equalTo(0))
   }
 
   def encodeToByteArray(f: ByteBuffer => Unit): Array[Byte] = {
