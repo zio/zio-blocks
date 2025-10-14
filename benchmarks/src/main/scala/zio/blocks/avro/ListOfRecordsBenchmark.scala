@@ -1,6 +1,7 @@
 package zio.blocks.avro
 
 import org.openjdk.jmh.annotations._
+import zio.Chunk
 import zio.blocks.BaseBenchmark
 import zio.blocks.schema.Schema
 import zio.blocks.avro.AvroFormat
@@ -9,6 +10,22 @@ import zio.schema.{DeriveSchema, Schema => ZIOSchema}
 
 class ListOfRecordsBenchmark extends BaseBenchmark {
   import ListOfRecordsDomain._
+
+  @Benchmark
+  def readingZioBlocks: List[Person] = {
+    val byteBuffer = java.nio.ByteBuffer.wrap(encodedListOfRecords)
+    zioBlocksSchema.decode(AvroFormat)(byteBuffer) match {
+      case Right(value) => value
+      case Left(error)  => sys.error(error.getMessage)
+    }
+  }
+
+  @Benchmark
+  def readingZioSchema: List[Person] =
+    zioSchemaCodec.decode(Chunk.fromArray(encodedListOfRecords)) match {
+      case Right(value) => value
+      case Left(error)  => sys.error(error.getMessage)
+    }
 
   @Benchmark
   def writingZioBlocks: Array[Byte] = {
@@ -26,16 +43,15 @@ object ListOfRecordsDomain {
 
   object Person {
     implicit val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
-
   }
 
   private val person = Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9))
 
   implicit val zioBlocksSchema: Schema[List[Person]] = Schema.derived
 
-  val zioSchemaCodec = AvroCodec.schemaBasedBinaryCodec[List[Person]]
+  val zioSchemaCodec: AvroCodec.ExtendedBinaryCodec[List[Person]] = AvroCodec.schemaBasedBinaryCodec[List[Person]]
 
-  val listOfRecords = List(
+  val listOfRecords: List[Person] = List(
     person,
     person,
     person,
@@ -47,4 +63,6 @@ object ListOfRecordsDomain {
     person,
     person
   )
+
+  val encodedListOfRecords: Array[Byte] = zioSchemaCodec.encode(listOfRecords).toArray
 }

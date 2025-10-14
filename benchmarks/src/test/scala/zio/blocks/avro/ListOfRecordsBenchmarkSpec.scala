@@ -5,7 +5,12 @@ import zio.test.Assertion._
 
 object ListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("ListOfRecordsBenchmarkSpec")(
-    test("has consistent output") {
+    test("reading") {
+      val zioBlocksOutput = (new ListOfRecordsBenchmark).readingZioBlocks
+      val zioSchemaOutput = (new ListOfRecordsBenchmark).readingZioSchema
+      assert(zioBlocksOutput)(equalTo(zioSchemaOutput))
+    },
+    test("writing") {
       val zioBlocksOutput = (new ListOfRecordsBenchmark).writingZioBlocks
       val zioSchemaOutput = (new ListOfRecordsBenchmark).writingZioSchema
       assert(java.util.Arrays.compare(zioBlocksOutput, zioSchemaOutput))(equalTo(0))
