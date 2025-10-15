@@ -16,7 +16,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import java.io.OutputStream
-import java.math.{BigInteger, MathContext, RoundingMode}
+import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
@@ -140,12 +140,11 @@ object AvroFormat
         )(implicit
           F: HasBinding[F],
           D: HasInstance[F]
-        ): Lazy[BinaryCodec[DynamicValue]] =
-          Lazy(new BinaryCodec[DynamicValue] {
-            override def encode(value: DynamicValue, output: ByteBuffer): Unit = ???
+        ): Lazy[BinaryCodec[DynamicValue]] = Lazy {
+          deriveCodec(dynamicValueSchema)
+        }
 
-            override def decode(input: ByteBuffer): Either[SchemaError, DynamicValue] = ???
-          })
+        private val dynamicValueSchema = Schema.derived[DynamicValue]
 
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
@@ -181,7 +180,8 @@ object AvroFormat
           cache: mutable.HashMap[TypeName[?], Array[AvroBinaryCodec[?, ?]]] = new mutable.HashMap
         ): AvroBinaryCodec[A, B] = {
           val avroSchema = AvroSchemaCodec.toAvroSchema(schema)
-          val reflect    = schema.reflect
+          // println(schema.reflect.typeName.toString + "\n" + avroSchema + "\n")
+          val reflect = schema.reflect
           if (reflect.isPrimitive) {
             val primitiveType = reflect.asPrimitive.get.primitiveType
             primitiveType match {
@@ -551,10 +551,19 @@ object AvroFormat
             }
           } else if (reflect.isVariant) {
             val variant        = reflect.asVariant.get
-            val variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
-            val cases          = variant.cases
-            val discriminator  = variantBinding.discriminator
-            val caseCodecs     = cache.get(variant.typeName) match {
+            val variantBinding =
+              try {
+                variant.variantBinding.asInstanceOf[Binding.Variant[A]]
+              } catch {
+                case _: Exception =>
+                  variant.variantBinding
+                    .asInstanceOf[BindingInstance[TC, ?, Elem]]
+                    .binding
+                    .asInstanceOf[Binding.Variant[A]]
+              }
+            val cases         = variant.cases
+            val discriminator = variantBinding.discriminator
+            val caseCodecs    = cache.get(variant.typeName) match {
               case Some(x) => x
               case _       =>
                 val codecs = new Array[AvroBinaryCodec[?, ?]](cases.length)
@@ -882,9 +891,7 @@ object AvroFormat
                   case Left(err) => sys.error(err)
                 }
             )
-          } else if (reflect.isDynamic) {
-            ???
-          } else ???
+          } else deriveCodec(dynamicValueSchema, cache)
         }.asInstanceOf[AvroBinaryCodec[A, B]]
 
         private def toAvroBinaryCodec[A, B](
