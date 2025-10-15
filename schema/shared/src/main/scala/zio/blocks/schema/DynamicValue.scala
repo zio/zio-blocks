@@ -33,7 +33,7 @@ object DynamicValue {
     }
   }
 
-  final case class Record(fields: IndexedSeq[(String, DynamicValue)]) extends DynamicValue {
+  final case class Record(fields: Vector[(String, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Record(thatFields) =>
         val len = fields.length
@@ -94,7 +94,7 @@ object DynamicValue {
     }
   }
 
-  final case class Sequence(elements: IndexedSeq[DynamicValue]) extends DynamicValue {
+  final case class Sequence(elements: Vector[DynamicValue]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Sequence(thatElements) =>
         val len = elements.length
@@ -130,7 +130,7 @@ object DynamicValue {
     }
   }
 
-  final case class Map(entries: IndexedSeq[(DynamicValue, DynamicValue)]) extends DynamicValue {
+  final case class Map(entries: Vector[(DynamicValue, DynamicValue)]) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Map(thatEntries) =>
         val len = entries.length

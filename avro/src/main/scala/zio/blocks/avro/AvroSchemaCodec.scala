@@ -5,6 +5,7 @@ import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.binding.Binding
 import java.util
 import scala.collection.mutable
+import scala.io.Source
 import scala.jdk.CollectionConverters.SeqHasAsJava
 import scala.util.control.NonFatal
 
@@ -304,7 +305,8 @@ object AvroSchemaCodec {
     } else if (reflect.isVariant) {
       val variant    = reflect.asVariant.get
       val cases      = variant.cases
-      val avroSchema = AvroSchema.createUnion(cases.map(case_ => toAvroSchema(case_.value, avroSchemas)).asJava)
+      val unionTypes = cases.map(case_ => toAvroSchema(case_.value, avroSchemas)).asJava
+      val avroSchema = AvroSchema.createUnion(unionTypes)
       avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
       avroSchema
     } else if (reflect.isSequence) {
@@ -348,7 +350,16 @@ object AvroSchemaCodec {
     } else if (reflect.isWrapper) {
       val wrapper = reflect.asWrapperUnknown.get.wrapper
       toAvroSchema(wrapper.wrapped, avroSchemas)
-    } else ???
+    } else dynamicValueAvroSchema
+  }
+
+  private[this] lazy val dynamicValueAvroSchema = {
+    val stream         = getClass.getClassLoader.getResourceAsStream("dynamicValueAvroSchema.json")
+    val avroSchemaJson =
+      try Source.fromInputStream(stream).mkString
+      finally stream.close()
+    val avroSchemaParser = new AvroSchema.Parser
+    avroSchemaParser.parse(avroSchemaJson)
   }
 
   private def createAvroSchema(tpe: AvroSchema.Type, privateTypeName: TypeName[?]): AvroSchema = {

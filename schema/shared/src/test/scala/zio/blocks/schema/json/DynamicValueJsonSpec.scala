@@ -11,7 +11,7 @@ object DynamicValueJsonSpec extends ZIOSpecDefault {
       "number"  -> Primitive(value = PrimitiveValue.Int(42)),
       "hello"   -> Primitive(value = PrimitiveValue.String("world")),
       "boolean" -> Primitive(value = PrimitiveValue.Boolean(true))
-    ).toIndexedSeq
+    ).toVector
   )
   private def toJsonSpec = suite("toJson")(
     test("simple test") {

@@ -136,7 +136,7 @@ object DynamicValueGen {
       } yield key -> value
     }
     .map(_.distinctBy(_._1)) // Now safe since all keys are non-empty strings
-    .map(f => Record(f.toIndexedSeq))
+    .map(f => Record(f.toVector))
 
   def genVariant: Gen[Any, Variant] = genVariantWithDepth(2)
 
@@ -152,7 +152,7 @@ object DynamicValueGen {
       .listOfBounded(0, 5)(
         if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
       )
-      .map(f => Sequence(f.toIndexedSeq))
+      .map(f => Sequence(f.toVector))
 
   def genAlphaNumericSequence: Gen[Any, Sequence] =
     Gen
@@ -164,7 +164,7 @@ object DynamicValueGen {
           )
           .map(Primitive(_))
       )
-      .map(f => Sequence(f.toIndexedSeq))
+      .map(f => Sequence(f.toVector))
 
   def genMap: Gen[Any, DynamicValue.Map] = genMapWithDepth(2)
 
@@ -178,5 +178,5 @@ object DynamicValueGen {
         } yield key -> value
       }
       .map(_.distinctBy(_._1.value)) // Now safe since all keys are non-empty strings
-      .map(list => Map(list.toIndexedSeq))
+      .map(list => Map(list.toVector))
 }
