@@ -3,6 +3,7 @@ package zio.blocks.schema
 import monocle.{Focus, POptional}
 import monocle.macros.GenPrism
 import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 
 class OptionalGetOptionBenchmark extends BaseBenchmark {
   import zio.blocks.schema.OptionalDomain._
