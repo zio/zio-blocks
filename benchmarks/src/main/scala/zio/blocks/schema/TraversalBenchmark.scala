@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 import zio.blocks.schema.binding.Binding
 
 class TraversalFoldBenchmark extends BaseBenchmark {

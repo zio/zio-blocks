@@ -1,4 +1,4 @@
-package zio.blocks.schema
+package zio.blocks
 
 import org.openjdk.jmh.annotations.{Scope => JScope, _}
 import java.util.concurrent.TimeUnit

@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import monocle.{Focus, PLens}
 import org.openjdk.jmh.annotations._
+import zio.blocks.BaseBenchmark
 
 class LensGetBenchmark extends BaseBenchmark {
   import zio.blocks.schema.LensDomain._
