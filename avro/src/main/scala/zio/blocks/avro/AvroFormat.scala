@@ -739,9 +739,9 @@ object AvroFormat
             val fieldCodecs   = cache.get(record.typeName) match {
               case Some(x) => x
               case _       =>
-                val codecs = new Array[AvroBinaryCodec[?, ?]](fieldTerms.length)
+                val len    = fieldTerms.length
+                val codecs = new Array[AvroBinaryCodec[?, ?]](len)
                 cache.put(record.typeName, codecs)
-                val len = fieldTerms.length
                 var idx = 0
                 while (idx < len) {
                   val reflect = fieldTerms(idx).value
@@ -761,12 +761,10 @@ object AvroFormat
                     val len = fieldTerms.length
                     var idx = 0
                     while (idx < len) {
-                      val field   = fieldTerms(idx)
-                      val encoder = fieldCodecs(idx).encoder
-                      val reflect = field.value
-                      if (reflect.isPrimitive) {
-                        val primitiveType = reflect.asPrimitive.get.primitiveType
-                        primitiveType match {
+                      val encoder      = fieldCodecs(idx).encoder
+                      val fieldReflect = fieldTerms(idx).value
+                      if (fieldReflect.isPrimitive) {
+                        fieldReflect.asPrimitive.get.primitiveType match {
                           case _: PrimitiveType.Unit.type => ()
                           case _: PrimitiveType.Boolean   =>
                             put(idx, encoder.asInstanceOf[Boolean => AnyRef](registers.getBoolean(offset, 0)))
@@ -810,12 +808,10 @@ object AvroFormat
                 val len       = fieldTerms.length
                 var idx       = 0
                 while (idx < len) {
-                  val field   = fieldTerms(idx)
-                  val decoder = fieldCodecs(idx).decoder
-                  val reflect = field.value
-                  if (reflect.isPrimitive) {
-                    val primitiveType = reflect.asPrimitive.get.primitiveType
-                    primitiveType match {
+                  val decoder      = fieldCodecs(idx).decoder
+                  val fieldReflect = fieldTerms(idx).value
+                  if (fieldReflect.isPrimitive) {
+                    fieldReflect.asPrimitive.get.primitiveType match {
                       case _: PrimitiveType.Unit.type => ()
                       case _: PrimitiveType.Boolean   =>
                         registers

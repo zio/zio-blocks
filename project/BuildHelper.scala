@@ -90,6 +90,7 @@ object BuildHelper {
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
+          "-language:existentials",
           "-opt:l:method",
           "-Ywarn-unused"
         )

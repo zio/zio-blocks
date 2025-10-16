@@ -1,6 +1,6 @@
 package zio.blocks.avro
 
-import zio.blocks.schema.{Namespace, Schema, TypeName}
+import zio.blocks.schema.Schema
 import zio.test.Assertion._
 import zio.test._
 import java.time._
