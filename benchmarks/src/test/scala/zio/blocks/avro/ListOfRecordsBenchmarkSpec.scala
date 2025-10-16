@@ -6,14 +6,22 @@ import zio.test.Assertion._
 object ListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("ListOfRecordsBenchmarkSpec")(
     test("reading") {
-      val zioBlocksOutput = (new ListOfRecordsBenchmark).readingZioBlocks
-      val zioSchemaOutput = (new ListOfRecordsBenchmark).readingZioSchema
-      assert(zioBlocksOutput)(equalTo(zioSchemaOutput))
+      val benchmark = new ListOfRecordsBenchmark
+      benchmark.setup()
+      val avro4sOutput    = benchmark.readingAvro4s
+      val zioBlocksOutput = benchmark.readingZioBlocks
+      val zioSchemaOutput = benchmark.readingZioSchema
+      assert(avro4sOutput)(equalTo(zioBlocksOutput)) &&
+      assert(zioSchemaOutput)(equalTo(zioBlocksOutput))
     },
     test("writing") {
-      val zioBlocksOutput = (new ListOfRecordsBenchmark).writingZioBlocks
-      val zioSchemaOutput = (new ListOfRecordsBenchmark).writingZioSchema
-      assert(java.util.Arrays.compare(zioBlocksOutput, zioSchemaOutput))(equalTo(0))
+      val benchmark = new ListOfRecordsBenchmark
+      benchmark.setup()
+      val avro4sOutput    = benchmark.writingAvro4s
+      val zioBlocksOutput = benchmark.writingZioBlocks
+      val zioSchemaOutput = benchmark.writingZioSchema
+      assert(java.util.Arrays.compare(avro4sOutput, zioBlocksOutput))(equalTo(0)) &&
+      assert(java.util.Arrays.compare(zioSchemaOutput, zioBlocksOutput))(equalTo(0))
     }
   )
 }
