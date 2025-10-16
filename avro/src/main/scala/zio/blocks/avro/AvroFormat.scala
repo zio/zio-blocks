@@ -1,13 +1,7 @@
 package zio.blocks.avro
 
 import org.apache.avro.generic.GenericData.Fixed
-import org.apache.avro.generic.{
-  GenericData,
-  GenericDatumReader,
-  GenericDatumWriter,
-  GenericRecordBuilder,
-  IndexedRecord
-}
+import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericDatumWriter, IndexedRecord}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.util.Utf8
 import org.apache.avro.{Schema => AvroSchema}
@@ -16,7 +10,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
 import zio.blocks.schema.derive.{BindingInstance, Deriver}
 import java.io.OutputStream
-import java.math.{BigInteger, MathContext, RoundingMode}
+import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
@@ -711,10 +705,10 @@ object AvroFormat
                       val kv    = it.next()
                       val key   = deconstructor.getKey(kv)
                       val value = deconstructor.getValue(kv)
-                      res.add(new GenericRecordBuilder(avroSchema.getElementType) {
-                        set(0, keyEncoder(key))
-                        set(1, valueEncoder(value))
-                      }.build())
+                      res.add(new GenericData.Record(avroSchema.getElementType) {
+                        put(0, keyEncoder(key))
+                        put(1, valueEncoder(value))
+                      })
                     }
                     res
                   },
@@ -741,16 +735,16 @@ object AvroFormat
               }
             val constructor   = recordBinding.constructor
             val deconstructor = recordBinding.deconstructor
-            val fields        = record.fields
+            val fieldTerms    = record.fields
             val fieldCodecs   = cache.get(record.typeName) match {
               case Some(x) => x
               case _       =>
-                val codecs = new Array[AvroBinaryCodec[?, ?]](fields.length)
+                val codecs = new Array[AvroBinaryCodec[?, ?]](fieldTerms.length)
                 cache.put(record.typeName, codecs)
-                val len = fields.length
+                val len = fieldTerms.length
                 var idx = 0
                 while (idx < len) {
-                  val reflect = fields(idx).value
+                  val reflect = fieldTerms(idx).value
                   codecs(idx) = deriveCodec(new Schema(reflect), cache)
                   idx += 1
                 }
@@ -758,62 +752,65 @@ object AvroFormat
             }
             toAvroBinaryCodec[A, IndexedRecord](
               avroSchema,
-              (a: A) => {
-                val builder   = new GenericRecordBuilder(avroSchema)
-                val registers = Registers(record.usedRegisters)
-                deconstructor.deconstruct(registers, RegisterOffset.Zero, a)
-                var offset = RegisterOffset.Zero
-                var idx    = -1
-                fields.foreach { field =>
-                  idx += 1
-                  val encoder   = fieldCodecs(idx).encoder
-                  val fieldName = field.name
-                  val reflect   = field.value
-                  if (reflect.isPrimitive) {
-                    val primitiveType = reflect.asPrimitive.get.primitiveType
-                    primitiveType match {
-                      case _: PrimitiveType.Unit.type => ()
-                      case _: PrimitiveType.Boolean   =>
-                        builder.set(fieldName, encoder.asInstanceOf[Boolean => AnyRef](registers.getBoolean(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
-                      case _: PrimitiveType.Byte =>
-                        builder.set(fieldName, encoder.asInstanceOf[Byte => AnyRef](registers.getByte(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
-                      case _: PrimitiveType.Char =>
-                        builder.set(fieldName, encoder.asInstanceOf[Char => AnyRef](registers.getChar(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
-                      case _: PrimitiveType.Short =>
-                        builder.set(fieldName, encoder.asInstanceOf[Short => AnyRef](registers.getShort(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
-                      case _: PrimitiveType.Float =>
-                        builder.set(fieldName, encoder.asInstanceOf[Float => AnyRef](registers.getFloat(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
-                      case _: PrimitiveType.Int =>
-                        builder.set(fieldName, encoder.asInstanceOf[Int => AnyRef](registers.getInt(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                      case _: PrimitiveType.Double =>
-                        builder.set(fieldName, encoder.asInstanceOf[Double => AnyRef](registers.getDouble(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
-                      case _: PrimitiveType.Long =>
-                        builder.set(fieldName, encoder.asInstanceOf[Long => AnyRef](registers.getLong(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                      case _ =>
-                        builder.set(fieldName, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
+              (a: A) =>
+                new GenericData.Record(avroSchema) {
+                  {
+                    val registers = Registers(record.usedRegisters)
+                    var offset    = RegisterOffset.Zero
+                    deconstructor.deconstruct(registers, offset, a)
+                    val len = fieldTerms.length
+                    var idx = 0
+                    while (idx < len) {
+                      val field   = fieldTerms(idx)
+                      val encoder = fieldCodecs(idx).encoder
+                      val reflect = field.value
+                      if (reflect.isPrimitive) {
+                        val primitiveType = reflect.asPrimitive.get.primitiveType
+                        primitiveType match {
+                          case _: PrimitiveType.Unit.type => ()
+                          case _: PrimitiveType.Boolean   =>
+                            put(idx, encoder.asInstanceOf[Boolean => AnyRef](registers.getBoolean(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
+                          case _: PrimitiveType.Byte =>
+                            put(idx, encoder.asInstanceOf[Byte => AnyRef](registers.getByte(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
+                          case _: PrimitiveType.Char =>
+                            put(idx, encoder.asInstanceOf[Char => AnyRef](registers.getChar(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
+                          case _: PrimitiveType.Short =>
+                            put(idx, encoder.asInstanceOf[Short => AnyRef](registers.getShort(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
+                          case _: PrimitiveType.Float =>
+                            put(idx, encoder.asInstanceOf[Float => AnyRef](registers.getFloat(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
+                          case _: PrimitiveType.Int =>
+                            put(idx, encoder.asInstanceOf[Int => AnyRef](registers.getInt(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                          case _: PrimitiveType.Double =>
+                            put(idx, encoder.asInstanceOf[Double => AnyRef](registers.getDouble(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
+                          case _: PrimitiveType.Long =>
+                            put(idx, encoder.asInstanceOf[Long => AnyRef](registers.getLong(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                          case _ =>
+                            put(idx, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
+                            offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                        }
+                      } else {
+                        put(idx, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
                         offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                      }
+                      idx += 1
                     }
-                  } else {
-                    builder.set(fieldName, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
-                    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
-                }
-                builder.build()
-              },
+                },
               (indexedRecord: IndexedRecord) => {
                 val registers = Registers(record.usedRegisters)
                 var offset    = RegisterOffset.Zero
-                var idx       = -1
-                fields.foreach { field =>
-                  idx += 1
+                val len       = fieldTerms.length
+                var idx       = 0
+                while (idx < len) {
+                  val field   = fieldTerms(idx)
                   val decoder = fieldCodecs(idx).decoder
                   val reflect = field.value
                   if (reflect.isPrimitive) {
@@ -854,6 +851,7 @@ object AvroFormat
                     registers.setObject(offset, 0, decoder.asInstanceOf[AnyRef => AnyRef](indexedRecord.get(idx)))
                     offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                   }
+                  idx += 1
                 }
                 constructor.construct(registers, RegisterOffset.Zero)
               }
