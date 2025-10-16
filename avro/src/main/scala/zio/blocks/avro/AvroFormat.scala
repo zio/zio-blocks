@@ -973,9 +973,16 @@ private case class AvroBinaryCodec[A, B](
     )
 
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
-    val bs = new Array[Byte](input.limit - input.position)
-    input.get(bs)
-    val datum = reader.read(null.asInstanceOf[B], DecoderFactory.get().binaryDecoder(bs, null))
+    var pos             = input.position
+    val len             = input.limit - pos
+    var bs: Array[Byte] = null
+    if (input.hasArray) bs = input.array()
+    else {
+      pos = 0
+      bs = new Array[Byte](len)
+      input.get(bs)
+    }
+    val datum = reader.read(null.asInstanceOf[B], DecoderFactory.get().binaryDecoder(bs, pos, len, null))
     try new Right(decoder(datum))
     catch {
       case error if NonFatal(error) =>
