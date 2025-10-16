@@ -154,6 +154,7 @@ lazy val benchmarks = project
     crossScalaVersions       := Seq("3.7.3"),
     ThisBuild / scalaVersion := "3.7.3",
     libraryDependencies ++= Seq(
+      "com.sksamuel.avro4s"        %% "avro4s-core"     % "5.0.14",
       "dev.zio"                    %% "zio-schema-avro" % "1.7.5",
       "io.github.arainko"          %% "chanterelle"     % "0.1.1",
       "com.softwaremill.quicklens" %% "quicklens"       % "1.9.12",
