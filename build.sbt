@@ -121,7 +121,7 @@ lazy val avro = project
   .settings(stdSettings("zio-blocks-avro"))
   .settings(
     libraryDependencies ++= Seq(
-      "org.apache.avro" % "avro"         % "1.12.0",
+      "org.apache.avro" % "avro"         % "1.12.1",
       "dev.zio"        %% "zio-test"     % "2.1.20" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.20" % Test
     )
