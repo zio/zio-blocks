@@ -227,10 +227,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
     ),
     suite("wrapper")(
       test("top-level") {
+        roundTrip[UserId](UserId(1234567890123456789L), 9) &&
         roundTrip[Email](Email("john@gmail.com"), 15)
       },
       test("as a record field") {
-        roundTrip[Record3](Record3(Email("john@gmail.com"), Email("backup@gmail.com")), 32)
+        roundTrip[Record3](Record3(UserId(1234567890123456789L), Email("backup@gmail.com")), 26)
       }
     )
   )
@@ -313,13 +314,19 @@ object AvroFormatSpec extends ZIOSpecDefault {
 
   implicit val eitherSchema: Schema[Either[String, Int]] = Schema.derived[Either[String, Int]]
 
+  case class UserId(value: Long)
+
+  object UserId {
+    implicit val schema: Schema[UserId] = Schema.derived.wrapTotal(x => new UserId(x), _.value)
+  }
+
   case class Email(value: String)
 
   object Email {
     implicit val schema: Schema[Email] = Schema.derived.wrapTotal(x => new Email(x), _.value)
   }
 
-  case class Record3(email: Email, backup: Email)
+  case class Record3(userId: UserId, email: Email)
 
   object Record3 {
     implicit val schema: Schema[Record3] = Schema.derived
