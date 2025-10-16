@@ -915,7 +915,7 @@ object AvroFormat
             val codec  = deriveCodec(new Schema(wrapper.wrapped), cache)
             toAvroBinaryCodec[A, Any](
               avroSchema,
-              codec.valueType,
+              AvroBinaryCodec.anyRefType,
               (a: A) => codec.encoder.asInstanceOf[Wrapped => Any](unwrap(a)),
               (a: Any) =>
                 wrap(codec.decoder.asInstanceOf[Any => Wrapped](a)) match {
