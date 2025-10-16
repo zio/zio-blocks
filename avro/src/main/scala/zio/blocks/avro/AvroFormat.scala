@@ -182,42 +182,84 @@ object AvroFormat
               case _: PrimitiveType.Unit.type =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.unitType,
                   (_: Unit) => null,
                   (_: Null) => ()
                 )
               case _: PrimitiveType.Byte =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.byteType,
                   (x: Byte) => x.toInt,
                   (x: Int) => if (x <= Byte.MaxValue && x >= Byte.MinValue) x.toByte else sys.error("Expected Byte")
                 )
-              case _: PrimitiveType.Char =>
+              case _: PrimitiveType.Boolean =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  (x: Char) => x.toInt,
-                  (x: Int) => if (x <= Char.MaxValue && x >= Char.MinValue) x.toChar else sys.error("Expected Char")
+                  AvroBinaryCodec.booleanType,
+                  (x: Boolean) => x,
+                  (x: Boolean) => x
                 )
               case _: PrimitiveType.Short =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.shortType,
                   (x: Short) => x.toInt,
                   (x: Int) => if (x <= Short.MaxValue && x >= Short.MinValue) x.toShort else sys.error("Expected Short")
+                )
+              case _: PrimitiveType.Char =>
+                toAvroBinaryCodec(
+                  avroSchema,
+                  AvroBinaryCodec.charType,
+                  (x: Char) => x.toInt,
+                  (x: Int) => if (x <= Char.MaxValue && x >= Char.MinValue) x.toChar else sys.error("Expected Char")
+                )
+              case _: PrimitiveType.Int =>
+                toAvroBinaryCodec(
+                  avroSchema,
+                  AvroBinaryCodec.intType,
+                  (x: Int) => x,
+                  (x: Int) => x
+                )
+              case _: PrimitiveType.Float =>
+                toAvroBinaryCodec(
+                  avroSchema,
+                  AvroBinaryCodec.floatType,
+                  (x: Float) => x,
+                  (x: Float) => x
+                )
+              case _: PrimitiveType.Long =>
+                toAvroBinaryCodec(
+                  avroSchema,
+                  AvroBinaryCodec.longType,
+                  (x: Long) => x,
+                  (x: Long) => x
+                )
+              case _: PrimitiveType.Double =>
+                toAvroBinaryCodec(
+                  avroSchema,
+                  AvroBinaryCodec.doubleType,
+                  (x: Double) => x,
+                  (x: Double) => x
                 )
               case _: PrimitiveType.String =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: String) => new Utf8(x),
                   (x: Utf8) => x.toString
                 )
               case _: PrimitiveType.BigInt =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: BigInt) => ByteBuffer.wrap(x.toByteArray),
                   (x: ByteBuffer) => BigInt(x.array)
                 )
               case _: PrimitiveType.BigDecimal =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: BigDecimal) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = {
@@ -243,12 +285,14 @@ object AvroFormat
               case _: PrimitiveType.DayOfWeek =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.DayOfWeek) => x.getValue,
                   (x: Int) => java.time.DayOfWeek.of(x)
                 )
               case _: PrimitiveType.Duration =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.Duration) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -262,6 +306,7 @@ object AvroFormat
               case _: PrimitiveType.Instant =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.Instant) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -275,6 +320,7 @@ object AvroFormat
               case _: PrimitiveType.LocalDate =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.LocalDate) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -290,6 +336,7 @@ object AvroFormat
               case _: PrimitiveType.LocalDateTime =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.LocalDateTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -316,6 +363,7 @@ object AvroFormat
               case _: PrimitiveType.LocalTime =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.LocalTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -336,12 +384,14 @@ object AvroFormat
               case _: PrimitiveType.Month =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.Month) => x.getValue,
                   (x: Int) => java.time.Month.of(x)
                 )
               case _: PrimitiveType.MonthDay =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.MonthDay) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -354,6 +404,7 @@ object AvroFormat
               case _: PrimitiveType.OffsetDateTime =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.OffsetDateTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -382,6 +433,7 @@ object AvroFormat
               case _: PrimitiveType.OffsetTime =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.OffsetTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -404,6 +456,7 @@ object AvroFormat
               case _: PrimitiveType.Period =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.Period) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -419,12 +472,14 @@ object AvroFormat
               case _: PrimitiveType.Year =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.Year) => x.getValue,
                   (x: Int) => java.time.Year.of(x)
                 )
               case _: PrimitiveType.YearMonth =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.YearMonth) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -437,18 +492,21 @@ object AvroFormat
               case _: PrimitiveType.ZoneId =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.ZoneId) => new Utf8(x.toString),
                   (x: Utf8) => java.time.ZoneId.of(x.toString)
                 )
               case _: PrimitiveType.ZoneOffset =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.ZoneOffset) => x.getTotalSeconds,
                   (x: Int) => java.time.ZoneOffset.ofTotalSeconds(x)
                 )
               case _: PrimitiveType.ZonedDateTime =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.time.ZonedDateTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -481,6 +539,7 @@ object AvroFormat
               case _: PrimitiveType.Currency =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.util.Currency) => {
                     val s = x.toString
                     new Fixed(avroSchema, Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
@@ -490,6 +549,7 @@ object AvroFormat
               case _: PrimitiveType.UUID =>
                 toAvroBinaryCodec(
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: java.util.UUID) => {
                     val hi = x.getMostSignificantBits
                     val lo = x.getLeastSignificantBits
@@ -536,12 +596,6 @@ object AvroFormat
                     new java.util.UUID(hi, lo)
                   }
                 )
-              case _ =>
-                toAvroBinaryCodec(
-                  avroSchema,
-                  (x: A) => x.asInstanceOf[B],
-                  (x: B) => x.asInstanceOf[A]
-                )
             }
           } else if (reflect.isVariant) {
             val variant        = reflect.asVariant.get
@@ -564,7 +618,7 @@ object AvroFormat
             }
             val valueReaders = avroSchema.getTypes.asScala.map(as => new GenericDatumReader[Any](as))
             val valueWriters = avroSchema.getTypes.asScala.map(as => new GenericDatumWriter[Any](as))
-            new AvroBinaryCodec[A, Any](null, null, null, null) {
+            new AvroBinaryCodec[A, Any](AvroBinaryCodec.anyRefType, null, null, null, null) {
               override def encode(value: A, output: ByteBuffer): Unit = {
                 val idx         = discriminator.discriminate(value)
                 val avroEncoder =
@@ -633,6 +687,7 @@ object AvroFormat
             val decoder       = elementCodec.decoder.asInstanceOf[Any => Elem]
             toAvroBinaryCodec[Col[Elem], Any](
               avroSchema,
+              AvroBinaryCodec.anyRefType,
               (x: Col[Elem]) => {
                 val res = new java.util.ArrayList[Any]
                 val it  = deconstructor.deconstruct(x)
@@ -673,6 +728,7 @@ object AvroFormat
               case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
                 toAvroBinaryCodec[Map[Key, Value], Any](
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: Map[Key, Value]) => {
                     val res = new java.util.HashMap[Any, Any]
                     val it  = deconstructor.deconstruct(x)
@@ -698,6 +754,7 @@ object AvroFormat
               case _ =>
                 toAvroBinaryCodec[Map[Key, Value], Any](
                   avroSchema,
+                  AvroBinaryCodec.anyRefType,
                   (x: Map[Key, Value]) => {
                     val res = new java.util.ArrayList[Any]
                     val it  = deconstructor.deconstruct(x)
@@ -744,59 +801,55 @@ object AvroFormat
                 cache.put(record.typeName, codecs)
                 var idx = 0
                 while (idx < len) {
-                  val reflect = fieldTerms(idx).value
-                  codecs(idx) = deriveCodec(new Schema(reflect), cache)
+                  val fieldReflect = fieldTerms(idx).value
+                  codecs(idx) = deriveCodec(new Schema(fieldReflect), cache)
                   idx += 1
                 }
                 codecs
             }
             toAvroBinaryCodec[A, IndexedRecord](
               avroSchema,
+              AvroBinaryCodec.anyRefType,
               (a: A) =>
                 new GenericData.Record(avroSchema) {
                   {
                     val registers = Registers(record.usedRegisters)
                     var offset    = RegisterOffset.Zero
                     deconstructor.deconstruct(registers, offset, a)
-                    val len = fieldTerms.length
+                    val len = fieldCodecs.length
                     var idx = 0
                     while (idx < len) {
-                      val encoder      = fieldCodecs(idx).encoder
-                      val fieldReflect = fieldTerms(idx).value
-                      if (fieldReflect.isPrimitive) {
-                        fieldReflect.asPrimitive.get.primitiveType match {
-                          case _: PrimitiveType.Unit.type => ()
-                          case _: PrimitiveType.Boolean   =>
-                            put(idx, encoder.asInstanceOf[Boolean => AnyRef](registers.getBoolean(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
-                          case _: PrimitiveType.Byte =>
-                            put(idx, encoder.asInstanceOf[Byte => AnyRef](registers.getByte(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
-                          case _: PrimitiveType.Char =>
-                            put(idx, encoder.asInstanceOf[Char => AnyRef](registers.getChar(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
-                          case _: PrimitiveType.Short =>
-                            put(idx, encoder.asInstanceOf[Short => AnyRef](registers.getShort(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
-                          case _: PrimitiveType.Float =>
-                            put(idx, encoder.asInstanceOf[Float => AnyRef](registers.getFloat(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
-                          case _: PrimitiveType.Int =>
-                            put(idx, encoder.asInstanceOf[Int => AnyRef](registers.getInt(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                          case _: PrimitiveType.Double =>
-                            put(idx, encoder.asInstanceOf[Double => AnyRef](registers.getDouble(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
-                          case _: PrimitiveType.Long =>
-                            put(idx, encoder.asInstanceOf[Long => AnyRef](registers.getLong(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                          case _ =>
-                            put(idx, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
-                            offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                        }
-                      } else {
-                        put(idx, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                      val codec   = fieldCodecs(idx)
+                      val encoder = codec.encoder
+                      codec.valueType match {
+                        case AvroBinaryCodec.anyRefType =>
+                          put(idx, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                        case AvroBinaryCodec.booleanType =>
+                          put(idx, encoder.asInstanceOf[Boolean => AnyRef](registers.getBoolean(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
+                        case AvroBinaryCodec.byteType =>
+                          put(idx, encoder.asInstanceOf[Byte => AnyRef](registers.getByte(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
+                        case AvroBinaryCodec.charType =>
+                          put(idx, encoder.asInstanceOf[Char => AnyRef](registers.getChar(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
+                        case AvroBinaryCodec.shortType =>
+                          put(idx, encoder.asInstanceOf[Short => AnyRef](registers.getShort(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
+                        case AvroBinaryCodec.floatType =>
+                          put(idx, encoder.asInstanceOf[Float => AnyRef](registers.getFloat(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
+                        case AvroBinaryCodec.intType =>
+                          put(idx, encoder.asInstanceOf[Int => AnyRef](registers.getInt(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                        case AvroBinaryCodec.doubleType =>
+                          put(idx, encoder.asInstanceOf[Double => AnyRef](registers.getDouble(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
+                        case AvroBinaryCodec.longType =>
+                          put(idx, encoder.asInstanceOf[Long => AnyRef](registers.getLong(offset, 0)))
+                          offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                        case _ => ()
                       }
                       idx += 1
                     }
@@ -805,47 +858,40 @@ object AvroFormat
               (indexedRecord: IndexedRecord) => {
                 val registers = Registers(record.usedRegisters)
                 var offset    = RegisterOffset.Zero
-                val len       = fieldTerms.length
+                val len       = fieldCodecs.length
                 var idx       = 0
                 while (idx < len) {
-                  val decoder      = fieldCodecs(idx).decoder
-                  val fieldReflect = fieldTerms(idx).value
-                  if (fieldReflect.isPrimitive) {
-                    fieldReflect.asPrimitive.get.primitiveType match {
-                      case _: PrimitiveType.Unit.type => ()
-                      case _: PrimitiveType.Boolean   =>
-                        registers
-                          .setBoolean(offset, 0, decoder.asInstanceOf[AnyRef => Boolean](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
-                      case _: PrimitiveType.Byte =>
-                        registers.setByte(offset, 0, decoder.asInstanceOf[AnyRef => Byte](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
-                      case _: PrimitiveType.Char =>
-                        registers.setChar(offset, 0, decoder.asInstanceOf[AnyRef => Char](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
-                      case _: PrimitiveType.Short =>
-                        registers.setShort(offset, 0, decoder.asInstanceOf[AnyRef => Short](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
-                      case _: PrimitiveType.Float =>
-                        registers.setFloat(offset, 0, decoder.asInstanceOf[AnyRef => Float](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
-                      case _: PrimitiveType.Int =>
-                        registers.setInt(offset, 0, decoder.asInstanceOf[AnyRef => Int](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
-                      case _: PrimitiveType.Double =>
-                        registers
-                          .setDouble(offset, 0, decoder.asInstanceOf[AnyRef => Double](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
-                      case _: PrimitiveType.Long =>
-                        registers.setLong(offset, 0, decoder.asInstanceOf[AnyRef => Long](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
-                      case _ =>
-                        registers.setObject(offset, 0, decoder.asInstanceOf[AnyRef => AnyRef](indexedRecord.get(idx)))
-                        offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
-                    }
-                  } else {
-                    registers.setObject(offset, 0, decoder.asInstanceOf[AnyRef => AnyRef](indexedRecord.get(idx)))
-                    offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                  val codec   = fieldCodecs(idx)
+                  val decoder = codec.decoder
+                  codec.valueType match {
+                    case AvroBinaryCodec.anyRefType =>
+                      registers.setObject(offset, 0, decoder.asInstanceOf[AnyRef => AnyRef](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
+                    case AvroBinaryCodec.booleanType =>
+                      registers.setBoolean(offset, 0, decoder.asInstanceOf[AnyRef => Boolean](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
+                    case AvroBinaryCodec.byteType =>
+                      registers.setByte(offset, 0, decoder.asInstanceOf[AnyRef => Byte](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
+                    case AvroBinaryCodec.charType =>
+                      registers.setChar(offset, 0, decoder.asInstanceOf[AnyRef => Char](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
+                    case AvroBinaryCodec.shortType =>
+                      registers.setShort(offset, 0, decoder.asInstanceOf[AnyRef => Short](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
+                    case AvroBinaryCodec.floatType =>
+                      registers.setFloat(offset, 0, decoder.asInstanceOf[AnyRef => Float](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
+                    case AvroBinaryCodec.intType =>
+                      registers.setInt(offset, 0, decoder.asInstanceOf[AnyRef => Int](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
+                    case AvroBinaryCodec.doubleType =>
+                      registers.setDouble(offset, 0, decoder.asInstanceOf[AnyRef => Double](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
+                    case AvroBinaryCodec.longType =>
+                      registers.setLong(offset, 0, decoder.asInstanceOf[AnyRef => Long](indexedRecord.get(idx)))
+                      offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
+                    case _ => ()
                   }
                   idx += 1
                 }
@@ -869,6 +915,7 @@ object AvroFormat
             val codec  = deriveCodec(new Schema(wrapper.wrapped), cache)
             toAvroBinaryCodec[A, Any](
               avroSchema,
+              codec.valueType,
               (a: A) => codec.encoder.asInstanceOf[Wrapped => Any](unwrap(a)),
               (a: Any) =>
                 wrap(codec.decoder.asInstanceOf[Any => Wrapped](a)) match {
@@ -883,12 +930,13 @@ object AvroFormat
 
         private def toAvroBinaryCodec[A, B](
           schemaAvro: AvroSchema,
+          valueType: Int,
           encoder: A => B,
           decoder: B => A
         ): AvroBinaryCodec[A, B] = {
           val reader = new GenericDatumReader[B](schemaAvro)
           val writer = new GenericDatumWriter[B](schemaAvro)
-          new AvroBinaryCodec(reader, writer, encoder, decoder)
+          new AvroBinaryCodec(valueType, reader, writer, encoder, decoder)
         }
       }
     )
@@ -900,6 +948,7 @@ private abstract class IndexedRecordGetter(avroSchema: AvroSchema) extends Index
 }
 
 private case class AvroBinaryCodec[A, B](
+  valueType: Int,
   reader: GenericDatumReader[B],
   writer: GenericDatumWriter[B],
   encoder: A => B,
@@ -933,6 +982,19 @@ private case class AvroBinaryCodec[A, B](
         new Left(new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, error.getMessage), Nil)))
     }
   }
+}
+
+private object AvroBinaryCodec {
+  val unitType    = 0
+  val booleanType = 1
+  val byteType    = 2
+  val charType    = 3
+  val shortType   = 4
+  val floatType   = 5
+  val intType     = 6
+  val doubleType  = 7
+  val longType    = 8
+  val anyRefType  = 9
 }
 
 /*
