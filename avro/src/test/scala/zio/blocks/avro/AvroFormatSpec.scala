@@ -120,6 +120,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("recursive record") {
         roundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 8)
+      },
+      test("record with unit fields") {
+        roundTrip(Record4(()), 0)
       }
     ),
     suite("sequences")(
@@ -208,6 +211,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
           ),
           20
         )
+      },
+      test("mested maps") {
+        roundTrip(Map("VVV" -> Map(1 -> 1L, 2 -> 2L)), 12) &&
+        roundTrip(Map(Map(1 -> 1L, 2 -> 2L) -> "WWW"), 12)
       }
     ),
     suite("enums")(
@@ -330,5 +337,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
 
   object Record3 {
     implicit val schema: Schema[Record3] = Schema.derived
+  }
+
+  case class Record4(removed: Unit)
+
+  object Record4 {
+    implicit val schema: Schema[Record4] = Schema.derived
   }
 }

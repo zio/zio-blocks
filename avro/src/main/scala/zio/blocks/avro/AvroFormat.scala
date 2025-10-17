@@ -245,21 +245,21 @@ object AvroFormat
               case _: PrimitiveType.String =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: String) => new Utf8(x),
                   (x: Utf8) => x.toString
                 )
               case _: PrimitiveType.BigInt =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: BigInt) => ByteBuffer.wrap(x.toByteArray),
                   (x: ByteBuffer) => BigInt(x.array)
                 )
               case _: PrimitiveType.BigDecimal =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: BigDecimal) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = {
@@ -285,14 +285,14 @@ object AvroFormat
               case _: PrimitiveType.DayOfWeek =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.DayOfWeek) => x.getValue,
                   (x: Int) => java.time.DayOfWeek.of(x)
                 )
               case _: PrimitiveType.Duration =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.Duration) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -306,7 +306,7 @@ object AvroFormat
               case _: PrimitiveType.Instant =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.Instant) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -320,7 +320,7 @@ object AvroFormat
               case _: PrimitiveType.LocalDate =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.LocalDate) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -336,7 +336,7 @@ object AvroFormat
               case _: PrimitiveType.LocalDateTime =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.LocalDateTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -363,7 +363,7 @@ object AvroFormat
               case _: PrimitiveType.LocalTime =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.LocalTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -384,14 +384,14 @@ object AvroFormat
               case _: PrimitiveType.Month =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.Month) => x.getValue,
                   (x: Int) => java.time.Month.of(x)
                 )
               case _: PrimitiveType.MonthDay =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.MonthDay) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -404,7 +404,7 @@ object AvroFormat
               case _: PrimitiveType.OffsetDateTime =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.OffsetDateTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -433,7 +433,7 @@ object AvroFormat
               case _: PrimitiveType.OffsetTime =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.OffsetTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -456,7 +456,7 @@ object AvroFormat
               case _: PrimitiveType.Period =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.Period) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -472,14 +472,14 @@ object AvroFormat
               case _: PrimitiveType.Year =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.Year) => x.getValue,
                   (x: Int) => java.time.Year.of(x)
                 )
               case _: PrimitiveType.YearMonth =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.YearMonth) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -492,21 +492,21 @@ object AvroFormat
               case _: PrimitiveType.ZoneId =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.ZoneId) => new Utf8(x.toString),
                   (x: Utf8) => java.time.ZoneId.of(x.toString)
                 )
               case _: PrimitiveType.ZoneOffset =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.ZoneOffset) => x.getTotalSeconds,
                   (x: Int) => java.time.ZoneOffset.ofTotalSeconds(x)
                 )
               case _: PrimitiveType.ZonedDateTime =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.time.ZonedDateTime) =>
                     new IndexedRecordGetter(avroSchema) {
                       override def get(i: Int): Any = i match {
@@ -539,7 +539,7 @@ object AvroFormat
               case _: PrimitiveType.Currency =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.util.Currency) => {
                     val s = x.toString
                     new Fixed(avroSchema, Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
@@ -549,7 +549,7 @@ object AvroFormat
               case _: PrimitiveType.UUID =>
                 toAvroBinaryCodec(
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: java.util.UUID) => {
                     val hi = x.getMostSignificantBits
                     val lo = x.getLeastSignificantBits
@@ -616,9 +616,11 @@ object AvroFormat
                 }
                 codecs
             }
-            val valueReaders = avroSchema.getTypes.asScala.map(as => new GenericDatumReader[Any](as))
-            val valueWriters = avroSchema.getTypes.asScala.map(as => new GenericDatumWriter[Any](as))
-            new AvroBinaryCodec[A, Any](AvroBinaryCodec.anyRefType, null, null, null, null) {
+            val caseTypes = avroSchema.getTypes.asScala
+            new AvroBinaryCodec[A, Any](AvroBinaryCodec.objectType, null, null, null, null) {
+              private[this] val valueReaders = caseTypes.map(as => new GenericDatumReader[Any](as)).toArray
+              private[this] val valueWriters = caseTypes.map(as => new GenericDatumWriter[Any](as)).toArray
+
               override def encode(value: A, output: ByteBuffer): Unit = {
                 val idx         = discriminator.discriminate(value)
                 val avroEncoder =
@@ -639,9 +641,16 @@ object AvroFormat
               }
 
               override def decode(input: ByteBuffer): Either[SchemaError, A] = {
-                val bs = new Array[Byte](input.limit - input.position)
-                input.get(bs)
-                val avroDecoder = DecoderFactory.get().binaryDecoder(bs, null)
+                var pos             = input.position
+                val len             = input.limit - pos
+                var bs: Array[Byte] = null
+                if (input.hasArray) bs = input.array()
+                else {
+                  pos = 0
+                  bs = new Array[Byte](len)
+                  input.get(bs)
+                }
+                val avroDecoder = DecoderFactory.get().binaryDecoder(bs, pos, len, null)
                 val idx         = avroDecoder.readIndex()
                 if (idx >= 0 && idx <= caseCodecs.length) {
                   try {
@@ -673,7 +682,7 @@ object AvroFormat
               try {
                 sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
               } catch {
-                case _: Exception =>
+                case error if NonFatal(error) =>
                   sequence.seqBinding
                     .asInstanceOf[BindingInstance[TC, ?, Elem]]
                     .binding
@@ -687,7 +696,7 @@ object AvroFormat
             val decoder       = elementCodec.decoder.asInstanceOf[Any => Elem]
             toAvroBinaryCodec[Col[Elem], Any](
               avroSchema,
-              AvroBinaryCodec.anyRefType,
+              AvroBinaryCodec.objectType,
               (x: Col[Elem]) => {
                 val res = new java.util.ArrayList[Any]
                 val it  = deconstructor.deconstruct(x)
@@ -710,7 +719,7 @@ object AvroFormat
               try {
                 map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
               } catch {
-                case _: Exception =>
+                case error if NonFatal(error) =>
                   map.mapBinding
                     .asInstanceOf[BindingInstance[TC, ?, Value]]
                     .binding
@@ -728,7 +737,7 @@ object AvroFormat
               case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
                 toAvroBinaryCodec[Map[Key, Value], Any](
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: Map[Key, Value]) => {
                     val res = new java.util.HashMap[Any, Any]
                     val it  = deconstructor.deconstruct(x)
@@ -754,7 +763,7 @@ object AvroFormat
               case _ =>
                 toAvroBinaryCodec[Map[Key, Value], Any](
                   avroSchema,
-                  AvroBinaryCodec.anyRefType,
+                  AvroBinaryCodec.objectType,
                   (x: Map[Key, Value]) => {
                     val res = new java.util.ArrayList[Any]
                     val it  = deconstructor.deconstruct(x)
@@ -787,7 +796,7 @@ object AvroFormat
               try {
                 record.recordBinding.asInstanceOf[Binding.Record[A]]
               } catch {
-                case _: Exception =>
+                case error if NonFatal(error) =>
                   record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding.asInstanceOf[Binding.Record[A]]
               }
             val constructor   = recordBinding.constructor
@@ -809,7 +818,7 @@ object AvroFormat
             }
             toAvroBinaryCodec[A, IndexedRecord](
               avroSchema,
-              AvroBinaryCodec.anyRefType,
+              AvroBinaryCodec.objectType,
               (a: A) =>
                 new GenericData.Record(avroSchema) {
                   {
@@ -822,7 +831,7 @@ object AvroFormat
                       val codec   = fieldCodecs(idx)
                       val encoder = codec.encoder
                       codec.valueType match {
-                        case AvroBinaryCodec.anyRefType =>
+                        case AvroBinaryCodec.objectType =>
                           put(idx, encoder.asInstanceOf[AnyRef => AnyRef](registers.getObject(offset, 0)))
                           offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                         case AvroBinaryCodec.booleanType =>
@@ -864,7 +873,7 @@ object AvroFormat
                   val codec   = fieldCodecs(idx)
                   val decoder = codec.decoder
                   codec.valueType match {
-                    case AvroBinaryCodec.anyRefType =>
+                    case AvroBinaryCodec.`objectType` =>
                       registers.setObject(offset, 0, decoder.asInstanceOf[AnyRef => AnyRef](indexedRecord.get(idx)))
                       offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                     case AvroBinaryCodec.booleanType =>
@@ -904,7 +913,7 @@ object AvroFormat
               try {
                 wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               } catch {
-                case _: Exception =>
+                case error if NonFatal(error) =>
                   wrapper.wrapperBinding
                     .asInstanceOf[BindingInstance[TC, ?, A]]
                     .binding
@@ -915,7 +924,7 @@ object AvroFormat
             val codec  = deriveCodec(new Schema(wrapper.wrapped), cache)
             toAvroBinaryCodec[A, Any](
               avroSchema,
-              AvroBinaryCodec.anyRefType,
+              AvroBinaryCodec.objectType,
               (a: A) => codec.encoder.asInstanceOf[Wrapped => Any](unwrap(a)),
               (a: Any) =>
                 wrap(codec.decoder.asInstanceOf[Any => Wrapped](a)) match {
@@ -992,7 +1001,7 @@ private case class AvroBinaryCodec[A, B](
 }
 
 private object AvroBinaryCodec {
-  val unitType    = 0
+  val objectType  = 0
   val booleanType = 1
   val byteType    = 2
   val charType    = 3
@@ -1001,7 +1010,7 @@ private object AvroBinaryCodec {
   val intType     = 6
   val doubleType  = 7
   val longType    = 8
-  val anyRefType  = 9
+  val unitType    = 9
 }
 
 /*
