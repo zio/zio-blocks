@@ -128,9 +128,20 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
     ),
     suite("records")(
       test("simple record") {
-        roundTrip[Record](
-          "{\"type\":\"record\",\"name\":\"Record\",\"namespace\":\"zio.blocks.avro.AvroSchemaCodecSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"int\"}],\"zio.blocks.avro.typeName\":{\"namespace\":{\"values\":[\"AvroSchemaCodecSpec\"],\"packages\":[\"zio\",\"blocks\",\"avro\"]},\"name\":\"Record\"}}"
+        roundTrip[Record1](
+          "{\"type\":\"record\",\"name\":\"Record1\",\"namespace\":\"zio.blocks.avro.AvroSchemaCodecSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"int\"}],\"zio.blocks.avro.typeName\":{\"namespace\":{\"values\":[\"AvroSchemaCodecSpec\"],\"packages\":[\"zio\",\"blocks\",\"avro\"]},\"name\":\"Record1\"}}"
         )
+      },
+      test("record with wrapped type fields") {
+        encode[Record2](
+          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.avro.AvroSchemaCodecSpec\",\"fields\":[{\"name\":\"userId\",\"type\":\"long\"},{\"name\":\"email\",\"type\":\"string\"}],\"zio.blocks.avro.typeName\":{\"namespace\":{\"values\":[\"AvroSchemaCodecSpec\"],\"packages\":[\"zio\",\"blocks\",\"avro\"]},\"name\":\"Record2\"}}"
+        )
+      }
+    ),
+    suite("wrappers")(
+      test("primitive wrappers") {
+        encode[UserId]("\"long\"") &&
+        encode[Email]("\"string\"")
       }
     ),
     suite("sequences")(
@@ -171,9 +182,27 @@ object AvroSchemaCodecSpec extends ZIOSpecDefault {
   def encode[A](expectedAvroSchemaJson: String)(implicit schema: Schema[A]): TestResult =
     assert(AvroSchemaCodec.encode(schema))(equalTo(expectedAvroSchemaJson))
 
-  case class Record(name: String, value: Int)
+  case class Record1(name: String, value: Int)
 
-  object Record {
-    implicit val schemaRecord: Schema[Record] = Schema.derived
+  object Record1 {
+    implicit val schemaRecord: Schema[Record1] = Schema.derived
+  }
+
+  case class UserId(value: Long)
+
+  object UserId {
+    implicit val schema: Schema[UserId] = Schema.derived.wrapTotal(x => new UserId(x), _.value)
+  }
+
+  case class Email(value: String)
+
+  object Email {
+    implicit val schema: Schema[Email] = Schema.derived.wrapTotal(x => new Email(x), _.value)
+  }
+
+  case class Record2(userId: UserId, email: Email)
+
+  object Record2 {
+    implicit val schema: Schema[Record2] = Schema.derived
   }
 }
