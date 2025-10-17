@@ -59,8 +59,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC42" % Test,
-      "dev.zio" %%% "zio-test"     % "2.1.21"     % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.21"     % Test
+      "dev.zio" %%% "zio-test"     % "2.1.22"     % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.22"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -111,8 +111,8 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.21" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.21" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.22" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.22" % Test
     )
   )
 
@@ -136,8 +136,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     crossScalaVersions       := Seq("3.7.3"),
     ThisBuild / scalaVersion := "3.7.3",
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.21" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.21" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.22" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.22" % Test
     ),
     publish / skip        := true,
     mimaPreviousArtifacts := Set()
@@ -160,8 +160,8 @@ lazy val benchmarks = project
       "com.softwaremill.quicklens" %% "quicklens"       % "1.9.12",
       "dev.optics"                 %% "monocle-core"    % "3.3.0",
       "dev.optics"                 %% "monocle-macro"   % "3.3.0",
-      "dev.zio"                    %% "zio-test"        % "2.1.21" % Test,
-      "dev.zio"                    %% "zio-test-sbt"    % "2.1.21" % Test
+      "dev.zio"                    %% "zio-test"        % "2.1.22" % Test,
+      "dev.zio"                    %% "zio-test-sbt"    % "2.1.22" % Test
     ),
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
