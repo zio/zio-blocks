@@ -2,7 +2,7 @@ package zio.blocks.avro
 
 import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
 import zio.test.Assertion._
 import zio.test._
 import java.io.ByteArrayOutputStream
@@ -240,11 +240,17 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("as a record field") {
         roundTrip[Record3](Record3(UserId(1234567890123456789L), Email("backup@gmail.com")), 26)
       }
+    ),
+    suite("dynamic value")(
+      test("top-level") {
+        val dynamicValueSchema: Schema[DynamicValue] = Schema.derived[DynamicValue]
+        // println(dynamicValueSchema)
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("VVV")), 15)(dynamicValueSchema)
+      }
     )
   )
 
-  def roundTrip[A: Schema](value: A, expectedLength: Int): TestResult = {
-    val schema          = Schema[A]
+  def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult = {
     val encodedBySchema = encodeToByteArray(out => schema.encode(AvroFormat)(out)(value))
     val avroSchema      = AvroSchemaCodec.toAvroSchema(schema)
     val reader          = new GenericDatumReader[A](avroSchema)

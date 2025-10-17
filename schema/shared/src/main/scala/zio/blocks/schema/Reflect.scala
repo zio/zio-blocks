@@ -390,20 +390,22 @@ object Reflect {
       val registers     = Registers(deconstructor.usedRegisters)
       deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
       val len    = this.registers.length
-      val fields = new Array[(String, DynamicValue)](len)
+      val fields = Vector.newBuilder[(String, DynamicValue)]
       var idx    = 0
       while (idx < len) {
         val field    = this.fields(idx)
         val register = this.registers(idx)
-        fields(idx) = (
-          field.name,
-          field.value
-            .asInstanceOf[Reflect[F, field.Focus]]
-            .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+        fields.addOne(
+          (
+            field.name,
+            field.value
+              .asInstanceOf[Reflect[F, field.Focus]]
+              .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+          )
         )
         idx += 1
       }
-      new DynamicValue.Record(ArraySeq.unsafeWrapArray(fields))
+      new DynamicValue.Record(fields.result())
     }
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =

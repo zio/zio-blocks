@@ -304,7 +304,8 @@ object AvroSchemaCodec {
     } else if (reflect.isVariant) {
       val variant    = reflect.asVariant.get
       val cases      = variant.cases
-      val avroSchema = AvroSchema.createUnion(cases.map(case_ => toAvroSchema(case_.value, avroSchemas)).asJava)
+      val unionTypes = cases.map(case_ => toAvroSchema(case_.value, avroSchemas)).asJava
+      val avroSchema = AvroSchema.createUnion(unionTypes)
       avroSchema.addProp(typeNamePropName, toPropValue(reflect.typeName))
       avroSchema
     } else if (reflect.isSequence) {
@@ -348,7 +349,9 @@ object AvroSchemaCodec {
     } else if (reflect.isWrapper) {
       val wrapper = reflect.asWrapperUnknown.get.wrapper
       toAvroSchema(wrapper.wrapped, avroSchemas)
-    } else ???
+    } else {
+      toAvroSchema(Schema.derived[DynamicValue].reflect, avroSchemas)
+    }
   }
 
   private def createAvroSchema(tpe: AvroSchema.Type, privateTypeName: TypeName[?]): AvroSchema = {
