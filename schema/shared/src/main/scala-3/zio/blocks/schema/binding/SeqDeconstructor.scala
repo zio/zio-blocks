@@ -4,13 +4,13 @@ import scala.collection.immutable.ArraySeq
 
 trait SeqDeconstructor[C[_]] {
   def deconstruct[A](c: C[A]): Iterator[A]
+
+  def length[A](c: C[A]): Int
 }
 
 object SeqDeconstructor {
   sealed trait SpecializedIndexed[C[_]] extends SeqDeconstructor[C] {
     def elementType[A](c: C[A]): RegisterType[A]
-
-    def length[A](c: C[A]): Int
 
     def objectAt[A](c: C[A], index: Int): A
 
@@ -33,14 +33,20 @@ object SeqDeconstructor {
 
   val setDeconstructor: SeqDeconstructor[Set] = new SeqDeconstructor[Set] {
     def deconstruct[A](c: Set[A]): Iterator[A] = c.iterator
+
+    def length[A](c: Set[A]): Int = c.size
   }
 
   val listDeconstructor: SeqDeconstructor[List] = new SeqDeconstructor[List] {
     def deconstruct[A](c: List[A]): Iterator[A] = c.iterator
+
+    def length[A](c: List[A]): Int = c.size
   }
 
   val vectorDeconstructor: SeqDeconstructor[Vector] = new SeqDeconstructor[Vector] {
     def deconstruct[A](c: Vector[A]): Iterator[A] = c.iterator
+
+    def length[A](c: Vector[A]): Int = c.length
   }
 
   val arraySeqDeconstructor: SpecializedIndexed[ArraySeq] = new SpecializedIndexed[ArraySeq] {
