@@ -121,8 +121,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("recursive record") {
         roundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 8)
       },
-      test("record with unit fields") {
-        roundTrip(Record4(()), 0)
+      test("record with unit and variant fields") {
+        roundTrip(Record4((), Some("VVV")), 5) &&
+        roundTrip(Record4((), None), 1)
       }
     ),
     suite("sequences")(
@@ -212,7 +213,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           20
         )
       },
-      test("mested maps") {
+      test("nested maps") {
         roundTrip(Map("VVV" -> Map(1 -> 1L, 2 -> 2L)), 12) &&
         roundTrip(Map(Map(1 -> 1L, 2 -> 2L) -> "WWW"), 12)
       }
@@ -310,7 +311,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
   sealed trait TrafficLight
 
   object TrafficLight {
-    implicit val schema: Schema[TrafficLight] = Schema.derived[TrafficLight]
+    implicit val schema: Schema[TrafficLight] = Schema.derived
 
     case object Red extends TrafficLight
 
@@ -319,7 +320,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
     case object Green extends TrafficLight
   }
 
-  implicit val eitherSchema: Schema[Either[String, Int]] = Schema.derived[Either[String, Int]]
+  implicit val eitherSchema: Schema[Either[String, Int]] = Schema.derived
 
   case class UserId(value: Long)
 
@@ -339,7 +340,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Record3] = Schema.derived
   }
 
-  case class Record4(removed: Unit)
+  case class Record4(removed: Unit, optKey: Option[String])
 
   object Record4 {
     implicit val schema: Schema[Record4] = Schema.derived
