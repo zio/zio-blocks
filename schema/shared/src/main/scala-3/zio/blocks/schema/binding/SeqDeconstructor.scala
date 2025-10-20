@@ -4,13 +4,13 @@ import scala.collection.immutable.ArraySeq
 
 trait SeqDeconstructor[C[_]] {
   def deconstruct[A](c: C[A]): Iterator[A]
+
+  def size[A](c: C[A]): Int
 }
 
 object SeqDeconstructor {
   sealed trait SpecializedIndexed[C[_]] extends SeqDeconstructor[C] {
     def elementType[A](c: C[A]): RegisterType[A]
-
-    def length[A](c: C[A]): Int
 
     def objectAt[A](c: C[A], index: Int): A
 
@@ -33,14 +33,20 @@ object SeqDeconstructor {
 
   val setDeconstructor: SeqDeconstructor[Set] = new SeqDeconstructor[Set] {
     def deconstruct[A](c: Set[A]): Iterator[A] = c.iterator
+
+    def size[A](c: Set[A]): Int = c.size
   }
 
   val listDeconstructor: SeqDeconstructor[List] = new SeqDeconstructor[List] {
     def deconstruct[A](c: List[A]): Iterator[A] = c.iterator
+
+    def size[A](c: List[A]): Int = c.size
   }
 
   val vectorDeconstructor: SeqDeconstructor[Vector] = new SeqDeconstructor[Vector] {
     def deconstruct[A](c: Vector[A]): Iterator[A] = c.iterator
+
+    def size[A](c: Vector[A]): Int = c.length
   }
 
   val arraySeqDeconstructor: SpecializedIndexed[ArraySeq] = new SpecializedIndexed[ArraySeq] {
@@ -58,7 +64,7 @@ object SeqDeconstructor {
       case _                 => RegisterType.Object()
     }).asInstanceOf[RegisterType[A]]
 
-    def length[A](c: ArraySeq[A]): Int = c.unsafeArray.length
+    def size[A](c: ArraySeq[A]): Int = c.unsafeArray.length
 
     def objectAt[A](c: ArraySeq[A], index: Int): A = c(index)
 
@@ -94,7 +100,7 @@ object SeqDeconstructor {
       case _                 => RegisterType.Object().asInstanceOf[RegisterType[A]]
     }
 
-    def length[A](c: Array[A]): Int = c.length
+    def size[A](c: Array[A]): Int = c.length
 
     def objectAt[A](c: Array[A], index: Int): A = c(index)
 
@@ -130,7 +136,7 @@ object SeqDeconstructor {
       case _                 => RegisterType.Object()
     }).asInstanceOf[RegisterType[A]]
 
-    def length[A](c: IArray[A]): Int = c.length
+    def size[A](c: IArray[A]): Int = c.length
 
     def objectAt[A](c: IArray[A], index: Int): A = c(index)
 
