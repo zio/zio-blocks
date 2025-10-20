@@ -733,31 +733,31 @@ object AvroFormat
                   val decoder = codec.decoder
                   codec.valueType match {
                     case AvroBinaryCodec.`objectType` =>
-                      registers.setObject(offset, 0, decoder.asInstanceOf[AnyRef => AnyRef](d))
+                      registers.setObject(offset, 0, decoder.asInstanceOf[BinaryDecoder => AnyRef](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(objects = 1))
                     case AvroBinaryCodec.booleanType =>
-                      registers.setBoolean(offset, 0, decoder.asInstanceOf[AnyRef => Boolean](d))
+                      registers.setBoolean(offset, 0, decoder.asInstanceOf[BinaryDecoder => Boolean](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(booleans = 1))
                     case AvroBinaryCodec.byteType =>
-                      registers.setByte(offset, 0, decoder.asInstanceOf[AnyRef => Byte](d))
+                      registers.setByte(offset, 0, decoder.asInstanceOf[BinaryDecoder => Byte](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(bytes = 1))
                     case AvroBinaryCodec.charType =>
-                      registers.setChar(offset, 0, decoder.asInstanceOf[AnyRef => Char](d))
+                      registers.setChar(offset, 0, decoder.asInstanceOf[BinaryDecoder => Char](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(chars = 1))
                     case AvroBinaryCodec.shortType =>
-                      registers.setShort(offset, 0, decoder.asInstanceOf[AnyRef => Short](d))
+                      registers.setShort(offset, 0, decoder.asInstanceOf[BinaryDecoder => Short](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(shorts = 1))
                     case AvroBinaryCodec.floatType =>
-                      registers.setFloat(offset, 0, decoder.asInstanceOf[AnyRef => Float](d))
+                      registers.setFloat(offset, 0, decoder.asInstanceOf[BinaryDecoder => Float](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(floats = 1))
                     case AvroBinaryCodec.intType =>
-                      registers.setInt(offset, 0, decoder.asInstanceOf[AnyRef => Int](d))
+                      registers.setInt(offset, 0, decoder.asInstanceOf[BinaryDecoder => Int](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(ints = 1))
                     case AvroBinaryCodec.doubleType =>
-                      registers.setDouble(offset, 0, decoder.asInstanceOf[AnyRef => Double](d))
+                      registers.setDouble(offset, 0, decoder.asInstanceOf[BinaryDecoder => Double](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(doubles = 1))
                     case AvroBinaryCodec.longType =>
-                      registers.setLong(offset, 0, decoder.asInstanceOf[AnyRef => Long](d))
+                      registers.setLong(offset, 0, decoder.asInstanceOf[BinaryDecoder => Long](d))
                       offset = RegisterOffset.add(offset, RegisterOffset(longs = 1))
                     case _ => ()
                   }
