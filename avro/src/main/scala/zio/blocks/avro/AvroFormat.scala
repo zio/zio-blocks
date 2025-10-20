@@ -129,12 +129,18 @@ object AvroFormat
         )(implicit
           F: HasBinding[F],
           D: HasInstance[F]
-        ): Lazy[BinaryCodec[DynamicValue]] =
-          Lazy(new BinaryCodec[DynamicValue] {
-            override def encode(value: DynamicValue, output: ByteBuffer): Unit = ???
-
-            override def decode(input: ByteBuffer): Either[SchemaError, DynamicValue] = ???
-          })
+        ): Lazy[BinaryCodec[DynamicValue]] = Lazy {
+          deriveCodec(
+            new Schema(
+              Reflect.Dynamic(
+                dynamicBinding = binding,
+                typeName = TypeName.dynamicValue,
+                doc = doc,
+                modifiers = modifiers
+              )
+            )
+          )
+        }
 
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
@@ -792,9 +798,7 @@ object AvroFormat
                   case Left(err) => sys.error(err)
                 }
             )
-          } else if (reflect.isDynamic) {
-            ???
-          } else ???
+          } else dynamicValueCodec
         }.asInstanceOf[AvroBinaryCodec[A]]
 
         private def toAvroBinaryCodec[A](
@@ -802,6 +806,103 @@ object AvroFormat
           encoder: (A, BinaryEncoder) => Unit,
           decoder: BinaryDecoder => A
         ): AvroBinaryCodec[A] = new AvroBinaryCodec(valueType, encoder, decoder)
+
+        private lazy val primitiveDynamicValueCodec = deriveCodec(Schema.derived[DynamicValue.Primitive])
+
+        private lazy val dynamicValueCodec = toAvroBinaryCodec[DynamicValue](
+          AvroBinaryCodec.objectType,
+          (x: DynamicValue, e: BinaryEncoder) => encodeDynamicValue(x, e),
+          (d: BinaryDecoder) => decodeDynamicValue(d)
+        )
+
+        private def encodeDynamicValue(x: DynamicValue, e: BinaryEncoder): Unit = x match {
+          case primitive: DynamicValue.Primitive =>
+            e.writeInt(0)
+            primitiveDynamicValueCodec.encoder(primitive, e)
+          case record: DynamicValue.Record =>
+            e.writeInt(1)
+            val fields = record.fields
+            val size   = fields.length
+            if (size > 0) {
+              e.writeInt(size)
+              val it = fields.iterator
+              while (it.hasNext) {
+                val kv = it.next()
+                e.writeString(kv._1)
+                encodeDynamicValue(kv._2, e)
+              }
+            }
+            e.writeInt(0)
+          case variant: DynamicValue.Variant =>
+            e.writeInt(2)
+            e.writeString(variant.caseName)
+            encodeDynamicValue(variant.value, e)
+          case sequence: DynamicValue.Sequence =>
+            e.writeInt(3)
+            val elements = sequence.elements
+            val size     = elements.length
+            if (size > 0) {
+              e.writeInt(size)
+              val it = elements.iterator
+              while (it.hasNext) {
+                encodeDynamicValue(it.next(), e)
+              }
+            }
+            e.writeInt(0)
+          case map: DynamicValue.Map =>
+            e.writeInt(4)
+            val entries = map.entries
+            val size    = entries.length
+            if (size > 0) {
+              e.writeInt(size)
+              val it = entries.iterator
+              while (it.hasNext) {
+                val kv = it.next()
+                encodeDynamicValue(kv._1, e)
+                encodeDynamicValue(kv._2, e)
+              }
+            }
+            e.writeInt(0)
+        }
+
+        private def decodeDynamicValue(d: BinaryDecoder): DynamicValue = d.readInt() match {
+          case 0 => primitiveDynamicValueCodec.decoder(d)
+          case 1 =>
+            val builder = Vector.newBuilder[(String, DynamicValue)]
+            var size    = d.readLong()
+            while (size > 0) {
+              while (size > 0) {
+                builder.addOne((d.readString, decodeDynamicValue(d)))
+                size -= 1
+              }
+              size = d.readLong()
+            }
+            new DynamicValue.Record(builder.result())
+          case 2 => new DynamicValue.Variant(d.readString(), decodeDynamicValue(d))
+          case 3 =>
+            val builder = Vector.newBuilder[DynamicValue]
+            var size    = d.readLong()
+            while (size > 0) {
+              while (size > 0) {
+                builder.addOne(decodeDynamicValue(d))
+                size -= 1
+              }
+              size = d.readLong()
+            }
+            new DynamicValue.Sequence(builder.result())
+          case 4 =>
+            val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
+            var size    = d.readLong()
+            while (size > 0) {
+              while (size > 0) {
+                builder.addOne((decodeDynamicValue(d), decodeDynamicValue(d)))
+                size -= 1
+              }
+              size = d.readLong()
+            }
+            new DynamicValue.Map(builder.result())
+          case _ => sys.error("Expected enum index from 0 to 4")
+        }
       }
     )
 
