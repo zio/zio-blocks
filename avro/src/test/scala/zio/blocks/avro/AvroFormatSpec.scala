@@ -1,13 +1,8 @@
 package zio.blocks.avro
 
-import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
-import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
-import zio.test.Assertion._
+import zio.blocks.avro.AvroTestUtils._
 import zio.test._
-import java.io.ByteArrayOutputStream
-import java.nio.ByteBuffer
-import java.util
 import java.util.UUID
 import scala.collection.immutable.ArraySeq
 
@@ -219,7 +214,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       }
     ),
     suite("enums")(
-      test("conatant value enum") {
+      test("constant values") {
         roundTrip[TrafficLight](TrafficLight.Green, 1) &&
         roundTrip[TrafficLight](TrafficLight.Yellow, 1) &&
         roundTrip[TrafficLight](TrafficLight.Red, 1)
@@ -244,72 +239,40 @@ object AvroFormatSpec extends ZIOSpecDefault {
     ),
     suite("dynamic value")(
       test("top-level") {
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(1)), 3, true) &&
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("VVV")), 6, true) &&
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.UUID(UUID.randomUUID())), 18, true) &&
-        roundTrip[DynamicValue](
+        shortRoundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(1)), 3) &&
+        shortRoundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("VVV")), 6) &&
+        shortRoundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.UUID(UUID.randomUUID())), 18) &&
+        shortRoundTrip[DynamicValue](
           DynamicValue.Record(
             Vector(
               ("i", DynamicValue.Primitive(PrimitiveValue.Int(1))),
               ("s", DynamicValue.Primitive(PrimitiveValue.String("VVV")))
             )
           ),
-          16,
-          true
+          16
         ) &&
-        roundTrip[DynamicValue](DynamicValue.Variant("Int", DynamicValue.Primitive(PrimitiveValue.Int(1))), 8, true) &&
-        roundTrip[DynamicValue](
+        shortRoundTrip[DynamicValue](DynamicValue.Variant("Int", DynamicValue.Primitive(PrimitiveValue.Int(1))), 8) &&
+        shortRoundTrip[DynamicValue](
           DynamicValue.Sequence(
             Vector(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               DynamicValue.Primitive(PrimitiveValue.String("VVV"))
             )
           ),
-          12,
-          true
+          12
         ) &&
-        roundTrip[DynamicValue](
+        shortRoundTrip[DynamicValue](
           DynamicValue.Map(
             Vector(
               (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
               (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
             )
           ),
-          18,
-          true
+          18
         )
       }
     )
   )
-
-  def roundTrip[A](value: A, expectedLength: Int, isShort: Boolean = false)(implicit schema: Schema[A]): TestResult = {
-    val encodedBySchema = encodeToByteArray(out => schema.encode(AvroFormat)(out)(value))
-    assert(encodedBySchema.length)(equalTo(expectedLength)) &&
-    assert(schema.decode(AvroFormat)(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
-    assert(schema.decode(AvroFormat)(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) && {
-      if (isShort && !scala.util.Properties.versionNumberString.startsWith("3.")) assert(true)(equalTo(true))
-      else {
-        val avroSchema    = AvroSchemaCodec.toAvroSchema(schema)
-        val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema, null)
-        val datum         = new GenericDatumReader[Any](avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
-        val encodedByAvro = new ByteArrayOutputStream(1024)
-        val binaryEncoder = EncoderFactory.get().directBinaryEncoder(encodedByAvro, null)
-        new GenericDatumWriter[Any](avroSchema).write(datum, binaryEncoder)
-        assert(util.Arrays.compare(encodedBySchema, encodedByAvro.toByteArray))(equalTo(0))
-      }
-    }
-  }
-
-  def encodeToByteArray(f: ByteBuffer => Unit): Array[Byte] = {
-    val byteBuffer = ByteBuffer.allocate(1024)
-    f(byteBuffer)
-    util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
-  }
-
-  def toHeapByteBuffer(bs: Array[Byte]): ByteBuffer = ByteBuffer.wrap(bs)
-
-  def toDirectByteBuffer(bs: Array[Byte]): ByteBuffer =
-    ByteBuffer.allocateDirect(1024).put(bs).position(0).limit(bs.length)
 
   case class Record1(
     bl: Boolean,
