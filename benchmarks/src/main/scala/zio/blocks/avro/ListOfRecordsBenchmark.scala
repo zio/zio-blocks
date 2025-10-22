@@ -50,7 +50,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
 
   @Benchmark
   def writingAvro4s: Array[Byte] = {
-    val baos   = new ByteArrayOutputStream()
+    val baos   = new ByteArrayOutputStream(30 * size)
     val output = AvroOutputStream.binary[List[Person]].to(baos).build()
     output.write(listOfRecords)
     output.close()
@@ -59,7 +59,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
 
   @Benchmark
   def writingZioBlocks: Array[Byte] = {
-    val byteBuffer = ByteBuffer.allocate(300 * size)
+    val byteBuffer = ByteBuffer.allocate(30 * size)
     zioBlocksSchema.encode(AvroFormat)(byteBuffer)(listOfRecords)
     java.util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
   }
