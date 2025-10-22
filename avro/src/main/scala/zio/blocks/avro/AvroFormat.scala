@@ -24,7 +24,7 @@ object AvroFormat
         ): Lazy[BinaryCodec[A]] = Lazy {
           deriveCodec(
             new Schema(
-              Reflect.Primitive(
+              new Reflect.Primitive(
                 primitiveType = primitiveType,
                 typeName = typeName,
                 primitiveBinding = binding,
@@ -44,7 +44,7 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[A]] = Lazy {
           deriveCodec(
             new Schema(
-              Reflect.Record(
+              new Reflect.Record(
                 fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
                 typeName = typeName,
                 recordBinding = binding,
@@ -64,7 +64,7 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[A]] = Lazy {
           deriveCodec(
             new Schema(
-              Reflect.Variant(
+              new Reflect.Variant(
                 cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
                 typeName = typeName,
                 variantBinding = binding,
@@ -105,7 +105,7 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[M[K, V]]] = Lazy {
           deriveCodec(
             new Schema(
-              Reflect.Map(
+              new Reflect.Map(
                 key = key.asInstanceOf[Reflect[Binding, K]],
                 value = value.asInstanceOf[Reflect[Binding, V]],
                 typeName = typeName,
@@ -127,7 +127,7 @@ object AvroFormat
         ): Lazy[BinaryCodec[DynamicValue]] = Lazy {
           deriveCodec(
             new Schema(
-              Reflect.Dynamic(
+              new Reflect.Dynamic(
                 dynamicBinding = binding,
                 typeName = TypeName.dynamicValue,
                 doc = doc,
@@ -146,7 +146,7 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[A]] = Lazy {
           deriveCodec(
             new Schema(
-              Reflect.Wrapper(
+              new Reflect.Wrapper(
                 wrapped = wrapped.asInstanceOf[Reflect[Binding, B]],
                 typeName = typeName,
                 wrapperBinding = binding,
