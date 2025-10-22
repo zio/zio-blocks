@@ -362,27 +362,27 @@ object AvroSchemaCodec {
     avroSchemaParser.parse(avroSchemaJson)
   }
 
-  private def createAvroSchema(tpe: AvroSchema.Type, privateTypeName: TypeName[?]): AvroSchema = {
+  private[this] def createAvroSchema(tpe: AvroSchema.Type, privateTypeName: TypeName[?]): AvroSchema = {
     val avroSchema = AvroSchema.create(tpe)
     avroSchema.addProp(primitiveTypePropName, privateTypeName.name)
     avroSchema
   }
 
-  private def createFixedAvroSchema(size: Int, privateTypeName: TypeName[?]): AvroSchema = {
+  private[this] def createFixedAvroSchema(size: Int, privateTypeName: TypeName[?]): AvroSchema = {
     val name       = privateTypeName.name
     val avroSchema = AvroSchema.createFixed(name, null, null, size)
     avroSchema.addProp(primitiveTypePropName, name)
     avroSchema
   }
 
-  private def toPropValue(typeName: TypeName[?]): AnyRef =
+  private[this] def toPropValue(typeName: TypeName[?]): AnyRef =
     new util.HashMap[String, AnyRef] {
       put("namespace", toPropValue(typeName.namespace))
       put("name", typeName.name)
       if (typeName.params.nonEmpty) put("params", typeName.params.map(param => toPropValue(param)).asJava)
     }
 
-  private def toPropValue(namespace: Namespace): AnyRef =
+  private[this] def toPropValue(namespace: Namespace): AnyRef =
     new util.HashMap[String, AnyRef] {
       if (namespace.packages.nonEmpty) put("packages", namespace.packages.asJava)
       if (namespace.values.nonEmpty) put("values", namespace.values.asJava)

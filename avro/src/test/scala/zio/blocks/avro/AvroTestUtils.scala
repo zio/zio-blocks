@@ -2,7 +2,9 @@ package zio.blocks.avro
 
 import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
+import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.Schema
+import zio.blocks.schema.codec.BinaryCodec
 import zio.test.Assertion._
 import zio.test._
 import java.io.ByteArrayOutputStream
@@ -38,11 +40,16 @@ object AvroTestUtils {
   }
 
   def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult = {
-    val encodedBySchema = encodeToByteArray(out => schema.encode(AvroFormat)(out)(value))
+    val avroSchema = AvroSchemaCodec.toAvroSchema(schema)
+    val codec      = schema.derive(AvroFormat.deriver)
+    roundTrip(value, expectedLength, avroSchema, codec)
+  }
+
+  def roundTrip[A](value: A, expectedLength: Int, avroSchema: AvroSchema, codec: BinaryCodec[A]): TestResult = {
+    val encodedBySchema = encodeToByteArray(out => codec.encode(value, out))
     assert(encodedBySchema.length)(equalTo(expectedLength)) &&
-    assert(schema.decode(AvroFormat)(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
-    assert(schema.decode(AvroFormat)(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) && {
-      val avroSchema    = AvroSchemaCodec.toAvroSchema(schema)
+    assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
+    assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) && {
       val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema, null)
       val datum         = new GenericDatumReader[Any](avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
       val encodedByAvro = new ByteArrayOutputStream(1024)
@@ -52,11 +59,14 @@ object AvroTestUtils {
     }
   }
 
-  def shortRoundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult = {
-    val encodedBySchema = encodeToByteArray(out => schema.encode(AvroFormat)(out)(value))
+  def shortRoundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =
+    shortRoundTrip(value, expectedLength, schema.derive(AvroFormat.deriver))
+
+  def shortRoundTrip[A](value: A, expectedLength: Int, codec: BinaryCodec[A]): TestResult = {
+    val encodedBySchema = encodeToByteArray(out => codec.encode(value, out))
     assert(encodedBySchema.length)(equalTo(expectedLength)) &&
-    assert(schema.decode(AvroFormat)(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
-    assert(schema.decode(AvroFormat)(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))
+    assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
+    assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))
   }
 
   private[this] def encodeToByteArray(f: ByteBuffer => Unit): Array[Byte] = {
