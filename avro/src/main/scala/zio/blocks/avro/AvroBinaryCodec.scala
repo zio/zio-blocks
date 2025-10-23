@@ -37,29 +37,57 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
       input.get(bs)
     }
     val avroDecoder = DecoderFactory.get().binaryDecoder(bs, pos, len, null)
-    try {
-      new Right(decode(avroDecoder))
-    } catch {
-      case error if NonFatal(error) =>
-        new Left(new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, error.getMessage), Nil)))
+    try new Right(decode(avroDecoder))
+    catch {
+      case error if NonFatal(error) => new Left(toError(error))
     }
   }
 
-  override def encode(value: A, output: ByteBuffer): Unit = {
-    val avroEncoder = EncoderFactory
-      .get()
-      .directBinaryEncoder(
-        new OutputStream {
-          override def write(b: Int): Unit = output.put(b.toByte)
+  override def encode(value: A, output: ByteBuffer): Unit =
+    encode(
+      value,
+      EncoderFactory
+        .get()
+        .directBinaryEncoder(
+          new OutputStream {
+            override def write(b: Int): Unit = output.put(b.toByte)
 
-          override def write(bs: Array[Byte]): Unit = output.put(bs)
+            override def write(bs: Array[Byte]): Unit = output.put(bs)
 
-          override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
-        },
-        null
-      )
-    encode(value, avroEncoder)
+            override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
+          },
+          null
+        )
+    )
+
+  def decode(input: Array[Byte]): Either[SchemaError, A] = {
+    val avroDecoder = DecoderFactory.get().binaryDecoder(input, 0, input.length, null)
+    try new Right(decode(avroDecoder))
+    catch {
+      case error if NonFatal(error) => new Left(toError(error))
+    }
   }
+
+  def encode(value: A): Array[Byte] = {
+    val output = new java.io.ByteArrayOutputStream(64)
+    encode(value, EncoderFactory.get().directBinaryEncoder(output, null))
+    output.close()
+    output.toByteArray
+  }
+
+  def decode(input: java.io.InputStream): Either[SchemaError, A] = {
+    val avroDecoder = DecoderFactory.get().directBinaryDecoder(input, null)
+    try new Right(decode(avroDecoder))
+    catch {
+      case error if NonFatal(error) => new Left(toError(error))
+    }
+  }
+
+  def encode(value: A, output: java.io.OutputStream): Unit =
+    encode(value, EncoderFactory.get().directBinaryEncoder(output, null))
+
+  private[this] def toError(error: Throwable) =
+    new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, error.getMessage), Nil))
 }
 
 object AvroBinaryCodec {

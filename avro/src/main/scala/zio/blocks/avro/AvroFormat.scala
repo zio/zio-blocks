@@ -3,7 +3,7 @@ package zio.blocks.avro
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
-import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
+import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
@@ -11,14 +11,14 @@ import java.nio.ByteBuffer
 object AvroFormat
     extends BinaryFormat(
       "application/avro",
-      new Deriver[BinaryCodec] {
+      new Deriver[AvroBinaryCodec] {
         override def derivePrimitive[F[_, _], A](
           primitiveType: PrimitiveType[A],
           typeName: TypeName[A],
           binding: Binding[BindingType.Primitive, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        ): Lazy[BinaryCodec[A]] =
+        ): Lazy[AvroBinaryCodec[A]] =
           Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)))
 
         override def deriveRecord[F[_, _], A](
@@ -27,7 +27,7 @@ object AvroFormat
           binding: Binding[BindingType.Record, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[A]] = Lazy {
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Record(
               fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
@@ -45,7 +45,7 @@ object AvroFormat
           binding: Binding[BindingType.Variant, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[A]] = Lazy {
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Variant(
               cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
@@ -63,7 +63,7 @@ object AvroFormat
           binding: Binding[BindingType.Seq[C], C[A]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[C[A]]] = Lazy {
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[C[A]]] = Lazy {
           deriveCodec(
             new Reflect.Sequence(
               element = element.asInstanceOf[Reflect[Binding, A]],
@@ -82,7 +82,7 @@ object AvroFormat
           binding: Binding[BindingType.Map[M], M[K, V]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[M[K, V]]] = Lazy {
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[M[K, V]]] = Lazy {
           deriveCodec(
             new Reflect.Map(
               key = key.asInstanceOf[Reflect[Binding, K]],
@@ -99,7 +99,7 @@ object AvroFormat
           binding: Binding[BindingType.Dynamic, DynamicValue],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[DynamicValue]] =
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[DynamicValue]] =
           Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeName.dynamicValue, doc, modifiers)))
 
         def deriveWrapper[F[_, _], A, B](
@@ -108,7 +108,7 @@ object AvroFormat
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[BinaryCodec[A]] = Lazy {
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Wrapper(
               wrapped = wrapped.asInstanceOf[Reflect[Binding, B]],

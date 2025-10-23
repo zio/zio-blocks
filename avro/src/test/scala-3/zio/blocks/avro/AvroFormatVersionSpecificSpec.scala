@@ -3,7 +3,6 @@ package zio.blocks.avro
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, PrimitiveValue, Schema}
 import zio.blocks.avro.AvroTestUtils._
-import zio.blocks.schema.codec.BinaryCodec
 import zio.test._
 import java.util.UUID
 
@@ -105,7 +104,7 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         )
-        val codec: BinaryCodec[Dynamic] = Schema[Dynamic]
+        val codec: AvroBinaryCodec[Dynamic] = Schema[Dynamic]
           .deriving(AvroFormat.deriver)
           .instance(
             Dynamic.primitive,
