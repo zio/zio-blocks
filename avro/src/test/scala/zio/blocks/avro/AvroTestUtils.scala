@@ -64,6 +64,7 @@ object AvroTestUtils {
 
   def shortRoundTrip[A](value: A, expectedLength: Int, codec: BinaryCodec[A]): TestResult = {
     val encodedBySchema = encodeToByteArray(out => codec.encode(value, out))
+    // println(hexDump(encodedBySchema))
     assert(encodedBySchema.length)(equalTo(expectedLength)) &&
     assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))

@@ -1,15 +1,12 @@
 package zio.blocks.avro
 
-import org.apache.avro.io.{BinaryEncoder, BinaryDecoder, DecoderFactory, EncoderFactory}
+import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
 import zio.blocks.schema._
 import zio.blocks.schema.codec.{BinaryCodec, BinaryFormat}
-import zio.blocks.schema.derive.{BindingInstance, Deriver}
-import java.io.OutputStream
+import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
-import scala.collection.mutable
-import scala.util.control.NonFatal
 
 object AvroFormat
     extends BinaryFormat(
@@ -123,6 +120,11 @@ object AvroFormat
           )
         }
 
+        override def instanceOverrides: IndexedSeq[InstanceOverride] = {
+          recursiveRecordCache.remove()
+          super.instanceOverrides
+        }
+
         type Elem
         type Key
         type Value
@@ -131,580 +133,592 @@ object AvroFormat
         type Map[_, _]
         type TC[_]
 
-        private[this] def deriveCodec[F[_, _], A](
-          reflect: Reflect[F, A],
-          cache: mutable.HashMap[TypeName[?], Array[AvroBinaryCodec[?]]] = new mutable.HashMap
-        ): AvroBinaryCodec[A] = {
+        private[this] val recursiveRecordCache =
+          new ThreadLocal[java.util.HashMap[TypeName[?], Array[AvroBinaryCodec[?]]]] {
+            override def initialValue: java.util.HashMap[TypeName[?], Array[AvroBinaryCodec[?]]] = new java.util.HashMap
+          }
+
+        private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): AvroBinaryCodec[A] = {
           if (reflect.isPrimitive) {
-            val primitiveType = reflect.asPrimitive.get.primitiveType
-            primitiveType match {
-              case _: PrimitiveType.Unit.type =>
-                new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
-                  def decode(d: BinaryDecoder): Unit = d.readNull()
+            val primitive = reflect.asPrimitive.get
+            if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
+              primitive.primitiveType match {
+                case _: PrimitiveType.Unit.type =>
+                  new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
+                    def decode(d: BinaryDecoder): Unit = d.readNull()
 
-                  def encode(x: Unit, e: BinaryEncoder): Unit = e.writeNull()
-                }
-              case _: PrimitiveType.Byte =>
-                new AvroBinaryCodec[Byte](AvroBinaryCodec.byteType) {
-                  def decode(d: BinaryDecoder): Byte = {
-                    val x = d.readInt()
-                    if (x <= Byte.MaxValue && x >= Byte.MinValue) x.toByte
-                    else sys.error("Expected Byte")
+                    def encode(x: Unit, e: BinaryEncoder): Unit = e.writeNull()
                   }
+                case _: PrimitiveType.Byte =>
+                  new AvroBinaryCodec[Byte](AvroBinaryCodec.byteType) {
+                    def decode(d: BinaryDecoder): Byte = {
+                      val x = d.readInt()
+                      if (x >= Byte.MinValue && x <= Byte.MaxValue) x.toByte
+                      else sys.error("Expected Byte")
+                    }
 
-                  def encode(x: Byte, e: BinaryEncoder): Unit = e.writeInt(x)
-                }
-              case _: PrimitiveType.Boolean =>
-                new AvroBinaryCodec[Boolean](AvroBinaryCodec.booleanType) {
-                  def decode(d: BinaryDecoder): Boolean = d.readBoolean()
-
-                  def encode(x: Boolean, e: BinaryEncoder): Unit = e.writeBoolean(x)
-                }
-              case _: PrimitiveType.Short =>
-                new AvroBinaryCodec[Short](AvroBinaryCodec.shortType) {
-                  def decode(d: BinaryDecoder): Short = {
-                    val x = d.readInt()
-                    if (x <= Short.MaxValue && x >= Short.MinValue) x.toShort
-                    else sys.error("Expected Short")
+                    def encode(x: Byte, e: BinaryEncoder): Unit = e.writeInt(x)
                   }
+                case _: PrimitiveType.Boolean =>
+                  new AvroBinaryCodec[Boolean](AvroBinaryCodec.booleanType) {
+                    def decode(d: BinaryDecoder): Boolean = d.readBoolean()
 
-                  def encode(x: Short, e: BinaryEncoder): Unit = e.writeInt(x)
-                }
-              case _: PrimitiveType.Char =>
-                new AvroBinaryCodec[Char](AvroBinaryCodec.charType) {
-                  def decode(d: BinaryDecoder): Char = {
-                    val x = d.readInt()
-                    if (x <= Char.MaxValue && x >= Char.MinValue) x.toChar
-                    else sys.error("Expected Char")
+                    def encode(x: Boolean, e: BinaryEncoder): Unit = e.writeBoolean(x)
                   }
+                case _: PrimitiveType.Short =>
+                  new AvroBinaryCodec[Short](AvroBinaryCodec.shortType) {
+                    def decode(d: BinaryDecoder): Short = {
+                      val x = d.readInt()
+                      if (x >= Short.MinValue && x <= Short.MaxValue) x.toShort
+                      else sys.error("Expected Short")
+                    }
 
-                  def encode(x: Char, e: BinaryEncoder): Unit = e.writeInt(x)
-                }
-              case _: PrimitiveType.Int =>
-                new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-                  def decode(d: BinaryDecoder): Int = d.readInt()
-
-                  def encode(x: Int, e: BinaryEncoder): Unit = e.writeInt(x)
-                }
-              case _: PrimitiveType.Float =>
-                new AvroBinaryCodec[Float](AvroBinaryCodec.floatType) {
-                  def decode(d: BinaryDecoder): Float = d.readFloat()
-
-                  def encode(x: Float, e: BinaryEncoder): Unit = e.writeFloat(x)
-                }
-              case _: PrimitiveType.Long =>
-                new AvroBinaryCodec[Long](AvroBinaryCodec.longType) {
-                  def decode(d: BinaryDecoder): Long = d.readLong()
-
-                  def encode(x: Long, e: BinaryEncoder): Unit = e.writeLong(x)
-                }
-              case _: PrimitiveType.Double =>
-                new AvroBinaryCodec[Double](AvroBinaryCodec.doubleType) {
-                  def decode(d: BinaryDecoder): Double = d.readDouble()
-
-                  def encode(x: Double, e: BinaryEncoder): Unit = e.writeDouble(x)
-                }
-              case _: PrimitiveType.String =>
-                new AvroBinaryCodec[String]() {
-                  def decode(d: BinaryDecoder): String = d.readString()
-
-                  def encode(x: String, e: BinaryEncoder): Unit = e.writeString(x)
-                }
-              case _: PrimitiveType.BigInt =>
-                new AvroBinaryCodec[BigInt]() {
-                  def decode(d: BinaryDecoder): BigInt = BigInt(d.readBytes(null).array())
-
-                  def encode(x: BigInt, e: BinaryEncoder): Unit = e.writeBytes(x.toByteArray)
-                }
-              case _: PrimitiveType.BigDecimal =>
-                new AvroBinaryCodec[BigDecimal]() {
-                  def decode(d: BinaryDecoder): BigDecimal = {
-                    val mantissa     = d.readBytes(null).array()
-                    val scale        = d.readInt()
-                    val precision    = d.readInt()
-                    val roundingMode = java.math.RoundingMode.valueOf(d.readInt())
-                    val mc           = new MathContext(precision, roundingMode)
-                    new BigDecimal(new java.math.BigDecimal(new BigInteger(mantissa), scale), mc)
+                    def encode(x: Short, e: BinaryEncoder): Unit = e.writeInt(x)
                   }
+                case _: PrimitiveType.Char =>
+                  new AvroBinaryCodec[Char](AvroBinaryCodec.charType) {
+                    def decode(d: BinaryDecoder): Char = {
+                      val x = d.readInt()
+                      if (x >= Char.MinValue && x <= Char.MaxValue) x.toChar
+                      else sys.error("Expected Char")
+                    }
 
-                  def encode(x: BigDecimal, e: BinaryEncoder): Unit = {
-                    val bd = x.underlying
-                    val mc = x.mc
-                    e.writeBytes(ByteBuffer.wrap(bd.unscaledValue.toByteArray))
-                    e.writeInt(bd.scale)
-                    e.writeInt(mc.getPrecision)
-                    e.writeInt(mc.getRoundingMode.ordinal)
+                    def encode(x: Char, e: BinaryEncoder): Unit = e.writeInt(x)
                   }
-                }
-              case _: PrimitiveType.DayOfWeek =>
-                new AvroBinaryCodec[java.time.DayOfWeek]() {
-                  def decode(d: BinaryDecoder): java.time.DayOfWeek = java.time.DayOfWeek.of(d.readInt())
+                case _: PrimitiveType.Int =>
+                  new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+                    def decode(d: BinaryDecoder): Int = d.readInt()
 
-                  def encode(x: java.time.DayOfWeek, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
-                }
-              case _: PrimitiveType.Duration =>
-                new AvroBinaryCodec[java.time.Duration]() {
-                  def decode(d: BinaryDecoder): java.time.Duration =
-                    java.time.Duration.ofSeconds(d.readLong(), d.readInt())
-
-                  def encode(x: java.time.Duration, e: BinaryEncoder): Unit = {
-                    e.writeLong(x.getSeconds)
-                    e.writeInt(x.getNano)
+                    def encode(x: Int, e: BinaryEncoder): Unit = e.writeInt(x)
                   }
-                }
-              case _: PrimitiveType.Instant =>
-                new AvroBinaryCodec[java.time.Instant]() {
-                  def decode(d: BinaryDecoder): java.time.Instant =
-                    java.time.Instant.ofEpochSecond(d.readLong(), d.readInt())
+                case _: PrimitiveType.Float =>
+                  new AvroBinaryCodec[Float](AvroBinaryCodec.floatType) {
+                    def decode(d: BinaryDecoder): Float = d.readFloat()
 
-                  def encode(x: java.time.Instant, e: BinaryEncoder): Unit = {
-                    e.writeLong(x.getEpochSecond)
-                    e.writeInt(x.getNano)
+                    def encode(x: Float, e: BinaryEncoder): Unit = e.writeFloat(x)
                   }
-                }
-              case _: PrimitiveType.LocalDate =>
-                new AvroBinaryCodec[java.time.LocalDate]() {
-                  def decode(d: BinaryDecoder): java.time.LocalDate =
-                    java.time.LocalDate.of(d.readInt(), d.readInt(), d.readInt())
+                case _: PrimitiveType.Long =>
+                  new AvroBinaryCodec[Long](AvroBinaryCodec.longType) {
+                    def decode(d: BinaryDecoder): Long = d.readLong()
 
-                  def encode(x: java.time.LocalDate, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getYear)
-                    e.writeInt(x.getMonthValue)
-                    e.writeInt(x.getDayOfMonth)
+                    def encode(x: Long, e: BinaryEncoder): Unit = e.writeLong(x)
                   }
-                }
-              case _: PrimitiveType.LocalDateTime =>
-                new AvroBinaryCodec[java.time.LocalDateTime]() {
-                  def decode(d: BinaryDecoder): java.time.LocalDateTime =
-                    java.time.LocalDateTime
-                      .of(d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt())
+                case _: PrimitiveType.Double =>
+                  new AvroBinaryCodec[Double](AvroBinaryCodec.doubleType) {
+                    def decode(d: BinaryDecoder): Double = d.readDouble()
 
-                  def encode(x: java.time.LocalDateTime, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getYear)
-                    e.writeInt(x.getMonthValue)
-                    e.writeInt(x.getDayOfMonth)
-                    e.writeInt(x.getHour)
-                    e.writeInt(x.getMinute)
-                    e.writeInt(x.getSecond)
-                    e.writeInt(x.getNano)
+                    def encode(x: Double, e: BinaryEncoder): Unit = e.writeDouble(x)
                   }
-                }
-              case _: PrimitiveType.LocalTime =>
-                new AvroBinaryCodec[java.time.LocalTime]() {
-                  def decode(d: BinaryDecoder): java.time.LocalTime =
-                    java.time.LocalTime.of(d.readInt(), d.readInt(), d.readInt(), d.readInt())
+                case _: PrimitiveType.String =>
+                  new AvroBinaryCodec[String]() {
+                    def decode(d: BinaryDecoder): String = d.readString()
 
-                  def encode(x: java.time.LocalTime, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getHour)
-                    e.writeInt(x.getMinute)
-                    e.writeInt(x.getSecond)
-                    e.writeInt(x.getNano)
+                    def encode(x: String, e: BinaryEncoder): Unit = e.writeString(x)
                   }
-                }
-              case _: PrimitiveType.Month =>
-                new AvroBinaryCodec[java.time.Month]() {
-                  def decode(d: BinaryDecoder): java.time.Month = java.time.Month.of(d.readInt())
+                case _: PrimitiveType.BigInt =>
+                  new AvroBinaryCodec[BigInt]() {
+                    def decode(d: BinaryDecoder): BigInt = BigInt(d.readBytes(null).array())
 
-                  def encode(x: java.time.Month, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
-                }
-              case _: PrimitiveType.MonthDay =>
-                new AvroBinaryCodec[java.time.MonthDay]() {
-                  def decode(d: BinaryDecoder): java.time.MonthDay = java.time.MonthDay.of(d.readInt(), d.readInt())
-
-                  def encode(x: java.time.MonthDay, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getMonthValue)
-                    e.writeInt(x.getDayOfMonth)
+                    def encode(x: BigInt, e: BinaryEncoder): Unit = e.writeBytes(x.toByteArray)
                   }
-                }
-              case _: PrimitiveType.OffsetDateTime =>
-                new AvroBinaryCodec[java.time.OffsetDateTime]() {
-                  def decode(d: BinaryDecoder): java.time.OffsetDateTime =
-                    java.time.OffsetDateTime.of(
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
+                case _: PrimitiveType.BigDecimal =>
+                  new AvroBinaryCodec[BigDecimal]() {
+                    def decode(d: BinaryDecoder): BigDecimal = {
+                      val mantissa     = d.readBytes(null).array()
+                      val scale        = d.readInt()
+                      val precision    = d.readInt()
+                      val roundingMode = java.math.RoundingMode.valueOf(d.readInt())
+                      val mc           = new MathContext(precision, roundingMode)
+                      new BigDecimal(new java.math.BigDecimal(new BigInteger(mantissa), scale), mc)
+                    }
+
+                    def encode(x: BigDecimal, e: BinaryEncoder): Unit = {
+                      val bd = x.underlying
+                      val mc = x.mc
+                      e.writeBytes(ByteBuffer.wrap(bd.unscaledValue.toByteArray))
+                      e.writeInt(bd.scale)
+                      e.writeInt(mc.getPrecision)
+                      e.writeInt(mc.getRoundingMode.ordinal)
+                    }
+                  }
+                case _: PrimitiveType.DayOfWeek =>
+                  new AvroBinaryCodec[java.time.DayOfWeek]() {
+                    def decode(d: BinaryDecoder): java.time.DayOfWeek = java.time.DayOfWeek.of(d.readInt())
+
+                    def encode(x: java.time.DayOfWeek, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
+                  }
+                case _: PrimitiveType.Duration =>
+                  new AvroBinaryCodec[java.time.Duration]() {
+                    def decode(d: BinaryDecoder): java.time.Duration =
+                      java.time.Duration.ofSeconds(d.readLong(), d.readInt())
+
+                    def encode(x: java.time.Duration, e: BinaryEncoder): Unit = {
+                      e.writeLong(x.getSeconds)
+                      e.writeInt(x.getNano)
+                    }
+                  }
+                case _: PrimitiveType.Instant =>
+                  new AvroBinaryCodec[java.time.Instant]() {
+                    def decode(d: BinaryDecoder): java.time.Instant =
+                      java.time.Instant.ofEpochSecond(d.readLong(), d.readInt())
+
+                    def encode(x: java.time.Instant, e: BinaryEncoder): Unit = {
+                      e.writeLong(x.getEpochSecond)
+                      e.writeInt(x.getNano)
+                    }
+                  }
+                case _: PrimitiveType.LocalDate =>
+                  new AvroBinaryCodec[java.time.LocalDate]() {
+                    def decode(d: BinaryDecoder): java.time.LocalDate =
+                      java.time.LocalDate.of(d.readInt(), d.readInt(), d.readInt())
+
+                    def encode(x: java.time.LocalDate, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getYear)
+                      e.writeInt(x.getMonthValue)
+                      e.writeInt(x.getDayOfMonth)
+                    }
+                  }
+                case _: PrimitiveType.LocalDateTime =>
+                  new AvroBinaryCodec[java.time.LocalDateTime]() {
+                    def decode(d: BinaryDecoder): java.time.LocalDateTime =
+                      java.time.LocalDateTime
+                        .of(d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt())
+
+                    def encode(x: java.time.LocalDateTime, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getYear)
+                      e.writeInt(x.getMonthValue)
+                      e.writeInt(x.getDayOfMonth)
+                      e.writeInt(x.getHour)
+                      e.writeInt(x.getMinute)
+                      e.writeInt(x.getSecond)
+                      e.writeInt(x.getNano)
+                    }
+                  }
+                case _: PrimitiveType.LocalTime =>
+                  new AvroBinaryCodec[java.time.LocalTime]() {
+                    def decode(d: BinaryDecoder): java.time.LocalTime =
+                      java.time.LocalTime.of(d.readInt(), d.readInt(), d.readInt(), d.readInt())
+
+                    def encode(x: java.time.LocalTime, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getHour)
+                      e.writeInt(x.getMinute)
+                      e.writeInt(x.getSecond)
+                      e.writeInt(x.getNano)
+                    }
+                  }
+                case _: PrimitiveType.Month =>
+                  new AvroBinaryCodec[java.time.Month]() {
+                    def decode(d: BinaryDecoder): java.time.Month = java.time.Month.of(d.readInt())
+
+                    def encode(x: java.time.Month, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
+                  }
+                case _: PrimitiveType.MonthDay =>
+                  new AvroBinaryCodec[java.time.MonthDay]() {
+                    def decode(d: BinaryDecoder): java.time.MonthDay = java.time.MonthDay.of(d.readInt(), d.readInt())
+
+                    def encode(x: java.time.MonthDay, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getMonthValue)
+                      e.writeInt(x.getDayOfMonth)
+                    }
+                  }
+                case _: PrimitiveType.OffsetDateTime =>
+                  new AvroBinaryCodec[java.time.OffsetDateTime]() {
+                    def decode(d: BinaryDecoder): java.time.OffsetDateTime =
+                      java.time.OffsetDateTime.of(
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        java.time.ZoneOffset.ofTotalSeconds(d.readInt())
+                      )
+
+                    def encode(x: java.time.OffsetDateTime, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getYear)
+                      e.writeInt(x.getMonthValue)
+                      e.writeInt(x.getDayOfMonth)
+                      e.writeInt(x.getHour)
+                      e.writeInt(x.getMinute)
+                      e.writeInt(x.getSecond)
+                      e.writeInt(x.getNano)
+                      e.writeInt(x.getOffset.getTotalSeconds)
+                    }
+                  }
+                case _: PrimitiveType.OffsetTime =>
+                  new AvroBinaryCodec[java.time.OffsetTime]() {
+                    def decode(d: BinaryDecoder): java.time.OffsetTime =
+                      java.time.OffsetTime.of(
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        java.time.ZoneOffset.ofTotalSeconds(d.readInt())
+                      )
+
+                    def encode(x: java.time.OffsetTime, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getHour)
+                      e.writeInt(x.getMinute)
+                      e.writeInt(x.getSecond)
+                      e.writeInt(x.getNano)
+                      e.writeInt(x.getOffset.getTotalSeconds)
+                    }
+                  }
+                case _: PrimitiveType.Period =>
+                  new AvroBinaryCodec[java.time.Period]() {
+                    def decode(d: BinaryDecoder): java.time.Period =
+                      java.time.Period.of(d.readInt(), d.readInt(), d.readInt())
+
+                    def encode(x: java.time.Period, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getYears)
+                      e.writeInt(x.getMonths)
+                      e.writeInt(x.getDays)
+                    }
+                  }
+                case _: PrimitiveType.Year =>
+                  new AvroBinaryCodec[java.time.Year]() {
+                    def decode(d: BinaryDecoder): java.time.Year = java.time.Year.of(d.readInt())
+
+                    def encode(x: java.time.Year, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
+                  }
+                case _: PrimitiveType.YearMonth =>
+                  new AvroBinaryCodec[java.time.YearMonth]() {
+                    def decode(d: BinaryDecoder): java.time.YearMonth = java.time.YearMonth.of(d.readInt(), d.readInt())
+
+                    def encode(x: java.time.YearMonth, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getYear)
+                      e.writeInt(x.getMonthValue)
+                    }
+                  }
+                case _: PrimitiveType.ZoneId =>
+                  new AvroBinaryCodec[java.time.ZoneId]() {
+                    def decode(d: BinaryDecoder): java.time.ZoneId = java.time.ZoneId.of(d.readString())
+
+                    def encode(x: java.time.ZoneId, e: BinaryEncoder): Unit = e.writeString(x.toString)
+                  }
+                case _: PrimitiveType.ZoneOffset =>
+                  new AvroBinaryCodec[java.time.ZoneOffset]() {
+                    def decode(d: BinaryDecoder): java.time.ZoneOffset =
                       java.time.ZoneOffset.ofTotalSeconds(d.readInt())
+
+                    def encode(x: java.time.ZoneOffset, e: BinaryEncoder): Unit = e.writeInt(x.getTotalSeconds)
+                  }
+                case _: PrimitiveType.ZonedDateTime =>
+                  new AvroBinaryCodec[java.time.ZonedDateTime]() {
+                    def decode(d: BinaryDecoder): java.time.ZonedDateTime = java.time.ZonedDateTime.ofInstant(
+                      java.time.LocalDateTime.of(
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt(),
+                        d.readInt()
+                      ),
+                      java.time.ZoneOffset.ofTotalSeconds(d.readInt()),
+                      java.time.ZoneId.of(d.readString())
                     )
 
-                  def encode(x: java.time.OffsetDateTime, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getYear)
-                    e.writeInt(x.getMonthValue)
-                    e.writeInt(x.getDayOfMonth)
-                    e.writeInt(x.getHour)
-                    e.writeInt(x.getMinute)
-                    e.writeInt(x.getSecond)
-                    e.writeInt(x.getNano)
-                    e.writeInt(x.getOffset.getTotalSeconds)
+                    def encode(x: java.time.ZonedDateTime, e: BinaryEncoder): Unit = {
+                      e.writeInt(x.getYear)
+                      e.writeInt(x.getMonthValue)
+                      e.writeInt(x.getDayOfMonth)
+                      e.writeInt(x.getHour)
+                      e.writeInt(x.getMinute)
+                      e.writeInt(x.getSecond)
+                      e.writeInt(x.getNano)
+                      e.writeInt(x.getOffset.getTotalSeconds)
+                      e.writeString(x.getZone.toString)
+                    }
                   }
-                }
-              case _: PrimitiveType.OffsetTime =>
-                new AvroBinaryCodec[java.time.OffsetTime]() {
-                  def decode(d: BinaryDecoder): java.time.OffsetTime =
-                    java.time.OffsetTime.of(
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      java.time.ZoneOffset.ofTotalSeconds(d.readInt())
-                    )
+                case _: PrimitiveType.Currency =>
+                  new AvroBinaryCodec[java.util.Currency]() {
+                    def decode(d: BinaryDecoder): java.util.Currency = {
+                      val bs = new Array[Byte](3)
+                      d.readFixed(bs, 0, 3)
+                      java.util.Currency.getInstance(new String(bs))
+                    }
 
-                  def encode(x: java.time.OffsetTime, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getHour)
-                    e.writeInt(x.getMinute)
-                    e.writeInt(x.getSecond)
-                    e.writeInt(x.getNano)
-                    e.writeInt(x.getOffset.getTotalSeconds)
+                    def encode(x: java.util.Currency, e: BinaryEncoder): Unit = {
+                      val s = x.toString
+                      e.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
+                    }
                   }
-                }
-              case _: PrimitiveType.Period =>
-                new AvroBinaryCodec[java.time.Period]() {
-                  def decode(d: BinaryDecoder): java.time.Period =
-                    java.time.Period.of(d.readInt(), d.readInt(), d.readInt())
+                case _: PrimitiveType.UUID =>
+                  new AvroBinaryCodec[java.util.UUID]() {
+                    def decode(d: BinaryDecoder): java.util.UUID = {
+                      val bs = new Array[Byte](16)
+                      d.readFixed(bs)
+                      val hi =
+                        (bs(0) & 0xff).toLong << 56 |
+                          (bs(1) & 0xff).toLong << 48 |
+                          (bs(2) & 0xff).toLong << 40 |
+                          (bs(3) & 0xff).toLong << 32 |
+                          (bs(4) & 0xff).toLong << 24 |
+                          (bs(5) & 0xff) << 16 |
+                          (bs(6) & 0xff) << 8 |
+                          (bs(7) & 0xff)
+                      val lo =
+                        (bs(8) & 0xff).toLong << 56 |
+                          (bs(9) & 0xff).toLong << 48 |
+                          (bs(10) & 0xff).toLong << 40 |
+                          (bs(11) & 0xff).toLong << 32 |
+                          (bs(12) & 0xff).toLong << 24 |
+                          (bs(13) & 0xff) << 16 |
+                          (bs(14) & 0xff) << 8 |
+                          (bs(15) & 0xff)
+                      new java.util.UUID(hi, lo)
+                    }
 
-                  def encode(x: java.time.Period, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getYears)
-                    e.writeInt(x.getMonths)
-                    e.writeInt(x.getDays)
+                    def encode(x: java.util.UUID, e: BinaryEncoder): Unit = {
+                      val hi = x.getMostSignificantBits
+                      val lo = x.getLeastSignificantBits
+                      val bs = Array(
+                        (hi >> 56).toByte,
+                        (hi >> 48).toByte,
+                        (hi >> 40).toByte,
+                        (hi >> 32).toByte,
+                        (hi >> 24).toByte,
+                        (hi >> 16).toByte,
+                        (hi >> 8).toByte,
+                        hi.toByte,
+                        (lo >> 56).toByte,
+                        (lo >> 48).toByte,
+                        (lo >> 40).toByte,
+                        (lo >> 32).toByte,
+                        (lo >> 24).toByte,
+                        (lo >> 16).toByte,
+                        (lo >> 8).toByte,
+                        lo.toByte
+                      )
+                      e.writeFixed(bs)
+                    }
                   }
-                }
-              case _: PrimitiveType.Year =>
-                new AvroBinaryCodec[java.time.Year]() {
-                  def decode(d: BinaryDecoder): java.time.Year = java.time.Year.of(d.readInt())
-
-                  def encode(x: java.time.Year, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
-                }
-              case _: PrimitiveType.YearMonth =>
-                new AvroBinaryCodec[java.time.YearMonth]() {
-                  def decode(d: BinaryDecoder): java.time.YearMonth = java.time.YearMonth.of(d.readInt(), d.readInt())
-
-                  def encode(x: java.time.YearMonth, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getYear)
-                    e.writeInt(x.getMonthValue)
-                  }
-                }
-              case _: PrimitiveType.ZoneId =>
-                new AvroBinaryCodec[java.time.ZoneId]() {
-                  def decode(d: BinaryDecoder): java.time.ZoneId = java.time.ZoneId.of(d.readString())
-
-                  def encode(x: java.time.ZoneId, e: BinaryEncoder): Unit = e.writeString(x.toString)
-                }
-              case _: PrimitiveType.ZoneOffset =>
-                new AvroBinaryCodec[java.time.ZoneOffset]() {
-                  def decode(d: BinaryDecoder): java.time.ZoneOffset = java.time.ZoneOffset.ofTotalSeconds(d.readInt())
-
-                  def encode(x: java.time.ZoneOffset, e: BinaryEncoder): Unit = e.writeInt(x.getTotalSeconds)
-                }
-              case _: PrimitiveType.ZonedDateTime =>
-                new AvroBinaryCodec[java.time.ZonedDateTime]() {
-                  def decode(d: BinaryDecoder): java.time.ZonedDateTime = java.time.ZonedDateTime.ofInstant(
-                    java.time.LocalDateTime.of(
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt(),
-                      d.readInt()
-                    ),
-                    java.time.ZoneOffset.ofTotalSeconds(d.readInt()),
-                    java.time.ZoneId.of(d.readString())
-                  )
-
-                  def encode(x: java.time.ZonedDateTime, e: BinaryEncoder): Unit = {
-                    e.writeInt(x.getYear)
-                    e.writeInt(x.getMonthValue)
-                    e.writeInt(x.getDayOfMonth)
-                    e.writeInt(x.getHour)
-                    e.writeInt(x.getMinute)
-                    e.writeInt(x.getSecond)
-                    e.writeInt(x.getNano)
-                    e.writeInt(x.getOffset.getTotalSeconds)
-                    e.writeString(x.getZone.toString)
-                  }
-                }
-              case _: PrimitiveType.Currency =>
-                new AvroBinaryCodec[java.util.Currency]() {
-                  def decode(d: BinaryDecoder): java.util.Currency = {
-                    val bs = new Array[Byte](3)
-                    d.readFixed(bs, 0, 3)
-                    java.util.Currency.getInstance(new String(bs))
-                  }
-
-                  def encode(x: java.util.Currency, e: BinaryEncoder): Unit = {
-                    val s = x.toString
-                    e.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
-                  }
-                }
-              case _: PrimitiveType.UUID =>
-                new AvroBinaryCodec[java.util.UUID]() {
-                  def decode(d: BinaryDecoder): java.util.UUID = {
-                    val bs = new Array[Byte](16)
-                    d.readFixed(bs)
-                    val hi =
-                      (bs(0) & 0xff).toLong << 56 |
-                        (bs(1) & 0xff).toLong << 48 |
-                        (bs(2) & 0xff).toLong << 40 |
-                        (bs(3) & 0xff).toLong << 32 |
-                        (bs(4) & 0xff).toLong << 24 |
-                        (bs(5) & 0xff) << 16 |
-                        (bs(6) & 0xff) << 8 |
-                        (bs(7) & 0xff)
-                    val lo =
-                      (bs(8) & 0xff).toLong << 56 |
-                        (bs(9) & 0xff).toLong << 48 |
-                        (bs(10) & 0xff).toLong << 40 |
-                        (bs(11) & 0xff).toLong << 32 |
-                        (bs(12) & 0xff).toLong << 24 |
-                        (bs(13) & 0xff) << 16 |
-                        (bs(14) & 0xff) << 8 |
-                        (bs(15) & 0xff)
-                    new java.util.UUID(hi, lo)
-                  }
-
-                  def encode(x: java.util.UUID, e: BinaryEncoder): Unit = {
-                    val hi = x.getMostSignificantBits
-                    val lo = x.getLeastSignificantBits
-                    val bs = Array(
-                      (hi >> 56).toByte,
-                      (hi >> 48).toByte,
-                      (hi >> 40).toByte,
-                      (hi >> 32).toByte,
-                      (hi >> 24).toByte,
-                      (hi >> 16).toByte,
-                      (hi >> 8).toByte,
-                      hi.toByte,
-                      (lo >> 56).toByte,
-                      (lo >> 48).toByte,
-                      (lo >> 40).toByte,
-                      (lo >> 32).toByte,
-                      (lo >> 24).toByte,
-                      (lo >> 16).toByte,
-                      (lo >> 8).toByte,
-                      lo.toByte
-                    )
-                    e.writeFixed(bs)
-                  }
-                }
-            }
+              }
+            } else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isVariant) {
-            val variant        = reflect.asVariant.get
-            val variantBinding = {
-              if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) variant.variantBinding
-              else variant.variantBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding
-            }.asInstanceOf[Binding.Variant[A]]
-            new AvroBinaryCodec[A]() {
-              private[this] val caseCodecs = cache.get(variant.typeName) match {
-                case Some(x) => x
-                case _       =>
+            val variant = reflect.asVariant.get
+            if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
+              val variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
+              new AvroBinaryCodec[A]() {
+                private[this] val caseCodecs = {
                   val cases  = variant.cases
                   val codecs = new Array[AvroBinaryCodec[?]](cases.length)
-                  cache.put(variant.typeName, codecs)
-                  val len = cases.length
-                  var idx = 0
+                  val len    = cases.length
+                  var idx    = 0
                   while (idx < len) {
-                    codecs(idx) = deriveCodec(cases(idx).value, cache)
+                    codecs(idx) = deriveCodec(cases(idx).value)
                     idx += 1
                   }
                   codecs
-              }
-              private[this] val discriminator = variantBinding.discriminator
+                }
+                private[this] val discriminator = variantBinding.discriminator
 
-              def decode(d: BinaryDecoder): A = {
-                val idx = d.readInt()
-                if (idx >= 0 && idx < caseCodecs.length) caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].decode(d)
-                else sys.error(s"Expected enum index from 0 to ${caseCodecs.length - 1}, got: $idx")
-              }
+                def decode(d: BinaryDecoder): A = {
+                  val idx = d.readInt()
+                  if (idx >= 0 && idx < caseCodecs.length) caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].decode(d)
+                  else sys.error(s"Expected enum index from 0 to ${caseCodecs.length - 1}, got: $idx")
+                }
 
-              def encode(x: A, e: BinaryEncoder): Unit = {
-                val idx = discriminator.discriminate(x)
-                e.writeInt(idx)
-                caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].encode(x, e)
+                def encode(x: A, e: BinaryEncoder): Unit = {
+                  val idx = discriminator.discriminate(x)
+                  e.writeInt(idx)
+                  caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].encode(x, e)
+                }
               }
-            }
+            } else variant.variantBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isSequence) {
-            val sequence   = reflect.asSequenceUnknown.get.sequence
-            val seqBinding = {
-              if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) sequence.seqBinding
-              else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, Elem]].binding
-            }.asInstanceOf[Binding.Seq[Col, Elem]]
-            new AvroBinaryCodec[Col[Elem]]() {
-              private[this] val elementCodec  = deriveCodec(sequence.element, cache).asInstanceOf[AvroBinaryCodec[Elem]]
-              private[this] val deconstructor = seqBinding.deconstructor
-              private[this] val constructor   = seqBinding.constructor
+            val sequence = reflect.asSequenceUnknown.get.sequence
+            if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
+              val seqBinding = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
+              new AvroBinaryCodec[Col[Elem]]() {
+                private[this] val elementCodec  = deriveCodec(sequence.element).asInstanceOf[AvroBinaryCodec[Elem]]
+                private[this] val deconstructor = seqBinding.deconstructor
+                private[this] val constructor   = seqBinding.constructor
 
-              def decode(d: BinaryDecoder): Col[Elem] = {
-                val builder = constructor.newObjectBuilder[Elem](8)
-                var size    = d.readLong()
-                while (size > 0) {
+                def decode(d: BinaryDecoder): Col[Elem] = {
+                  val builder = constructor.newObjectBuilder[Elem](8)
+                  var size    = d.readLong()
                   while (size > 0) {
-                    constructor.addObject(builder, elementCodec.decode(d))
-                    size -= 1
+                    while (size > 0) {
+                      constructor.addObject(builder, elementCodec.decode(d))
+                      size -= 1
+                    }
+                    size = d.readLong()
                   }
-                  size = d.readLong()
+                  constructor.resultObject[Elem](builder)
                 }
-                constructor.resultObject[Elem](builder)
-              }
 
-              def encode(x: Col[Elem], e: BinaryEncoder): Unit = {
-                val size = deconstructor.size(x)
-                if (size > 0) {
-                  e.writeInt(size)
-                  val it = deconstructor.deconstruct(x)
-                  while (it.hasNext) elementCodec.encode(it.next(), e)
+                def encode(x: Col[Elem], e: BinaryEncoder): Unit = {
+                  val size = deconstructor.size(x)
+                  if (size > 0) {
+                    e.writeInt(size)
+                    val it = deconstructor.deconstruct(x)
+                    while (it.hasNext) elementCodec.encode(it.next(), e)
+                  }
+                  e.writeInt(0)
                 }
-                e.writeInt(0)
               }
-            }
+            } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isMap) {
-            val map        = reflect.asMapUnknown.get.map
-            val mapBinding = {
-              if (map.mapBinding.isInstanceOf[Binding[?, ?]]) map.mapBinding
-              else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, Value]].binding
-            }.asInstanceOf[Binding.Map[Map, Key, Value]]
-            new AvroBinaryCodec[Map[Key, Value]]() {
-              private[this] val keyCodec      = deriveCodec(map.key, cache).asInstanceOf[AvroBinaryCodec[Key]]
-              private[this] val valueCodec    = deriveCodec(map.value, cache).asInstanceOf[AvroBinaryCodec[Value]]
-              private[this] val deconstructor = mapBinding.deconstructor
-              private[this] val constructor   = mapBinding.constructor
+            val map = reflect.asMapUnknown.get.map
+            if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
+              val mapBinding = map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
+              new AvroBinaryCodec[Map[Key, Value]]() {
+                private[this] val keyCodec      = deriveCodec(map.key).asInstanceOf[AvroBinaryCodec[Key]]
+                private[this] val valueCodec    = deriveCodec(map.value).asInstanceOf[AvroBinaryCodec[Value]]
+                private[this] val deconstructor = mapBinding.deconstructor
+                private[this] val constructor   = mapBinding.constructor
 
-              def decode(d: BinaryDecoder): Map[Key, Value] = {
-                val builder = constructor.newObjectBuilder[Key, Value](8)
-                var size    = d.readLong()
-                while (size > 0) {
+                def decode(d: BinaryDecoder): Map[Key, Value] = {
+                  val builder = constructor.newObjectBuilder[Key, Value](8)
+                  var size    = d.readLong()
                   while (size > 0) {
-                    constructor.addObject(builder, keyCodec.decode(d), valueCodec.decode(d))
-                    size -= 1
+                    while (size > 0) {
+                      constructor.addObject(builder, keyCodec.decode(d), valueCodec.decode(d))
+                      size -= 1
+                    }
+                    size = d.readLong()
                   }
-                  size = d.readLong()
+                  constructor.resultObject[Key, Value](builder)
                 }
-                constructor.resultObject[Key, Value](builder)
-              }
 
-              def encode(x: Map[Key, Value], e: BinaryEncoder): Unit = {
-                val size = deconstructor.size(x)
-                if (size > 0) {
-                  e.writeInt(size)
-                  val it = deconstructor.deconstruct(x)
-                  while (it.hasNext) {
-                    val kv = it.next()
-                    keyCodec.encode(deconstructor.getKey(kv), e)
-                    valueCodec.encode(deconstructor.getValue(kv), e)
+                def encode(x: Map[Key, Value], e: BinaryEncoder): Unit = {
+                  val size = deconstructor.size(x)
+                  if (size > 0) {
+                    e.writeInt(size)
+                    val it = deconstructor.deconstruct(x)
+                    while (it.hasNext) {
+                      val kv = it.next()
+                      keyCodec.encode(deconstructor.getKey(kv), e)
+                      valueCodec.encode(deconstructor.getValue(kv), e)
+                    }
                   }
+                  e.writeInt(0)
                 }
-                e.writeInt(0)
               }
-            }
+            } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isRecord) {
-            val record        = reflect.asRecord.get
-            val recordBinding = {
-              if (record.recordBinding.isInstanceOf[Binding[?, ?]]) record.recordBinding
-              else record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding
-            }.asInstanceOf[Binding.Record[A]]
-            new AvroBinaryCodec[A]() {
-              private[this] val fieldCodecs = cache.get(record.typeName) match {
-                case Some(x) => x
-                case _       =>
-                  val fields = record.fields
-                  val len    = fields.length
-                  val codecs = new Array[AvroBinaryCodec[?]](len)
-                  cache.put(record.typeName, codecs)
-                  var idx = 0
+            val record = reflect.asRecord.get
+            if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
+              val recordBinding = record.recordBinding.asInstanceOf[Binding.Record[A]]
+              val fields        = record.fields
+              val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+              new AvroBinaryCodec[A]() {
+                private[this] val fieldCodecs = {
+                  if (isRecursive) recursiveRecordCache.get.get(record.typeName)
+                  else null
+                } match {
+                  case null =>
+                    val len    = fields.length
+                    val codecs = new Array[AvroBinaryCodec[?]](len)
+                    if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecs)
+                    var idx = 0
+                    while (idx < len) {
+                      codecs(idx) = deriveCodec(fields(idx).value)
+                      idx += 1
+                    }
+                    codecs
+                  case codecs => codecs
+                }
+                private[this] val deconstructor = recordBinding.deconstructor
+                private[this] val constructor   = recordBinding.constructor
+
+                def decode(d: BinaryDecoder): A = {
+                  val registers = Registers(record.usedRegisters)
+                  var offset    = RegisterOffset.Zero
+                  val len       = fieldCodecs.length
+                  var idx       = 0
                   while (idx < len) {
-                    codecs(idx) = deriveCodec(fields(idx).value, cache)
+                    val codec = fieldCodecs(idx)
+                    codec.valueType match {
+                      case AvroBinaryCodec.objectType =>
+                        registers.setObject(offset, 0, codec.asInstanceOf[AvroBinaryCodec[AnyRef]].decode(d))
+                      case AvroBinaryCodec.intType =>
+                        registers.setInt(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Int]].decode(d))
+                      case AvroBinaryCodec.longType =>
+                        registers.setLong(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Long]].decode(d))
+                      case AvroBinaryCodec.floatType =>
+                        registers.setFloat(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Float]].decode(d))
+                      case AvroBinaryCodec.doubleType =>
+                        registers.setDouble(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Double]].decode(d))
+                      case AvroBinaryCodec.booleanType =>
+                        registers.setBoolean(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Boolean]].decode(d))
+                      case AvroBinaryCodec.byteType =>
+                        registers.setByte(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Byte]].decode(d))
+                      case AvroBinaryCodec.charType =>
+                        registers.setChar(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Char]].decode(d))
+                      case AvroBinaryCodec.shortType =>
+                        registers.setShort(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Short]].decode(d))
+                      case _ => codec.asInstanceOf[AvroBinaryCodec[Unit]].decode(d)
+                    }
+                    offset = RegisterOffset.add(offset, codec.valueOffset)
                     idx += 1
                   }
-                  codecs
-              }
-              private[this] val deconstructor = recordBinding.deconstructor
-              private[this] val constructor   = recordBinding.constructor
-
-              def decode(d: BinaryDecoder): A = {
-                val registers = Registers(record.usedRegisters)
-                var offset    = RegisterOffset.Zero
-                val len       = fieldCodecs.length
-                var idx       = 0
-                while (idx < len) {
-                  val codec = fieldCodecs(idx)
-                  codec.valueType match {
-                    case AvroBinaryCodec.objectType =>
-                      registers.setObject(offset, 0, codec.asInstanceOf[AvroBinaryCodec[AnyRef]].decode(d))
-                    case AvroBinaryCodec.intType     => registers.setInt(offset, 0, d.readInt())
-                    case AvroBinaryCodec.longType    => registers.setLong(offset, 0, d.readLong())
-                    case AvroBinaryCodec.floatType   => registers.setFloat(offset, 0, d.readFloat())
-                    case AvroBinaryCodec.doubleType  => registers.setDouble(offset, 0, d.readDouble())
-                    case AvroBinaryCodec.booleanType => registers.setBoolean(offset, 0, d.readBoolean())
-                    case AvroBinaryCodec.byteType    =>
-                      val x = d.readInt()
-                      if (x <= Byte.MaxValue && x >= Byte.MinValue) registers.setByte(offset, 0, x.toByte)
-                      else sys.error("Expected Byte")
-                    case AvroBinaryCodec.charType =>
-                      val x = d.readInt()
-                      if (x <= Char.MaxValue && x >= Byte.MinValue) registers.setChar(offset, 0, x.toChar)
-                      else sys.error("Expected Char")
-                    case AvroBinaryCodec.shortType =>
-                      val x = d.readInt()
-                      if (x <= Short.MaxValue && x >= Short.MinValue) registers.setShort(offset, 0, x.toShort)
-                      else sys.error("Expected Char")
-                    case _ => ()
-                  }
-                  offset = RegisterOffset.add(offset, codec.valueOffset)
-                  idx += 1
+                  constructor.construct(registers, RegisterOffset.Zero)
                 }
-                constructor.construct(registers, RegisterOffset.Zero)
-              }
 
-              def encode(x: A, e: BinaryEncoder): Unit = {
-                val registers = Registers(record.usedRegisters)
-                var offset    = RegisterOffset.Zero
-                deconstructor.deconstruct(registers, offset, x)
-                val len = fieldCodecs.length
-                var idx = 0
-                while (idx < len) {
-                  val codec = fieldCodecs(idx)
-                  codec.valueType match {
-                    case AvroBinaryCodec.objectType =>
-                      codec.asInstanceOf[AvroBinaryCodec[AnyRef]].encode(registers.getObject(offset, 0), e)
-                    case AvroBinaryCodec.intType     => e.writeInt(registers.getInt(offset, 0))
-                    case AvroBinaryCodec.longType    => e.writeLong(registers.getLong(offset, 0))
-                    case AvroBinaryCodec.floatType   => e.writeFloat(registers.getFloat(offset, 0))
-                    case AvroBinaryCodec.doubleType  => e.writeDouble(registers.getDouble(offset, 0))
-                    case AvroBinaryCodec.booleanType => e.writeBoolean(registers.getBoolean(offset, 0))
-                    case AvroBinaryCodec.byteType    => e.writeInt(registers.getByte(offset, 0))
-                    case AvroBinaryCodec.charType    => e.writeInt(registers.getChar(offset, 0))
-                    case AvroBinaryCodec.shortType   => e.writeInt(registers.getShort(offset, 0))
-                    case _                           => ()
+                def encode(x: A, e: BinaryEncoder): Unit = {
+                  val registers = Registers(record.usedRegisters)
+                  var offset    = RegisterOffset.Zero
+                  deconstructor.deconstruct(registers, offset, x)
+                  val len = fieldCodecs.length
+                  var idx = 0
+                  while (idx < len) {
+                    val codec = fieldCodecs(idx)
+                    codec.valueType match {
+                      case AvroBinaryCodec.objectType =>
+                        codec.asInstanceOf[AvroBinaryCodec[AnyRef]].encode(registers.getObject(offset, 0), e)
+                      case AvroBinaryCodec.intType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Int]].encode(registers.getInt(offset, 0), e)
+                      case AvroBinaryCodec.longType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Long]].encode(registers.getLong(offset, 0), e)
+                      case AvroBinaryCodec.floatType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Float]].encode(registers.getFloat(offset, 0), e)
+                      case AvroBinaryCodec.doubleType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Double]].encode(registers.getDouble(offset, 0), e)
+                      case AvroBinaryCodec.booleanType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Boolean]].encode(registers.getBoolean(offset, 0), e)
+                      case AvroBinaryCodec.byteType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Byte]].encode(registers.getByte(offset, 0), e)
+                      case AvroBinaryCodec.charType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Char]].encode(registers.getChar(offset, 0), e)
+                      case AvroBinaryCodec.shortType =>
+                        codec.asInstanceOf[AvroBinaryCodec[Short]].encode(registers.getShort(offset, 0), e)
+                      case _ => codec.asInstanceOf[AvroBinaryCodec[Unit]].encode((), e)
+                    }
+                    offset = RegisterOffset.add(offset, codec.valueOffset)
+                    idx += 1
                   }
-                  offset = RegisterOffset.add(offset, codec.valueOffset)
-                  idx += 1
                 }
               }
-            }
+            } else record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isWrapper) {
-            val wrapper        = reflect.asWrapperUnknown.get.wrapper
-            val wrapperBinding = {
-              if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) wrapper.wrapperBinding
-              else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].binding
-            }.asInstanceOf[Binding.Wrapper[A, Wrapped]]
-            new AvroBinaryCodec[A]() {
-              private[this] val codec  = deriveCodec(wrapper.wrapped, cache).asInstanceOf[AvroBinaryCodec[Wrapped]]
-              private[this] val unwrap = wrapperBinding.unwrap
-              private[this] val wrap   = wrapperBinding.wrap
+            val wrapper = reflect.asWrapperUnknown.get.wrapper
+            if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
+              val wrapperBinding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
+              new AvroBinaryCodec[A]() {
+                private[this] val codec  = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
+                private[this] val unwrap = wrapperBinding.unwrap
+                private[this] val wrap   = wrapperBinding.wrap
 
-              def decode(d: BinaryDecoder): A = wrap(codec.decode(d)) match {
-                case Right(x)  => x
-                case Left(err) => sys.error(err)
+                def decode(d: BinaryDecoder): A = wrap(codec.decode(d)) match {
+                  case Right(x)  => x
+                  case Left(err) => sys.error(err)
+                }
+
+                def encode(x: A, e: BinaryEncoder): Unit = codec.encode(unwrap(x), e)
               }
-
-              def encode(x: A, e: BinaryEncoder): Unit = codec.encode(unwrap(x), e)
-            }
-          } else dynamicValueCodec
+            } else wrapper.wrapperBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+          } else {
+            val dynamic = reflect.asDynamic.get
+            if (dynamic.dynamicBinding.isInstanceOf[Binding[?, ?]]) dynamicValueCodec
+            else dynamic.dynamicBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
+          }
         }.asInstanceOf[AvroBinaryCodec[A]]
 
-        private[this] val dynamicValueCodec = new AvroBinaryCodec[DynamicValue]() {
+        private[this] lazy val dynamicValueCodec = new AvroBinaryCodec[DynamicValue]() {
           private[this] val primitiveDynamicValueCodec = deriveCodec(Schema.derived[DynamicValue.Primitive].reflect)
 
           def decode(d: BinaryDecoder): DynamicValue = d.readInt() match {
@@ -798,70 +812,3 @@ object AvroFormat
         }
       }
     )
-
-private abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectType) extends BinaryCodec[A] {
-  val valueOffset: RegisterOffset.RegisterOffset = valueType match {
-    case AvroBinaryCodec.objectType  => RegisterOffset(objects = 1)
-    case AvroBinaryCodec.booleanType => RegisterOffset(booleans = 1)
-    case AvroBinaryCodec.byteType    => RegisterOffset(bytes = 1)
-    case AvroBinaryCodec.charType    => RegisterOffset(chars = 1)
-    case AvroBinaryCodec.shortType   => RegisterOffset(shorts = 1)
-    case AvroBinaryCodec.floatType   => RegisterOffset(floats = 1)
-    case AvroBinaryCodec.intType     => RegisterOffset(ints = 1)
-    case AvroBinaryCodec.doubleType  => RegisterOffset(doubles = 1)
-    case AvroBinaryCodec.longType    => RegisterOffset(longs = 1)
-    case _                           => RegisterOffset.Zero
-  }
-
-  def decode(d: BinaryDecoder): A
-
-  def encode(x: A, e: BinaryEncoder): Unit
-
-  override def decode(input: ByteBuffer): Either[SchemaError, A] = {
-    var pos             = input.position
-    val len             = input.limit - pos
-    var bs: Array[Byte] = null
-    if (input.hasArray) bs = input.array()
-    else {
-      pos = 0
-      bs = new Array[Byte](len)
-      input.get(bs)
-    }
-    val avroDecoder = DecoderFactory.get().binaryDecoder(bs, pos, len, null)
-    try {
-      new Right(decode(avroDecoder))
-    } catch {
-      case error if NonFatal(error) =>
-        new Left(new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, error.getMessage), Nil)))
-    }
-  }
-
-  override def encode(value: A, output: ByteBuffer): Unit = {
-    val avroEncoder = EncoderFactory
-      .get()
-      .directBinaryEncoder(
-        new OutputStream {
-          override def write(b: Int): Unit = output.put(b.toByte)
-
-          override def write(bs: Array[Byte]): Unit = output.put(bs)
-
-          override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
-        },
-        null
-      )
-    encode(value, avroEncoder)
-  }
-}
-
-private object AvroBinaryCodec {
-  val objectType  = 0
-  val booleanType = 1
-  val byteType    = 2
-  val charType    = 3
-  val shortType   = 4
-  val floatType   = 5
-  val intType     = 6
-  val doubleType  = 7
-  val longType    = 8
-  val unitType    = 9
-}

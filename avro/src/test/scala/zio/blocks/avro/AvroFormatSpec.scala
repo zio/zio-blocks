@@ -1,7 +1,9 @@
 package zio.blocks.avro
 
-import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
+import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
+import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, Optional, PrimitiveValue, Schema, TypeName}
 import zio.blocks.avro.AvroTestUtils._
+import zio.blocks.schema.codec.BinaryCodec
 import zio.test._
 import java.util.UUID
 import scala.collection.immutable.ArraySeq
@@ -13,31 +15,47 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip((), 0)
       },
       test("Boolean") {
-        roundTrip(true, 1)
+        roundTrip(true, 1) &&
+        roundTrip(false, 1)
       },
       test("Byte") {
-        roundTrip(123: Byte, 2)
+        roundTrip(1: Byte, 1) &&
+        roundTrip(Byte.MinValue, 2) &&
+        roundTrip(Byte.MaxValue, 2)
       },
       test("Short") {
-        roundTrip(12345: Short, 3)
+        roundTrip(1: Short, 1) &&
+        roundTrip(Short.MinValue, 3) &&
+        roundTrip(Short.MaxValue, 3)
       },
       test("Int") {
-        roundTrip(1234567890, 5)
+        roundTrip(1, 1) &&
+        roundTrip(Int.MinValue, 5) &&
+        roundTrip(Int.MaxValue, 5)
       },
       test("Long") {
-        roundTrip(1234567890123456789L, 9)
+        roundTrip(1L, 1) &&
+        roundTrip(Long.MinValue, 10) &&
+        roundTrip(Long.MaxValue, 10)
       },
       test("Float") {
-        roundTrip(42.0f, 4)
+        roundTrip(42.0f, 4) &&
+        roundTrip(Float.MinValue, 4) &&
+        roundTrip(Float.MaxValue, 4)
       },
       test("Double") {
-        roundTrip(42.0, 8)
+        roundTrip(42.0, 8) &&
+        roundTrip(Double.MinValue, 8) &&
+        roundTrip(Double.MaxValue, 8)
       },
       test("Char") {
-        roundTrip('a', 2)
+        roundTrip('7', 1) &&
+        roundTrip(Char.MinValue, 1) &&
+        roundTrip(Char.MaxValue, 3)
       },
       test("String") {
-        roundTrip("Hello", 6)
+        roundTrip("Hello", 6) &&
+        roundTrip("★\uD83C\uDFB8\uD83C\uDFA7⋆｡ °⋆", 24)
       },
       test("BigInt") {
         roundTrip(BigInt("9" * 20), 10)
@@ -119,6 +137,174 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("record with unit and variant fields") {
         roundTrip(Record4((), Some("VVV")), 5) &&
         roundTrip(Record4((), None), 1)
+      },
+      test("record with a custom codec for primitives injected by optic") {
+        val codec: BinaryCodec[Record1] = Record1.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Record1.i,
+            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+              def decode(d: BinaryDecoder): Int = java.lang.Integer.valueOf(d.readString())
+
+              def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
+            }
+          )
+          .derive
+        shortRoundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 23, codec)
+      },
+      test("record with a custom codec for primitives injected by type name") {
+        val codec: BinaryCodec[Record1] = Record1.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            TypeName.int,
+            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+              def decode(d: BinaryDecoder): Int = java.lang.Integer.valueOf(d.readString())
+
+              def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
+            }
+          )
+          .derive
+        shortRoundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 23, codec)
+      },
+      test("record with a custom codec for unit injected by optic") {
+        val codec: BinaryCodec[Record4] = Record4.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Record4.hidden,
+            new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
+              def decode(d: BinaryDecoder): Unit = d.readString()
+
+              def encode(x: Unit, e: BinaryEncoder): Unit = e.writeString("WWW")
+            }
+          )
+          .derive
+        shortRoundTrip(Record4((), Some("VVV")), 9, codec)
+      },
+      test("record with a custom codec for None injected by optic") {
+        val codec: BinaryCodec[Record4] = Record4.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Record4.optKey_None,
+            new AvroBinaryCodec[None.type](AvroBinaryCodec.unitType) {
+              def decode(d: BinaryDecoder): None.type = {
+                val _ = d.readString()
+                None
+              }
+
+              def encode(x: None.type, e: BinaryEncoder): Unit = e.writeString("WWW")
+            }
+          )
+          .derive
+        shortRoundTrip(Record4((), None), 5, codec)
+      },
+      test("record with a custom codec for nested record injected by optic") {
+        val codec: BinaryCodec[Record2] = Record2.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Record2.r1_1,
+            new AvroBinaryCodec[Record1]() {
+              private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+              private val codec   = Record1.schema.derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[Record1]]
+
+              def decode(d: BinaryDecoder): Record1 =
+                if (d.readBoolean()) default
+                else codec.decode(d)
+
+              def encode(x: Record1, e: BinaryEncoder): Unit =
+                if (x == default) e.writeBoolean(true)
+                else {
+                  e.writeBoolean(false)
+                  codec.encode(x, e)
+                }
+            }
+          )
+          .instance(
+            Record2.r1_2,
+            new AvroBinaryCodec[Record1]() {
+              private val default = Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
+              private val codec   = Record1.schema.derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[Record1]]
+
+              def decode(d: BinaryDecoder): Record1 =
+                if (d.readBoolean()) default
+                else codec.decode(d)
+
+              def encode(x: Record1, e: BinaryEncoder): Unit =
+                if (x == default) e.writeBoolean(true)
+                else {
+                  e.writeBoolean(false)
+                  codec.encode(x, e)
+                }
+            }
+          )
+          .derive
+        shortRoundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
+          ),
+          2,
+          codec
+        )
+      },
+      test("record with a custom codec for nested primitives injected by optic") {
+        val codec: BinaryCodec[Record2] = Record2.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            TypeName.int,
+            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+              def decode(d: BinaryDecoder): Int = java.lang.Integer.valueOf(d.readString())
+
+              def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
+            }
+          )
+          .instance(
+            Record2.r1_2_i,
+            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+              def decode(d: BinaryDecoder): Int = d.readDouble().toInt
+
+              def encode(x: Int, e: BinaryEncoder): Unit = e.writeDouble(x.toDouble)
+            }
+          )
+          .derive
+        shortRoundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
+          ),
+          52,
+          codec
+        )
+      },
+      test("record with a custom codec for nested record injected by type name") {
+        val codec: BinaryCodec[Record2] = Record2.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Record1.schema.reflect.typeName,
+            new AvroBinaryCodec[Record1]() {
+              private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+              private val codec   = Record1.schema.derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[Record1]]
+
+              def decode(d: BinaryDecoder): Record1 =
+                if (d.readBoolean()) default
+                else codec.decode(d)
+
+              def encode(x: Record1, e: BinaryEncoder): Unit =
+                if (x == default) e.writeBoolean(true)
+                else {
+                  e.writeBoolean(false)
+                  codec.encode(x, e)
+                }
+            }
+          )
+          .derive
+        shortRoundTrip(
+          Record2(
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
+            Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
+          ),
+          2,
+          codec
+        )
       }
     ),
     suite("sequences")(
@@ -199,7 +385,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
         )
       },
       test("non string key map") {
-        roundTrip(Map(1 -> 1L, 2 -> 2L), 6) &&
+        roundTrip(Map(1 -> 1L, 2 -> 2L), 6)
+      },
+      test("non string key with recursive values") {
         roundTrip(
           Map(
             Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))) -> 1,
@@ -286,8 +474,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
     s: String
   )
 
-  object Record1 {
+  object Record1 extends CompanionOptics[Record1] {
     implicit val schema: Schema[Record1] = Schema.derived
+
+    val i: Lens[Record1, Int] = $(_.i)
   }
 
   case class Record2(
@@ -295,8 +485,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
     r1_2: Record1
   )
 
-  object Record2 {
+  object Record2 extends CompanionOptics[Record2] {
     implicit val schema: Schema[Record2] = Schema.derived
+
+    val r1_1: Lens[Record2, Record1] = $(_.r1_1)
+    val r1_2: Lens[Record2, Record1] = $(_.r1_2)
+    val r1_1_i: Lens[Record2, Int]   = $(_.r1_1.i)
+    val r1_2_i: Lens[Record2, Int]   = $(_.r1_2.i)
   }
 
   case class Recursive(i: Int, ln: List[Recursive])
@@ -337,9 +532,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Record3] = Schema.derived
   }
 
-  case class Record4(removed: Unit, optKey: Option[String])
+  case class Record4(hidden: Unit, optKey: Option[String])
 
-  object Record4 {
+  object Record4 extends CompanionOptics[Record4] {
     implicit val schema: Schema[Record4] = Schema.derived
+
+    val hidden: Lens[Record4, Unit]               = $(_.hidden)
+    val optKey: Lens[Record4, Option[String]]     = $(_.optKey)
+    val optKey_None: Optional[Record4, None.type] = $(_.optKey.when[None.type])
   }
 }
