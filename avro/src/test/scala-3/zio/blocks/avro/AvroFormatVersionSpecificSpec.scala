@@ -1,7 +1,9 @@
 package zio.blocks.avro
 
-import zio.blocks.schema.{DynamicValue, PrimitiveValue, Schema}
+import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
+import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, PrimitiveValue, Schema}
 import zio.blocks.avro.AvroTestUtils._
+import zio.blocks.schema.codec.BinaryCodec
 import zio.test._
 import java.util.UUID
 
@@ -92,6 +94,67 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
         roundTrip[Dynamic](value, 19)
+      },
+      test("as record field values with custom codecs injected by optic") {
+        val value = Dynamic(
+          DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          DynamicValue.Map(
+            Vector(
+              (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+              (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
+            )
+          )
+        )
+        val codec: BinaryCodec[Dynamic] = Schema[Dynamic]
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Dynamic.primitive,
+            new AvroBinaryCodec[DynamicValue.Primitive]() {
+              private val default = DynamicValue.Primitive(PrimitiveValue.Int(1))
+              private val codec   =
+                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
+
+              def decode(d: BinaryDecoder): DynamicValue.Primitive =
+                if (d.readBoolean()) default
+                else codec.decode(d)
+
+              def encode(x: DynamicValue.Primitive, e: BinaryEncoder): Unit =
+                if (x == default) e.writeBoolean(true)
+                else {
+                  e.writeBoolean(false)
+                  codec.encode(x, e)
+                }
+            }
+          )
+          .instance(
+            Dynamic.map,
+            new AvroBinaryCodec[DynamicValue.Map]() {
+              private val default = DynamicValue.Map(
+                Vector(
+                  (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+                  (
+                    DynamicValue.Primitive(PrimitiveValue.Long(2L)),
+                    DynamicValue.Primitive(PrimitiveValue.String("VVV"))
+                  )
+                )
+              )
+              private val codec =
+                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
+
+              def decode(d: BinaryDecoder): DynamicValue.Map =
+                if (d.readBoolean()) default
+                else codec.decode(d)
+
+              def encode(x: DynamicValue.Map, e: BinaryEncoder): Unit =
+                if (x == default) e.writeBoolean(true)
+                else {
+                  e.writeBoolean(false)
+                  codec.encode(x, e)
+                }
+            }
+          )
+          .derive
+        shortRoundTrip[Dynamic](value, 2, codec)
       }
     )
   )
@@ -104,4 +167,9 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
     case Node(value: T, next: LinkedList[T])
 
   case class Dynamic(primitive: DynamicValue.Primitive, map: DynamicValue.Map) derives Schema
+
+  object Dynamic extends CompanionOptics[Dynamic] {
+    val primitive: Lens[Dynamic, DynamicValue.Primitive] = $(_.primitive)
+    val map: Lens[Dynamic, DynamicValue.Map]             = $(_.map)
+  }
 }
