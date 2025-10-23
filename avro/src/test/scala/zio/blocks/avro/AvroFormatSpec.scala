@@ -3,7 +3,6 @@ package zio.blocks.avro
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, Optional, PrimitiveValue, Schema, TypeName}
 import zio.blocks.avro.AvroTestUtils._
-import zio.blocks.schema.codec.BinaryCodec
 import zio.test._
 import java.util.UUID
 import scala.collection.immutable.ArraySeq
@@ -139,7 +138,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Record4((), None), 1)
       },
       test("record with a custom codec for primitives injected by optic") {
-        val codec: BinaryCodec[Record1] = Record1.schema
+        val codec: AvroBinaryCodec[Record1] = Record1.schema
           .deriving(AvroFormat.deriver)
           .instance(
             Record1.i,
@@ -153,7 +152,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         shortRoundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 23, codec)
       },
       test("record with a custom codec for primitives injected by type name") {
-        val codec: BinaryCodec[Record1] = Record1.schema
+        val codec: AvroBinaryCodec[Record1] = Record1.schema
           .deriving(AvroFormat.deriver)
           .instance(
             TypeName.int,
@@ -167,7 +166,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         shortRoundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 23, codec)
       },
       test("record with a custom codec for unit injected by optic") {
-        val codec: BinaryCodec[Record4] = Record4.schema
+        val codec: AvroBinaryCodec[Record4] = Record4.schema
           .deriving(AvroFormat.deriver)
           .instance(
             Record4.hidden,
@@ -181,7 +180,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         shortRoundTrip(Record4((), Some("VVV")), 9, codec)
       },
       test("record with a custom codec for None injected by optic") {
-        val codec: BinaryCodec[Record4] = Record4.schema
+        val codec: AvroBinaryCodec[Record4] = Record4.schema
           .deriving(AvroFormat.deriver)
           .instance(
             Record4.optKey_None,
@@ -198,7 +197,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         shortRoundTrip(Record4((), None), 5, codec)
       },
       test("record with a custom codec for nested record injected by optic") {
-        val codec: BinaryCodec[Record2] = Record2.schema
+        val codec: AvroBinaryCodec[Record2] = Record2.schema
           .deriving(AvroFormat.deriver)
           .instance(
             Record2.r1_1,
@@ -247,7 +246,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         )
       },
       test("record with a custom codec for nested primitives injected by optic") {
-        val codec: BinaryCodec[Record2] = Record2.schema
+        val codec: AvroBinaryCodec[Record2] = Record2.schema
           .deriving(AvroFormat.deriver)
           .instance(
             TypeName.int,
@@ -276,7 +275,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         )
       },
       test("record with a custom codec for nested record injected by type name") {
-        val codec: BinaryCodec[Record2] = Record2.schema
+        val codec: AvroBinaryCodec[Record2] = Record2.schema
           .deriving(AvroFormat.deriver)
           .instance(
             Record1.schema.reflect.typeName,
