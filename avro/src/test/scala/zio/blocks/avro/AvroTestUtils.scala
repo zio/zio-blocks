@@ -4,7 +4,6 @@ import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.Schema
-import zio.blocks.schema.codec.BinaryCodec
 import zio.test.Assertion._
 import zio.test._
 import java.io.ByteArrayOutputStream
@@ -45,9 +44,20 @@ object AvroTestUtils {
     roundTrip(value, expectedLength, avroSchema, codec)
   }
 
-  def roundTrip[A](value: A, expectedLength: Int, avroSchema: AvroSchema, codec: BinaryCodec[A]): TestResult = {
-    val encodedBySchema = encodeToByteArray(out => codec.encode(value, out))
+  def roundTrip[A](value: A, expectedLength: Int, avroSchema: AvroSchema, codec: AvroBinaryCodec[A]): TestResult = {
+    val byteBuffer = ByteBuffer.allocate(1024)
+    codec.encode(value, byteBuffer)
+    val encodedBySchema = util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
+    val output          = new java.io.ByteArrayOutputStream(1024)
+    codec.encode(value, output)
+    output.close()
+    val encodedBySchema2 = output.toByteArray
+    val encodedBySchema3 = codec.encode(value)
     assert(encodedBySchema.length)(equalTo(expectedLength)) &&
+    assert(util.Arrays.compare(encodedBySchema, encodedBySchema2))(equalTo(0)) &&
+    assert(util.Arrays.compare(encodedBySchema, encodedBySchema3))(equalTo(0)) &&
+    assert(codec.decode(encodedBySchema))(isRight(equalTo(value))) &&
+    assert(codec.decode(toInputStream(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) && {
       val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema, null)
@@ -62,19 +72,26 @@ object AvroTestUtils {
   def shortRoundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =
     shortRoundTrip(value, expectedLength, schema.derive(AvroFormat.deriver))
 
-  def shortRoundTrip[A](value: A, expectedLength: Int, codec: BinaryCodec[A]): TestResult = {
-    val encodedBySchema = encodeToByteArray(out => codec.encode(value, out))
+  def shortRoundTrip[A](value: A, expectedLength: Int, codec: AvroBinaryCodec[A]): TestResult = {
+    val byteBuffer = ByteBuffer.allocate(1024)
+    codec.encode(value, byteBuffer)
+    val encodedBySchema = util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
+    val output          = new java.io.ByteArrayOutputStream(1024)
+    codec.encode(value, output)
+    output.close()
+    val encodedBySchema2 = output.toByteArray
+    val encodedBySchema3 = codec.encode(value)
     // println(hexDump(encodedBySchema))
     assert(encodedBySchema.length)(equalTo(expectedLength)) &&
+    assert(util.Arrays.compare(encodedBySchema, encodedBySchema2))(equalTo(0)) &&
+    assert(util.Arrays.compare(encodedBySchema, encodedBySchema3))(equalTo(0)) &&
+    assert(codec.decode(encodedBySchema))(isRight(equalTo(value))) &&
+    assert(codec.decode(toInputStream(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))
   }
 
-  private[this] def encodeToByteArray(f: ByteBuffer => Unit): Array[Byte] = {
-    val byteBuffer = ByteBuffer.allocate(1024)
-    f(byteBuffer)
-    util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
-  }
+  private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 
   private[this] def toHeapByteBuffer(bs: Array[Byte]): ByteBuffer = ByteBuffer.wrap(bs)
 

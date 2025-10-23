@@ -8,7 +8,7 @@ import zio.blocks.avro.AvroFormat
 import zio.schema.codec.AvroCodec
 import zio.schema.{DeriveSchema, Schema => ZIOSchema}
 import java.nio.ByteBuffer
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+import java.io.ByteArrayOutputStream
 import com.sksamuel.avro4s.{AvroSchema, AvroInputStream, AvroOutputStream}
 
 class ListOfRecordsBenchmark extends BaseBenchmark {
@@ -27,16 +27,11 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
 
   @Benchmark
   def readingAvro4s: List[Person] =
-    AvroInputStream
-      .binary[List[Person]]
-      .from(new ByteArrayInputStream(encodedListOfRecords))
-      .build(AvroSchema[List[Person]])
-      .iterator
-      .next()
+    AvroInputStream.binary[List[Person]].from(encodedListOfRecords).build(AvroSchema[List[Person]]).iterator.next()
 
   @Benchmark
   def readingZioBlocks: List[Person] =
-    zioBlocksSchema.decode(AvroFormat)(ByteBuffer.wrap(encodedListOfRecords)) match {
+    zioBlocksCodec.decode(encodedListOfRecords) match {
       case Right(value) => value
       case Left(error)  => sys.error(error.getMessage)
     }
@@ -60,7 +55,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
   @Benchmark
   def writingZioBlocks: Array[Byte] = {
     val byteBuffer = ByteBuffer.allocate(30 * size)
-    zioBlocksSchema.encode(AvroFormat)(byteBuffer)(listOfRecords)
+    zioBlocksCodec.encode(listOfRecords, byteBuffer)
     java.util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
   }
 
@@ -73,7 +68,7 @@ object ListOfRecordsDomain {
 
   implicit val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
 
-  implicit val zioBlocksSchema: Schema[List[Person]] = Schema.derived
-
   val zioSchemaCodec: AvroCodec.ExtendedBinaryCodec[List[Person]] = AvroCodec.schemaBasedBinaryCodec[List[Person]]
+
+  val zioBlocksCodec: AvroBinaryCodec[List[Person]] = Schema.derived.deriving(AvroFormat.deriver).derive
 }
