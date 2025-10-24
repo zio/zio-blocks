@@ -745,6 +745,32 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           )
         )
       },
+      test("derives schema for Scala 3 unions defined as opaque types") {
+        val schema  = Schema.derived[Variant]
+        val variant = schema.reflect.asVariant
+        assert(
+          Variant(123) match {
+            case _: Int => true
+            case _      => false
+          }
+        )(equalTo(true)) &&
+        assert(schema)(not(equalTo(Schema.derived[Int | String | Boolean]))) && // the difference in type names
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "String", "Boolean")))) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName(
+                Namespace(List("zio", "blocks", "schema"), List("SchemaVersionSpecificSpec$package")),
+                "Variant",
+                Nil
+              )
+            )
+          )
+        )
+      },
       test("derives schema for case classes with fields of Scala 3 union types that have duplicated sub-types") {
         type Value1 = Int | Boolean
         type Value2 = Int | String | Int
@@ -960,3 +986,9 @@ object Opaque extends CompanionOptics[Opaque] {
 }
 
 @deprecated("reasons") case class C() derives Schema
+
+opaque type Variant = Int | String | Boolean
+
+object Variant {
+  def apply(v: Int | String | Boolean): Variant = v
+}
