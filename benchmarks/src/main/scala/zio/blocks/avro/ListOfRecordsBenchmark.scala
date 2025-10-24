@@ -7,7 +7,6 @@ import zio.blocks.schema.Schema
 import zio.blocks.avro.AvroFormat
 import zio.schema.codec.AvroCodec
 import zio.schema.{DeriveSchema, Schema => ZIOSchema}
-import java.nio.ByteBuffer
 import java.io.ByteArrayOutputStream
 import com.sksamuel.avro4s.{AvroSchema, AvroInputStream, AvroOutputStream}
 
@@ -53,11 +52,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
   }
 
   @Benchmark
-  def writingZioBlocks: Array[Byte] = {
-    val byteBuffer = ByteBuffer.allocate(30 * size)
-    zioBlocksCodec.encode(listOfRecords, byteBuffer)
-    java.util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
-  }
+  def writingZioBlocks: Array[Byte] = zioBlocksCodec.encode(listOfRecords)
 
   @Benchmark
   def writingZioSchema: Array[Byte] = zioSchemaCodec.encode(listOfRecords).toArray
