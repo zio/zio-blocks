@@ -763,7 +763,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                Namespace(List("zio", "blocks", "schema"), List("SchemaVersionSpecificSpec$package")),
+                Namespace(List("zio", "blocks", "schema"), List("Variant$package")),
                 "Variant",
                 Nil
               )
@@ -986,9 +986,3 @@ object Opaque extends CompanionOptics[Opaque] {
 }
 
 @deprecated("reasons") case class C() derives Schema
-
-opaque type Variant = Int | String | Boolean
-
-object Variant {
-  def apply(v: Int | String | Boolean): Variant = v
-}
