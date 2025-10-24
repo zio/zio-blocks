@@ -52,8 +52,6 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
           new OutputStream {
             override def write(b: Int): Unit = output.put(b.toByte)
 
-            override def write(bs: Array[Byte]): Unit = output.put(bs)
-
             override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
           },
           null
@@ -69,9 +67,8 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
   }
 
   def encode(value: A): Array[Byte] = {
-    val output = new java.io.ByteArrayOutputStream(64)
+    val output = new ByteArrayOutputStream
     encode(value, EncoderFactory.get().directBinaryEncoder(output, null))
-    output.close()
     output.toByteArray
   }
 
@@ -101,4 +98,34 @@ object AvroBinaryCodec {
   val doubleType  = 7
   val longType    = 8
   val unitType    = 9
+}
+
+/**
+ * Custom implementation replacing `java.io.ByteArrayOutputStream`.
+ *
+ * This class is used for performance optimization and to avoid unnecessary
+ * allocations that can occur with the standard `ByteArrayOutputStream`. The
+ * buffer growth strategy doubles the buffer size when more space is needed, or
+ * grows to fit the required length if doubling is insufficient. This minimizes
+ * the number of allocations and copies, especially for large or unpredictable
+ * output sizes.
+ */
+private class ByteArrayOutputStream extends java.io.OutputStream {
+  private[this] var buf   = new Array[Byte](64)
+  private[this] var count = 0
+
+  override def write(b: Int): Unit = {
+    if (count >= buf.length) buf = java.util.Arrays.copyOf(buf, buf.length << 1)
+    buf(count) = b.toByte
+    count += 1
+  }
+
+  override def write(bs: Array[Byte], off: Int, len: Int): Unit = {
+    val newLen = count + len
+    if (newLen > buf.length) buf = java.util.Arrays.copyOf(buf, Math.max(buf.length << 1, newLen))
+    System.arraycopy(bs, off, buf, count, len)
+    count = newLen
+  }
+
+  def toByteArray: Array[Byte] = java.util.Arrays.copyOf(buf, count)
 }
