@@ -723,6 +723,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(Value.tuple_1.replace((1, true), 2))(equalTo((2, true))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(123)))(isRight(equalTo(123))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
+        assert(schema)(equalTo(Schema.derived[Int | Boolean | (Int, Boolean) | List[Int] | Map[Int, Long]])) &&
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
         assert(variant.map(_.cases.map(_.name)))(
           isSome(equalTo(Vector("Int", "Boolean", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
