@@ -723,6 +723,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(Value.tuple_1.replace((1, true), 2))(equalTo((2, true))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(123)))(isRight(equalTo(123))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(true)))(isRight(equalTo(true))) &&
+        assert(schema)(equalTo(Schema.derived[Int | Boolean | (Int, Boolean) | List[Int] | Map[Int, Long]])) &&
         assert(schema)(not(equalTo(Schema.derived[Boolean | Int]))) &&
         assert(variant.map(_.cases.map(_.name)))(
           isSome(equalTo(Vector("Int", "Boolean", "Tuple2", "collection.immutable.List", "collection.immutable.Map")))
@@ -740,6 +741,32 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   TypeName.list(TypeName.int),
                   TypeName.map(TypeName.int, TypeName.long)
                 )
+              )
+            )
+          )
+        )
+      },
+      test("derives schema for Scala 3 unions defined as opaque types") {
+        val schema  = Schema.derived[Variant]
+        val variant = schema.reflect.asVariant
+        assert(
+          Variant(123) match {
+            case _: Int => true
+            case _      => false
+          }
+        )(equalTo(true)) &&
+        assert(schema)(not(equalTo(Schema.derived[Int | String | Boolean]))) && // the difference in type names
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
+        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "String", "Boolean")))) &&
+        assert(variant.map(_.typeName))(
+          isSome(
+            equalTo(
+              TypeName(
+                Namespace(List("zio", "blocks", "schema"), List("Variant$package")),
+                "Variant",
+                Nil
               )
             )
           )
