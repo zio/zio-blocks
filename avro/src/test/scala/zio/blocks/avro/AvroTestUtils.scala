@@ -3,7 +3,7 @@ package zio.blocks.avro
 import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.{Schema => AvroSchema}
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{DynamicOptic, Schema, SchemaError}
 import zio.test.Assertion._
 import zio.test._
 import java.io.ByteArrayOutputStream
@@ -90,6 +90,15 @@ object AvroTestUtils {
     assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))
   }
+
+  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], expectedMessage: String): TestResult =
+    assert(codec.decode(bytes))(
+      isLeft(
+        equalTo(
+          new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, expectedMessage), Nil))
+        )
+      )
+    )
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 

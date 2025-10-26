@@ -757,7 +757,7 @@ object AvroFormat
                 size = d.readLong()
               }
               new DynamicValue.Map(builder.result())
-            case _ => sys.error("Expected enum index from 0 to 4")
+            case idx => sys.error(s"Expected enum index from 0 to 4, got: $idx")
           }
 
           def encode(x: DynamicValue, e: BinaryEncoder): Unit = x match {

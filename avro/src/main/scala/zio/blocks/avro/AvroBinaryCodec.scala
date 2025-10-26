@@ -83,8 +83,12 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
   def encode(value: A, output: java.io.OutputStream): Unit =
     encode(value, EncoderFactory.get().directBinaryEncoder(output, null))
 
-  private[this] def toError(error: Throwable) =
-    new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, error.getMessage), Nil))
+  private[this] def toError(error: Throwable) = {
+    val message =
+      if (error.isInstanceOf[java.io.EOFException]) "Unexpected end of input"
+      else error.getMessage
+    new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, message), Nil))
+  }
 }
 
 object AvroBinaryCodec {
