@@ -866,7 +866,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   )
 
   /** Variant: Color */
-  enum Color(val rgb: Int) derives Schema:
+  enum Color(val rgb: Int) derives Schema {
+
     /** Term: Red */
     @Modifier.config("term-key-1", "term-value-1") @Modifier.config("term-key-1", "term-value-2") case Red
         extends Color(0xff0000)
@@ -882,6 +883,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
     /** Type: Mix */
     @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2") case Mix(mix: Int)
         extends Color(mix)
+  }
 
   object Color extends CompanionOptics[Color] {
     val red: Prism[Color, Color.Red.type]     = $(_.when[Color.Red.type])
@@ -891,17 +893,23 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
     val mix_mix: Optional[Color, Int]         = $(_.when[Color.Mix].mix)
   }
 
-  enum FruitEnum[T <: FruitEnum[T]]:
-    case Apple(color: String)      extends FruitEnum[Apple]
+  enum FruitEnum[T <: FruitEnum[T]] {
+    case Apple(color: String) extends FruitEnum[Apple]
+
     case Banana(curvature: Double) extends FruitEnum[Banana]
+  }
 
-  enum LinkedList[+T]:
+  enum LinkedList[+T] {
     case End
-    case Node(value: T, @Modifier.config("field-key", "field-value") next: LinkedList[T])
 
-  enum HKEnum[A[_]]:
-    case Case1(a: A[Int])    extends HKEnum[A]
+    case Node(value: T, @Modifier.config("field-key", "field-value") next: LinkedList[T])
+  }
+
+  enum HKEnum[A[_]] {
+    case Case1(a: A[Int]) extends HKEnum[A]
+
     case Case2(a: A[String]) extends HKEnum[A]
+  }
 
   case class Box1(l: Long) extends AnyVal derives Schema
 
