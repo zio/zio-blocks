@@ -539,14 +539,22 @@ object AvroFormat
 
                 def decode(d: BinaryDecoder): Col[Elem] = {
                   val builder = constructor.newObjectBuilder[Elem](8)
-                  var size    = d.readLong()
+                  var size    = d.readInt()
+                  var count   = 0L
                   while (size > 0) {
+                    count += size
+                    if (count > AvroBinaryCodec.maxCollectionSize) {
+                      sys.error(
+                        s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
+                      )
+                    }
                     while (size > 0) {
                       constructor.addObject(builder, elementCodec.decode(d))
                       size -= 1
                     }
-                    size = d.readLong()
+                    size = d.readInt()
                   }
+                  if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
                   constructor.resultObject[Elem](builder)
                 }
 
@@ -573,14 +581,20 @@ object AvroFormat
 
                 def decode(d: BinaryDecoder): Map[Key, Value] = {
                   val builder = constructor.newObjectBuilder[Key, Value](8)
-                  var size    = d.readLong()
+                  var size    = d.readInt()
+                  var count   = 0L
                   while (size > 0) {
+                    count += size
+                    if (count > AvroBinaryCodec.maxCollectionSize) {
+                      sys.error(s"Expected map size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count")
+                    }
                     while (size > 0) {
                       constructor.addObject(builder, keyCodec.decode(d), valueCodec.decode(d))
                       size -= 1
                     }
-                    size = d.readLong()
+                    size = d.readInt()
                   }
+                  if (size < 0) sys.error(s"Expected positive map part size, got: $size")
                   constructor.resultObject[Key, Value](builder)
                 }
 
@@ -725,37 +739,61 @@ object AvroFormat
             case 0 => primitiveDynamicValueCodec.decode(d)
             case 1 =>
               val builder = Vector.newBuilder[(String, DynamicValue)]
-              var size    = d.readLong()
+              var size    = d.readInt()
+              var count   = 0L
               while (size > 0) {
+                count += size
+                if (count > AvroBinaryCodec.maxCollectionSize) {
+                  sys.error(
+                    s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
+                  )
+                }
                 while (size > 0) {
                   builder.addOne((d.readString(), decode(d)))
                   size -= 1
                 }
-                size = d.readLong()
+                size = d.readInt()
               }
+              if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
               new DynamicValue.Record(builder.result())
             case 2 => new DynamicValue.Variant(d.readString(), decode(d))
             case 3 =>
               val builder = Vector.newBuilder[DynamicValue]
-              var size    = d.readLong()
+              var size    = d.readInt()
+              var count   = 0L
               while (size > 0) {
+                count += size
+                if (count > AvroBinaryCodec.maxCollectionSize) {
+                  sys.error(
+                    s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
+                  )
+                }
                 while (size > 0) {
                   builder.addOne(decode(d))
                   size -= 1
                 }
-                size = d.readLong()
+                size = d.readInt()
               }
+              if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
               new DynamicValue.Sequence(builder.result())
             case 4 =>
               val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
-              var size    = d.readLong()
+              var size    = d.readInt()
+              var count   = 0L
               while (size > 0) {
+                count += size
+                if (count > AvroBinaryCodec.maxCollectionSize) {
+                  sys.error(
+                    s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
+                  )
+                }
                 while (size > 0) {
                   builder.addOne((decode(d), decode(d)))
                   size -= 1
                 }
-                size = d.readLong()
+                size = d.readInt()
               }
+              if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
               new DynamicValue.Map(builder.result())
             case idx => sys.error(s"Expected enum index from 0 to 4, got: $idx")
           }
