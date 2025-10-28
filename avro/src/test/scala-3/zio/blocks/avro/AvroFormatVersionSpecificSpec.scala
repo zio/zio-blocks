@@ -158,12 +158,15 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
     )
   )
 
-  enum TrafficLight derives Schema:
+  enum TrafficLight derives Schema {
     case Red, Yellow, Green
+  }
 
-  enum LinkedList[+T]:
+  enum LinkedList[+T] {
     case End
+
     case Node(value: T, next: LinkedList[T])
+  }
 
   case class Dynamic(primitive: DynamicValue.Primitive, map: DynamicValue.Map) derives Schema
 
