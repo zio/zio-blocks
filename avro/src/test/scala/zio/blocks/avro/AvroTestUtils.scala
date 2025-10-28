@@ -91,14 +91,13 @@ object AvroTestUtils {
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))
   }
 
-  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], expectedMessage: String): TestResult =
-    assert(codec.decode(bytes))(
-      isLeft(
-        equalTo(
-          new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, expectedMessage), Nil))
-        )
-      )
-    )
+  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], expectedMessage: String): TestResult = {
+    val error = new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, expectedMessage), Nil))
+    assert(codec.decode(bytes))(isLeft(equalTo(error))) &&
+    assert(codec.decode(toInputStream(bytes)))(isLeft(equalTo(error))) &&
+    assert(codec.decode(toHeapByteBuffer(bytes)))(isLeft(equalTo(error))) &&
+    assert(codec.decode(toDirectByteBuffer(bytes)))(isLeft(equalTo(error)))
+  }
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 

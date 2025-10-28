@@ -102,6 +102,8 @@ object AvroBinaryCodec {
   val doubleType  = 7
   val longType    = 8
   val unitType    = 9
+
+  val maxCollectionSize: Int = Integer.MAX_VALUE - 8
 }
 
 /**
