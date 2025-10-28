@@ -399,7 +399,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("primitive values (decode error)") {
         val intListCodec = Schema[List[Int]].derive(AvroFormat.deriver)
         decodeError(Array.empty[Byte], intListCodec, "Unexpected end of input") &&
-        decodeError(Array(100, 42, 42, 42), intListCodec, "Unexpected end of input")
+        decodeError(Array(100, 42, 42, 42), intListCodec, "Unexpected end of input") &&
+        decodeError(Array(0x01.toByte), intListCodec, "Expected positive collection part size, got: -1") &&
+        decodeError(
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          intListCodec,
+          "Expected collection size not greater than 2147483639, got: 2147483647"
+        )
       },
       test("complex values") {
         roundTrip(
@@ -440,7 +446,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("string keys and primitive values (decode error)") {
         val stringToIntMapCodec = Schema[Map[String, Int]].derive(AvroFormat.deriver)
         decodeError(Array.empty[Byte], stringToIntMapCodec, "Unexpected end of input") &&
-        decodeError(Array(100), stringToIntMapCodec, "Unexpected end of input")
+        decodeError(Array(100), stringToIntMapCodec, "Unexpected end of input") &&
+        decodeError(Array(0x01.toByte), stringToIntMapCodec, "Expected positive map part size, got: -1") &&
+        decodeError(
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          stringToIntMapCodec,
+          "Expected map size not greater than 2147483639, got: 2147483647"
+        )
       },
       test("string keys and complex values") {
         roundTrip(
@@ -466,7 +478,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("non string key map (decode error)") {
         val intToLongMapCodec = Schema[Map[Int, Long]].derive(AvroFormat.deriver)
         decodeError(Array.empty[Byte], intToLongMapCodec, "Unexpected end of input") &&
-        decodeError(Array(100), intToLongMapCodec, "Unexpected end of input")
+        decodeError(Array(100), intToLongMapCodec, "Unexpected end of input") &&
+        decodeError(Array(0x01.toByte), intToLongMapCodec, "Expected positive map part size, got: -1") &&
+        decodeError(
+          Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          intToLongMapCodec,
+          "Expected map size not greater than 2147483639, got: 2147483647"
+        )
       },
       test("non string key with recursive values") {
         roundTrip(
@@ -558,11 +576,31 @@ object AvroFormatSpec extends ZIOSpecDefault {
           18
         )
       },
-      test("top-level (invalid index)") {
-        val intOptionCodec = Schema[DynamicValue].derive(AvroFormat.deriver)
-        val bytes          = intOptionCodec.encode(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+      test("top-level (decode error)") {
+        val dynamicValueCodec = Schema[DynamicValue].derive(AvroFormat.deriver)
+        val bytes             = dynamicValueCodec.encode(DynamicValue.Primitive(PrimitiveValue.Int(1)))
         bytes(0) = 42
-        decodeError(bytes, intOptionCodec, "Expected enum index from 0 to 4, got: 21")
+        decodeError(bytes, dynamicValueCodec, "Expected enum index from 0 to 4, got: 21") &&
+        decodeError(Array.empty, dynamicValueCodec, "Unexpected end of input") &&
+        decodeError(Array(2), dynamicValueCodec, "Unexpected end of input") &&
+        decodeError(Array(2, 0x01.toByte), dynamicValueCodec, "Expected positive collection part size, got: -1") &&
+        decodeError(Array(6, 0x01.toByte), dynamicValueCodec, "Expected positive collection part size, got: -1") &&
+        decodeError(Array(8, 0x01.toByte), dynamicValueCodec, "Expected positive collection part size, got: -1") &&
+        decodeError(
+          Array(2, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          dynamicValueCodec,
+          "Expected collection size not greater than 2147483639, got: 2147483647"
+        ) &&
+        decodeError(
+          Array(6, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          dynamicValueCodec,
+          "Expected collection size not greater than 2147483639, got: 2147483647"
+        ) &&
+        decodeError(
+          Array(8, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          dynamicValueCodec,
+          "Expected collection size not greater than 2147483639, got: 2147483647"
+        )
       }
     )
   )
