@@ -96,6 +96,8 @@ object BuildHelper {
         )
       case _ =>
         Seq(
+          "-rewrite",
+          "-no-indent",
           "-explain",
           "-explain-cyclic",
           "-Xcheck-macros",
