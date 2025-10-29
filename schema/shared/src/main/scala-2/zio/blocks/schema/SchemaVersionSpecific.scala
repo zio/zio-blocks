@@ -387,7 +387,7 @@ private object SchemaVersionSpecific {
           q"""new Schema(
               reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
                 element = $schema.reflect,
-                typeName = $tpeName,
+                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                 seqBinding = new Binding.Seq(
                   constructor = $constructor,
                   deconstructor = SeqDeconstructor.arrayDeconstructor

@@ -679,7 +679,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName,
+                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                   seqBinding = new Binding.Seq(
                     constructor = $constructor,
                     deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -709,7 +709,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName,
+                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                   seqBinding = new Binding.Seq(
                     constructor = $constructor,
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
