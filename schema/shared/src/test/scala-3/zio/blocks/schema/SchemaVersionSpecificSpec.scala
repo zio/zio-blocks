@@ -670,6 +670,33 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases(0).name))(isSome(equalTo("Case1")))
       },
+      test("derives schema for options") {
+        val schema1  = Schema.derived[Option[String]]
+        val schema2  = Schema.derived[Option[Unit]]
+        val schema3  = Schema.derived[Option[Boolean]]
+        val schema4  = Schema.derived[Option[Byte]]
+        val schema5  = Schema.derived[Option[Char]]
+        val schema6  = Schema.derived[Option[Short]]
+        val schema7  = Schema.derived[Option[Float]]
+        val schema8  = Schema.derived[Option[Int]]
+        val schema9  = Schema.derived[Option[Double]]
+        val schema10 = Schema.derived[Option[Long]]
+        assert(Schema.derived[Option[StructureId]])(equalTo(schema1)) &&
+        assert(schema1.fromDynamicValue(schema1.toDynamicValue(Option("VVV"))))(isRight(equalTo(Option("VVV")))) &&
+        assert(schema2.fromDynamicValue(schema2.toDynamicValue(Option(()))))(isRight(equalTo(Option(())))) &&
+        assert(schema3.fromDynamicValue(schema3.toDynamicValue(Option(true))))(isRight(equalTo(Option(true)))) &&
+        assert(schema4.fromDynamicValue(schema4.toDynamicValue(Option(1.toByte))))(
+          isRight(equalTo(Option(1.toByte)))
+        ) &&
+        assert(schema5.fromDynamicValue(schema5.toDynamicValue(Option('V'))))(isRight(equalTo(Option('V')))) &&
+        assert(schema6.fromDynamicValue(schema6.toDynamicValue(Option(1.toShort))))(
+          isRight(equalTo(Option(1.toShort)))
+        ) &&
+        assert(schema7.fromDynamicValue(schema7.toDynamicValue(Option(1.0f))))(isRight(equalTo(Option(1.0f)))) &&
+        assert(schema8.fromDynamicValue(schema8.toDynamicValue(Option(1))))(isRight(equalTo(Option(1)))) &&
+        assert(schema9.fromDynamicValue(schema9.toDynamicValue(Option(1.0))))(isRight(equalTo(Option(1.0)))) &&
+        assert(schema10.fromDynamicValue(schema10.toDynamicValue(Option(1L))))(isRight(equalTo(Option(1L))))
+      },
       test("derives schema for type recursive Scala 3 enums") {
         val schema  = Schema.derived[FruitEnum[?]]
         val variant = schema.reflect.asVariant
@@ -764,7 +791,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(
             equalTo(
               TypeName(
-                Namespace(List("zio", "blocks", "schema"), List("Variant$package")),
+                Namespace(List("zio", "blocks", "schema"), List("OpaqueTypes$package")),
                 "Variant",
                 Nil
               )
