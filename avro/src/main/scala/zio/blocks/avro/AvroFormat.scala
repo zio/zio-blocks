@@ -7,6 +7,7 @@ import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
+import scala.util.control.NonFatal
 
 object AvroFormat
     extends BinaryFormat(
@@ -134,367 +135,474 @@ object AvroFormat
         type TC[_]
 
         private[this] val recursiveRecordCache =
-          new ThreadLocal[java.util.HashMap[TypeName[?], Array[AvroBinaryCodec[?]]]] {
-            override def initialValue: java.util.HashMap[TypeName[?], Array[AvroBinaryCodec[?]]] = new java.util.HashMap
+          new ThreadLocal[java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], Array[DynamicOptic.Node.Field])]] {
+            override def initialValue
+              : java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], Array[DynamicOptic.Node.Field])] =
+              new java.util.HashMap
           }
+        private[this] val unitCodec = new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Unit = ()
+
+          def encode(x: Unit, e: BinaryEncoder): Unit = ()
+        }
+        private[this] val byteCodec = new AvroBinaryCodec[Byte](AvroBinaryCodec.byteType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Byte = {
+            val x =
+              try {
+                d.readInt()
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
+            if (x >= Byte.MinValue && x <= Byte.MaxValue) x.toByte
+            else decodeError(t, "Expected Byte")
+          }
+
+          def encode(x: Byte, e: BinaryEncoder): Unit = e.writeInt(x)
+        }
+        private[this] val booleanCodec = new AvroBinaryCodec[Boolean](AvroBinaryCodec.booleanType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Boolean = try {
+            d.readBoolean()
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: Boolean, e: BinaryEncoder): Unit = e.writeBoolean(x)
+        }
+        private[this] val shortCodec = new AvroBinaryCodec[Short](AvroBinaryCodec.shortType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Short = {
+            val x =
+              try {
+                d.readInt()
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
+            if (x >= Short.MinValue && x <= Short.MaxValue) x.toShort
+            else decodeError(t, "Expected Short")
+          }
+
+          def encode(x: Short, e: BinaryEncoder): Unit = e.writeInt(x)
+        }
+        private[this] val charCodec = new AvroBinaryCodec[Char](AvroBinaryCodec.charType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Char = {
+            val x =
+              try {
+                d.readInt()
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
+            if (x >= Char.MinValue && x <= Char.MaxValue) x.toChar
+            else decodeError(t, "Expected Char")
+          }
+
+          def encode(x: Char, e: BinaryEncoder): Unit = e.writeInt(x)
+        }
+        private[this] val intCodec = new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
+            d.readInt()
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: Int, e: BinaryEncoder): Unit = e.writeInt(x)
+        }
+        private[this] val floatCodec = new AvroBinaryCodec[Float](AvroBinaryCodec.floatType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Float = try {
+            d.readFloat()
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: Float, e: BinaryEncoder): Unit = e.writeFloat(x)
+        }
+        private[this] val longCodec = new AvroBinaryCodec[Long](AvroBinaryCodec.longType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Long = try {
+            d.readLong()
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: Long, e: BinaryEncoder): Unit = e.writeLong(x)
+        }
+        private[this] val doubleCodec = new AvroBinaryCodec[Double](AvroBinaryCodec.doubleType) {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Double = try {
+            d.readDouble()
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: Double, e: BinaryEncoder): Unit = e.writeDouble(x)
+        }
+        private[this] val stringCodec = new AvroBinaryCodec[String]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): String = try {
+            d.readString()
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: String, e: BinaryEncoder): Unit = e.writeString(x)
+        }
+        private[this] val bigIntCodec = new AvroBinaryCodec[BigInt]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): BigInt = try {
+            BigInt(d.readBytes(null).array())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: BigInt, e: BinaryEncoder): Unit = e.writeBytes(x.toByteArray)
+        }
+        private[this] val bigDecimalCodec = new AvroBinaryCodec[BigDecimal]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): BigDecimal = try {
+            val mantissa     = d.readBytes(null).array()
+            val scale        = d.readInt()
+            val precision    = d.readInt()
+            val roundingMode = java.math.RoundingMode.valueOf(d.readInt())
+            val mc           = new MathContext(precision, roundingMode)
+            new BigDecimal(new java.math.BigDecimal(new BigInteger(mantissa), scale), mc)
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: BigDecimal, e: BinaryEncoder): Unit = {
+            val bd = x.underlying
+            val mc = x.mc
+            e.writeBytes(ByteBuffer.wrap(bd.unscaledValue.toByteArray))
+            e.writeInt(bd.scale)
+            e.writeInt(mc.getPrecision)
+            e.writeInt(mc.getRoundingMode.ordinal)
+          }
+        }
+        private[this] val dayOfWeekCodec = new AvroBinaryCodec[java.time.DayOfWeek]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.DayOfWeek = try {
+            java.time.DayOfWeek.of(d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.DayOfWeek, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
+        }
+        private[this] val durationCodec = new AvroBinaryCodec[java.time.Duration]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.Duration = try {
+            java.time.Duration.ofSeconds(d.readLong(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.Duration, e: BinaryEncoder): Unit = {
+            e.writeLong(x.getSeconds)
+            e.writeInt(x.getNano)
+          }
+        }
+        private[this] val instantCodec = new AvroBinaryCodec[java.time.Instant]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.Instant = try {
+            java.time.Instant.ofEpochSecond(d.readLong(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.Instant, e: BinaryEncoder): Unit = {
+            e.writeLong(x.getEpochSecond)
+            e.writeInt(x.getNano)
+          }
+        }
+        private[this] val localDateCodec = new AvroBinaryCodec[java.time.LocalDate]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.LocalDate = try {
+            java.time.LocalDate.of(d.readInt(), d.readInt(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.LocalDate, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getYear)
+            e.writeInt(x.getMonthValue)
+            e.writeInt(x.getDayOfMonth)
+          }
+        }
+        private[this] val localDateTimeCodec = new AvroBinaryCodec[java.time.LocalDateTime]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.LocalDateTime = try {
+            java.time.LocalDateTime
+              .of(d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.LocalDateTime, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getYear)
+            e.writeInt(x.getMonthValue)
+            e.writeInt(x.getDayOfMonth)
+            e.writeInt(x.getHour)
+            e.writeInt(x.getMinute)
+            e.writeInt(x.getSecond)
+            e.writeInt(x.getNano)
+          }
+        }
+        private[this] val localTimeCodec = new AvroBinaryCodec[java.time.LocalTime]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.LocalTime = try {
+            java.time.LocalTime.of(d.readInt(), d.readInt(), d.readInt(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.LocalTime, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getHour)
+            e.writeInt(x.getMinute)
+            e.writeInt(x.getSecond)
+            e.writeInt(x.getNano)
+          }
+        }
+        private[this] val monthCodec = new AvroBinaryCodec[java.time.Month]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.Month = try {
+            java.time.Month.of(d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.Month, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
+        }
+        private[this] val monthDayCodec = new AvroBinaryCodec[java.time.MonthDay]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.MonthDay = try {
+            java.time.MonthDay.of(d.readInt(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.MonthDay, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getMonthValue)
+            e.writeInt(x.getDayOfMonth)
+          }
+        }
+        private[this] val offsetDateTimeCodec = new AvroBinaryCodec[java.time.OffsetDateTime]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.OffsetDateTime = try {
+            java.time.OffsetDateTime.of(
+              d.readInt(),
+              d.readInt(),
+              d.readInt(),
+              d.readInt(),
+              d.readInt(),
+              d.readInt(),
+              d.readInt(),
+              java.time.ZoneOffset.ofTotalSeconds(d.readInt())
+            )
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.OffsetDateTime, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getYear)
+            e.writeInt(x.getMonthValue)
+            e.writeInt(x.getDayOfMonth)
+            e.writeInt(x.getHour)
+            e.writeInt(x.getMinute)
+            e.writeInt(x.getSecond)
+            e.writeInt(x.getNano)
+            e.writeInt(x.getOffset.getTotalSeconds)
+          }
+        }
+        private[this] val offsetTimeCodec = new AvroBinaryCodec[java.time.OffsetTime]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.OffsetTime = try {
+            java.time.OffsetTime.of(
+              d.readInt(),
+              d.readInt(),
+              d.readInt(),
+              d.readInt(),
+              java.time.ZoneOffset.ofTotalSeconds(d.readInt())
+            )
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.OffsetTime, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getHour)
+            e.writeInt(x.getMinute)
+            e.writeInt(x.getSecond)
+            e.writeInt(x.getNano)
+            e.writeInt(x.getOffset.getTotalSeconds)
+          }
+        }
+        private[this] val periodCodec = new AvroBinaryCodec[java.time.Period]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.Period = try {
+            java.time.Period.of(d.readInt(), d.readInt(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.Period, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getYears)
+            e.writeInt(x.getMonths)
+            e.writeInt(x.getDays)
+          }
+        }
+        private[this] val yearCodec = new AvroBinaryCodec[java.time.Year]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.Year = try {
+            java.time.Year.of(d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.Year, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
+        }
+        private[this] val yearMonthCodec = new AvroBinaryCodec[java.time.YearMonth]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.YearMonth = try {
+            java.time.YearMonth.of(d.readInt(), d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.YearMonth, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getYear)
+            e.writeInt(x.getMonthValue)
+          }
+        }
+        private[this] val zoneIdCodec = new AvroBinaryCodec[java.time.ZoneId]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.ZoneId = try {
+            java.time.ZoneId.of(d.readString())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.ZoneId, e: BinaryEncoder): Unit = e.writeString(x.toString)
+        }
+        private[this] val zoneOffsetCodec = new AvroBinaryCodec[java.time.ZoneOffset]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.ZoneOffset = try {
+            java.time.ZoneOffset.ofTotalSeconds(d.readInt())
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.ZoneOffset, e: BinaryEncoder): Unit = e.writeInt(x.getTotalSeconds)
+        }
+        private[this] val zonedDateTimeCodec = new AvroBinaryCodec[java.time.ZonedDateTime]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.time.ZonedDateTime = try {
+            java.time.ZonedDateTime.ofInstant(
+              java.time.LocalDateTime.of(
+                d.readInt(),
+                d.readInt(),
+                d.readInt(),
+                d.readInt(),
+                d.readInt(),
+                d.readInt(),
+                d.readInt()
+              ),
+              java.time.ZoneOffset.ofTotalSeconds(d.readInt()),
+              java.time.ZoneId.of(d.readString())
+            )
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.time.ZonedDateTime, e: BinaryEncoder): Unit = {
+            e.writeInt(x.getYear)
+            e.writeInt(x.getMonthValue)
+            e.writeInt(x.getDayOfMonth)
+            e.writeInt(x.getHour)
+            e.writeInt(x.getMinute)
+            e.writeInt(x.getSecond)
+            e.writeInt(x.getNano)
+            e.writeInt(x.getOffset.getTotalSeconds)
+            e.writeString(x.getZone.toString)
+          }
+        }
+        private[this] val currencyCodec = new AvroBinaryCodec[java.util.Currency]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.util.Currency = try {
+            val bs = new Array[Byte](3)
+            d.readFixed(bs, 0, 3)
+            java.util.Currency.getInstance(new String(bs))
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.util.Currency, e: BinaryEncoder): Unit = {
+            val s = x.toString
+            e.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
+          }
+        }
+
+        private[this] val uuidCodec = new AvroBinaryCodec[java.util.UUID]() {
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): java.util.UUID = try {
+            val bs = new Array[Byte](16)
+            d.readFixed(bs)
+            val hi =
+              (bs(0) & 0xff).toLong << 56 |
+                (bs(1) & 0xff).toLong << 48 |
+                (bs(2) & 0xff).toLong << 40 |
+                (bs(3) & 0xff).toLong << 32 |
+                (bs(4) & 0xff).toLong << 24 |
+                (bs(5) & 0xff) << 16 |
+                (bs(6) & 0xff) << 8 |
+                (bs(7) & 0xff)
+            val lo =
+              (bs(8) & 0xff).toLong << 56 |
+                (bs(9) & 0xff).toLong << 48 |
+                (bs(10) & 0xff).toLong << 40 |
+                (bs(11) & 0xff).toLong << 32 |
+                (bs(12) & 0xff).toLong << 24 |
+                (bs(13) & 0xff) << 16 |
+                (bs(14) & 0xff) << 8 |
+                (bs(15) & 0xff)
+            new java.util.UUID(hi, lo)
+          } catch {
+            case error if NonFatal(error) => decodeError(t, error)
+          }
+
+          def encode(x: java.util.UUID, e: BinaryEncoder): Unit = {
+            val hi = x.getMostSignificantBits
+            val lo = x.getLeastSignificantBits
+            val bs = Array(
+              (hi >> 56).toByte,
+              (hi >> 48).toByte,
+              (hi >> 40).toByte,
+              (hi >> 32).toByte,
+              (hi >> 24).toByte,
+              (hi >> 16).toByte,
+              (hi >> 8).toByte,
+              hi.toByte,
+              (lo >> 56).toByte,
+              (lo >> 48).toByte,
+              (lo >> 40).toByte,
+              (lo >> 32).toByte,
+              (lo >> 24).toByte,
+              (lo >> 16).toByte,
+              (lo >> 8).toByte,
+              lo.toByte
+            )
+            e.writeFixed(bs)
+          }
+        }
 
         private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): AvroBinaryCodec[A] = {
           if (reflect.isPrimitive) {
             val primitive = reflect.asPrimitive.get
             if (primitive.primitiveBinding.isInstanceOf[Binding[?, ?]]) {
               primitive.primitiveType match {
-                case _: PrimitiveType.Unit.type =>
-                  new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
-                    def decode(d: BinaryDecoder): Unit = d.readNull()
-
-                    def encode(x: Unit, e: BinaryEncoder): Unit = e.writeNull()
-                  }
-                case _: PrimitiveType.Byte =>
-                  new AvroBinaryCodec[Byte](AvroBinaryCodec.byteType) {
-                    def decode(d: BinaryDecoder): Byte = {
-                      val x = d.readInt()
-                      if (x >= Byte.MinValue && x <= Byte.MaxValue) x.toByte
-                      else sys.error("Expected Byte")
-                    }
-
-                    def encode(x: Byte, e: BinaryEncoder): Unit = e.writeInt(x)
-                  }
-                case _: PrimitiveType.Boolean =>
-                  new AvroBinaryCodec[Boolean](AvroBinaryCodec.booleanType) {
-                    def decode(d: BinaryDecoder): Boolean = d.readBoolean()
-
-                    def encode(x: Boolean, e: BinaryEncoder): Unit = e.writeBoolean(x)
-                  }
-                case _: PrimitiveType.Short =>
-                  new AvroBinaryCodec[Short](AvroBinaryCodec.shortType) {
-                    def decode(d: BinaryDecoder): Short = {
-                      val x = d.readInt()
-                      if (x >= Short.MinValue && x <= Short.MaxValue) x.toShort
-                      else sys.error("Expected Short")
-                    }
-
-                    def encode(x: Short, e: BinaryEncoder): Unit = e.writeInt(x)
-                  }
-                case _: PrimitiveType.Char =>
-                  new AvroBinaryCodec[Char](AvroBinaryCodec.charType) {
-                    def decode(d: BinaryDecoder): Char = {
-                      val x = d.readInt()
-                      if (x >= Char.MinValue && x <= Char.MaxValue) x.toChar
-                      else sys.error("Expected Char")
-                    }
-
-                    def encode(x: Char, e: BinaryEncoder): Unit = e.writeInt(x)
-                  }
-                case _: PrimitiveType.Int =>
-                  new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-                    def decode(d: BinaryDecoder): Int = d.readInt()
-
-                    def encode(x: Int, e: BinaryEncoder): Unit = e.writeInt(x)
-                  }
-                case _: PrimitiveType.Float =>
-                  new AvroBinaryCodec[Float](AvroBinaryCodec.floatType) {
-                    def decode(d: BinaryDecoder): Float = d.readFloat()
-
-                    def encode(x: Float, e: BinaryEncoder): Unit = e.writeFloat(x)
-                  }
-                case _: PrimitiveType.Long =>
-                  new AvroBinaryCodec[Long](AvroBinaryCodec.longType) {
-                    def decode(d: BinaryDecoder): Long = d.readLong()
-
-                    def encode(x: Long, e: BinaryEncoder): Unit = e.writeLong(x)
-                  }
-                case _: PrimitiveType.Double =>
-                  new AvroBinaryCodec[Double](AvroBinaryCodec.doubleType) {
-                    def decode(d: BinaryDecoder): Double = d.readDouble()
-
-                    def encode(x: Double, e: BinaryEncoder): Unit = e.writeDouble(x)
-                  }
-                case _: PrimitiveType.String =>
-                  new AvroBinaryCodec[String]() {
-                    def decode(d: BinaryDecoder): String = d.readString()
-
-                    def encode(x: String, e: BinaryEncoder): Unit = e.writeString(x)
-                  }
-                case _: PrimitiveType.BigInt =>
-                  new AvroBinaryCodec[BigInt]() {
-                    def decode(d: BinaryDecoder): BigInt = BigInt(d.readBytes(null).array())
-
-                    def encode(x: BigInt, e: BinaryEncoder): Unit = e.writeBytes(x.toByteArray)
-                  }
-                case _: PrimitiveType.BigDecimal =>
-                  new AvroBinaryCodec[BigDecimal]() {
-                    def decode(d: BinaryDecoder): BigDecimal = {
-                      val mantissa     = d.readBytes(null).array()
-                      val scale        = d.readInt()
-                      val precision    = d.readInt()
-                      val roundingMode = java.math.RoundingMode.valueOf(d.readInt())
-                      val mc           = new MathContext(precision, roundingMode)
-                      new BigDecimal(new java.math.BigDecimal(new BigInteger(mantissa), scale), mc)
-                    }
-
-                    def encode(x: BigDecimal, e: BinaryEncoder): Unit = {
-                      val bd = x.underlying
-                      val mc = x.mc
-                      e.writeBytes(ByteBuffer.wrap(bd.unscaledValue.toByteArray))
-                      e.writeInt(bd.scale)
-                      e.writeInt(mc.getPrecision)
-                      e.writeInt(mc.getRoundingMode.ordinal)
-                    }
-                  }
-                case _: PrimitiveType.DayOfWeek =>
-                  new AvroBinaryCodec[java.time.DayOfWeek]() {
-                    def decode(d: BinaryDecoder): java.time.DayOfWeek = java.time.DayOfWeek.of(d.readInt())
-
-                    def encode(x: java.time.DayOfWeek, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
-                  }
-                case _: PrimitiveType.Duration =>
-                  new AvroBinaryCodec[java.time.Duration]() {
-                    def decode(d: BinaryDecoder): java.time.Duration =
-                      java.time.Duration.ofSeconds(d.readLong(), d.readInt())
-
-                    def encode(x: java.time.Duration, e: BinaryEncoder): Unit = {
-                      e.writeLong(x.getSeconds)
-                      e.writeInt(x.getNano)
-                    }
-                  }
-                case _: PrimitiveType.Instant =>
-                  new AvroBinaryCodec[java.time.Instant]() {
-                    def decode(d: BinaryDecoder): java.time.Instant =
-                      java.time.Instant.ofEpochSecond(d.readLong(), d.readInt())
-
-                    def encode(x: java.time.Instant, e: BinaryEncoder): Unit = {
-                      e.writeLong(x.getEpochSecond)
-                      e.writeInt(x.getNano)
-                    }
-                  }
-                case _: PrimitiveType.LocalDate =>
-                  new AvroBinaryCodec[java.time.LocalDate]() {
-                    def decode(d: BinaryDecoder): java.time.LocalDate =
-                      java.time.LocalDate.of(d.readInt(), d.readInt(), d.readInt())
-
-                    def encode(x: java.time.LocalDate, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getYear)
-                      e.writeInt(x.getMonthValue)
-                      e.writeInt(x.getDayOfMonth)
-                    }
-                  }
-                case _: PrimitiveType.LocalDateTime =>
-                  new AvroBinaryCodec[java.time.LocalDateTime]() {
-                    def decode(d: BinaryDecoder): java.time.LocalDateTime =
-                      java.time.LocalDateTime
-                        .of(d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt(), d.readInt())
-
-                    def encode(x: java.time.LocalDateTime, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getYear)
-                      e.writeInt(x.getMonthValue)
-                      e.writeInt(x.getDayOfMonth)
-                      e.writeInt(x.getHour)
-                      e.writeInt(x.getMinute)
-                      e.writeInt(x.getSecond)
-                      e.writeInt(x.getNano)
-                    }
-                  }
-                case _: PrimitiveType.LocalTime =>
-                  new AvroBinaryCodec[java.time.LocalTime]() {
-                    def decode(d: BinaryDecoder): java.time.LocalTime =
-                      java.time.LocalTime.of(d.readInt(), d.readInt(), d.readInt(), d.readInt())
-
-                    def encode(x: java.time.LocalTime, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getHour)
-                      e.writeInt(x.getMinute)
-                      e.writeInt(x.getSecond)
-                      e.writeInt(x.getNano)
-                    }
-                  }
-                case _: PrimitiveType.Month =>
-                  new AvroBinaryCodec[java.time.Month]() {
-                    def decode(d: BinaryDecoder): java.time.Month = java.time.Month.of(d.readInt())
-
-                    def encode(x: java.time.Month, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
-                  }
-                case _: PrimitiveType.MonthDay =>
-                  new AvroBinaryCodec[java.time.MonthDay]() {
-                    def decode(d: BinaryDecoder): java.time.MonthDay = java.time.MonthDay.of(d.readInt(), d.readInt())
-
-                    def encode(x: java.time.MonthDay, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getMonthValue)
-                      e.writeInt(x.getDayOfMonth)
-                    }
-                  }
-                case _: PrimitiveType.OffsetDateTime =>
-                  new AvroBinaryCodec[java.time.OffsetDateTime]() {
-                    def decode(d: BinaryDecoder): java.time.OffsetDateTime =
-                      java.time.OffsetDateTime.of(
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        java.time.ZoneOffset.ofTotalSeconds(d.readInt())
-                      )
-
-                    def encode(x: java.time.OffsetDateTime, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getYear)
-                      e.writeInt(x.getMonthValue)
-                      e.writeInt(x.getDayOfMonth)
-                      e.writeInt(x.getHour)
-                      e.writeInt(x.getMinute)
-                      e.writeInt(x.getSecond)
-                      e.writeInt(x.getNano)
-                      e.writeInt(x.getOffset.getTotalSeconds)
-                    }
-                  }
-                case _: PrimitiveType.OffsetTime =>
-                  new AvroBinaryCodec[java.time.OffsetTime]() {
-                    def decode(d: BinaryDecoder): java.time.OffsetTime =
-                      java.time.OffsetTime.of(
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        java.time.ZoneOffset.ofTotalSeconds(d.readInt())
-                      )
-
-                    def encode(x: java.time.OffsetTime, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getHour)
-                      e.writeInt(x.getMinute)
-                      e.writeInt(x.getSecond)
-                      e.writeInt(x.getNano)
-                      e.writeInt(x.getOffset.getTotalSeconds)
-                    }
-                  }
-                case _: PrimitiveType.Period =>
-                  new AvroBinaryCodec[java.time.Period]() {
-                    def decode(d: BinaryDecoder): java.time.Period =
-                      java.time.Period.of(d.readInt(), d.readInt(), d.readInt())
-
-                    def encode(x: java.time.Period, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getYears)
-                      e.writeInt(x.getMonths)
-                      e.writeInt(x.getDays)
-                    }
-                  }
-                case _: PrimitiveType.Year =>
-                  new AvroBinaryCodec[java.time.Year]() {
-                    def decode(d: BinaryDecoder): java.time.Year = java.time.Year.of(d.readInt())
-
-                    def encode(x: java.time.Year, e: BinaryEncoder): Unit = e.writeInt(x.getValue)
-                  }
-                case _: PrimitiveType.YearMonth =>
-                  new AvroBinaryCodec[java.time.YearMonth]() {
-                    def decode(d: BinaryDecoder): java.time.YearMonth = java.time.YearMonth.of(d.readInt(), d.readInt())
-
-                    def encode(x: java.time.YearMonth, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getYear)
-                      e.writeInt(x.getMonthValue)
-                    }
-                  }
-                case _: PrimitiveType.ZoneId =>
-                  new AvroBinaryCodec[java.time.ZoneId]() {
-                    def decode(d: BinaryDecoder): java.time.ZoneId = java.time.ZoneId.of(d.readString())
-
-                    def encode(x: java.time.ZoneId, e: BinaryEncoder): Unit = e.writeString(x.toString)
-                  }
-                case _: PrimitiveType.ZoneOffset =>
-                  new AvroBinaryCodec[java.time.ZoneOffset]() {
-                    def decode(d: BinaryDecoder): java.time.ZoneOffset =
-                      java.time.ZoneOffset.ofTotalSeconds(d.readInt())
-
-                    def encode(x: java.time.ZoneOffset, e: BinaryEncoder): Unit = e.writeInt(x.getTotalSeconds)
-                  }
-                case _: PrimitiveType.ZonedDateTime =>
-                  new AvroBinaryCodec[java.time.ZonedDateTime]() {
-                    def decode(d: BinaryDecoder): java.time.ZonedDateTime = java.time.ZonedDateTime.ofInstant(
-                      java.time.LocalDateTime.of(
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt(),
-                        d.readInt()
-                      ),
-                      java.time.ZoneOffset.ofTotalSeconds(d.readInt()),
-                      java.time.ZoneId.of(d.readString())
-                    )
-
-                    def encode(x: java.time.ZonedDateTime, e: BinaryEncoder): Unit = {
-                      e.writeInt(x.getYear)
-                      e.writeInt(x.getMonthValue)
-                      e.writeInt(x.getDayOfMonth)
-                      e.writeInt(x.getHour)
-                      e.writeInt(x.getMinute)
-                      e.writeInt(x.getSecond)
-                      e.writeInt(x.getNano)
-                      e.writeInt(x.getOffset.getTotalSeconds)
-                      e.writeString(x.getZone.toString)
-                    }
-                  }
-                case _: PrimitiveType.Currency =>
-                  new AvroBinaryCodec[java.util.Currency]() {
-                    def decode(d: BinaryDecoder): java.util.Currency = {
-                      val bs = new Array[Byte](3)
-                      d.readFixed(bs, 0, 3)
-                      java.util.Currency.getInstance(new String(bs))
-                    }
-
-                    def encode(x: java.util.Currency, e: BinaryEncoder): Unit = {
-                      val s = x.toString
-                      e.writeFixed(Array(s.charAt(0).toByte, s.charAt(1).toByte, s.charAt(2).toByte))
-                    }
-                  }
-                case _: PrimitiveType.UUID =>
-                  new AvroBinaryCodec[java.util.UUID]() {
-                    def decode(d: BinaryDecoder): java.util.UUID = {
-                      val bs = new Array[Byte](16)
-                      d.readFixed(bs)
-                      val hi =
-                        (bs(0) & 0xff).toLong << 56 |
-                          (bs(1) & 0xff).toLong << 48 |
-                          (bs(2) & 0xff).toLong << 40 |
-                          (bs(3) & 0xff).toLong << 32 |
-                          (bs(4) & 0xff).toLong << 24 |
-                          (bs(5) & 0xff) << 16 |
-                          (bs(6) & 0xff) << 8 |
-                          (bs(7) & 0xff)
-                      val lo =
-                        (bs(8) & 0xff).toLong << 56 |
-                          (bs(9) & 0xff).toLong << 48 |
-                          (bs(10) & 0xff).toLong << 40 |
-                          (bs(11) & 0xff).toLong << 32 |
-                          (bs(12) & 0xff).toLong << 24 |
-                          (bs(13) & 0xff) << 16 |
-                          (bs(14) & 0xff) << 8 |
-                          (bs(15) & 0xff)
-                      new java.util.UUID(hi, lo)
-                    }
-
-                    def encode(x: java.util.UUID, e: BinaryEncoder): Unit = {
-                      val hi = x.getMostSignificantBits
-                      val lo = x.getLeastSignificantBits
-                      val bs = Array(
-                        (hi >> 56).toByte,
-                        (hi >> 48).toByte,
-                        (hi >> 40).toByte,
-                        (hi >> 32).toByte,
-                        (hi >> 24).toByte,
-                        (hi >> 16).toByte,
-                        (hi >> 8).toByte,
-                        hi.toByte,
-                        (lo >> 56).toByte,
-                        (lo >> 48).toByte,
-                        (lo >> 40).toByte,
-                        (lo >> 32).toByte,
-                        (lo >> 24).toByte,
-                        (lo >> 16).toByte,
-                        (lo >> 8).toByte,
-                        lo.toByte
-                      )
-                      e.writeFixed(bs)
-                    }
-                  }
+                case _: PrimitiveType.Unit.type      => unitCodec
+                case _: PrimitiveType.Byte           => byteCodec
+                case _: PrimitiveType.Boolean        => booleanCodec
+                case _: PrimitiveType.Short          => shortCodec
+                case _: PrimitiveType.Char           => charCodec
+                case _: PrimitiveType.Int            => intCodec
+                case _: PrimitiveType.Float          => floatCodec
+                case _: PrimitiveType.Long           => longCodec
+                case _: PrimitiveType.Double         => doubleCodec
+                case _: PrimitiveType.String         => stringCodec
+                case _: PrimitiveType.BigInt         => bigIntCodec
+                case _: PrimitiveType.BigDecimal     => bigDecimalCodec
+                case _: PrimitiveType.DayOfWeek      => dayOfWeekCodec
+                case _: PrimitiveType.Duration       => durationCodec
+                case _: PrimitiveType.Instant        => instantCodec
+                case _: PrimitiveType.LocalDate      => localDateCodec
+                case _: PrimitiveType.LocalDateTime  => localDateTimeCodec
+                case _: PrimitiveType.LocalTime      => localTimeCodec
+                case _: PrimitiveType.Month          => monthCodec
+                case _: PrimitiveType.MonthDay       => monthDayCodec
+                case _: PrimitiveType.OffsetDateTime => offsetDateTimeCodec
+                case _: PrimitiveType.OffsetTime     => offsetTimeCodec
+                case _: PrimitiveType.Period         => periodCodec
+                case _: PrimitiveType.Year           => yearCodec
+                case _: PrimitiveType.YearMonth      => yearMonthCodec
+                case _: PrimitiveType.ZoneId         => zoneIdCodec
+                case _: PrimitiveType.ZoneOffset     => zoneOffsetCodec
+                case _: PrimitiveType.ZonedDateTime  => zonedDateTimeCodec
+                case _: PrimitiveType.Currency       => currencyCodec
+                case _: PrimitiveType.UUID           => uuidCodec
               }
             } else primitive.primitiveBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isVariant) {
@@ -502,23 +610,31 @@ object AvroFormat
             if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
               val variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
               new AvroBinaryCodec[A]() {
-                private[this] val caseCodecs = {
+                private[this] val (caseCodecs, caseSpans) = {
                   val cases  = variant.cases
                   val codecs = new Array[AvroBinaryCodec[?]](cases.length)
+                  val spans  = new Array[DynamicOptic.Node.Case](cases.length)
                   val len    = cases.length
                   var idx    = 0
                   while (idx < len) {
                     codecs(idx) = deriveCodec(cases(idx).value)
+                    spans(idx) = new DynamicOptic.Node.Case(cases(idx).name)
                     idx += 1
                   }
-                  codecs
+                  (codecs, spans)
                 }
                 private[this] val discriminator = variantBinding.discriminator
 
-                def decode(d: BinaryDecoder): A = {
-                  val idx = d.readInt()
-                  if (idx >= 0 && idx < caseCodecs.length) caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].decode(d)
-                  else sys.error(s"Expected enum index from 0 to ${caseCodecs.length - 1}, got: $idx")
+                def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): A = {
+                  val idx =
+                    try {
+                      d.readInt()
+                    } catch {
+                      case error if NonFatal(error) => decodeError(t, error)
+                    }
+                  if (idx >= 0 && idx < caseCodecs.length) {
+                    caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].decode(caseSpans(idx) :: t, d)
+                  } else decodeError(t, s"Expected enum index from 0 to ${caseCodecs.length - 1}, got $idx")
                 }
 
                 def encode(x: A, e: BinaryEncoder): Unit = {
@@ -537,24 +653,33 @@ object AvroFormat
                 private[this] val deconstructor = seqBinding.deconstructor
                 private[this] val constructor   = seqBinding.constructor
 
-                def decode(d: BinaryDecoder): Col[Elem] = {
+                def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Col[Elem] = {
                   val builder = constructor.newObjectBuilder[Elem](8)
-                  var size    = d.readInt()
+                  var size    = 0
                   var count   = 0L
-                  while (size > 0) {
-                    count += size
-                    if (count > AvroBinaryCodec.maxCollectionSize) {
-                      sys.error(
-                        s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
+                  while ({
+                    size =
+                      try {
+                        d.readInt()
+                      } catch {
+                        case error if NonFatal(error) => decodeError(t, error)
+                      }
+                    size > 0
+                  }) {
+                    if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                      decodeError(
+                        t,
+                        s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
                       )
                     }
                     while (size > 0) {
-                      constructor.addObject(builder, elementCodec.decode(d))
+                      constructor
+                        .addObject(builder, elementCodec.decode(new DynamicOptic.Node.AtIndex(count.toInt) :: t, d))
+                      count += 1
                       size -= 1
                     }
-                    size = d.readInt()
                   }
-                  if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
+                  if (size < 0) decodeError(t, s"Expected positive collection part size, got $size")
                   constructor.resultObject[Elem](builder)
                 }
 
@@ -579,22 +704,34 @@ object AvroFormat
                 private[this] val deconstructor = mapBinding.deconstructor
                 private[this] val constructor   = mapBinding.constructor
 
-                def decode(d: BinaryDecoder): Map[Key, Value] = {
+                def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Map[Key, Value] = {
                   val builder = constructor.newObjectBuilder[Key, Value](8)
-                  var size    = d.readInt()
+                  var size    = 0
                   var count   = 0L
-                  while (size > 0) {
-                    count += size
-                    if (count > AvroBinaryCodec.maxCollectionSize) {
-                      sys.error(s"Expected map size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count")
+                  while ({
+                    size =
+                      try {
+                        d.readInt()
+                      } catch {
+                        case error if NonFatal(error) => decodeError(t, error)
+                      }
+                    size > 0
+                  }) {
+                    if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                      decodeError(
+                        t,
+                        s"Expected map size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                      )
                     }
                     while (size > 0) {
-                      constructor.addObject(builder, keyCodec.decode(d), valueCodec.decode(d))
+                      val k = keyCodec.decode(new DynamicOptic.Node.AtIndex(count.toInt) :: t, d)
+                      val v = valueCodec.decode(new DynamicOptic.Node.AtMapKey(k) :: t, d)
+                      constructor.addObject(builder, k, v)
+                      count += 1
                       size -= 1
                     }
-                    size = d.readInt()
                   }
-                  if (size < 0) sys.error(s"Expected positive map part size, got: $size")
+                  if (size < 0) decodeError(t, s"Expected positive map part size, got $size")
                   constructor.resultObject[Key, Value](builder)
                 }
 
@@ -620,52 +757,56 @@ object AvroFormat
               val fields        = record.fields
               val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
               new AvroBinaryCodec[A]() {
-                private[this] val fieldCodecs = {
+                private[this] val (fieldCodecs, fieldSpans) = {
                   if (isRecursive) recursiveRecordCache.get.get(record.typeName)
                   else null
                 } match {
                   case null =>
-                    val len    = fields.length
-                    val codecs = new Array[AvroBinaryCodec[?]](len)
-                    if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecs)
+                    val len             = fields.length
+                    val codecs          = new Array[AvroBinaryCodec[?]](len)
+                    val spans           = new Array[DynamicOptic.Node.Field](len)
+                    val codecsWithSpans = (codecs, spans)
+                    if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecsWithSpans)
                     var idx = 0
                     while (idx < len) {
                       codecs(idx) = deriveCodec(fields(idx).value)
+                      spans(idx) = new DynamicOptic.Node.Field(fields(idx).name)
                       idx += 1
                     }
-                    codecs
-                  case codecs => codecs
+                    codecsWithSpans
+                  case codecsWithSpans => codecsWithSpans
                 }
                 private[this] val deconstructor = recordBinding.deconstructor
                 private[this] val constructor   = recordBinding.constructor
 
-                def decode(d: BinaryDecoder): A = {
+                def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): A = {
                   val registers = Registers(record.usedRegisters)
                   var offset    = RegisterOffset.Zero
                   val len       = fieldCodecs.length
                   var idx       = 0
                   while (idx < len) {
                     val codec = fieldCodecs(idx)
+                    val t_    = fieldSpans(idx) :: t
                     codec.valueType match {
                       case AvroBinaryCodec.objectType =>
-                        registers.setObject(offset, 0, codec.asInstanceOf[AvroBinaryCodec[AnyRef]].decode(d))
+                        registers.setObject(offset, 0, codec.asInstanceOf[AvroBinaryCodec[AnyRef]].decode(t_, d))
                       case AvroBinaryCodec.intType =>
-                        registers.setInt(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Int]].decode(d))
+                        registers.setInt(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Int]].decode(t_, d))
                       case AvroBinaryCodec.longType =>
-                        registers.setLong(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Long]].decode(d))
+                        registers.setLong(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Long]].decode(t_, d))
                       case AvroBinaryCodec.floatType =>
-                        registers.setFloat(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Float]].decode(d))
+                        registers.setFloat(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Float]].decode(t_, d))
                       case AvroBinaryCodec.doubleType =>
-                        registers.setDouble(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Double]].decode(d))
+                        registers.setDouble(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Double]].decode(t_, d))
                       case AvroBinaryCodec.booleanType =>
-                        registers.setBoolean(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Boolean]].decode(d))
+                        registers.setBoolean(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Boolean]].decode(t_, d))
                       case AvroBinaryCodec.byteType =>
-                        registers.setByte(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Byte]].decode(d))
+                        registers.setByte(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Byte]].decode(t_, d))
                       case AvroBinaryCodec.charType =>
-                        registers.setChar(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Char]].decode(d))
+                        registers.setChar(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Char]].decode(t_, d))
                       case AvroBinaryCodec.shortType =>
-                        registers.setShort(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Short]].decode(d))
-                      case _ => codec.asInstanceOf[AvroBinaryCodec[Unit]].decode(d)
+                        registers.setShort(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Short]].decode(t_, d))
+                      case _ => codec.asInstanceOf[AvroBinaryCodec[Unit]].decode(t_, d)
                     }
                     offset = RegisterOffset.add(offset, codec.valueOffset)
                     idx += 1
@@ -717,10 +858,11 @@ object AvroFormat
                 private[this] val unwrap = wrapperBinding.unwrap
                 private[this] val wrap   = wrapperBinding.wrap
 
-                def decode(d: BinaryDecoder): A = wrap(codec.decode(d)) match {
-                  case Right(x)  => x
-                  case Left(err) => sys.error(err)
-                }
+                def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): A =
+                  wrap(codec.decode(DynamicOptic.Node.Wrapped :: t, d)) match {
+                    case Right(x)  => x
+                    case Left(err) => decodeError(t, err)
+                  }
 
                 def encode(x: A, e: BinaryEncoder): Unit = codec.encode(unwrap(x), e)
               }
@@ -734,68 +876,135 @@ object AvroFormat
 
         private[this] lazy val dynamicValueCodec = new AvroBinaryCodec[DynamicValue]() {
           private[this] val primitiveDynamicValueCodec = deriveCodec(Schema.derived[DynamicValue.Primitive].reflect)
+          private[this] val spanPrimitive              = new DynamicOptic.Node.Case("Primitive")
+          private[this] val spanRecord                 = new DynamicOptic.Node.Case("Record")
+          private[this] val spanVariant                = new DynamicOptic.Node.Case("Variant")
+          private[this] val spanSequence               = new DynamicOptic.Node.Case("Sequence")
+          private[this] val spanMap                    = new DynamicOptic.Node.Case("Map")
+          private[this] val spanFields                 = new DynamicOptic.Node.Field("fields")
+          private[this] val spanCaseName               = new DynamicOptic.Node.Field("caseName")
+          private[this] val spanValue                  = new DynamicOptic.Node.Field("value")
+          private[this] val spanElements               = new DynamicOptic.Node.Field("elements")
+          private[this] val spanEntries                = new DynamicOptic.Node.Field("entries")
+          private[this] val span_1                     = new DynamicOptic.Node.Field("_1")
+          private[this] val span_2                     = new DynamicOptic.Node.Field("_2")
 
-          def decode(d: BinaryDecoder): DynamicValue = d.readInt() match {
-            case 0 => primitiveDynamicValueCodec.decode(d)
-            case 1 =>
-              val builder = Vector.newBuilder[(String, DynamicValue)]
-              var size    = d.readInt()
-              var count   = 0L
-              while (size > 0) {
-                count += size
-                if (count > AvroBinaryCodec.maxCollectionSize) {
-                  sys.error(
-                    s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
-                  )
-                }
-                while (size > 0) {
-                  builder.addOne((d.readString(), decode(d)))
-                  size -= 1
-                }
-                size = d.readInt()
+          def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): DynamicValue = {
+            val idx =
+              try {
+                d.readInt()
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
               }
-              if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
-              new DynamicValue.Record(builder.result())
-            case 2 => new DynamicValue.Variant(d.readString(), decode(d))
-            case 3 =>
-              val builder = Vector.newBuilder[DynamicValue]
-              var size    = d.readInt()
-              var count   = 0L
-              while (size > 0) {
-                count += size
-                if (count > AvroBinaryCodec.maxCollectionSize) {
-                  sys.error(
-                    s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
-                  )
+            idx match {
+              case 0 =>
+                primitiveDynamicValueCodec.decode(spanPrimitive :: t, d)
+              case 1 =>
+                val t_      = spanFields :: spanRecord :: t
+                val builder = Vector.newBuilder[(String, DynamicValue)]
+                var size    = 0
+                var count   = 0L
+                while ({
+                  size =
+                    try {
+                      d.readInt()
+                    } catch {
+                      case error if NonFatal(error) => decodeError(t_, error)
+                    }
+                  size > 0
+                }) {
+                  if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                    decodeError(
+                      t_,
+                      s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                    )
+                  }
+                  while (size > 0) {
+                    val t__ = new DynamicOptic.Node.AtIndex(count.toInt) :: t_
+                    val k   =
+                      try {
+                        d.readString()
+                      } catch {
+                        case error if NonFatal(error) => decodeError(span_1 :: t__, error)
+                      }
+                    builder.addOne((k, decode(span_2 :: t__, d)))
+                    count += 1
+                    size -= 1
+                  }
                 }
-                while (size > 0) {
-                  builder.addOne(decode(d))
-                  size -= 1
+                if (size < 0) decodeError(t_, s"Expected positive collection part size, got $size")
+                new DynamicValue.Record(builder.result())
+              case 2 =>
+                val t_       = spanVariant :: t
+                val caseName =
+                  try {
+                    d.readString()
+                  } catch {
+                    case error if NonFatal(error) => decodeError(spanCaseName :: t_, error)
+                  }
+                val value = decode(spanValue :: t_, d)
+                new DynamicValue.Variant(caseName, value)
+              case 3 =>
+                val t_      = spanElements :: spanSequence :: t
+                val builder = Vector.newBuilder[DynamicValue]
+                var size    = 0
+                var count   = 0L
+                while ({
+                  size =
+                    try {
+                      d.readInt()
+                    } catch {
+                      case error if NonFatal(error) => decodeError(t_, error)
+                    }
+                  size > 0
+                }) {
+                  if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                    decodeError(
+                      t_,
+                      s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                    )
+                  }
+                  while (size > 0) {
+                    builder.addOne(decode(new DynamicOptic.Node.AtIndex(count.toInt) :: t_, d))
+                    count += 1
+                    size -= 1
+                  }
                 }
-                size = d.readInt()
-              }
-              if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
-              new DynamicValue.Sequence(builder.result())
-            case 4 =>
-              val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
-              var size    = d.readInt()
-              var count   = 0L
-              while (size > 0) {
-                count += size
-                if (count > AvroBinaryCodec.maxCollectionSize) {
-                  sys.error(
-                    s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got: $count"
-                  )
+                if (size < 0) decodeError(t_, s"Expected positive collection part size, got $size")
+                new DynamicValue.Sequence(builder.result())
+              case 4 =>
+                val t_      = spanEntries :: spanMap :: t
+                val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
+                var size    = 0
+                var count   = 0L
+                while ({
+                  size =
+                    try {
+                      d.readInt()
+                    } catch {
+                      case error if NonFatal(error) => decodeError(t_, error)
+                    }
+                  size > 0
+                }) {
+                  if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                    decodeError(
+                      t_,
+                      s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                    )
+                  }
+                  while (size > 0) {
+                    val t__ = new DynamicOptic.Node.AtIndex(count.toInt) :: t_
+                    val k   = decode(span_1 :: t__, d)
+                    val v   = decode(span_2 :: t__, d)
+                    builder.addOne((k, v))
+                    count += 1
+                    size -= 1
+                  }
                 }
-                while (size > 0) {
-                  builder.addOne((decode(d), decode(d)))
-                  size -= 1
-                }
-                size = d.readInt()
-              }
-              if (size < 0) sys.error(s"Expected positive collection part size, got: $size")
-              new DynamicValue.Map(builder.result())
-            case idx => sys.error(s"Expected enum index from 0 to 4, got: $idx")
+                if (size < 0) decodeError(t_, s"Expected positive collection part size, got $size")
+                new DynamicValue.Map(builder.result())
+              case idx => decodeError(t, s"Expected enum index from 0 to 4, got $idx")
+            }
           }
 
           def encode(x: DynamicValue, e: BinaryEncoder): Unit = x match {

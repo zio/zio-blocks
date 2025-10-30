@@ -1,12 +1,12 @@
 package zio.blocks.avro
 
-import org.apache.avro.io.{BinaryDecoder, BinaryEncoder, DecoderFactory, EncoderFactory}
+import org.apache.avro.io.{BinaryDecoder, BinaryEncoder, DecoderFactory, DirectBinaryEncoder}
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
 import java.io.OutputStream
 import java.nio.ByteBuffer
-import scala.util.control.NonFatal
+import scala.util.control.{NoStackTrace, NonFatal}
 
 abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectType) extends BinaryCodec[A] {
   val valueOffset: RegisterOffset.RegisterOffset = valueType match {
@@ -22,7 +22,18 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
     case _                           => RegisterOffset.Zero
   }
 
-  def decode(d: BinaryDecoder): A
+  def decodeError(t: List[DynamicOptic.Node], expectation: String): Nothing =
+    throw new AvroBinaryCodecError(t, expectation)
+
+  def decodeError(t: List[DynamicOptic.Node], error: Throwable): Nothing =
+    throw new AvroBinaryCodecError(
+      t, {
+        if (error.isInstanceOf[java.io.EOFException]) "Unexpected end of input"
+        else error.getMessage
+      }
+    )
+
+  def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): A
 
   def encode(x: A, e: BinaryEncoder): Unit
 
@@ -37,7 +48,7 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
       input.get(bs)
     }
     val avroDecoder = DecoderFactory.get().binaryDecoder(bs, pos, len, null)
-    try new Right(decode(avroDecoder))
+    try new Right(decode(Nil, avroDecoder))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
@@ -46,21 +57,16 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
   override def encode(value: A, output: ByteBuffer): Unit =
     encode(
       value,
-      EncoderFactory
-        .get()
-        .directBinaryEncoder(
-          new OutputStream {
-            override def write(b: Int): Unit = output.put(b.toByte)
+      new DirectBinaryEncoder(new OutputStream {
+        override def write(b: Int): Unit = output.put(b.toByte)
 
-            override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
-          },
-          null
-        )
+        override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
+      }) {}
     )
 
   def decode(input: Array[Byte]): Either[SchemaError, A] = {
     val avroDecoder = DecoderFactory.get().binaryDecoder(input, 0, input.length, null)
-    try new Right(decode(avroDecoder))
+    try new Right(decode(Nil, avroDecoder))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
@@ -68,26 +74,23 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
 
   def encode(value: A): Array[Byte] = {
     val output = new ByteArrayOutputStream
-    encode(value, EncoderFactory.get().directBinaryEncoder(output, null))
+    encode(value, new DirectBinaryEncoder(output) {})
     output.toByteArray
   }
 
   def decode(input: java.io.InputStream): Either[SchemaError, A] = {
     val avroDecoder = DecoderFactory.get().directBinaryDecoder(input, null)
-    try new Right(decode(avroDecoder))
+    try new Right(decode(Nil, avroDecoder))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
   }
 
-  def encode(value: A, output: java.io.OutputStream): Unit =
-    encode(value, EncoderFactory.get().directBinaryEncoder(output, null))
+  def encode(value: A, output: java.io.OutputStream): Unit = encode(value, new DirectBinaryEncoder(output) {})
 
-  private[this] def toError(error: Throwable) = {
-    val message =
-      if (error.isInstanceOf[java.io.EOFException]) "Unexpected end of input"
-      else error.getMessage
-    new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, message), Nil))
+  private[this] def toError(error: Throwable): SchemaError = error match {
+    case e: AvroBinaryCodecError => SchemaError.expectationMismatch(e.trace, e.expectation)
+    case _                       => SchemaError.expectationMismatch(Nil, error.getMessage)
   }
 }
 
@@ -105,6 +108,10 @@ object AvroBinaryCodec {
 
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
 }
+
+private[avro] case class AvroBinaryCodecError(trace: List[DynamicOptic.Node], expectation: String)
+    extends Exception
+    with NoStackTrace
 
 /**
  * Custom implementation replacing `java.io.ByteArrayOutputStream`.

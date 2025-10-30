@@ -13,7 +13,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue(()) == DynamicValue.Primitive(PrimitiveValue.Unit)) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Unit)))(isRight(equalTo(()))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Unit")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Unit")))
         )
       },
       test("Validation is set to None") {
@@ -28,7 +28,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(1: Byte))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Byte")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Byte")))
         )
       }
     ),
@@ -38,7 +38,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue(true) == DynamicValue.Primitive(PrimitiveValue.Boolean(true))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Boolean(true))))(isRight(equalTo(true))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Boolean")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Boolean")))
         )
       }
     ),
@@ -50,7 +50,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(1: Short))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Short")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Short")))
         )
       }
     ),
@@ -60,7 +60,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue('1') == DynamicValue.Primitive(PrimitiveValue.Char('1'))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Char('1'))))(isRight(equalTo('1'))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Char")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Char")))
         )
       }
     ),
@@ -70,7 +70,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Int(1))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(isRight(equalTo(1))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Int")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Int")))
         )
       }
     ),
@@ -80,7 +80,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Float(1.0f))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Float(1.0f))))(isRight(equalTo(1.0f))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Float")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Float")))
         )
       }
     ),
@@ -90,7 +90,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Long(1L))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(isRight(equalTo(1L))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Long")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Long")))
         )
       }
     ),
@@ -100,7 +100,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue(1) == DynamicValue.Primitive(PrimitiveValue.Double(1.0))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Double(1.0))))(isRight(equalTo(1.0))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Double")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Double")))
         )
       }
     ),
@@ -110,7 +110,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         assertTrue(tpe.toDynamicValue("WWW") == DynamicValue.Primitive(PrimitiveValue.String("WWW"))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("WWW"))))(isRight(equalTo("WWW"))) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected String")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected String")))
         )
       }
     ),
@@ -122,7 +122,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(BigInt(1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected BigInt")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected BigInt")))
         )
       }
     ),
@@ -136,7 +136,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(BigDecimal(1.0)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected BigDecimal")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected BigDecimal")))
         )
       }
     ),
@@ -161,9 +161,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
         ) &&
         assert(
           tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.String("123e4567-e89b-12d3-a456-426614174000")))
-        )(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected UUID")))
-        )
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected UUID"))))
       }
     ),
     suite("PrimitiveType.DayOfWeek")(
@@ -176,7 +174,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(DayOfWeek.MONDAY))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected DayOfWeek")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected DayOfWeek")))
         )
       }
     ),
@@ -190,7 +188,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.Duration.ofSeconds(1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Duration")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Duration")))
         )
       }
     ),
@@ -204,7 +202,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.Instant.ofEpochMilli(1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Instant")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Instant")))
         )
       }
     ),
@@ -220,7 +218,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.LocalDate.of(2023, 1, 1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected LocalDate")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected LocalDate")))
         )
       }
     ),
@@ -238,7 +236,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.LocalDateTime.of(2023, 1, 1, 1, 1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected LocalDateTime")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected LocalDateTime")))
         )
       }
     ),
@@ -252,7 +250,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.LocalTime.of(1, 1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected LocalTime")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected LocalTime")))
         )
       }
     ),
@@ -266,7 +264,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.Month.JANUARY))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Month")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Month")))
         )
       }
     ),
@@ -284,7 +282,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.MonthDay.of(java.time.Month.JANUARY, 1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected MonthDay")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected MonthDay")))
         )
       }
     ),
@@ -312,7 +310,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.OffsetDateTime.of(2023, 1, 1, 1, 1, 0, 0, java.time.ZoneOffset.UTC)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected OffsetDateTime")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected OffsetDateTime")))
         )
       }
     ),
@@ -336,7 +334,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.OffsetTime.of(1, 1, 0, 0, java.time.ZoneOffset.UTC)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected OffsetTime")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected OffsetTime")))
         )
       }
     ),
@@ -350,7 +348,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.Period.ofDays(1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Period")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Period")))
         )
       }
     ),
@@ -364,7 +362,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.Year.of(2023)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Year")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Year")))
         )
       }
     ),
@@ -378,7 +376,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.YearMonth.of(2023, 1)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected YearMonth")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected YearMonth")))
         )
       }
     ),
@@ -392,7 +390,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.ZoneId.of("UTC")))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected ZoneId")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected ZoneId")))
         )
       }
     ),
@@ -406,7 +404,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.ZoneOffset.UTC))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected ZoneOffset")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected ZoneOffset")))
         )
       }
     ),
@@ -430,7 +428,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.time.ZonedDateTime.of(2023, 1, 1, 1, 1, 0, 0, java.time.ZoneOffset.UTC)))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected ZonedDateTime")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected ZonedDateTime")))
         )
       }
     ),
@@ -454,7 +452,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(java.util.UUID.fromString("DAD945B7-64F4-4265-BB56-4557325F701C")))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected UUID")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected UUID")))
         )
       }
     ),
@@ -469,7 +467,7 @@ object PrimitiveTypeSpec extends ZIOSpecDefault {
           isRight(equalTo(testCurrency))
         ) &&
         assert(tpe.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Long(1L))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Currency")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Currency")))
         )
       }
     )

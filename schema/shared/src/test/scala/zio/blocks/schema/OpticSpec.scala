@@ -129,7 +129,7 @@ object OpticSpec extends ZIOSpecDefault {
           assert(_)(
             isLeft(
               startsWithString(
-                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '"
+                "Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '"
               ) &&
                 endsWithString(".equals(null)'")
             )
@@ -304,7 +304,7 @@ object OpticSpec extends ZIOSpecDefault {
                implicit val schema: Schema[Test] = Schema.derived
                val prism                         = optic(null.asInstanceOf[Test => Double])
              }"""
-        }.map(assert(_)(isLeft(startsWithString("Expected a lambda expression, got: 'null.asInstanceOf["))))
+        }.map(assert(_)(isLeft(startsWithString("Expected a lambda expression, got 'null.asInstanceOf["))))
       },
       test("has consistent equals and hashCode") {
         assert(Variant1.c1)(equalTo(Variant1.c1)) &&

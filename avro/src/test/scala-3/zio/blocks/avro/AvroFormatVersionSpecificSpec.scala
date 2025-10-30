@@ -1,10 +1,11 @@
 package zio.blocks.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
-import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, PrimitiveValue, Schema}
+import zio.blocks.schema.{CompanionOptics, DynamicOptic, DynamicValue, Lens, PrimitiveValue, Schema}
 import zio.blocks.avro.AvroTestUtils._
 import zio.test._
 import java.util.UUID
+import scala.util.control.NonFatal
 
 object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatVersionSpecificSpec")(
@@ -113,9 +114,16 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               private val codec   =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
 
-              def decode(d: BinaryDecoder): DynamicValue.Primitive =
-                if (d.readBoolean()) default
-                else codec.decode(d)
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): DynamicValue.Primitive = {
+                val isDefault =
+                  try {
+                    d.readBoolean()
+                  } catch {
+                    case error if NonFatal(error) => decodeError(t, error.getMessage)
+                  }
+                if (isDefault) default
+                else codec.decode(t, d)
+              }
 
               def encode(x: DynamicValue.Primitive, e: BinaryEncoder): Unit =
                 if (x == default) e.writeBoolean(true)
@@ -140,9 +148,16 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               private val codec =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
 
-              def decode(d: BinaryDecoder): DynamicValue.Map =
-                if (d.readBoolean()) default
-                else codec.decode(d)
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): DynamicValue.Map = {
+                val isDefault =
+                  try {
+                    d.readBoolean()
+                  } catch {
+                    case error if NonFatal(error) => decodeError(t, error.getMessage)
+                  }
+                if (isDefault) default
+                else codec.decode(t, d)
+              }
 
               def encode(x: DynamicValue.Map, e: BinaryEncoder): Unit =
                 if (x == default) e.writeBoolean(true)
