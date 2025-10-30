@@ -371,6 +371,34 @@ object AvroFormatSpec extends ZIOSpecDefault {
           2,
           codec
         )
+      },
+      test("recursive record with a custom codec") {
+        lazy val codec: AvroBinaryCodec[Recursive] = Recursive.schema
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Recursive.ln,
+            new AvroBinaryCodec[List[Recursive]]() {
+              def decode(d: BinaryDecoder): List[Recursive] = {
+                val builder = List.newBuilder[Recursive]
+                var size    = d.readInt()
+                while (size > 0) {
+                  builder.addOne(codec.decode(d))
+                  size -= 1
+                }
+                builder.result()
+              }
+
+              def encode(x: List[Recursive], e: BinaryEncoder): Unit = {
+                e.writeInt(x.size)
+                val it = x.iterator
+                while (it.hasNext) {
+                  codec.encode(it.next(), e)
+                }
+              }
+            }
+          )
+          .derive
+        shortRoundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 6, codec)
       }
     ),
     suite("sequences")(
@@ -639,8 +667,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
 
   case class Recursive(i: Int, ln: List[Recursive])
 
-  object Recursive {
-    implicit val schema: Schema[Recursive] = Schema.derived
+  object Recursive extends CompanionOptics[Recursive] {
+    implicit val schema: Schema[Recursive]   = Schema.derived
+    val i: Lens[Recursive, Int]              = $(_.i)
+    val ln: Lens[Recursive, List[Recursive]] = $(_.ln)
   }
 
   sealed trait TrafficLight
