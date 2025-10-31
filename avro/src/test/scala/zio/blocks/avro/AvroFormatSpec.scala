@@ -1,22 +1,13 @@
 package zio.blocks.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
-import zio.blocks.schema.{
-  CompanionOptics,
-  DynamicValue,
-  Lens,
-  Namespace,
-  Optional,
-  PrimitiveValue,
-  Reflect,
-  Schema,
-  TypeName
-}
+import zio.blocks.schema._
 import zio.blocks.avro.AvroTestUtils._
 import zio.blocks.schema.binding.Binding
 import zio.test._
 import java.util.UUID
 import scala.collection.immutable.ArraySeq
+import scala.util.control.NonFatal
 
 object AvroFormatSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatSpec")(
@@ -116,7 +107,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("String (decode error)") {
         val stringCodec = Schema[String].derive(AvroFormat.deriver)
         decodeError(Array.empty[Byte], stringCodec, "Unexpected end of input") &&
-        decodeError(Array(100, 42, 42, 42), stringCodec, "Unexpected end of input")
+        decodeError(Array[Byte](100, 42, 42, 42), stringCodec, "Unexpected end of input")
       },
       test("BigInt") {
         roundTrip(BigInt("9" * 20), 10)
@@ -185,8 +176,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("simple record (decode error)") {
         val record1Codec = Schema[Record1].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], record1Codec, "Unexpected end of input") &&
-        decodeError(Array(100, 42, 42, 42), record1Codec, "Unexpected end of input")
+        decodeError(
+          Array.empty[Byte],
+          record1Codec,
+          SchemaError.expectationMismatch(List(new DynamicOptic.Node.Field("bl")), "Unexpected end of input")
+        ) &&
+        decodeError(
+          Array[Byte](100, 42, 42, 42),
+          record1Codec,
+          SchemaError.expectationMismatch(List(new DynamicOptic.Node.Field("l")), "Unexpected end of input")
+        )
       },
       test("nested record") {
         roundTrip(
@@ -210,7 +209,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record1.i,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(d: BinaryDecoder): Int = java.lang.Integer.valueOf(d.readString())
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
+                java.lang.Integer.valueOf(d.readString())
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
 
               def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
             }
@@ -224,7 +227,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             TypeName.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(d: BinaryDecoder): Int = java.lang.Integer.valueOf(d.readString())
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
+                java.lang.Integer.valueOf(d.readString())
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
 
               def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
             }
@@ -238,7 +245,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record4.hidden,
             new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
-              def decode(d: BinaryDecoder): Unit = d.readString()
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Unit = try {
+                d.readString()
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
 
               def encode(x: Unit, e: BinaryEncoder): Unit = e.writeString("WWW")
             }
@@ -252,9 +263,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record4.optKey_None,
             new AvroBinaryCodec[None.type](AvroBinaryCodec.unitType) {
-              def decode(d: BinaryDecoder): None.type = {
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): None.type = try {
                 val _ = d.readString()
                 None
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
               }
 
               def encode(x: None.type, e: BinaryEncoder): Unit = e.writeString("WWW")
@@ -272,9 +285,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(d: BinaryDecoder): Record1 =
-                if (d.readBoolean()) default
-                else codec.decode(d)
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Record1 = {
+                val isDefault =
+                  try {
+                    d.readBoolean()
+                  } catch {
+                    case error if NonFatal(error) => decodeError(t, error)
+                  }
+                if (isDefault) default
+                else codec.decode(t, d)
+              }
 
               def encode(x: Record1, e: BinaryEncoder): Unit =
                 if (x == default) e.writeBoolean(true)
@@ -290,9 +310,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(d: BinaryDecoder): Record1 =
-                if (d.readBoolean()) default
-                else codec.decode(d)
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Record1 = {
+                val isDefault =
+                  try {
+                    d.readBoolean()
+                  } catch {
+                    case error if NonFatal(error) => decodeError(t, error)
+                  }
+                if (isDefault) default
+                else codec.decode(t, d)
+              }
 
               def encode(x: Record1, e: BinaryEncoder): Unit =
                 if (x == default) e.writeBoolean(true)
@@ -318,7 +345,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             TypeName.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(d: BinaryDecoder): Int = java.lang.Integer.valueOf(d.readString())
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
+                java.lang.Integer.valueOf(d.readString())
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
 
               def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
             }
@@ -326,7 +357,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record2.r1_2_i,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(d: BinaryDecoder): Int = d.readDouble().toInt
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
+                d.readDouble().toInt
+              } catch {
+                case error if NonFatal(error) => decodeError(t, error)
+              }
 
               def encode(x: Int, e: BinaryEncoder): Unit = e.writeDouble(x.toDouble)
             }
@@ -350,9 +385,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(d: BinaryDecoder): Record1 =
-                if (d.readBoolean()) default
-                else codec.decode(d)
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Record1 = {
+                val isDefault =
+                  try {
+                    d.readBoolean()
+                  } catch {
+                    case error if NonFatal(error) => decodeError(t, error)
+                  }
+                if (isDefault) default
+                else codec.decode(t, d)
+              }
 
               def encode(x: Record1, e: BinaryEncoder): Unit =
                 if (x == default) e.writeBoolean(true)
@@ -378,12 +420,18 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Recursive.ln,
             new AvroBinaryCodec[List[Recursive]]() {
-              def decode(d: BinaryDecoder): List[Recursive] = {
+              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): List[Recursive] = {
                 val builder = List.newBuilder[Recursive]
-                var size    = d.readInt()
-                while (size > 0) {
-                  builder.addOne(codec.decode(d))
-                  size -= 1
+                val size    =
+                  try {
+                    d.readInt()
+                  } catch {
+                    case error if NonFatal(error) => decodeError(t, error)
+                  }
+                var idx = 0
+                while (idx < size) {
+                  builder.addOne(codec.decode(new DynamicOptic.Node.AtIndex(idx) :: t, d))
+                  idx += 1
                 }
                 builder.result()
               }
@@ -427,12 +475,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("primitive values (decode error)") {
         val intListCodec = Schema[List[Int]].derive(AvroFormat.deriver)
         decodeError(Array.empty[Byte], intListCodec, "Unexpected end of input") &&
-        decodeError(Array(100, 42, 42, 42), intListCodec, "Unexpected end of input") &&
-        decodeError(Array(0x01.toByte), intListCodec, "Expected positive collection part size, got: -1") &&
+        decodeError(
+          Array[Byte](100, 42, 42, 42),
+          intListCodec,
+          SchemaError.expectationMismatch(List(new DynamicOptic.Node.AtIndex(3)), "Unexpected end of input")
+        ) &&
+        decodeError(Array(0x01.toByte), intListCodec, "Expected positive collection part size, got -1") &&
         decodeError(
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           intListCodec,
-          "Expected collection size not greater than 2147483639, got: 2147483647"
+          "Expected collection size not greater than 2147483639, got 2147483647"
         )
       },
       test("complex values") {
@@ -474,12 +526,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("string keys and primitive values (decode error)") {
         val stringToIntMapCodec = Schema[Map[String, Int]].derive(AvroFormat.deriver)
         decodeError(Array.empty[Byte], stringToIntMapCodec, "Unexpected end of input") &&
-        decodeError(Array(100), stringToIntMapCodec, "Unexpected end of input") &&
-        decodeError(Array(0x01.toByte), stringToIntMapCodec, "Expected positive map part size, got: -1") &&
+        decodeError(
+          Array[Byte](100),
+          stringToIntMapCodec,
+          SchemaError.expectationMismatch(List(new DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
+        ) &&
+        decodeError(Array(0x01.toByte), stringToIntMapCodec, "Expected positive map part size, got -1") &&
         decodeError(
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           stringToIntMapCodec,
-          "Expected map size not greater than 2147483639, got: 2147483647"
+          "Expected map size not greater than 2147483639, got 2147483647"
         )
       },
       test("string keys and complex values") {
@@ -506,12 +562,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("non string key map (decode error)") {
         val intToLongMapCodec = Schema[Map[Int, Long]].derive(AvroFormat.deriver)
         decodeError(Array.empty[Byte], intToLongMapCodec, "Unexpected end of input") &&
-        decodeError(Array(100), intToLongMapCodec, "Unexpected end of input") &&
-        decodeError(Array(0x01.toByte), intToLongMapCodec, "Expected positive map part size, got: -1") &&
+        decodeError(
+          Array[Byte](100),
+          intToLongMapCodec,
+          SchemaError.expectationMismatch(List(new DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
+        ) &&
+        decodeError(Array(0x01.toByte), intToLongMapCodec, "Expected positive map part size, got -1") &&
         decodeError(
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           intToLongMapCodec,
-          "Expected map size not greater than 2147483639, got: 2147483647"
+          "Expected map size not greater than 2147483639, got 2147483647"
         )
       },
       test("non string key with recursive values") {
@@ -538,7 +598,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         val trafficLightCodec = Schema[TrafficLight].derive(AvroFormat.deriver)
         val bytes             = trafficLightCodec.encode(TrafficLight.Red)
         bytes(0) = 42
-        decodeError(bytes, trafficLightCodec, "Expected enum index from 0 to 2, got: 21")
+        decodeError(bytes, trafficLightCodec, "Expected enum index from 0 to 2, got 21")
       },
       test("option") {
         roundTrip(Option(42), 2) &&
@@ -548,7 +608,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         val intOptionCodec = Schema[Option[Int]].derive(AvroFormat.deriver)
         val bytes          = intOptionCodec.encode(Some(1))
         bytes(0) = 42
-        decodeError(bytes, intOptionCodec, "Expected enum index from 0 to 1, got: 21")
+        decodeError(bytes, intOptionCodec, "Expected enum index from 0 to 1, got 21")
       },
       test("either") {
         roundTrip[Either[String, Int]](Right(42), 2) &&
@@ -608,26 +668,63 @@ object AvroFormatSpec extends ZIOSpecDefault {
         val dynamicValueCodec = Schema[DynamicValue].derive(AvroFormat.deriver)
         val bytes             = dynamicValueCodec.encode(DynamicValue.Primitive(PrimitiveValue.Int(1)))
         bytes(0) = 42
-        decodeError(bytes, dynamicValueCodec, "Expected enum index from 0 to 4, got: 21") &&
-        decodeError(Array.empty, dynamicValueCodec, "Unexpected end of input") &&
-        decodeError(Array(2), dynamicValueCodec, "Unexpected end of input") &&
-        decodeError(Array(2, 0x01.toByte), dynamicValueCodec, "Expected positive collection part size, got: -1") &&
-        decodeError(Array(6, 0x01.toByte), dynamicValueCodec, "Expected positive collection part size, got: -1") &&
-        decodeError(Array(8, 0x01.toByte), dynamicValueCodec, "Expected positive collection part size, got: -1") &&
+        decodeError(bytes, dynamicValueCodec, "Expected enum index from 0 to 4, got 21") &&
+        decodeError(Array.empty[Byte], dynamicValueCodec, "Unexpected end of input") &&
         decodeError(
-          Array(2, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          Array[Byte](2),
           dynamicValueCodec,
-          "Expected collection size not greater than 2147483639, got: 2147483647"
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("fields"), DynamicOptic.Node.Case("Record")),
+            "Unexpected end of input"
+          )
         ) &&
         decodeError(
-          Array(6, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          Array[Byte](2, 0x01.toByte),
           dynamicValueCodec,
-          "Expected collection size not greater than 2147483639, got: 2147483647"
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("fields"), DynamicOptic.Node.Case("Record")),
+            "Expected positive collection part size, got -1"
+          )
         ) &&
         decodeError(
-          Array(8, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          Array[Byte](6, 0x01.toByte),
           dynamicValueCodec,
-          "Expected collection size not greater than 2147483639, got: 2147483647"
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
+            "Expected positive collection part size, got -1"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](8, 0x01.toByte),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("entries"), DynamicOptic.Node.Case("Map")),
+            "Expected positive collection part size, got -1"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](2, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("fields"), DynamicOptic.Node.Case("Record")),
+            "Expected collection size not greater than 2147483639, got 2147483647"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](6, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
+            "Expected collection size not greater than 2147483639, got 2147483647"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](8, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("entries"), DynamicOptic.Node.Case("Map")),
+            "Expected collection size not greater than 2147483639, got 2147483647"
+          )
         )
       }
     )

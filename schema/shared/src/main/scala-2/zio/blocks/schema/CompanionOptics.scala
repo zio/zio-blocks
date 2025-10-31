@@ -56,7 +56,7 @@ private object CompanionOptics {
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody
-      case _                    => fail(s"Expected a lambda expression, got: '$tree'")
+      case _                    => fail(s"Expected a lambda expression, got '$tree'")
     }
 
     def toOptic(tree: c.Tree): c.Tree = tree match {
@@ -234,7 +234,7 @@ private object CompanionOptics {
         q""
       case tree =>
         fail(
-          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '$tree'"
+          s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '$tree'"
         )
     }
 

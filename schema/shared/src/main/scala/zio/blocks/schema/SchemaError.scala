@@ -12,16 +12,16 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
 }
 
 object SchemaError {
-  private[schema] def invalidType(trace: List[DynamicOptic.Node], expectation: String): SchemaError =
-    new SchemaError(new ::(new InvalidType(toDynamicOptic(trace), expectation), Nil))
+  def expectationMismatch(trace: List[DynamicOptic.Node], expectation: String): SchemaError =
+    new SchemaError(new ::(new ExpectationMismatch(toDynamicOptic(trace), expectation), Nil))
 
-  private[schema] def missingField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
+  def missingField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
     new SchemaError(new ::(new MissingField(toDynamicOptic(trace), fieldName), Nil))
 
-  private[schema] def duplicatedField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
+  def duplicatedField(trace: List[DynamicOptic.Node], fieldName: String): SchemaError =
     new SchemaError(new ::(new DuplicatedField(toDynamicOptic(trace), fieldName), Nil))
 
-  private[schema] def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
+  def unknownCase(trace: List[DynamicOptic.Node], caseName: String): SchemaError =
     new SchemaError(new ::(new UnknownCase(toDynamicOptic(trace), caseName), Nil))
 
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
@@ -54,7 +54,7 @@ object SchemaError {
     override def message: String = s"Duplicated field $fieldName at: $source"
   }
 
-  case class InvalidType(source: DynamicOptic, expectation: String) extends Single {
+  case class ExpectationMismatch(source: DynamicOptic, expectation: String) extends Single {
     override def message: String = s"$expectation at: $source"
   }
 

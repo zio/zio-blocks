@@ -358,8 +358,7 @@ object Reflect {
           }
           if (error.isDefined) new Left(error.get)
           else new Right(constructor.construct(registers, RegisterOffset.Zero))
-        case _ =>
-          new Left(SchemaError.invalidType(trace, "Expected a record"))
+        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a record"))
       }
 
     def lensByName[B](name: String): Option[Lens[A, B]] = lensByIndex(fieldIndexByName.get(name))
@@ -546,7 +545,7 @@ object Reflect {
               .asInstanceOf[Reflect[F, A]]
               .fromDynamicValue(value, new DynamicOptic.Node.Case(case_.name) :: trace)
           } else new Left(SchemaError.unknownCase(trace, discriminator))
-        case _ => new Left(SchemaError.invalidType(trace, "Expected a variant"))
+        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a variant"))
       }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
@@ -741,8 +740,7 @@ object Reflect {
               if (error.isDefined) new Left(error.get)
               else new Right(constructor.resultObject(builder))
           }
-        case _ =>
-          new Left(SchemaError.invalidType(trace, "Expected a sequence"))
+        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a sequence"))
       }
     }
 
@@ -849,8 +847,7 @@ object Reflect {
           }
           if (error.isDefined) new Left(error.get)
           else new Right(constructor.resultObject(builder))
-        case _ =>
-          new Left(SchemaError.invalidType(trace, "Expected a map"))
+        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a map"))
       }
     }
 
@@ -1054,7 +1051,7 @@ object Reflect {
       (wrapped.fromDynamicValue(value) match {
         case Right(unwrapped) =>
           binding.wrap(unwrapped) match {
-            case Left(error) => new Left(SchemaError.invalidType(trace, s"Expected ${typeName.name}: $error"))
+            case Left(error) => new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeName.name}: $error"))
             case right       => right
           }
         case left => left
