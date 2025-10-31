@@ -179,12 +179,12 @@ object AvroFormatSpec extends ZIOSpecDefault {
         decodeError(
           Array.empty[Byte],
           record1Codec,
-          SchemaError.expectationMismatch(List(new DynamicOptic.Node.Field("bl")), "Unexpected end of input")
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.Field("bl")), "Unexpected end of input")
         ) &&
         decodeError(
           Array[Byte](100, 42, 42, 42),
           record1Codec,
-          SchemaError.expectationMismatch(List(new DynamicOptic.Node.Field("l")), "Unexpected end of input")
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.Field("l")), "Unexpected end of input")
         )
       },
       test("nested record") {
@@ -478,7 +478,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         decodeError(
           Array[Byte](100, 42, 42, 42),
           intListCodec,
-          SchemaError.expectationMismatch(List(new DynamicOptic.Node.AtIndex(3)), "Unexpected end of input")
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtIndex(3)), "Unexpected end of input")
         ) &&
         decodeError(Array(0x01.toByte), intListCodec, "Expected positive collection part size, got -1") &&
         decodeError(
@@ -529,7 +529,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         decodeError(
           Array[Byte](100),
           stringToIntMapCodec,
-          SchemaError.expectationMismatch(List(new DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
         ) &&
         decodeError(Array(0x01.toByte), stringToIntMapCodec, "Expected positive map part size, got -1") &&
         decodeError(
@@ -565,7 +565,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         decodeError(
           Array[Byte](100),
           intToLongMapCodec,
-          SchemaError.expectationMismatch(List(new DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
         ) &&
         decodeError(Array(0x01.toByte), intToLongMapCodec, "Expected positive map part size, got -1") &&
         decodeError(
