@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.Chunk
 import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
-import zio.blocks.schema.SchemaError.{InvalidType, MissingField}
+import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.codec.{TextCodec, TextFormat}
 import zio.blocks.schema.derive.Deriver
@@ -50,7 +50,7 @@ object SchemaSpec extends ZIOSpecDefault {
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Byte].fromDynamicValue(Schema[Byte].toDynamicValue(1)))(isRight(equalTo(1: Byte))) &&
         assert(Schema[Byte].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected Byte")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected Byte")))
         )
       },
       test("encodes values using provided formats and outputs") {
@@ -109,7 +109,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Record(1: Byte, 1000)))
         ) &&
         assert(Record.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a record")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected a record")))
         ) &&
         assert(
           Record.schema.fromDynamicValue(
@@ -807,7 +807,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Case2("VVV")))
         ) &&
         assert(Variant.schema.fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a variant")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected a variant")))
         ) &&
         assert(
           Variant.schema.fromDynamicValue(
@@ -822,7 +822,7 @@ object SchemaSpec extends ZIOSpecDefault {
         )(
           isLeft(
             equalTo(
-              SchemaError.invalidType(
+              SchemaError.expectationMismatch(
                 List(DynamicOptic.Node.Field("s"), DynamicOptic.Node.Case("Case2")),
                 "Expected String"
               )
@@ -1235,7 +1235,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(List("VVV", "WWW")))
         ) &&
         assert(Schema[List[Int]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a sequence")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected a sequence")))
         ) &&
         assert(
           Schema[List[Boolean]].fromDynamicValue(
@@ -1259,42 +1259,42 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[List[Byte]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Byte")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Byte")))) &&
         assert(
           Schema[List[Char]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Char")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Char")))) &&
         assert(
           Schema[List[Short]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Short")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Short")))) &&
         assert(
           Schema[List[Int]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Long(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Int")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Int")))) &&
         assert(
           Schema[List[Float]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Float")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Float")))) &&
         assert(
           Schema[List[Long]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Long")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Long")))) &&
         assert(
           Schema[List[Double]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected Double")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Double")))) &&
         assert(
           Schema[List[String]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.invalidType(Elements :: Nil, "Expected String")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected String")))) &&
         assert(
           Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
         )(
@@ -1402,7 +1402,7 @@ object SchemaSpec extends ZIOSpecDefault {
           Schema[Map[Int, Long]].fromDynamicValue(Schema[Map[Int, Long]].toDynamicValue(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))
         )(isRight(equalTo(Map(1 -> 1L, 2 -> 2L, 3 -> 3L)))) &&
         assert(Schema[Map[Int, Long]].fromDynamicValue(DynamicValue.Primitive(PrimitiveValue.Int(1))))(
-          isLeft(equalTo(SchemaError.invalidType(Nil, "Expected a map")))
+          isLeft(equalTo(SchemaError.expectationMismatch(Nil, "Expected a map")))
         ) &&
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
@@ -1412,7 +1412,7 @@ object SchemaSpec extends ZIOSpecDefault {
               )
             )
           )
-        )(isLeft(equalTo(SchemaError.invalidType(DynamicOptic.Node.MapKeys :: Nil, "Expected Int")))) &&
+        )(isLeft(equalTo(SchemaError.expectationMismatch(DynamicOptic.Node.MapKeys :: Nil, "Expected Int")))) &&
         assert(
           Schema[Map[Int, Long]].fromDynamicValue(
             DynamicValue.Map(
@@ -1427,12 +1427,12 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(
               SchemaError(
                 errors = ::(
-                  InvalidType(
+                  ExpectationMismatch(
                     source = DynamicOptic(nodes = Vector(MapValues)),
                     expectation = "Expected Long"
                   ),
                   ::(
-                    InvalidType(
+                    ExpectationMismatch(
                       source = DynamicOptic(nodes = Vector(MapValues)),
                       expectation = "Expected Long"
                     ),
@@ -1705,7 +1705,7 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(
               SchemaError(
                 errors = ::(
-                  InvalidType(
+                  ExpectationMismatch(
                     source = DynamicOptic(nodes = Vector()),
                     expectation = "Expected PosInt: Expected positive value"
                   ),
@@ -1720,7 +1720,7 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(
               SchemaError(
                 errors = ::(
-                  InvalidType(
+                  ExpectationMismatch(
                     source = DynamicOptic(nodes = Vector()),
                     expectation = "Expected Int"
                   ),

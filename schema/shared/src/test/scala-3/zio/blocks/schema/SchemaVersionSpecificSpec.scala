@@ -301,7 +301,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             equalTo(
               SchemaError(errors =
                 ::(
-                  SchemaError.InvalidType(
+                  SchemaError.ExpectationMismatch(
                     source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
                     expectation = "Expected Id: Expected a string with letter or digit characters"
                   ),
@@ -350,7 +350,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             equalTo(
               SchemaError(errors =
                 ::(
-                  SchemaError.InvalidType(
+                  SchemaError.ExpectationMismatch(
                     source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field(name = "id"))),
                     expectation = "Expected InnerId: Expected a string with letter or digit characters"
                   ),

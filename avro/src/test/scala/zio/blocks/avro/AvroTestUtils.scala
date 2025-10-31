@@ -3,7 +3,7 @@ package zio.blocks.avro
 import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
 import org.apache.avro.{Schema => AvroSchema}
-import zio.blocks.schema.{DynamicOptic, Schema, SchemaError}
+import zio.blocks.schema.{Schema, SchemaError}
 import zio.test.Assertion._
 import zio.test._
 import java.io.ByteArrayOutputStream
@@ -91,13 +91,14 @@ object AvroTestUtils {
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))
   }
 
-  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], expectedMessage: String): TestResult = {
-    val error = new SchemaError(new ::(new SchemaError.InvalidType(DynamicOptic.root, expectedMessage), Nil))
+  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], expectedMessage: String): TestResult =
+    decodeError(bytes, codec, SchemaError.expectationMismatch(Nil, expectedMessage))
+
+  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], error: SchemaError): TestResult =
     assert(codec.decode(bytes))(isLeft(equalTo(error))) &&
-    assert(codec.decode(toInputStream(bytes)))(isLeft(equalTo(error))) &&
-    assert(codec.decode(toHeapByteBuffer(bytes)))(isLeft(equalTo(error))) &&
-    assert(codec.decode(toDirectByteBuffer(bytes)))(isLeft(equalTo(error)))
-  }
+      assert(codec.decode(toInputStream(bytes)))(isLeft(equalTo(error))) &&
+      assert(codec.decode(toHeapByteBuffer(bytes)))(isLeft(equalTo(error))) &&
+      assert(codec.decode(toDirectByteBuffer(bytes)))(isLeft(equalTo(error)))
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 

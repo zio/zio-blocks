@@ -46,7 +46,7 @@ private object CompanionOptics {
     def toPathBody(term: Term): Term = term match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
       case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
-      case _                                               => fail(s"Expected a lambda expression, got: '${term.show}'")
+      case _                                               => fail(s"Expected a lambda expression, got '${term.show}'")
     }
 
     def hasName(using q: Quotes)(term: q.reflect.Term, name: String): Boolean = {
@@ -511,7 +511,7 @@ private object CompanionOptics {
             case Apply(TypeApply(Select(p, "apply"), _), List(Literal(IntConstant(i)))) => (p, i)
             case _                                                                      =>
               fail(
-                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got: '${term.show}'"
+                s"Expected path elements: .<field>, .when[<T>], .at(<index>), .atIndices(<indices>), .atKey(<key>), .atKeys(<keys>), .each, .eachKey, .eachValue, or .wrapped[<T>], got '${term.show}'"
               )
           }
           var parentTpe = parent.tpe.widen.dealias

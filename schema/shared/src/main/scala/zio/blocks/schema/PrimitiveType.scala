@@ -30,7 +30,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Unit] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Unit) => new Right(())
-        case _                                           => new Left(SchemaError.invalidType(trace, "Expected Unit"))
+        case _                                           => new Left(SchemaError.expectationMismatch(trace, "Expected Unit"))
       }
   }
 
@@ -46,7 +46,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Boolean] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Boolean(b)) => new Right(b)
-        case _                                                 => new Left(SchemaError.invalidType(trace, "Expected Boolean"))
+        case _                                                 => new Left(SchemaError.expectationMismatch(trace, "Expected Boolean"))
       }
   }
 
@@ -61,7 +61,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Byte] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Byte(b)) => new Right(b)
-        case _                                              => new Left(SchemaError.invalidType(trace, "Expected Byte"))
+        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected Byte"))
       }
   }
 
@@ -76,7 +76,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Short] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Short(s)) => new Right(s)
-        case _                                               => new Left(SchemaError.invalidType(trace, "Expected Short"))
+        case _                                               => new Left(SchemaError.expectationMismatch(trace, "Expected Short"))
       }
   }
 
@@ -91,7 +91,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Int] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Int(i)) => new Right(i)
-        case _                                             => new Left(SchemaError.invalidType(trace, "Expected Int"))
+        case _                                             => new Left(SchemaError.expectationMismatch(trace, "Expected Int"))
       }
   }
 
@@ -106,7 +106,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Long] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Long(l)) => new Right(l)
-        case _                                              => new Left(SchemaError.invalidType(trace, "Expected Long"))
+        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected Long"))
       }
   }
 
@@ -121,7 +121,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Float] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Float(f)) => Right(f)
-        case _                                               => Left(SchemaError.invalidType(trace, "Expected Float"))
+        case _                                               => Left(SchemaError.expectationMismatch(trace, "Expected Float"))
       }
   }
 
@@ -136,7 +136,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Double] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Double(d)) => new Right(d)
-        case _                                                => new Left(SchemaError.invalidType(trace, "Expected Double"))
+        case _                                                => new Left(SchemaError.expectationMismatch(trace, "Expected Double"))
       }
   }
 
@@ -151,7 +151,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.Char] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Char(c)) => new Right(c)
-        case _                                              => new Left(SchemaError.invalidType(trace, "Expected Char"))
+        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected Char"))
       }
   }
 
@@ -167,7 +167,7 @@ object PrimitiveType {
     ): Either[SchemaError, Predef.String] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.String(s)) => new Right(s)
-        case _                                                => new Left(SchemaError.invalidType(trace, "Expected String"))
+        case _                                                => new Left(SchemaError.expectationMismatch(trace, "Expected String"))
       }
   }
 
@@ -182,7 +182,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.BigInt] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.BigInt(b)) => new Right(b)
-        case _                                                => new Left(SchemaError.invalidType(trace, "Expected BigInt"))
+        case _                                                => new Left(SchemaError.expectationMismatch(trace, "Expected BigInt"))
       }
   }
 
@@ -198,7 +198,7 @@ object PrimitiveType {
     ): Either[SchemaError, scala.BigDecimal] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.BigDecimal(b)) => new Right(b)
-        case _                                                    => new Left(SchemaError.invalidType(trace, "Expected BigDecimal"))
+        case _                                                    => new Left(SchemaError.expectationMismatch(trace, "Expected BigDecimal"))
       }
   }
 
@@ -213,7 +213,7 @@ object PrimitiveType {
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.DayOfWeek] = value match {
       case DynamicValue.Primitive(PrimitiveValue.DayOfWeek(d)) => new Right(d)
-      case _                                                   => new Left(SchemaError.invalidType(trace, "Expected DayOfWeek"))
+      case _                                                   => new Left(SchemaError.expectationMismatch(trace, "Expected DayOfWeek"))
     }
   }
 
@@ -229,7 +229,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.Duration] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Duration(d)) => new Right(d)
-        case _                                                  => new Left(SchemaError.invalidType(trace, "Expected Duration"))
+        case _                                                  => new Left(SchemaError.expectationMismatch(trace, "Expected Duration"))
       }
   }
 
@@ -245,7 +245,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.Instant] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Instant(i)) => new Right(i)
-        case _                                                 => new Left(SchemaError.invalidType(trace, "Expected Instant"))
+        case _                                                 => new Left(SchemaError.expectationMismatch(trace, "Expected Instant"))
       }
   }
 
@@ -260,7 +260,7 @@ object PrimitiveType {
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.LocalDate] = value match {
       case DynamicValue.Primitive(PrimitiveValue.LocalDate(d)) => new Right(d)
-      case _                                                   => new Left(SchemaError.invalidType(trace, "Expected LocalDate"))
+      case _                                                   => new Left(SchemaError.expectationMismatch(trace, "Expected LocalDate"))
     }
   }
 
@@ -277,7 +277,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.LocalDateTime] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.LocalDateTime(d)) => new Right(d)
-        case _                                                       => new Left(SchemaError.invalidType(trace, "Expected LocalDateTime"))
+        case _                                                       => new Left(SchemaError.expectationMismatch(trace, "Expected LocalDateTime"))
       }
   }
 
@@ -292,7 +292,7 @@ object PrimitiveType {
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.LocalTime] = value match {
       case DynamicValue.Primitive(PrimitiveValue.LocalTime(t)) => new Right(t)
-      case _                                                   => new Left(SchemaError.invalidType(trace, "Expected LocalTime"))
+      case _                                                   => new Left(SchemaError.expectationMismatch(trace, "Expected LocalTime"))
     }
   }
 
@@ -308,7 +308,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.Month] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Month(m)) => new Right(m)
-        case _                                               => new Left(SchemaError.invalidType(trace, "Expected Month"))
+        case _                                               => new Left(SchemaError.expectationMismatch(trace, "Expected Month"))
       }
   }
 
@@ -324,7 +324,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.MonthDay] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.MonthDay(m)) => new Right(m)
-        case _                                                  => new Left(SchemaError.invalidType(trace, "Expected MonthDay"))
+        case _                                                  => new Left(SchemaError.expectationMismatch(trace, "Expected MonthDay"))
       }
   }
 
@@ -341,7 +341,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.OffsetDateTime] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.OffsetDateTime(d)) => new Right(d)
-        case _                                                        => new Left(SchemaError.invalidType(trace, "Expected OffsetDateTime"))
+        case _                                                        => new Left(SchemaError.expectationMismatch(trace, "Expected OffsetDateTime"))
       }
   }
 
@@ -356,7 +356,7 @@ object PrimitiveType {
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.OffsetTime] = value match {
       case DynamicValue.Primitive(PrimitiveValue.OffsetTime(t)) => new Right(t)
-      case _                                                    => new Left(SchemaError.invalidType(trace, "Expected OffsetTime"))
+      case _                                                    => new Left(SchemaError.expectationMismatch(trace, "Expected OffsetTime"))
     }
   }
 
@@ -372,7 +372,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.Period] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Period(p)) => new Right(p)
-        case _                                                => new Left(SchemaError.invalidType(trace, "Expected Period"))
+        case _                                                => new Left(SchemaError.expectationMismatch(trace, "Expected Period"))
       }
   }
 
@@ -387,7 +387,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.Year] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Year(y)) => new Right(y)
-        case _                                              => new Left(SchemaError.invalidType(trace, "Expected Year"))
+        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected Year"))
       }
   }
 
@@ -402,7 +402,7 @@ object PrimitiveType {
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.YearMonth] = value match {
       case DynamicValue.Primitive(PrimitiveValue.YearMonth(y)) => new Right(y)
-      case _                                                   => new Left(SchemaError.invalidType(trace, "Expected YearMonth"))
+      case _                                                   => new Left(SchemaError.expectationMismatch(trace, "Expected YearMonth"))
     }
   }
 
@@ -418,7 +418,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.ZoneId] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.ZoneId(z)) => new Right(z)
-        case _                                                => new Left(SchemaError.invalidType(trace, "Expected ZoneId"))
+        case _                                                => new Left(SchemaError.expectationMismatch(trace, "Expected ZoneId"))
       }
   }
 
@@ -433,7 +433,7 @@ object PrimitiveType {
       trace: List[DynamicOptic.Node]
     ): Either[SchemaError, java.time.ZoneOffset] = value match {
       case DynamicValue.Primitive(PrimitiveValue.ZoneOffset(z)) => new Right(z)
-      case _                                                    => new Left(SchemaError.invalidType(trace, "Expected ZoneOffset"))
+      case _                                                    => new Left(SchemaError.expectationMismatch(trace, "Expected ZoneOffset"))
     }
   }
 
@@ -450,7 +450,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.time.ZonedDateTime] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.ZonedDateTime(z)) => new Right(z)
-        case _                                                       => new Left(SchemaError.invalidType(trace, "Expected ZonedDateTime"))
+        case _                                                       => new Left(SchemaError.expectationMismatch(trace, "Expected ZonedDateTime"))
       }
   }
 
@@ -466,7 +466,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.util.UUID] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.UUID(u)) => new Right(u)
-        case _                                              => new Left(SchemaError.invalidType(trace, "Expected UUID"))
+        case _                                              => new Left(SchemaError.expectationMismatch(trace, "Expected UUID"))
       }
   }
 
@@ -482,7 +482,7 @@ object PrimitiveType {
     ): Either[SchemaError, java.util.Currency] =
       value match {
         case DynamicValue.Primitive(PrimitiveValue.Currency(c)) => new Right(c)
-        case _                                                  => new Left(SchemaError.invalidType(trace, "Expected Currency"))
+        case _                                                  => new Left(SchemaError.expectationMismatch(trace, "Expected Currency"))
       }
   }
 }
