@@ -38,11 +38,8 @@ object AvroTestUtils {
     sb.append(header).append(lineSeparator).toString
   }
 
-  def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult = {
-    val avroSchema = AvroSchemaCodec.toAvroSchema(schema)
-    val codec      = schema.derive(AvroFormat.deriver)
-    roundTrip(value, expectedLength, avroSchema, codec)
-  }
+  def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =
+    roundTrip(value, expectedLength, AvroSchemaCodec.toAvroSchema(schema), schema.derive(AvroFormat.deriver))
 
   def roundTrip[A](value: A, expectedLength: Int, avroSchema: AvroSchema, codec: AvroBinaryCodec[A]): TestResult = {
     val byteBuffer = ByteBuffer.allocate(1024)

@@ -109,7 +109,7 @@ object AvroBinaryCodec {
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
 }
 
-private[avro] case class AvroBinaryCodecError(trace: List[DynamicOptic.Node], expectation: String)
+private case class AvroBinaryCodecError(trace: List[DynamicOptic.Node], expectation: String)
     extends Exception
     with NoStackTrace
 
@@ -117,10 +117,10 @@ private[avro] case class AvroBinaryCodecError(trace: List[DynamicOptic.Node], ex
  * Custom implementation replacing `java.io.ByteArrayOutputStream`.
  *
  * This class is used for performance optimization and to avoid unnecessary
- * allocations that can occur with the standard `ByteArrayOutputStream`. The
- * buffer growth strategy doubles the buffer size when more space is needed, or
- * grows to fit the required length if doubling is insufficient. This minimizes
- * the number of allocations and copies, especially for large or unpredictable
+ * overhead that occur with the standard `ByteArrayOutputStream`. The buffer
+ * growth strategy doubles the buffer size when more space is needed, or grows
+ * to fit the required length if doubling is insufficient. This minimizes the
+ * number of allocations and copies, especially for large or unpredictable
  * output sizes.
  */
 private class ByteArrayOutputStream extends java.io.OutputStream {
