@@ -608,22 +608,24 @@ object AvroFormat
           } else if (reflect.isVariant) {
             val variant = reflect.asVariant.get
             if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
-              val variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
-              new AvroBinaryCodec[A]() {
-                private[this] val (caseCodecs, caseSpans) = {
-                  val cases  = variant.cases
-                  val codecs = new Array[AvroBinaryCodec[?]](cases.length)
-                  val spans  = new Array[DynamicOptic.Node.Case](cases.length)
-                  val len    = cases.length
-                  var idx    = 0
-                  while (idx < len) {
-                    codecs(idx) = deriveCodec(cases(idx).value)
-                    spans(idx) = new DynamicOptic.Node.Case(cases(idx).name)
-                    idx += 1
-                  }
-                  (codecs, spans)
+              val variantBinding  = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
+              val codecsWithSpans = {
+                val cases  = variant.cases
+                val len    = cases.length
+                val codecs = new Array[AvroBinaryCodec[?]](len)
+                val spans  = new Array[DynamicOptic.Node.Case](len)
+                var idx    = 0
+                while (idx < len) {
+                  val case_ = cases(idx)
+                  codecs(idx) = deriveCodec(case_.value)
+                  spans(idx) = new DynamicOptic.Node.Case(case_.name)
+                  idx += 1
                 }
-                private[this] val discriminator = variantBinding.discriminator
+                (codecs, spans)
+              }
+              new AvroBinaryCodec[A]() {
+                private[this] val discriminator           = variantBinding.discriminator
+                private[this] val (caseCodecs, caseSpans) = codecsWithSpans
 
                 def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): A = {
                   val idx =
@@ -647,16 +649,17 @@ object AvroFormat
           } else if (reflect.isSequence) {
             val sequence = reflect.asSequenceUnknown.get.sequence
             if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
-              val seqBinding = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
+              val seqBinding   = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
+              val elementCodec = deriveCodec(sequence.element).asInstanceOf[AvroBinaryCodec[Elem]]
               new AvroBinaryCodec[Col[Elem]]() {
-                private[this] val elementCodec  = deriveCodec(sequence.element).asInstanceOf[AvroBinaryCodec[Elem]]
                 private[this] val deconstructor = seqBinding.deconstructor
                 private[this] val constructor   = seqBinding.constructor
+                private[this] val codec         = elementCodec
 
                 def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Col[Elem] = {
                   val builder = constructor.newObjectBuilder[Elem](8)
-                  var size    = 0
                   var count   = 0L
+                  var size    = 0
                   while ({
                     size =
                       try {
@@ -673,8 +676,7 @@ object AvroFormat
                       )
                     }
                     while (size > 0) {
-                      constructor
-                        .addObject(builder, elementCodec.decode(new DynamicOptic.Node.AtIndex(count.toInt) :: t, d))
+                      constructor.addObject(builder, codec.decode(new DynamicOptic.Node.AtIndex(count.toInt) :: t, d))
                       count += 1
                       size -= 1
                     }
@@ -688,7 +690,7 @@ object AvroFormat
                   if (size > 0) {
                     e.writeInt(size)
                     val it = deconstructor.deconstruct(x)
-                    while (it.hasNext) elementCodec.encode(it.next(), e)
+                    while (it.hasNext) codec.encode(it.next(), e)
                   }
                   e.writeInt(0)
                 }
@@ -698,16 +700,18 @@ object AvroFormat
             val map = reflect.asMapUnknown.get.map
             if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
               val mapBinding = map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
+              val keyCodec   = deriveCodec(map.key).asInstanceOf[AvroBinaryCodec[Key]]
+              val valueCodec = deriveCodec(map.value).asInstanceOf[AvroBinaryCodec[Value]]
               new AvroBinaryCodec[Map[Key, Value]]() {
-                private[this] val keyCodec      = deriveCodec(map.key).asInstanceOf[AvroBinaryCodec[Key]]
-                private[this] val valueCodec    = deriveCodec(map.value).asInstanceOf[AvroBinaryCodec[Value]]
                 private[this] val deconstructor = mapBinding.deconstructor
                 private[this] val constructor   = mapBinding.constructor
+                private[this] val kCodec        = keyCodec
+                private[this] val vCodec        = valueCodec
 
                 def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Map[Key, Value] = {
                   val builder = constructor.newObjectBuilder[Key, Value](8)
-                  var size    = 0
                   var count   = 0L
+                  var size    = 0
                   while ({
                     size =
                       try {
@@ -724,8 +728,8 @@ object AvroFormat
                       )
                     }
                     while (size > 0) {
-                      val k = keyCodec.decode(new DynamicOptic.Node.AtIndex(count.toInt) :: t, d)
-                      val v = valueCodec.decode(new DynamicOptic.Node.AtMapKey(k) :: t, d)
+                      val k = kCodec.decode(new DynamicOptic.Node.AtIndex(count.toInt) :: t, d)
+                      val v = vCodec.decode(new DynamicOptic.Node.AtMapKey(k) :: t, d)
                       constructor.addObject(builder, k, v)
                       count += 1
                       size -= 1
@@ -742,8 +746,8 @@ object AvroFormat
                     val it = deconstructor.deconstruct(x)
                     while (it.hasNext) {
                       val kv = it.next()
-                      keyCodec.encode(deconstructor.getKey(kv), e)
-                      valueCodec.encode(deconstructor.getValue(kv), e)
+                      kCodec.encode(deconstructor.getKey(kv), e)
+                      vCodec.encode(deconstructor.getValue(kv), e)
                     }
                   }
                   e.writeInt(0)
@@ -753,34 +757,37 @@ object AvroFormat
           } else if (reflect.isRecord) {
             val record = reflect.asRecord.get
             if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-              val recordBinding = record.recordBinding.asInstanceOf[Binding.Record[A]]
-              val fields        = record.fields
-              val isRecursive   = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+              val recordBinding   = record.recordBinding.asInstanceOf[Binding.Record[A]]
+              val fields          = record.fields
+              val isRecursive     = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+              val codecsWithSpans = {
+                if (isRecursive) recursiveRecordCache.get.get(record.typeName)
+                else null
+              } match {
+                case null =>
+                  val len             = fields.length
+                  val codecs          = new Array[AvroBinaryCodec[?]](len)
+                  val spans           = new Array[DynamicOptic.Node.Field](len)
+                  val codecsWithSpans = (codecs, spans)
+                  if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecsWithSpans)
+                  var idx = 0
+                  while (idx < len) {
+                    val field = fields(idx)
+                    codecs(idx) = deriveCodec(field.value)
+                    spans(idx) = new DynamicOptic.Node.Field(field.name)
+                    idx += 1
+                  }
+                  codecsWithSpans
+                case codecsWithSpans => codecsWithSpans
+              }
               new AvroBinaryCodec[A]() {
-                private[this] val (fieldCodecs, fieldSpans) = {
-                  if (isRecursive) recursiveRecordCache.get.get(record.typeName)
-                  else null
-                } match {
-                  case null =>
-                    val len             = fields.length
-                    val codecs          = new Array[AvroBinaryCodec[?]](len)
-                    val spans           = new Array[DynamicOptic.Node.Field](len)
-                    val codecsWithSpans = (codecs, spans)
-                    if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecsWithSpans)
-                    var idx = 0
-                    while (idx < len) {
-                      codecs(idx) = deriveCodec(fields(idx).value)
-                      spans(idx) = new DynamicOptic.Node.Field(fields(idx).name)
-                      idx += 1
-                    }
-                    codecsWithSpans
-                  case codecsWithSpans => codecsWithSpans
-                }
-                private[this] val deconstructor = recordBinding.deconstructor
-                private[this] val constructor   = recordBinding.constructor
+                private[this] val deconstructor             = recordBinding.deconstructor
+                private[this] val constructor               = recordBinding.constructor
+                private[this] val usedRegisters             = record.usedRegisters
+                private[this] val (fieldCodecs, fieldSpans) = codecsWithSpans
 
                 def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): A = {
-                  val registers = Registers(record.usedRegisters)
+                  val registers = Registers(usedRegisters)
                   var offset    = RegisterOffset.Zero
                   val len       = fieldCodecs.length
                   var idx       = 0
@@ -815,7 +822,7 @@ object AvroFormat
                 }
 
                 def encode(x: A, e: BinaryEncoder): Unit = {
-                  val registers = Registers(record.usedRegisters)
+                  val registers = Registers(usedRegisters)
                   var offset    = RegisterOffset.Zero
                   deconstructor.deconstruct(registers, offset, x)
                   val len = fieldCodecs.length
@@ -853,10 +860,11 @@ object AvroFormat
             val wrapper = reflect.asWrapperUnknown.get.wrapper
             if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
               val wrapperBinding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
+              val wrappedCodec   = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
               new AvroBinaryCodec[A]() {
-                private[this] val codec  = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
                 private[this] val unwrap = wrapperBinding.unwrap
                 private[this] val wrap   = wrapperBinding.wrap
+                private[this] val codec  = wrappedCodec
 
                 def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): A =
                   wrap(codec.decode(DynamicOptic.Node.Wrapped :: t, d)) match {
@@ -900,10 +908,10 @@ object AvroFormat
               case 0 =>
                 primitiveDynamicValueCodec.decode(spanPrimitive :: t, d)
               case 1 =>
-                val t_      = spanFields :: spanRecord :: t
                 val builder = Vector.newBuilder[(String, DynamicValue)]
-                var size    = 0
+                val t_      = spanFields :: spanRecord :: t
                 var count   = 0L
+                var size    = 0
                 while ({
                   size =
                     try {
@@ -945,10 +953,10 @@ object AvroFormat
                 val value = decode(spanValue :: t_, d)
                 new DynamicValue.Variant(caseName, value)
               case 3 =>
-                val t_      = spanElements :: spanSequence :: t
                 val builder = Vector.newBuilder[DynamicValue]
-                var size    = 0
+                val t_      = spanElements :: spanSequence :: t
                 var count   = 0L
+                var size    = 0
                 while ({
                   size =
                     try {
@@ -973,10 +981,10 @@ object AvroFormat
                 if (size < 0) decodeError(t_, s"Expected positive collection part size, got $size")
                 new DynamicValue.Sequence(builder.result())
               case 4 =>
-                val t_      = spanEntries :: spanMap :: t
                 val builder = Vector.newBuilder[(DynamicValue, DynamicValue)]
-                var size    = 0
+                val t_      = spanEntries :: spanMap :: t
                 var count   = 0L
+                var size    = 0
                 while ({
                   size =
                     try {

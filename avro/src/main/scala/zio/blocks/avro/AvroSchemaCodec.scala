@@ -14,16 +14,17 @@ object AvroSchemaCodec {
 
   def toAvroSchema(schema: Schema[?]): AvroSchema = toAvroSchema(schema.reflect)
 
-  private[avro] def decode(avroSchemaJson: String): Either[Throwable, Schema[?]] = {
+  private[avro] def decode(avroSchemaJson: String): Either[SchemaError, Schema[?]] = try {
     val avroSchemaParser = new AvroSchema.Parser
-    try toSchema(avroSchemaParser.parse(avroSchemaJson))
-    catch { case error if NonFatal(error) => new Left(error) }
+    toSchema(avroSchemaParser.parse(avroSchemaJson))
+  } catch {
+    case error if NonFatal(error) => new Left(SchemaError.expectationMismatch(Nil, error.getMessage))
   }
 
-  private[avro] def toSchema(avroSchema: AvroSchema): Either[Throwable, Schema[?]] =
+  private[avro] def toSchema(avroSchema: AvroSchema): Either[SchemaError, Schema[?]] =
     toReflect(avroSchema).map(x => new Schema(x))
 
-  private[this] def toReflect(avroSchema: AvroSchema): Either[Throwable, Reflect[Binding, ?]] =
+  private[this] def toReflect(avroSchema: AvroSchema): Either[SchemaError, Reflect[Binding, ?]] =
     avroSchema.getType match {
       case AvroSchema.Type.NULL    => new Right(Schema.unit.reflect)
       case AvroSchema.Type.BOOLEAN => new Right(Schema.boolean.reflect)
@@ -143,8 +144,8 @@ object AvroSchemaCodec {
     new TypeName(new Namespace(packages.toSeq, values.toSeq), avroSchema.getName)
   }
 
-  private[this] def unsupportedAvroSchema(avroSchema: AvroSchema): Either[Throwable, Reflect[Binding, ?]] =
-    new Left(new RuntimeException(s"Unsupported Avro schema: ${avroSchema.getName}"))
+  private[this] def unsupportedAvroSchema(avroSchema: AvroSchema): Either[SchemaError, Reflect[Binding, ?]] =
+    new Left(SchemaError.expectationMismatch(Nil, s"Unsupported Avro schema: ${avroSchema.getName}"))
 
   private[this] def toAvroSchema(
     reflect: Reflect[Binding, ?],
