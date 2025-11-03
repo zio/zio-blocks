@@ -4,11 +4,19 @@ import scala.collection.immutable.ArraySeq
 import scala.util.control.NoStackTrace
 
 final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception with NoStackTrace {
-  def ++(other: SchemaError): SchemaError = SchemaError(::(errors.head, errors.tail ++ other.errors))
+  def ++(other: SchemaError): SchemaError = SchemaError(new ::(errors.head, errors.tail ++ other.errors))
 
   override def getMessage: String = message
 
-  def message: String = errors.map(_.message).mkString("\n")
+  def message: String = errors
+    .foldLeft(new java.lang.StringBuilder) {
+      var lineFeed = false
+      (sb, e) =>
+        if (lineFeed) sb.append('\n')
+        else lineFeed = true
+        sb.append(e.message)
+    }
+    .toString
 }
 
 object SchemaError {
@@ -26,6 +34,11 @@ object SchemaError {
 
   private[this] def toDynamicOptic(trace: List[DynamicOptic.Node]): DynamicOptic = {
     val nodes = trace.toArray
+    reverse(nodes)
+    new DynamicOptic(ArraySeq.unsafeWrapArray(nodes))
+  }
+
+  private[this] def reverse(nodes: Array[DynamicOptic.Node]): Unit =
     if (nodes.length > 1) {
       var idx1 = 0
       var idx2 = nodes.length - 1
@@ -37,8 +50,6 @@ object SchemaError {
         idx2 -= 1
       }
     }
-    new DynamicOptic(ArraySeq.unsafeWrapArray(nodes))
-  }
 
   sealed trait Single {
     def message: String

@@ -15,14 +15,9 @@ object AvroTestUtils {
   private[this] val colTitles = "|          |  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f | 0123456789abcdef |"
 
   def hexDump(bytes: Array[Byte]): String = {
-    val sb            = new StringBuilder
-    val lineSeparator = System.lineSeparator()
-    sb.append(header)
-      .append(lineSeparator)
-      .append(colTitles)
-      .append(lineSeparator)
-      .append(header)
-      .append(lineSeparator)
+    val sb = new StringBuilder
+    val ls = System.lineSeparator()
+    sb.append(header).append(ls).append(colTitles).append(ls).append(header).append(ls)
     bytes.grouped(16).zipWithIndex.foreach { case (chunk, rowIndex) =>
       val offset    = f"${rowIndex * 16}%08x"
       val hexPart   = chunk.map(b => f"$b%02x").mkString(" ")
@@ -32,10 +27,9 @@ object AvroTestUtils {
         if (char >= 32 && char <= 126) char else '.'
       }.mkString
       val paddedAscii = f"$asciiPart%-16s"
-      sb.append(f"| $offset | $paddedHex | $paddedAscii |")
-        .append(lineSeparator)
+      sb.append(f"| $offset | $paddedHex | $paddedAscii |").append(ls)
     }
-    sb.append(header).append(lineSeparator).toString
+    sb.append(header).append(ls).toString
   }
 
   def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =

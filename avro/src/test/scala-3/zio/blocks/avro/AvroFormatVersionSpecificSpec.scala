@@ -1,11 +1,10 @@
 package zio.blocks.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
-import zio.blocks.schema.{CompanionOptics, DynamicOptic, DynamicValue, Lens, PrimitiveValue, Schema}
+import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, PrimitiveValue, Schema}
 import zio.blocks.avro.AvroTestUtils._
 import zio.test._
 import java.util.UUID
-import scala.util.control.NonFatal
 
 object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatVersionSpecificSpec")(
@@ -114,22 +113,17 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               private val codec   =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
 
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): DynamicValue.Primitive = {
-                val isDefault =
-                  try {
-                    d.readBoolean()
-                  } catch {
-                    case error if NonFatal(error) => decodeError(t, error.getMessage)
-                  }
+              def decode(decoder: BinaryDecoder): DynamicValue.Primitive = {
+                val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(t, d)
+                else codec.decode(decoder)
               }
 
-              def encode(x: DynamicValue.Primitive, e: BinaryEncoder): Unit =
-                if (x == default) e.writeBoolean(true)
+              def encode(value: DynamicValue.Primitive, encoder: BinaryEncoder): Unit =
+                if (value == default) encoder.writeBoolean(true)
                 else {
-                  e.writeBoolean(false)
-                  codec.encode(x, e)
+                  encoder.writeBoolean(false)
+                  codec.encode(value, encoder)
                 }
             }
           )
@@ -148,22 +142,17 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               private val codec =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
 
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): DynamicValue.Map = {
-                val isDefault =
-                  try {
-                    d.readBoolean()
-                  } catch {
-                    case error if NonFatal(error) => decodeError(t, error.getMessage)
-                  }
+              def decode(decoder: BinaryDecoder): DynamicValue.Map = {
+                val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(t, d)
+                else codec.decode(decoder)
               }
 
-              def encode(x: DynamicValue.Map, e: BinaryEncoder): Unit =
-                if (x == default) e.writeBoolean(true)
+              def encode(value: DynamicValue.Map, encoder: BinaryEncoder): Unit =
+                if (value == default) encoder.writeBoolean(true)
                 else {
-                  e.writeBoolean(false)
-                  codec.encode(x, e)
+                  encoder.writeBoolean(false)
+                  codec.encode(value, encoder)
                 }
             }
           )
