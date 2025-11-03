@@ -113,10 +113,10 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               private val codec   =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
 
-              def decode(decoder: BinaryDecoder): DynamicValue.Primitive = {
+              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Primitive = {
                 val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(decoder)
+                else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: DynamicValue.Primitive, encoder: BinaryEncoder): Unit =
@@ -142,10 +142,10 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               private val codec =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
 
-              def decode(decoder: BinaryDecoder): DynamicValue.Map = {
+              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Map = {
                 val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(decoder)
+                else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: DynamicValue.Map, encoder: BinaryEncoder): Unit =
