@@ -535,7 +535,7 @@ object AvroFormat
                       caseCodecs(idx).asInstanceOf[AvroBinaryCodec[A]].decode(decoder)
                     } catch {
                       case error if NonFatal(error) =>
-                        decodeError(new DynamicOptic.Node.Case(cases(idx).name) :: Nil, error)
+                        decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
                     }
                   } else decodeError(s"Expected enum index from 0 to ${caseCodecs.length - 1}, got $idx")
                 }
@@ -576,7 +576,7 @@ object AvroFormat
                           elementCodec.decode(decoder)
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt) :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
                         }
                       constructor.addObject(builder, v)
                       count += 1
@@ -629,14 +629,14 @@ object AvroFormat
                           keyCodec.decode(decoder)
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt) :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
                         }
                       val v =
                         try {
                           valueCodec.decode(decoder)
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtMapKey(k) :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtMapKey(k), error)
                         }
                       constructor.addObject(builder, k, v)
                       count += 1
@@ -721,7 +721,7 @@ object AvroFormat
                     }
                   } catch {
                     case error if NonFatal(error) =>
-                      decodeError(new DynamicOptic.Node.Field(fields(idx).name) :: Nil, error)
+                      decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                   }
                   constructor.construct(registers, RegisterOffset.Zero)
                 }
@@ -776,7 +776,7 @@ object AvroFormat
                     try {
                       codec.decode(decoder)
                     } catch {
-                      case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped :: Nil, error)
+                      case error if NonFatal(error) => decodeError(DynamicOptic.Node.Wrapped, error)
                     }
                   wrap(wrapped) match {
                     case Right(x)  => x
@@ -816,7 +816,7 @@ object AvroFormat
                 try {
                   primitiveDynamicValueCodec.decode(decoder)
                 } catch {
-                  case error if NonFatal(error) => decodeError(spanPrimitive :: Nil, error)
+                  case error if NonFatal(error) => decodeError(spanPrimitive, error)
                 }
               case 1 =>
                 try {
@@ -838,14 +838,14 @@ object AvroFormat
                           decoder.readString()
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt) :: span_1 :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_1, error)
                         }
                       val v =
                         try {
                           decode(decoder)
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt) :: span_2 :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_2, error)
                         }
                       builder.addOne((k, v))
                       count += 1
@@ -855,7 +855,7 @@ object AvroFormat
                   if (size < 0) decodeError(s"Expected positive collection part size, got $size")
                   new DynamicValue.Record(builder.result())
                 } catch {
-                  case error if NonFatal(error) => decodeError(spanRecord :: spanFields :: Nil, error)
+                  case error if NonFatal(error) => decodeError(spanRecord, spanFields, error)
                 }
               case 2 =>
                 try {
@@ -863,17 +863,17 @@ object AvroFormat
                     try {
                       decoder.readString()
                     } catch {
-                      case error if NonFatal(error) => decodeError(spanCaseName :: Nil, error)
+                      case error if NonFatal(error) => decodeError(spanCaseName, error)
                     }
                   val value =
                     try {
                       decode(decoder)
                     } catch {
-                      case error if NonFatal(error) => decodeError(spanValue :: Nil, error)
+                      case error if NonFatal(error) => decodeError(spanValue, error)
                     }
                   new DynamicValue.Variant(caseName, value)
                 } catch {
-                  case error if NonFatal(error) => decodeError(spanVariant :: Nil, error)
+                  case error if NonFatal(error) => decodeError(spanVariant, error)
                 }
               case 3 =>
                 try {
@@ -895,7 +895,7 @@ object AvroFormat
                           decode(decoder)
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt) :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
                         }
                       builder.addOne(v)
                       count += 1
@@ -905,7 +905,7 @@ object AvroFormat
                   if (size < 0) decodeError(s"Expected positive collection part size, got $size")
                   new DynamicValue.Sequence(builder.result())
                 } catch {
-                  case error if NonFatal(error) => decodeError(spanSequence :: spanElements :: Nil, error)
+                  case error if NonFatal(error) => decodeError(spanSequence, spanElements, error)
                 }
               case 4 =>
                 try {
@@ -927,14 +927,14 @@ object AvroFormat
                           decode(decoder)
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt) :: span_1 :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_1, error)
                         }
                       val v =
                         try {
                           decode(decoder)
                         } catch {
                           case error if NonFatal(error) =>
-                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt) :: span_2 :: Nil, error)
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), span_2, error)
                         }
                       builder.addOne((k, v))
                       count += 1
@@ -944,7 +944,7 @@ object AvroFormat
                   if (size < 0) decodeError(s"Expected positive collection part size, got $size")
                   new DynamicValue.Map(builder.result())
                 } catch {
-                  case error if NonFatal(error) => decodeError(spanMap :: spanEntries :: Nil, error)
+                  case error if NonFatal(error) => decodeError(spanMap, spanEntries, error)
                 }
               case idx => decodeError(s"Expected enum index from 0 to 4, got $idx")
             }
