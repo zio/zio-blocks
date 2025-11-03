@@ -26,39 +26,23 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
 
   def decodeError(expectation: String): Nothing = throw new AvroBinaryCodecError(Nil, expectation)
 
-  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing =
-    error match {
-      case e: AvroBinaryCodecError =>
-        e.spans = new ::(span, e.spans)
-        throw e
-      case _ =>
-        throw new AvroBinaryCodecError(
-          new ::(span, Nil), {
-            error match {
-              case _: java.io.EOFException => "Unexpected end of input"
-              case e                       => e.getMessage
-            }
-          }
-        )
-    }
+  def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: AvroBinaryCodecError =>
+      e.spans = new ::(span, e.spans)
+      throw e
+    case _ =>
+      throw new AvroBinaryCodecError(new ::(span, Nil), getMessage(error))
+  }
 
-  def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing =
-    error match {
-      case e: AvroBinaryCodecError =>
-        e.spans = new ::(span1, new ::(span2, e.spans))
-        throw e
-      case _ =>
-        throw new AvroBinaryCodecError(
-          new ::(span1, new ::(span2, Nil)), {
-            error match {
-              case _: java.io.EOFException => "Unexpected end of input"
-              case e                       => e.getMessage
-            }
-          }
-        )
-    }
+  def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
+    case e: AvroBinaryCodecError =>
+      e.spans = new ::(span1, new ::(span2, e.spans))
+      throw e
+    case _ =>
+      throw new AvroBinaryCodecError(new ::(span1, new ::(span2, Nil)), getMessage(error))
+  }
 
-  def decode(decoder: BinaryDecoder): A
+  def decodeUnsafe(decoder: BinaryDecoder): A
 
   def encode(value: A, encoder: BinaryEncoder): Unit
 
@@ -72,46 +56,37 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
       bs = new Array[Byte](len)
       input.get(bs)
     }
-    val avroDecoder = DecoderFactory.get().binaryDecoder(bs, pos, len, null)
-    try new Right(decode(avroDecoder))
-    catch {
-      case error if NonFatal(error) => new Left(toError(error))
-    }
+    decode(DecoderFactory.get().binaryDecoder(bs, pos, len, null))
   }
 
-  override def encode(value: A, output: ByteBuffer): Unit =
-    encode(
-      value,
-      new DirectBinaryEncoder(new OutputStream {
-        override def write(b: Int): Unit = output.put(b.toByte)
+  override def encode(value: A, output: ByteBuffer): Unit = encode(
+    value,
+    new OutputStream {
+      override def write(b: Int): Unit = output.put(b.toByte)
 
-        override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
-      }) {}
-    )
-
-  def decode(input: Array[Byte]): Either[SchemaError, A] = {
-    val avroDecoder = DecoderFactory.get().binaryDecoder(input, 0, input.length, null)
-    try new Right(decode(avroDecoder))
-    catch {
-      case error if NonFatal(error) => new Left(toError(error))
+      override def write(bs: Array[Byte], off: Int, len: Int): Unit = output.put(bs, off, len)
     }
-  }
+  )
+
+  def decode(input: Array[Byte]): Either[SchemaError, A] =
+    decode(DecoderFactory.get().binaryDecoder(input, 0, input.length, null))
 
   def encode(value: A): Array[Byte] = {
     val output = new ByteArrayOutputStream
-    encode(value, new DirectBinaryEncoder(output) {})
+    encode(value, output)
     output.toByteArray
   }
 
-  def decode(input: java.io.InputStream): Either[SchemaError, A] = {
-    val avroDecoder = DecoderFactory.get().directBinaryDecoder(input, null)
-    try new Right(decode(avroDecoder))
+  def decode(input: java.io.InputStream): Either[SchemaError, A] =
+    decode(DecoderFactory.get().directBinaryDecoder(input, null))
+
+  def encode(value: A, output: java.io.OutputStream): Unit = encode(value, new DirectBinaryEncoder(output) {})
+
+  private[this] def decode(decoder: BinaryDecoder): Either[SchemaError, A] =
+    try new Right(decodeUnsafe(decoder))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
-  }
-
-  def encode(value: A, output: java.io.OutputStream): Unit = encode(value, new DirectBinaryEncoder(output) {})
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
@@ -125,20 +100,17 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
             idx += 1
             list = list.tail
           }
-          new ExpectationMismatch(new DynamicOptic(ArraySeq.unsafeWrapArray(array)), e.message)
-        case _ =>
-          new ExpectationMismatch(
-            DynamicOptic.root, {
-              error match {
-                case _: java.io.EOFException => "Unexpected end of input"
-                case e                       => e.getMessage
-              }
-            }
-          )
+          new ExpectationMismatch(new DynamicOptic(ArraySeq.unsafeWrapArray(array)), e.getMessage)
+        case _ => new ExpectationMismatch(DynamicOptic.root, getMessage(error))
       },
       Nil
     )
   )
+
+  private[this] def getMessage(error: Throwable): String = error match {
+    case _: java.io.EOFException => "Unexpected end of input"
+    case e                       => e.getMessage
+  }
 }
 
 object AvroBinaryCodec {
@@ -156,8 +128,8 @@ object AvroBinaryCodec {
   val maxCollectionSize: Int = Integer.MAX_VALUE - 8
 }
 
-private case class AvroBinaryCodecError(var spans: List[DynamicOptic.Node], message: String)
-    extends Exception(message, null, false, false) {
+private class AvroBinaryCodecError(var spans: List[DynamicOptic.Node], message: String)
+    extends Throwable(message, null, false, false) {
   override def getMessage: String = message
 }
 
