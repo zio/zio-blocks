@@ -209,7 +209,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record1.i,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
               def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
@@ -223,7 +223,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             TypeName.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
               def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
@@ -237,7 +237,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record4.hidden,
             new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
-              def decode(decoder: BinaryDecoder): Unit = decoder.readString()
+              def decodeUnsafe(decoder: BinaryDecoder): Unit = decoder.readString()
 
               def encode(value: Unit, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
             }
@@ -251,7 +251,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record4.optKey_None,
             new AvroBinaryCodec[None.type](AvroBinaryCodec.unitType) {
-              def decode(decoder: BinaryDecoder): None.type = {
+              def decodeUnsafe(decoder: BinaryDecoder): None.type = {
                 val _ = decoder.readString()
                 None
               }
@@ -271,10 +271,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(decoder: BinaryDecoder): Record1 = {
+              def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
                 val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(decoder)
+                else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: Record1, encoder: BinaryEncoder): Unit =
@@ -291,10 +291,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(decoder: BinaryDecoder): Record1 = {
+              def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
                 val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(decoder)
+                else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: Record1, encoder: BinaryEncoder): Unit =
@@ -321,7 +321,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             TypeName.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
+              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
               def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
@@ -329,7 +329,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record2.r1_2_i,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
+              def decodeUnsafe(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
 
               def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeDouble(value.toDouble)
             }
@@ -353,10 +353,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(decoder: BinaryDecoder): Record1 = {
+              def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
                 val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(decoder)
+                else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: Record1, encoder: BinaryEncoder): Unit =
@@ -383,15 +383,14 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Recursive.ln,
             new AvroBinaryCodec[List[Recursive]]() {
-              def decode(decoder: BinaryDecoder): List[Recursive] = {
+              def decodeUnsafe(decoder: BinaryDecoder): List[Recursive] = {
                 val builder = List.newBuilder[Recursive]
                 val size    = decoder.readInt()
                 var idx     = 0
                 while (idx < size) {
                   val v =
-                    try {
-                      codec.decode(decoder)
-                    } catch {
+                    try codec.decodeUnsafe(decoder)
+                    catch {
                       case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx), error)
                     }
                   builder.addOne(v)
