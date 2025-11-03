@@ -32,7 +32,7 @@ jobs:
           jvm: temurin:11
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v6
+        uses: coursier/cache-action@v7
       - name: Lint code
         run: sbt "++2.13; check; ++3.3; check; ++3.7; check"
 
@@ -60,7 +60,7 @@ jobs:
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
           apps: sbt
       - name: Cache scala dependencies
-        uses: coursier/cache-action@v6
+        uses: coursier/cache-action@v7
       - name: Run Scala Next tests for macros
         run: sbt ++3.7.3! schemaJVM/test scalaNextTestsJVM/test
       - name: Run tests
