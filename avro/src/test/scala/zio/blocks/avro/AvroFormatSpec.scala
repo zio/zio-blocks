@@ -209,13 +209,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record1.i,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
-                java.lang.Integer.valueOf(d.readString())
-              } catch {
-                case error if NonFatal(error) => decodeError(t, error)
-              }
+              def decode(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
+              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -227,13 +223,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             TypeName.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
-                java.lang.Integer.valueOf(d.readString())
-              } catch {
-                case error if NonFatal(error) => decodeError(t, error)
-              }
+              def decode(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
+              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
@@ -245,13 +237,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record4.hidden,
             new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Unit = try {
-                d.readString()
-              } catch {
-                case error if NonFatal(error) => decodeError(t, error)
-              }
+              def decode(decoder: BinaryDecoder): Unit = decoder.readString()
 
-              def encode(x: Unit, e: BinaryEncoder): Unit = e.writeString("WWW")
+              def encode(value: Unit, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
             }
           )
           .derive
@@ -263,14 +251,12 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record4.optKey_None,
             new AvroBinaryCodec[None.type](AvroBinaryCodec.unitType) {
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): None.type = try {
-                val _ = d.readString()
+              def decode(decoder: BinaryDecoder): None.type = {
+                val _ = decoder.readString()
                 None
-              } catch {
-                case error if NonFatal(error) => decodeError(t, error)
               }
 
-              def encode(x: None.type, e: BinaryEncoder): Unit = e.writeString("WWW")
+              def encode(value: None.type, encoder: BinaryEncoder): Unit = encoder.writeString("WWW")
             }
           )
           .derive
@@ -285,22 +271,17 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Record1 = {
-                val isDefault =
-                  try {
-                    d.readBoolean()
-                  } catch {
-                    case error if NonFatal(error) => decodeError(t, error)
-                  }
+              def decode(decoder: BinaryDecoder): Record1 = {
+                val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(t, d)
+                else codec.decode(decoder)
               }
 
-              def encode(x: Record1, e: BinaryEncoder): Unit =
-                if (x == default) e.writeBoolean(true)
+              def encode(value: Record1, encoder: BinaryEncoder): Unit =
+                if (value == default) encoder.writeBoolean(true)
                 else {
-                  e.writeBoolean(false)
-                  codec.encode(x, e)
+                  encoder.writeBoolean(false)
+                  codec.encode(value, encoder)
                 }
             }
           )
@@ -310,22 +291,17 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Record1 = {
-                val isDefault =
-                  try {
-                    d.readBoolean()
-                  } catch {
-                    case error if NonFatal(error) => decodeError(t, error)
-                  }
+              def decode(decoder: BinaryDecoder): Record1 = {
+                val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(t, d)
+                else codec.decode(decoder)
               }
 
-              def encode(x: Record1, e: BinaryEncoder): Unit =
-                if (x == default) e.writeBoolean(true)
+              def encode(value: Record1, encoder: BinaryEncoder): Unit =
+                if (value == default) encoder.writeBoolean(true)
                 else {
-                  e.writeBoolean(false)
-                  codec.encode(x, e)
+                  encoder.writeBoolean(false)
+                  codec.encode(value, encoder)
                 }
             }
           )
@@ -345,25 +321,17 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             TypeName.int,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
-                java.lang.Integer.valueOf(d.readString())
-              } catch {
-                case error if NonFatal(error) => decodeError(t, error)
-              }
+              def decode(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(x: Int, e: BinaryEncoder): Unit = e.writeString(x.toString)
+              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .instance(
             Record2.r1_2_i,
             new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Int = try {
-                d.readDouble().toInt
-              } catch {
-                case error if NonFatal(error) => decodeError(t, error)
-              }
+              def decode(decoder: BinaryDecoder): Int = decoder.readDouble().toInt
 
-              def encode(x: Int, e: BinaryEncoder): Unit = e.writeDouble(x.toDouble)
+              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeDouble(value.toDouble)
             }
           )
           .derive
@@ -385,22 +353,17 @@ object AvroFormatSpec extends ZIOSpecDefault {
               private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
               private val codec   = Record1.schema.derive(AvroFormat.deriver)
 
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): Record1 = {
-                val isDefault =
-                  try {
-                    d.readBoolean()
-                  } catch {
-                    case error if NonFatal(error) => decodeError(t, error)
-                  }
+              def decode(decoder: BinaryDecoder): Record1 = {
+                val isDefault = decoder.readBoolean()
                 if (isDefault) default
-                else codec.decode(t, d)
+                else codec.decode(decoder)
               }
 
-              def encode(x: Record1, e: BinaryEncoder): Unit =
-                if (x == default) e.writeBoolean(true)
+              def encode(value: Record1, encoder: BinaryEncoder): Unit =
+                if (value == default) encoder.writeBoolean(true)
                 else {
-                  e.writeBoolean(false)
-                  codec.encode(x, e)
+                  encoder.writeBoolean(false)
+                  codec.encode(value, encoder)
                 }
             }
           )
@@ -420,27 +383,28 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Recursive.ln,
             new AvroBinaryCodec[List[Recursive]]() {
-              def decode(t: List[DynamicOptic.Node], d: BinaryDecoder): List[Recursive] = {
+              def decode(decoder: BinaryDecoder): List[Recursive] = {
                 val builder = List.newBuilder[Recursive]
-                val size    =
-                  try {
-                    d.readInt()
-                  } catch {
-                    case error if NonFatal(error) => decodeError(t, error)
-                  }
-                var idx = 0
+                val size    = decoder.readInt()
+                var idx     = 0
                 while (idx < size) {
-                  builder.addOne(codec.decode(new DynamicOptic.Node.AtIndex(idx) :: t, d))
+                  val v =
+                    try {
+                      codec.decode(decoder)
+                    } catch {
+                      case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx) :: Nil, error)
+                    }
+                  builder.addOne(v)
                   idx += 1
                 }
                 builder.result()
               }
 
-              def encode(x: List[Recursive], e: BinaryEncoder): Unit = {
-                e.writeInt(x.size)
-                val it = x.iterator
+              def encode(value: List[Recursive], encoder: BinaryEncoder): Unit = {
+                encoder.writeInt(value.size)
+                val it = value.iterator
                 while (it.hasNext) {
-                  codec.encode(it.next(), e)
+                  codec.encode(it.next(), encoder)
                 }
               }
             }
@@ -620,7 +584,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip[UserId](UserId(1234567890123456789L), 9) &&
         roundTrip[Email](Email("john@gmail.com"), 15)
       },
-      test("top (decode error)") {
+      test("top-level (decode error)") {
         val emailCodec = Schema[Email].derive(AvroFormat.deriver)
         val bytes      = emailCodec.encode(Email("test@gmail.com"))
         bytes(5) = 42
