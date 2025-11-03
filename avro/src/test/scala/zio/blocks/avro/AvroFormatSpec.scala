@@ -392,7 +392,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
                     try {
                       codec.decode(decoder)
                     } catch {
-                      case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx) :: Nil, error)
+                      case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx), error)
                     }
                   builder.addOne(v)
                   idx += 1

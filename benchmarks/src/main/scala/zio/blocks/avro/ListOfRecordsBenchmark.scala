@@ -21,7 +21,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
   @Setup
   def setup(): Unit = {
     listOfRecords = (1 to size).map(_ => Person(12345678901L, "John", 30, "123 Main St", List(5, 7, 9))).toList
-    encodedListOfRecords = zioSchemaCodec.encode(listOfRecords).toArray
+    encodedListOfRecords = zioBlocksCodec.encode(listOfRecords)
   }
 
   @Benchmark
