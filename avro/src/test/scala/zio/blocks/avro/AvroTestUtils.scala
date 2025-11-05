@@ -65,28 +65,6 @@ object AvroTestUtils {
     }
   }
 
-  def shortRoundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =
-    shortRoundTrip(value, expectedLength, schema.derive(AvroFormat.deriver))
-
-  def shortRoundTrip[A](value: A, expectedLength: Int, codec: AvroBinaryCodec[A]): TestResult = {
-    val byteBuffer = ByteBuffer.allocate(1024)
-    codec.encode(value, byteBuffer)
-    val encodedBySchema = util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
-    val output          = new java.io.ByteArrayOutputStream(1024)
-    codec.encode(value, output)
-    output.close()
-    val encodedBySchema2 = output.toByteArray
-    val encodedBySchema3 = codec.encode(value)
-    // println(hexDump(encodedBySchema))
-    assert(encodedBySchema.length)(equalTo(expectedLength)) &&
-    assert(util.Arrays.compare(encodedBySchema, encodedBySchema2))(equalTo(0)) &&
-    assert(util.Arrays.compare(encodedBySchema, encodedBySchema3))(equalTo(0)) &&
-    assert(codec.decode(encodedBySchema))(isRight(equalTo(value))) &&
-    assert(codec.decode(toInputStream(encodedBySchema)))(isRight(equalTo(value))) &&
-    assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
-    assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value)))
-  }
-
   def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], expectedMessage: String): TestResult =
     decodeError(bytes, codec, SchemaError.expectationMismatch(Nil, expectedMessage))
 
