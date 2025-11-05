@@ -862,16 +862,22 @@ object AvroFormat
                 val avroSchema = AvroSchema.createRecord(getName(typeName), null, getNamespace(typeName), false)
                 codecsWithAvroSchema = (codecs, avroSchema)
                 if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecsWithAvroSchema)
-                val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field]
-                var idx              = 0
-                while (idx < len) {
-                  val field = fields(idx)
-                  val codec = deriveCodec(field.value)
-                  codecs(idx) = codec
-                  avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
-                  idx += 1
-                }
-                if (!avroSchema.hasFields) {
+                if (avroSchema.hasFields) {
+                  var idx = 0
+                  while (idx < len) {
+                    codecs(idx) = deriveCodec(fields(idx).value)
+                    idx += 1
+                  }
+                } else {
+                  val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field]
+                  var idx              = 0
+                  while (idx < len) {
+                    val field = fields(idx)
+                    val codec = deriveCodec(field.value)
+                    codecs(idx) = codec
+                    avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
+                    idx += 1
+                  }
                   avroSchema.setFields(avroSchemaFields)
                 }
               }
@@ -998,7 +1004,7 @@ object AvroFormat
         private[this] def getName(typeName: TypeName[?]): String = {
           val name = typeName.name
           if (typeName.params.isEmpty) name
-          else name + "_" + typeName.params.hashCode.toHexString
+          else s"${name}_${typeName.params.hashCode.toHexString}"
         }
 
         private[this] def getNamespace(typeName: TypeName[?]): String = typeName.namespace.elements.mkString(".")

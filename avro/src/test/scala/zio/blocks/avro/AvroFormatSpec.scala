@@ -8,7 +8,6 @@ import zio.blocks.schema.binding.Binding
 import zio.test._
 import java.util.UUID
 import scala.collection.immutable.ArraySeq
-import scala.util.control.NonFatal
 
 object AvroFormatSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatSpec")(
@@ -486,50 +485,24 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Record2(null, null), 2, codec)
       },
       test("recursive record with a custom codec") {
-        lazy val codec: AvroBinaryCodec[Recursive] = Recursive.schema
+        val codec: AvroBinaryCodec[Recursive] = Recursive.schema
           .deriving(AvroFormat.deriver)
           .instance(
-            Recursive.ln,
-            new AvroBinaryCodec[List[Recursive]]() {
-              val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING) // FIXME: use proper Avro schema
+            Recursive.i,
+            new AvroBinaryCodec[Int](AvroBinaryCodec.intType) {
+              val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.STRING)
 
-              def decodeUnsafe(decoder: BinaryDecoder): List[Recursive] = {
-                val builder = List.newBuilder[Recursive]
-                val size    = decoder.readInt()
-                var idx     = 0
-                while (idx < size) {
-                  val _ =
-                    try decoder.readString()
-                    catch {
-                      case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx), error)
-                    }
-                  val v =
-                    try codec.decodeUnsafe(decoder)
-                    catch {
-                      case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(idx), error)
-                    }
-                  builder.addOne(v)
-                  idx += 1
-                }
-                val _ = decoder.readInt()
-                builder.result()
-              }
+              def decodeUnsafe(decoder: BinaryDecoder): Int = java.lang.Integer.valueOf(decoder.readString())
 
-              def encode(value: List[Recursive], encoder: BinaryEncoder): Unit = {
-                encoder.writeInt(value.size)
-                val it  = value.iterator
-                var idx = 0
-                while (it.hasNext) {
-                  encoder.writeString(idx.toString)
-                  codec.encode(it.next(), encoder)
-                  idx += 1
-                }
-                encoder.writeInt(0)
-              }
+              def encode(value: Int, encoder: BinaryEncoder): Unit = encoder.writeString(value.toString)
             }
           )
           .derive
-        shortRoundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 13, codec)
+        avroSchema[Recursive](
+          "{\"type\":\"record\",\"name\":\"Recursive\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"i\",\"type\":\"string\"},{\"name\":\"ln\",\"type\":{\"type\":\"array\",\"items\":\"Recursive\"}}]}",
+          codec
+        ) &&
+        shortRoundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 11, codec)
       }
     ),
     suite("sequences")(
