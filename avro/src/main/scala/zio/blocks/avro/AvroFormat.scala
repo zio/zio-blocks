@@ -8,7 +8,6 @@ import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
-import scala.io.Source
 import scala.util.control.NonFatal
 
 object AvroFormat
@@ -863,16 +862,22 @@ object AvroFormat
                 val avroSchema = AvroSchema.createRecord(getName(typeName), null, getNamespace(typeName), false)
                 codecsWithAvroSchema = (codecs, avroSchema)
                 if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecsWithAvroSchema)
-                val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field]
-                var idx              = 0
-                while (idx < len) {
-                  val field = fields(idx)
-                  val codec = deriveCodec(field.value)
-                  codecs(idx) = codec
-                  avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
-                  idx += 1
-                }
-                if (!avroSchema.hasFields) {
+                if (avroSchema.hasFields) {
+                  var idx = 0
+                  while (idx < len) {
+                    codecs(idx) = deriveCodec(fields(idx).value)
+                    idx += 1
+                  }
+                } else {
+                  val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field]
+                  var idx              = 0
+                  while (idx < len) {
+                    val field = fields(idx)
+                    val codec = deriveCodec(field.value)
+                    codecs(idx) = codec
+                    avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
+                    idx += 1
+                  }
                   avroSchema.setFields(avroSchemaFields)
                 }
               }
@@ -999,13 +1004,12 @@ object AvroFormat
         private[this] def getName(typeName: TypeName[?]): String = {
           val name = typeName.name
           if (typeName.params.isEmpty) name
-          else name + "_" + typeName.params.hashCode.toHexString
+          else s"${name}_${typeName.params.hashCode.toHexString}"
         }
 
-        private[this] def getNamespace(typeName: TypeName[?]): String =
-          typeName.namespace.elements.mkString(".")
+        private[this] def getNamespace(typeName: TypeName[?]): String = typeName.namespace.elements.mkString(".")
 
-        private[this] lazy val dynamicValueCodec = new AvroBinaryCodec[DynamicValue]() {
+        private[this] val dynamicValueCodec = new AvroBinaryCodec[DynamicValue]() {
           private[this] val primitiveDynamicValueCodec = deriveCodec(Schema.derived[DynamicValue.Primitive].reflect)
           private[this] val spanPrimitive              = new DynamicOptic.Node.Case("Primitive")
           private[this] val spanRecord                 = new DynamicOptic.Node.Case("Record")
@@ -1021,12 +1025,67 @@ object AvroFormat
           private[this] val span_2                     = new DynamicOptic.Node.Field("_2")
 
           val avroSchema: AvroSchema = {
-            val stream         = getClass.getClassLoader.getResourceAsStream("dynamicValueAvroSchema.json")
-            val avroSchemaJson =
-              try Source.fromInputStream(stream).mkString
-              finally stream.close()
-            val avroSchemaParser = new AvroSchema.Parser
-            avroSchemaParser.parse(avroSchemaJson)
+            val dynamicValue       = AvroSchema.createRecord("DynamicValue", null, "zio.blocks.schema", false)
+            val dynamicValueFields = new java.util.ArrayList[AvroSchema.Field]
+            dynamicValueFields.add(
+              new AvroSchema.Field(
+                "value",
+                AvroSchema.createUnion(
+                  primitiveDynamicValueCodec.avroSchema, {
+                    val record       = AvroSchema.createRecord("Record", null, "zio.blocks.schema.DynamicValue", false)
+                    val recordFields = new java.util.ArrayList[AvroSchema.Field]
+                    recordFields.add(
+                      new AvroSchema.Field(
+                        "fields",
+                        AvroSchema.createArray {
+                          val field       = AvroSchema.createRecord("Field", null, "zio.blocks.schema.internal", false)
+                          val fieldFields = new java.util.ArrayList[AvroSchema.Field]
+                          fieldFields.add(new AvroSchema.Field("name", AvroSchema.create(AvroSchema.Type.STRING)))
+                          fieldFields.add(new AvroSchema.Field("value", dynamicValue))
+                          field.setFields(fieldFields)
+                          field
+                        }
+                      )
+                    )
+                    record.setFields(recordFields)
+                    record
+                  }, {
+                    val variant       = AvroSchema.createRecord("Variant", null, "zio.blocks.schema.DynamicValue", false)
+                    val variantFields = new java.util.ArrayList[AvroSchema.Field]
+                    variantFields.add(new AvroSchema.Field("caseName", AvroSchema.create(AvroSchema.Type.STRING)))
+                    variantFields.add(new AvroSchema.Field("value", dynamicValue))
+                    variant.setFields(variantFields)
+                    variant
+                  }, {
+                    val sequence       = AvroSchema.createRecord("Sequence", null, "zio.blocks.schema.DynamicValue", false)
+                    val sequenceFields = new java.util.ArrayList[AvroSchema.Field]
+                    sequenceFields.add(new AvroSchema.Field("elements", AvroSchema.createArray(dynamicValue)))
+                    sequence.setFields(sequenceFields)
+                    sequence
+                  }, {
+                    val map       = AvroSchema.createRecord("Map", null, "zio.blocks.schema.DynamicValue", false)
+                    val mapFields = new java.util.ArrayList[AvroSchema.Field]
+                    mapFields.add(
+                      new AvroSchema.Field(
+                        "entries",
+                        AvroSchema.createArray {
+                          val entry       = AvroSchema.createRecord("Entry", null, "zio.blocks.schema.internal", false)
+                          val entryFields = new java.util.ArrayList[AvroSchema.Field]
+                          entryFields.add(new AvroSchema.Field("key", dynamicValue))
+                          entryFields.add(new AvroSchema.Field("value", dynamicValue))
+                          entry.setFields(entryFields)
+                          entry
+                        }
+                      )
+                    )
+                    map.setFields(mapFields)
+                    map
+                  }
+                )
+              )
+            )
+            dynamicValue.setFields(dynamicValueFields)
+            dynamicValue
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): DynamicValue = {
