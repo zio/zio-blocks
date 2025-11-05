@@ -15,11 +15,17 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
 
         implicit val schema: Schema[GenericTuple4] = Schema.derived
 
+        avroSchema[GenericTuple4](
+          "{\"type\":\"record\",\"name\":\"Tuple4_fcd61909\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"int\"},{\"name\":\"_3\",\"type\":\"int\"},{\"name\":\"_4\",\"type\":\"long\"}]}"
+        ) &&
         roundTrip[GenericTuple4]((1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple, 4)
       }
     ),
     suite("enums")(
       test("constant values") {
+        avroSchema[TrafficLight](
+          "[{\"type\":\"record\",\"name\":\"Red\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Yellow\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Green\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]}]"
+        ) &&
         roundTrip[TrafficLight](TrafficLight.Green, 1) &&
         roundTrip[TrafficLight](TrafficLight.Yellow, 1) &&
         roundTrip[TrafficLight](TrafficLight.Red, 1)
@@ -27,14 +33,26 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
       test("complex recursive values") {
         import LinkedList._
 
-        roundTrip(Node(1, Node(2, End)), 5)(Schema.derived[LinkedList[Int]]) &&
-        roundTrip(Node(Some("VVV"), Node(None, End)), 9)(Schema.derived[LinkedList[Option[String]]])
+        val schema1 = Schema.derived[LinkedList[Int]]
+        val schema2 = Schema.derived[LinkedList[Option[String]]]
+
+        avroSchema[LinkedList[Int]](
+          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node_ccb86a7f\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"},{\"name\":\"next\",\"type\":[\"End\",\"Node_ccb86a7f\"]}]}]"
+        )(schema1) &&
+        roundTrip(Node(1, Node(2, End)), 5)(schema1) &&
+        avroSchema[LinkedList[Option[String]]](
+          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node_29e3482a\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some_10c51065\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]},{\"name\":\"next\",\"type\":[\"End\",\"Node_29e3482a\"]}]}]"
+        )(schema2) &&
+        roundTrip(Node(Some("VVV"), Node(None, End)), 9)(schema2)
       },
       test("union type") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
 
         implicit val schema: Schema[Value] = Schema.derived
 
+        avroSchema[Value](
+          "[\"int\",\"boolean\",\"string\",{\"type\":\"record\",\"name\":\"Tuple2_dee37272\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"boolean\"}]},{\"type\":\"array\",\"items\":\"int\"}]"
+        ) &&
         roundTrip[Value](1, 2) &&
         roundTrip[Value](true, 2) &&
         roundTrip[Value]("VVV", 5) &&
@@ -44,9 +62,16 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
     ),
     suite("sequences")(
       test("immutable array") {
-        roundTrip(IArray(1, 2, 3), 5)(Schema.derived[IArray[Int]]) &&
-        roundTrip(IArray(1L, 2L, 3L), 5)(Schema.derived[IArray[Long]]) &&
-        roundTrip(IArray("A", "B", "C"), 8)(Schema.derived[IArray[String]])
+        implicit val schema1: Schema[IArray[Int]]    = Schema.derived
+        implicit val schema2: Schema[IArray[Long]]   = Schema.derived
+        implicit val schema3: Schema[IArray[String]] = Schema.derived
+
+        avroSchema[IArray[Int]]("{\"type\":\"array\",\"items\":\"int\"}") &&
+        roundTrip(IArray(1, 2, 3), 5) &&
+        avroSchema[IArray[Long]]("{\"type\":\"array\",\"items\":\"long\"}") &&
+        roundTrip(IArray(1L, 2L, 3L), 5) &&
+        avroSchema[IArray[String]]("{\"type\":\"array\",\"items\":\"string\"}") &&
+        roundTrip(IArray("A", "B", "C"), 8)
       }
     ),
     suite("dynamic value")(
@@ -110,22 +135,22 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
           .instance(
             Dynamic.primitive,
             new AvroBinaryCodec[DynamicValue.Primitive]() {
-              private val default = DynamicValue.Primitive(PrimitiveValue.Int(1))
-              private val codec   =
+              private val codec =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
 
-              val avroSchema: AvroSchema = codec.avroSchema
+              val avroSchema: AvroSchema =
+                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
               def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Primitive = {
-                val isDefault = decoder.readBoolean()
-                if (isDefault) default
+                val idx = decoder.readInt()
+                if (idx == 0) null
                 else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: DynamicValue.Primitive, encoder: BinaryEncoder): Unit =
-                if (value == default) encoder.writeBoolean(true)
+                if (value eq null) encoder.writeInt(0)
                 else {
-                  encoder.writeBoolean(false)
+                  encoder.writeInt(1)
                   codec.encode(value, encoder)
                 }
             }
@@ -133,36 +158,29 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
           .instance(
             Dynamic.map,
             new AvroBinaryCodec[DynamicValue.Map]() {
-              private val default = DynamicValue.Map(
-                Vector(
-                  (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-                  (
-                    DynamicValue.Primitive(PrimitiveValue.Long(2L)),
-                    DynamicValue.Primitive(PrimitiveValue.String("VVV"))
-                  )
-                )
-              )
               private val codec =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
 
-              val avroSchema: AvroSchema = codec.avroSchema
+              val avroSchema: AvroSchema =
+                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
               def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Map = {
-                val isDefault = decoder.readBoolean()
-                if (isDefault) default
+                val idx = decoder.readInt()
+                if (idx == 0) null
                 else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: DynamicValue.Map, encoder: BinaryEncoder): Unit =
-                if (value == default) encoder.writeBoolean(true)
+                if (value eq null) encoder.writeInt(0)
                 else {
-                  encoder.writeBoolean(false)
+                  encoder.writeInt(1)
                   codec.encode(value, encoder)
                 }
             }
           )
           .derive
-        shortRoundTrip[Dynamic](value, 2, codec)
+        roundTrip[Dynamic](value, 23, codec) &&
+        roundTrip[Dynamic](Dynamic(null, null), 2, codec)
       }
     )
   )

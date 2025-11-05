@@ -355,6 +355,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           "{\"type\":\"record\",\"name\":\"Record4\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"hidden\",\"type\":\"null\"},{\"name\":\"optKey\",\"type\":[\"string\",{\"type\":\"record\",\"name\":\"Some_10c51065\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]}]}",
           codec
         ) &&
+        roundTrip(Record4((), Some("VVV")), 5, codec) &&
         roundTrip(Record4((), None), 5, codec)
       },
       test("record with a custom codec for nested record injected by optic") {
@@ -363,36 +364,21 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record2.r1_1,
             new AvroBinaryCodec[Record1]() {
-              private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
-              private val codec   = Record1.schema.derive(AvroFormat.deriver)
+              private val codec = Record1.schema.derive(AvroFormat.deriver)
 
-              val avroSchema: AvroSchema = {
-                val avroSchema = AvroSchema.createRecord("Record1_1", null, "zio.blocks.avro.AvroFormatSpec", false)
-                val fields     = new java.util.ArrayList[AvroSchema.Field]
-                fields.add(new AvroSchema.Field("isDefault", AvroSchema.create(AvroSchema.Type.BOOLEAN)))
-                fields.add(new AvroSchema.Field("bl", AvroSchema.create(AvroSchema.Type.BOOLEAN)))
-                fields.add(new AvroSchema.Field("b", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("sh", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("i", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("l", AvroSchema.create(AvroSchema.Type.LONG)))
-                fields.add(new AvroSchema.Field("f", AvroSchema.create(AvroSchema.Type.FLOAT)))
-                fields.add(new AvroSchema.Field("d", AvroSchema.create(AvroSchema.Type.DOUBLE)))
-                fields.add(new AvroSchema.Field("c", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("s", AvroSchema.create(AvroSchema.Type.STRING)))
-                avroSchema.setFields(fields)
-                avroSchema
-              }
+              val avroSchema: AvroSchema =
+                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
               def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
-                val isDefault = decoder.readBoolean()
-                if (isDefault) default
+                val idx = decoder.readInt()
+                if (idx == 0) null
                 else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: Record1, encoder: BinaryEncoder): Unit =
-                if (value == default) encoder.writeBoolean(true)
+                if (value eq null) encoder.writeInt(0)
                 else {
-                  encoder.writeBoolean(false)
+                  encoder.writeInt(1)
                   codec.encode(value, encoder)
                 }
             }
@@ -400,49 +386,35 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record2.r1_2,
             new AvroBinaryCodec[Record1]() {
-              private val default = Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
-              private val codec   = Record1.schema.derive(AvroFormat.deriver)
+              private val codec = Record1.schema.derive(AvroFormat.deriver)
 
-              val avroSchema: AvroSchema = {
-                val avroSchema = AvroSchema.createRecord("Record1_2", null, "zio.blocks.avro.AvroFormatSpec", false)
-                val fields     = new java.util.ArrayList[AvroSchema.Field]
-                fields.add(new AvroSchema.Field("isDefault", AvroSchema.create(AvroSchema.Type.BOOLEAN)))
-                fields.add(new AvroSchema.Field("bl", AvroSchema.create(AvroSchema.Type.BOOLEAN)))
-                fields.add(new AvroSchema.Field("b", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("sh", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("i", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("l", AvroSchema.create(AvroSchema.Type.LONG)))
-                fields.add(new AvroSchema.Field("f", AvroSchema.create(AvroSchema.Type.FLOAT)))
-                fields.add(new AvroSchema.Field("d", AvroSchema.create(AvroSchema.Type.DOUBLE)))
-                fields.add(new AvroSchema.Field("c", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("s", AvroSchema.create(AvroSchema.Type.STRING)))
-                avroSchema.setFields(fields)
-                avroSchema
-              }
+              val avroSchema: AvroSchema =
+                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
               def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
-                val isDefault = decoder.readBoolean()
-                if (isDefault) default
+                val idx = decoder.readInt()
+                if (idx == 0) null
                 else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: Record1, encoder: BinaryEncoder): Unit =
-                if (value == default) encoder.writeBoolean(true)
+                if (value eq null) encoder.writeInt(0)
                 else {
-                  encoder.writeBoolean(false)
+                  encoder.writeInt(1)
                   codec.encode(value, encoder)
                 }
             }
           )
           .derive
-        shortRoundTrip(
+        roundTrip(
           Record2(
             Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
             Record1(false, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "WWW")
           ),
-          2,
+          46,
           codec
-        )
+        ) &&
+        roundTrip(Record2(null, null), 2, codec)
       },
       test("record with a custom codec for nested primitives injected by optic") {
         val codec: AvroBinaryCodec[Record2] = Record2.schema
@@ -483,49 +455,35 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .instance(
             Record1.schema.reflect.typeName,
             new AvroBinaryCodec[Record1]() {
-              private val default = Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
-              private val codec   = Record1.schema.derive(AvroFormat.deriver)
+              private val codec = Record1.schema.derive(AvroFormat.deriver)
 
-              val avroSchema: AvroSchema = {
-                val avroSchema = AvroSchema.createRecord("Record1_1", null, "zio.blocks.avro.AvroFormatSpec", false)
-                val fields     = new java.util.ArrayList[AvroSchema.Field]
-                fields.add(new AvroSchema.Field("isDefault", AvroSchema.create(AvroSchema.Type.BOOLEAN)))
-                fields.add(new AvroSchema.Field("bl", AvroSchema.create(AvroSchema.Type.BOOLEAN)))
-                fields.add(new AvroSchema.Field("b", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("sh", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("i", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("l", AvroSchema.create(AvroSchema.Type.LONG)))
-                fields.add(new AvroSchema.Field("f", AvroSchema.create(AvroSchema.Type.FLOAT)))
-                fields.add(new AvroSchema.Field("d", AvroSchema.create(AvroSchema.Type.DOUBLE)))
-                fields.add(new AvroSchema.Field("c", AvroSchema.create(AvroSchema.Type.INT)))
-                fields.add(new AvroSchema.Field("s", AvroSchema.create(AvroSchema.Type.STRING)))
-                avroSchema.setFields(fields)
-                avroSchema
-              }
+              val avroSchema: AvroSchema =
+                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
               def decodeUnsafe(decoder: BinaryDecoder): Record1 = {
-                val isDefault = decoder.readBoolean()
-                if (isDefault) default
+                val idx = decoder.readInt()
+                if (idx == 0) null
                 else codec.decodeUnsafe(decoder)
               }
 
               def encode(value: Record1, encoder: BinaryEncoder): Unit =
-                if (value == default) encoder.writeBoolean(true)
+                if (value eq null) encoder.writeInt(0)
                 else {
-                  encoder.writeBoolean(false)
+                  encoder.writeInt(1)
                   codec.encode(value, encoder)
                 }
             }
           )
           .derive
-        shortRoundTrip(
+        roundTrip(
           Record2(
             Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
             Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
           ),
-          2,
+          46,
           codec
-        )
+        ) &&
+        roundTrip(Record2(null, null), 2, codec)
       },
       test("recursive record with a custom codec") {
         lazy val codec: AvroBinaryCodec[Recursive] = Recursive.schema
