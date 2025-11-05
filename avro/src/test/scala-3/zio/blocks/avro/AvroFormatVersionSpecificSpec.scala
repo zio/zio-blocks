@@ -1,11 +1,8 @@
 package zio.blocks.avro
 
-import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
-import org.apache.avro.{Schema => AvroSchema}
-import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, PrimitiveValue, Schema}
+import zio.blocks.schema.Schema
 import zio.blocks.avro.AvroTestUtils._
 import zio.test._
-import java.util.UUID
 
 object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("AvroFormatVersionSpecificSpec")(
@@ -73,115 +70,6 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
         avroSchema[IArray[String]]("{\"type\":\"array\",\"items\":\"string\"}") &&
         roundTrip(IArray("A", "B", "C"), 8)
       }
-    ),
-    suite("dynamic value")(
-      test("top-level") {
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(1)), 3) &&
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("VVV")), 6) &&
-        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.UUID(UUID.randomUUID())), 18) &&
-        roundTrip[DynamicValue](
-          DynamicValue.Record(
-            Vector(
-              ("i", DynamicValue.Primitive(PrimitiveValue.Int(1))),
-              ("s", DynamicValue.Primitive(PrimitiveValue.String("VVV")))
-            )
-          ),
-          16
-        ) &&
-        roundTrip[DynamicValue](DynamicValue.Variant("Int", DynamicValue.Primitive(PrimitiveValue.Int(1))), 8) &&
-        roundTrip[DynamicValue](
-          DynamicValue.Sequence(
-            Vector(
-              DynamicValue.Primitive(PrimitiveValue.Int(1)),
-              DynamicValue.Primitive(PrimitiveValue.String("VVV"))
-            )
-          ),
-          12
-        ) &&
-        roundTrip[DynamicValue](
-          DynamicValue.Map(
-            Vector(
-              (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-              (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
-            )
-          ),
-          18
-        )
-      },
-      test("as record field values") {
-        val value = Dynamic(
-          DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          DynamicValue.Map(
-            Vector(
-              (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-              (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
-            )
-          )
-        )
-        roundTrip[Dynamic](value, 19)
-      },
-      test("as record field values with custom codecs injected by optic") {
-        val value = Dynamic(
-          DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          DynamicValue.Map(
-            Vector(
-              (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
-              (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
-            )
-          )
-        )
-        val codec: AvroBinaryCodec[Dynamic] = Schema[Dynamic]
-          .deriving(AvroFormat.deriver)
-          .instance(
-            Dynamic.primitive,
-            new AvroBinaryCodec[DynamicValue.Primitive]() {
-              private val codec =
-                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
-
-              val avroSchema: AvroSchema =
-                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
-
-              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Primitive = {
-                val idx = decoder.readInt()
-                if (idx == 0) null
-                else codec.decodeUnsafe(decoder)
-              }
-
-              def encode(value: DynamicValue.Primitive, encoder: BinaryEncoder): Unit =
-                if (value eq null) encoder.writeInt(0)
-                else {
-                  encoder.writeInt(1)
-                  codec.encode(value, encoder)
-                }
-            }
-          )
-          .instance(
-            Dynamic.map,
-            new AvroBinaryCodec[DynamicValue.Map]() {
-              private val codec =
-                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
-
-              val avroSchema: AvroSchema =
-                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
-
-              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Map = {
-                val idx = decoder.readInt()
-                if (idx == 0) null
-                else codec.decodeUnsafe(decoder)
-              }
-
-              def encode(value: DynamicValue.Map, encoder: BinaryEncoder): Unit =
-                if (value eq null) encoder.writeInt(0)
-                else {
-                  encoder.writeInt(1)
-                  codec.encode(value, encoder)
-                }
-            }
-          )
-          .derive
-        roundTrip[Dynamic](value, 23, codec) &&
-        roundTrip[Dynamic](Dynamic(null, null), 2, codec)
-      }
     )
   )
 
@@ -193,12 +81,5 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
     case End
 
     case Node(value: T, next: LinkedList[T])
-  }
-
-  case class Dynamic(primitive: DynamicValue.Primitive, map: DynamicValue.Map) derives Schema
-
-  object Dynamic extends CompanionOptics[Dynamic] {
-    val primitive: Lens[Dynamic, DynamicValue.Primitive] = $(_.primitive)
-    val map: Lens[Dynamic, DynamicValue.Map]             = $(_.map)
   }
 }

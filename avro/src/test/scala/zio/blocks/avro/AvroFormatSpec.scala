@@ -502,7 +502,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           "{\"type\":\"record\",\"name\":\"Recursive\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"i\",\"type\":\"string\"},{\"name\":\"ln\",\"type\":{\"type\":\"array\",\"items\":\"Recursive\"}}]}",
           codec
         ) &&
-        shortRoundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 11, codec)
+        roundTrip(Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))), 11, codec)
       }
     ),
     suite("sequences")(
@@ -757,10 +757,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
     ),
     suite("dynamic value")(
       test("top-level") {
-        shortRoundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(1)), 3) &&
-        shortRoundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("VVV")), 6) &&
-        shortRoundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.UUID(UUID.randomUUID())), 18) &&
-        shortRoundTrip[DynamicValue](
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(1)), 3) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("VVV")), 6) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.UUID(UUID.randomUUID())), 18) &&
+        roundTrip[DynamicValue](
           DynamicValue.Record(
             Vector(
               ("i", DynamicValue.Primitive(PrimitiveValue.Int(1))),
@@ -769,8 +769,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
           ),
           16
         ) &&
-        shortRoundTrip[DynamicValue](DynamicValue.Variant("Int", DynamicValue.Primitive(PrimitiveValue.Int(1))), 8) &&
-        shortRoundTrip[DynamicValue](
+        roundTrip[DynamicValue](DynamicValue.Variant("Int", DynamicValue.Primitive(PrimitiveValue.Int(1))), 8) &&
+        roundTrip[DynamicValue](
           DynamicValue.Sequence(
             Vector(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
@@ -779,7 +779,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           ),
           12
         ) &&
-        shortRoundTrip[DynamicValue](
+        roundTrip[DynamicValue](
           DynamicValue.Map(
             Vector(
               (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
@@ -851,6 +851,80 @@ object AvroFormatSpec extends ZIOSpecDefault {
             "Expected collection size not greater than 2147483639, got 2147483647"
           )
         )
+      },
+      test("as record field values") {
+        val value = Dynamic(
+          DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          DynamicValue.Map(
+            Vector(
+              (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+              (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
+            )
+          )
+        )
+        roundTrip[Dynamic](value, 19)
+      },
+      test("as record field values with custom codecs injected by optic") {
+        val value = Dynamic(
+          DynamicValue.Primitive(PrimitiveValue.Int(1)),
+          DynamicValue.Map(
+            Vector(
+              (DynamicValue.Primitive(PrimitiveValue.Long(1L)), DynamicValue.Primitive(PrimitiveValue.Int(1))),
+              (DynamicValue.Primitive(PrimitiveValue.Long(2L)), DynamicValue.Primitive(PrimitiveValue.String("VVV")))
+            )
+          )
+        )
+        val codec: AvroBinaryCodec[Dynamic] = Schema[Dynamic]
+          .deriving(AvroFormat.deriver)
+          .instance(
+            Dynamic.primitive,
+            new AvroBinaryCodec[DynamicValue.Primitive]() {
+              private val codec =
+                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
+
+              val avroSchema: AvroSchema =
+                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
+
+              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Primitive = {
+                val idx = decoder.readInt()
+                if (idx == 0) null
+                else codec.decodeUnsafe(decoder)
+              }
+
+              def encode(value: DynamicValue.Primitive, encoder: BinaryEncoder): Unit =
+                if (value eq null) encoder.writeInt(0)
+                else {
+                  encoder.writeInt(1)
+                  codec.encode(value, encoder)
+                }
+            }
+          )
+          .instance(
+            Dynamic.map,
+            new AvroBinaryCodec[DynamicValue.Map]() {
+              private val codec =
+                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
+
+              val avroSchema: AvroSchema =
+                AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
+
+              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Map = {
+                val idx = decoder.readInt()
+                if (idx == 0) null
+                else codec.decodeUnsafe(decoder)
+              }
+
+              def encode(value: DynamicValue.Map, encoder: BinaryEncoder): Unit =
+                if (value eq null) encoder.writeInt(0)
+                else {
+                  encoder.writeInt(1)
+                  codec.encode(value, encoder)
+                }
+            }
+          )
+          .derive
+        roundTrip[Dynamic](value, 23, codec) &&
+        roundTrip[Dynamic](Dynamic(null, null), 2, codec)
       }
     )
   )
@@ -949,5 +1023,14 @@ object AvroFormatSpec extends ZIOSpecDefault {
     val hidden: Lens[Record4, Unit]               = $(_.hidden)
     val optKey: Lens[Record4, Option[String]]     = $(_.optKey)
     val optKey_None: Optional[Record4, None.type] = $(_.optKey.when[None.type])
+  }
+
+  case class Dynamic(primitive: DynamicValue.Primitive, map: DynamicValue.Map)
+
+  object Dynamic extends CompanionOptics[Dynamic] {
+    implicit val schema: Schema[Dynamic] = Schema.derived
+
+    val primitive: Lens[Dynamic, DynamicValue.Primitive] = $(_.primitive)
+    val map: Lens[Dynamic, DynamicValue.Map]             = $(_.map)
   }
 }
