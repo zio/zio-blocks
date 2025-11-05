@@ -18,20 +18,7 @@
                   "type": "record",
                   "name": "Unit",
                   "namespace": "zio.blocks.schema.PrimitiveValue",
-                  "fields": [],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Unit"
-                  }
+                  "fields": []
                 },
                 {
                   "type": "record",
@@ -42,20 +29,7 @@
                       "name": "value",
                       "type": "boolean"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Boolean"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -69,20 +43,7 @@
                         "zio.blocks.avro.primitiveType": "Byte"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Byte"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -96,20 +57,7 @@
                         "zio.blocks.avro.primitiveType": "Short"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Short"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -120,20 +68,7 @@
                       "name": "value",
                       "type": "int"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Int"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -144,20 +79,7 @@
                       "name": "value",
                       "type": "long"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Long"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -168,20 +90,7 @@
                       "name": "value",
                       "type": "float"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Float"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -192,20 +101,7 @@
                       "name": "value",
                       "type": "double"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Double"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -219,20 +115,7 @@
                         "zio.blocks.avro.primitiveType": "Char"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Char"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -243,20 +126,7 @@
                       "name": "value",
                       "type": "string"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "String"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -270,20 +140,7 @@
                         "zio.blocks.avro.primitiveType": "BigInt"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "BigInt"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -317,20 +174,7 @@
                         "zio.blocks.avro.primitiveType": "BigDecimal"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "BigDecimal"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -344,20 +188,7 @@
                         "zio.blocks.avro.primitiveType": "DayOfWeek"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "DayOfWeek"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -383,20 +214,7 @@
                         "zio.blocks.avro.primitiveType": "Duration"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Duration"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -422,20 +240,7 @@
                         "zio.blocks.avro.primitiveType": "Instant"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Instant"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -465,20 +270,7 @@
                         "zio.blocks.avro.primitiveType": "LocalDate"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "LocalDate"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -524,20 +316,7 @@
                         "zio.blocks.avro.primitiveType": "LocalDateTime"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "LocalDateTime"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -571,20 +350,7 @@
                         "zio.blocks.avro.primitiveType": "LocalTime"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "LocalTime"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -598,20 +364,7 @@
                         "zio.blocks.avro.primitiveType": "Month"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Month"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -637,20 +390,7 @@
                         "zio.blocks.avro.primitiveType": "MonthDay"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "MonthDay"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -700,20 +440,7 @@
                         "zio.blocks.avro.primitiveType": "OffsetDateTime"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "OffsetDateTime"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -751,20 +478,7 @@
                         "zio.blocks.avro.primitiveType": "OffsetTime"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "OffsetTime"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -794,20 +508,7 @@
                         "zio.blocks.avro.primitiveType": "Period"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Period"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -821,20 +522,7 @@
                         "zio.blocks.avro.primitiveType": "Year"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Year"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -860,20 +548,7 @@
                         "zio.blocks.avro.primitiveType": "YearMonth"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "YearMonth"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -887,20 +562,7 @@
                         "zio.blocks.avro.primitiveType": "ZoneId"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "ZoneId"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -914,20 +576,7 @@
                         "zio.blocks.avro.primitiveType": "ZoneOffset"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "ZoneOffset"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -981,20 +630,7 @@
                         "zio.blocks.avro.primitiveType": "ZonedDateTime"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "ZonedDateTime"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -1006,25 +642,12 @@
                       "type": {
                         "type": "fixed",
                         "name": "Currency",
-                        "namespace": "",
+                        "namespace": "java.util",
                         "size": 3,
                         "zio.blocks.avro.primitiveType": "Currency"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "Currency"
-                  }
+                  ]
                 },
                 {
                   "type": "record",
@@ -1036,42 +659,16 @@
                       "type": {
                         "type": "fixed",
                         "name": "UUID",
-                        "namespace": "",
+                        "namespace": "java.util",
                         "size": 16,
                         "zio.blocks.avro.primitiveType": "UUID"
                       }
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "values": [
-                        "PrimitiveValue"
-                      ],
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "UUID"
-                  }
+                  ]
                 }
               ]
             }
-          ],
-          "zio.blocks.avro.typeName": {
-            "namespace": {
-              "values": [
-                "DynamicValue"
-              ],
-              "packages": [
-                "zio",
-                "blocks",
-                "schema"
-              ]
-            },
-            "name": "Primitive"
-          }
+          ]
         },
         {
           "type": "record",
@@ -1095,92 +692,11 @@
                       "name": "_2",
                       "type": "zio.blocks.schema.DynamicValue"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "packages": [
-                        "scala"
-                      ]
-                    },
-                    "name": "Tuple2",
-                    "params": [
-                      {
-                        "namespace": {
-                          "packages": [
-                            "scala"
-                          ]
-                        },
-                        "name": "String"
-                      },
-                      {
-                        "namespace": {
-                          "packages": [
-                            "zio",
-                            "blocks",
-                            "schema"
-                          ]
-                        },
-                        "name": "DynamicValue"
-                      }
-                    ]
-                  }
-                },
-                "zio.blocks.avro.typeName": {
-                  "namespace": {
-                    "packages": [
-                      "scala",
-                      "collection",
-                      "immutable"
-                    ]
-                  },
-                  "name": "Vector",
-                  "params": [
-                    {
-                      "namespace": {
-                        "packages": [
-                          "scala"
-                        ]
-                      },
-                      "name": "Tuple2",
-                      "params": [
-                        {
-                          "namespace": {
-                            "packages": [
-                              "scala"
-                            ]
-                          },
-                          "name": "String"
-                        },
-                        {
-                          "namespace": {
-                            "packages": [
-                              "zio",
-                              "blocks",
-                              "schema"
-                            ]
-                          },
-                          "name": "DynamicValue"
-                        }
-                      ]
-                    }
                   ]
                 }
               }
             }
-          ],
-          "zio.blocks.avro.typeName": {
-            "namespace": {
-              "values": [
-                "DynamicValue"
-              ],
-              "packages": [
-                "zio",
-                "blocks",
-                "schema"
-              ]
-            },
-            "name": "Record"
-          }
+          ]
         },
         {
           "type": "record",
@@ -1195,20 +711,7 @@
               "name": "value",
               "type": "zio.blocks.schema.DynamicValue"
             }
-          ],
-          "zio.blocks.avro.typeName": {
-            "namespace": {
-              "values": [
-                "DynamicValue"
-              ],
-              "packages": [
-                "zio",
-                "blocks",
-                "schema"
-              ]
-            },
-            "name": "Variant"
-          }
+          ]
         },
         {
           "type": "record",
@@ -1220,56 +723,11 @@
               "type": {
                 "type": "array",
                 "items": {
-                  "type": "zio.blocks.schema.DynamicValue",
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "packages": [
-                        "zio",
-                        "blocks",
-                        "schema"
-                      ]
-                    },
-                    "name": "DynamicValue"
-                  }
-                },
-                "zio.blocks.avro.typeName": {
-                  "namespace": {
-                    "packages": [
-                      "scala",
-                      "collection",
-                      "immutable"
-                    ]
-                  },
-                  "name": "Vector",
-                  "params": [
-                    {
-                      "namespace": {
-                        "packages": [
-                          "zio",
-                          "blocks",
-                          "schema"
-                        ]
-                      },
-                      "name": "DynamicValue"
-                    }
-                  ]
+                  "type": "zio.blocks.schema.DynamicValue"
                 }
               }
             }
-          ],
-          "zio.blocks.avro.typeName": {
-            "namespace": {
-              "values": [
-                "DynamicValue"
-              ],
-              "packages": [
-                "zio",
-                "blocks",
-                "schema"
-              ]
-            },
-            "name": "Sequence"
-          }
+          ]
         },
         {
           "type": "record",
@@ -1293,96 +751,11 @@
                       "name": "_2",
                       "type": "zio.blocks.schema.DynamicValue"
                     }
-                  ],
-                  "zio.blocks.avro.typeName": {
-                    "namespace": {
-                      "packages": [
-                        "scala"
-                      ]
-                    },
-                    "name": "Tuple2",
-                    "params": [
-                      {
-                        "namespace": {
-                          "packages": [
-                            "zio",
-                            "blocks",
-                            "schema"
-                          ]
-                        },
-                        "name": "DynamicValue"
-                      },
-                      {
-                        "namespace": {
-                          "packages": [
-                            "zio",
-                            "blocks",
-                            "schema"
-                          ]
-                        },
-                        "name": "DynamicValue"
-                      }
-                    ]
-                  }
-                },
-                "zio.blocks.avro.typeName": {
-                  "namespace": {
-                    "packages": [
-                      "scala",
-                      "collection",
-                      "immutable"
-                    ]
-                  },
-                  "name": "Vector",
-                  "params": [
-                    {
-                      "namespace": {
-                        "packages": [
-                          "scala"
-                        ]
-                      },
-                      "name": "Tuple2",
-                      "params": [
-                        {
-                          "namespace": {
-                            "packages": [
-                              "zio",
-                              "blocks",
-                              "schema"
-                            ]
-                          },
-                          "name": "DynamicValue"
-                        },
-                        {
-                          "namespace": {
-                            "packages": [
-                              "zio",
-                              "blocks",
-                              "schema"
-                            ]
-                          },
-                          "name": "DynamicValue"
-                        }
-                      ]
-                    }
                   ]
                 }
               }
             }
-          ],
-          "zio.blocks.avro.typeName": {
-            "namespace": {
-              "values": [
-                "DynamicValue"
-              ],
-              "packages": [
-                "zio",
-                "blocks",
-                "schema"
-              ]
-            },
-            "name": "Map"
-          }
+          ]
         }
       ]
     }

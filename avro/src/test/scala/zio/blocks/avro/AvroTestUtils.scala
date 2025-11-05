@@ -2,7 +2,6 @@ package zio.blocks.avro
 
 import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
-import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.{Schema, SchemaError}
 import zio.test.Assertion._
 import zio.test._
@@ -32,10 +31,16 @@ object AvroTestUtils {
     sb.append(header).append(ls).toString
   }
 
-  def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =
-    roundTrip(value, expectedLength, AvroSchemaCodec.toAvroSchema(schema), schema.derive(AvroFormat.deriver))
+  def avroSchema[A](expectedAvroSchemaJson: String)(implicit schema: Schema[A]): TestResult =
+    avroSchema(expectedAvroSchemaJson, schema.derive(AvroFormat.deriver))
 
-  def roundTrip[A](value: A, expectedLength: Int, avroSchema: AvroSchema, codec: AvroBinaryCodec[A]): TestResult = {
+  def avroSchema[A](expectedAvroSchemaJson: String, codec: AvroBinaryCodec[A]): TestResult =
+    assert(codec.avroSchema.toString)(equalTo(expectedAvroSchemaJson))
+
+  def roundTrip[A](value: A, expectedLength: Int)(implicit schema: Schema[A]): TestResult =
+    roundTrip(value, expectedLength, schema.derive(AvroFormat.deriver))
+
+  def roundTrip[A](value: A, expectedLength: Int, codec: AvroBinaryCodec[A]): TestResult = {
     val byteBuffer = ByteBuffer.allocate(1024)
     codec.encode(value, byteBuffer)
     val encodedBySchema = util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
@@ -52,10 +57,10 @@ object AvroTestUtils {
     assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) && {
       val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema, null)
-      val datum         = new GenericDatumReader[Any](avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
+      val datum         = new GenericDatumReader[Any](codec.avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
       val encodedByAvro = new ByteArrayOutputStream(1024)
       val binaryEncoder = EncoderFactory.get().directBinaryEncoder(encodedByAvro, null)
-      new GenericDatumWriter[Any](avroSchema).write(datum, binaryEncoder)
+      new GenericDatumWriter[Any](codec.avroSchema).write(datum, binaryEncoder)
       assert(util.Arrays.compare(encodedBySchema, encodedByAvro.toByteArray))(equalTo(0))
     }
   }
