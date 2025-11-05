@@ -1,6 +1,7 @@
 package zio.blocks.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder, DecoderFactory, DirectBinaryEncoder}
+import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
@@ -23,6 +24,8 @@ abstract class AvroBinaryCodec[A](val valueType: Int = AvroBinaryCodec.objectTyp
     case AvroBinaryCodec.longType    => RegisterOffset(longs = 1)
     case _                           => RegisterOffset.Zero
   }
+
+  def avroSchema: AvroSchema
 
   def decodeError(expectation: String): Nothing = throw new AvroBinaryCodecError(Nil, expectation)
 

@@ -1,6 +1,7 @@
 package zio.blocks.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
+import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.{CompanionOptics, DynamicValue, Lens, PrimitiveValue, Schema}
 import zio.blocks.avro.AvroTestUtils._
 import zio.test._
@@ -113,6 +114,8 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               private val codec   =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
 
+              val avroSchema: AvroSchema = codec.avroSchema
+
               def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Primitive = {
                 val isDefault = decoder.readBoolean()
                 if (isDefault) default
@@ -141,6 +144,8 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
               )
               private val codec =
                 Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
+
+              val avroSchema: AvroSchema = codec.avroSchema
 
               def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Map = {
                 val isDefault = decoder.readBoolean()
