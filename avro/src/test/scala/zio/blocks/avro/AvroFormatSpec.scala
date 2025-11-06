@@ -6,7 +6,9 @@ import zio.blocks.schema._
 import zio.blocks.avro.AvroTestUtils._
 import zio.blocks.schema.binding.Binding
 import zio.test._
+import java.time._
 import java.util.UUID
+import java.util.Currency
 import scala.collection.immutable.ArraySeq
 
 object AvroFormatSpec extends ZIOSpecDefault {
@@ -216,13 +218,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(java.time.ZonedDateTime.parse("2025-07-18T08:29:13.121409459+02:00[Europe/Warsaw]"), 27)
       },
       test("Currency") {
-        avroSchema[java.util.Currency](
+        avroSchema[Currency](
           "{\"type\":\"fixed\",\"name\":\"Currency\",\"namespace\":\"java.util\",\"size\":3}"
         ) &&
-        roundTrip(java.util.Currency.getInstance("USD"), 3)
+        roundTrip(Currency.getInstance("USD"), 3)
       },
       test("UUID") {
-        avroSchema[java.util.UUID](
+        avroSchema[UUID](
           "{\"type\":\"fixed\",\"name\":\"UUID\",\"namespace\":\"java.util\",\"size\":16}"
         ) &&
         roundTrip(UUID.randomUUID(), 16)
@@ -682,6 +684,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           intToLongMapCodec,
           "Expected map size not greater than 2147483639, got 2147483647"
+        ) &&
+        decodeError(
+          Array[Byte](2, 2, 0xff.toByte),
+          intToLongMapCodec,
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtMapKey(1)), "Unexpected end of input")
         )
       },
       test("non string key with recursive values") {
@@ -718,9 +725,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("constant values (decode error)") {
         val trafficLightCodec = Schema[TrafficLight].derive(AvroFormat.deriver)
-        val bytes             = trafficLightCodec.encode(TrafficLight.Red)
-        bytes(0) = 42
-        decodeError(bytes, trafficLightCodec, "Expected enum index from 0 to 2, got 21")
+        decodeError(Array[Byte](6), trafficLightCodec, "Expected enum index from 0 to 2, got 3")
       },
       test("option") {
         avroSchema[Option[Int]](
@@ -731,9 +736,15 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("option (decode error)") {
         val intOptionCodec = Schema[Option[Int]].derive(AvroFormat.deriver)
-        val bytes          = intOptionCodec.encode(Some(1))
-        bytes(0) = 42
-        decodeError(bytes, intOptionCodec, "Expected enum index from 0 to 1, got 21")
+        decodeError(Array[Byte](4), intOptionCodec, "Expected enum index from 0 to 1, got 2") &&
+        decodeError(
+          Array[Byte](2, 0xff.toByte),
+          intOptionCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Case("Some")),
+            "Unexpected end of input"
+          )
+        )
       },
       test("either") {
         avroSchema[Either[String, Int]](
@@ -754,7 +765,12 @@ object AvroFormatSpec extends ZIOSpecDefault {
         val emailCodec = Schema[Email].derive(AvroFormat.deriver)
         val bytes      = emailCodec.encode(Email("test@gmail.com"))
         bytes(5) = 42
-        decodeError(bytes, emailCodec, "Expected Email")
+        decodeError(bytes, emailCodec, "Expected Email") &&
+        decodeError(
+          Array[Byte](100),
+          emailCodec,
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.Wrapped), "Unexpected end of input")
+        )
       },
       test("as a record field") {
         avroSchema[Record3](
@@ -768,8 +784,40 @@ object AvroFormatSpec extends ZIOSpecDefault {
         avroSchema[DynamicValue](
           "{\"type\":\"record\",\"name\":\"DynamicValue\",\"namespace\":\"zio.blocks.schema\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"Primitive\",\"namespace\":\"zio.blocks.schema.DynamicValue\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"Unit\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Boolean\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"boolean\"}]},{\"type\":\"record\",\"name\":\"Byte\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"Short\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"Int\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"Long\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"long\"}]},{\"type\":\"record\",\"name\":\"Float\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"float\"}]},{\"type\":\"record\",\"name\":\"Double\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"double\"}]},{\"type\":\"record\",\"name\":\"Char\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"String\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]},{\"type\":\"record\",\"name\":\"BigInt\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"bytes\"}]},{\"type\":\"record\",\"name\":\"BigDecimal\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"BigDecimal\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"mantissa\",\"type\":\"bytes\"},{\"name\":\"scale\",\"type\":\"int\"},{\"name\":\"precision\",\"type\":\"int\"},{\"name\":\"roundingMode\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"DayOfWeek\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"Duration\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"Duration\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"seconds\",\"type\":\"long\"},{\"name\":\"nanos\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"Instant\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"Instant\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"epochSecond\",\"type\":\"long\"},{\"name\":\"nano\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"LocalDate\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"LocalDate\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"LocalDateTime\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"LocalDateTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"LocalTime\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"LocalTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"Month\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"MonthDay\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"MonthDay\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"OffsetDateTime\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"OffsetDateTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"OffsetTime\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"OffsetTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"Period\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"Period\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"years\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"days\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"Year\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"YearMonth\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"YearMonth\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"}]}}]},{\"type\":\"record\",\"name\":\"ZoneId\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]},{\"type\":\"record\",\"name\":\"ZoneOffset\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]},{\"type\":\"record\",\"name\":\"ZonedDateTime\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"record\",\"name\":\"ZonedDateTime\",\"namespace\":\"java.time\",\"fields\":[{\"name\":\"year\",\"type\":\"int\"},{\"name\":\"month\",\"type\":\"int\"},{\"name\":\"day\",\"type\":\"int\"},{\"name\":\"hour\",\"type\":\"int\"},{\"name\":\"minute\",\"type\":\"int\"},{\"name\":\"second\",\"type\":\"int\"},{\"name\":\"nano\",\"type\":\"int\"},{\"name\":\"offsetSecond\",\"type\":\"int\"},{\"name\":\"zoneId\",\"type\":\"string\"}]}}]},{\"type\":\"record\",\"name\":\"Currency\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"fixed\",\"name\":\"Currency\",\"namespace\":\"java.util\",\"size\":3}}]},{\"type\":\"record\",\"name\":\"UUID\",\"namespace\":\"zio.blocks.schema.PrimitiveValue\",\"fields\":[{\"name\":\"value\",\"type\":{\"type\":\"fixed\",\"name\":\"UUID\",\"namespace\":\"java.util\",\"size\":16}}]}]}]},{\"type\":\"record\",\"name\":\"Record\",\"namespace\":\"zio.blocks.schema.DynamicValue\",\"fields\":[{\"name\":\"fields\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Field\",\"namespace\":\"zio.blocks.schema.internal\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"zio.blocks.schema.DynamicValue\"}]}}}]},{\"type\":\"record\",\"name\":\"Variant\",\"namespace\":\"zio.blocks.schema.DynamicValue\",\"fields\":[{\"name\":\"caseName\",\"type\":\"string\"},{\"name\":\"value\",\"type\":\"zio.blocks.schema.DynamicValue\"}]},{\"type\":\"record\",\"name\":\"Sequence\",\"namespace\":\"zio.blocks.schema.DynamicValue\",\"fields\":[{\"name\":\"elements\",\"type\":{\"type\":\"array\",\"items\":\"zio.blocks.schema.DynamicValue\"}}]},{\"type\":\"record\",\"name\":\"Map\",\"namespace\":\"zio.blocks.schema.DynamicValue\",\"fields\":[{\"name\":\"entries\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Entry\",\"namespace\":\"zio.blocks.schema.internal\",\"fields\":[{\"name\":\"key\",\"type\":\"zio.blocks.schema.DynamicValue\"},{\"name\":\"value\",\"type\":\"zio.blocks.schema.DynamicValue\"}]}}}]}]}]}"
         ) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Unit), 2) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Boolean(true)), 3) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Byte(1: Byte)), 3) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Short(1: Short)), 3) &&
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Int(1)), 3) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Long(1L)), 3) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Float(1.0f)), 6) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Double(1.0)), 10) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Char('1')), 3) &&
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.String("VVV")), 6) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.BigInt(123)), 4) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.BigDecimal(123.45)), 8) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.DayOfWeek(DayOfWeek.MONDAY)), 3) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Duration(Duration.ofSeconds(60))), 4) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Instant(Instant.EPOCH)), 4) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.LocalDate(LocalDate.MAX)), 9) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.LocalDateTime(LocalDateTime.MAX)), 17) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.LocalTime(LocalTime.MAX)), 10) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Month(Month.MAY)), 3) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.MonthDay(MonthDay.of(Month.MAY, 1))), 4) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.OffsetDateTime(OffsetDateTime.MAX)), 20) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.OffsetTime(OffsetTime.MAX)), 13) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Period(Period.ofDays(1))), 5) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Year(Year.of(2025))), 4) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.YearMonth(YearMonth.of(2025, 1))), 5) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.ZoneId(ZoneId.of("UTC"))), 6) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.ZoneOffset(ZoneOffset.MAX)), 5) &&
+        roundTrip[DynamicValue](
+          DynamicValue.Primitive(
+            PrimitiveValue.ZonedDateTime(ZonedDateTime.ofInstant(Instant.EPOCH, ZoneId.of("UTC")))
+          ),
+          15
+        ) &&
+        roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.Currency(Currency.getInstance("USD"))), 5) &&
         roundTrip[DynamicValue](DynamicValue.Primitive(PrimitiveValue.UUID(UUID.randomUUID())), 18) &&
         roundTrip[DynamicValue](
           DynamicValue.Record(
@@ -802,10 +850,29 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("top-level (decode error)") {
         val dynamicValueCodec = Schema[DynamicValue].derive(AvroFormat.deriver)
-        val bytes             = dynamicValueCodec.encode(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        bytes(0) = 42
-        decodeError(bytes, dynamicValueCodec, "Expected enum index from 0 to 4, got 21") &&
+        decodeError(Array[Byte](10), dynamicValueCodec, "Expected enum index from 0 to 4, got 5") &&
         decodeError(Array.empty[Byte], dynamicValueCodec, "Unexpected end of input") &&
+        decodeError(
+          Array[Byte](0),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(List(DynamicOptic.Node.Case("Primitive")), "Unexpected end of input")
+        ) &&
+        decodeError(
+          Array[Byte](0, 60),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Case("Primitive")),
+            "Expected enum index from 0 to 29, got 30"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](0, 8, 0xff.toByte),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Case("Primitive")),
+            "Unexpected end of input"
+          )
+        ) &&
         decodeError(
           Array[Byte](2),
           dynamicValueCodec,
@@ -815,7 +882,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           )
         ) &&
         decodeError(
-          Array[Byte](2, 0x01.toByte),
+          Array[Byte](2, 1),
           dynamicValueCodec,
           SchemaError.expectationMismatch(
             List(DynamicOptic.Node.Field("fields"), DynamicOptic.Node.Case("Record")),
@@ -823,19 +890,29 @@ object AvroFormatSpec extends ZIOSpecDefault {
           )
         ) &&
         decodeError(
-          Array[Byte](6, 0x01.toByte),
+          Array[Byte](2, 2, 2),
           dynamicValueCodec,
           SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
-            "Expected positive collection part size, got -1"
+            List(
+              DynamicOptic.Node.Field("_1"),
+              DynamicOptic.Node.AtIndex(0),
+              DynamicOptic.Node.Field("fields"),
+              DynamicOptic.Node.Case("Record")
+            ),
+            "Unexpected end of input"
           )
         ) &&
         decodeError(
-          Array[Byte](8, 0x01.toByte),
+          Array[Byte](2, 2, 0, 10),
           dynamicValueCodec,
           SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("entries"), DynamicOptic.Node.Case("Map")),
-            "Expected positive collection part size, got -1"
+            List(
+              DynamicOptic.Node.Field("_2"),
+              DynamicOptic.Node.AtIndex(0),
+              DynamicOptic.Node.Field("fields"),
+              DynamicOptic.Node.Case("Record")
+            ),
+            "Expected enum index from 0 to 4, got 5"
           )
         ) &&
         decodeError(
@@ -847,6 +924,30 @@ object AvroFormatSpec extends ZIOSpecDefault {
           )
         ) &&
         decodeError(
+          Array[Byte](4, 2),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("caseName"), DynamicOptic.Node.Case("Variant")),
+            "Unexpected end of input"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](4, 0, 10),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Case("Variant")),
+            "Expected enum index from 0 to 4, got 5"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](6, 1),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
+            "Expected positive collection part size, got -1"
+          )
+        ) &&
+        decodeError(
           Array[Byte](6, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           dynamicValueCodec,
           SchemaError.expectationMismatch(
@@ -855,11 +956,53 @@ object AvroFormatSpec extends ZIOSpecDefault {
           )
         ) &&
         decodeError(
+          Array[Byte](6, 2, 10),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.AtIndex(0), DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
+            "Expected enum index from 0 to 4, got 5"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](8, 1),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(DynamicOptic.Node.Field("entries"), DynamicOptic.Node.Case("Map")),
+            "Expected positive collection part size, got -1"
+          )
+        ) &&
+        decodeError(
           Array[Byte](8, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           dynamicValueCodec,
           SchemaError.expectationMismatch(
             List(DynamicOptic.Node.Field("entries"), DynamicOptic.Node.Case("Map")),
             "Expected collection size not greater than 2147483639, got 2147483647"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](8, 2, 10),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(
+              DynamicOptic.Node.Field("_1"),
+              DynamicOptic.Node.AtIndex(0),
+              DynamicOptic.Node.Field("entries"),
+              DynamicOptic.Node.Case("Map")
+            ),
+            "Expected enum index from 0 to 4, got 5"
+          )
+        ) &&
+        decodeError(
+          Array[Byte](8, 2, 0, 0, 10),
+          dynamicValueCodec,
+          SchemaError.expectationMismatch(
+            List(
+              DynamicOptic.Node.Field("_2"),
+              DynamicOptic.Node.AtIndex(0),
+              DynamicOptic.Node.Field("entries"),
+              DynamicOptic.Node.Case("Map")
+            ),
+            "Expected enum index from 0 to 4, got 5"
           )
         )
       },
