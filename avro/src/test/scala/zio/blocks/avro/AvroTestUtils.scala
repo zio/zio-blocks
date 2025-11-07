@@ -2,6 +2,7 @@ package zio.blocks.avro
 
 import org.apache.avro.generic.{GenericDatumReader, GenericDatumWriter}
 import org.apache.avro.io.{DecoderFactory, EncoderFactory}
+import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.{Schema, SchemaError}
 import zio.test.Assertion._
 import zio.test._
@@ -56,11 +57,12 @@ object AvroTestUtils {
     assert(codec.decode(toInputStream(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) && {
+      val avroSchema    = (new AvroSchema.Parser).parse(codec.avroSchema.toString)
       val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema, null)
-      val datum         = new GenericDatumReader[Any](codec.avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
+      val datum         = new GenericDatumReader[Any](avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
       val encodedByAvro = new ByteArrayOutputStream(1024)
       val binaryEncoder = EncoderFactory.get().directBinaryEncoder(encodedByAvro, null)
-      new GenericDatumWriter[Any](codec.avroSchema).write(datum, binaryEncoder)
+      new GenericDatumWriter[Any](avroSchema).write(datum, binaryEncoder)
       assert(util.Arrays.compare(encodedBySchema, encodedByAvro.toByteArray))(equalTo(0))
     }
   }

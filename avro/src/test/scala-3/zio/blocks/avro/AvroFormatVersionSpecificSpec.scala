@@ -13,7 +13,7 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
         implicit val schema: Schema[GenericTuple4] = Schema.derived
 
         avroSchema[GenericTuple4](
-          "{\"type\":\"record\",\"name\":\"Tuple4_fcd61909\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"int\"},{\"name\":\"_3\",\"type\":\"int\"},{\"name\":\"_4\",\"type\":\"long\"}]}"
+          "{\"type\":\"record\",\"name\":\"Tuple4\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"int\"},{\"name\":\"_3\",\"type\":\"int\"},{\"name\":\"_4\",\"type\":\"long\"}]}"
         ) &&
         roundTrip[GenericTuple4]((1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple, 4)
       }
@@ -34,11 +34,11 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
         val schema2 = Schema.derived[LinkedList[Option[String]]]
 
         avroSchema[LinkedList[Int]](
-          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node_ccb86a7f\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"},{\"name\":\"next\",\"type\":[\"End\",\"Node_ccb86a7f\"]}]}]"
+          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
         )(schema1) &&
         roundTrip(Node(1, Node(2, End)), 5)(schema1) &&
         avroSchema[LinkedList[Option[String]]](
-          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node_29e3482a\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some_10c51065\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]},{\"name\":\"next\",\"type\":[\"End\",\"Node_29e3482a\"]}]}]"
+          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
         )(schema2) &&
         roundTrip(Node(Some("VVV"), Node(None, End)), 9)(schema2)
       },
@@ -48,7 +48,7 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
         implicit val schema: Schema[Value] = Schema.derived
 
         avroSchema[Value](
-          "[\"int\",\"boolean\",\"string\",{\"type\":\"record\",\"name\":\"Tuple2_dee37272\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"boolean\"}]},{\"type\":\"array\",\"items\":\"int\"}]"
+          "[\"int\",\"boolean\",\"string\",{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"boolean\"}]},{\"type\":\"array\",\"items\":\"int\"}]"
         ) &&
         roundTrip[Value](1, 2) &&
         roundTrip[Value](true, 2) &&

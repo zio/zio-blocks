@@ -110,6 +110,7 @@ object AvroFormat
 
         override def instanceOverrides: IndexedSeq[InstanceOverride] = {
           recursiveRecordCache.remove()
+          recordCounters.remove()
           super.instanceOverrides
         }
 
@@ -125,6 +126,10 @@ object AvroFormat
           new ThreadLocal[java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], AvroSchema)]] {
             override def initialValue: java.util.HashMap[TypeName[?], (Array[AvroBinaryCodec[?]], AvroSchema)] =
               new java.util.HashMap
+          }
+        private[this] val recordCounters =
+          new ThreadLocal[java.util.HashMap[String, Int]] {
+            override def initialValue: java.util.HashMap[String, Int] = new java.util.HashMap
           }
         private[this] val unitCodec = new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
           val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.NULL)
@@ -218,12 +223,12 @@ object AvroFormat
         private[this] val bigDecimalCodec = new AvroBinaryCodec[BigDecimal]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](4)
             fields.add(new AvroSchema.Field("mantissa", bigIntCodec.avroSchema))
             fields.add(new AvroSchema.Field("scale", intAvroSchema))
             fields.add(new AvroSchema.Field("precision", intAvroSchema))
             fields.add(new AvroSchema.Field("roundingMode", intAvroSchema))
-            AvroSchema.createRecord("BigDecimal", null, "scala", false, fields)
+            createAvroRecord("scala", "BigDecimal", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): BigDecimal = {
@@ -253,10 +258,10 @@ object AvroFormat
         }
         private[this] val durationCodec = new AvroBinaryCodec[java.time.Duration]() {
           val avroSchema: AvroSchema = {
-            val fields = new java.util.ArrayList[AvroSchema.Field]
+            val fields = new java.util.ArrayList[AvroSchema.Field](2)
             fields.add(new AvroSchema.Field("seconds", longCodec.avroSchema))
             fields.add(new AvroSchema.Field("nanos", intCodec.avroSchema))
-            AvroSchema.createRecord("Duration", null, "java.time", false, fields)
+            createAvroRecord("java.time", "Duration", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.Duration =
@@ -269,10 +274,10 @@ object AvroFormat
         }
         private[this] val instantCodec = new AvroBinaryCodec[java.time.Instant]() {
           val avroSchema: AvroSchema = {
-            val fields = new java.util.ArrayList[AvroSchema.Field]
+            val fields = new java.util.ArrayList[AvroSchema.Field](2)
             fields.add(new AvroSchema.Field("epochSecond", longCodec.avroSchema))
             fields.add(new AvroSchema.Field("nano", intCodec.avroSchema))
-            AvroSchema.createRecord("Instant", null, "java.time", false, fields)
+            createAvroRecord("java.time", "Instant", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.Instant =
@@ -286,11 +291,11 @@ object AvroFormat
         private[this] val localDateCodec = new AvroBinaryCodec[java.time.LocalDate]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](3)
             fields.add(new AvroSchema.Field("year", intAvroSchema))
             fields.add(new AvroSchema.Field("month", intAvroSchema))
             fields.add(new AvroSchema.Field("day", intAvroSchema))
-            AvroSchema.createRecord("LocalDate", null, "java.time", false, fields)
+            createAvroRecord("java.time", "LocalDate", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.LocalDate =
@@ -305,7 +310,7 @@ object AvroFormat
         private[this] val localDateTimeCodec = new AvroBinaryCodec[java.time.LocalDateTime]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](7)
             fields.add(new AvroSchema.Field("year", intAvroSchema))
             fields.add(new AvroSchema.Field("month", intAvroSchema))
             fields.add(new AvroSchema.Field("day", intAvroSchema))
@@ -313,7 +318,7 @@ object AvroFormat
             fields.add(new AvroSchema.Field("minute", intAvroSchema))
             fields.add(new AvroSchema.Field("second", intAvroSchema))
             fields.add(new AvroSchema.Field("nano", intAvroSchema))
-            AvroSchema.createRecord("LocalDateTime", null, "java.time", false, fields)
+            createAvroRecord("java.time", "LocalDateTime", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.LocalDateTime =
@@ -341,12 +346,12 @@ object AvroFormat
         private[this] val localTimeCodec = new AvroBinaryCodec[java.time.LocalTime]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](4)
             fields.add(new AvroSchema.Field("hour", intAvroSchema))
             fields.add(new AvroSchema.Field("minute", intAvroSchema))
             fields.add(new AvroSchema.Field("second", intAvroSchema))
             fields.add(new AvroSchema.Field("nano", intAvroSchema))
-            AvroSchema.createRecord("LocalTime", null, "java.time", false, fields)
+            createAvroRecord("java.time", "LocalTime", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.LocalTime =
@@ -369,10 +374,10 @@ object AvroFormat
         private[this] val monthDayCodec = new AvroBinaryCodec[java.time.MonthDay]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](2)
             fields.add(new AvroSchema.Field("month", intAvroSchema))
             fields.add(new AvroSchema.Field("day", intAvroSchema))
-            AvroSchema.createRecord("MonthDay", null, "java.time", false, fields)
+            createAvroRecord("java.time", "MonthDay", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.MonthDay =
@@ -386,7 +391,7 @@ object AvroFormat
         private[this] val offsetDateTimeCodec = new AvroBinaryCodec[java.time.OffsetDateTime]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](8)
             fields.add(new AvroSchema.Field("year", intAvroSchema))
             fields.add(new AvroSchema.Field("month", intAvroSchema))
             fields.add(new AvroSchema.Field("day", intAvroSchema))
@@ -395,7 +400,7 @@ object AvroFormat
             fields.add(new AvroSchema.Field("second", intAvroSchema))
             fields.add(new AvroSchema.Field("nano", intAvroSchema))
             fields.add(new AvroSchema.Field("offsetSecond", intAvroSchema))
-            AvroSchema.createRecord("OffsetDateTime", null, "java.time", false, fields)
+            createAvroRecord("java.time", "OffsetDateTime", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.OffsetDateTime =
@@ -424,13 +429,13 @@ object AvroFormat
         private[this] val offsetTimeCodec = new AvroBinaryCodec[java.time.OffsetTime]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](5)
             fields.add(new AvroSchema.Field("hour", intAvroSchema))
             fields.add(new AvroSchema.Field("minute", intAvroSchema))
             fields.add(new AvroSchema.Field("second", intAvroSchema))
             fields.add(new AvroSchema.Field("nano", intAvroSchema))
             fields.add(new AvroSchema.Field("offsetSecond", intAvroSchema))
-            AvroSchema.createRecord("OffsetTime", null, "java.time", false, fields)
+            createAvroRecord("java.time", "OffsetTime", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.OffsetTime =
@@ -453,11 +458,11 @@ object AvroFormat
         private[this] val periodCodec = new AvroBinaryCodec[java.time.Period]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](3)
             fields.add(new AvroSchema.Field("years", intAvroSchema))
             fields.add(new AvroSchema.Field("month", intAvroSchema))
             fields.add(new AvroSchema.Field("days", intAvroSchema))
-            AvroSchema.createRecord("Period", null, "java.time", false, fields)
+            createAvroRecord("java.time", "Period", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.Period =
@@ -479,10 +484,10 @@ object AvroFormat
         private[this] val yearMonthCodec = new AvroBinaryCodec[java.time.YearMonth]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](2)
             fields.add(new AvroSchema.Field("year", intAvroSchema))
             fields.add(new AvroSchema.Field("month", intAvroSchema))
-            AvroSchema.createRecord("YearMonth", null, "java.time", false, fields)
+            createAvroRecord("java.time", "YearMonth", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.YearMonth =
@@ -512,7 +517,7 @@ object AvroFormat
         private[this] val zonedDateTimeCodec = new AvroBinaryCodec[java.time.ZonedDateTime]() {
           val avroSchema: AvroSchema = {
             val intAvroSchema = intCodec.avroSchema
-            val fields        = new java.util.ArrayList[AvroSchema.Field]
+            val fields        = new java.util.ArrayList[AvroSchema.Field](9)
             fields.add(new AvroSchema.Field("year", intAvroSchema))
             fields.add(new AvroSchema.Field("month", intAvroSchema))
             fields.add(new AvroSchema.Field("day", intAvroSchema))
@@ -522,7 +527,7 @@ object AvroFormat
             fields.add(new AvroSchema.Field("nano", intAvroSchema))
             fields.add(new AvroSchema.Field("offsetSecond", intAvroSchema))
             fields.add(new AvroSchema.Field("zoneId", stringCodec.avroSchema))
-            AvroSchema.createRecord("ZonedDateTime", null, "java.time", false, fields)
+            createAvroRecord("java.time", "ZonedDateTime", fields)
           }
 
           def decodeUnsafe(decoder: BinaryDecoder): java.time.ZonedDateTime =
@@ -760,11 +765,10 @@ object AvroFormat
                   case Some(primitiveKey) if primitiveKey.primitiveType.isInstanceOf[PrimitiveType.String] =>
                     AvroSchema.createMap(valueCodec.avroSchema)
                   case _ =>
-                    val name   = s"Tuple2_${map.typeName.params.hashCode.toHexString}"
-                    val fields = new java.util.ArrayList[AvroSchema.Field]
+                    val fields = new java.util.ArrayList[AvroSchema.Field](2)
                     fields.add(new AvroSchema.Field("_1", keyCodec.avroSchema))
                     fields.add(new AvroSchema.Field("_2", valueCodec.avroSchema))
-                    AvroSchema.createArray(AvroSchema.createRecord(name, null, "scala", false, fields))
+                    AvroSchema.createArray(createAvroRecord("scala", "Tuple2", fields))
                 }
 
                 def decodeUnsafe(decoder: BinaryDecoder): Map[Key, Value] = {
@@ -829,10 +833,10 @@ object AvroFormat
                 val len        = fields.length
                 val codecs     = new Array[AvroBinaryCodec[?]](len)
                 val typeName   = record.typeName
-                val avroSchema = AvroSchema.createRecord(getName(typeName), null, getNamespace(typeName), false)
+                val avroSchema = createAvroRecord(typeName.namespace.elements.mkString("."), typeName.name, null)
                 codecsWithAvroSchema = (codecs, avroSchema)
                 if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecsWithAvroSchema)
-                val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field]
+                val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field](len)
                 var idx              = 0
                 while (idx < len) {
                   val field = fields(idx)
@@ -963,14 +967,6 @@ object AvroFormat
           }
         }.asInstanceOf[AvroBinaryCodec[A]]
 
-        private[this] def getName(typeName: TypeName[?]): String = {
-          val name = typeName.name
-          if (typeName.params.isEmpty) name
-          else s"${name}_${typeName.params.hashCode.toHexString}"
-        }
-
-        private[this] def getNamespace(typeName: TypeName[?]): String = typeName.namespace.elements.mkString(".")
-
         private[this] val dynamicValueCodec = new AvroBinaryCodec[DynamicValue]() {
           private[this] val spanPrimitive = new DynamicOptic.Node.Case("Primitive")
           private[this] val spanRecord    = new DynamicOptic.Node.Case("Record")
@@ -986,24 +982,22 @@ object AvroFormat
           private[this] val span_2        = new DynamicOptic.Node.Field("_2")
 
           val avroSchema: AvroSchema = {
-            val dynamicValue       = AvroSchema.createRecord("DynamicValue", null, "zio.blocks.schema", false)
-            val dynamicValueFields = new java.util.ArrayList[AvroSchema.Field]
+            val dynamicValue       = createAvroRecord("zio.blocks.schema", "DynamicValue", null)
+            val dynamicValueFields = new java.util.ArrayList[AvroSchema.Field](1)
             dynamicValueFields.add(
               new AvroSchema.Field(
                 "value",
                 AvroSchema.createUnion(
                   {
-                    val primitiveFields = new java.util.ArrayList[AvroSchema.Field]
+                    val primitiveFields = new java.util.ArrayList[AvroSchema.Field](1)
                     primitiveFields.add(
                       new AvroSchema.Field(
                         "value",
                         AvroSchema.createUnion(
-                          AvroSchema.createRecord(
-                            "Unit",
-                            null,
+                          createAvroRecord(
                             "zio.blocks.schema.PrimitiveValue",
-                            false,
-                            new java.util.ArrayList[AvroSchema.Field]
+                            "Unit",
+                            new java.util.ArrayList[AvroSchema.Field](0)
                           ),
                           primitiveValueAvroSchema("Boolean", booleanCodec.avroSchema),
                           primitiveValueAvroSchema("Byte", byteCodec.avroSchema),
@@ -1037,44 +1031,44 @@ object AvroFormat
                         )
                       )
                     )
-                    AvroSchema.createRecord("Primitive", null, "zio.blocks.schema.DynamicValue", false, primitiveFields)
+                    createAvroRecord("zio.blocks.schema.DynamicValue", "Primitive", primitiveFields)
                   }, {
-                    val recordFields = new java.util.ArrayList[AvroSchema.Field]
+                    val recordFields = new java.util.ArrayList[AvroSchema.Field](1)
                     recordFields.add(
                       new AvroSchema.Field(
                         "fields",
                         AvroSchema.createArray {
-                          val fieldFields = new java.util.ArrayList[AvroSchema.Field]
+                          val fieldFields = new java.util.ArrayList[AvroSchema.Field](2)
                           fieldFields.add(new AvroSchema.Field("name", stringCodec.avroSchema))
                           fieldFields.add(new AvroSchema.Field("value", dynamicValue))
-                          AvroSchema.createRecord("Field", null, "zio.blocks.schema.internal", false, fieldFields)
+                          createAvroRecord("zio.blocks.schema.internal", "Field", fieldFields)
                         }
                       )
                     )
-                    AvroSchema.createRecord("Record", null, "zio.blocks.schema.DynamicValue", false, recordFields)
+                    createAvroRecord("zio.blocks.schema.DynamicValue", "Record", recordFields)
                   }, {
-                    val variantFields = new java.util.ArrayList[AvroSchema.Field]
+                    val variantFields = new java.util.ArrayList[AvroSchema.Field](2)
                     variantFields.add(new AvroSchema.Field("caseName", stringCodec.avroSchema))
                     variantFields.add(new AvroSchema.Field("value", dynamicValue))
-                    AvroSchema.createRecord("Variant", null, "zio.blocks.schema.DynamicValue", false, variantFields)
+                    createAvroRecord("zio.blocks.schema.DynamicValue", "Variant", variantFields)
                   }, {
-                    val sequenceFields = new java.util.ArrayList[AvroSchema.Field]
+                    val sequenceFields = new java.util.ArrayList[AvroSchema.Field](1)
                     sequenceFields.add(new AvroSchema.Field("elements", AvroSchema.createArray(dynamicValue)))
-                    AvroSchema.createRecord("Sequence", null, "zio.blocks.schema.DynamicValue", false, sequenceFields)
+                    createAvroRecord("zio.blocks.schema.DynamicValue", "Sequence", sequenceFields)
                   }, {
-                    val mapFields = new java.util.ArrayList[AvroSchema.Field]
+                    val mapFields = new java.util.ArrayList[AvroSchema.Field](1)
                     mapFields.add(
                       new AvroSchema.Field(
                         "entries",
                         AvroSchema.createArray {
-                          val entryFields = new java.util.ArrayList[AvroSchema.Field]
+                          val entryFields = new java.util.ArrayList[AvroSchema.Field](2)
                           entryFields.add(new AvroSchema.Field("key", dynamicValue))
                           entryFields.add(new AvroSchema.Field("value", dynamicValue))
-                          AvroSchema.createRecord("Entry", null, "zio.blocks.schema.internal", false, entryFields)
+                          createAvroRecord("zio.blocks.schema.internal", "Entry", entryFields)
                         }
                       )
                     )
-                    AvroSchema.createRecord("Map", null, "zio.blocks.schema.DynamicValue", false, mapFields)
+                    createAvroRecord("zio.blocks.schema.DynamicValue", "Map", mapFields)
                   }
                 )
               )
@@ -1386,10 +1380,25 @@ object AvroFormat
           }
 
           private[this] def primitiveValueAvroSchema(name: String, avroSchema: AvroSchema): AvroSchema = {
-            val fields = new java.util.ArrayList[AvroSchema.Field]
+            val fields = new java.util.ArrayList[AvroSchema.Field](1)
             fields.add(new AvroSchema.Field("value", avroSchema))
-            AvroSchema.createRecord(name, null, "zio.blocks.schema.PrimitiveValue", false, fields)
+            createAvroRecord("zio.blocks.schema.PrimitiveValue", name, fields)
           }
+        }
+
+        private[this] def createAvroRecord(
+          namespace: String,
+          name: String,
+          fields: java.util.ArrayList[AvroSchema.Field]
+        ): AvroSchema = {
+          val fqn    = s"$namespace.$name"
+          val number = recordCounters.get().getOrDefault(fqn, 0)
+          recordCounters.get().put(fqn, number + 1)
+          val newName =
+            if (number > 0) s"${name}_$number"
+            else name
+          if (fields eq null) AvroSchema.createRecord(newName, null, namespace, false)
+          else AvroSchema.createRecord(newName, null, namespace, false, fields)
         }
       }
     )

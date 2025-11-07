@@ -252,7 +252,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("nested record") {
         avroSchema[Record2](
-          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"r1_1\",\"type\":{\"type\":\"record\",\"name\":\"Record1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}},{\"name\":\"r1_2\",\"type\":\"Record1\"}]}"
+          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"r1_1\",\"type\":{\"type\":\"record\",\"name\":\"Record1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}},{\"name\":\"r1_2\",\"type\":{\"type\":\"record\",\"name\":\"Record1_1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}}]}"
         ) &&
         roundTrip(
           Record2(
@@ -270,7 +270,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("record with unit and variant fields") {
         avroSchema[Record4](
-          "{\"type\":\"record\",\"name\":\"Record4\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"hidden\",\"type\":\"null\"},{\"name\":\"optKey\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some_10c51065\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]}]}"
+          "{\"type\":\"record\",\"name\":\"Record4\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"hidden\",\"type\":\"null\"},{\"name\":\"optKey\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]}]}"
         ) &&
         roundTrip(Record4((), Some("VVV")), 5) &&
         roundTrip(Record4((), None), 1)
@@ -330,7 +330,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           )
           .derive
         avroSchema(
-          "{\"type\":\"record\",\"name\":\"Record4\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"hidden\",\"type\":\"string\"},{\"name\":\"optKey\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some_10c51065\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]}]}",
+          "{\"type\":\"record\",\"name\":\"Record4\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"hidden\",\"type\":\"string\"},{\"name\":\"optKey\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]}]}",
           codec
         ) &&
         roundTrip(Record4((), Some("VVV")), 9, codec)
@@ -353,7 +353,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
           )
           .derive
         avroSchema(
-          "{\"type\":\"record\",\"name\":\"Record4\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"hidden\",\"type\":\"null\"},{\"name\":\"optKey\",\"type\":[\"string\",{\"type\":\"record\",\"name\":\"Some_10c51065\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]}]}",
+          "{\"type\":\"record\",\"name\":\"Record4\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"hidden\",\"type\":\"null\"},{\"name\":\"optKey\",\"type\":[\"string\",{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]}]}",
           codec
         ) &&
         roundTrip(Record4((), Some("VVV")), 5, codec) &&
@@ -445,6 +445,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
             }
           )
           .derive
+        avroSchema(
+          "{\"type\":\"record\",\"name\":\"Record2\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"r1_1\",\"type\":{\"type\":\"record\",\"name\":\"Record1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"string\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}},{\"name\":\"r1_2\",\"type\":{\"type\":\"record\",\"name\":\"Record1_1\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"double\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}}]}",
+          codec
+        ) &&
         roundTrip(
           Record2(
             Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
@@ -667,7 +671,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("non string key map") {
         avroSchema[Map[Int, Long]](
-          "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2_86f12e54\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}"
+          "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}"
         ) &&
         roundTrip(Map(1 -> 1L, 2 -> 2L), 6)
       },
@@ -693,7 +697,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("non string key with recursive values") {
         avroSchema[Map[Recursive, Int]](
-          "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2_7185acfb\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":{\"type\":\"record\",\"name\":\"Recursive\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"ln\",\"type\":{\"type\":\"array\",\"items\":\"Recursive\"}}]}},{\"name\":\"_2\",\"type\":\"int\"}]}}"
+          "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":{\"type\":\"record\",\"name\":\"Recursive\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"ln\",\"type\":{\"type\":\"array\",\"items\":\"Recursive\"}}]}},{\"name\":\"_2\",\"type\":\"int\"}]}}"
         ) &&
         roundTrip(
           Map(
@@ -705,11 +709,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("nested maps") {
         avroSchema[Map[String, Map[Int, Long]]](
-          "{\"type\":\"map\",\"values\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2_86f12e54\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}}"
+          "{\"type\":\"map\",\"values\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}}"
         ) &&
         roundTrip(Map("VVV" -> Map(1 -> 1L, 2 -> 2L)), 12) &&
         avroSchema[Map[Map[Int, Long], String]](
-          "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2_70fbca0d\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2_86f12e54\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}},{\"name\":\"_2\",\"type\":\"string\"}]}}"
+          "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2_1\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}},{\"name\":\"_2\",\"type\":\"string\"}]}}"
         ) &&
         roundTrip(Map(Map(1 -> 1L, 2 -> 2L) -> "WWW"), 12)
       }
@@ -729,7 +733,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("option") {
         avroSchema[Option[Int]](
-          "[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some_ccb86a7f\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]}]"
+          "[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]}]"
         ) &&
         roundTrip(Option(42), 2) &&
         roundTrip[Option[Int]](None, 1)
@@ -748,7 +752,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("either") {
         avroSchema[Either[String, Int]](
-          "[{\"type\":\"record\",\"name\":\"Left_e90cad65\",\"namespace\":\"scala.util\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]},{\"type\":\"record\",\"name\":\"Right_e90cad65\",\"namespace\":\"scala.util\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]}]"
+          "[{\"type\":\"record\",\"name\":\"Left\",\"namespace\":\"scala.util\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]},{\"type\":\"record\",\"name\":\"Right\",\"namespace\":\"scala.util\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]}]"
         ) &&
         roundTrip[Either[String, Int]](Right(42), 2) &&
         roundTrip[Either[String, Int]](Left("VVV"), 5)
@@ -1016,7 +1020,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
             )
           )
         )
-        roundTrip[Dynamic](value, 19)
+        roundTrip[Dynamic](value, 21)
       },
       test("as record field values with custom codecs injected by optic") {
         val value = Dynamic(
@@ -1032,20 +1036,19 @@ object AvroFormatSpec extends ZIOSpecDefault {
           .deriving(AvroFormat.deriver)
           .instance(
             Dynamic.primitive,
-            new AvroBinaryCodec[DynamicValue.Primitive]() {
-              private val codec =
-                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Primitive]]
+            new AvroBinaryCodec[DynamicValue]() {
+              private val codec = Schema[DynamicValue].derive(AvroFormat.deriver)
 
               val avroSchema: AvroSchema =
                 AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Primitive = {
+              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue = {
                 val idx = decoder.readInt()
                 if (idx == 0) null
                 else codec.decodeUnsafe(decoder)
               }
 
-              def encode(value: DynamicValue.Primitive, encoder: BinaryEncoder): Unit =
+              def encode(value: DynamicValue, encoder: BinaryEncoder): Unit =
                 if (value eq null) encoder.writeInt(0)
                 else {
                   encoder.writeInt(1)
@@ -1055,20 +1058,19 @@ object AvroFormatSpec extends ZIOSpecDefault {
           )
           .instance(
             Dynamic.map,
-            new AvroBinaryCodec[DynamicValue.Map]() {
-              private val codec =
-                Schema[DynamicValue].derive(AvroFormat.deriver).asInstanceOf[AvroBinaryCodec[DynamicValue.Map]]
+            new AvroBinaryCodec[DynamicValue]() {
+              private val codec = Schema[DynamicValue].derive(AvroFormat.deriver)
 
               val avroSchema: AvroSchema =
                 AvroSchema.createUnion(AvroSchema.create(AvroSchema.Type.NULL), codec.avroSchema)
 
-              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue.Map = {
+              def decodeUnsafe(decoder: BinaryDecoder): DynamicValue = {
                 val idx = decoder.readInt()
                 if (idx == 0) null
                 else codec.decodeUnsafe(decoder)
               }
 
-              def encode(value: DynamicValue.Map, encoder: BinaryEncoder): Unit =
+              def encode(value: DynamicValue, encoder: BinaryEncoder): Unit =
                 if (value eq null) encoder.writeInt(0)
                 else {
                   encoder.writeInt(1)
@@ -1179,12 +1181,12 @@ object AvroFormatSpec extends ZIOSpecDefault {
     val optKey_None: Optional[Record4, None.type] = $(_.optKey.when[None.type])
   }
 
-  case class Dynamic(primitive: DynamicValue.Primitive, map: DynamicValue.Map)
+  case class Dynamic(primitive: DynamicValue, map: DynamicValue)
 
   object Dynamic extends CompanionOptics[Dynamic] {
     implicit val schema: Schema[Dynamic] = Schema.derived
 
-    val primitive: Lens[Dynamic, DynamicValue.Primitive] = $(_.primitive)
-    val map: Lens[Dynamic, DynamicValue.Map]             = $(_.map)
+    val primitive: Lens[Dynamic, DynamicValue] = $(_.primitive)
+    val map: Lens[Dynamic, DynamicValue]       = $(_.map)
   }
 }
