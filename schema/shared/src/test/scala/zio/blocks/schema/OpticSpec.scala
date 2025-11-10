@@ -350,89 +350,57 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c1.check(Case2(Record3(null, null, null))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case1], encountered an unexpected case at .when[Case1]: expected Case1, but got Case2"
-              )
+            hasError(
+              "During attempted access at .when[Case1], encountered an unexpected case at .when[Case1]: expected Case1, but got Case2"
             )
           )
         ) &&
         assert(Variant1.c2.check(Case1(0.1)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case2], encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
-              )
+            hasError(
+              "During attempted access at .when[Case2], encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
             )
           )
         ) &&
         assert(Variant1.v2.check(Case1(0.1)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Variant2], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
-              )
+            hasError(
+              "During attempted access at .when[Variant2], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
             )
           )
         ) &&
         assert(Variant1.v2_c3.check(Case1(0.1)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Variant2].when[Case3], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
-              )
+            hasError(
+              "During attempted access at .when[Variant2].when[Case3], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
             )
           )
         ) &&
         assert(Variant2.c3.check(Case4(List(Record3(null, null, null)))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case3], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
-              )
+            hasError(
+              "During attempted access at .when[Case3], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c4.check(Case3(Case1(0.1))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case4], encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
-              )
+            hasError(
+              "During attempted access at .when[Case4], encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_left.check(Case6(null)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]"
-              )
+            hasError(
+              "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]"
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_right.check(Case6(null)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]: expected Case5, but got Case6"
-              )
+            hasError(
+              "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]: expected Case5, but got Case6"
             )
           )
         )
@@ -1222,60 +1190,26 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("check") {
         assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
-          isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("expected Case1, but got Case2")
-            )
-          )
+          isSome(hasError("expected Case1, but got Case2"))
         ) &&
         assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case2(null)))))(
-          isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("expected Case1, but got Case2")
-            )
-          )
+          isSome(hasError("expected Case1, but got Case2"))
         ) &&
         assert(Variant2.c3_v1_c1_left.check(Case4(Nil)))(
-          isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("expected Case3, but got Case4")
-            )
-          )
+          isSome(hasError("expected Case3, but got Case4"))
         ) &&
         assert(Variant2.c3_v1_c1_right.check(Case3(Case2(null))))(
-          isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("expected Case1, but got Case2")
-            )
-          )
+          isSome(hasError("expected Case1, but got Case2"))
         ) &&
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
-              )
+            hasError(
+              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Variant1.c2_r3_r2_r1_b_left.check(Case1(0.1)))(
-          isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("expected Case2, but got Case1")
-            )
-          )
+          isSome(hasError("expected Case2, but got Case1"))
         )
       },
       test("has consistent equals and hashCode") {
@@ -1390,136 +1324,92 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c2_r3_r1.check(Case3(Case1(0.1))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Variant2"
-              )
+            hasError(
+              "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Variant2"
             )
           )
         ) &&
         assert(Case2.r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("1")
+            hasError(
+              "During attempted access at .r3.v1.when[Case1], encountered an unexpected case at .r3.v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("2")
+            hasError(
+              "During attempted access at .when[Case2].r3.v1.when[Case1], encountered an unexpected case at .when[Case2].r3.v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4.check(Case3(Case1(0.1))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("3")
+            hasError(
+              "During attempted access at .when[Case3].v1.when[Variant2].when[Case4], encountered an unexpected case at .when[Case3].v1.when[Variant2]: expected Variant2, but got Case1"
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_left.check(Case4(Nil)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("4")
+            hasError(
+              "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_right.check(Case3(Case2(null))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3].v1.when[Case1]: expected Case1, but got Case2"
-              )
+            hasError(
+              "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3].v1.when[Case1]: expected Case1, but got Case2"
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_d_right.check(Case4(Nil)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case3].v1.when[Case1].d, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
-              )
+            hasError(
+              "During attempted access at .when[Case3].v1.when[Case1].d, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c3_v1.check(Case4(Nil)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case3].v1, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
-              )
+            hasError(
+              "During attempted access at .when[Case3].v1, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
-              )
+            hasError(
+              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Case3.v1_c1_d_right.check(Case3(Case4(Nil))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
-              )
+            hasError(
+              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Case5.aas.check(Case5(Set(), Array())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .as.at(1), encountered a sequence out of bounds at .as.at(1): index is 1, but size is 0"
-              )
+            hasError(
+              "During attempted access at .as.at(1), encountered a sequence out of bounds at .as.at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Collections.alb.check(List()))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .at(1), encountered a sequence out of bounds at .at(1): index is 1, but size is 0"
-              )
+            hasError(
+              "During attempted access at .at(1), encountered a sequence out of bounds at .at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Case6.akmil.check(Case6(Map())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .mil.atKey(<key>), encountered missing key at .mil.atKey(<key>)"
-              )
+            hasError(
+              "During attempted access at .mil.atKey(<key>), encountered missing key at .mil.atKey(<key>)"
             )
           )
         )
@@ -2781,163 +2671,93 @@ object OpticSpec extends ZIOSpecDefault {
       test("checks collection values and returns an error if they will not be modified") {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Variant2"
-              )
+            hasError(
+              "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Collections.mkc.check(Map.empty[Char, String]))(
-          isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("During attempted access at .eachKey, encountered an empty map at .eachKey")
-            )
-          )
+          isSome(hasError("During attempted access at .eachKey, encountered an empty map at .eachKey"))
         ) &&
         assert(Collections.mvs.check(Map.empty[Char, String]))(
-          isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString("During attempted access at .eachValue, encountered an empty map at .eachValue")
-            )
-          )
+          isSome(hasError("During attempted access at .eachValue, encountered an empty map at .eachValue"))
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(Nil))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an empty sequence at .when[Case3].v1.when[Variant2].when[Case4].lr3.each"
-              )
+            hasError(
+              "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an empty sequence at .when[Case3].v1.when[Variant2].when[Case4].lr3.each"
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case4(Nil)))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
-              )
+            hasError(
+              "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c4_lr3.check(Case3(Case1(0.1))))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .when[Case4].lr3.each, encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
-              )
+            hasError(
+              "During attempted access at .when[Case4].lr3.each, encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
             )
           )
         ) &&
         assert(Collections.aasasi_asi.check(ArraySeq(ArraySeq())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
-              )
+            hasError(
+              "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
             )
           )
         ) &&
         assert(Collections.aiasasi_asi.check(ArraySeq(ArraySeq())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>)"
-              )
+            hasError(
+              "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>)"
             )
           )
         ) &&
         assert(Collections.asasi_aasi.check(ArraySeq(ArraySeq())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
-              )
+            hasError(
+              "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Collections.alli_li.check(List(List())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
-              )
+            hasError(
+              "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
             )
           )
         ) &&
         assert(Collections.ailli_li.check(List(List())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>): index is 1, but size is 1"
-              )
+            hasError(
+              "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>): index is 1, but size is 1"
             )
           )
         ) &&
         assert(Collections.lli_ali.check(List(List())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
-              )
+            hasError(
+              "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Collections.akmill_ll.check(Map()))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .atKey(<key>).each, encountered missing key at .atKey(<key>)"
-              )
-            )
+            hasError("During attempted access at .atKey(<key>).each, encountered missing key at .atKey(<key>)")
           )
         ) &&
         assert(Collections.aksmill_ll.check(Map()))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .atKeys(<keys>).each, encountered missing key at .atKeys(<keys>)"
-              )
-            )
+            hasError("During attempted access at .atKeys(<keys>).each, encountered missing key at .atKeys(<keys>)")
           )
         ) &&
         assert(Collections.lmil_akmil.check(List(Map())))(
           isSome(
-            hasField[OpticCheck, String](
-              "message",
-              _.message,
-              containsString(
-                "During attempted access at .each.atKey(<key>), encountered missing key at .each.atKey(<key>)"
-              )
-            )
+            hasError("During attempted access at .each.atKey(<key>), encountered missing key at .each.atKey(<key>)")
           )
         )
       },
@@ -3254,17 +3074,8 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lw_r1.modifyOrFail(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, 1)))(
           isLeft(
-            equalTo(
-              OpticCheck(
-                errors = ::(
-                  WrappingError(
-                    full = DynamicOptic(Vector(Elements, Wrapped)),
-                    prefix = DynamicOptic(Vector(Elements, Wrapped)),
-                    error = "Unexpected 'Wrapper' value"
-                  ),
-                  Nil
-                )
-              )
+            hasError(
+              "During attempted access at .each.wrapped, encountered an error at .each.wrapped: Unexpected 'Wrapper' value"
             )
           )
         )
@@ -3444,6 +3255,9 @@ object OpticSpec extends ZIOSpecDefault {
       }
     )
   )
+
+  private[this] def hasError(message: String) =
+    hasField[OpticCheck, String]("message", _.message, containsString(message))
 }
 
 object OpticSpecTypes {
