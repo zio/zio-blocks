@@ -66,6 +66,10 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       val invalidValue1 = Stats(DropRate.unsafeMake(2), Array.empty[ResponseTime])
       val invalidValue2 = Stats(DropRate(0.5), Array(ResponseTime.unsafeMake(-1.0)))
       val schema        = Schema[Stats]
+      assert(Stats.dropRate_wrapped.getOption(value))(isSome(equalTo(0.5))) &&
+      assert(Stats.dropRate_wrapped.replace(value, -0.1))(equalTo(value)) &&
+      assert(Stats.responseTimes_wrapped.fold(value)(0.0, _ + _))(equalTo(0.33)) &&
+      assert(Stats.responseTimes_wrapped.modify(value, _ - 1))(equalTo(value)) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue1)))(
         isLeft(
@@ -193,5 +197,10 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
 
     override def hashCode(): Int =
       dropRate.hashCode * 31 + java.util.Arrays.hashCode(responseTimes.asInstanceOf[Array[Double]])
+  }
+
+  object Stats extends CompanionOptics[Stats] {
+    val dropRate_wrapped: Optional[Stats, Double]       = $(_.dropRate.wrapped[Double])
+    val responseTimes_wrapped: Traversal[Stats, Double] = $(_.responseTimes.each.wrapped[Double])
   }
 }
