@@ -507,7 +507,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         avroSchema[Array[Char]]("{\"type\":\"array\",\"items\":\"int\"}") &&
         roundTrip(Array('1', '2', '3'), 5) &&
         avroSchema[List[Int]]("{\"type\":\"array\",\"items\":\"int\"}") &&
-        roundTrip(List(1, 2, 3), 5) &&
+        roundTrip((1 to 100).toList, 140) &&
         avroSchema[Set[Long]]("{\"type\":\"array\",\"items\":\"long\"}") &&
         roundTrip(Set(1L, 2L, 3L), 5) &&
         avroSchema[ArraySeq[Float]]("{\"type\":\"array\",\"items\":\"float\"}") &&
@@ -529,7 +529,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         avroSchema[List[java.util.UUID]](
           "{\"type\":\"array\",\"items\":{\"type\":\"fixed\",\"name\":\"UUID\",\"namespace\":\"java.util\",\"size\":16}}"
         ) &&
-        roundTrip(List(new java.util.UUID(1L, 1L), new java.util.UUID(2L, 2L), new java.util.UUID(3L, 3L)), 50)
+        roundTrip((1 to 32).map(x => new java.util.UUID(x, x)).toList, 514)
       },
       test("primitive values (decode error)") {
         val intListCodec = Schema[List[Int]].derive(AvroFormat.deriver)
