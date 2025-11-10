@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import neotype._
+import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.Binding
 import zio.test.Assertion._
 import zio.test._
@@ -59,6 +60,49 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       )
       val schema = Schema.derived[NRecord]
       assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+    },
+    test("derive schemas for cases classes and collections with newtypes for primitives") {
+      val value         = Stats(DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23)))
+      val invalidValue1 = Stats(DropRate.unsafeMake(2), Array.empty[ResponseTime])
+      val invalidValue2 = Stats(DropRate(0.5), Array(ResponseTime.unsafeMake(-1.0)))
+      val schema        = Schema[Stats]
+      assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+      assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue1)))(
+        isLeft(
+          equalTo(
+            SchemaError(
+              errors = ::(
+                ExpectationMismatch(
+                  source = DynamicOptic(nodes = Vector(DynamicOptic.Node.Field("dropRate"))),
+                  expectation = "Expected DropRate: Validation Failed"
+                ),
+                Nil
+              )
+            )
+          )
+        )
+      ) &&
+      assert(schema.fromDynamicValue(schema.toDynamicValue(invalidValue2)))(
+        isLeft(
+          equalTo(
+            SchemaError(
+              errors = ::(
+                ExpectationMismatch(
+                  source = DynamicOptic(nodes =
+                    Vector(
+                      DynamicOptic.Node.Field("responseTimes"),
+                      DynamicOptic.Node.Elements,
+                      DynamicOptic.Node.AtIndex(0)
+                    )
+                  ),
+                  expectation = "Expected ResponseTime: Validation Failed"
+                ),
+                Nil
+              )
+            )
+          )
+        )
+      )
     }
   )
 
@@ -121,4 +165,33 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     u: NUnit.Type,
     s: NString.Type
   )
+
+  inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
+    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
+
+  type DropRate = DropRate.Type
+
+  object DropRate extends Newtype[Double] {
+    override inline def validate(input: Double): Boolean = input >= 0 && input <= 1
+  }
+
+  type ResponseTime = ResponseTime.Type
+
+  object ResponseTime extends Newtype[Double] {
+    override inline def validate(input: Double): Boolean = input > 0
+  }
+
+  case class Stats(dropRate: DropRate, responseTimes: Array[ResponseTime]) derives Schema {
+    override def equals(obj: Any): Boolean = obj match {
+      case that: Stats =>
+        this.dropRate == that.dropRate && java.util.Arrays.equals(
+          this.responseTimes.asInstanceOf[Array[Double]],
+          that.responseTimes.asInstanceOf[Array[Double]]
+        )
+      case _ => false
+    }
+
+    override def hashCode(): Int =
+      dropRate.hashCode * 31 + java.util.Arrays.hashCode(responseTimes.asInstanceOf[Array[Double]])
+  }
 }
