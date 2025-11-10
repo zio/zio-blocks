@@ -826,16 +826,26 @@ object AvroFormat
               val binding              = record.recordBinding.asInstanceOf[Binding.Record[A]]
               val fields               = record.fields
               val isRecursive          = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+              val typeName             = record.typeName
               var codecsWithAvroSchema =
-                if (isRecursive) recursiveRecordCache.get.get(record.typeName)
+                if (isRecursive) recursiveRecordCache.get.get(typeName)
                 else null
               if (codecsWithAvroSchema eq null) {
+                val namespaceBuilder = new java.lang.StringBuilder()
+                val namespace        = typeName.namespace
+                namespace.packages.foreach { element =>
+                  if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
+                  namespaceBuilder.append(element)
+                }
+                namespace.values.foreach { element =>
+                  if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
+                  namespaceBuilder.append(element)
+                }
+                val avroSchema = createAvroRecord(namespaceBuilder.toString, typeName.name, null)
                 val len        = fields.length
                 val codecs     = new Array[AvroBinaryCodec[?]](len)
-                val typeName   = record.typeName
-                val avroSchema = createAvroRecord(typeName.namespace.elements.mkString("."), typeName.name, null)
                 codecsWithAvroSchema = (codecs, avroSchema)
-                if (isRecursive) recursiveRecordCache.get.put(record.typeName, codecsWithAvroSchema)
+                if (isRecursive) recursiveRecordCache.get.put(typeName, codecsWithAvroSchema)
                 val avroSchemaFields = new java.util.ArrayList[AvroSchema.Field](len)
                 var idx              = 0
                 while (idx < len) {
