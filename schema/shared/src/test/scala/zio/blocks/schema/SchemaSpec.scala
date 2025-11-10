@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 import zio.Chunk
-import zio.blocks.schema.DynamicOptic.Node.{Elements, MapValues}
+import zio.blocks.schema.DynamicOptic.Node.{AtIndex, AtMapKey, Elements, MapValues}
 import zio.blocks.schema.Reflect.Primitive
 import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
 import zio.blocks.schema.binding._
@@ -120,15 +120,7 @@ object SchemaSpec extends ZIOSpecDefault {
               )
             )
           )
-        )(
-          isLeft(
-            hasField[SchemaError, String](
-              "getMessage",
-              _.getMessage,
-              containsString("Expected Int at: .i\nDuplicated field i at: .\nMissing field b at: .")
-            )
-          )
-        )
+        )(isLeft(hasError("Expected Int at: .i\nDuplicated field i at: .\nMissing field b at: .")))
       },
       test("has consistent gets for typed and dynamic optics") {
         assert(Record.schema.get(Record.b.toDynamic))(equalTo(Record.schema.get(Record.b))) &&
@@ -1246,55 +1238,47 @@ object SchemaSpec extends ZIOSpecDefault {
               )
             )
           )
-        )(
-          isLeft(
-            hasField[SchemaError, String](
-              "getMessage",
-              _.getMessage,
-              containsString("Expected Boolean at: .each\nExpected Boolean at: .each")
-            )
-          )
-        ) &&
+        )(isLeft(hasError("Expected Boolean at: .each.at(0)\nExpected Boolean at: .each.at(1)"))) &&
         assert(
           Schema[List[Byte]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Byte")))) &&
+        )(isLeft(hasError("Expected Byte at: .each.at(0)"))) &&
         assert(
           Schema[List[Char]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Char")))) &&
+        )(isLeft(hasError("Expected Char at: .each.at(0)"))) &&
         assert(
           Schema[List[Short]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Short")))) &&
+        )(isLeft(hasError("Expected Short at: .each.at(0)"))) &&
         assert(
           Schema[List[Int]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Long(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Int")))) &&
+        )(isLeft(hasError("Expected Int at: .each.at(0)"))) &&
         assert(
           Schema[List[Float]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Float")))) &&
+        )(isLeft(hasError("Expected Float at: .each.at(0)"))) &&
         assert(
           Schema[List[Long]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Long")))) &&
+        )(isLeft(hasError("Expected Long at: .each.at(0)"))) &&
         assert(
           Schema[List[Double]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected Double")))) &&
+        )(isLeft(hasError("Expected Double at: .each.at(0)"))) &&
         assert(
           Schema[List[String]].fromDynamicValue(
             DynamicValue.Sequence(Vector(DynamicValue.Primitive(PrimitiveValue.Int(1))))
           )
-        )(isLeft(equalTo(SchemaError.expectationMismatch(Elements :: Nil, "Expected String")))) &&
+        )(isLeft(hasError("Expected String at: .each.at(0)"))) &&
         assert(
           Schema[List[Record]].fromDynamicValue(DynamicValue.Sequence(Vector(DynamicValue.Record(Vector.empty))))
         )(
@@ -1303,12 +1287,12 @@ object SchemaSpec extends ZIOSpecDefault {
               SchemaError(
                 errors = ::(
                   MissingField(
-                    source = DynamicOptic(nodes = Vector(Elements)),
+                    source = DynamicOptic(nodes = Vector(Elements, AtIndex(0))),
                     fieldName = "b"
                   ),
                   ::(
                     MissingField(
-                      source = DynamicOptic(nodes = Vector(Elements)),
+                      source = DynamicOptic(nodes = Vector(Elements, AtIndex(0))),
                       fieldName = "i"
                     ),
                     Nil
@@ -1428,12 +1412,12 @@ object SchemaSpec extends ZIOSpecDefault {
               SchemaError(
                 errors = ::(
                   ExpectationMismatch(
-                    source = DynamicOptic(nodes = Vector(MapValues)),
+                    source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(1))),
                     expectation = "Expected Long"
                   ),
                   ::(
                     ExpectationMismatch(
-                      source = DynamicOptic(nodes = Vector(MapValues)),
+                      source = DynamicOptic(nodes = Vector(MapValues, AtMapKey(1))),
                       expectation = "Expected Long"
                     ),
                     Nil
@@ -1773,6 +1757,13 @@ object SchemaSpec extends ZIOSpecDefault {
       )
     }
   )
+
+  private[this] def hasError(message: String) =
+    hasField[SchemaError, String](
+      "getMessage",
+      _.getMessage,
+      containsString(message)
+    )
 
   implicit val eitherSchema: Schema[Either[Int, Long]] = Schema.derived
 
