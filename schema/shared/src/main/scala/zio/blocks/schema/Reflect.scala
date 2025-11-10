@@ -1666,6 +1666,7 @@ object Reflect {
     }
   }
 
+  @tailrec
   private[this] def unwrapToPrimitiveOption[F[_, _]](reflect: Reflect[F, ?]): Option[Reflect.Primitive[F, ?]] =
     if (reflect.isWrapper) unwrapToPrimitiveOption(reflect.asWrapperUnknown.get.wrapper.wrapped)
     else reflect.asPrimitive
