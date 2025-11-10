@@ -25,7 +25,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("Boolean (decode error)") {
         val booleanCodec = Schema[Boolean].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], booleanCodec, "Unexpected end of input")
+        decodeError(Array.empty[Byte], booleanCodec, "Unexpected end of input at: .")
       },
       test("Byte") {
         avroSchema[Byte]("\"int\"") &&
@@ -36,9 +36,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("Byte (decode error)") {
         val intCodec  = Schema[Int].derive(AvroFormat.deriver)
         val byteCodec = Schema[Byte].derive(AvroFormat.deriver)
-        decodeError(intCodec.encode(Byte.MinValue - 1), byteCodec, "Expected Byte") &&
-        decodeError(intCodec.encode(Byte.MaxValue + 1), byteCodec, "Expected Byte") &&
-        decodeError(Array.empty[Byte], byteCodec, "Unexpected end of input")
+        decodeError(intCodec.encode(Byte.MinValue - 1), byteCodec, "Expected Byte at: .") &&
+        decodeError(intCodec.encode(Byte.MaxValue + 1), byteCodec, "Expected Byte at: .") &&
+        decodeError(Array.empty[Byte], byteCodec, "Unexpected end of input at: .")
       },
       test("Short") {
         avroSchema[Short]("\"int\"") &&
@@ -49,9 +49,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("Short (decode error)") {
         val intCodec   = Schema[Int].derive(AvroFormat.deriver)
         val shortCodec = Schema[Short].derive(AvroFormat.deriver)
-        decodeError(intCodec.encode(Short.MinValue - 1), shortCodec, "Expected Short") &&
-        decodeError(intCodec.encode(Short.MaxValue + 1), shortCodec, "Expected Short") &&
-        decodeError(Array.empty[Byte], shortCodec, "Unexpected end of input")
+        decodeError(intCodec.encode(Short.MinValue - 1), shortCodec, "Expected Short at: .") &&
+        decodeError(intCodec.encode(Short.MaxValue + 1), shortCodec, "Expected Short at: .") &&
+        decodeError(Array.empty[Byte], shortCodec, "Unexpected end of input at: .")
       },
       test("Int") {
         avroSchema[Int]("\"int\"") &&
@@ -63,8 +63,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
         val intCodec = Schema[Int].derive(AvroFormat.deriver)
         val bytes    = intCodec.encode(Int.MaxValue)
         bytes(4) = 0xff.toByte
-        decodeError(bytes, intCodec, "Invalid int encoding") &&
-        decodeError(Array.empty[Byte], intCodec, "Unexpected end of input")
+        decodeError(bytes, intCodec, "Invalid int encoding at: .") &&
+        decodeError(Array.empty[Byte], intCodec, "Unexpected end of input at: .")
       },
       test("Long") {
         avroSchema[Long]("\"long\"") &&
@@ -76,8 +76,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
         val longCodec = Schema[Long].derive(AvroFormat.deriver)
         val bytes     = longCodec.encode(Long.MaxValue)
         bytes(9) = 0xff.toByte
-        decodeError(bytes, longCodec, "Invalid long encoding") &&
-        decodeError(Array.empty[Byte], longCodec, "Unexpected end of input")
+        decodeError(bytes, longCodec, "Invalid long encoding at: .") &&
+        decodeError(Array.empty[Byte], longCodec, "Unexpected end of input at: .")
       },
       test("Float") {
         avroSchema[Float]("\"float\"") &&
@@ -87,7 +87,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("Float (decode error)") {
         val floatCodec = Schema[Float].derive(AvroFormat.deriver)
-        decodeError(new Array[Byte](3), floatCodec, "Unexpected end of input")
+        decodeError(new Array[Byte](3), floatCodec, "Unexpected end of input at: .")
       },
       test("Double") {
         avroSchema[Double]("\"double\"") &&
@@ -97,7 +97,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("Double (decode error)") {
         val floatCodec = Schema[Double].derive(AvroFormat.deriver)
-        decodeError(new Array[Byte](7), floatCodec, "Unexpected end of input")
+        decodeError(new Array[Byte](7), floatCodec, "Unexpected end of input at: .")
       },
       test("Char") {
         avroSchema[Char]("\"int\"") &&
@@ -108,8 +108,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("Char (decode error)") {
         val intCodec  = Schema[Int].derive(AvroFormat.deriver)
         val charCodec = Schema[Char].derive(AvroFormat.deriver)
-        decodeError(intCodec.encode(Char.MinValue - 1), charCodec, "Expected Char") &&
-        decodeError(intCodec.encode(Char.MaxValue + 1), charCodec, "Expected Char")
+        decodeError(intCodec.encode(Char.MinValue - 1), charCodec, "Expected Char at: .") &&
+        decodeError(intCodec.encode(Char.MaxValue + 1), charCodec, "Expected Char at: .")
       },
       test("String") {
         avroSchema[String]("\"string\"") &&
@@ -118,8 +118,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("String (decode error)") {
         val stringCodec = Schema[String].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], stringCodec, "Unexpected end of input") &&
-        decodeError(Array[Byte](100, 42, 42, 42), stringCodec, "Unexpected end of input")
+        decodeError(Array.empty[Byte], stringCodec, "Unexpected end of input at: .") &&
+        decodeError(Array[Byte](100, 42, 42, 42), stringCodec, "Unexpected end of input at: .")
       },
       test("BigInt") {
         avroSchema[BigInt]("\"bytes\"") &&
@@ -239,16 +239,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("simple record (decode error)") {
         val record1Codec = Schema[Record1].derive(AvroFormat.deriver)
-        decodeError(
-          Array.empty[Byte],
-          record1Codec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.Field("bl")), "Unexpected end of input")
-        ) &&
-        decodeError(
-          Array[Byte](100, 42, 42, 42),
-          record1Codec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.Field("l")), "Unexpected end of input")
-        )
+        decodeError(Array.empty[Byte], record1Codec, "Unexpected end of input at: .bl") &&
+        decodeError(Array[Byte](100, 42, 42, 42), record1Codec, "Unexpected end of input at: .l")
       },
       test("nested record") {
         avroSchema[Record2](
@@ -541,17 +533,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("primitive values (decode error)") {
         val intListCodec = Schema[List[Int]].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], intListCodec, "Unexpected end of input") &&
-        decodeError(
-          Array[Byte](100, 42, 42, 42),
-          intListCodec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtIndex(3)), "Unexpected end of input")
-        ) &&
-        decodeError(Array(0x01.toByte), intListCodec, "Expected positive collection part size, got -1") &&
+        decodeError(Array.empty[Byte], intListCodec, "Unexpected end of input at: .") &&
+        decodeError(Array[Byte](100, 42, 42, 42), intListCodec, "Unexpected end of input at: .at(3)") &&
+        decodeError(Array(0x01.toByte), intListCodec, "Expected positive collection part size, got -1 at: .") &&
         decodeError(
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           intListCodec,
-          "Expected collection size not greater than 2147483639, got 2147483647"
+          "Expected collection size not greater than 2147483639, got 2147483647 at: ."
         )
       },
       test("complex values") {
@@ -609,17 +597,13 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("string keys and primitive values (decode error)") {
         val stringToIntMapCodec = Schema[Map[String, Int]].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], stringToIntMapCodec, "Unexpected end of input") &&
-        decodeError(
-          Array[Byte](100),
-          stringToIntMapCodec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
-        ) &&
-        decodeError(Array(0x01.toByte), stringToIntMapCodec, "Expected positive map part size, got -1") &&
+        decodeError(Array.empty[Byte], stringToIntMapCodec, "Unexpected end of input at: .") &&
+        decodeError(Array[Byte](100), stringToIntMapCodec, "Unexpected end of input at: .at(0)") &&
+        decodeError(Array(0x01.toByte), stringToIntMapCodec, "Expected positive map part size, got -1 at: .") &&
         decodeError(
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           stringToIntMapCodec,
-          "Expected map size not greater than 2147483639, got 2147483647"
+          "Expected map size not greater than 2147483639, got 2147483647 at: ."
         )
       },
       test("string keys and complex values") {
@@ -654,23 +638,15 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("non string key map (decode error)") {
         val intToLongMapCodec = Schema[Map[Int, Long]].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], intToLongMapCodec, "Unexpected end of input") &&
-        decodeError(
-          Array[Byte](100),
-          intToLongMapCodec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtIndex(0)), "Unexpected end of input")
-        ) &&
-        decodeError(Array(0x01.toByte), intToLongMapCodec, "Expected positive map part size, got -1") &&
+        decodeError(Array.empty[Byte], intToLongMapCodec, "Unexpected end of input at: .") &&
+        decodeError(Array[Byte](100), intToLongMapCodec, "Unexpected end of input at: .at(0)") &&
+        decodeError(Array(0x01.toByte), intToLongMapCodec, "Expected positive map part size, got -1 at: .") &&
         decodeError(
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           intToLongMapCodec,
-          "Expected map size not greater than 2147483639, got 2147483647"
+          "Expected map size not greater than 2147483639, got 2147483647 at: ."
         ) &&
-        decodeError(
-          Array[Byte](2, 2, 0xff.toByte),
-          intToLongMapCodec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.AtMapKey(1)), "Unexpected end of input")
-        )
+        decodeError(Array[Byte](2, 2, 0xff.toByte), intToLongMapCodec, "Unexpected end of input at: .atKey(<key>)")
       },
       test("non string key with recursive values") {
         avroSchema[Map[Recursive, Int]](
@@ -706,7 +682,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("constant values (decode error)") {
         val trafficLightCodec = Schema[TrafficLight].derive(AvroFormat.deriver)
-        decodeError(Array[Byte](6), trafficLightCodec, "Expected enum index from 0 to 2, got 3")
+        decodeError(Array[Byte](6), trafficLightCodec, "Expected enum index from 0 to 2, got 3 at: .")
       },
       test("option") {
         avroSchema[Option[Int]](
@@ -717,15 +693,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("option (decode error)") {
         val intOptionCodec = Schema[Option[Int]].derive(AvroFormat.deriver)
-        decodeError(Array[Byte](4), intOptionCodec, "Expected enum index from 0 to 1, got 2") &&
-        decodeError(
-          Array[Byte](2, 0xff.toByte),
-          intOptionCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Case("Some")),
-            "Unexpected end of input"
-          )
-        )
+        decodeError(Array[Byte](4), intOptionCodec, "Expected enum index from 0 to 1, got 2 at: .") &&
+        decodeError(Array[Byte](2, 0xff.toByte), intOptionCodec, "Unexpected end of input at: .when[Some].value")
       },
       test("either") {
         avroSchema[Either[String, Int]](
@@ -746,12 +715,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
         val emailCodec = Schema[Email].derive(AvroFormat.deriver)
         val bytes      = emailCodec.encode(Email("test@gmail.com"))
         bytes(5) = 42
-        decodeError(bytes, emailCodec, "Expected Email") &&
-        decodeError(
-          Array[Byte](100),
-          emailCodec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.Wrapped), "Unexpected end of input")
-        )
+        decodeError(bytes, emailCodec, "Expected Email at: .") &&
+        decodeError(Array[Byte](100), emailCodec, "Unexpected end of input at: .wrapped")
       },
       test("as a record field") {
         avroSchema[Record3](
@@ -831,160 +796,80 @@ object AvroFormatSpec extends ZIOSpecDefault {
       },
       test("top-level (decode error)") {
         val dynamicValueCodec = Schema[DynamicValue].derive(AvroFormat.deriver)
-        decodeError(Array[Byte](10), dynamicValueCodec, "Expected enum index from 0 to 4, got 5") &&
-        decodeError(Array.empty[Byte], dynamicValueCodec, "Unexpected end of input") &&
-        decodeError(
-          Array[Byte](0),
-          dynamicValueCodec,
-          SchemaError.expectationMismatch(List(DynamicOptic.Node.Case("Primitive")), "Unexpected end of input")
-        ) &&
+        decodeError(Array[Byte](10), dynamicValueCodec, "Expected enum index from 0 to 4, got 5 at: .") &&
+        decodeError(Array.empty[Byte], dynamicValueCodec, "Unexpected end of input at: .") &&
+        decodeError(Array[Byte](0), dynamicValueCodec, "Unexpected end of input at: .when[Primitive]") &&
         decodeError(
           Array[Byte](0, 60),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Case("Primitive")),
-            "Expected enum index from 0 to 29, got 30"
-          )
+          "Expected enum index from 0 to 29, got 30 at: .when[Primitive]"
         ) &&
         decodeError(
           Array[Byte](0, 8, 0xff.toByte),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Case("Primitive")),
-            "Unexpected end of input"
-          )
+          "Unexpected end of input at: .when[Primitive].value"
         ) &&
-        decodeError(
-          Array[Byte](2),
-          dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("fields"), DynamicOptic.Node.Case("Record")),
-            "Unexpected end of input"
-          )
-        ) &&
+        decodeError(Array[Byte](2), dynamicValueCodec, "Unexpected end of input at: .when[Record].fields") &&
         decodeError(
           Array[Byte](2, 1),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("fields"), DynamicOptic.Node.Case("Record")),
-            "Expected positive collection part size, got -1"
-          )
+          "Expected positive collection part size, got -1 at: .when[Record].fields"
         ) &&
         decodeError(
           Array[Byte](2, 2, 2),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(
-              DynamicOptic.Node.Field("_1"),
-              DynamicOptic.Node.AtIndex(0),
-              DynamicOptic.Node.Field("fields"),
-              DynamicOptic.Node.Case("Record")
-            ),
-            "Unexpected end of input"
-          )
+          "Unexpected end of input at: .when[Record].fields.at(0)._1"
         ) &&
         decodeError(
           Array[Byte](2, 2, 0, 10),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(
-              DynamicOptic.Node.Field("_2"),
-              DynamicOptic.Node.AtIndex(0),
-              DynamicOptic.Node.Field("fields"),
-              DynamicOptic.Node.Case("Record")
-            ),
-            "Expected enum index from 0 to 4, got 5"
-          )
+          "Expected enum index from 0 to 4, got 5 at: .when[Record].fields.at(0)._2"
         ) &&
         decodeError(
           Array[Byte](2, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("fields"), DynamicOptic.Node.Case("Record")),
-            "Expected collection size not greater than 2147483639, got 2147483647"
-          )
+          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Record].fields"
         ) &&
-        decodeError(
-          Array[Byte](4, 2),
-          dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("caseName"), DynamicOptic.Node.Case("Variant")),
-            "Unexpected end of input"
-          )
-        ) &&
+        decodeError(Array[Byte](4, 2), dynamicValueCodec, "Unexpected end of input at: .when[Variant].caseName") &&
         decodeError(
           Array[Byte](4, 0, 10),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("value"), DynamicOptic.Node.Case("Variant")),
-            "Expected enum index from 0 to 4, got 5"
-          )
+          "Expected enum index from 0 to 4, got 5 at: .when[Variant].value"
         ) &&
         decodeError(
           Array[Byte](6, 1),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
-            "Expected positive collection part size, got -1"
-          )
+          "Expected positive collection part size, got -1 at: .when[Sequence].elements"
         ) &&
         decodeError(
           Array[Byte](6, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
-            "Expected collection size not greater than 2147483639, got 2147483647"
-          )
+          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Sequence].elements"
         ) &&
         decodeError(
           Array[Byte](6, 2, 10),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.AtIndex(0), DynamicOptic.Node.Field("elements"), DynamicOptic.Node.Case("Sequence")),
-            "Expected enum index from 0 to 4, got 5"
-          )
+          "Expected enum index from 0 to 4, got 5 at: .when[Sequence].elements.at(0)"
         ) &&
         decodeError(
           Array[Byte](8, 1),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("entries"), DynamicOptic.Node.Case("Map")),
-            "Expected positive collection part size, got -1"
-          )
+          "Expected positive collection part size, got -1 at: .when[Map].entries"
         ) &&
         decodeError(
           Array[Byte](8, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(DynamicOptic.Node.Field("entries"), DynamicOptic.Node.Case("Map")),
-            "Expected collection size not greater than 2147483639, got 2147483647"
-          )
+          "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Map].entries"
         ) &&
         decodeError(
           Array[Byte](8, 2, 10),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(
-              DynamicOptic.Node.Field("_1"),
-              DynamicOptic.Node.AtIndex(0),
-              DynamicOptic.Node.Field("entries"),
-              DynamicOptic.Node.Case("Map")
-            ),
-            "Expected enum index from 0 to 4, got 5"
-          )
+          "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._1"
         ) &&
         decodeError(
           Array[Byte](8, 2, 0, 0, 10),
           dynamicValueCodec,
-          SchemaError.expectationMismatch(
-            List(
-              DynamicOptic.Node.Field("_2"),
-              DynamicOptic.Node.AtIndex(0),
-              DynamicOptic.Node.Field("entries"),
-              DynamicOptic.Node.Case("Map")
-            ),
-            "Expected enum index from 0 to 4, got 5"
-          )
+          "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._2"
         )
       },
       test("as record field values") {
