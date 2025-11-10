@@ -67,14 +67,18 @@ object AvroTestUtils {
     }
   }
 
-  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], expectedMessage: String): TestResult =
-    decodeError(bytes, codec, SchemaError.expectationMismatch(Nil, expectedMessage))
+  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], error: String): TestResult =
+    assert(codec.decode(bytes))(isLeft(hasError(error))) &&
+      assert(codec.decode(toInputStream(bytes)))(isLeft(hasError(error))) &&
+      assert(codec.decode(toHeapByteBuffer(bytes)))(isLeft(hasError(error))) &&
+      assert(codec.decode(toDirectByteBuffer(bytes)))(isLeft(hasError(error)))
 
-  def decodeError[A](bytes: Array[Byte], codec: AvroBinaryCodec[A], error: SchemaError): TestResult =
-    assert(codec.decode(bytes))(isLeft(equalTo(error))) &&
-      assert(codec.decode(toInputStream(bytes)))(isLeft(equalTo(error))) &&
-      assert(codec.decode(toHeapByteBuffer(bytes)))(isLeft(equalTo(error))) &&
-      assert(codec.decode(toDirectByteBuffer(bytes)))(isLeft(equalTo(error)))
+  private[this] def hasError(message: String) =
+    hasField[SchemaError, String](
+      "getMessage",
+      _.getMessage,
+      containsString(message)
+    )
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 
