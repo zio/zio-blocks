@@ -436,7 +436,7 @@ object Reflect {
       var registerOffset = RegisterOffset.Zero
       var idx            = 0
       reflects.foreach { fieldValue =>
-        fieldValue.asPrimitive match {
+        unwrapToPrimitiveOption(fieldValue) match {
           case Some(primitive) =>
             primitive.primitiveType match {
               case PrimitiveType.Unit =>
@@ -635,13 +635,15 @@ object Reflect {
         case DynamicValue.Sequence(elements) =>
           val seqTrace    = DynamicOptic.Node.Elements :: trace
           val constructor = seqConstructor
-          element.asPrimitive match {
+          var idx         = -1
+          unwrapToPrimitiveOption(element) match {
             case Some(primitive) =>
               primitive.primitiveType match {
                 case _: PrimitiveType.Boolean =>
                   val builder = constructor.newBooleanBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addBoolean(builder, value.asInstanceOf[Boolean])
                       case Left(error)  => addError(error)
                     }
@@ -651,7 +653,8 @@ object Reflect {
                 case _: PrimitiveType.Byte =>
                   val builder = constructor.newByteBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addByte(builder, value.asInstanceOf[Byte])
                       case Left(error)  => addError(error)
                     }
@@ -661,7 +664,8 @@ object Reflect {
                 case _: PrimitiveType.Char =>
                   val builder = constructor.newCharBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addChar(builder, value.asInstanceOf[Char])
                       case Left(error)  => addError(error)
                     }
@@ -671,7 +675,8 @@ object Reflect {
                 case _: PrimitiveType.Short =>
                   val builder = constructor.newShortBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addShort(builder, value.asInstanceOf[Short])
                       case Left(error)  => addError(error)
                     }
@@ -681,7 +686,8 @@ object Reflect {
                 case _: PrimitiveType.Int =>
                   val builder = constructor.newIntBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addInt(builder, value.asInstanceOf[Int])
                       case Left(error)  => addError(error)
                     }
@@ -691,7 +697,8 @@ object Reflect {
                 case _: PrimitiveType.Long =>
                   val builder = constructor.newLongBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addLong(builder, value.asInstanceOf[Long])
                       case Left(error)  => addError(error)
                     }
@@ -701,7 +708,8 @@ object Reflect {
                 case _: PrimitiveType.Float =>
                   val builder = constructor.newFloatBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addFloat(builder, value.asInstanceOf[Float])
                       case Left(error)  => addError(error)
                     }
@@ -711,7 +719,8 @@ object Reflect {
                 case _: PrimitiveType.Double =>
                   val builder = constructor.newDoubleBuilder(elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addDouble(builder, value.asInstanceOf[Double])
                       case Left(error)  => addError(error)
                     }
@@ -721,7 +730,8 @@ object Reflect {
                 case _ =>
                   val builder = constructor.newObjectBuilder[A](elements.size)
                   elements.foreach { elem =>
-                    element.fromDynamicValue(elem, seqTrace) match {
+                    idx += 1
+                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                       case Right(value) => constructor.addObject(builder, value)
                       case Left(error)  => addError(error)
                     }
@@ -732,7 +742,8 @@ object Reflect {
             case _ =>
               val builder = constructor.newObjectBuilder[A](elements.size)
               elements.foreach { elem =>
-                element.fromDynamicValue(elem, seqTrace) match {
+                idx += 1
+                element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
                   case Right(value) => constructor.addObject(builder, value)
                   case Left(error)  => addError(error)
                 }
@@ -838,7 +849,7 @@ object Reflect {
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key, keyTrace) match {
               case Right(keyValue) =>
-                this.value.fromDynamicValue(value, valueTrace) match {
+                this.value.fromDynamicValue(value, new DynamicOptic.Node.AtMapKey(keyValue) :: valueTrace) match {
                   case Right(valueValue) => constructor.addObject(builder, keyValue, valueValue)
                   case Left(error)       => addError(error)
                 }
@@ -1654,6 +1665,10 @@ object Reflect {
         }
     }
   }
+
+  private[this] def unwrapToPrimitiveOption[F[_, _]](reflect: Reflect[F, ?]): Option[Reflect.Primitive[F, ?]] =
+    if (reflect.isWrapper) unwrapToPrimitiveOption(reflect.asWrapperUnknown.get.wrapper.wrapped)
+    else reflect.asPrimitive
 
   private class StringToIntMap(size: Int) {
     private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1
