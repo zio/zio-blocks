@@ -3,7 +3,6 @@ package zio.blocks.schema
 import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test._
-import scala.annotation.nowarn
 
 object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("SchemaVersionSpecificSpec")(
@@ -70,7 +69,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("derives schema for complex named tuples") {
-        @nowarn
         case class Product(i: Int, s: String)
 
         val value1 = (i = 1, s = "VVV")

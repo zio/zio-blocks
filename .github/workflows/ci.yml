@@ -62,7 +62,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
       - name: Run Scala Next tests for macros
-        run: sbt ++3.7.3! schemaJVM/test scalaNextTestsJVM/test
+        run: sbt ++3.7.4! schemaJVM/test scalaNextTestsJVM/test
       - name: Run tests
         run: sbt +test
 
