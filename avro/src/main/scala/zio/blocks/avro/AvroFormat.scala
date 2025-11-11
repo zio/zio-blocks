@@ -128,8 +128,8 @@ object AvroFormat
               new java.util.HashMap
           }
         private[this] val recordCounters =
-          new ThreadLocal[java.util.HashMap[String, Int]] {
-            override def initialValue: java.util.HashMap[String, Int] = new java.util.HashMap
+          new ThreadLocal[java.util.HashMap[(String, String), Int]] {
+            override def initialValue: java.util.HashMap[(String, String), Int] = new java.util.HashMap
           }
         private[this] val unitCodec = new AvroBinaryCodec[Unit](AvroBinaryCodec.unitType) {
           val avroSchema: AvroSchema = AvroSchema.create(AvroSchema.Type.NULL)
@@ -677,8 +677,13 @@ object AvroFormat
                 private[this] val caseCodecs    = codecs
 
                 val avroSchema: AvroSchema = {
-                  val caseAvroSchemas = new java.util.ArrayList[AvroSchema]
-                  caseCodecs.foreach(codec => caseAvroSchemas.add(codec.avroSchema))
+                  val len             = codecs.length
+                  val caseAvroSchemas = new java.util.ArrayList[AvroSchema](len)
+                  var idx             = 0
+                  while (idx < len) {
+                    caseAvroSchemas.add(codecs(idx).avroSchema)
+                    idx += 1
+                  }
                   AvroSchema.createUnion(caseAvroSchemas)
                 }
 
@@ -841,7 +846,7 @@ object AvroFormat
                   if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
                   namespaceBuilder.append(element)
                 }
-                val avroSchema = createAvroRecord(namespaceBuilder.toString, typeName.name, null)
+                val avroSchema = createAvroRecord(namespaceBuilder.toString, typeName.name)
                 val len        = fields.length
                 val codecs     = new Array[AvroBinaryCodec[?]](len)
                 codecsWithAvroSchema = (codecs, avroSchema)
@@ -992,7 +997,7 @@ object AvroFormat
           private[this] val span_2        = new DynamicOptic.Node.Field("_2")
 
           val avroSchema: AvroSchema = {
-            val dynamicValue       = createAvroRecord("zio.blocks.schema", "DynamicValue", null)
+            val dynamicValue       = createAvroRecord("zio.blocks.schema", "DynamicValue")
             val dynamicValueFields = new java.util.ArrayList[AvroSchema.Field](1)
             dynamicValueFields.add(
               new AvroSchema.Field(
@@ -1009,35 +1014,35 @@ object AvroFormat
                             "Unit",
                             new java.util.ArrayList[AvroSchema.Field](0)
                           ),
-                          primitiveValueAvroSchema("Boolean", booleanCodec.avroSchema),
-                          primitiveValueAvroSchema("Byte", byteCodec.avroSchema),
-                          primitiveValueAvroSchema("Short", shortCodec.avroSchema),
-                          primitiveValueAvroSchema("Int", intCodec.avroSchema),
-                          primitiveValueAvroSchema("Long", longCodec.avroSchema),
-                          primitiveValueAvroSchema("Float", floatCodec.avroSchema),
-                          primitiveValueAvroSchema("Double", doubleCodec.avroSchema),
-                          primitiveValueAvroSchema("Char", charCodec.avroSchema),
-                          primitiveValueAvroSchema("String", stringCodec.avroSchema),
-                          primitiveValueAvroSchema("BigInt", bigIntCodec.avroSchema),
-                          primitiveValueAvroSchema("BigDecimal", bigDecimalCodec.avroSchema),
-                          primitiveValueAvroSchema("DayOfWeek", dayOfWeekCodec.avroSchema),
-                          primitiveValueAvroSchema("Duration", durationCodec.avroSchema),
-                          primitiveValueAvroSchema("Instant", instantCodec.avroSchema),
-                          primitiveValueAvroSchema("LocalDate", localDateCodec.avroSchema),
-                          primitiveValueAvroSchema("LocalDateTime", localDateTimeCodec.avroSchema),
-                          primitiveValueAvroSchema("LocalTime", localTimeCodec.avroSchema),
-                          primitiveValueAvroSchema("Month", monthCodec.avroSchema),
-                          primitiveValueAvroSchema("MonthDay", monthDayCodec.avroSchema),
-                          primitiveValueAvroSchema("OffsetDateTime", offsetDateTimeCodec.avroSchema),
-                          primitiveValueAvroSchema("OffsetTime", offsetTimeCodec.avroSchema),
-                          primitiveValueAvroSchema("Period", periodCodec.avroSchema),
-                          primitiveValueAvroSchema("Year", yearCodec.avroSchema),
-                          primitiveValueAvroSchema("YearMonth", yearMonthCodec.avroSchema),
-                          primitiveValueAvroSchema("ZoneId", zoneIdCodec.avroSchema),
-                          primitiveValueAvroSchema("ZoneOffset", zoneOffsetCodec.avroSchema),
-                          primitiveValueAvroSchema("ZonedDateTime", zonedDateTimeCodec.avroSchema),
-                          primitiveValueAvroSchema("Currency", currencyCodec.avroSchema),
-                          primitiveValueAvroSchema("UUID", uuidCodec.avroSchema)
+                          createPrimitiveValueAvroRecord("Boolean", booleanCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Byte", byteCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Short", shortCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Int", intCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Long", longCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Float", floatCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Double", doubleCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Char", charCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("String", stringCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("BigInt", bigIntCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("BigDecimal", bigDecimalCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("DayOfWeek", dayOfWeekCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Duration", durationCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Instant", instantCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("LocalDate", localDateCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("LocalDateTime", localDateTimeCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("LocalTime", localTimeCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Month", monthCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("MonthDay", monthDayCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("OffsetDateTime", offsetDateTimeCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("OffsetTime", offsetTimeCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Period", periodCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Year", yearCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("YearMonth", yearMonthCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("ZoneId", zoneIdCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("ZoneOffset", zoneOffsetCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("ZonedDateTime", zonedDateTimeCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("Currency", currencyCodec.avroSchema),
+                          createPrimitiveValueAvroRecord("UUID", uuidCodec.avroSchema)
                         )
                       )
                     )
@@ -1389,7 +1394,7 @@ object AvroFormat
               encoder.writeInt(0)
           }
 
-          private[this] def primitiveValueAvroSchema(name: String, avroSchema: AvroSchema): AvroSchema = {
+          private[this] def createPrimitiveValueAvroRecord(name: String, avroSchema: AvroSchema): AvroSchema = {
             val fields = new java.util.ArrayList[AvroSchema.Field](1)
             fields.add(new AvroSchema.Field("value", avroSchema))
             createAvroRecord("zio.blocks.schema.PrimitiveValue", name, fields)
@@ -1399,16 +1404,14 @@ object AvroFormat
         private[this] def createAvroRecord(
           namespace: String,
           name: String,
-          fields: java.util.ArrayList[AvroSchema.Field]
+          fields: java.util.ArrayList[AvroSchema.Field] = null
         ): AvroSchema = {
-          val fqn    = s"$namespace.$name"
-          val number = recordCounters.get().getOrDefault(fqn, 0)
-          recordCounters.get().put(fqn, number + 1)
-          val newName =
-            if (number > 0) s"${name}_$number"
+          val number     = recordCounters.get().compute((namespace, name), (_: (String, String), n: Int) => n + 1) - 1
+          val recordName =
+            if (number > 0) (new java.lang.StringBuilder).append(name).append('_').append(number).toString
             else name
-          if (fields eq null) AvroSchema.createRecord(newName, null, namespace, false)
-          else AvroSchema.createRecord(newName, null, namespace, false, fields)
+          if (fields eq null) AvroSchema.createRecord(recordName, null, namespace, false)
+          else AvroSchema.createRecord(recordName, null, namespace, false, fields)
         }
       }
     )
