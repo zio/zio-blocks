@@ -858,8 +858,8 @@ object AvroFormat
                   val field = fields(idx)
                   val codec = deriveCodec(field.value)
                   codecs(idx) = codec
-                  offset = RegisterOffset.add(offset, codec.valueOffset)
                   avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
+                  offset = RegisterOffset.add(offset, codec.valueOffset)
                   idx += 1
                 }
                 avroSchema.setFields(avroSchemaFields)
@@ -904,10 +904,10 @@ object AvroFormat
                       offset += codec.valueOffset
                       idx += 1
                     }
+                    constructor.construct(regs, RegisterOffset.Zero)
                   } catch {
                     case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                   }
-                  constructor.construct(regs, RegisterOffset.Zero)
                 }
 
                 def encode(value: A, encoder: BinaryEncoder): Unit = {
@@ -1011,35 +1011,35 @@ object AvroFormat
                             "Unit",
                             new java.util.ArrayList[AvroSchema.Field](0)
                           ),
-                          createPrimitiveValueAvroRecord("Boolean", booleanCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Byte", byteCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Short", shortCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Int", intCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Long", longCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Float", floatCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Double", doubleCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Char", charCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("String", stringCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("BigInt", bigIntCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("BigDecimal", bigDecimalCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("DayOfWeek", dayOfWeekCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Duration", durationCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Instant", instantCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("LocalDate", localDateCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("LocalDateTime", localDateTimeCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("LocalTime", localTimeCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Month", monthCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("MonthDay", monthDayCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("OffsetDateTime", offsetDateTimeCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("OffsetTime", offsetTimeCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Period", periodCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Year", yearCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("YearMonth", yearMonthCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("ZoneId", zoneIdCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("ZoneOffset", zoneOffsetCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("ZonedDateTime", zonedDateTimeCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("Currency", currencyCodec.avroSchema),
-                          createPrimitiveValueAvroRecord("UUID", uuidCodec.avroSchema)
+                          createPrimitiveValueAvroRecord("Boolean", booleanCodec),
+                          createPrimitiveValueAvroRecord("Byte", byteCodec),
+                          createPrimitiveValueAvroRecord("Short", shortCodec),
+                          createPrimitiveValueAvroRecord("Int", intCodec),
+                          createPrimitiveValueAvroRecord("Long", longCodec),
+                          createPrimitiveValueAvroRecord("Float", floatCodec),
+                          createPrimitiveValueAvroRecord("Double", doubleCodec),
+                          createPrimitiveValueAvroRecord("Char", charCodec),
+                          createPrimitiveValueAvroRecord("String", stringCodec),
+                          createPrimitiveValueAvroRecord("BigInt", bigIntCodec),
+                          createPrimitiveValueAvroRecord("BigDecimal", bigDecimalCodec),
+                          createPrimitiveValueAvroRecord("DayOfWeek", dayOfWeekCodec),
+                          createPrimitiveValueAvroRecord("Duration", durationCodec),
+                          createPrimitiveValueAvroRecord("Instant", instantCodec),
+                          createPrimitiveValueAvroRecord("LocalDate", localDateCodec),
+                          createPrimitiveValueAvroRecord("LocalDateTime", localDateTimeCodec),
+                          createPrimitiveValueAvroRecord("LocalTime", localTimeCodec),
+                          createPrimitiveValueAvroRecord("Month", monthCodec),
+                          createPrimitiveValueAvroRecord("MonthDay", monthDayCodec),
+                          createPrimitiveValueAvroRecord("OffsetDateTime", offsetDateTimeCodec),
+                          createPrimitiveValueAvroRecord("OffsetTime", offsetTimeCodec),
+                          createPrimitiveValueAvroRecord("Period", periodCodec),
+                          createPrimitiveValueAvroRecord("Year", yearCodec),
+                          createPrimitiveValueAvroRecord("YearMonth", yearMonthCodec),
+                          createPrimitiveValueAvroRecord("ZoneId", zoneIdCodec),
+                          createPrimitiveValueAvroRecord("ZoneOffset", zoneOffsetCodec),
+                          createPrimitiveValueAvroRecord("ZonedDateTime", zonedDateTimeCodec),
+                          createPrimitiveValueAvroRecord("Currency", currencyCodec),
+                          createPrimitiveValueAvroRecord("UUID", uuidCodec)
                         )
                       )
                     )
@@ -1125,7 +1125,7 @@ object AvroFormat
                     case 26 => new PrimitiveValue.ZoneOffset(zoneOffsetCodec.decodeUnsafe(decoder))
                     case 27 => new PrimitiveValue.ZonedDateTime(zonedDateTimeCodec.decodeUnsafe(decoder))
                     case 28 => new PrimitiveValue.Currency(currencyCodec.decodeUnsafe(decoder))
-                    case 29 => new PrimitiveValue.UUID(uuidCodec.decodeUnsafe(decoder))
+                    case _  => new PrimitiveValue.UUID(uuidCodec.decodeUnsafe(decoder))
                   })
                 } catch {
                   case error if NonFatal(error) => decodeError(spanValue, error)
@@ -1391,8 +1391,9 @@ object AvroFormat
               encoder.writeInt(0)
           }
 
-          private[this] def createPrimitiveValueAvroRecord(name: String, avroSchema: AvroSchema): AvroSchema = {
-            val fields = new java.util.ArrayList[AvroSchema.Field](1)
+          private[this] def createPrimitiveValueAvroRecord(name: String, codec: AvroBinaryCodec[?]): AvroSchema = {
+            val avroSchema = codec.avroSchema
+            val fields     = new java.util.ArrayList[AvroSchema.Field](1)
             fields.add(new AvroSchema.Field("value", avroSchema))
             createAvroRecord("zio.blocks.schema.PrimitiveValue", name, fields)
           }
