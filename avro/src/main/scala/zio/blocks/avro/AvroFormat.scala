@@ -835,6 +835,7 @@ object AvroFormat
               var codecsWithAvroSchema =
                 if (isRecursive) recursiveRecordCache.get.get(typeName)
                 else null
+              var offset = 0
               if (codecsWithAvroSchema eq null) {
                 val namespaceBuilder = new java.lang.StringBuilder()
                 val namespace        = typeName.namespace
@@ -857,6 +858,7 @@ object AvroFormat
                   val field = fields(idx)
                   val codec = deriveCodec(field.value)
                   codecs(idx) = codec
+                  offset = RegisterOffset.add(offset, codec.valueOffset)
                   avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
                   idx += 1
                 }
@@ -865,84 +867,79 @@ object AvroFormat
               new AvroBinaryCodec[A]() {
                 private[this] val deconstructor = binding.deconstructor
                 private[this] val constructor   = binding.constructor
-                private[this] val usedRegisters = record.usedRegisters
+                private[this] val usedRegisters = offset
                 private[this] val fieldCodecs   = codecsWithAvroSchema._1
 
                 val avroSchema: AvroSchema = codecsWithAvroSchema._2
 
                 def decodeUnsafe(decoder: BinaryDecoder): A = {
-                  val registers = Registers(usedRegisters)
-                  var offset    = RegisterOffset.Zero
-                  val len       = fieldCodecs.length
-                  var idx       = 0
+                  val regs   = Registers(usedRegisters)
+                  var offset = 0
+                  val len    = fieldCodecs.length
+                  var idx    = 0
                   try {
                     while (idx < len) {
                       val codec = fieldCodecs(idx)
                       codec.valueType match {
                         case AvroBinaryCodec.objectType =>
-                          registers
-                            .setObject(offset, 0, codec.asInstanceOf[AvroBinaryCodec[AnyRef]].decodeUnsafe(decoder))
+                          regs.setObject(offset, 0, codec.asInstanceOf[AvroBinaryCodec[AnyRef]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.intType =>
-                          registers.setInt(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Int]].decodeUnsafe(decoder))
+                          regs.setInt(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Int]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.longType =>
-                          registers.setLong(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Long]].decodeUnsafe(decoder))
+                          regs.setLong(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Long]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.floatType =>
-                          registers
-                            .setFloat(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Float]].decodeUnsafe(decoder))
+                          regs.setFloat(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Float]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.doubleType =>
-                          registers
-                            .setDouble(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Double]].decodeUnsafe(decoder))
+                          regs.setDouble(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Double]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.booleanType =>
-                          registers
-                            .setBoolean(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Boolean]].decodeUnsafe(decoder))
+                          regs.setBoolean(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Boolean]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.byteType =>
-                          registers.setByte(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Byte]].decodeUnsafe(decoder))
+                          regs.setByte(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Byte]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.charType =>
-                          registers.setChar(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Char]].decodeUnsafe(decoder))
+                          regs.setChar(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Char]].decodeUnsafe(decoder))
                         case AvroBinaryCodec.shortType =>
-                          registers
-                            .setShort(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Short]].decodeUnsafe(decoder))
+                          regs.setShort(offset, 0, codec.asInstanceOf[AvroBinaryCodec[Short]].decodeUnsafe(decoder))
                         case _ => codec.asInstanceOf[AvroBinaryCodec[Unit]].decodeUnsafe(decoder)
                       }
-                      offset = RegisterOffset.add(offset, codec.valueOffset)
+                      offset += codec.valueOffset
                       idx += 1
                     }
                   } catch {
                     case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                   }
-                  constructor.construct(registers, RegisterOffset.Zero)
+                  constructor.construct(regs, RegisterOffset.Zero)
                 }
 
                 def encode(value: A, encoder: BinaryEncoder): Unit = {
-                  val registers = Registers(usedRegisters)
-                  var offset    = RegisterOffset.Zero
-                  deconstructor.deconstruct(registers, offset, value)
+                  val regs   = Registers(usedRegisters)
+                  var offset = 0
+                  deconstructor.deconstruct(regs, offset, value)
                   val len = fieldCodecs.length
                   var idx = 0
                   while (idx < len) {
                     val codec = fieldCodecs(idx)
                     codec.valueType match {
                       case AvroBinaryCodec.objectType =>
-                        codec.asInstanceOf[AvroBinaryCodec[AnyRef]].encode(registers.getObject(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[AnyRef]].encode(regs.getObject(offset, 0), encoder)
                       case AvroBinaryCodec.intType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Int]].encode(registers.getInt(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Int]].encode(regs.getInt(offset, 0), encoder)
                       case AvroBinaryCodec.longType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Long]].encode(registers.getLong(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Long]].encode(regs.getLong(offset, 0), encoder)
                       case AvroBinaryCodec.floatType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Float]].encode(registers.getFloat(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Float]].encode(regs.getFloat(offset, 0), encoder)
                       case AvroBinaryCodec.doubleType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Double]].encode(registers.getDouble(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Double]].encode(regs.getDouble(offset, 0), encoder)
                       case AvroBinaryCodec.booleanType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Boolean]].encode(registers.getBoolean(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Boolean]].encode(regs.getBoolean(offset, 0), encoder)
                       case AvroBinaryCodec.byteType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Byte]].encode(registers.getByte(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Byte]].encode(regs.getByte(offset, 0), encoder)
                       case AvroBinaryCodec.charType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Char]].encode(registers.getChar(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Char]].encode(regs.getChar(offset, 0), encoder)
                       case AvroBinaryCodec.shortType =>
-                        codec.asInstanceOf[AvroBinaryCodec[Short]].encode(registers.getShort(offset, 0), encoder)
+                        codec.asInstanceOf[AvroBinaryCodec[Short]].encode(regs.getShort(offset, 0), encoder)
                       case _ => codec.asInstanceOf[AvroBinaryCodec[Unit]].encode((), encoder)
                     }
-                    offset = RegisterOffset.add(offset, codec.valueOffset)
+                    offset += codec.valueOffset
                     idx += 1
                   }
                 }
