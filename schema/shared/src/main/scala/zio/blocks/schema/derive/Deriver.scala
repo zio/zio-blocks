@@ -60,6 +60,7 @@ trait Deriver[TC[_]] { self =>
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeName: TypeName[A],
+    primitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]

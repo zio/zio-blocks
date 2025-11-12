@@ -78,13 +78,19 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](Schema[B].reflect, reflect.typeName, new Binding.Wrapper(wrap, unwrap))
+    new Reflect.Wrapper[Binding, A, B](
+      Schema[B].reflect,
+      reflect.typeName,
+      Reflect.unwrapToPrimitiveTypeOption(reflect),
+      new Binding.Wrapper(wrap, unwrap)
+    )
   )
 
   def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
       reflect.typeName,
+      Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
