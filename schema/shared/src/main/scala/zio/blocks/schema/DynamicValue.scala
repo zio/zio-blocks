@@ -1,8 +1,6 @@
 package zio.blocks.schema
 
 sealed trait DynamicValue {
-  final def toJson: String = json.dynamicValueToJson(this)
-
   def typeIndex: Int
 
   def compare(that: DynamicValue): Int
@@ -171,8 +169,6 @@ object DynamicValue {
       case _ => 4 - that.typeIndex
     }
   }
-
-  final def fromJson(rawJson: String): DynamicValue = json.dynamicValueFromJson(rawJson)
 
   implicit val ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {
     def compare(x: DynamicValue, y: DynamicValue): Int = x.compare(y)

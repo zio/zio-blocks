@@ -3,10 +3,10 @@ package zio.blocks.avro
 import zio.test._
 import zio.test.Assertion._
 
-object ListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment, Any] = suite("ListOfRecordsBenchmarkSpec")(
+object AvroListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
+  def spec: Spec[TestEnvironment, Any] = suite("AvroListOfRecordsBenchmarkSpec")(
     test("reading") {
-      val benchmark = new ListOfRecordsBenchmark
+      val benchmark = new AvroListOfRecordsBenchmark
       benchmark.setup()
       val avro4sOutput    = benchmark.readingAvro4s
       val zioBlocksOutput = benchmark.readingZioBlocks
@@ -15,7 +15,7 @@ object ListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
       assert(zioSchemaOutput)(equalTo(zioBlocksOutput))
     },
     test("writing") {
-      val benchmark = new ListOfRecordsBenchmark
+      val benchmark = new AvroListOfRecordsBenchmark
       benchmark.setup()
       val avro4sOutput    = benchmark.writingAvro4s
       val zioBlocksOutput = benchmark.writingZioBlocks
