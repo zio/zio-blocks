@@ -203,15 +203,30 @@ final case class DerivationBuilder[TC[_], A](
             path: DynamicOptic,
             wrapped: Reflect[G, B],
             typeName: TypeName[A0],
+            wrapperPrimitiveType: Option[PrimitiveType[A0]],
             metadata: F[BindingType.Wrapper[A0, B], A0],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Wrapper[G, A0, B]] = Lazy {
             val instance = getCustomInstance[A0](path, typeName)
               .getOrElse(
-                deriver.deriveWrapper(wrapped, typeName, metadata, doc, appendModifiers(modifiers, path, typeName))
+                deriver.deriveWrapper(
+                  wrapped,
+                  typeName,
+                  wrapperPrimitiveType,
+                  metadata,
+                  doc,
+                  appendModifiers(modifiers, path, typeName)
+                )
               )
-            new Reflect.Wrapper(wrapped, typeName, new BindingInstance(metadata, instance), doc, modifiers)
+            new Reflect.Wrapper(
+              wrapped,
+              typeName,
+              wrapperPrimitiveType,
+              new BindingInstance(metadata, instance),
+              doc,
+              modifiers
+            )
           }
         }
       )

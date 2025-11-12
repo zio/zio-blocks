@@ -436,9 +436,9 @@ object Reflect {
       var registerOffset = RegisterOffset.Zero
       var idx            = 0
       reflects.foreach { fieldValue =>
-        unwrapToPrimitiveOption(fieldValue) match {
-          case Some(primitive) =>
-            primitive.primitiveType match {
+        unwrapToPrimitiveTypeOption(fieldValue) match {
+          case Some(primitiveType) =>
+            primitiveType match {
               case PrimitiveType.Unit =>
                 registers(idx) = Register.Unit
               case _: PrimitiveType.Boolean =>
@@ -636,9 +636,9 @@ object Reflect {
           val seqTrace    = DynamicOptic.Node.Elements :: trace
           val constructor = seqConstructor
           var idx         = -1
-          unwrapToPrimitiveOption(element) match {
-            case Some(primitive) =>
-              primitive.primitiveType match {
+          unwrapToPrimitiveTypeOption(element) match {
+            case Some(primitiveType) =>
+              primitiveType match {
                 case _: PrimitiveType.Boolean =>
                   val builder = constructor.newBooleanBuilder(elements.size)
                   elements.foreach { elem =>
@@ -1034,11 +1034,12 @@ object Reflect {
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeName: TypeName[A],
+    wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, A] { self =>
-    protected def inner: Any = (wrapped, typeName, doc, modifiers)
+    protected def inner: Any = (wrapped, typeName, wrapperPrimitiveType, doc, modifiers)
 
     type NodeBinding = BindingType.Wrapper[A, B]
 
@@ -1081,7 +1082,7 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
         wrapped <- wrapped.transform(path, f)
-        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperBinding, doc, modifiers)
+        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
       } yield wrapper
 
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
@@ -1666,10 +1667,9 @@ object Reflect {
     }
   }
 
-  @tailrec
-  private[this] def unwrapToPrimitiveOption[F[_, _]](reflect: Reflect[F, ?]): Option[Reflect.Primitive[F, ?]] =
-    if (reflect.isWrapper) unwrapToPrimitiveOption(reflect.asWrapperUnknown.get.wrapper.wrapped)
-    else reflect.asPrimitive
+  private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
+    if (reflect.isWrapper) reflect.asInstanceOf[Reflect.Wrapper[F, A, _]].wrapperPrimitiveType
+    else reflect.asPrimitive.map(_.primitiveType)
 
   private class StringToIntMap(size: Int) {
     private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1

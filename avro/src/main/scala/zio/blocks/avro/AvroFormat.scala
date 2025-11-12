@@ -101,11 +101,21 @@ object AvroFormat
         def deriveWrapper[F[_, _], A, B](
           wrapped: Reflect[F, B],
           typeName: TypeName[A],
+          wrapperPrimitiveType: Option[PrimitiveType[A]],
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
-          deriveCodec(new Reflect.Wrapper(wrapped.asInstanceOf[Reflect[Binding, B]], typeName, binding, doc, modifiers))
+          deriveCodec(
+            new Reflect.Wrapper(
+              wrapped = wrapped.asInstanceOf[Reflect[Binding, B]],
+              typeName,
+              wrapperPrimitiveType,
+              binding,
+              doc,
+              modifiers
+            )
+          )
         }
 
         override def instanceOverrides: IndexedSeq[InstanceOverride] = {
