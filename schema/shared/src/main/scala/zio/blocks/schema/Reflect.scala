@@ -1668,7 +1668,8 @@ object Reflect {
   }
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
-    if (reflect.isWrapper) reflect.asInstanceOf[Reflect.Wrapper[F, A, _]].wrapperPrimitiveType
+    if (reflect.isWrapper)
+      reflect.asWrapperUnknown.get.wrapper.wrapperPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
     else reflect.asPrimitive.map(_.primitiveType)
 
   private class StringToIntMap(size: Int) {
