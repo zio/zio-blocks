@@ -9,6 +9,7 @@ import zio.test._
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util
+import scala.collection.immutable.ArraySeq
 
 object AvroTestUtils {
   private[this] val header    = "+----------+-------------------------------------------------+------------------+"
@@ -51,8 +52,8 @@ object AvroTestUtils {
     val encodedBySchema2 = output.toByteArray
     val encodedBySchema3 = codec.encode(value)
     assert(encodedBySchema.length)(equalTo(expectedLength)) &&
-    assert(util.Arrays.compare(encodedBySchema, encodedBySchema2))(equalTo(0)) &&
-    assert(util.Arrays.compare(encodedBySchema, encodedBySchema3))(equalTo(0)) &&
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(codec.decode(encodedBySchema))(isRight(equalTo(value))) &&
     assert(codec.decode(toInputStream(encodedBySchema)))(isRight(equalTo(value))) &&
     assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
