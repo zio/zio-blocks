@@ -106,7 +106,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Long].reflect.asTerm("_4")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(packages = Seq("scala")),
+                  namespace = Namespace(Seq("scala")),
                   name = "Tuple4",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
                 ),
@@ -154,7 +154,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema[Long].reflect.asTerm("_4")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(packages = Seq("scala")),
+                  namespace = Namespace(Seq("scala")),
                   name = "Tuple4",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
                 ),
@@ -768,15 +768,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Int", "String", "Boolean")))) &&
         assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName(
-                Namespace(List("zio", "blocks", "schema"), List("OpaqueTypes$package")),
-                "Variant",
-                Nil
-              )
-            )
-          )
+          isSome(equalTo(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpaqueTypes$package")), "Variant")))
         )
       },
       test("derives schema for case classes with fields of Scala 3 union types that have duplicated sub-types") {

@@ -254,12 +254,12 @@ object Binding {
 
     val someUnit: Record[Some[Unit]] = new Record(
       constructor = new Constructor[Some[Unit]] {
-        def usedRegisters: RegisterOffset = RegisterOffset.Zero
+        def usedRegisters: RegisterOffset = 0
 
         def construct(in: Registers, baseOffset: RegisterOffset): Some[Unit] = new Some(())
       },
       deconstructor = new Deconstructor[Some[Unit]] {
-        def usedRegisters: RegisterOffset = RegisterOffset.Zero
+        def usedRegisters: RegisterOffset = 0
 
         def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Unit]): Unit = ()
       }
@@ -267,12 +267,12 @@ object Binding {
 
     val none: Record[None.type] = new Record(
       constructor = new Constructor[None.type] {
-        def usedRegisters: RegisterOffset = RegisterOffset.Zero
+        def usedRegisters: RegisterOffset = 0
 
         def construct(in: Registers, baseOffset: RegisterOffset): None.type = None
       },
       deconstructor = new Deconstructor[None.type] {
-        def usedRegisters: RegisterOffset = RegisterOffset.Zero
+        def usedRegisters: RegisterOffset = 0
 
         def deconstruct(out: Registers, baseOffset: RegisterOffset, in: None.type): Unit = ()
       }

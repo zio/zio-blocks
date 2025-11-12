@@ -2,7 +2,7 @@ package zio.blocks.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
-import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, RegisterOffset, Registers}
+import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers}
 import zio.blocks.schema._
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
@@ -869,7 +869,7 @@ object AvroFormat
                   val codec = deriveCodec(field.value)
                   codecs(idx) = codec
                   avroSchemaFields.add(new AvroSchema.Field(field.name, codec.avroSchema))
-                  offset = RegisterOffset.add(offset, codec.valueOffset)
+                  offset += codec.valueOffset
                   idx += 1
                 }
                 avroSchema.setFields(avroSchemaFields)
@@ -914,7 +914,7 @@ object AvroFormat
                       offset += codec.valueOffset
                       idx += 1
                     }
-                    constructor.construct(regs, RegisterOffset.Zero)
+                    constructor.construct(regs, 0)
                   } catch {
                     case error if NonFatal(error) => decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                   }

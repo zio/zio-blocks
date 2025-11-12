@@ -163,7 +163,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Long].reflect.asTerm("_4")
                 ),
                 typeName = TypeName(
-                  namespace = Namespace(packages = Seq("scala"), values = Nil),
+                  namespace = Namespace(Seq("scala")),
                   name = "Tuple4",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
                 ),
@@ -662,7 +662,7 @@ object SchemaSpec extends ZIOSpecDefault {
           new Schema(
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
-              TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
+              TypeName(Namespace(Seq("zio")), "Chunk"),
               None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
             )
@@ -1687,9 +1687,10 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("has consistent toDynamicValue and fromDynamicValue with wrapper in a case class") {
         case class Test(a: PosInt)
-        val value                         = Test(PosInt.applyUnsafe(1))
-        implicit val schema: Schema[Test] = Schema.derived[Test]
-        assert(Schema[Test].fromDynamicValue(Schema[Test].toDynamicValue(value)))(isRight(equalTo(value)))
+
+        val value  = Test(PosInt.applyUnsafe(1))
+        val schema = Schema.derived[Test]
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>

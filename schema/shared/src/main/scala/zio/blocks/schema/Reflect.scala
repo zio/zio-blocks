@@ -342,10 +342,8 @@ object Reflect {
               if (fieldValue ne null) {
                 fieldValues(idx) = null
                 fieldValue.fromDynamicValue(kv._2, new DynamicOptic.Node.Field(name) :: trace) match {
-                  case Right(value) =>
-                    this.registers(idx).set(registers, RegisterOffset.Zero, value)
-                  case Left(error) =>
-                    addError(error)
+                  case Right(value) => this.registers(idx).set(registers, 0, value)
+                  case Left(error)  => addError(error)
                 }
               } else addError(SchemaError.duplicatedField(trace, name))
             }
@@ -357,7 +355,7 @@ object Reflect {
             idx += 1
           }
           if (error.isDefined) new Left(error.get)
-          else new Right(constructor.construct(registers, RegisterOffset.Zero))
+          else new Right(constructor.construct(registers, 0))
         case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a record"))
       }
 
@@ -387,9 +385,9 @@ object Reflect {
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = this.deconstructor
       val registers     = Registers(deconstructor.usedRegisters)
-      deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
-      val len    = this.registers.length
+      deconstructor.deconstruct(registers, 0, value)
       val fields = Vector.newBuilder[(String, DynamicValue)]
+      val len    = this.registers.length
       var idx    = 0
       while (idx < len) {
         val field    = this.fields(idx)
@@ -399,7 +397,7 @@ object Reflect {
             field.name,
             field.value
               .asInstanceOf[Reflect[F, field.Focus]]
-              .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
+              .toDynamicValue(register.get(registers, 0).asInstanceOf[field.Focus])
           )
         )
         idx += 1
@@ -432,9 +430,8 @@ object Reflect {
     type Bound[A] = Record[Binding, A]
 
     def registers[F[_, _]](reflects: Array[Reflect[F, ?]]): Array[Register[Any]] = {
-      val registers      = new Array[Register[?]](reflects.length)
-      var registerOffset = RegisterOffset.Zero
-      var idx            = 0
+      val registers   = new Array[Register[?]](reflects.length)
+      var offset, idx = 0
       reflects.foreach { fieldValue =>
         unwrapToPrimitiveTypeOption(fieldValue) match {
           case Some(primitiveType) =>
@@ -442,36 +439,36 @@ object Reflect {
               case PrimitiveType.Unit =>
                 registers(idx) = Register.Unit
               case _: PrimitiveType.Boolean =>
-                registers(idx) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
+                registers(idx) = new Register.Boolean(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementBooleansAndBytes(offset)
               case _: PrimitiveType.Byte =>
-                registers(idx) = Register.Byte(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
+                registers(idx) = new Register.Byte(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementBooleansAndBytes(offset)
               case _: PrimitiveType.Char =>
-                registers(idx) = Register.Char(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
+                registers(idx) = new Register.Char(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementCharsAndShorts(offset)
               case _: PrimitiveType.Short =>
-                registers(idx) = Register.Short(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
+                registers(idx) = new Register.Short(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementCharsAndShorts(offset)
               case _: PrimitiveType.Float =>
-                registers(idx) = Register.Float(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
+                registers(idx) = new Register.Float(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementFloatsAndInts(offset)
               case _: PrimitiveType.Int =>
-                registers(idx) = Register.Int(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
+                registers(idx) = new Register.Int(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementFloatsAndInts(offset)
               case _: PrimitiveType.Double =>
-                registers(idx) = Register.Double(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
+                registers(idx) = new Register.Double(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementDoublesAndLongs(offset)
               case _: PrimitiveType.Long =>
-                registers(idx) = Register.Long(RegisterOffset.getBytes(registerOffset))
-                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
+                registers(idx) = new Register.Long(RegisterOffset.getBytes(offset))
+                offset = RegisterOffset.incrementDoublesAndLongs(offset)
               case _ =>
-                registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
-                registerOffset = RegisterOffset.incrementObjects(registerOffset)
+                registers(idx) = new Register.Object(RegisterOffset.getObjects(offset))
+                offset = RegisterOffset.incrementObjects(offset)
             }
           case _ =>
-            registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
-            registerOffset = RegisterOffset.incrementObjects(registerOffset)
+            registers(idx) = new Register.Object(RegisterOffset.getObjects(offset))
+            offset = RegisterOffset.incrementObjects(offset)
         }
         idx += 1
       }
@@ -479,13 +476,12 @@ object Reflect {
     }
 
     def usedRegisters(registers: Array[Register[Any]]): RegisterOffset = {
-      var usedRegisters = RegisterOffset.Zero
-      var idx           = 0
+      var offset, idx = 0
       while (idx < registers.length) {
-        usedRegisters = RegisterOffset.add(registers(idx).usedRegisters, usedRegisters)
+        offset = RegisterOffset.add(registers(idx).usedRegisters, offset)
         idx += 1
       }
-      usedRegisters
+      offset
     }
   }
 
@@ -1668,9 +1664,9 @@ object Reflect {
   }
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
-    if (reflect.isWrapper)
+    if (reflect.isWrapper) {
       reflect.asWrapperUnknown.get.wrapper.wrapperPrimitiveType.asInstanceOf[Option[PrimitiveType[A]]]
-    else reflect.asPrimitive.map(_.primitiveType)
+    } else reflect.asPrimitive.map(_.primitiveType)
 
   private class StringToIntMap(size: Int) {
     private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1
