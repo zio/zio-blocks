@@ -9,29 +9,9 @@ import zio.test._
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.util
+import scala.collection.immutable.ArraySeq
 
 object AvroTestUtils {
-  private[this] val header    = "+----------+-------------------------------------------------+------------------+"
-  private[this] val colTitles = "|          |  0  1  2  3  4  5  6  7  8  9  a  b  c  d  e  f | 0123456789abcdef |"
-
-  def hexDump(bytes: Array[Byte]): String = {
-    val sb = new StringBuilder
-    val ls = System.lineSeparator()
-    sb.append(header).append(ls).append(colTitles).append(ls).append(header).append(ls)
-    bytes.grouped(16).zipWithIndex.foreach { case (chunk, rowIndex) =>
-      val offset    = f"${rowIndex * 16}%08x"
-      val hexPart   = chunk.map(b => f"$b%02x").mkString(" ")
-      val paddedHex = f"$hexPart%-47s"
-      val asciiPart = chunk.map { byte =>
-        val char = byte.toChar
-        if (char >= 32 && char <= 126) char else '.'
-      }.mkString
-      val paddedAscii = f"$asciiPart%-16s"
-      sb.append(f"| $offset | $paddedHex | $paddedAscii |").append(ls)
-    }
-    sb.append(header).append(ls).toString
-  }
-
   def avroSchema[A](expectedAvroSchemaJson: String)(implicit schema: Schema[A]): TestResult =
     avroSchema(expectedAvroSchemaJson, schema.derive(AvroFormat.deriver))
 
@@ -42,28 +22,41 @@ object AvroTestUtils {
     roundTrip(value, expectedLength, schema.derive(AvroFormat.deriver))
 
   def roundTrip[A](value: A, expectedLength: Int, codec: AvroBinaryCodec[A]): TestResult = {
-    val byteBuffer = ByteBuffer.allocate(1024)
-    codec.encode(value, byteBuffer)
-    val encodedBySchema = util.Arrays.copyOf(byteBuffer.array, byteBuffer.position)
-    val output          = new java.io.ByteArrayOutputStream(1024)
+    val heapByteBuffer = ByteBuffer.allocate(1024)
+    codec.encode(value, heapByteBuffer)
+    val encodedBySchema1 = util.Arrays.copyOf(heapByteBuffer.array, heapByteBuffer.position)
+    val directByteBuffer = ByteBuffer.allocate(1024)
+    codec.encode(value, directByteBuffer)
+    val encodedBySchema2 = util.Arrays.copyOf(
+      {
+        val dup = directByteBuffer.duplicate()
+        val out = new Array[Byte](dup.position)
+        dup.position(0)
+        dup.get(out)
+        out
+      },
+      directByteBuffer.position
+    )
+    val output = new java.io.ByteArrayOutputStream(1024)
     codec.encode(value, output)
     output.close()
-    val encodedBySchema2 = output.toByteArray
-    val encodedBySchema3 = codec.encode(value)
-    assert(encodedBySchema.length)(equalTo(expectedLength)) &&
-    assert(util.Arrays.compare(encodedBySchema, encodedBySchema2))(equalTo(0)) &&
-    assert(util.Arrays.compare(encodedBySchema, encodedBySchema3))(equalTo(0)) &&
-    assert(codec.decode(encodedBySchema))(isRight(equalTo(value))) &&
-    assert(codec.decode(toInputStream(encodedBySchema)))(isRight(equalTo(value))) &&
-    assert(codec.decode(toHeapByteBuffer(encodedBySchema)))(isRight(equalTo(value))) &&
-    assert(codec.decode(toDirectByteBuffer(encodedBySchema)))(isRight(equalTo(value))) && {
+    val encodedBySchema3 = output.toByteArray
+    val encodedBySchema4 = codec.encode(value)
+    assert(encodedBySchema1.length)(equalTo(expectedLength)) &&
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
+    assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
+    assert(codec.decode(encodedBySchema1))(isRight(equalTo(value))) &&
+    assert(codec.decode(toInputStream(encodedBySchema1)))(isRight(equalTo(value))) &&
+    assert(codec.decode(toHeapByteBuffer(encodedBySchema1)))(isRight(equalTo(value))) &&
+    assert(codec.decode(toDirectByteBuffer(encodedBySchema1)))(isRight(equalTo(value))) && {
       val avroSchema    = (new AvroSchema.Parser).parse(codec.avroSchema.toString)
-      val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema, null)
+      val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema1, null)
       val datum         = new GenericDatumReader[Any](avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
       val encodedByAvro = new ByteArrayOutputStream(1024)
       val binaryEncoder = EncoderFactory.get().directBinaryEncoder(encodedByAvro, null)
       new GenericDatumWriter[Any](avroSchema).write(datum, binaryEncoder)
-      assert(util.Arrays.compare(encodedBySchema, encodedByAvro.toByteArray))(equalTo(0))
+      assert(util.Arrays.compare(encodedBySchema1, encodedByAvro.toByteArray))(equalTo(0))
     }
   }
 
@@ -74,11 +67,7 @@ object AvroTestUtils {
       assert(codec.decode(toDirectByteBuffer(bytes)))(isLeft(hasError(error)))
 
   private[this] def hasError(message: String) =
-    hasField[SchemaError, String](
-      "getMessage",
-      _.getMessage,
-      containsString(message)
-    )
+    hasField[SchemaError, String]("getMessage", _.getMessage, containsString(message))
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 

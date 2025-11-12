@@ -10,11 +10,11 @@ import zio.schema.{DeriveSchema, Schema => ZIOSchema}
 import java.io.ByteArrayOutputStream
 import com.sksamuel.avro4s.{AvroSchema, AvroInputStream, AvroOutputStream}
 
-class ListOfRecordsBenchmark extends BaseBenchmark {
-  import ListOfRecordsDomain._
+class AvroListOfRecordsBenchmark extends BaseBenchmark {
+  import AvroListOfRecordsDomain._
 
   @Param(Array("1", "10", "100", "1000", "10000", "100000"))
-  var size: Int                         = 1000
+  var size: Int                         = 100
   var listOfRecords: List[Person]       = _
   var encodedListOfRecords: Array[Byte] = _
 
@@ -29,18 +29,16 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
     AvroInputStream.binary[List[Person]].from(encodedListOfRecords).build(AvroSchema[List[Person]]).iterator.next()
 
   @Benchmark
-  def readingZioBlocks: List[Person] =
-    zioBlocksCodec.decode(encodedListOfRecords) match {
-      case Right(value) => value
-      case Left(error)  => sys.error(error.getMessage)
-    }
+  def readingZioBlocks: List[Person] = zioBlocksCodec.decode(encodedListOfRecords) match {
+    case Right(value) => value
+    case Left(error)  => sys.error(error.getMessage)
+  }
 
   @Benchmark
-  def readingZioSchema: List[Person] =
-    zioSchemaCodec.decode(Chunk.fromArray(encodedListOfRecords)) match {
-      case Right(value) => value
-      case Left(error)  => sys.error(error.getMessage)
-    }
+  def readingZioSchema: List[Person] = zioSchemaCodec.decode(Chunk.fromArray(encodedListOfRecords)) match {
+    case Right(value) => value
+    case Left(error)  => sys.error(error.getMessage)
+  }
 
   @Benchmark
   def writingAvro4s: Array[Byte] = {
@@ -58,7 +56,7 @@ class ListOfRecordsBenchmark extends BaseBenchmark {
   def writingZioSchema: Array[Byte] = zioSchemaCodec.encode(listOfRecords).toArray
 }
 
-object ListOfRecordsDomain {
+object AvroListOfRecordsDomain {
   case class Person(id: Long, name: String, age: Int, address: String, childrenAges: List[Int])
 
   implicit val zioSchema: ZIOSchema[Person] = DeriveSchema.gen[Person]
