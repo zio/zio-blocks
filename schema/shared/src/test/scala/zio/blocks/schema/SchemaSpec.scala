@@ -1686,8 +1686,9 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("has consistent toDynamicValue and fromDynamicValue with wrapper in a case class") {
-        case class Test(a: PosInt) derives Schema
-        val value = Test(PosInt.applyUnsafe(1))
+        case class Test(a: PosInt)
+        val value                         = Test(PosInt.applyUnsafe(1))
+        implicit val schema: Schema[Test] = Schema.derived[Test]
         assert(Schema[Test].fromDynamicValue(Schema[Test].toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("encodes values using provided formats and outputs") {
