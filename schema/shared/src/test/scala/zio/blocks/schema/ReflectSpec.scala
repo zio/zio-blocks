@@ -182,9 +182,9 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(int1.typeName)(equalTo(TypeName.int)) &&
         assert(
           int1
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "IntWrapper"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "IntWrapper"))
             .typeName
-        )(equalTo(TypeName[Int](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "IntWrapper")))
+        )(equalTo(TypeName[Int](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "IntWrapper")))
       },
       test("updates primitive default value") {
         val int1 = Reflect.int[Binding]
@@ -276,12 +276,12 @@ object ReflectSpec extends ZIOSpecDefault {
         ) &&
         assert(
           tuple4Reflect
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "Tuple4Wrapper"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Tuple4Wrapper"))
             .typeName
         )(
           equalTo(
             TypeName[(Byte, Short, Int, Long)](
-              Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")),
+              Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")),
               "Tuple4Wrapper"
             )
           )
@@ -370,11 +370,11 @@ object ReflectSpec extends ZIOSpecDefault {
         ) &&
         assert(
           eitherReflect
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "EitherWrapper"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "EitherWrapper"))
             .typeName
         )(
           equalTo(
-            TypeName[Either[Int, Long]](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "EitherWrapper")
+            TypeName[Either[Int, Long]](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "EitherWrapper")
           )
         )
       },
@@ -485,11 +485,11 @@ object ReflectSpec extends ZIOSpecDefault {
         ) &&
         assert(
           sequence1
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "VectorWrapper"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "VectorWrapper"))
             .typeName
         )(
           equalTo(
-            TypeName[Vector[Int]](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "VectorWrapper")
+            TypeName[Vector[Int]](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "VectorWrapper")
           )
         )
       },
@@ -577,11 +577,11 @@ object ReflectSpec extends ZIOSpecDefault {
         ) &&
         assert(
           map1
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "MapWrapper"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "MapWrapper"))
             .typeName
         )(
           equalTo(
-            TypeName[Map[Int, Long]](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "MapWrapper")
+            TypeName[Map[Int, Long]](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "MapWrapper")
           )
         )
       },
@@ -661,11 +661,11 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(dynamic1.typeName)(equalTo(TypeName.dynamicValue)) &&
         assert(
           dynamic1
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "DynamicWrapper"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "DynamicWrapper"))
             .typeName
         )(
           equalTo(
-            TypeName[DynamicValue](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "DynamicWrapper")
+            TypeName[DynamicValue](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "DynamicWrapper")
           )
         )
       },
@@ -728,13 +728,13 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates wrapper type name") {
         assert(wrapperReflect.typeName)(
-          equalTo(TypeName[Wrapper](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "Wrapper"))
+          equalTo(TypeName[Wrapper](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Wrapper"))
         ) &&
         assert(
           wrapperReflect
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "Wrapper2"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Wrapper2"))
             .typeName
-        )(equalTo(TypeName[Wrapper](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "Wrapper2")))
+        )(equalTo(TypeName[Wrapper](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Wrapper2")))
       },
       test("gets and updates wrapper default value") {
         assert(wrapperReflect.getDefaultValue)(isNone) &&
@@ -791,9 +791,9 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred1.typeName)(equalTo(TypeName.year)) &&
         assert(
           deferred1
-            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "YearWrapper"))
+            .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "YearWrapper"))
             .typeName
-        )(equalTo(TypeName[Year](Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "YearWrapper")))
+        )(equalTo(TypeName[Year](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "YearWrapper")))
       },
       test("gets and updates deferred default value") {
         val deferred1 = Reflect.Deferred[Binding, YearMonth](() => Reflect.yearMonth)
@@ -850,8 +850,8 @@ object ReflectSpec extends ZIOSpecDefault {
     Schema.derived[Either[Int, Long]].reflect.asVariant.get
   val wrapperReflect: Reflect.Wrapper[Binding, Wrapper, Long] = new Reflect.Wrapper(
     wrapped = Schema[Long].reflect,
-    typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), List("ReflectSpec")), "Wrapper"),
-    wrapperPrimitiveType = Schema.derived[Wrapper].reflect.asPrimitive.map(_.primitiveType),
+    typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Wrapper"),
+    wrapperPrimitiveType = None,
     wrapperBinding = Binding.Wrapper(
       wrap = (x: Long) => Right(Wrapper(x)),
       unwrap = (x: Wrapper) => x.value
