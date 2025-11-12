@@ -1000,6 +1000,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
         TypeName(Namespace(Seq("zio", "blocks", "avro"), Seq("AvroFormatSpec")), "Email"),
+        None,
         new Binding.Wrapper(
           {
             case x @ EmailRegex(_*) => new Right(new Email(x))
