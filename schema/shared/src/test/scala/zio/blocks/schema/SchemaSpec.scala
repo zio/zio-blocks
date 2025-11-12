@@ -663,6 +663,7 @@ object SchemaSpec extends ZIOSpecDefault {
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
               TypeName(Namespace("zio" :: Nil, Nil), "Chunk"),
+              None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
             )
           )
@@ -1684,6 +1685,12 @@ object SchemaSpec extends ZIOSpecDefault {
           isLeft(hasError("Expected Int at: ."))
         )
       },
+      test("has consistent toDynamicValue and fromDynamicValue with wrapper in a case class") {
+        case class Test(a: PosInt)
+        val value                         = Test(PosInt.applyUnsafe(1))
+        implicit val schema: Schema[Test] = Schema.derived[Test]
+        assert(Schema[Test].fromDynamicValue(Schema[Test].toDynamicValue(value)))(isRight(equalTo(value)))
+      },
       test("encodes values using provided formats and outputs") {
         assert(encodeToString { out =>
           Schema[PosInt].encode(ToStringFormat)(out)(PosInt.applyUnsafe(1))
@@ -1907,6 +1914,7 @@ object SchemaSpec extends ZIOSpecDefault {
           override def deriveWrapper[F[_, _], A, B](
             wrapped: Reflect[F, B],
             typeName: TypeName[A],
+            wrapperPrimitiveType: Option[PrimitiveType[A]],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
