@@ -62,10 +62,14 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {
-      val value         = Stats(DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23)))
-      val invalidValue1 = Stats(DropRate.unsafeMake(2), Array.empty[ResponseTime])
-      val invalidValue2 = Stats(DropRate(0.5), Array(ResponseTime.unsafeMake(-1.0)))
+      val value         = Stats(Some(Id(123)), DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23)))
+      val invalidValue1 = Stats(None, DropRate.unsafeMake(2), Array.empty[ResponseTime])
+      val invalidValue2 = Stats(None, DropRate(0.5), Array(ResponseTime.unsafeMake(-1.0)))
       val schema        = Schema[Stats]
+      assert(Stats.id_some_value.getOption(value))(isSome(equalTo(123))) &&
+      assert(Stats.id_some_value.replace(value, Id(1)))(
+        equalTo(Stats(Some(Id(1)), DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23))))
+      ) &&
       assert(Stats.dropRate_wrapped.getOption(value))(isSome(equalTo(0.5))) &&
       assert(Stats.dropRate_wrapped.replace(value, -0.1))(equalTo(value)) &&
       assert(Stats.responseTimes_wrapped.fold(value)(0.0, _ + _))(equalTo(0.33)) &&
@@ -173,6 +177,10 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
   inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
     Schema.derived[B].wrap[A](newType.make, newType.unwrap)
 
+  type Id = Id.Type
+
+  object Id extends Subtype[Int]
+
   type DropRate = DropRate.Type
 
   object DropRate extends Newtype[Double] {
@@ -185,7 +193,7 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     override inline def validate(input: Double): Boolean = input > 0
   }
 
-  case class Stats(dropRate: DropRate, responseTimes: Array[ResponseTime]) derives Schema {
+  case class Stats(id: Option[Id], dropRate: DropRate, responseTimes: Array[ResponseTime]) derives Schema {
     override def equals(obj: Any): Boolean = obj match {
       case that: Stats =>
         this.dropRate == that.dropRate && java.util.Arrays.equals(
@@ -200,6 +208,7 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
   }
 
   object Stats extends CompanionOptics[Stats] {
+    val id_some_value: Optional[Stats, Id]              = $(_.id.when[Some[Id]].value)
     val dropRate_wrapped: Optional[Stats, Double]       = $(_.dropRate.wrapped[Double])
     val responseTimes_wrapped: Traversal[Stats, Double] = $(_.responseTimes.each.wrapped[Double])
   }

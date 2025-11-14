@@ -417,18 +417,26 @@ private object SchemaVersionSpecific {
         else if (tpe <:< typeOf[Some[?]]) deriveSchemaForNonAbstractScalaClass(tpe)
         else {
           val vTpe = typeArgs(tpe).head
-          if (vTpe <:< definitions.IntTpe) q"Schema.optionInt"
-          else if (vTpe <:< definitions.FloatTpe) q"Schema.optionFloat"
-          else if (vTpe <:< definitions.LongTpe) q"Schema.optionLong"
-          else if (vTpe <:< definitions.DoubleTpe) q"Schema.optionDouble"
-          else if (vTpe <:< definitions.BooleanTpe) q"Schema.optionBoolean"
-          else if (vTpe <:< definitions.ByteTpe) q"Schema.optionByte"
-          else if (vTpe <:< definitions.CharTpe) q"Schema.optionChar"
-          else if (vTpe <:< definitions.ShortTpe) q"Schema.optionShort"
-          else if (vTpe <:< definitions.UnitTpe) q"Schema.optionUnit"
+          if (vTpe <:< definitions.IntTpe) q"Schema.optionInt.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.FloatTpe)
+            q"Schema.optionFloat.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.LongTpe)
+            q"Schema.optionLong.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.DoubleTpe)
+            q"Schema.optionDouble.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.BooleanTpe)
+            q"Schema.optionBoolean.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.ByteTpe)
+            q"Schema.optionByte.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.CharTpe)
+            q"Schema.optionChar.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.ShortTpe)
+            q"Schema.optionShort.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
+          else if (vTpe <:< definitions.UnitTpe)
+            q"Schema.optionUnit.asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
           else if (vTpe <:< definitions.AnyRefTpe) {
             val schema = findImplicitOrDeriveSchema(vTpe)
-            q"Schema.option($schema)"
+            q"Schema.option($schema).asInstanceOf[_root_.zio.blocks.schema.Schema[$tpe]]"
           } else deriveSchemaForSealedTraitOrAbstractClass(tpe)
         }
       } else if (isSealedTraitOrAbstractClass(tpe)) {

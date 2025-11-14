@@ -36,13 +36,7 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
           TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
-        )
-      )
+      assert(Planet.distanceFromSun.focus.typeName)(equalTo(TypeName.option(TypeName.double)))
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
       val value = new NRecord(
@@ -79,11 +73,11 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
 
   type Kilogram = Kilogram.Type
 
-  object Kilogram extends Subtype[Double]
+  object Kilogram extends Newtype[Double]
 
   type Meter = Meter.Type
 
-  object Meter extends Newtype[Double]
+  object Meter extends Subtype[Double]
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
 
