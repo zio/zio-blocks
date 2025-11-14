@@ -40,17 +40,20 @@ lazy val root = project
     streams.js,
     streams.native,
     avro,
+    json.jvm,
+    json.js,
+    json.native /*,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
-    benchmarks
+    benchmarks*/
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
-  .settings(buildInfoSettings("zio.blocks"))
+  .settings(buildInfoSettings("zio.blocks.schema"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
@@ -104,7 +107,7 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
   .settings(stdSettings("zio-blocks-streams"))
   .settings(crossProjectSettings)
-  .settings(buildInfoSettings("zio.blocks"))
+  .settings(buildInfoSettings("zio.blocks.streams"))
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
@@ -117,8 +120,10 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
 
 lazy val avro = project
-  .dependsOn(schema.jvm)
   .settings(stdSettings("zio-blocks-avro"))
+  .dependsOn(schema.jvm)
+  .settings(buildInfoSettings("zio.blocks.avro"))
+  .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
       "org.apache.avro" % "avro"         % "1.12.1",
@@ -127,14 +132,41 @@ lazy val avro = project
     )
   )
 
+lazy val json = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-json"))
+  .dependsOn(schema)
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.json"))
+  .enablePlugins(BuildInfoPlugin)
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "com.github.plokhotnyuk.jsoniter-scala" %%% "jsoniter-scala-core" % "2.38.4",
+      "dev.zio"                               %%% "zio-test"            % "2.1.21" % Test,
+      "dev.zio"                               %%% "zio-test-sbt"        % "2.1.21" % Test
+    )
+  )
+  .jsSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
+  .nativeSettings(
+    libraryDependencies ++= Seq(
+      "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
+      "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
+    )
+  )
+
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
   .dependsOn(schema)
-  .settings(stdSettings("zio-blocks-scala-next-tests"))
   .settings(crossProjectSettings)
   .settings(
-    crossScalaVersions       := Seq("3.7.4"),
-    ThisBuild / scalaVersion := "3.7.4",
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-test"     % "2.1.21" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.21" % Test
@@ -146,22 +178,23 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .nativeSettings(nativeSettings)
 
 lazy val benchmarks = project
+  .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
   .dependsOn(schema.jvm)
   .dependsOn(avro)
-  .settings(stdSettings("zio-blocks-benchmarks"))
+  .dependsOn(json.jvm)
   .enablePlugins(JmhPlugin)
   .settings(
-    crossScalaVersions       := Seq("3.7.4"),
-    ThisBuild / scalaVersion := "3.7.4",
     libraryDependencies ++= Seq(
-      "com.sksamuel.avro4s"        %% "avro4s-core"     % "5.0.14",
-      "dev.zio"                    %% "zio-schema-avro" % "1.7.5",
-      "io.github.arainko"          %% "chanterelle"     % "0.1.1",
-      "com.softwaremill.quicklens" %% "quicklens"       % "1.9.12",
-      "dev.optics"                 %% "monocle-core"    % "3.3.0",
-      "dev.optics"                 %% "monocle-macro"   % "3.3.0",
-      "dev.zio"                    %% "zio-test"        % "2.1.21" % Test,
-      "dev.zio"                    %% "zio-test-sbt"    % "2.1.21" % Test
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.4",
+      "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
+      "dev.zio"                               %% "zio-json"              % "0.7.45",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.1",
+      "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
+      "dev.optics"                            %% "monocle-core"          % "3.3.0",
+      "dev.optics"                            %% "monocle-macro"         % "3.3.0",
+      "dev.zio"                               %% "zio-test"              % "2.1.21" % Test,
+      "dev.zio"                               %% "zio-test-sbt"          % "2.1.21" % Test
     ),
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
