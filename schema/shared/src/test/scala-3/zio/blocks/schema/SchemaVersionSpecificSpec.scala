@@ -675,7 +675,17 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(variant.map(_.cases(0).name))(isSome(equalTo("Case1")))
       },
       test("derives schema for options of opaque sub-types") {
-        assert(Schema.derived[Option[StructureId]])(equalTo(Schema.derived[Option[String]]))
+        val schema = Schema.derived[Option[StructureId]]
+        assert(schema.reflect.typeName)(
+          equalTo(
+            TypeName.option(
+              TypeName[StructureId](
+                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("OpaqueTypes$package")),
+                name = "StructureId"
+              )
+            )
+          )
+        )
       },
       test("derives schema for type recursive Scala 3 enums") {
         val schema  = Schema.derived[FruitEnum[?]]

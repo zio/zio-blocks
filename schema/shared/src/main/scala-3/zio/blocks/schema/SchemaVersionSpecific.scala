@@ -799,20 +799,20 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       else if (tpe <:< TypeRepr.of[Some[?]]) deriveSchemaForNonAbstractScalaClass(tpe)
       else {
         val vTpe = typeArgs(tpe).head
-        if (vTpe <:< intTpe) '{ Schema.optionInt.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< floatTpe) '{ Schema.optionFloat.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< longTpe) '{ Schema.optionLong.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< doubleTpe) '{ Schema.optionDouble.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< booleanTpe) '{ Schema.optionBoolean.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< byteTpe) '{ Schema.optionByte.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< charTpe) '{ Schema.optionChar.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< shortTpe) '{ Schema.optionShort.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< unitTpe) '{ Schema.optionUnit.asInstanceOf[Schema[T]] }
-        else if (vTpe <:< anyRefTpe) {
+        if (vTpe =:= intTpe) '{ Schema.optionInt }
+        else if (vTpe =:= floatTpe) '{ Schema.optionFloat }
+        else if (vTpe =:= longTpe) '{ Schema.optionLong }
+        else if (vTpe =:= doubleTpe) '{ Schema.optionDouble }
+        else if (vTpe =:= booleanTpe) '{ Schema.optionBoolean }
+        else if (vTpe =:= byteTpe) '{ Schema.optionByte }
+        else if (vTpe =:= charTpe) '{ Schema.optionChar }
+        else if (vTpe =:= shortTpe) '{ Schema.optionShort }
+        else if (vTpe =:= unitTpe) '{ Schema.optionUnit }
+        else if (vTpe <:< anyRefTpe && !isOpaque(vTpe) && !isZioPreludeNewtype(vTpe)) {
           vTpe.asType match {
             case '[vt] =>
               val schema = findImplicitOrDeriveSchema[vt & AnyRef](vTpe)
-              '{ Schema.option($schema).asInstanceOf[Schema[T]] }
+              '{ Schema.option($schema) }
           }
         } else deriveSchemaForSealedTraitOrAbstractClassOrUnion(tpe)
       }
