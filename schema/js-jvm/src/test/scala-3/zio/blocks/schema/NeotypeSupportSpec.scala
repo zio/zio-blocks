@@ -61,6 +61,91 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       val schema = Schema.derived[NRecord]
       assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
     },
+    test("derive schemas for options with newtypes and subtypes") {
+      val schema1 = Schema.derived[Option[Name]]
+      val schema2 = Schema.derived[Option[Kilogram]]
+      val schema3 = Schema.derived[Option[Meter]]
+      val schema4 = Schema.derived[Option[EmojiDataId]]
+      val value1  = Option(Name("Earth"))
+      val value2  = Option(Kilogram(5.97e24))
+      val value3  = Option(Meter(6378000.0))
+      val value4  = Option(EmojiDataId(123))
+      assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+      assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
+      assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
+      assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
+      assert(schema1.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          )
+        )
+      ) &&
+      assert(schema2.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
+          )
+        )
+      ) &&
+      assert(schema3.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          )
+        )
+      ) &&
+      assert(schema4.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId")
+          )
+        )
+      )
+    },
+    test("derive schemas for collections with newtypes and subtypes") {
+      val schema1 = Schema.derived[List[Name]]
+      val schema2 = Schema.derived[Vector[Kilogram]]
+      val schema3 = Schema.derived[Set[Meter]]
+      val schema4 = Schema.derived[Map[EmojiDataId, Name]]
+      val value1  = List(Name("Earth"), Name("Mars"))
+      val value2  = Vector(Kilogram(5.97e24), Kilogram(5.970001e24))
+      val value3  = Set(Meter(6378000.0))
+      val value4  = Map(EmojiDataId(123) -> Name("Batmen"))
+      assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+      assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
+      assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
+      assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
+      assert(schema1.reflect.typeName)(
+        equalTo(
+          TypeName.list(
+            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          )
+        )
+      ) &&
+      assert(schema2.reflect.typeName)(
+        equalTo(
+          TypeName.vector(
+            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
+          )
+        )
+      ) &&
+      assert(schema3.reflect.typeName)(
+        equalTo(
+          TypeName.set(
+            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          )
+        )
+      ) &&
+      assert(schema4.reflect.typeName)(
+        equalTo(
+          TypeName.map(
+            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId"),
+            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          )
+        )
+      )
+    },
     test("derive schemas for cases classes and collections with newtypes for primitives") {
       val value         = Stats(Some(Id(123)), DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23)))
       val invalidValue1 = Stats(None, DropRate.unsafeMake(2), Array.empty[ResponseTime])
@@ -212,4 +297,8 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     val dropRate_wrapped: Optional[Stats, Double]       = $(_.dropRate.wrapped[Double])
     val responseTimes_wrapped: Traversal[Stats, Double] = $(_.responseTimes.each.wrapped[Double])
   }
+
+  type EmojiDataId = EmojiDataId.Type
+
+  object EmojiDataId extends Subtype[Int]
 }

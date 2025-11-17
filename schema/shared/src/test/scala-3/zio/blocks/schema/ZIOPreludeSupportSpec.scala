@@ -36,7 +36,104 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
           TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(equalTo(TypeName.option(TypeName.double)))
+      assert(Planet.distanceFromSun.focus.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          )
+        )
+      )
+    },
+    test("derive schemas for options with newtypes and subtypes") {
+      val schema1 = Schema.derived[Option[Name]]
+      val schema2 = Schema.derived[Option[Kilogram]]
+      val schema3 = Schema.derived[Option[Meter]]
+      val schema4 = Schema.derived[Option[EmojiDataId]]
+      val value1  = Option(Name("Earth"))
+      val value2  = Option(Kilogram(5.97e24))
+      val value3  = Option(Meter(6378000.0))
+      val value4  = Option(EmojiDataId(123))
+      assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+      assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
+      assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
+      assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
+      assert(schema1.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          )
+        )
+      ) &&
+      assert(schema2.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          )
+        )
+      ) &&
+      assert(schema3.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          )
+        )
+      ) &&
+      assert(schema4.reflect.typeName)(
+        equalTo(
+          TypeName.option(
+            TypeName[EmojiDataId](
+              Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
+              "EmojiDataId"
+            )
+          )
+        )
+      )
+    },
+    test("derive schemas for collections with newtypes and subtypes") {
+      val schema1 = Schema.derived[List[Name]]
+      val schema2 = Schema.derived[Vector[Kilogram]]
+      val schema3 = Schema.derived[Set[Meter]]
+      val schema4 = Schema.derived[Map[EmojiDataId, Name]]
+      val value1  = List(Name("Earth"), Name("Mars"))
+      val value2  = Vector(Kilogram(5.97e24), Kilogram(5.970001e24))
+      val value3  = Set(Meter(6378000.0))
+      val value4  = Map(EmojiDataId(123) -> Name("Batmen"))
+      assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+      assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
+      assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
+      assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
+      assert(schema1.reflect.typeName)(
+        equalTo(
+          TypeName.list(
+            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          )
+        )
+      ) &&
+      assert(schema2.reflect.typeName)(
+        equalTo(
+          TypeName.vector(
+            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          )
+        )
+      ) &&
+      assert(schema3.reflect.typeName)(
+        equalTo(
+          TypeName.set(
+            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          )
+        )
+      ) &&
+      assert(schema4.reflect.typeName)(
+        equalTo(
+          TypeName.map(
+            TypeName[EmojiDataId](
+              Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
+              "EmojiDataId"
+            ),
+            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          )
+        )
+      )
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
       val value = new NRecord(
@@ -122,4 +219,8 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
     u: NUnit.Type,
     s: NString.Type
   )
+
+  type EmojiDataId = EmojiDataId.Type
+
+  object EmojiDataId extends Subtype[Int]
 }
