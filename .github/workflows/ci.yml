@@ -38,7 +38,7 @@ jobs:
 
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -62,7 +62,7 @@ jobs:
       - name: Cache scala dependencies
         uses: coursier/cache-action@v7
       - name: Run Scala Next tests for macros
-        run: sbt ++3.7.4! schemaJVM/test scalaNextTestsJVM/test
+        run: sbt ++3.7.4! scalaNextTestsJVM/test scalaNextTestsJS/test scalaNextTestsNative/test benchmarks/test
       - name: Run tests
         run: sbt +test
 
@@ -75,7 +75,7 @@ jobs:
 
   publish:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     needs: [ci]
     if: ${{ github.event_name != 'pull_request' }}
     steps:
