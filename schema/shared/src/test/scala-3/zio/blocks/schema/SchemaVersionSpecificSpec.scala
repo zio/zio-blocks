@@ -878,20 +878,20 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
   enum Color(val rgb: Int) derives Schema {
 
     /** Term: Red */
-    @Modifier.config("term-key-1", "term-value-1") @Modifier.config("term-key-1", "term-value-2") case Red
-        extends Color(0xff0000)
+    @Modifier.config("term-key-1", "term-value-1") @Modifier.config("term-key-1", "term-value-2")
+    case Red extends Color(0xff0000)
 
     /** Term: Green */
-    @Modifier.config("term-key-2", "term-value-1") @Modifier.config("term-key-2", "term-value-2") case Green
-        extends Color(0x00ff00)
+    @Modifier.config("term-key-2", "term-value-1") @Modifier.config("term-key-2", "term-value-2")
+    case Green extends Color(0x00ff00)
 
     /** Term: Blue */
-    @Modifier.config("term-key-3", "term-value-1") @Modifier.config("term-key-3", "term-value-2") case Blue
-        extends Color(0x0000ff)
+    @Modifier.config("term-key-3", "term-value-1") @Modifier.config("term-key-3", "term-value-2")
+    case Blue extends Color(0x0000ff)
 
     /** Type: Mix */
-    @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2") case Mix(mix: Int)
-        extends Color(mix)
+    @Modifier.config("type-key", "type-value-1") @Modifier.config("type-key", "type-value-2")
+    case Mix(mix: Int) extends Color(mix)
   }
 
   object Color extends CompanionOptics[Color] {
