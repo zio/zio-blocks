@@ -1,81 +1,11 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.DynamicValue._
+import zio.blocks.schema.JavaTimeGen._
 import zio.test.Gen
-import java.time._
-import scala.jdk.CollectionConverters.CollectionHasAsScala
-import scala.util.Try
 
 object DynamicValueGen {
-  protected def genPrimitiveValue: Gen[Any, PrimitiveValue] = {
-    val genDuration = Gen.oneOf(
-      Gen.long(Long.MinValue / 86400, Long.MaxValue / 86400).map(Duration.ofDays),
-      Gen.long(Long.MinValue / 3600, Long.MaxValue / 3600).map(Duration.ofHours),
-      Gen.long(Long.MinValue / 60, Long.MaxValue / 60).map(Duration.ofMinutes),
-      Gen.long(Long.MinValue, Long.MaxValue).map(Duration.ofSeconds)
-    )
-    val genYear    = Gen.oneOf(Gen.int(-9999, 9999), Gen.int(-999999999, 999999999)).map(Year.of)
-    val genInstant = for {
-      epochSecond    <- Gen.long(Instant.MIN.getEpochSecond, Instant.MAX.getEpochSecond)
-      nanoAdjustment <- Gen.long(Long.MinValue, Long.MaxValue)
-    } yield Try(Instant.ofEpochSecond(epochSecond, nanoAdjustment)).getOrElse(Instant.EPOCH)
-    val genLocalDate = for {
-      year  <- genYear
-      month <- Gen.int(1, 12)
-      day   <- Gen.int(1, Month.of(month).length(year.isLeap))
-    } yield LocalDate.of(year.getValue, month, day)
-    val genLocalTime = for {
-      hour   <- Gen.int(0, 23)
-      minute <- Gen.int(0, 59)
-      second <- Gen.int(0, 59)
-      nano   <- Gen.oneOf(Gen.int(0, 999999999), Gen.int(0, 999999).map(_ * 1000), Gen.int(0, 999).map(_ * 1000000))
-    } yield LocalTime.of(hour, minute, second, nano)
-    val genLocalDateTime = for {
-      localDate <- genLocalDate
-      localTime <- genLocalTime
-    } yield LocalDateTime.of(localDate, localTime)
-    val genMonth = for {
-      month <- Gen.int(1, 12)
-    } yield Month.of(month)
-    val genMonthDay = for {
-      month <- Gen.int(1, 12)
-      day   <- Gen.int(1, 29)
-    } yield MonthDay.of(month, day)
-    val genZoneOffset = Gen.oneOf(
-      Gen.int(-18, 18).map(ZoneOffset.ofHours),
-      Gen.int(-18 * 60, 18 * 60).map(x => ZoneOffset.ofHoursMinutes(x / 60, x % 60)),
-      Gen.int(-18 * 60 * 60, 18 * 60 * 60).map(ZoneOffset.ofTotalSeconds)
-    )
-    val genOffsetDateTime = for {
-      localDateTime <- genLocalDateTime
-      zoneOffset    <- genZoneOffset
-    } yield OffsetDateTime.of(localDateTime, zoneOffset)
-    val genOffsetTime = for {
-      localTime  <- genLocalTime
-      zoneOffset <- genZoneOffset
-    } yield OffsetTime.of(localTime, zoneOffset)
-    val genPeriod = for {
-      year  <- Gen.int
-      month <- Gen.int
-      day   <- Gen.int
-    } yield Period.of(year, month, day)
-    val genYearMonth = for {
-      year  <- genYear
-      month <- Gen.int(1, 12)
-    } yield YearMonth.of(year.getValue, month)
-    val genZoneId = Gen.oneOf(
-      genZoneOffset,
-      genZoneOffset.map(zo => ZoneId.of(zo.toString.replace(":", ""))),
-      genZoneOffset.map(zo => ZoneId.ofOffset("UT", zo)),
-      genZoneOffset.map(zo => ZoneId.ofOffset("UTC", zo)),
-      genZoneOffset.map(zo => ZoneId.ofOffset("GMT", zo)),
-      Gen.elements(ZoneId.getAvailableZoneIds.asScala.toSeq: _*).map(ZoneId.of),
-      Gen.elements(ZoneId.SHORT_IDS.values().asScala.toSeq: _*).map(ZoneId.of)
-    )
-    val genZonedDateTime = for {
-      localDateTime <- genLocalDateTime
-      zoneId        <- genZoneId
-    } yield ZonedDateTime.of(localDateTime, zoneId)
+  protected def genPrimitiveValue: Gen[Any, PrimitiveValue] =
     Gen.oneOf(
       Gen.unit.map(_ => PrimitiveValue.Unit),
       Gen.alphaNumericStringBounded(1, 10).map(PrimitiveValue.String.apply),
@@ -87,10 +17,10 @@ object DynamicValueGen {
       Gen.float.map(PrimitiveValue.Float.apply),
       Gen.long.map(PrimitiveValue.Long.apply),
       Gen.short.map(PrimitiveValue.Short.apply),
-      Gen.char.map(PrimitiveValue.Char.apply),
+      Gen.char.filter(x => x >= ' ' && x <= 0xd800 || x >= 0xdfff).map(PrimitiveValue.Char.apply),
       Gen.bigInt(BigInt(0), BigInt(1000000000)).map(PrimitiveValue.BigInt.apply),
       Gen.bigDecimal(BigDecimal(0), BigDecimal(1000000000)).map(PrimitiveValue.BigDecimal.apply),
-      Gen.int(1, 7).map(x => PrimitiveValue.DayOfWeek(DayOfWeek.of(x))),
+      genDayOfWeek.map(PrimitiveValue.DayOfWeek.apply),
       genDuration.map(PrimitiveValue.Duration.apply),
       genInstant.map(PrimitiveValue.Instant.apply),
       genLocalDate.map(PrimitiveValue.LocalDate.apply),
@@ -109,7 +39,6 @@ object DynamicValueGen {
       Gen.uuid.map(PrimitiveValue.UUID.apply),
       Gen.currency.map(PrimitiveValue.Currency.apply)
     )
-  }
 
   // Depth-limited generators for Scala Native compatibility
   def genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
