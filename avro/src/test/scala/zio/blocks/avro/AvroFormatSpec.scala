@@ -24,8 +24,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(false, 1)
       },
       test("Boolean (decode error)") {
-        val booleanCodec = Schema[Boolean].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], booleanCodec, "Unexpected end of input at: .")
+        decodeError[Boolean](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Byte") {
         avroSchema[Byte]("\"int\"") &&
@@ -34,11 +33,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Byte.MaxValue, 2)
       },
       test("Byte (decode error)") {
-        val intCodec  = Schema[Int].derive(AvroFormat.deriver)
-        val byteCodec = Schema[Byte].derive(AvroFormat.deriver)
-        decodeError(intCodec.encode(Byte.MinValue - 1), byteCodec, "Expected Byte at: .") &&
-        decodeError(intCodec.encode(Byte.MaxValue + 1), byteCodec, "Expected Byte at: .") &&
-        decodeError(Array.empty[Byte], byteCodec, "Unexpected end of input at: .")
+        val intCodec = Schema[Int].derive(AvroFormat.deriver)
+        decodeError[Byte](intCodec.encode(Byte.MinValue - 1), "Expected Byte at: .") &&
+        decodeError[Byte](intCodec.encode(Byte.MaxValue + 1), "Expected Byte at: .") &&
+        decodeError[Byte](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Short") {
         avroSchema[Short]("\"int\"") &&
@@ -47,11 +45,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Short.MaxValue, 3)
       },
       test("Short (decode error)") {
-        val intCodec   = Schema[Int].derive(AvroFormat.deriver)
-        val shortCodec = Schema[Short].derive(AvroFormat.deriver)
-        decodeError(intCodec.encode(Short.MinValue - 1), shortCodec, "Expected Short at: .") &&
-        decodeError(intCodec.encode(Short.MaxValue + 1), shortCodec, "Expected Short at: .") &&
-        decodeError(Array.empty[Byte], shortCodec, "Unexpected end of input at: .")
+        val intCodec = Schema[Int].derive(AvroFormat.deriver)
+        decodeError[Short](intCodec.encode(Short.MinValue - 1), "Expected Short at: .") &&
+        decodeError[Short](intCodec.encode(Short.MaxValue + 1), "Expected Short at: .") &&
+        decodeError[Short](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Int") {
         avroSchema[Int]("\"int\"") &&
@@ -86,8 +83,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Float.MaxValue, 4)
       },
       test("Float (decode error)") {
-        val floatCodec = Schema[Float].derive(AvroFormat.deriver)
-        decodeError(new Array[Byte](3), floatCodec, "Unexpected end of input at: .")
+        decodeError[Float](new Array[Byte](3), "Unexpected end of input at: .")
       },
       test("Double") {
         avroSchema[Double]("\"double\"") &&
@@ -96,8 +92,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Double.MaxValue, 8)
       },
       test("Double (decode error)") {
-        val floatCodec = Schema[Double].derive(AvroFormat.deriver)
-        decodeError(new Array[Byte](7), floatCodec, "Unexpected end of input at: .")
+        decodeError[Double](new Array[Byte](7), "Unexpected end of input at: .")
       },
       test("Char") {
         avroSchema[Char]("\"int\"") &&
@@ -106,10 +101,9 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Char.MaxValue, 3)
       },
       test("Char (decode error)") {
-        val intCodec  = Schema[Int].derive(AvroFormat.deriver)
-        val charCodec = Schema[Char].derive(AvroFormat.deriver)
-        decodeError(intCodec.encode(Char.MinValue - 1), charCodec, "Expected Char at: .") &&
-        decodeError(intCodec.encode(Char.MaxValue + 1), charCodec, "Expected Char at: .")
+        val intCodec = Schema[Int].derive(AvroFormat.deriver)
+        decodeError[Char](intCodec.encode(Char.MinValue - 1), "Expected Char at: .") &&
+        decodeError[Char](intCodec.encode(Char.MaxValue + 1), "Expected Char at: .")
       },
       test("String") {
         avroSchema[String]("\"string\"") &&
@@ -117,9 +111,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip("★\uD83C\uDFB8\uD83C\uDFA7⋆｡ °⋆", 24)
       },
       test("String (decode error)") {
-        val stringCodec = Schema[String].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], stringCodec, "Unexpected end of input at: .") &&
-        decodeError(Array[Byte](100, 42, 42, 42), stringCodec, "Unexpected end of input at: .")
+        decodeError[String](Array.empty[Byte], "Unexpected end of input at: .") &&
+        decodeError[String](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: .")
       },
       test("BigInt") {
         avroSchema[BigInt]("\"bytes\"") &&
@@ -238,9 +231,8 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 22)
       },
       test("simple record (decode error)") {
-        val record1Codec = Schema[Record1].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], record1Codec, "Unexpected end of input at: .bl") &&
-        decodeError(Array[Byte](100, 42, 42, 42), record1Codec, "Unexpected end of input at: .l")
+        decodeError[Record1](Array.empty[Byte], "Unexpected end of input at: .bl") &&
+        decodeError[Record1](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: .l")
       },
       test("nested record") {
         avroSchema[Record2](
@@ -532,13 +524,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip((1 to 32).map(x => new java.util.UUID(x, x)).toList, 514)
       },
       test("primitive values (decode error)") {
-        val intListCodec = Schema[List[Int]].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], intListCodec, "Unexpected end of input at: .") &&
-        decodeError(Array[Byte](100, 42, 42, 42), intListCodec, "Unexpected end of input at: .at(3)") &&
-        decodeError(Array(0x01.toByte), intListCodec, "Expected positive collection part size, got -1 at: .") &&
-        decodeError(
+        decodeError[List[Int]](Array.empty[Byte], "Unexpected end of input at: .") &&
+        decodeError[List[Int]](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: .at(3)") &&
+        decodeError[List[Int]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
+        decodeError[List[Int]](
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          intListCodec,
           "Expected collection size not greater than 2147483639, got 2147483647 at: ."
         )
       },
@@ -596,13 +586,11 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Map("VVV" -> new java.util.UUID(1L, 1L), "WWW" -> new java.util.UUID(2L, 2L)), 42)
       },
       test("string keys and primitive values (decode error)") {
-        val stringToIntMapCodec = Schema[Map[String, Int]].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], stringToIntMapCodec, "Unexpected end of input at: .") &&
-        decodeError(Array[Byte](100), stringToIntMapCodec, "Unexpected end of input at: .at(0)") &&
-        decodeError(Array(0x01.toByte), stringToIntMapCodec, "Expected positive map part size, got -1 at: .") &&
-        decodeError(
+        decodeError[Map[String, Int]](Array.empty[Byte], "Unexpected end of input at: .") &&
+        decodeError[Map[String, Int]](Array[Byte](100), "Unexpected end of input at: .at(0)") &&
+        decodeError[Map[String, Int]](Array(0x01.toByte), "Expected positive map part size, got -1 at: .") &&
+        decodeError[Map[String, Int]](
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          stringToIntMapCodec,
           "Expected map size not greater than 2147483639, got 2147483647 at: ."
         )
       },

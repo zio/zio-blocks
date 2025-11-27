@@ -3,7 +3,7 @@ package zio.blocks.schema
 import zio.test._
 import DynamicValueGen._
 import zio.test.Assertion.{equalTo, not}
-import zio.test.TestAspect.jvmOnly
+import zio.test.TestAspect.exceptNative
 
 object DynamicValueSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicValueSpec")(
@@ -107,5 +107,5 @@ object DynamicValueSpec extends ZIOSpecDefault {
         }
       }
     )
-  ) @@ jvmOnly
+  ) @@ exceptNative
 }
