@@ -5,7 +5,7 @@ import zio.blocks.schema.JavaTimeGen._
 import zio.test.Gen
 
 object DynamicValueGen {
-  protected def genPrimitiveValue: Gen[Any, PrimitiveValue] =
+  val genPrimitiveValue: Gen[Any, PrimitiveValue] =
     Gen.oneOf(
       Gen.unit.map(_ => PrimitiveValue.Unit),
       Gen.alphaNumericStringBounded(1, 10).map(PrimitiveValue.String.apply),
@@ -41,9 +41,9 @@ object DynamicValueGen {
     )
 
   // Depth-limited generators for Scala Native compatibility
-  def genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
+  val genDynamicValue: Gen[Any, DynamicValue] = genDynamicValueWithDepth(2)
 
-  private def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
+  private[this] def genDynamicValueWithDepth(maxDepth: Int): Gen[Any, DynamicValue] =
     if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_))
     else {
       Gen.oneOf(
@@ -55,9 +55,9 @@ object DynamicValueGen {
       )
     }
 
-  def genRecord: Gen[Any, Record] = genRecordWithDepth(2)
+  val genRecord: Gen[Any, Record] = genRecordWithDepth(2)
 
-  private def genRecordWithDepth(maxDepth: Int): Gen[Any, Record] = Gen
+  private[this] def genRecordWithDepth(maxDepth: Int): Gen[Any, Record] = Gen
     .listOfBounded(0, 5) {
       for {
         key   <- Gen.alphaNumericStringBounded(1, 10) // Avoid empty string keys
@@ -67,23 +67,23 @@ object DynamicValueGen {
     .map(_.distinctBy(_._1)) // Now safe since all keys are non-empty strings
     .map(f => Record(f.toVector))
 
-  def genVariant: Gen[Any, Variant] = genVariantWithDepth(2)
+  val genVariant: Gen[Any, Variant] = genVariantWithDepth(2)
 
-  private def genVariantWithDepth(maxDepth: Int): Gen[Any, Variant] = for {
+  private[this] def genVariantWithDepth(maxDepth: Int): Gen[Any, Variant] = for {
     caseName <- Gen.alphaNumericStringBounded(1, 10) // Avoid empty string case names
     value    <- if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
   } yield Variant(caseName, value)
 
-  def genSequence: Gen[Any, Sequence] = genSequenceWithDepth(2)
+  val genSequence: Gen[Any, Sequence] = genSequenceWithDepth(2)
 
-  private def genSequenceWithDepth(maxDepth: Int): Gen[Any, Sequence] =
+  private[this] def genSequenceWithDepth(maxDepth: Int): Gen[Any, Sequence] =
     Gen
       .listOfBounded(0, 5)(
         if (maxDepth <= 0) genPrimitiveValue.map(Primitive(_)) else genDynamicValueWithDepth(maxDepth)
       )
       .map(f => Sequence(f.toVector))
 
-  def genAlphaNumericSequence: Gen[Any, Sequence] =
+  val genAlphaNumericSequence: Gen[Any, Sequence] =
     Gen
       .listOfBounded(0, 5)(
         Gen
@@ -95,9 +95,9 @@ object DynamicValueGen {
       )
       .map(f => Sequence(f.toVector))
 
-  def genMap: Gen[Any, DynamicValue.Map] = genMapWithDepth(2)
+  val genMap: Gen[Any, DynamicValue.Map] = genMapWithDepth(2)
 
-  private def genMapWithDepth(maxDepth: Int): Gen[Any, Map] =
+  private[this] def genMapWithDepth(maxDepth: Int): Gen[Any, Map] =
     Gen
       .listOfBounded(0, 5) {
         for {
