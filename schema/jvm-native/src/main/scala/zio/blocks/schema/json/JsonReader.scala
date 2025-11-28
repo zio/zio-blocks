@@ -1631,7 +1631,7 @@ final class JsonReader private[json] (
 
   /**
    * Reads a JSON value from the given byte array slice into an instance of type
-   * `A` using the given [[JsonValueCodec]].
+   * `A` using the given [[JsonBinaryCodec]].
    *
    * @param codec
    *   the JSON value codec
@@ -1715,7 +1715,7 @@ final class JsonReader private[json] (
 
   /**
    * Reads a JSON value from the given byte buffer into an instance of type `A`
-   * using the given [[JsonValueCodec]].
+   * using the given [[JsonBinaryCodec]].
    *
    * @param codec
    *   the JSON value codec

@@ -12,11 +12,11 @@ import scala.util.Try
 
 object JsonTestUtils {
   def roundTrip[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
-    roundTrip(value, expectedJson, codec(schema))
+    roundTrip(value, expectedJson, getOrDeriveCodec(schema))
 
   def roundTrip[A](value: A, expectedJson: String, readerConfig: ReaderConfig, writerConfig: WriterConfig)(implicit
     schema: Schema[A]
-  ): TestResult = roundTrip(value, expectedJson, codec(schema), readerConfig, writerConfig)
+  ): TestResult = roundTrip(value, expectedJson, getOrDeriveCodec(schema), readerConfig, writerConfig)
 
   def roundTrip[A](
     value: A,
@@ -56,10 +56,10 @@ object JsonTestUtils {
   }
 
   def decode[A](json: String, expectedValue: A)(implicit schema: Schema[A]): TestResult =
-    decode(json, expectedValue, codec(schema))
+    decode(json, expectedValue, getOrDeriveCodec(schema))
 
   def decode[A](json: String, expectedValue: A, readerConfig: ReaderConfig)(implicit schema: Schema[A]): TestResult =
-    decode(json, expectedValue, codec(schema), readerConfig)
+    decode(json, expectedValue, getOrDeriveCodec(schema), readerConfig)
 
   def decode[A](
     json: String,
@@ -78,18 +78,18 @@ object JsonTestUtils {
     decodeError(invalidJson.getBytes("UTF-8"), error)
 
   def decodeError[A](bytes: Array[Byte], error: String)(implicit schema: Schema[A]): TestResult = {
-    val c = codec(schema)
-    assert(c.decode(bytes))(isLeft(hasError(error))) &&
-    assert(c.decode(toInputStream(bytes)))(isLeft(hasError(error))) &&
-    assert(c.decode(toHeapByteBuffer(bytes)))(isLeft(hasError(error))) &&
-    assert(c.decode(toDirectByteBuffer(bytes)))(isLeft(hasError(error)))
+    val codec = getOrDeriveCodec(schema)
+    assert(codec.decode(bytes))(isLeft(hasError(error))) &&
+    assert(codec.decode(toInputStream(bytes)))(isLeft(hasError(error))) &&
+    assert(codec.decode(toHeapByteBuffer(bytes)))(isLeft(hasError(error))) &&
+    assert(codec.decode(toDirectByteBuffer(bytes)))(isLeft(hasError(error)))
   }
 
   def encode[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
-    encode(value, expectedJson, codec(schema))
+    encode(value, expectedJson, getOrDeriveCodec(schema))
 
   def encode[A](value: A, expectedJson: String, writerConfig: WriterConfig)(implicit schema: Schema[A]): TestResult =
-    encode(value, expectedJson, codec(schema), writerConfig)
+    encode(value, expectedJson, getOrDeriveCodec(schema), writerConfig)
 
   def encode[A](
     value: A,
@@ -124,21 +124,21 @@ object JsonTestUtils {
   }
 
   def encodeError[A](value: A, error: String)(implicit schema: Schema[A]): TestResult = {
-    val c = codec(schema)
-    assert(Try(c.encode(value)).toEither)(isLeft(hasError(error))) &&
-    assert(Try(c.encode(value, ByteBuffer.allocate(maxBufSize))).toEither)(isLeft(hasError(error))) &&
-    assert(Try(c.encode(value, ByteBuffer.allocateDirect(maxBufSize))).toEither)(isLeft(hasError(error))) &&
-    assert(Try(c.encode(value, new java.io.ByteArrayOutputStream(maxBufSize))).toEither)(isLeft(hasError(error)))
+    val codec = getOrDeriveCodec(schema)
+    assert(Try(codec.encode(value)).toEither)(isLeft(hasError(error))) &&
+    assert(Try(codec.encode(value, ByteBuffer.allocate(maxBufSize))).toEither)(isLeft(hasError(error))) &&
+    assert(Try(codec.encode(value, ByteBuffer.allocateDirect(maxBufSize))).toEither)(isLeft(hasError(error))) &&
+    assert(Try(codec.encode(value, new java.io.ByteArrayOutputStream(maxBufSize))).toEither)(isLeft(hasError(error)))
   }
 
   def encodeError[A](value: A, error: String, writerConfig: WriterConfig)(implicit schema: Schema[A]): TestResult = {
-    val c = codec(schema)
-    assert(Try(c.encode(value, writerConfig)).toEither)(isLeft(hasError(error))) &&
-    assert(Try(c.encode(value, ByteBuffer.allocate(maxBufSize), writerConfig)).toEither)(isLeft(hasError(error))) &&
-    assert(Try(c.encode(value, ByteBuffer.allocateDirect(maxBufSize), writerConfig)).toEither)(
+    val codec = getOrDeriveCodec(schema)
+    assert(Try(codec.encode(value, writerConfig)).toEither)(isLeft(hasError(error))) &&
+    assert(Try(codec.encode(value, ByteBuffer.allocate(maxBufSize), writerConfig)).toEither)(isLeft(hasError(error))) &&
+    assert(Try(codec.encode(value, ByteBuffer.allocateDirect(maxBufSize), writerConfig)).toEither)(
       isLeft(hasError(error))
     ) &&
-    assert(Try(c.encode(value, new java.io.ByteArrayOutputStream(maxBufSize), writerConfig)).toEither)(
+    assert(Try(codec.encode(value, new java.io.ByteArrayOutputStream(maxBufSize), writerConfig)).toEither)(
       isLeft(hasError(error))
     )
   }
@@ -148,15 +148,15 @@ object JsonTestUtils {
 
   private[this] def readerConfig =
     ReaderConfig
-      .withPreferredBufSize(random.nextInt(11) + 13)
-      .withPreferredCharBufSize(random.nextInt(11) + 13)
+      .withPreferredBufSize(random.nextInt(11) + 12)
+      .withPreferredCharBufSize(random.nextInt(11) + 12)
       .withMaxBufSize(maxBufSize)
       .withMaxCharBufSize(maxBufSize)
       .withCheckForEndOfInput(true)
 
-  private[this] def writerConfig = WriterConfig.withPreferredBufSize(random.nextInt(11) + 3)
+  private[this] def writerConfig = WriterConfig.withPreferredBufSize(random.nextInt(11) + 1)
 
-  private[this] def codec[A](schema: Schema[A]): JsonBinaryCodec[A] =
+  private[this] def getOrDeriveCodec[A](schema: Schema[A]): JsonBinaryCodec[A] =
     codecs.computeIfAbsent(schema, _.derive(JsonFormat.deriver)).asInstanceOf[JsonBinaryCodec[A]]
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)

@@ -1613,7 +1613,7 @@ final class JsonReader private[json] (
 
   /**
    * Reads a JSON value from the given byte array slice into an instance of type
-   * `A` using the given [[JsonValueCodec]].
+   * `A` using the given [[JsonBinaryCodec]].
    *
    * @param codec
    *   the JSON value codec
@@ -1660,7 +1660,7 @@ final class JsonReader private[json] (
 
   /**
    * Reads a JSON value from the given input stream into an instance of type `A`
-   * using the given [[JsonValueCodec]].
+   * using the given [[JsonBinaryCodec]].
    *
    * @param codec
    *   the JSON value codec
@@ -1697,7 +1697,7 @@ final class JsonReader private[json] (
 
   /**
    * Reads a JSON value from the given byte buffer into an instance of type `A`
-   * using the given [[JsonValueCodec]].
+   * using the given [[JsonBinaryCodec]].
    *
    * @param codec
    *   the JSON value codec
@@ -2263,7 +2263,8 @@ final class JsonReader private[json] (
         pos += 1
       }
       head = pos
-      x = (x ^ s) - s
+      x ^= s
+      x -= s
       if (x == 128) byteOverflowError(pos - 1)
       if ((b | 0x20) == 'e' || b == '.') numberError(pos)
     }
@@ -2300,7 +2301,8 @@ final class JsonReader private[json] (
         pos += 1
       }
       head = pos
-      x = (x ^ s) - s
+      x ^= s
+      x -= s
       if (x == 32768) shortOverflowError(pos - 1)
       if ((b | 0x20) == 'e' || b == '.') numberError(pos)
     }
@@ -2341,7 +2343,8 @@ final class JsonReader private[json] (
         pos += 1
       }
       head = pos
-      x = (x ^ s) - s
+      x ^= s
+      x -= s
       if ((s & x) == -2147483648) intOverflowError(pos - 1)
       if ((b | 0x20) == 'e' || b == '.') numberError(pos)
     }
