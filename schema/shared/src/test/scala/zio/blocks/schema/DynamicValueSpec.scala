@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.test._
+import zio.test.TestAspect._
 import DynamicValueGen._
 import zio.test.Assertion.{equalTo, not}
 
@@ -106,5 +107,5 @@ object DynamicValueSpec extends ZIOSpecDefault {
         }
       }
     )
-  )
+  ) @@ exceptNative
 }

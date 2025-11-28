@@ -61,12 +61,8 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch1.applyOption(paymentMethod1))(isNone) &&
       assert(patch1.applyOrFail(paymentMethod1))(
         isLeft(
-          hasField[OpticCheck, String](
-            "message",
-            _.message,
-            containsString(
-              "During attempted access at .when[PayPal], encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
-            )
+          hasError(
+            "During attempted access at .when[PayPal], encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
           )
         )
       ) &&
@@ -74,24 +70,16 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch2.applyOption(paymentMethod1))(isNone) &&
       assert(patch2.applyOrFail(paymentMethod1))(
         isLeft(
-          hasField[OpticCheck, String](
-            "message",
-            _.message,
-            containsString(
-              "During attempted access at .when[PayPal].email, encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
-            )
+          hasError(
+            "During attempted access at .when[PayPal].email, encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
           )
         )
       ) &&
       assert(patch3.applyOption(person1))(isNone) &&
       assert(patch3.applyOrFail(person1))(
         isLeft(
-          hasField[OpticCheck, String](
-            "message",
-            _.message,
-            containsString(
-              "During attempted access at .paymentMethods.each.when[PayPal].email, encountered an empty sequence at .paymentMethods.each"
-            )
+          hasError(
+            "During attempted access at .paymentMethods.each.when[PayPal].email, encountered an empty sequence at .paymentMethods.each"
           )
         )
       )
@@ -105,6 +93,9 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch.applyOrFail(person1))(isRight(equalTo(parson2)))
     }
   )
+
+  private[this] def hasError(message: String): Assertion[OpticCheck] =
+    hasField[OpticCheck, String]("message", _.message, containsString(message))
 }
 
 sealed trait PaymentMethod
