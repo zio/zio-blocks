@@ -5,7 +5,6 @@ import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.binding.Binding
 import zio.test._
-import zio.test.TestAspect.exceptNative
 import java.math.MathContext
 import java.time._
 import java.util.{Currency, UUID}
@@ -2388,7 +2387,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
         roundTrip[Dynamic](value, """{"primitive":1,"record":{"VVV":1,"WWW":2}}""")
       }
     )
-  ) @@ exceptNative
+  )
 
   private[this] def toISO8601(year: Year): String = {
     val x = year.getValue

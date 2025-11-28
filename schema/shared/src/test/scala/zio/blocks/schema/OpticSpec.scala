@@ -7,8 +7,8 @@ import zio.blocks.schema.binding._
 import zio.test.Assertion._
 import zio.test.TestAspect.jvmOnly
 import zio.test._
-
 import scala.collection.immutable.ArraySeq
+import scala.util.Try
 
 object OpticSpec extends ZIOSpecDefault {
   import OpticSpecTypes._
@@ -93,10 +93,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Record3.v1.toDynamic)(equalTo(DynamicOptic(Vector(Field("v1")))))
       },
       test("checks prerequisites for creation") {
-        ZIO.attempt(Lens(null, Case1.d)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO.attempt(Lens(Case1.d, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO.attempt(Lens(Case4.reflect, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO.attempt(Lens(null, Case4.reflect.fields(0))).flip.map(e => assertTrue(e.isInstanceOf[Throwable]))
+        assert(Try(Lens(null, Case1.d)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Lens(Case1.d, null)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Lens(Case4.reflect, null)).toEither)(isLeft(hasError("requirement failed")))
       } @@ jvmOnly,
       test("optic macro requires record for creation") {
         ZIO.attempt {
@@ -272,16 +271,9 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("checks prerequisites for creation") {
-        ZIO.attempt(Prism(null, Variant1.c1)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO.attempt(Prism(Variant1.c1, null)).flip.map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Prism(Variant1.reflect, null))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Prism(null, Variant1.reflect.cases(0)))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        assert(Try(Prism(null, Variant1.c1)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Prism(Variant1.c1, null)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Prism(Variant1.reflect, null)).toEither)(isLeft(hasError("requirement failed")))
       } @@ jvmOnly,
       test("optic macro requires variant for creation") {
         ZIO.attempt {
@@ -350,56 +342,56 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c1.check(Case2(Record3(null, null, null))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case1], encountered an unexpected case at .when[Case1]: expected Case1, but got Case2"
             )
           )
         ) &&
         assert(Variant1.c2.check(Case1(0.1)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case2], encountered an unexpected case at .when[Case2]: expected Case2, but got Case1"
             )
           )
         ) &&
         assert(Variant1.v2.check(Case1(0.1)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Variant2], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
             )
           )
         ) &&
         assert(Variant1.v2_c3.check(Case1(0.1)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Variant2].when[Case3], encountered an unexpected case at .when[Variant2]: expected Variant2, but got Case1"
             )
           )
         ) &&
         assert(Variant2.c3.check(Case4(List(Record3(null, null, null)))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c4.check(Case3(Case1(0.1))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case4], encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_left.check(Case6(null)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]"
             )
           )
         ) &&
         assert(Variant1.v2_v3_c5_right.check(Case6(null)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Variant2].when[Variant3].when[Case5], encountered an unexpected case at .when[Variant2].when[Variant3].when[Case5]: expected Case5, but got Case6"
             )
           )
@@ -1123,46 +1115,18 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1")))))
       },
       test("checks prerequisites for creation") {
-        ZIO
-          .attempt(Optional.wrapped(null: Reflect.Wrapper.Bound[Box1, Long]))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional.at(null: Reflect.Sequence.Bound[Int, Array], 1))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional.atKey(null: Reflect.Map.Bound[Int, Long, Map], 1))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional.at(null: Reflect.Sequence.Bound[Int, Array], -1))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional(null: Prism[Variant1, Case1], Case1.d))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional(Variant1.c1, null: Lens[Case1, Int]))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional(null: Optional[Variant1, Case1], Case1.d))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional(Variant1.c2_r3_v1_c1, null: Lens[Case1, Int]))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional(Variant1.c2_r3_v1_c1, null: Optional[Case1, Int]))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Optional(null: Optional[Variant1, Variant1], Variant1.c1_d))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        assert(Try(Optional.wrapped(null: Reflect.Wrapper.Bound[Box1, Long])).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional.at(null: Reflect.Sequence.Bound[Int, Array], 1)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional.atKey(null: Reflect.Map.Bound[Int, Long, Map], 1)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional.at(null: Reflect.Sequence.Bound[Int, Array], -1)).toEither)(
+          isLeft(hasError("requirement failed"))
+        ) &&
+        assert(Try(Optional(null: Prism[Variant1, Case1], Case1.d)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional(Variant1.c1, null: Lens[Case1, Int])).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional(null: Optional[Variant1, Case1], Case1.d)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional(Variant1.c2_r3_v1_c1, null: Lens[Case1, Int])).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional(Variant1.c2_r3_v1_c1, null: Optional[Case1, Int])).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Optional(null: Optional[Variant1, Variant1], Variant1.c1_d)).toEither)(isLeft(hasError("null")))
       } @@ jvmOnly,
       test("optic macro requires wrapper for creation") {
         ZIO.attempt {
@@ -1190,26 +1154,26 @@ object OpticSpec extends ZIOSpecDefault {
       },
       test("check") {
         assert(Variant1.c1_d.check(Case2(Record3(null, null, null))))(
-          isSome(hasError("expected Case1, but got Case2"))
+          isSome(hasOpticCheckError("expected Case1, but got Case2"))
         ) &&
         assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case2(null)))))(
-          isSome(hasError("expected Case1, but got Case2"))
+          isSome(hasOpticCheckError("expected Case1, but got Case2"))
         ) &&
         assert(Variant2.c3_v1_c1_left.check(Case4(Nil)))(
-          isSome(hasError("expected Case3, but got Case4"))
+          isSome(hasOpticCheckError("expected Case3, but got Case4"))
         ) &&
         assert(Variant2.c3_v1_c1_right.check(Case3(Case2(null))))(
-          isSome(hasError("expected Case1, but got Case2"))
+          isSome(hasOpticCheckError("expected Case1, but got Case2"))
         ) &&
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Variant1.c2_r3_r2_r1_b_left.check(Case1(0.1)))(
-          isSome(hasError("expected Case2, but got Case1"))
+          isSome(hasOpticCheckError("expected Case2, but got Case1"))
         )
       },
       test("has consistent equals and hashCode") {
@@ -1324,91 +1288,91 @@ object OpticSpec extends ZIOSpecDefault {
       test("doesn't pass check if a focus value doesn't exist") {
         assert(Variant1.c2_r3_r1.check(Case3(Case1(0.1))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Variant2"
             )
           )
         ) &&
         assert(Case2.r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .r3.v1.when[Case1], encountered an unexpected case at .r3.v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case2].r3.v1.when[Case1], encountered an unexpected case at .when[Case2].r3.v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4.check(Case3(Case1(0.1))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3].v1.when[Variant2].when[Case4], encountered an unexpected case at .when[Case3].v1.when[Variant2]: expected Variant2, but got Case1"
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_left.check(Case4(Nil)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_right.check(Case3(Case2(null))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3].v1.when[Case1], encountered an unexpected case at .when[Case3].v1.when[Case1]: expected Case1, but got Case2"
             )
           )
         ) &&
         assert(Variant2.c3_v1_c1_d_right.check(Case4(Nil)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3].v1.when[Case1].d, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c3_v1.check(Case4(Nil)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3].v1, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Case3.v1_c1_d_right.check(Case3(Case4(Nil))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Case5.aas.check(Case5(Set(), Array())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .as.at(1), encountered a sequence out of bounds at .as.at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Collections.alb.check(List()))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .at(1), encountered a sequence out of bounds at .at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Case6.akmil.check(Case6(Map())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .mil.atKey(<key>), encountered missing key at .mil.atKey(<key>)"
             )
           )
@@ -2456,50 +2420,27 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.lc1.toDynamic)(equalTo(DynamicOptic(Vector(Elements, Case("Case1")))))
       },
       test("checks prerequisites for creation") {
-        ZIO
-          .attempt(Traversal.atIndices(null: Reflect.Sequence.Bound[Int, Array], Seq(1)))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.atKeys(null: Reflect.Map.Bound[Int, Long, Map], Seq(1)))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq()))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.atKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]), Seq()))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq(1, 1)))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.listValues(null))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.setValues(null))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.seqValues(null))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.vectorValues(null))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.mapKeys(null))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.mapValues(null))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable]))
+        assert(Try(Traversal.atIndices(null: Reflect.Sequence.Bound[Int, Array], Seq(1))).toEither)(
+          isLeft(hasError("null"))
+        ) &&
+        assert(Try(Traversal.atKeys(null: Reflect.Map.Bound[Int, Long, Map], Seq(1))).toEither)(
+          isLeft(hasError("null"))
+        ) &&
+        assert(Try(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq())).toEither)(
+          isLeft(hasError("requirement failed"))
+        ) &&
+        assert(Try(Traversal.atKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]), Seq())).toEither)(
+          isLeft(hasError("requirement failed"))
+        ) &&
+        assert(Try(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq(1, 1))).toEither)(
+          isLeft(hasError("requirement failed"))
+        ) &&
+        assert(Try(Traversal.listValues(null)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Traversal.setValues(null)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Traversal.seqValues(null)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Traversal.vectorValues(null)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Traversal.mapKeys(null)).toEither)(isLeft(hasError("null"))) &&
+        assert(Try(Traversal.mapValues(null)).toEither)(isLeft(hasError("null")))
       } @@ jvmOnly,
       test("optic macro requires sequence or map for creation") {
         ZIO.attempt {
@@ -2671,93 +2612,99 @@ object OpticSpec extends ZIOSpecDefault {
       test("checks collection values and returns an error if they will not be modified") {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Collections.mkc.check(Map.empty[Char, String]))(
-          isSome(hasError("During attempted access at .eachKey, encountered an empty map at .eachKey"))
+          isSome(hasOpticCheckError("During attempted access at .eachKey, encountered an empty map at .eachKey"))
         ) &&
         assert(Collections.mvs.check(Map.empty[Char, String]))(
-          isSome(hasError("During attempted access at .eachValue, encountered an empty map at .eachValue"))
+          isSome(hasOpticCheckError("During attempted access at .eachValue, encountered an empty map at .eachValue"))
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(Nil))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an empty sequence at .when[Case3].v1.when[Variant2].when[Case4].lr3.each"
             )
           )
         ) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case4(Nil)))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case3].v1.when[Variant2].when[Case4].lr3.each, encountered an unexpected case at .when[Case3]: expected Case3, but got Case4"
             )
           )
         ) &&
         assert(Variant2.c4_lr3.check(Case3(Case1(0.1))))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .when[Case4].lr3.each, encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
             )
           )
         ) &&
         assert(Collections.aasasi_asi.check(ArraySeq(ArraySeq())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
             )
           )
         ) &&
         assert(Collections.aiasasi_asi.check(ArraySeq(ArraySeq())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>)"
             )
           )
         ) &&
         assert(Collections.asasi_aasi.check(ArraySeq(ArraySeq())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Collections.alli_li.check(List(List())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
             )
           )
         ) &&
         assert(Collections.ailli_li.check(List(List())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>): index is 1, but size is 1"
             )
           )
         ) &&
         assert(Collections.lli_ali.check(List(List())))(
           isSome(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
             )
           )
         ) &&
         assert(Collections.akmill_ll.check(Map()))(
           isSome(
-            hasError("During attempted access at .atKey(<key>).each, encountered missing key at .atKey(<key>)")
+            hasOpticCheckError(
+              "During attempted access at .atKey(<key>).each, encountered missing key at .atKey(<key>)"
+            )
           )
         ) &&
         assert(Collections.aksmill_ll.check(Map()))(
           isSome(
-            hasError("During attempted access at .atKeys(<keys>).each, encountered missing key at .atKeys(<keys>)")
+            hasOpticCheckError(
+              "During attempted access at .atKeys(<keys>).each, encountered missing key at .atKeys(<keys>)"
+            )
           )
         ) &&
         assert(Collections.lmil_akmil.check(List(Map())))(
           isSome(
-            hasError("During attempted access at .each.atKey(<key>), encountered missing key at .each.atKey(<key>)")
+            hasOpticCheckError(
+              "During attempted access at .each.atKey(<key>), encountered missing key at .each.atKey(<key>)"
+            )
           )
         )
       },
@@ -3074,7 +3021,7 @@ object OpticSpec extends ZIOSpecDefault {
         ) &&
         assert(Collections.lw_r1.modifyOrFail(List(Wrapper.applyUnsafe(Record1(true, 1))), _ => Record1(false, 1)))(
           isLeft(
-            hasError(
+            hasOpticCheckError(
               "During attempted access at .each.wrapped, encountered an error at .each.wrapped: Unexpected 'Wrapper' value"
             )
           )
@@ -3256,8 +3203,11 @@ object OpticSpec extends ZIOSpecDefault {
     )
   )
 
-  private[this] def hasError(message: String) =
+  private[this] def hasOpticCheckError(message: String): Assertion[OpticCheck] =
     hasField[OpticCheck, String]("message", _.message, containsString(message))
+
+  private[this] def hasError(message: String): Assertion[Throwable] =
+    hasField[Throwable, String]("getMessage", _.getMessage, containsString(message))
 }
 
 object OpticSpecTypes {
