@@ -58,7 +58,7 @@ object AvroTestUtils {
     assert(codec.decode(toDirectByteBuffer(encodedBySchema1)))(isRight(equalTo(value))) && {
       val avroSchema    = (new AvroSchema.Parser).parse(codec.avroSchema.toString)
       val binaryDecoder = DecoderFactory.get().binaryDecoder(encodedBySchema1, null)
-      val datum         = new GenericDatumReader[Any](avroSchema).read(null.asInstanceOf[Any], binaryDecoder)
+      val datum         = new GenericDatumReader[Any](avroSchema).read(null, binaryDecoder)
       val encodedByAvro = new ByteArrayOutputStream(maxBufSize)
       val binaryEncoder = EncoderFactory.get().directBinaryEncoder(encodedByAvro, null)
       new GenericDatumWriter[Any](avroSchema).write(datum, binaryEncoder)
