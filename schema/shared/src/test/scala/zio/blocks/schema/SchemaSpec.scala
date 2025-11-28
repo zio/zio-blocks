@@ -1735,12 +1735,8 @@ object SchemaSpec extends ZIOSpecDefault {
     }
   )
 
-  private[this] def hasError(message: String) =
-    hasField[SchemaError, String](
-      "getMessage",
-      _.getMessage,
-      containsString(message)
-    )
+  private[this] def hasError(message: String): Assertion[SchemaError] =
+    hasField[SchemaError, String]("getMessage", _.getMessage, containsString(message))
 
   implicit val eitherSchema: Schema[Either[Int, Long]] = Schema.derived
 

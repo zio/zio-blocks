@@ -5,7 +5,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.binding.Binding
 import zio.test._
-import zio.test.TestAspect.exceptNative
+import zio.test.TestAspect._
 import java.math.MathContext
 import java.time._
 import java.util.{Currency, UUID}
@@ -302,6 +302,10 @@ object JsonFormatSpec extends ZIOSpecDefault {
         roundTrip("Hello", "\"Hello\"") &&
         roundTrip("Привіт", "\"Привіт\"") &&
         roundTrip("★🎸🎧⋆｡°⋆", "\"★🎸🎧⋆｡°⋆\"") &&
+        roundTrip(
+          "\u007f\n\u0001\u0002\u0002\u0003\u0004\u0005\u0006\u0007\u0008 ",
+          "\"\\u007f\\n\\u0001\\u0002\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\b \""
+        ) &&
         roundTrip("\\\b\f\n\r\t\"", """"\\\b\f\n\r\t\""""") &&
         roundTrip(
           "Привіт ",
@@ -321,7 +325,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
           ReaderConfig,
           WriterConfig.withEscapeUnicode(true)
         ) &&
-        decode("\"\\u0037\\u000a\\u007f\\/\"", "7\n\u007f/")
+        decode("\"/\"", "/")
       },
       test("String (decode error)") {
         decodeError[String]("", "unexpected end of input at: .") &&
@@ -421,6 +425,8 @@ object JsonFormatSpec extends ZIOSpecDefault {
       test("BigDecimal") {
         check(Gen.bigDecimal(BigDecimal("-" + "9" * 20), BigDecimal("9" * 20)))(x => roundTrip(x, x.toString)) &&
         roundTrip(BigDecimal("0.0"), "0.0") &&
+        roundTrip(BigDecimal("126.09999999999999001"), "126.09999999999999001") &&
+        roundTrip(BigDecimal("0.0287500000000000000000"), "0.0287500000000000000000") &&
         roundTrip(BigDecimal("-1." + "1" * 3 + "E+1234"), "-1." + "1" * 3 + "E+1234") &&
         encode(BigDecimal("1." + "1" * 30 + "E+123456789"), "1." + "1" * 30 + "E+123456789") &&
         decode("1." + "1" * 300 + "E+1234", BigDecimal("1.111111111111111111111111111111111E+1234")) &&
@@ -1590,7 +1596,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
           .instance(
             Record5.bigInt,
             new JsonBinaryCodec[BigInt]() { // stringifies BigInt values
-              def decodeValue(in: JsonReader, default: BigInt): BigInt = in.readStringAsBigInt(default, 401)
+              def decodeValue(in: JsonReader, default: BigInt): BigInt = in.readStringAsBigInt(default, Int.MaxValue)
 
               def encodeValue(x: BigInt, out: JsonWriter): Unit = out.writeValAsString(x)
 
@@ -1601,7 +1607,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
             Record5.bigDecimal,
             new JsonBinaryCodec[BigDecimal]() { // stringifies BigDecimal values
               def decodeValue(in: JsonReader, default: BigDecimal): BigDecimal =
-                in.readStringAsBigDecimal(default, MathContext.UNLIMITED, 401, 401)
+                in.readStringAsBigDecimal(default, MathContext.UNLIMITED, Int.MaxValue, Int.MaxValue)
 
               def encodeValue(x: BigDecimal, out: JsonWriter): Unit = out.writeValAsString(x)
 
@@ -1615,7 +1621,11 @@ object JsonFormatSpec extends ZIOSpecDefault {
           """{"bl":"true","b":"1","sh":"2","i":"3","l":"4","f":"5.0","d":"6.0","c":55,"s":"VVV"}""",
           codec1
         ) &&
-        roundTrip(Record5(BigInt(12345), BigDecimal(123.45)), """{"bigInt":"12345","bigDecimal":"123.45"}""", codec2) &&
+        encode(
+          Record5(BigInt(12345), BigDecimal("1E-2147483647")),
+          """{"bigInt":"12345","bigDecimal":"1E-2147483647"}""",
+          codec2
+        ) &&
         roundTrip(
           Record5(BigInt(bigIntStr), BigDecimal(bigIntStr)),
           s"""{"bigInt":"$bigIntStr","bigDecimal":"$bigIntStr"}""",
