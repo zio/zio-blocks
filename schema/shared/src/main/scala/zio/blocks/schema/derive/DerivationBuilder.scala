@@ -203,7 +203,6 @@ final case class DerivationBuilder[TC[_], A](
             path: DynamicOptic,
             wrapped: Reflect[G, B],
             typeName: TypeName[A0],
-            wrapperPrimitiveType: Option[PrimitiveType[A0]],
             metadata: F[BindingType.Wrapper[A0, B], A0],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -213,7 +212,6 @@ final case class DerivationBuilder[TC[_], A](
                 deriver.deriveWrapper(
                   wrapped,
                   typeName,
-                  wrapperPrimitiveType,
                   metadata,
                   doc,
                   appendModifiers(modifiers, path, typeName)
@@ -222,7 +220,6 @@ final case class DerivationBuilder[TC[_], A](
             new Reflect.Wrapper(
               wrapped,
               typeName,
-              wrapperPrimitiveType,
               new BindingInstance(metadata, instance),
               doc,
               modifiers

@@ -158,7 +158,7 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
   object Name extends Newtype[String] {
     override inline def assertion: zio.prelude.Assertion[String] = !zio.prelude.Assertion.isEmptyString
 
-    implicit val schema: Schema[Name] = Schema.derived
+    implicit val schema: Schema[Name] = Schema.derived.reflect.typeName
       .wrap[String](
         s => {
           if (s.length > 0) new Right(s.asInstanceOf[Name])
