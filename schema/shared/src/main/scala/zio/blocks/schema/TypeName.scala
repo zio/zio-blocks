@@ -1,73 +1,124 @@
 package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
+import zio.blocks.schema.binding.Binding
 
-final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil)
+final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil) {
+  def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
+    new Reflect.Wrapper[Binding, A, B](
+      Schema[B].reflect,
+      this,
+      new Binding.Wrapper(wrap, unwrap)
+    )
+  )
+
+  def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
+    new Reflect.Wrapper[Binding, A, B](
+      Schema[B].reflect,
+      this,
+      new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
+    )
+  )
+
+  def primitiveType: Option[PrimitiveType[A]] = (this match {
+    case TypeName.unit           => Some(PrimitiveType.Unit)
+    case TypeName.boolean        => Some(new PrimitiveType.Boolean(Validation.None))
+    case TypeName.byte           => Some(new PrimitiveType.Byte(Validation.None))
+    case TypeName.short          => Some(new PrimitiveType.Short(Validation.None))
+    case TypeName.int            => Some(new PrimitiveType.Int(Validation.None))
+    case TypeName.long           => Some(new PrimitiveType.Long(Validation.None))
+    case TypeName.float          => Some(new PrimitiveType.Float(Validation.None))
+    case TypeName.double         => Some(new PrimitiveType.Double(Validation.None))
+    case TypeName.char           => Some(new PrimitiveType.Char(Validation.None))
+    case TypeName.string         => Some(new PrimitiveType.String(Validation.None))
+    case TypeName.bigInt         => Some(new PrimitiveType.BigInt(Validation.None))
+    case TypeName.bigDecimal     => Some(new PrimitiveType.BigDecimal(Validation.None))
+    case TypeName.dayOfWeek      => Some(new PrimitiveType.DayOfWeek(Validation.None))
+    case TypeName.duration       => Some(new PrimitiveType.Duration(Validation.None))
+    case TypeName.instant        => Some(new PrimitiveType.Instant(Validation.None))
+    case TypeName.localDate      => Some(new PrimitiveType.LocalDate(Validation.None))
+    case TypeName.localDateTime  => Some(new PrimitiveType.LocalDateTime(Validation.None))
+    case TypeName.localTime      => Some(new PrimitiveType.LocalTime(Validation.None))
+    case TypeName.month          => Some(new PrimitiveType.Month(Validation.None))
+    case TypeName.monthDay       => Some(new PrimitiveType.MonthDay(Validation.None))
+    case TypeName.offsetDateTime => Some(new PrimitiveType.OffsetDateTime(Validation.None))
+    case TypeName.offsetTime     => Some(new PrimitiveType.OffsetTime(Validation.None))
+    case TypeName.period         => Some(new PrimitiveType.Period(Validation.None))
+    case TypeName.year           => Some(new PrimitiveType.Year(Validation.None))
+    case TypeName.yearMonth      => Some(new PrimitiveType.YearMonth(Validation.None))
+    case TypeName.zoneId         => Some(new PrimitiveType.ZoneId(Validation.None))
+    case TypeName.zoneOffset     => Some(new PrimitiveType.ZoneOffset(Validation.None))
+    case TypeName.zonedDateTime  => Some(new PrimitiveType.ZonedDateTime(Validation.None))
+    case TypeName.currency       => Some(new PrimitiveType.Currency(Validation.None))
+    case TypeName.uuid           => Some(new PrimitiveType.UUID(Validation.None))
+    case _                       => None
+  }).asInstanceOf[Option[PrimitiveType[A]]]
+}
 
 object TypeName {
-  val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
+  implicit val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
 
-  val boolean: TypeName[Boolean] = new TypeName(Namespace.scala, "Boolean")
+  implicit val boolean: TypeName[Boolean] = new TypeName(Namespace.scala, "Boolean")
 
-  val byte: TypeName[Byte] = new TypeName(Namespace.scala, "Byte")
+  implicit val byte: TypeName[Byte] = new TypeName(Namespace.scala, "Byte")
 
-  val short: TypeName[Short] = new TypeName(Namespace.scala, "Short")
+  implicit val short: TypeName[Short] = new TypeName(Namespace.scala, "Short")
 
-  val int: TypeName[Int] = new TypeName(Namespace.scala, "Int")
+  implicit val int: TypeName[Int] = new TypeName(Namespace.scala, "Int")
 
-  val long: TypeName[Long] = new TypeName(Namespace.scala, "Long")
+  implicit val long: TypeName[Long] = new TypeName(Namespace.scala, "Long")
 
-  val float: TypeName[Float] = new TypeName(Namespace.scala, "Float")
+  implicit val float: TypeName[Float] = new TypeName(Namespace.scala, "Float")
 
-  val double: TypeName[Double] = new TypeName(Namespace.scala, "Double")
+  implicit val double: TypeName[Double] = new TypeName(Namespace.scala, "Double")
 
-  val char: TypeName[Char] = new TypeName(Namespace.scala, "Char")
+  implicit val char: TypeName[Char] = new TypeName(Namespace.scala, "Char")
 
-  val string: TypeName[String] = new TypeName(Namespace.scala, "String")
+  implicit val string: TypeName[String] = new TypeName(Namespace.scala, "String")
 
-  val bigInt: TypeName[BigInt] = new TypeName(Namespace.scala, "BigInt")
+  implicit val bigInt: TypeName[BigInt] = new TypeName(Namespace.scala, "BigInt")
 
-  val bigDecimal: TypeName[BigDecimal] = new TypeName(Namespace.scala, "BigDecimal")
+  implicit val bigDecimal: TypeName[BigDecimal] = new TypeName(Namespace.scala, "BigDecimal")
 
-  val dayOfWeek: TypeName[java.time.DayOfWeek] = new TypeName(Namespace.javaTime, "DayOfWeek")
+  implicit val dayOfWeek: TypeName[java.time.DayOfWeek] = new TypeName(Namespace.javaTime, "DayOfWeek")
 
-  val duration: TypeName[java.time.Duration] = new TypeName(Namespace.javaTime, "Duration")
+  implicit val duration: TypeName[java.time.Duration] = new TypeName(Namespace.javaTime, "Duration")
 
-  val instant: TypeName[java.time.Instant] = new TypeName(Namespace.javaTime, "Instant")
+  implicit val instant: TypeName[java.time.Instant] = new TypeName(Namespace.javaTime, "Instant")
 
-  val localDate: TypeName[java.time.LocalDate] = new TypeName(Namespace.javaTime, "LocalDate")
+  implicit val localDate: TypeName[java.time.LocalDate] = new TypeName(Namespace.javaTime, "LocalDate")
 
-  val localDateTime: TypeName[java.time.LocalDateTime] = new TypeName(Namespace.javaTime, "LocalDateTime")
+  implicit val localDateTime: TypeName[java.time.LocalDateTime] = new TypeName(Namespace.javaTime, "LocalDateTime")
 
-  val localTime: TypeName[java.time.LocalTime] = new TypeName(Namespace.javaTime, "LocalTime")
+  implicit val localTime: TypeName[java.time.LocalTime] = new TypeName(Namespace.javaTime, "LocalTime")
 
-  val month: TypeName[java.time.Month] = new TypeName(Namespace.javaTime, "Month")
+  implicit val month: TypeName[java.time.Month] = new TypeName(Namespace.javaTime, "Month")
 
-  val monthDay: TypeName[java.time.MonthDay] = new TypeName(Namespace.javaTime, "MonthDay")
+  implicit val monthDay: TypeName[java.time.MonthDay] = new TypeName(Namespace.javaTime, "MonthDay")
 
-  val offsetDateTime: TypeName[java.time.OffsetDateTime] = new TypeName(Namespace.javaTime, "OffsetDateTime")
+  implicit val offsetDateTime: TypeName[java.time.OffsetDateTime] = new TypeName(Namespace.javaTime, "OffsetDateTime")
 
-  val offsetTime: TypeName[java.time.OffsetTime] = new TypeName(Namespace.javaTime, "OffsetTime")
+  implicit val offsetTime: TypeName[java.time.OffsetTime] = new TypeName(Namespace.javaTime, "OffsetTime")
 
-  val period: TypeName[java.time.Period] = new TypeName(Namespace.javaTime, "Period")
+  implicit val period: TypeName[java.time.Period] = new TypeName(Namespace.javaTime, "Period")
 
-  val year: TypeName[java.time.Year] = new TypeName(Namespace.javaTime, "Year")
+  implicit val year: TypeName[java.time.Year] = new TypeName(Namespace.javaTime, "Year")
 
-  val yearMonth: TypeName[java.time.YearMonth] = new TypeName(Namespace.javaTime, "YearMonth")
+  implicit val yearMonth: TypeName[java.time.YearMonth] = new TypeName(Namespace.javaTime, "YearMonth")
 
-  val zoneId: TypeName[java.time.ZoneId] = new TypeName(Namespace.javaTime, "ZoneId")
+  implicit val zoneId: TypeName[java.time.ZoneId] = new TypeName(Namespace.javaTime, "ZoneId")
 
-  val zoneOffset: TypeName[java.time.ZoneOffset] = new TypeName(Namespace.javaTime, "ZoneOffset")
+  implicit val zoneOffset: TypeName[java.time.ZoneOffset] = new TypeName(Namespace.javaTime, "ZoneOffset")
 
-  val zonedDateTime: TypeName[java.time.ZonedDateTime] = new TypeName(Namespace.javaTime, "ZonedDateTime")
+  implicit val zonedDateTime: TypeName[java.time.ZonedDateTime] = new TypeName(Namespace.javaTime, "ZonedDateTime")
 
-  val currency: TypeName[java.util.Currency] = new TypeName(Namespace.javaUtil, "Currency")
+  implicit val currency: TypeName[java.util.Currency] = new TypeName(Namespace.javaUtil, "Currency")
 
-  val uuid: TypeName[java.util.UUID] = new TypeName(Namespace.javaUtil, "UUID")
+  implicit val uuid: TypeName[java.util.UUID] = new TypeName(Namespace.javaUtil, "UUID")
 
-  val none: TypeName[None.type] = new TypeName(Namespace.scala, "None")
+  implicit val none: TypeName[None.type] = new TypeName(Namespace.scala, "None")
 
-  val dynamicValue: TypeName[DynamicValue] = new TypeName(Namespace.zioBlocksSchema, "DynamicValue")
+  implicit val dynamicValue: TypeName[DynamicValue] = new TypeName(Namespace.zioBlocksSchema, "DynamicValue")
 
   def some[A](element: TypeName[A]): TypeName[Some[A]] =
     _some.copy(params = Seq(element)).asInstanceOf[TypeName[Some[A]]]
