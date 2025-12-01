@@ -15,21 +15,31 @@ object JsonFormat extends BinaryFormat("application/json", JsonBinaryCodecDerive
 object JsonBinaryCodecDeriver
     extends JsonBinaryCodecDeriver(
       fieldNameMapper = NameMapper.Identity,
-      caseNameMapper = NameMapper.Identity
+      caseNameMapper = NameMapper.Identity,
+      rejectExtraFields = false
     )
 
 class JsonBinaryCodecDeriver private[json] (
   fieldNameMapper: NameMapper,
-  caseNameMapper: NameMapper
+  caseNameMapper: NameMapper,
+  rejectExtraFields: Boolean
 ) extends Deriver[JsonBinaryCodec] {
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
   def withCaseNameMapper(caseNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(caseNameMapper = caseNameMapper)
 
-  private def copy(fieldNameMapper: NameMapper = fieldNameMapper, caseNameMapper: NameMapper = caseNameMapper) =
+  def withRejectExtraFields(rejectExtraFields: Boolean): JsonBinaryCodecDeriver =
+    copy(rejectExtraFields = rejectExtraFields)
+
+  private def copy(
+    fieldNameMapper: NameMapper = fieldNameMapper,
+    caseNameMapper: NameMapper = caseNameMapper,
+    rejectExtraFields: Boolean = rejectExtraFields
+  ) =
     new JsonBinaryCodecDeriver(
       fieldNameMapper,
-      caseNameMapper
+      caseNameMapper,
+      rejectExtraFields
     )
 
   override def derivePrimitive[F[_, _], A](
@@ -991,6 +1001,7 @@ class JsonBinaryCodecDeriver private[json] (
             private[this] var optionalFieldOffsets: Array[Int] = null
             private[this] var reqInit                          = 0L
             private[this] val usedRegisters                    = offset
+            private[this] val doReject                         = rejectExtraFields
 
             private[this] def init(): Unit = {
               val len = fieldInfos.length
@@ -1133,7 +1144,7 @@ class JsonBinaryCodecDeriver private[json] (
                         case error if NonFatal(error) =>
                           in.decodeError(new DynamicOptic.Node.Field(fields(currIdx).name), error)
                       }
-                    } else in.skip()
+                    } else skipOrReject(in, keyLen)
                   }
                   if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
                   if (req != 0) missingRequiredFieldsError(in, req)
@@ -1208,6 +1219,10 @@ class JsonBinaryCodecDeriver private[json] (
 
             private[this] def missingRequiredFieldsError(in: JsonReader, req: Long): Nothing =
               in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(req)).name)
+
+            private[this] def skipOrReject(in: JsonReader, keyLen: Int): Unit =
+              if (doReject) in.unexpectedKeyError(keyLen)
+              else in.skip()
           }
         }
       } else record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
