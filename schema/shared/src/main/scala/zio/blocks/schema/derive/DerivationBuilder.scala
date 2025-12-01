@@ -40,6 +40,9 @@ final case class DerivationBuilder[TC[_], A](
   def modifier[B](typeName: TypeName[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverride(typeName, termName, modifier))
 
+  def modifier(termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
+    copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverride(schema.reflect.typeName, termName, modifier))
+
   lazy val derive: TC[A] = {
     val allInstanceOverrides = deriver.instanceOverrides ++ instanceOverrides
     val allModifierOverrides = deriver.modifierOverrides ++ modifierOverrides

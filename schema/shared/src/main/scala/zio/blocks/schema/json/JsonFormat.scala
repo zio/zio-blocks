@@ -527,7 +527,9 @@ object JsonFormat
                         val infos = new Array[EnumValueInfo](len)
                         var idx   = 0
                         while (idx < len) {
-                          infos(idx) = new EnumValueInfo(cases(idx).name, constructors(idx))
+                          val case_ = cases(idx)
+                          val name  = getName(case_.modifiers, case_.name)
+                          infos(idx) = new EnumValueInfo(name, constructors(idx))
                           idx += 1
                         }
                         new JsonBinaryCodec[A]() {
@@ -560,7 +562,8 @@ object JsonFormat
                         var idx   = 0
                         while (idx < len) {
                           val case_ = cases(idx)
-                          infos(idx) = new CaseInfo(case_.name, deriveCodec(case_.value))
+                          val name  = getName(case_.modifiers, case_.name)
+                          infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
                           idx += 1
                         }
                         new JsonBinaryCodec[A]() {
@@ -582,7 +585,7 @@ object JsonFormat
                                       try codec.decodeValue(in, codec.nullValue)
                                       catch {
                                         case error if NonFatal(error) =>
-                                          in.decodeError(new DynamicOptic.Node.Case(caseInfo.name), error)
+                                          in.decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
                                       }
                                     if (!in.isNextToken('}')) in.objectEndOrCommaError()
                                     return x
@@ -612,7 +615,7 @@ object JsonFormat
                         var idx   = 0
                         while (idx < len) {
                           val case_ = cases(idx)
-                          val name  = case_.name
+                          val name  = getName(case_.modifiers, case_.name)
                           map.put(name, idx)
                           infos(idx) = new EnumValueInfo(name, constructors(idx))
                           idx += 1
@@ -641,7 +644,7 @@ object JsonFormat
                         var idx   = 0
                         while (idx < len) {
                           val case_ = cases(idx)
-                          val name  = case_.name
+                          val name  = getName(case_.modifiers, case_.name)
                           map.put(name, idx)
                           infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
                           idx += 1
@@ -664,7 +667,7 @@ object JsonFormat
                                     try codec.decodeValue(in, codec.nullValue)
                                     catch {
                                       case error if NonFatal(error) =>
-                                        in.decodeError(new DynamicOptic.Node.Case(caseInfo.name), error)
+                                        in.decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
                                     }
                                   if (!in.isNextToken('}')) in.objectEndOrCommaError()
                                   return x
@@ -789,20 +792,21 @@ object JsonFormat
               val fields      = record.fields
               val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
               val typeName    = record.typeName
-              var fieldInfos  =
+              var infos       =
                 if (isRecursive) recursiveRecordCache.get.get(typeName)
                 else null
               var offset = 0
               val len    = fields.length
-              if (fieldInfos eq null) {
-                fieldInfos = new Array[FieldInfo](len)
-                if (isRecursive) recursiveRecordCache.get.put(typeName, fieldInfos)
+              if (infos eq null) {
+                infos = new Array[FieldInfo](len)
+                if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
                 var idx = 0
                 while (idx < len) {
                   val field        = fields(idx)
                   val fieldReflect = field.value
                   val codec        = deriveCodec(fieldReflect)
-                  fieldInfos(idx) = new FieldInfo(field.name, offset, codec, isOptional(fieldReflect))
+                  val name         = getName(field.modifiers, field.name)
+                  infos(idx) = new FieldInfo(name, offset, codec, isOptional(fieldReflect))
                   offset += codec.valueOffset
                   idx += 1
                 }
@@ -811,7 +815,7 @@ object JsonFormat
                 new JsonBinaryCodec[A]() {
                   private[this] val deconstructor = binding.deconstructor
                   private[this] val constructor   = binding.constructor
-                  private[this] val fields        = fieldInfos
+                  private[this] val fieldInfos    = infos
                   private[this] val usedRegisters = offset
 
                   override def decodeValue(in: JsonReader, default: A): A =
@@ -819,10 +823,10 @@ object JsonFormat
                       val regs = Registers(usedRegisters)
                       if (!in.isNextToken(']')) {
                         in.rollbackToken()
-                        val len = fields.length
+                        val len = fieldInfos.length
                         var idx = 0
                         while (idx < len && (idx == 0 || in.isNextToken(',') || in.commaError())) {
-                          val field = fields(idx)
+                          val field = fieldInfos(idx)
                           try {
                             val codec  = field.codec
                             val offset = field.offset
@@ -900,7 +904,7 @@ object JsonFormat
                             }
                           } catch {
                             case error if NonFatal(error) =>
-                              in.decodeError(new DynamicOptic.Node.Field(field.name), error)
+                              in.decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                           }
                           idx += 1
                         }
@@ -913,10 +917,10 @@ object JsonFormat
                     out.writeArrayStart()
                     val regs = Registers(usedRegisters)
                     deconstructor.deconstruct(regs, 0, x)
-                    val len = fields.length
+                    val len = fieldInfos.length
                     var idx = 0
                     while (idx < len) {
-                      val field  = fields(idx)
+                      val field  = fieldInfos(idx)
                       val offset = field.offset
                       val codec  = field.codec
                       field.valueType match {
@@ -966,19 +970,19 @@ object JsonFormat
                 new JsonBinaryCodec[A]() {
                   private[this] val deconstructor                    = binding.deconstructor
                   private[this] val constructor                      = binding.constructor
-                  private[this] val fields                           = fieldInfos
-                  private[this] val map                              = new StringToIntMap(fields.length)
+                  private[this] val fieldInfos                       = infos
+                  private[this] val map                              = new StringToIntMap(fieldInfos.length)
                   private[this] var optionalFieldOffsets: Array[Int] = null
                   private[this] var reqInit                          = 0L
                   private[this] val usedRegisters                    = offset
 
                   private[this] def init(): Unit = {
-                    val len = fields.length
+                    val len = fieldInfos.length
                     var req = 0L
                     if (len != 0) req = -1L >>> (64 - len)
                     var optionalIdx, idx = 0
                     while (idx < len) {
-                      val field = fields(idx)
+                      val field = fieldInfos(idx)
                       map.put(field.name, idx)
                       if (field.isOptional) {
                         req ^= 1L << idx
@@ -990,7 +994,7 @@ object JsonFormat
                     optionalIdx = 0
                     idx = 0
                     while (idx < len) {
-                      val field = fields(idx)
+                      val field = fieldInfos(idx)
                       if (field.isOptional) {
                         optionalFieldOffsets(optionalIdx) = field.offset
                         optionalIdx += 1
@@ -1013,18 +1017,18 @@ object JsonFormat
                           regs.setObject(optionalFieldOffsets(idx), 0, None)
                           idx += 1
                         }
-                        len = fields.length
+                        len = fieldInfos.length
                         var req             = reqInit
                         var currIdx, keyLen = -1
                         while (keyLen < 0 || in.isNextToken(',')) {
                           keyLen = in.readKeyAsCharBuf()
                           currIdx += 1
                           if (currIdx == len) currIdx = 0
-                          var field = fields(currIdx)
+                          var field = fieldInfos(currIdx)
                           if (!in.isCharBufEqualsTo(keyLen, field.name)) {
                             idx = map.get(in, keyLen)
                             if (idx >= 0) {
-                              field = fields(idx)
+                              field = fieldInfos(idx)
                               currIdx = idx
                             } else field = null
                           }
@@ -1111,7 +1115,7 @@ object JsonFormat
                               }
                             } catch {
                               case error if NonFatal(error) =>
-                                in.decodeError(new DynamicOptic.Node.Field(field.name), error)
+                                in.decodeError(new DynamicOptic.Node.Field(fields(currIdx).name), error)
                             }
                           } else in.skip()
                         }
@@ -1125,10 +1129,10 @@ object JsonFormat
                     out.writeObjectStart()
                     val regs = Registers(usedRegisters)
                     deconstructor.deconstruct(regs, 0, x)
-                    val len = fields.length
+                    val len = fieldInfos.length
                     var idx = 0
                     while (idx < len) {
-                      val field  = fields(idx)
+                      val field  = fieldInfos(idx)
                       val name   = field.name
                       val offset = field.offset
                       val codec  = field.codec
@@ -1187,7 +1191,7 @@ object JsonFormat
                   }
 
                   private[this] def missingRequiredFieldsError(in: JsonReader, req: Long): Nothing =
-                    in.requiredFieldError(fields(java.lang.Long.numberOfTrailingZeros(req)).name)
+                    in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(req)).name)
                 }
               }
             } else record.recordBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -1277,6 +1281,11 @@ object JsonFormat
           val typeName = reflect.typeName
           typeName.namespace == Namespace.scala && typeName.name.startsWith("Tuple")
         }
+
+        private[this] def getName(modifiers: Seq[Modifier.Term], name: String): String =
+          modifiers.collectFirst {
+            case m: Modifier.config if m.key == Modifiers.renameKey => m.value
+          }.getOrElse(name)
 
         private[this] val dynamicValueCodec = new JsonBinaryCodec[DynamicValue]() {
           private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
