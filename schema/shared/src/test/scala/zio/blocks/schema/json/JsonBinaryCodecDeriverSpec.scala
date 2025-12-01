@@ -4,6 +4,7 @@ import zio.blocks.schema.json.JsonTestUtils._
 import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.binding.Binding
+import zio.blocks.schema.json.NameMapper._
 import zio.test._
 import zio.test.TestAspect._
 import java.math.MathContext
@@ -11,8 +12,8 @@ import java.time._
 import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
 
-object JsonFormatSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment, Any] = suite("JsonFormatSpec")(
+object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
+  def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverSpec")(
     suite("primitives")(
       test("Unit") {
         roundTrip((), "null")
@@ -1523,9 +1524,40 @@ object JsonFormatSpec extends ZIOSpecDefault {
         ) &&
         roundTrip(Record4((), None), """{"hіdden":null}""")
       },
+      test("record with custom codecs of different field mapping") {
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """{"camelCase":1,"PascalCase":2,"snake_case":3,"kebab-case":4,"camel1":5,"Pascal1":6,"snake_1":7,"kebab-1":8}"""
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """{"CAMELCASE":1,"PASCALCASE":2,"SNAKE_CASE":3,"KEBAB-CASE":4,"CAMEL1":5,"PASCAL1":6,"SNAKE_1":7,"KEBAB-1":8}""",
+          Schema[CamelPascalSnakeKebabCases].derive(JsonBinaryCodecDeriver.withFieldNameMapper(Custom(_.toUpperCase)))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """{"camel_case":1,"pascal_case":2,"snake_case":3,"kebab_case":4,"camel1":5,"pascal1":6,"snake_1":7,"kebab_1":8}""",
+          Schema[CamelPascalSnakeKebabCases].derive(JsonBinaryCodecDeriver.withFieldNameMapper(SnakeCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """{"camel-case":1,"pascal-case":2,"snake-case":3,"kebab-case":4,"camel1":5,"pascal1":6,"snake-1":7,"kebab-1":8}""",
+          Schema[CamelPascalSnakeKebabCases].derive(JsonBinaryCodecDeriver.withFieldNameMapper(KebabCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """{"CamelCase":1,"PascalCase":2,"SnakeCase":3,"KebabCase":4,"Camel1":5,"Pascal1":6,"Snake1":7,"Kebab1":8}""",
+          Schema[CamelPascalSnakeKebabCases].derive(JsonBinaryCodecDeriver.withFieldNameMapper(PascalCase))
+        ) &&
+        roundTrip(
+          CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),
+          """{"camelCase":1,"pascalCase":2,"snakeCase":3,"kebabCase":4,"camel1":5,"pascal1":6,"snake1":7,"kebab1":8}""",
+          Schema[CamelPascalSnakeKebabCases].derive(JsonBinaryCodecDeriver.withFieldNameMapper(CamelCase))
+        )
+      },
       test("record with a custom codec for primitives injected by optic and field renaming using modifier overriding") {
         val codec1 = Record1.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record1.bl,
             new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
@@ -1592,7 +1624,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
           )
           .derive
         val codec2 = Record5.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver.withFieldNameMapper(SnakeCase))
           .modifier("bigDecimal", Modifiers.rename("bigDec"))
           .instance(
             Record5.bigInt,
@@ -1624,22 +1656,22 @@ object JsonFormatSpec extends ZIOSpecDefault {
         ) &&
         encode(
           Record5(BigInt(12345), BigDecimal("1E-2147483647")),
-          """{"bigInt":"12345","bigDec":"1E-2147483647"}""",
+          """{"big_int":"12345","bigDec":"1E-2147483647"}""",
           codec2
         ) &&
         roundTrip(
           Record5(BigInt(bigIntStr), BigDecimal(bigIntStr)),
-          s"""{"bigInt":"$bigIntStr","bigDec":"$bigIntStr"}""",
+          s"""{"big_int":"$bigIntStr","bigDec":"$bigIntStr"}""",
           codec2
         ) &&
-        decode[Record5]("""{"bigInt":null,"bigDec":null}""", Record5(BigInt(0), BigDecimal(0)), codec2) &&
-        decodeError[Record5]("""{"bigInt":null}""", "missing required field \"bigDec\" at: .", codec2) &&
-        decodeError[Record5]("""{"bigInt":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
+        decode[Record5]("""{"big_int":null,"bigDec":null}""", Record5(BigInt(0), BigDecimal(0)), codec2) &&
+        decodeError[Record5]("""{"big_int":null}""", "missing required field \"bigDec\" at: .", codec2) &&
+        decodeError[Record5]("""{"big_int":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
       },
       test("tuple record with a custom codec for primitives injected by type names") {
         val codec = Schema
           .derived[Tuple10[Unit, Boolean, Byte, Short, Int, Long, Float, Double, Char, String]]
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeName.boolean,
             new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
@@ -1713,7 +1745,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
       },
       test("record with a custom codec for primitives injected by type name") {
         val codec = Record3.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeName.currency,
             new JsonBinaryCodec[Currency]() { // decode null values as the default one ("USD")
@@ -1745,7 +1777,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
       },
       test("record with a custom codec for unit injected by optic") {
         val codec = Record4.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record4.hidden,
             new JsonBinaryCodec[Unit](JsonBinaryCodec.unitType) { // expecting string instead of null
@@ -1762,7 +1794,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
       },
       test("record with a custom codec for None injected by optic") {
         val codec = Record4.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record4.optKey,
             new JsonBinaryCodec[Option[String]]() { // more efficient decoding than with derived by default
@@ -1787,7 +1819,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
       test("record with a custom codec for nested record injected by optic") {
         val codec1 =
           new JsonBinaryCodec[Record1]() { // allows null values which are prohibited in codecs derived by default
-            private val codec = Record1.schema.derive(JsonFormat.deriver)
+            private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
 
             override def decodeValue(in: JsonReader, default: Record1): Record1 =
               if (in.isNextToken('n')) {
@@ -1804,7 +1836,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
               else codec.encodeValue(x, out)
           }
         val codec2 = Record2.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(Record2.r1_1, codec1)
           .instance(Record2.r1_2, codec1)
           .derive
@@ -1820,7 +1852,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
       },
       test("record with a custom codec for nested primitives injected by type name and by optic") {
         val codec = Record2.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             TypeName.int,
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
@@ -1849,11 +1881,11 @@ object JsonFormatSpec extends ZIOSpecDefault {
       },
       test("record with a custom codec for nested record injected by type name") {
         val codec = Record2.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             Record1.schema.reflect.typeName,
             new JsonBinaryCodec[Record1]() { // allows null values which are prohibited for codecs derived by default
-              private val codec = Record1.schema.derive(JsonFormat.deriver)
+              private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
 
               override def decodeValue(in: JsonReader, default: Record1): Record1 =
                 if (in.isNextToken('n')) {
@@ -1883,7 +1915,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
       },
       test("recursive record with a custom codec") {
         val codec = Recursive.schema
-          .deriving(JsonFormat.deriver)
+          .deriving(JsonBinaryCodecDeriver)
           .instance(
             Recursive.i,
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
@@ -2108,6 +2140,18 @@ object JsonFormatSpec extends ZIOSpecDefault {
         decodeError[TrafficLight](""""Black"""", "illegal enum value \"Black\" at: .") &&
         decodeError[Color]("""null""", "expected '\"' at: .") &&
         decodeError[Color](""""Pink"""", "illegal enum value \"Pink\" at: .")
+      },
+      test("ADT with case key renaming using case name mapper") {
+        roundTrip[RGBColor](
+          RGBColor.Green,
+          """{"GREEN":{}}""",
+          Schema[RGBColor].derive(JsonBinaryCodecDeriver.withCaseNameMapper(NameMapper.Custom(_.toUpperCase)))
+        ) &&
+        roundTrip[RGBColor](
+          RGBColor.Yellow,
+          """{"yellow":{}}""",
+          Schema[RGBColor].derive(JsonBinaryCodecDeriver.withCaseNameMapper(NameMapper.SnakeCase))
+        )
       },
       test("ADT with case key renaming using annotation") {
         roundTrip[RGBColor](RGBColor.Green, """{"Green":{}}""") &&
@@ -2599,5 +2643,20 @@ object JsonFormatSpec extends ZIOSpecDefault {
 
     @Modifier.config("json.rename", "Mixed")
     case class Mix(rgb: Int) extends RGBColor(rgb)
+  }
+
+  case class CamelPascalSnakeKebabCases(
+    camelCase: Int,
+    PascalCase: Int,
+    snake_case: Int,
+    `kebab-case`: Int,
+    camel1: Int,
+    Pascal1: Int,
+    snake_1: Int,
+    `kebab-1`: Int
+  )
+
+  object CamelPascalSnakeKebabCases {
+    implicit val schema: Schema[CamelPascalSnakeKebabCases] = Schema.derived
   }
 }
