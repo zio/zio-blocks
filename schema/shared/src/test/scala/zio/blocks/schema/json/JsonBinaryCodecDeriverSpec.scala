@@ -1475,6 +1475,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Record1](
           """{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV","extra":OMG}""",
           "expected value at: ."
+        ) &&
+        decodeError[Record1](
+          """{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV","rejected":1}""",
+          "unexpected field \"rejected\" at: .",
+          Schema[Record1].derive(JsonBinaryCodecDeriver.withRejectExtraFields(true))
         )
       },
       test("tuple record") {
