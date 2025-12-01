@@ -161,7 +161,7 @@ object JsonTestUtils {
   private[this] def writerConfig = WriterConfig.withPreferredBufSize(random.nextInt(11) + 1)
 
   private[this] def getOrDeriveCodec[A](schema: Schema[A]): JsonBinaryCodec[A] =
-    codecs.computeIfAbsent(schema, _.derive(JsonFormat.deriver)).asInstanceOf[JsonBinaryCodec[A]]
+    codecs.computeIfAbsent(schema, _.derive(JsonBinaryCodecDeriver)).asInstanceOf[JsonBinaryCodec[A]]
 
   private[this] def toInputStream(bs: Array[Byte]): java.io.InputStream = new java.io.ByteArrayInputStream(bs)
 
