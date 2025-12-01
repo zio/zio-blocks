@@ -850,6 +850,11 @@ object SchemaSpec extends ZIOSpecDefault {
         val record1 = variant.flatMap(_.cases(0).value.asRecord)
         val record2 = variant.flatMap(_.cases(1).value.asRecord)
         val record3 = variant.flatMap(_.cases(2).value.asRecord)
+        assert(variant.map(_.cases(0).modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("case-key-1", "case-value-1"), Modifier.config("case-key-1", "case-value-2")))
+          )
+        ) &&
         assert(record1.map(_.modifiers))(
           isSome(
             equalTo(Seq(Modifier.config("case-key-1", "case-value-1"), Modifier.config("case-key-1", "case-value-2")))
@@ -860,6 +865,11 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(Seq(Modifier.config("field-key-1", "field-value-1")))
           )
         ) &&
+        assert(variant.map(_.cases(1).modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("case-key-2", "case-value-1"), Modifier.config("case-key-2", "case-value-2")))
+          )
+        ) &&
         assert(record2.map(_.modifiers))(
           isSome(
             equalTo(Seq(Modifier.config("case-key-2", "case-value-1"), Modifier.config("case-key-2", "case-value-2")))
@@ -868,6 +878,11 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record2.map(_.fields.flatMap(_.modifiers)): Option[Any])(
           isSome(
             equalTo(Seq(Modifier.config("field-key-2", "field-value-2")))
+          )
+        ) &&
+        assert(variant.map(_.cases(2).modifiers))(
+          isSome(
+            equalTo(Seq(Modifier.config("case-key-3", "case-value-1"), Modifier.config("case-key-3", "case-value-2")))
           )
         ) &&
         assert(record3.map(_.modifiers))(

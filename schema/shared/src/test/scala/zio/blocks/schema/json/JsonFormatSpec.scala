@@ -1523,7 +1523,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
         ) &&
         roundTrip(Record4((), None), """{"hіdden":null}""")
       },
-      test("record with a custom codec for primitives injected by optic") {
+      test("record with a custom codec for primitives injected by optic and field renaming using modifier overriding") {
         val codec1 = Record1.schema
           .deriving(JsonFormat.deriver)
           .instance(
@@ -1593,6 +1593,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
           .derive
         val codec2 = Record5.schema
           .deriving(JsonFormat.deriver)
+          .modifier("bigDecimal", Modifiers.rename("bigDec"))
           .instance(
             Record5.bigInt,
             new JsonBinaryCodec[BigInt]() { // stringifies BigInt values
@@ -1623,15 +1624,17 @@ object JsonFormatSpec extends ZIOSpecDefault {
         ) &&
         encode(
           Record5(BigInt(12345), BigDecimal("1E-2147483647")),
-          """{"bigInt":"12345","bigDecimal":"1E-2147483647"}""",
+          """{"bigInt":"12345","bigDec":"1E-2147483647"}""",
           codec2
         ) &&
         roundTrip(
           Record5(BigInt(bigIntStr), BigDecimal(bigIntStr)),
-          s"""{"bigInt":"$bigIntStr","bigDecimal":"$bigIntStr"}""",
+          s"""{"bigInt":"$bigIntStr","bigDec":"$bigIntStr"}""",
           codec2
         ) &&
-        decode[Record5]("""{"bigInt":null,"bigDecimal":null}""", Record5(BigInt(0), BigDecimal(0)), codec2)
+        decode[Record5]("""{"bigInt":null,"bigDec":null}""", Record5(BigInt(0), BigDecimal(0)), codec2) &&
+        decodeError[Record5]("""{"bigInt":null}""", "missing required field \"bigDec\" at: .", codec2) &&
+        decodeError[Record5]("""{"bigInt":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
       },
       test("tuple record with a custom codec for primitives injected by type names") {
         val codec = Schema
@@ -1815,7 +1818,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
         ) &&
         roundTrip(Record2(null, null), """{"r1_1":null,"r1_2":null}""", codec2)
       },
-      test("record with a custom codec for nested primitives injected by optic") {
+      test("record with a custom codec for nested primitives injected by type name and by optic") {
         val codec = Record2.schema
           .deriving(JsonFormat.deriver)
           .instance(
@@ -2094,7 +2097,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
       test("case object enumeration") {
         roundTrip[TrafficLight](TrafficLight.Green, """"Green"""") &&
         roundTrip[TrafficLight](TrafficLight.Yellow, """"Yellow"""") &&
-        roundTrip[TrafficLight](TrafficLight.Rеd, """"Rеd"""") &&
+        roundTrip[TrafficLight](TrafficLight.Red, """"Rеd"""") &&
         roundTrip[Color](Color.Green, """"Green"""") &&
         roundTrip[Color](Color.Yellow, """"Yellow"""") &&
         roundTrip[Color](Color.Orаnge, """"Orаnge"""") &&
@@ -2106,20 +2109,20 @@ object JsonFormatSpec extends ZIOSpecDefault {
         decodeError[Color]("""null""", "expected '\"' at: .") &&
         decodeError[Color](""""Pink"""", "illegal enum value \"Pink\" at: .")
       },
-      test("ADT") {
+      test("ADT with case key renaming using annotation") {
         roundTrip[RGBColor](RGBColor.Green, """{"Green":{}}""") &&
         roundTrip[RGBColor](RGBColor.Yellow, """{"Yellow":{}}""") &&
         roundTrip[RGBColor](RGBColor.Orаnge, """{"Orаnge":{}}""") &&
         roundTrip[RGBColor](RGBColor.Red, """{"Red":{}}""") &&
-        roundTrip[RGBColor](new RGBColor.Mix(0x123456), """{"Mix":{"rgb":1193046}}""")
+        roundTrip[RGBColor](new RGBColor.Mix(0x123456), """{"Mixed":{"rgb":1193046}}""")
       },
-      test("ADT (decode error)") {
+      test("ADT with case key renaming using annotation (decode error)") {
         decodeError[RGBColor]("""nuts""", "expected '{' at: .") &&
         decodeError[RGBColor]("""{"Pink":{}}""", "illegal discriminator at: .") &&
-        decodeError[RGBColor]("""{"Mix":{"rgb":1]}""", "expected '}' or ',' at: .when[Mix]") &&
-        decodeError[RGBColor]("""{"Mix":{"rgb":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
-        decodeError[RGBColor]("""{"Mix":{"rgb":1193046}]""", "expected '}' or ',' at: .") &&
-        decodeError[RGBColor]("""{"Mix":{"color":1193046}}""", "missing required field \"rgb\" at: .when[Mix]")
+        decodeError[RGBColor]("""{"Mixed":{"rgb":1]}""", "expected '}' or ',' at: .when[Mix]") &&
+        decodeError[RGBColor]("""{"Mixed":{"rgb":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
+        decodeError[RGBColor]("""{"Mixed":{"rgb":1193046}]""", "expected '}' or ',' at: .") &&
+        decodeError[RGBColor]("""{"Mixed":{"color":1193046}}""", "missing required field \"rgb\" at: .when[Mix]")
       },
       test("option") {
         roundTrip(Option(42), """42""") &&
@@ -2473,7 +2476,8 @@ object JsonFormatSpec extends ZIOSpecDefault {
   object TrafficLight {
     implicit val schema: Schema[TrafficLight] = Schema.derived
 
-    case object Rеd extends TrafficLight // using non-ASCII chars for field names intentionally
+    @Modifier.config("json.rename", "Rеd") // using non-ASCII chars for field names intentionally
+    case object Red extends TrafficLight
 
     case object Yellow extends TrafficLight
 
@@ -2593,6 +2597,7 @@ object JsonFormatSpec extends ZIOSpecDefault {
 
     case object Black extends RGBColor(0x000000)
 
+    @Modifier.config("json.rename", "Mixed")
     case class Mix(rgb: Int) extends RGBColor(rgb)
   }
 }

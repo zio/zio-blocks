@@ -495,9 +495,14 @@ private object SchemaVersionSpecific {
         idx
       }
       val cases = subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
-        val caseName = toShortTermName(fullName, maxCommonPrefixLength)
-        val schema   = findImplicitOrDeriveSchema(sTpe)
-        q"$schema.reflect.asTerm($caseName)"
+        val modifiers = sTpe.typeSymbol.annotations.collect { case a if a.tree.tpe <:< typeOf[Modifier.Term] => a.tree }
+        val caseName  = toShortTermName(fullName, maxCommonPrefixLength)
+        val schema    = findImplicitOrDeriveSchema(sTpe)
+        if (modifiers eq Nil) q"$schema.reflect.asTerm($caseName)"
+        else {
+          val ms = modifiers.map(modifier => q"new ${modifier.tpe}(..${modifier.children.tail})")
+          q"$schema.reflect.asTerm($caseName).copy(modifiers = $ms)"
+        }
       }
       val discrCases = subTypes.map {
         var idx = -1

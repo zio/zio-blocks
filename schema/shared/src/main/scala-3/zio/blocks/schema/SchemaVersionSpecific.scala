@@ -966,9 +966,19 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     val cases = Varargs(subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
       sTpe.asType match {
         case '[st] =>
+          var modifiers: List[Term] = Nil
+          sTpe.typeSymbol.annotations.foreach { annotation =>
+            val aTpe = annotation.tpe
+            if (aTpe <:< modifierTermTpe) modifiers = annotation :: modifiers
+          }
           val caseName = Expr(toShortTermName(fullName, maxCommonPrefixLength))
           val schema   = findImplicitOrDeriveSchema[st](sTpe)
-          '{ $schema.reflect.asTerm[T]($caseName) }.asInstanceOf[Expr[SchemaTerm[Binding, T, ? <: T]]]
+          (if (modifiers eq Nil) {
+             '{ $schema.reflect.asTerm[T]($caseName) }
+           } else {
+             val ms = Varargs(modifiers.map(_.asExpr.asInstanceOf[Expr[Modifier.Term]]))
+             '{ $schema.reflect.asTerm[T]($caseName).copy(modifiers = $ms) }
+           }).asInstanceOf[Expr[SchemaTerm[Binding, T, ? <: T]]]
       }
     })
     val matcherCases = Varargs(subTypes.map { sTpe =>
