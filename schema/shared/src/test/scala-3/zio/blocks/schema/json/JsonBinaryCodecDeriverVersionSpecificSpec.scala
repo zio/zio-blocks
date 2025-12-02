@@ -1,6 +1,6 @@
 package zio.blocks.schema.json
 
-import zio.blocks.schema.Schema
+import zio.blocks.schema.{Modifier, Schema}
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
@@ -29,11 +29,11 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
         roundTrip(
           Node(1, Node(2, End)),
-          """{"Node":{"value":1,"next":{"Node":{"value":2,"next":{"End":{}}}}}}"""
+          """{"::":{"val":1,"nxt":{"::":{"val":2,"nxt":{"End":{}}}}}}"""
         )(schema1) &&
         roundTrip(
           Node(Some("VVV"), Node(None, End)),
-          """{"Node":{"value":"VVV","next":{"Node":{"next":{"End":{}}}}}}"""
+          """{"::":{"val":"VVV","nxt":{"::":{"nxt":{"End":{}}}}}}"""
         )(schema2)
       },
       test("union type") {
@@ -68,6 +68,10 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
   enum LinkedList[+T] {
     case End
 
-    case Node(value: T, next: LinkedList[T])
+    @Modifier.config("json.rename", "::")
+    case Node(
+      @Modifier.config("json.rename", "val") value: T,
+      @Modifier.config("json.rename", "nxt") next: LinkedList[T]
+    )
   }
 }
