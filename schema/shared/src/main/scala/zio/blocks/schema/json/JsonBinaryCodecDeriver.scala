@@ -560,15 +560,15 @@ class JsonBinaryCodecDeriver private[json] (
             val len     = cases.length
             enumeration(variant) match {
               case Some(constructors) =>
+                val infos = new Array[EnumValueInfo](len)
+                var idx   = 0
+                while (idx < len) {
+                  val case_ = cases(idx)
+                  val name  = getName(case_.modifiers, caseNameMapper(case_.name))
+                  infos(idx) = new EnumValueInfo(name, constructors(idx))
+                  idx += 1
+                }
                 if (len <= 8) { // faster decoding for small enumerations
-                  val infos = new Array[EnumValueInfo](len)
-                  var idx   = 0
-                  while (idx < len) {
-                    val case_ = cases(idx)
-                    val name  = getName(case_.modifiers, caseNameMapper(case_.name))
-                    infos(idx) = new EnumValueInfo(name, constructors(idx))
-                    idx += 1
-                  }
                   new JsonBinaryCodec[A]() {
                     private[this] val discriminator  = binding.discriminator
                     private[this] val enumValueInfos = infos
@@ -595,14 +595,10 @@ class JsonBinaryCodecDeriver private[json] (
                     }
                   }
                 } else {
-                  val map   = new StringToIntMap(len)
-                  val infos = new Array[EnumValueInfo](len)
-                  var idx   = 0
+                  val map = new StringToIntMap(len)
+                  var idx = 0
                   while (idx < len) {
-                    val case_ = cases(idx)
-                    val name  = getName(case_.modifiers, caseNameMapper(case_.name))
-                    map.put(name, idx)
-                    infos(idx) = new EnumValueInfo(name, constructors(idx))
+                    map.put(infos(idx).name, idx)
                     idx += 1
                   }
                   new JsonBinaryCodec[A]() {
@@ -626,11 +622,11 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                 }
               case _ =>
+                val map   = new StringToIntMap(len)
+                val infos = new Array[CaseInfo](len)
                 discriminatorKind match {
                   case DiscriminatorKind.Field(fieldName) if hasOnlyRecordCases(variant) =>
-                    val map   = new StringToIntMap(len)
-                    val infos = new Array[CaseInfo](len)
-                    var idx   = 0
+                    var idx = 0
                     while (idx < len) {
                       val case_ = cases(idx)
                       val name  = getName(case_.modifiers, caseNameMapper(case_.name))
@@ -650,8 +646,7 @@ class JsonBinaryCodecDeriver private[json] (
                         in.setMark()
                         if (in.isNextToken('{')) {
                           if (in.skipToKey(discriminatorFieldName)) {
-                            val valueLen = in.readStringAsCharBuf()
-                            val idx      = caseMap.get(in, valueLen)
+                            val idx = caseMap.get(in, in.readStringAsCharBuf())
                             if (idx >= 0) {
                               in.rollbackToMark()
                               val codec = caseInfos(idx).codec.asInstanceOf[JsonBinaryCodec[A]]
@@ -668,15 +663,13 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                       }
 
-                      def encodeValue(x: A, out: JsonWriter): Unit = {
-                        val caseInfo = caseInfos(discriminator.discriminate(x))
-                        caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
-                      }
+                      def encodeValue(x: A, out: JsonWriter): Unit =
+                        caseInfos(discriminator.discriminate(x)).codec
+                          .asInstanceOf[JsonBinaryCodec[A]]
+                          .encodeValue(x, out)
                     }
                   case _ =>
-                    val map   = new StringToIntMap(len)
-                    val infos = new Array[CaseInfo](len)
-                    var idx   = 0
+                    var idx = 0
                     while (idx < len) {
                       val case_ = cases(idx)
                       val name  = getName(case_.modifiers, caseNameMapper(case_.name))
@@ -693,12 +686,10 @@ class JsonBinaryCodecDeriver private[json] (
                         if (in.isNextToken('{')) {
                           if (!in.isNextToken('}')) {
                             in.rollbackToken()
-                            val keyLen = in.readKeyAsCharBuf()
-                            val idx    = caseMap.get(in, keyLen)
+                            val idx = caseMap.get(in, in.readKeyAsCharBuf())
                             if (idx >= 0) {
-                              val caseInfo = caseInfos(idx)
-                              val codec    = caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]]
-                              val x        =
+                              val codec = caseInfos(idx).codec.asInstanceOf[JsonBinaryCodec[A]]
+                              val x     =
                                 try codec.decodeValue(in, codec.nullValue)
                                 catch {
                                   case error if NonFatal(error) =>
@@ -1062,19 +1053,21 @@ class JsonBinaryCodecDeriver private[json] (
                   while (keyLen < 0 || in.isNextToken(',')) {
                     keyLen = in.readKeyAsCharBuf()
                     var field: FieldInfo = null
-                    currIdx += 1
-                    if (currIdx == len) currIdx = 0
-                    if (currIdx < len) {
-                      field = fieldInfos(currIdx)
-                      if (!in.isCharBufEqualsTo(keyLen, field.name)) {
-                        idx = map.get(in, keyLen)
-                        if (idx >= 0) {
-                          field = fieldInfos(idx)
-                          currIdx = idx
-                        } else field = null
+                    if (
+                      len > 0 && {
+                        currIdx += 1
+                        if (currIdx == len) currIdx = 0
+                        field = fieldInfos(currIdx)
+                        if (!in.isCharBufEqualsTo(keyLen, field.name)) {
+                          idx = map.get(in, keyLen)
+                          if (idx >= 0) {
+                            field = fieldInfos(idx)
+                            currIdx = idx
+                          } else field = null
+                        }
+                        field ne null
                       }
-                    }
-                    if (field ne null) {
+                    ) {
                       if (!field.isOptional) {
                         val mask = 1L << currIdx
                         if ((req & mask) == 0) in.duplicatedKeyError(keyLen)
@@ -1256,8 +1249,8 @@ class JsonBinaryCodecDeriver private[json] (
           private[this] val wrap         = binding.wrap
           private[this] val wrappedCodec = codec
 
-          override def decodeValue(in: JsonReader, default: A): A = {
-            val wrapped =
+          override def decodeValue(in: JsonReader, default: A): A =
+            wrap(
               try {
                 wrappedCodec.decodeValue(
                   in, {
@@ -1268,25 +1261,23 @@ class JsonBinaryCodecDeriver private[json] (
               } catch {
                 case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
               }
-            wrap(wrapped) match {
+            ) match {
               case Right(x)    => x
               case Left(error) => in.decodeError(error)
             }
-          }
 
           override def encodeValue(x: A, out: JsonWriter): Unit = wrappedCodec.encodeValue(unwrap(x), out)
 
-          override def decodeKey(in: JsonReader): A = {
-            val wrapped =
+          override def decodeKey(in: JsonReader): A =
+            wrap(
               try wrappedCodec.decodeKey(in)
               catch {
                 case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
               }
-            wrap(wrapped) match {
+            ) match {
               case Right(x)    => x
               case Left(error) => in.decodeError(error)
             }
-          }
 
           override def encodeKey(x: A, out: JsonWriter): Unit = wrappedCodec.encodeKey(unwrap(x), out)
         }
