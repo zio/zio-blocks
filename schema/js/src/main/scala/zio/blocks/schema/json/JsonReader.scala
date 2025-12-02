@@ -115,22 +115,6 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Throws a [[JsonBinaryCodecError]] indicating that an illegal enum value was
-   * encountered.
-   *
-   * @param value
-   *   an illegal enum value
-   * @throws JsonBinaryCodecError
-   *   always
-   */
-  def enumValueError(value: String): Nothing = {
-    var i = appendString("illegal enum value \"", 0)
-    i = appendString(value, i)
-    i = appendChar('"', i)
-    decodeError(i, head - 1)
-  }
-
-  /**
    * Throws a [[JsonBinaryCodecError]] indicating that an illegal enum value
    * with the given length was encountered.
    *
