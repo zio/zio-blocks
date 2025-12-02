@@ -160,7 +160,7 @@ lazy val benchmarks = project
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
-      "dev.zio"                               %% "zio-test"              % "2.1.23" % Test,
+      "dev.zio"                               %% "zio-test"              % "2.1.23",
       "dev.zio"                               %% "zio-test-sbt"          % "2.1.23" % Test
     ),
     assembly / assemblyJarName       := "benchmarks.jar",

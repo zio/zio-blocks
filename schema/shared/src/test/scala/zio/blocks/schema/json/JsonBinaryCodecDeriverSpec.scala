@@ -2208,7 +2208,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("either with the discriminator field (decode error)") {
         val codec = Schema[Either[String, Int]].derive(
-          JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("$type"))
+          JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("$type")).withRejectExtraFields(true)
         )
         decodeError("""null""", "expected '{' at: .", codec) &&
         decodeError("""{"$type":"X","value":42}}""", "illegal value of discriminator field \"$type\" at: .", codec) &&
@@ -2218,7 +2218,8 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           "illegal number with leading zero at: .when[Right].value",
           codec
         ) &&
-        decodeError("""{"Left":{"left":"VVV"}}""", "missing required field \"$type\" at: .", codec)
+        decodeError("""{"$type":"Left","left":"VVV"}""", "unexpected field \"left\" at: .when[Left]", codec) &&
+        decodeError("""{"Left":{"value":"VVV"}}""", "missing required field \"$type\" at: .", codec)
       },
       test("nested ADTs") {
         roundTrip[Pet](
