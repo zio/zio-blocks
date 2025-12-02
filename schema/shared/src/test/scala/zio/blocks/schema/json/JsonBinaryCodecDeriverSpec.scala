@@ -2166,7 +2166,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip[RGBColor](new RGBColor.Mix(0x123456), """{"Mixed":{"rgb":1193046}}""")
       },
       test("ADT with case key renaming using annotation (decode error)") {
-        decodeError[RGBColor]("""nuts""", "expected '{' at: .") &&
+        decodeError[RGBColor]("""null""", "expected '{' at: .") &&
         decodeError[RGBColor]("""{"Pink":{}}""", "illegal discriminator at: .") &&
         decodeError[RGBColor]("""{"Mixed":{"rgb":1]}""", "expected '}' or ',' at: .when[Mix]") &&
         decodeError[RGBColor]("""{"Mixed":{"rgb":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
@@ -2186,7 +2186,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip[Either[String, Int]](Left("VVV"), """{"Left":{"value":"VVV"}}""")
       },
       test("either (decode error)") {
-        decodeError[Either[String, Int]]("""nuts""", "expected '{' at: .") &&
+        decodeError[Either[String, Int]]("""null""", "expected '{' at: .") &&
         decodeError[Either[String, Int]]("""{"Middle":{"value":42}}""", "illegal discriminator at: .") &&
         decodeError[Either[String, Int]]("""{"Right":{"value":42]}""", "expected '}' or ',' at: .when[Right]") &&
         decodeError[Either[String, Int]]("""{"Right":{"value":42}]""", "expected '}' or ',' at: .") &&
@@ -2197,6 +2197,59 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Either[String, Int]](
           """{"Left":{"left":"VVV"}}""",
           "missing required field \"value\" at: .when[Left]"
+        )
+      },
+      test("either with the discriminator field") {
+        val codec = Schema[Either[String, Int]].derive(
+          JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("$type"))
+        )
+        roundTrip(Right(42), """{"$type":"Right","value":42}""", codec) &&
+        roundTrip(Left("VVV"), """{"$type":"Left","value":"VVV"}""", codec)
+      },
+      test("either with the discriminator field (decode error)") {
+        val codec = Schema[Either[String, Int]].derive(
+          JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("$type"))
+        )
+        decodeError("""null""", "expected '{' at: .", codec) &&
+        decodeError("""{"$type":"X","value":42}}""", "illegal value of discriminator field \"$type\" at: .", codec) &&
+        decodeError("""{"$type":"Right","value":42]""", "expected '}' or ',' at: .when[Right]", codec) &&
+        decodeError(
+          """{"$type":"Right","value":02}""",
+          "illegal number with leading zero at: .when[Right].value",
+          codec
+        ) &&
+        decodeError("""{"Left":{"left":"VVV"}}""", "missing required field \"$type\" at: .", codec)
+      },
+      test("nested ADTs") {
+        roundTrip[Pet](
+          Dog("Rex", Right(1), "German Shepherd"),
+          """{"Dog":{"name":"Rex","age":{"Right":{"value":1}},"breed":"German Shepherd"}}"""
+        ) &&
+        roundTrip[Pet](
+          Cat("Misty", Left("unknown"), 7),
+          """{"Cat":{"name":"Misty","age":{"Left":{"value":"unknown"}},"livesLeft":7}}"""
+        ) &&
+        roundTrip[Pet](
+          Bird("Tweety", Right(15), RGBColor.Turquoise),
+          """{"Bird":{"name":"Tweety","age":{"Right":{"value":15}},"color":{"Turquoise":{}}}}"""
+        )
+      },
+      test("nested ADTs with the discriminator field") {
+        val codec = Schema[Pet].derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("$type")))
+        roundTrip(
+          Dog("Rex", Right(1), "German Shepherd"),
+          """{"$type":"Dog","name":"Rex","age":{"$type":"Right","value":1},"breed":"German Shepherd"}""",
+          codec
+        ) &&
+        roundTrip(
+          Cat("Misty", Left("unknown"), 7),
+          """{"$type":"Cat","name":"Misty","age":{"$type":"Left","value":"unknown"},"livesLeft":7}""",
+          codec
+        ) &&
+        roundTrip(
+          Bird("Tweety", Right(15), RGBColor.Turquoise),
+          """{"$type":"Bird","name":"Tweety","age":{"$type":"Right","value":15},"color":{"$type":"Turquoise"}}""",
+          codec
         )
       }
     ),
@@ -2664,4 +2717,20 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
   object CamelPascalSnakeKebabCases {
     implicit val schema: Schema[CamelPascalSnakeKebabCases] = Schema.derived
   }
+
+  sealed trait Pet {
+    def name: String
+
+    def age: Either[String, Int]
+  }
+
+  object Pet {
+    implicit val schema: Schema[Pet] = Schema.derived
+  }
+
+  case class Cat(name: String, age: Either[String, Int], livesLeft: Int) extends Pet
+
+  case class Dog(name: String, age: Either[String, Int], breed: String) extends Pet
+
+  case class Bird(name: String, age: Either[String, Int], color: RGBColor) extends Pet
 }

@@ -4,8 +4,8 @@ import zio.blocks.schema.Schema
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
 
-object JsonFormatVersionSpecificSpec extends ZIOSpecDefault {
-  def spec: Spec[TestEnvironment, Any] = suite("JsonFormatVersionSpecificSpec")(
+object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
+  def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverVersionSpecificSpec")(
     suite("records")(
       test("generic tuples") {
         type GenericTuple4 = Byte *: Short *: Int *: Long *: EmptyTuple
