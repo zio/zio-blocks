@@ -2163,15 +2163,15 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip[RGBColor](RGBColor.Yellow, """{"Yellow":{}}""") &&
         roundTrip[RGBColor](RGBColor.Orаnge, """{"Orаnge":{}}""") &&
         roundTrip[RGBColor](RGBColor.Red, """{"Red":{}}""") &&
-        roundTrip[RGBColor](new RGBColor.Mix(0x123456), """{"Mixed":{"rgb":1193046}}""")
+        roundTrip[RGBColor](RGBColor.Mix(0x123456), """{"Mixed":{"color":1193046}}""")
       },
       test("ADT with case key renaming using annotation (decode error)") {
         decodeError[RGBColor]("""null""", "expected '{' at: .") &&
         decodeError[RGBColor]("""{"Pink":{}}""", "illegal discriminator at: .") &&
-        decodeError[RGBColor]("""{"Mixed":{"rgb":1]}""", "expected '}' or ',' at: .when[Mix]") &&
-        decodeError[RGBColor]("""{"Mixed":{"rgb":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
-        decodeError[RGBColor]("""{"Mixed":{"rgb":1193046}]""", "expected '}' or ',' at: .") &&
-        decodeError[RGBColor]("""{"Mixed":{"color":1193046}}""", "missing required field \"rgb\" at: .when[Mix]")
+        decodeError[RGBColor]("""{"Mixed":{"color":1]}""", "expected '}' or ',' at: .when[Mix]") &&
+        decodeError[RGBColor]("""{"Mixed":{"color":01}}""", "illegal number with leading zero at: .when[Mix].rgb") &&
+        decodeError[RGBColor]("""{"Mixed":{"color":1193046}]""", "expected '}' or ',' at: .") &&
+        decodeError[RGBColor]("""{"Mixed":{"rgb":1193046}}""", "missing required field \"color\" at: .when[Mix]")
       },
       test("option") {
         roundTrip(Option(42), """42""") &&
@@ -2700,7 +2700,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     case object Black extends RGBColor(0x000000)
 
     @Modifier.config("json.rename", "Mixed")
-    case class Mix(rgb: Int) extends RGBColor(rgb)
+    case class Mix(@Modifier.config("json.rename", "color") rgb: Int) extends RGBColor(rgb)
   }
 
   case class CamelPascalSnakeKebabCases(
