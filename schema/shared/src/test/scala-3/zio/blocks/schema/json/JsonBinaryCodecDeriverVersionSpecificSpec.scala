@@ -15,6 +15,12 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip[GenericTuple4]((1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple, """[1,2,3,4]""")
       }
     ),
+    suite("nested ADTs")(
+      test("constant values on different hierarchy levels") {
+        roundTrip[Foo](Foo1, """{"Foo1":{}}""") &&
+        roundTrip[Foo](Bar1, """{"Bar":"Bar1"}""")
+      }
+    ),
     suite("enums")(
       test("constant values") {
         roundTrip[TrafficLight](TrafficLight.Green, """"Green"""") &&
@@ -74,4 +80,12 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
       @Modifier.config("json.rename", "nxt") next: LinkedList[T]
     )
   }
+
+  sealed trait Foo derives Schema
+
+  case object Foo1 extends Foo
+
+  sealed trait Bar extends Foo
+
+  case object Bar1 extends Bar
 }

@@ -555,9 +555,9 @@ class JsonBinaryCodecDeriver private[json] (
               override def nullValue: Option[String] = None
             }
           case _ =>
-            val binding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
-            val cases   = variant.cases
-            val len     = cases.length
+            val discr = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
+            val cases = variant.cases
+            val len   = cases.length
             enumeration(variant) match {
               case Some(constructors) =>
                 val infos = new Array[EnumValueInfo](len)
@@ -570,7 +570,7 @@ class JsonBinaryCodecDeriver private[json] (
                 }
                 if (len <= 8) { // faster decoding for small enumerations
                   new JsonBinaryCodec[A]() {
-                    private[this] val discriminator  = binding.discriminator
+                    private[this] val discriminator  = discr
                     private[this] val enumValueInfos = infos
 
                     def decodeValue(in: JsonReader, default: A): A = {
@@ -602,7 +602,7 @@ class JsonBinaryCodecDeriver private[json] (
                     idx += 1
                   }
                   new JsonBinaryCodec[A]() {
-                    private[this] val discriminator  = binding.discriminator
+                    private[this] val discriminator  = discr
                     private[this] val enumValueInfos = infos
                     private[this] val caseMap        = map
 
@@ -637,7 +637,7 @@ class JsonBinaryCodecDeriver private[json] (
                       idx += 1
                     }
                     new JsonBinaryCodec[A]() {
-                      private[this] val discriminator          = binding.discriminator
+                      private[this] val discriminator          = discr
                       private[this] val caseInfos              = infos
                       private[this] val caseMap                = map
                       private[this] val discriminatorFieldName = fieldName
@@ -678,7 +678,7 @@ class JsonBinaryCodecDeriver private[json] (
                       idx += 1
                     }
                     new JsonBinaryCodec[A]() {
-                      private[this] val discriminator = binding.discriminator
+                      private[this] val discriminator = discr
                       private[this] val caseMap       = map
                       private[this] val caseInfos     = infos
 
@@ -1302,7 +1302,7 @@ class JsonBinaryCodecDeriver private[json] (
     } else None
 
   private[this] def hasOnlyRecordCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
-    variant.cases.forall(_.value.asRecord.isDefined)
+    variant.cases.forall(_.value.isRecord)
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
     val typeName = variant.typeName
