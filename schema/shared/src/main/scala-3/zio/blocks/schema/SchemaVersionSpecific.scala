@@ -66,14 +66,11 @@ private class SchemaVersionSpecificImpl(using Quotes) {
 
   private def fail(msg: String): Nothing = CommonMacroOps.fail(msg)
 
-  private def isEnumValue(tpe: TypeRepr): Boolean = tpe.termSymbol.flags.is(Flags.Enum)
+  private def isEnumValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumValue(tpe)
 
-  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
+  private def isEnumOrModuleValue(tpe: TypeRepr): Boolean = CommonMacroOps.isEnumOrModuleValue(tpe)
 
-  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = tpe.classSymbol.fold(false) { symbol =>
-    val flags = symbol.flags
-    flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
-  }
+  private def isSealedTraitOrAbstractClass(tpe: TypeRepr): Boolean = CommonMacroOps.isSealedTraitOrAbstractClass(tpe)
 
   private def isOpaque(tpe: TypeRepr): Boolean = tpe.typeSymbol.flags.is(Flags.Opaque)
 
@@ -167,7 +164,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   private def isCollection(tpe: TypeRepr): Boolean =
     tpe <:< iterableOfWildcardTpe || tpe <:< iteratorOfWildcardTpe || tpe <:< arrayOfWildcardTpe || isIArray(tpe)
 
-  private def directSubTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.directSubTypes(tpe)
+  private def subTypes(tpe: TypeRepr): List[TypeRepr] = CommonMacroOps.subTypes(tpe)
 
   private val isNonRecursiveCache = new mutable.HashMap[TypeRepr, Boolean]
 
@@ -184,7 +181,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isGenericTuple(tpe)) {
             genericTupleTypeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
-          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
+          } else if (isSealedTraitOrAbstractClass(tpe)) subTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
           else if (isUnion(tpe)) allUnionTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
           else if (isNamedTuple(tpe)) isNonRecursive(typeArgs(tpe).last, nestedTpes_)
           else if (isNonAbstractScalaClass(tpe)) {
@@ -950,11 +947,10 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   private def deriveSchemaForSealedTraitOrAbstractClassOrUnion[T: Type](
     tpe: TypeRepr
   )(using Quotes): Expr[Schema[T]] = {
-    val subTypes =
+    val subtypes =
       if (isUnion(tpe)) allUnionTypes(tpe)
-      else directSubTypes(tpe)
-    if (subTypes eq Nil) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-    val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
+      else subTypes(tpe)
+    val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
     val maxCommonPrefixLength = {
       val minFullTermName = fullTermNames.min
       val maxFullTermName = fullTermNames.max
@@ -963,7 +959,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       while (idx < minLength && minFullTermName(idx).equals(maxFullTermName(idx))) idx += 1
       idx
     }
-    val cases = Varargs(subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
+    val cases = Varargs(subtypes.zip(fullTermNames).map { case (sTpe, fullName) =>
       sTpe.asType match {
         case '[st] =>
           var modifiers: List[Term] = Nil
@@ -981,7 +977,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
            }).asInstanceOf[Expr[SchemaTerm[Binding, T, ? <: T]]]
       }
     })
-    val matcherCases = Varargs(subTypes.map { sTpe =>
+    val matcherCases = Varargs(subtypes.map { sTpe =>
       sTpe.asType match {
         case '[st] =>
           '{
@@ -1006,7 +1002,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
                 val v = 'a
                 Match(
                   '{ $v: @scala.unchecked }.asTerm,
-                  subTypes.map {
+                  subtypes.map {
                     var idx = -1
                     sTpe =>
                       idx += 1

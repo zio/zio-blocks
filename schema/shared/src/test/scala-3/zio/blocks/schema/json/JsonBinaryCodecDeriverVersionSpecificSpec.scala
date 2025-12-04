@@ -17,8 +17,8 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     ),
     suite("nested ADTs")(
       test("constant values on different hierarchy levels") {
-        roundTrip[Foo](Foo1, """{"Foo1":{}}""") &&
-        roundTrip[Foo](Bar1, """{"Bar":"Bar1"}""")
+        roundTrip[Foo](Foo1, """"Foo1"""") &&
+        roundTrip[Foo](Bar1, """"Bar1"""")
       }
     ),
     suite("enums")(

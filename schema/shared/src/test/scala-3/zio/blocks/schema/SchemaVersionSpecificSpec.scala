@@ -566,6 +566,19 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       test("derives schema for array and IArray of opaque sub-types") {
         assert(Schema.derived[Array[StructureId]])(equalTo(Schema.derived[Array[String]])) &&
         assert(Schema.derived[IArray[StructureId]])(equalTo(Schema.derived[IArray[String]]))
+      },
+      test("doesn't generate schema for unsupported collections") {
+        typeCheck {
+          "Schema.derived[scala.collection.mutable.CollisionProofHashMap[String, Int]]"
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString(
+                "Cannot derive schema for 'scala.collection.mutable.CollisionProofHashMap[scala.Predef.String, scala.Int]'."
+              )
+            )
+          )
+        )
       }
     ),
     suite("Reflect.Variant")(
@@ -857,21 +870,40 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             )
           )
         )
-      }
-    ),
-    test("doesn't generate schema for unsupported collections") {
-      typeCheck {
-        "Schema.derived[scala.collection.mutable.CollisionProofHashMap[String, Int]]"
-      }.map(
-        assert(_)(
-          isLeft(
-            containsString(
-              "Cannot derive schema for 'scala.collection.mutable.CollisionProofHashMap[scala.Predef.String, scala.Int]'."
+      },
+      test("doesn't generate codecs for non-concrete ADTs with at least one free type parameter") {
+        typeCheck {
+          """sealed trait TypeBase[T]
+
+             object TypeBase {
+               given TypeBase[Int] = new TypeBase[Int] {}
+               given TypeBase[String] = new TypeBase[String] {}
+             }
+
+             sealed trait Base[T: TypeBase] {
+               val t: T
+             }
+
+             case class A[T: TypeBase](a: T) extends Base[T] {
+               override val t: T = a
+             }
+
+             case class B[T: TypeBase](b: T) extends Base[T] {
+               override val t: T = b
+             }
+
+             Schema.derived[Base[_]]"""
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString(
+                "Cannot resolve free type parameters for ADT cases with base 'Base[_ >: scala.Nothing <: scala.Any]'."
+              )
             )
           )
         )
-      )
-    }
+      }
+    )
   )
 
   /** Variant: Color */

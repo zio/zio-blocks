@@ -36,7 +36,7 @@ private object SchemaVersionSpecific {
 
     def typeArgs(tpe: Type): List[Type] = CommonMacroOps.typeArgs(c)(tpe)
 
-    def directSubTypes(tpe: Type): List[Type] = CommonMacroOps.directSubTypes(c)(tpe)
+    def subTypes(tpe: Type): List[Type] = CommonMacroOps.subTypes(c)(tpe)
 
     def isEnumOrModuleValue(tpe: Type): Boolean = tpe.typeSymbol.isModuleClass
 
@@ -107,7 +107,7 @@ private object SchemaVersionSpecific {
           val nestedTpes_ = tpe :: nestedTpes
           if (tpe <:< typeOf[Option[?]] || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
             typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
-          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
+          } else if (isSealedTraitOrAbstractClass(tpe)) subTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
           else if (isNonAbstractScalaClass(tpe)) {
             val tpeParams     = primaryConstructor(tpe).paramLists
             val tpeTypeArgs   = typeArgs(tpe)
@@ -483,9 +483,8 @@ private object SchemaVersionSpecific {
     }
 
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {
-      val subTypes = directSubTypes(tpe)
-      if (subTypes eq Nil) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-      val fullTermNames         = subTypes.map(sTpe => toFullTermName(typeName(sTpe)))
+      val subtypes              = subTypes(tpe)
+      val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
       val maxCommonPrefixLength = {
         val minFullTermName = fullTermNames.min
         val maxFullTermName = fullTermNames.max
@@ -494,7 +493,7 @@ private object SchemaVersionSpecific {
         while (idx < minLength && minFullTermName(idx).equals(maxFullTermName(idx))) idx += 1
         idx
       }
-      val cases = subTypes.zip(fullTermNames).map { case (sTpe, fullName) =>
+      val cases = subtypes.zip(fullTermNames).map { case (sTpe, fullName) =>
         val modifiers = sTpe.typeSymbol.annotations.collect { case a if a.tree.tpe <:< typeOf[Modifier.Term] => a.tree }
         val caseName  = toShortTermName(fullName, maxCommonPrefixLength)
         val schema    = findImplicitOrDeriveSchema(sTpe)
@@ -504,13 +503,13 @@ private object SchemaVersionSpecific {
           q"$schema.reflect.asTerm($caseName).copy(modifiers = $ms)"
         }
       }
-      val discrCases = subTypes.map {
+      val discrCases = subtypes.map {
         var idx = -1
         sTpe =>
           idx += 1
           cq"_: $sTpe @_root_.scala.unchecked => $idx"
       }
-      val matcherCases = subTypes.map { sTpe =>
+      val matcherCases = subtypes.map { sTpe =>
         q"""new Matcher[$sTpe] {
               def downcastOrNull(a: Any): $sTpe = a match {
                 case x: $sTpe @_root_.scala.unchecked => x

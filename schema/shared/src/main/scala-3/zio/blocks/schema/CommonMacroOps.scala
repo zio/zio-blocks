@@ -20,6 +20,36 @@ private[schema] object CommonMacroOps {
     }
   }
 
+  def isEnumValue(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+    import q.reflect._
+
+    tpe.termSymbol.flags.is(Flags.Enum)
+  }
+
+  def isEnumOrModuleValue(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+    import q.reflect._
+
+    isEnumValue(tpe) || tpe.typeSymbol.flags.is(Flags.Module)
+  }
+
+  def isSealedTraitOrAbstractClass(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+    import q.reflect._
+
+    tpe.classSymbol.fold(false) { symbol =>
+      val flags = symbol.flags
+      flags.is(Flags.Sealed) && (flags.is(Flags.Abstract) || flags.is(Flags.Trait))
+    }
+  }
+
+  def isNonAbstractScalaClass(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+    import q.reflect._
+
+    tpe.classSymbol.fold(false) { symbol =>
+      val flags = symbol.flags
+      !(flags.is(Flags.Abstract) || flags.is(Flags.JavaDefined) || flags.is(Flags.Trait))
+    }
+  }
+
   def isGenericTuple(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
     import q.reflect._
 
@@ -78,37 +108,56 @@ private[schema] object CommonMacroOps {
     types.toList
   }
 
-  def directSubTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): List[q.reflect.TypeRepr] = {
+  def subTypes(using q: Quotes)(tpe: q.reflect.TypeRepr): List[q.reflect.TypeRepr] = {
     import q.reflect._
 
-    def cannotResolveTypeParameterOfADT(tpe: TypeRepr): Nothing =
-      fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
+    val seen                 = new mutable.HashSet[TypeRepr]
+    val orderedLeaves        = new mutable.ListBuffer[TypeRepr]
+    val orderedIntermediates = new mutable.ListBuffer[TypeRepr]
 
-    val tpeTypeSymbol = tpe.typeSymbol
-    tpeTypeSymbol.children.map { symbol =>
-      if (symbol.isType) {
-        val subtype = symbol.typeRef
-        subtype.memberType(symbol.primaryConstructor) match {
-          case _: MethodType                                              => subtype
-          case PolyType(names, _, MethodType(_, _, AppliedType(base, _))) =>
-            base.appliedTo(names.map {
-              val binding = typeArgs(subtype.baseType(tpeTypeSymbol))
-                .zip(typeArgs(tpe))
-                .foldLeft(Map.empty[String, TypeRepr]) { case (binding, (childTypeArg, parentTypeArg)) =>
-                  val childTypeSymbol = childTypeArg.typeSymbol
-                  if (childTypeSymbol.isTypeParam) binding.updated(childTypeSymbol.name, parentTypeArg)
-                  else binding
-                }
-              name =>
-                binding.getOrElse(
-                  name,
-                  fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of '${tpe.show}'.")
-                )
-            })
-          case _ => cannotResolveTypeParameterOfADT(tpe)
-        }
-      } else if (symbol.isTerm) symbol.termRef
-      else cannotResolveTypeParameterOfADT(tpe)
+    def directSubTypes(tpe: TypeRepr): List[TypeRepr] = {
+      val tpeTypeSymbol = tpe.typeSymbol
+      tpeTypeSymbol.children.map { symbol =>
+        if (symbol.isType) {
+          val subtype = symbol.typeRef
+          subtype.memberType(symbol.primaryConstructor) match {
+            case _: MethodType                                              => subtype
+            case PolyType(names, _, MethodType(_, _, AppliedType(base, _))) =>
+              base.appliedTo(names.map {
+                val binding = typeArgs(subtype.baseType(tpeTypeSymbol))
+                  .zip(typeArgs(tpe))
+                  .foldLeft(Map.empty[String, TypeRepr]) { case (binding, (childTypeArg, parentTypeArg)) =>
+                    val childTypeSymbol = childTypeArg.typeSymbol
+                    if (childTypeSymbol.isTypeParam) binding.updated(childTypeSymbol.name, parentTypeArg)
+                    else binding
+                  }
+                name =>
+                  binding.getOrElse(
+                    name,
+                    fail(s"Type parameter '$name' of '$symbol' can't be deduced from type arguments of '${tpe.show}'.")
+                  )
+              })
+            case _ => fail(s"Cannot resolve free type parameters for ADT cases with base '${tpe.show}'.")
+          }
+        } else Ref(symbol).tpe
+      }
     }
+
+    def collectRecursively(tpe: TypeRepr): Unit =
+      if (isNonAbstractScalaClass(tpe)) {
+        if (seen.add(tpe)) orderedLeaves.addOne(tpe)
+      } else
+        directSubTypes(tpe).foreach { subTpe =>
+          if (isEnumOrModuleValue(subTpe) || isNonAbstractScalaClass(subTpe)) {
+            if (seen.add(subTpe)) orderedLeaves.addOne(subTpe)
+          } else if (isSealedTraitOrAbstractClass(subTpe)) {
+            collectRecursively(subTpe)
+            if (seen.add(subTpe)) orderedIntermediates.addOne(subTpe)
+          } else fail("Only sealed intermediate traits or abstract classes are supported.")
+        }
+
+    collectRecursively(tpe)
+    if (orderedLeaves.isEmpty) fail(s"Cannot find leaf sub-classes for ADT base '${tpe.show}'.")
+    orderedLeaves.addAll(orderedIntermediates).toList
   }
 }

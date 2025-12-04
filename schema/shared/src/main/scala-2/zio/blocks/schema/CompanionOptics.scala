@@ -52,7 +52,7 @@ private object CompanionOptics {
 
     def fail(msg: String): Nothing = CommonMacroOps.fail(c)(msg)
 
-    def directSubTypes(tpe: Type): List[Type] = CommonMacroOps.directSubTypes(c)(tpe)
+    def subTypes(tpe: Type): List[Type] = CommonMacroOps.subTypes(c)(tpe)
 
     def toPathBody(tree: c.Tree): c.Tree = tree match {
       case q"($_) => $pathBody" => pathBody
@@ -117,7 +117,7 @@ private object CompanionOptics {
       case q"$_[..$_]($parent).when[$caseTree]" =>
         val parentTpe = parent.tpe.widen.dealias
         val caseTpe   = caseTree.tpe.dealias
-        val caseIdx   = directSubTypes(parentTpe).indexWhere(_ =:= caseTpe, 0)
+        val caseIdx   = subTypes(parentTpe).indexWhere(_ =:= caseTpe, 0)
         val optic     = toOptic(parent)
         if (optic.isEmpty) {
           q"""$schema.reflect.asVariant.flatMap(_.prismByIndex[$caseTpe]($caseIdx))
