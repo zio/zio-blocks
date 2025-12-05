@@ -11,8 +11,10 @@ object JsonListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
       benchmark.setup()
       val jsoniterScalaOutput = benchmark.readingJsoniterScala
       val zioBlocksOutput     = benchmark.readingZioBlocks
-      val zioSchemaOutput     = benchmark.readingZioJson
+      val zioJsonOutput       = benchmark.readingZioJson
+      val zioSchemaOutput     = benchmark.readingZioSchema
       assert(jsoniterScalaOutput)(equalTo(zioBlocksOutput)) &&
+      assert(zioJsonOutput)(equalTo(zioBlocksOutput)) &&
       assert(zioSchemaOutput)(equalTo(zioBlocksOutput))
     },
     test("writing") {
@@ -21,8 +23,10 @@ object JsonListOfRecordsBenchmarkSpec extends ZIOSpecDefault {
       val jsoniterScalaOutput = benchmark.writingJsoniterScala
       val zioBlocksOutput     = benchmark.writingZioBlocks
       val zioJsonOutput       = benchmark.writingZioJson
+      val zioSchemaOutput     = benchmark.writingZioSchema
       assert(new String(jsoniterScalaOutput))(equalTo(new String(zioBlocksOutput))) &&
-      assert(new String(zioJsonOutput))(equalTo(new String(zioBlocksOutput)))
+      assert(new String(zioJsonOutput))(equalTo(new String(zioBlocksOutput))) &&
+      assert(new String(zioSchemaOutput))(equalTo(new String(zioBlocksOutput)))
     }
   )
 }
