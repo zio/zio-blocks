@@ -691,7 +691,10 @@ object SchemaSpec extends ZIOSpecDefault {
                 ) || // Scala 3.3
                 containsString(
                   "Cannot derive schema for 'java.util.concurrent.TimeUnit'."
-                ) // Scala 3.7
+                ) || // Scala 3.7
+                containsString(
+                  "Exception occurred while executing macro expansion.\njava.lang.StackOverflowError"
+                ) // Scala 3.8, see https://github.com/scala/scala3/issues/24598
             )
           )
         )
