@@ -625,7 +625,7 @@ class JsonBinaryCodecDeriver private[json] (
                 val map   = new StringToIntMap(len)
                 val infos = new Array[CaseInfo](len)
                 discriminatorKind match {
-                  case DiscriminatorKind.Field(fieldName) if hasOnlyRecordCases(variant) =>
+                  case DiscriminatorKind.Field(fieldName) if hasOnlyRecordAndVariantCases(variant) =>
                     var idx = 0
                     while (idx < len) {
                       val case_ = cases(idx)
@@ -1290,19 +1290,21 @@ class JsonBinaryCodecDeriver private[json] (
   }.asInstanceOf[JsonBinaryCodec[A]]
 
   private[this] def enumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Array[Constructor[?]]] =
-    if (variant.cases.forall(_.value.asRecord.exists(_.fields.isEmpty))) {
+    if (variant.cases.forall(case_ => case_.value.asRecord.exists(_.fields.isEmpty) || case_.value.isVariant)) {
       new Some(variant.cases.map { case_ =>
-        val recordBinding = case_.value.asRecord.get.recordBinding
-        val binding       = recordBinding match {
-          case value: Binding.Record[?] => value
-          case _                        => recordBinding.asInstanceOf[BindingInstance[TC, ?, ?]].binding.asInstanceOf[Binding.Record[?]]
-        }
-        binding.constructor
+        if (case_.value.isRecord) {
+          val recordBinding = case_.value.asRecord.get.recordBinding
+          val binding       = recordBinding match {
+            case value: Binding.Record[?] => value
+            case _                        => recordBinding.asInstanceOf[BindingInstance[TC, ?, ?]].binding.asInstanceOf[Binding.Record[?]]
+          }
+          binding.constructor
+        } else null
       }.toArray)
     } else None
 
-  private[this] def hasOnlyRecordCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
-    variant.cases.forall(_.value.isRecord)
+  private[this] def hasOnlyRecordAndVariantCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
+    variant.cases.forall(case_ => case_.value.isRecord || case_.value.isVariant)
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
     val typeName = variant.typeName

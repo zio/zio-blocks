@@ -153,10 +153,10 @@ private object CompanionOptics {
         case TypeApply(Apply(TypeApply(caseTerm, _), List(parent)), List(typeTree)) if hasName(caseTerm, "when") =>
           val parentTpe = parent.tpe.widen.dealias
           val caseTpe   = typeTree.tpe.dealias
-          val subTypes  =
+          val subtypes  =
             if (isUnion(parentTpe)) allUnionTypes(parentTpe)
-            else directSubTypes(parentTpe)
-          val caseIdx = subTypes.indexWhere(_ =:= caseTpe, 0)
+            else subTypes(parentTpe)
+          val caseIdx = subtypes.indexWhere(_ =:= caseTpe, 0)
           new Some(parentTpe.asType match {
             case '[p] =>
               caseTpe.asType match {
