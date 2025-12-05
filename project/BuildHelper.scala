@@ -11,8 +11,6 @@ object BuildHelper {
   val Scala213: String = "2.13.18"
   val Scala3: String   = "3.3.7"
 
-  val JdkReleaseVersion: String = "11"
-
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
     if (value) println("Detected CI_RELEASE_MODE envvar, enabling optimizations")
@@ -86,18 +84,12 @@ object BuildHelper {
       "-encoding",
       "UTF-8",
       "-feature",
-      "-unchecked",
-      "-release",
-      JdkReleaseVersion
+      "-unchecked"
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, _)) =>
+      case Some((3, minor)) =>
         Seq(
-          "-language:existentials",
-          "-opt:l:method",
-          "-Ywarn-unused"
-        )
-      case _ =>
-        Seq(
+          "-release",
+          if (minor < 8) "11" else "17",
           "-rewrite",
           "-no-indent",
           "-explain",
@@ -108,6 +100,14 @@ object BuildHelper {
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
           "-Wconf:msg=Implicit parameters should be provided with a `using` clause:s",
           "-Wconf:msg=The syntax `.*` is no longer supported for vararg splices; use `.*` instead:s"
+        )
+      case _ =>
+        Seq(
+          "-release",
+          "11",
+          "-language:existentials",
+          "-opt:l:method",
+          "-Ywarn-unused"
         )
     }),
     versionScheme := Some("early-semver"),

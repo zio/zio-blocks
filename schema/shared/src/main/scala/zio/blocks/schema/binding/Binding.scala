@@ -293,10 +293,9 @@ object Binding {
   object Variant {
     def option[A]: Variant[Option[A]] = new Variant(
       discriminator = new Discriminator[Option[A]] {
-        def discriminate(a: Option[A]): Int = a match {
-          case _: Some[A] @scala.unchecked => 1
-          case _                           => 0
-        }
+        def discriminate(a: Option[A]): Int =
+          if (a eq None) 0
+          else 1
       },
       matchers = Matchers(
         new Matcher[None.type] {
