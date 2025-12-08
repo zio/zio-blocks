@@ -326,7 +326,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           ReaderConfig,
           WriterConfig.withEscapeUnicode(true)
         ) &&
-        decode("\"/\"", "/")
+        decode(""""\/"""", "/")
       },
       test("String (decode error)") {
         decodeError[String]("", "unexpected end of input at: .") &&
@@ -355,6 +355,12 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[String]("\"\\ud834\\d834\"", "illegal escape sequence at: .") &&
         decodeError[String]("\"\\udf45\\udf45\"", "illegal surrogate character pair at: .") &&
         decodeError[String]("\"\\ud834\\ud834\"", "illegal surrogate character pair at: .") &&
+        encodeError[String](0xdd1e.toChar.toString, "illegal char sequence of surrogate pair") &&
+        encodeError[String](
+          0xdd1e.toChar.toString,
+          "illegal char sequence of surrogate pair",
+          WriterConfig.withEscapeUnicode(true)
+        ) &&
         decodeError[String](Array[Byte](0x22.toByte, 0x80.toByte), "malformed byte(s): 0x80 at: .") &&
         decodeError[String](
           Array[Byte](0x22.toByte, 0xc0.toByte, 0x80.toByte),
@@ -2629,7 +2635,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeName(Namespace(Seq("zio", "blocks", "avro"), Seq("JsonFormatSpec")), "Email"),
+        TypeName(Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email"),
         None,
         new Binding.Wrapper(
           {

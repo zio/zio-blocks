@@ -4,6 +4,7 @@ import zio.blocks.schema.Schema
 import zio.test.Assertion._
 import zio.test._
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets.UTF_8
 import java.util
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
@@ -45,7 +46,7 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, "UTF-8"))(equalTo(expectedJson)) &&
+    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
@@ -67,7 +68,7 @@ object JsonTestUtils {
     codec: JsonBinaryCodec[A],
     readerConfig: ReaderConfig = readerConfig
   ): TestResult = {
-    val jsonBytes = json.getBytes("UTF-8")
+    val jsonBytes = json.getBytes(UTF_8)
     assert(codec.decode(jsonBytes, readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(toInputStream(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
     assert(codec.decode(toHeapByteBuffer(jsonBytes), readerConfig))(isRight(equalTo(expectedValue))) &&
@@ -75,13 +76,13 @@ object JsonTestUtils {
   }
 
   def decodeError[A](invalidJson: String, error: String)(implicit schema: Schema[A]): TestResult =
-    decodeError(invalidJson.getBytes("UTF-8"), error)
+    decodeError(invalidJson.getBytes(UTF_8), error)
 
   def decodeError[A](invalidJson: Array[Byte], error: String)(implicit schema: Schema[A]): TestResult =
     decodeError(invalidJson, error, getOrDeriveCodec(schema))
 
   def decodeError[A](invalidJson: String, error: String, codec: JsonBinaryCodec[A]): TestResult =
-    decodeError(invalidJson.getBytes("UTF-8"), error, codec)
+    decodeError(invalidJson.getBytes(UTF_8), error, codec)
 
   def decodeError[A](invalidJson: Array[Byte], error: String, codec: JsonBinaryCodec[A]): TestResult =
     assert(codec.decode(invalidJson))(isLeft(hasError(error))) &&
@@ -121,7 +122,7 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, "UTF-8"))(equalTo(expectedJson)) &&
+    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4)))
