@@ -16,37 +16,44 @@ object JsonBinaryCodecDeriver
     extends JsonBinaryCodecDeriver(
       fieldNameMapper = NameMapper.Identity,
       caseNameMapper = NameMapper.Identity,
+      discriminatorKind = DiscriminatorKind.Key,
       rejectExtraFields = false,
-      discriminatorKind = DiscriminatorKind.Key
+      enumValuesAsStrings = true
     )
 
 class JsonBinaryCodecDeriver private[json] (
   fieldNameMapper: NameMapper,
   caseNameMapper: NameMapper,
+  discriminatorKind: DiscriminatorKind,
   rejectExtraFields: Boolean,
-  discriminatorKind: DiscriminatorKind
+  enumValuesAsStrings: Boolean
 ) extends Deriver[JsonBinaryCodec] {
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
   def withCaseNameMapper(caseNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(caseNameMapper = caseNameMapper)
 
+  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): JsonBinaryCodecDeriver =
+    copy(discriminatorKind = discriminatorKind)
+
   def withRejectExtraFields(rejectExtraFields: Boolean): JsonBinaryCodecDeriver =
     copy(rejectExtraFields = rejectExtraFields)
 
-  def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): JsonBinaryCodecDeriver =
-    copy(discriminatorKind = discriminatorKind)
+  def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): JsonBinaryCodecDeriver =
+    copy(enumValuesAsStrings = enumValuesAsStrings)
 
   private def copy(
     fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
+    discriminatorKind: DiscriminatorKind = discriminatorKind,
     rejectExtraFields: Boolean = rejectExtraFields,
-    discriminatorKind: DiscriminatorKind = discriminatorKind
+    enumValuesAsStrings: Boolean = enumValuesAsStrings
   ) =
     new JsonBinaryCodecDeriver(
       fieldNameMapper,
       caseNameMapper,
+      discriminatorKind,
       rejectExtraFields,
-      discriminatorKind
+      enumValuesAsStrings
     )
 
   override def derivePrimitive[F[_, _], A](
@@ -1290,7 +1297,12 @@ class JsonBinaryCodecDeriver private[json] (
   }.asInstanceOf[JsonBinaryCodec[A]]
 
   private[this] def enumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Array[Constructor[?]]] =
-    if (variant.cases.forall(case_ => case_.value.asRecord.exists(_.fields.isEmpty) || case_.value.isVariant)) {
+    if (
+      enumValuesAsStrings && variant.cases.forall { case_ =>
+        val caseReflect = case_.value
+        caseReflect.asRecord.exists(_.fields.isEmpty) || caseReflect.isVariant
+      }
+    ) {
       new Some(variant.cases.map { case_ =>
         if (case_.value.isRecord) {
           val recordBinding = case_.value.asRecord.get.recordBinding
