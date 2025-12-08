@@ -483,7 +483,8 @@ private object SchemaVersionSpecific {
     }
 
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {
-      val subtypes              = subTypes(tpe)
+      val subtypes = subTypes(tpe)
+      if (subtypes.isEmpty) fail(s"Cannot find leaf sub-classes for ADT base '$tpe'.")
       val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
       val maxCommonPrefixLength = {
         val minFullTermName = fullTermNames.min

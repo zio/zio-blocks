@@ -950,6 +950,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     val subtypes =
       if (isUnion(tpe)) allUnionTypes(tpe)
       else subTypes(tpe)
+    if (subtypes.isEmpty) fail(s"Cannot find leaf sub-classes for ADT base '${tpe.show}'.")
     val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
     val maxCommonPrefixLength = {
       val minFullTermName = fullTermNames.min
