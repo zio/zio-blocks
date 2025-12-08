@@ -91,7 +91,6 @@ private[schema] object CommonMacroOps {
         }
 
     collectRecursively(tpe)
-    if (orderedLeaves.isEmpty) fail(c)(s"Cannot find leaf sub-classes for ADT base '$tpe'.")
     (orderedLeaves.addAll(orderedIntermediates)).toList
   }
 }

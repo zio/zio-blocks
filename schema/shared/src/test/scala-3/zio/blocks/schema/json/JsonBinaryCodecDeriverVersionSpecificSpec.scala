@@ -13,6 +13,22 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         implicit val schema: Schema[GenericTuple4] = Schema.derived
 
         roundTrip[GenericTuple4]((1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple, """[1,2,3,4]""")
+      },
+      test("nested generic records") {
+        case class Parent(child: Child[MySealedTrait]) derives Schema
+
+        case class Child[T <: MySealedTrait](test: T) derives Schema
+
+        sealed trait MySealedTrait derives Schema
+
+        object MySealedTrait {
+          case class Foo(foo: Int) extends MySealedTrait
+
+          case class Bar(bar: String) extends MySealedTrait
+        }
+
+        roundTrip[Parent](Parent(Child(MySealedTrait.Foo(1))), """{"child":{"test":{"Foo":{"foo":1}}}}""") &&
+        roundTrip[Parent](Parent(Child(MySealedTrait.Bar("WWW"))), """{"child":{"test":{"Bar":{"bar":"WWW"}}}}""")
       }
     ),
     suite("nested ADTs")(

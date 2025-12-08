@@ -590,6 +590,35 @@ object SchemaSpec extends ZIOSpecDefault {
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
+      test("derives schema for nested generic records") {
+        sealed trait MySealedTrait
+
+        object MySealedTrait {
+          case class Foo(foo: Int) extends MySealedTrait
+
+          case class Bar(bar: String) extends MySealedTrait
+
+          implicit val schema: Schema[MySealedTrait] = Schema.derived
+        }
+
+        case class Child[T <: MySealedTrait](test: T)
+
+        object Child {
+          implicit val schema: Schema[Child[MySealedTrait]] = Schema.derived
+        }
+
+        case class Parent(child: Child[MySealedTrait])
+
+        object Parent {
+          implicit val schema: Schema[Parent] = Schema.derived
+        }
+
+        val schema = Schema[Parent]
+        val value1 = Parent(Child(MySealedTrait.Foo(1)))
+        val value2 = Parent(Child(MySealedTrait.Bar("WWW")))
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
+      },
       test("derives schema for case class with value class fields using a macro call") {
         case class Record9(b1: Box1, b2: Box2)
 
