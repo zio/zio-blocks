@@ -270,6 +270,25 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema11.fromDynamicValue(schema11.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
         assert(schema12.fromDynamicValue(schema12.toDynamicValue(value4)))(isRight(equalTo(value4)))
       },
+      test("derives schema for nested generic records") {
+        case class Parent(child: Child[MySealedTrait]) derives Schema
+
+        case class Child[T <: MySealedTrait](test: T) derives Schema
+
+        sealed trait MySealedTrait derives Schema
+
+        object MySealedTrait {
+          case class Foo(foo: Int) extends MySealedTrait
+
+          case class Bar(bar: String) extends MySealedTrait
+        }
+
+        val value1 = Parent(Child(MySealedTrait.Foo(1)))
+        val value2 = Parent(Child(MySealedTrait.Bar("WWW")))
+        val schema = Schema[Parent]
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
+        assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))
+      },
       test("derives schema for case class with opaque subtype fields") {
         import Id.schema
 
