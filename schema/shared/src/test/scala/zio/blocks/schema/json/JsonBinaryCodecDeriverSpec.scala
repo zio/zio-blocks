@@ -2146,6 +2146,32 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Color]("""null""", "expected '\"' at: .") &&
         decodeError[Color](""""Pink"""", "illegal enum value \"Pink\" at: .")
       },
+      test("case object enumeration with key discriminator") {
+        val codec1 = Schema[TrafficLight].derive(JsonBinaryCodecDeriver.withEnumValuesAsStrings(false))
+        val codec2 = Schema[Color].derive(JsonBinaryCodecDeriver.withEnumValuesAsStrings(false))
+        roundTrip(TrafficLight.Green, """{"Green":{}}""", codec1) &&
+        roundTrip(TrafficLight.Yellow, """{"Yellow":{}}""", codec1) &&
+        roundTrip(TrafficLight.Red, """{"Rеd":{}}""", codec1) &&
+        roundTrip(Color.Green, """{"Green":{}}""", codec2) &&
+        roundTrip(Color.Yellow, """{"Yellow":{}}""", codec2) &&
+        roundTrip(Color.Orаnge, """{"Orаnge":{}}""", codec2) &&
+        roundTrip(Color.Red, """{"Red":{}}""", codec2)
+      },
+      test("case object enumeration with field discriminator") {
+        val codec1 = Schema[TrafficLight].derive(
+          JsonBinaryCodecDeriver.withEnumValuesAsStrings(false).withDiscriminatorKind(DiscriminatorKind.Field("$type"))
+        )
+        val codec2 = Schema[Color].derive(
+          JsonBinaryCodecDeriver.withEnumValuesAsStrings(false).withDiscriminatorKind(DiscriminatorKind.Field("$type"))
+        )
+        roundTrip(TrafficLight.Green, """{"$type":"Green"}""", codec1) &&
+        roundTrip(TrafficLight.Yellow, """{"$type":"Yellow"}""", codec1) &&
+        roundTrip(TrafficLight.Red, """{"$type":"Rеd"}""", codec1) &&
+        roundTrip(Color.Green, """{"$type":"Green"}""", codec2) &&
+        roundTrip(Color.Yellow, """{"$type":"Yellow"}""", codec2) &&
+        roundTrip(Color.Orаnge, """{"$type":"Orаnge"}""", codec2) &&
+        roundTrip(Color.Red, """{"$type":"Red"}""", codec2)
+      },
       test("ADT with case key renaming using case name mapper") {
         roundTrip[RGBColor](
           RGBColor.Green,
