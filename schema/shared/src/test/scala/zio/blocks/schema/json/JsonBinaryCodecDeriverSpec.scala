@@ -1540,6 +1540,12 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
         roundTrip(Record4((), None), """{"hіdden":null,"optKеy":null}""", codec)
       },
+      test("record with custom codec that require decoding of fields with empty option values") {
+        val codec = Schema[Record4].derive(JsonBinaryCodecDeriver.withRequireOptionFields(true))
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":null,"optKеy":null}""", codec) &&
+        decodeError("""{"hіdden":null}""", "missing required field \"optKеy\" at: .", codec)
+      },
       test("record with custom codecs of different field mapping") {
         roundTrip(
           CamelPascalSnakeKebabCases(1, 2, 3, 4, 5, 6, 7, 8),

@@ -19,7 +19,8 @@ object JsonBinaryCodecDeriver
       discriminatorKind = DiscriminatorKind.Key,
       rejectExtraFields = false,
       enumValuesAsStrings = true,
-      transientNone = true
+      transientNone = true,
+      requireOptionFields = false
     )
 
 class JsonBinaryCodecDeriver private[json] (
@@ -28,7 +29,8 @@ class JsonBinaryCodecDeriver private[json] (
   discriminatorKind: DiscriminatorKind,
   rejectExtraFields: Boolean,
   enumValuesAsStrings: Boolean,
-  transientNone: Boolean
+  transientNone: Boolean,
+  requireOptionFields: Boolean
 ) extends Deriver[JsonBinaryCodec] {
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
@@ -45,13 +47,17 @@ class JsonBinaryCodecDeriver private[json] (
 
   def withTransientNone(transientNone: Boolean): JsonBinaryCodecDeriver = copy(transientNone = transientNone)
 
+  def withRequireOptionFields(requireOptionFields: Boolean): JsonBinaryCodecDeriver =
+    copy(requireOptionFields = requireOptionFields)
+
   private def copy(
     fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
     discriminatorKind: DiscriminatorKind = discriminatorKind,
     rejectExtraFields: Boolean = rejectExtraFields,
     enumValuesAsStrings: Boolean = enumValuesAsStrings,
-    transientNone: Boolean = transientNone
+    transientNone: Boolean = transientNone,
+    requireOptionFields: Boolean = requireOptionFields
   ) =
     new JsonBinaryCodecDeriver(
       fieldNameMapper,
@@ -59,7 +65,8 @@ class JsonBinaryCodecDeriver private[json] (
       discriminatorKind,
       rejectExtraFields,
       enumValuesAsStrings,
-      transientNone
+      transientNone,
+      requireOptionFields
     )
 
   override def derivePrimitive[F[_, _], A](
@@ -1324,13 +1331,14 @@ class JsonBinaryCodecDeriver private[json] (
     else None
   }
 
-  private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isVariant && {
-    val variant  = reflect.asVariant.get
-    val typeName = reflect.typeName
-    val cases    = variant.cases
-    typeName.namespace == Namespace.scala && typeName.name == "Option" &&
-    cases.length == 2 && cases(1).name == "Some"
-  }
+  private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+    !requireOptionFields && reflect.isVariant && {
+      val variant  = reflect.asVariant.get
+      val typeName = reflect.typeName
+      val cases    = variant.cases
+      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
+      cases.length == 2 && cases(1).name == "Some"
+    }
 
   private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isRecord && {
     val typeName = reflect.typeName
