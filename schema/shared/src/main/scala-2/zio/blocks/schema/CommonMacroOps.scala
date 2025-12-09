@@ -9,22 +9,9 @@ private[schema] object CommonMacroOps {
 
   def typeArgs(c: blackbox.Context)(tpe: c.Type): List[c.Type] = tpe.typeArgs.map(_.dealias)
 
-  def isEnumOrModuleValue(c: blackbox.Context)(tpe: c.Type): Boolean = tpe.typeSymbol.isModuleClass
-
-  def isSealedTraitOrAbstractClass(c: blackbox.Context)(tpe: c.Type): Boolean = tpe.typeSymbol.isClass && {
-    val classSymbol = tpe.typeSymbol.asClass
-    classSymbol.isSealed && (classSymbol.isAbstract || classSymbol.isTrait)
-  }
-
-  def isNonAbstractScalaClass(c: blackbox.Context)(tpe: c.Type): Boolean =
-    tpe.typeSymbol.isClass && !tpe.typeSymbol.isAbstract && !tpe.typeSymbol.isJava
-
-  def subTypes(c: blackbox.Context)(tpe: c.Type): List[c.Type] = {
+  def directSubTypes(c: blackbox.Context)(tpe: c.Type): List[c.Type] = {
     import c.universe._
 
-    val seen                                        = new mutable.HashSet[c.Type]
-    val orderedLeaves                               = new mutable.ListBuffer[c.Type]
-    val orderedIntermediates                        = new mutable.ListBuffer[c.Type]
     implicit val positionOrdering: Ordering[Symbol] =
       (x: Symbol, y: Symbol) => {
         val xPos  = x.pos
@@ -41,56 +28,37 @@ private[schema] object CommonMacroOps {
         }
         diff
       }
-
-    def directSubTypes(tpe: c.Type): List[c.Type] = {
-      val tpeClass         = tpe.typeSymbol.asClass
-      val tpeTypeArgs      = typeArgs(c)(tpe)
-      var tpeParamsAndArgs = Map.empty[String, Type]
-      if (tpeTypeArgs ne Nil) {
-        tpeClass.typeParams.zip(tpeTypeArgs).foreach { case (typeParam, tpeTypeArg) =>
-          tpeParamsAndArgs = tpeParamsAndArgs.updated(typeParam.toString, tpeTypeArg)
-        }
+    val tpeClass         = tpe.typeSymbol.asClass
+    val tpeTypeArgs      = typeArgs(c)(tpe)
+    var tpeParamsAndArgs = Map.empty[String, Type]
+    if (tpeTypeArgs ne Nil) {
+      tpeClass.typeParams.zip(tpeTypeArgs).foreach { case (typeParam, tpeTypeArg) =>
+        tpeParamsAndArgs = tpeParamsAndArgs.updated(typeParam.toString, tpeTypeArg)
       }
-      val subTypes = new mutable.ListBuffer[Type]
-      tpeClass.knownDirectSubclasses.toArray
-        .sortInPlace()
-        .foreach { symbol =>
-          val classSymbol = symbol.asClass
-          var classType   = classSymbol.toType
-          if (tpeTypeArgs ne Nil) {
-            val typeParams = classSymbol.typeParams
-            classType = classType.substituteTypes(
-              typeParams,
-              typeParams.map { typeParam =>
-                tpeParamsAndArgs.get(typeParam.toString) match {
-                  case Some(typeArg) => typeArg
-                  case _             =>
-                    fail(c)(
-                      s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
-                    )
-                }
-              }
-            )
-          }
-          subTypes.addOne(classType)
-        }
-      subTypes.toList
     }
-
-    def collectRecursively(tpe: c.Type): Unit =
-      if (isNonAbstractScalaClass(c)(tpe)) {
-        if (seen.add(tpe)) orderedLeaves.addOne(tpe)
-      } else
-        directSubTypes(tpe).foreach { subTpe =>
-          if (isEnumOrModuleValue(c)(subTpe) || isNonAbstractScalaClass(c)(subTpe)) {
-            if (seen.add(subTpe)) orderedLeaves.addOne(subTpe)
-          } else if (isSealedTraitOrAbstractClass(c)(subTpe)) {
-            collectRecursively(subTpe)
-            if (seen.add(subTpe)) orderedIntermediates.addOne(subTpe)
-          } else fail(c)("Only sealed intermediate traits or abstract classes are supported.")
+    val subTypes = new mutable.ListBuffer[Type]
+    tpeClass.knownDirectSubclasses.toArray
+      .sortInPlace()
+      .foreach { symbol =>
+        val classSymbol = symbol.asClass
+        var classType   = classSymbol.toType
+        if (tpeTypeArgs ne Nil) {
+          val typeParams = classSymbol.typeParams
+          classType = classType.substituteTypes(
+            typeParams,
+            typeParams.map { typeParam =>
+              tpeParamsAndArgs.get(typeParam.toString) match {
+                case Some(typeArg) => typeArg
+                case _             =>
+                  fail(c)(
+                    s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
+                  )
+              }
+            }
+          )
         }
-
-    collectRecursively(tpe)
-    (orderedLeaves.addAll(orderedIntermediates)).toList
+        subTypes.addOne(classType)
+      }
+    subTypes.toList
   }
 }
