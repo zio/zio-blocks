@@ -1172,27 +1172,12 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       },
-      test("doesn't generate schema for ADT-base with non-sealed abstract subtypes") {
-        typeCheck {
-          """sealed trait X
-
-             sealed abstract class AX extends X
-             
-             abstract class BX extends X
-            
-             case class A(i: Int) extends AX
-            
-             case object B extends BX
-            
-             Schema.derived[X]"""
-        }.map(assert(_)(isLeft(containsString("Only sealed intermediate traits or abstract classes are supported."))))
-      },
       test("doesn't generate schema for ADT-base without non-abstract subtypes") {
         typeCheck {
           """sealed trait X
 
              Schema.derived[X]"""
-        }.map(assert(_)(isLeft(containsString("Cannot find leaf sub-classes for ADT base 'X'."))))
+        }.map(assert(_)(isLeft(containsString("Cannot find sub-types for ADT base 'X'."))))
       }
     ),
     suite("Reflect.Sequence")(

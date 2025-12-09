@@ -36,7 +36,7 @@ private object SchemaVersionSpecific {
 
     def typeArgs(tpe: Type): List[Type] = CommonMacroOps.typeArgs(c)(tpe)
 
-    def subTypes(tpe: Type): List[Type] = CommonMacroOps.subTypes(c)(tpe)
+    def directSubTypes(tpe: Type): List[Type] = CommonMacroOps.directSubTypes(c)(tpe)
 
     def isEnumOrModuleValue(tpe: Type): Boolean = tpe.typeSymbol.isModuleClass
 
@@ -107,7 +107,7 @@ private object SchemaVersionSpecific {
           val nestedTpes_ = tpe :: nestedTpes
           if (tpe <:< typeOf[Option[?]] || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
             typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
-          } else if (isSealedTraitOrAbstractClass(tpe)) subTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
+          } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
           else if (isNonAbstractScalaClass(tpe)) {
             val tpeParams     = primaryConstructor(tpe).paramLists
             val tpeTypeArgs   = typeArgs(tpe)
@@ -483,8 +483,8 @@ private object SchemaVersionSpecific {
     }
 
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {
-      val subtypes = subTypes(tpe)
-      if (subtypes.isEmpty) fail(s"Cannot find leaf sub-classes for ADT base '$tpe'.")
+      val subtypes = directSubTypes(tpe)
+      if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
       val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
       val maxCommonPrefixLength = {
         val minFullTermName = fullTermNames.min
