@@ -691,7 +691,7 @@ object AvroFormat
                   val caseAvroSchemas = new java.util.ArrayList[AvroSchema](len)
                   var idx             = 0
                   while (idx < len) {
-                    if (!cases(idx).value.isVariant) caseAvroSchemas.add(codecs(idx).avroSchema)
+                    caseAvroSchemas.add(codecs(idx).avroSchema)
                     idx += 1
                   }
                   AvroSchema.createUnion(caseAvroSchemas)

@@ -18,15 +18,6 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip[GenericTuple4]((1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple, 4)
       }
     ),
-    suite("nested ADTs")(
-      test("constant values") {
-        avroSchema[Foo](
-          "[{\"type\":\"record\",\"name\":\"Foo1\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Bar1\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec\",\"fields\":[]}]"
-        ) &&
-        roundTrip[Foo](Foo1, 1) &&
-        roundTrip[Foo](Bar1, 1)
-      }
-    ),
     suite("enums")(
       test("constant values") {
         avroSchema[TrafficLight](
@@ -91,12 +82,4 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
 
     case Node(value: T, next: LinkedList[T])
   }
-
-  sealed trait Foo derives Schema
-
-  case object Foo1 extends Foo
-
-  sealed trait Bar extends Foo
-
-  case object Bar1 extends Bar
 }

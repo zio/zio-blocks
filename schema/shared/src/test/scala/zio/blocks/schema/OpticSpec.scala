@@ -226,7 +226,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case1"))),
                     prefix = DynamicOptic(Vector(Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -249,7 +249,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case1"))),
                     prefix = DynamicOptic(Vector(Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1078,7 +1078,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1101,7 +1101,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1204,7 +1204,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
             hasError(
-              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Case4"
+              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
@@ -1325,21 +1325,21 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant1.c2_r3_r1.check(Case3(Case1(0.1))))(
           isSome(
             hasError(
-              "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Case3"
+              "During attempted access at .when[Case2].r3.r1, encountered an unexpected case at .when[Case2]: expected Case2, but got Variant2"
             )
           )
         ) &&
         assert(Case2.r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
             hasError(
-              "During attempted access at .r3.v1.when[Case1], encountered an unexpected case at .r3.v1.when[Case1]: expected Case1, but got Case4"
+              "During attempted access at .r3.v1.when[Case1], encountered an unexpected case at .r3.v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Variant1.c2_r3_v1_c1.check(Case2(Record3(null, null, Case4(Nil)))))(
           isSome(
             hasError(
-              "During attempted access at .when[Case2].r3.v1.when[Case1], encountered an unexpected case at .when[Case2].r3.v1.when[Case1]: expected Case1, but got Case4"
+              "During attempted access at .when[Case2].r3.v1.when[Case1], encountered an unexpected case at .when[Case2].r3.v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
@@ -1381,14 +1381,14 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case3.v1_c1_d_left.check(Case3(Case4(Nil))))(
           isSome(
             hasError(
-              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Case4"
+              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
         assert(Case3.v1_c1_d_right.check(Case3(Case4(Nil))))(
           isSome(
             hasError(
-              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Case4"
+              "During attempted access at .v1.when[Case1].d, encountered an unexpected case at .v1.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
@@ -1485,7 +1485,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case2",
-                    actualCase = "Case3",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
                     prefix = DynamicOptic(Vector(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
@@ -1503,7 +1503,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
                     prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1521,7 +1521,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
                     prefix = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1629,7 +1629,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1647,7 +1647,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1821,7 +1821,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case2",
-                    actualCase = "Case3",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
                     prefix = DynamicOptic(Vector(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
@@ -1839,7 +1839,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
                     prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1857,7 +1857,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
                     prefix = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1965,7 +1965,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -1983,7 +1983,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -2177,7 +2177,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case2",
-                    actualCase = "Case3",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1"))),
                     prefix = DynamicOptic(Vector(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
@@ -2195,7 +2195,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
                     prefix = DynamicOptic(Vector(Field("r3"), Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -2213,7 +2213,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case2",
-                    actualCase = "Case3",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("v1"), Case("Case1"))),
                     prefix = DynamicOptic(Vector(Case("Case2"))),
                     actualValue = Case3(Case1(0.1))
@@ -2321,7 +2321,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -2339,7 +2339,7 @@ object OpticSpec extends ZIOSpecDefault {
                 errors = ::(
                   UnexpectedCase(
                     expectedCase = "Case1",
-                    actualCase = "Case4",
+                    actualCase = "Variant2",
                     full = DynamicOptic(Vector(Field("v1"), Case("Case1"), Field("d"))),
                     prefix = DynamicOptic(Vector(Field("v1"), Case("Case1"))),
                     actualValue = Case4(Nil)
@@ -2672,7 +2672,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Collections.mkv1_c1_d.check(Map(Case2(null) -> 1, Case6(null) -> 2)))(
           isSome(
             hasError(
-              "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case6"
+              "During attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Case2\nDuring attempted access at .eachKey.when[Case1].d, encountered an unexpected case at .eachKey.when[Case1]: expected Case1, but got Variant2"
             )
           )
         ) &&
