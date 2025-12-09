@@ -18,7 +18,8 @@ object JsonBinaryCodecDeriver
       caseNameMapper = NameMapper.Identity,
       discriminatorKind = DiscriminatorKind.Key,
       rejectExtraFields = false,
-      enumValuesAsStrings = true
+      enumValuesAsStrings = true,
+      transientNone = true
     )
 
 class JsonBinaryCodecDeriver private[json] (
@@ -26,7 +27,8 @@ class JsonBinaryCodecDeriver private[json] (
   caseNameMapper: NameMapper,
   discriminatorKind: DiscriminatorKind,
   rejectExtraFields: Boolean,
-  enumValuesAsStrings: Boolean
+  enumValuesAsStrings: Boolean,
+  transientNone: Boolean
 ) extends Deriver[JsonBinaryCodec] {
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
@@ -41,19 +43,23 @@ class JsonBinaryCodecDeriver private[json] (
   def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): JsonBinaryCodecDeriver =
     copy(enumValuesAsStrings = enumValuesAsStrings)
 
+  def withTransientNone(transientNone: Boolean): JsonBinaryCodecDeriver = copy(transientNone = transientNone)
+
   private def copy(
     fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
     discriminatorKind: DiscriminatorKind = discriminatorKind,
     rejectExtraFields: Boolean = rejectExtraFields,
-    enumValuesAsStrings: Boolean = enumValuesAsStrings
+    enumValuesAsStrings: Boolean = enumValuesAsStrings,
+    transientNone: Boolean = transientNone
   ) =
     new JsonBinaryCodecDeriver(
       fieldNameMapper,
       caseNameMapper,
       discriminatorKind,
       rejectExtraFields,
-      enumValuesAsStrings
+      enumValuesAsStrings,
+      transientNone
     )
 
   override def derivePrimitive[F[_, _], A](
@@ -173,14 +179,12 @@ class JsonBinaryCodecDeriver private[json] (
   type Map[_, _]
   type TC[_]
 
-  private[this] val recursiveRecordCache =
-    new ThreadLocal[java.util.HashMap[TypeName[?], Array[FieldInfo]]] {
-      override def initialValue: java.util.HashMap[TypeName[?], Array[FieldInfo]] = new java.util.HashMap
-    }
-  private[this] val discriminatorFields =
-    new ThreadLocal[List[(String, String)]] {
-      override def initialValue: List[(String, String)] = Nil
-    }
+  private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[TypeName[?], Array[FieldInfo]]] {
+    override def initialValue: java.util.HashMap[TypeName[?], Array[FieldInfo]] = new java.util.HashMap
+  }
+  private[this] val discriminatorFields = new ThreadLocal[List[(String, String)]] {
+    override def initialValue: List[(String, String)] = Nil
+  }
   private[this] val unitCodec = new JsonBinaryCodec[Unit](JsonBinaryCodec.unitType) {
     def decodeValue(in: JsonReader, default: Unit): Unit =
       if (in.isNextToken('n')) in.readNullOrError((), "expected null")
@@ -306,8 +310,7 @@ class JsonBinaryCodecDeriver private[json] (
       }
     }
 
-    override def encodeKey(x: java.time.DayOfWeek, out: JsonWriter): Unit =
-      out.writeNonEscapedAsciiKey(x.toString)
+    override def encodeKey(x: java.time.DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
   }
   private[this] val durationCodec = new JsonBinaryCodec[java.time.Duration]() {
     def decodeValue(in: JsonReader, default: java.time.Duration): java.time.Duration = in.readDuration(default)
@@ -1184,7 +1187,7 @@ class JsonBinaryCodecDeriver private[json] (
                 val codec  = field.codec
                 if (field.isOptional) {
                   val value = regs.getObject(offset, 0)
-                  if (value ne None) {
+                  if (!transientNone || (value ne None)) {
                     if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
                     else out.writeKey(name)
                     codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)

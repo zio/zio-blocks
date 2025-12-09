@@ -1522,8 +1522,9 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           """{"i":1,"ln":[{"i":2,"ln":[{"i":3,"ln":[]}]}]}"""
         )
       },
-      test("record with unit and variant fields") {
+      test("record with unit and optional fields") {
         roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""") &&
+        roundTrip(Record4((), None), """{"hіdden":null}""") &&
         roundTrip(
           Record4((), Some("VVV")),
           """{
@@ -1532,8 +1533,12 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             |}""".stripMargin,
           readerConfig = ReaderConfig,
           writerConfig = WriterConfig.withIndentionStep(2)
-        ) &&
-        roundTrip(Record4((), None), """{"hіdden":null}""")
+        )
+      },
+      test("record with custom codec that enforces encoding of fields with empty option values") {
+        val codec = Schema[Record4].derive(JsonBinaryCodecDeriver.withTransientNone(false))
+        roundTrip(Record4((), Some("VVV")), """{"hіdden":null,"optKеy":"VVV"}""", codec) &&
+        roundTrip(Record4((), None), """{"hіdden":null,"optKеy":null}""", codec)
       },
       test("record with custom codecs of different field mapping") {
         roundTrip(
