@@ -1519,7 +1519,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       test("recursive record") {
         roundTrip(
           Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
-          """{"i":1,"ln":[{"i":2,"ln":[{"i":3,"ln":[]}]}]}"""
+          """{"i":1,"ln":[{"i":2,"ln":[{"i":3}]}]}"""
         )
       },
       test("record with unit and optional fields") {
@@ -1937,7 +1937,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("recursive record with a custom codec") {
         val codec = Recursive.schema
-          .deriving(JsonBinaryCodecDeriver)
+          .deriving(JsonBinaryCodecDeriver.withTransientEmptyCollection(false).withRequireCollectionFields(true))
           .instance(
             Recursive.i,
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
@@ -1950,6 +1950,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(
           Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
           """{"i":"1","ln":[{"i":"2","ln":[{"i":"3","ln":[]}]}]}""",
+          codec
+        ) &&
+        decodeError(
+          """{"i":"1","ln":[{"i":"2","ln":[{"i":"3"}]}]}""",
+          "missing required field \"ln\" at: .ln.at(0).ln.at(0)",
           codec
         )
       }
@@ -2037,7 +2042,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
             Recursive(4, List(Recursive(5, List(Recursive(6, Nil)))))
           ),
-          """[{"i":1,"ln":[{"i":2,"ln":[{"i":3,"ln":[]}]}]},{"i":4,"ln":[{"i":5,"ln":[{"i":6,"ln":[]}]}]}]"""
+          """[{"i":1,"ln":[{"i":2,"ln":[{"i":3}]}]},{"i":4,"ln":[{"i":5,"ln":[{"i":6}]}]}]"""
         )
       }
     ),
@@ -2140,7 +2145,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             1 -> Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
             2 -> Recursive(4, List(Recursive(5, List(Recursive(6, Nil)))))
           ),
-          """{"1":{"i":1,"ln":[{"i":2,"ln":[{"i":3,"ln":[]}]}]},"2":{"i":4,"ln":[{"i":5,"ln":[{"i":6,"ln":[]}]}]}}"""
+          """{"1":{"i":1,"ln":[{"i":2,"ln":[{"i":3}]}]},"2":{"i":4,"ln":[{"i":5,"ln":[{"i":6}]}]}}"""
         )
       },
       test("nested maps") {
