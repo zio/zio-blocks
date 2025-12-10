@@ -20,7 +20,9 @@ object JsonBinaryCodecDeriver
       rejectExtraFields = false,
       enumValuesAsStrings = true,
       transientNone = true,
-      requireOptionFields = false
+      requireOptionFields = false,
+      transientEmptyCollection = true,
+      requireCollectionFields = false
     )
 
 class JsonBinaryCodecDeriver private[json] (
@@ -30,7 +32,9 @@ class JsonBinaryCodecDeriver private[json] (
   rejectExtraFields: Boolean,
   enumValuesAsStrings: Boolean,
   transientNone: Boolean,
-  requireOptionFields: Boolean
+  requireOptionFields: Boolean,
+  transientEmptyCollection: Boolean,
+  requireCollectionFields: Boolean
 ) extends Deriver[JsonBinaryCodec] {
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
@@ -50,6 +54,12 @@ class JsonBinaryCodecDeriver private[json] (
   def withRequireOptionFields(requireOptionFields: Boolean): JsonBinaryCodecDeriver =
     copy(requireOptionFields = requireOptionFields)
 
+  def withTransientEmptyCollection(transientEmptyCollection: Boolean): JsonBinaryCodecDeriver =
+    copy(transientEmptyCollection = transientEmptyCollection)
+
+  def withRequireCollectionFields(requireCollectionFields: Boolean): JsonBinaryCodecDeriver =
+    copy(requireCollectionFields = requireCollectionFields)
+
   private def copy(
     fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
@@ -57,7 +67,9 @@ class JsonBinaryCodecDeriver private[json] (
     rejectExtraFields: Boolean = rejectExtraFields,
     enumValuesAsStrings: Boolean = enumValuesAsStrings,
     transientNone: Boolean = transientNone,
-    requireOptionFields: Boolean = requireOptionFields
+    requireOptionFields: Boolean = requireOptionFields,
+    transientEmptyCollection: Boolean = transientEmptyCollection,
+    requireCollectionFields: Boolean = requireCollectionFields
   ) =
     new JsonBinaryCodecDeriver(
       fieldNameMapper,
@@ -66,7 +78,9 @@ class JsonBinaryCodecDeriver private[json] (
       rejectExtraFields,
       enumValuesAsStrings,
       transientNone,
-      requireOptionFields
+      requireOptionFields,
+      transientEmptyCollection,
+      requireCollectionFields
     )
 
   override def derivePrimitive[F[_, _], A](
@@ -850,7 +864,7 @@ class JsonBinaryCodecDeriver private[json] (
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
             val name         = getName(field.modifiers, fieldNameMapper(field.name))
-            infos(idx) = new FieldInfo(name, offset, codec, isOptional(fieldReflect))
+            infos(idx) = new FieldInfo(name, offset, codec, isOptional(fieldReflect), isCollection(fieldReflect))
             offset += codec.valueOffset
             idx += 1
           }
@@ -1013,83 +1027,60 @@ class JsonBinaryCodecDeriver private[json] (
           }
         } else {
           new JsonBinaryCodec[A]() {
-            private[this] val deconstructor                    = binding.deconstructor
-            private[this] val constructor                      = binding.constructor
-            private[this] val fieldInfos                       = infos
-            private[this] val map                              = new StringToIntMap(fieldInfos.length)
-            private[this] var optionalFieldOffsets: Array[Int] = null
-            private[this] var reqInit                          = 0L
-            private[this] val usedRegisters                    = offset
-            private[this] val doReject                         = rejectExtraFields
-            private[this] val discriminatorField               = discriminatorFields.get.headOption.orNull
+            private[this] val deconstructor       = binding.deconstructor
+            private[this] val constructor         = binding.constructor
+            private[this] val fieldInfos          = infos
+            private[this] var map: StringToIntMap = null
+            private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
+            private[this] var required            = 0L
+            private[this] val usedRegisters       = offset
+            private[this] val doReject            = rejectExtraFields
 
             private[this] def init(): Unit = {
-              val len = fieldInfos.length
-              var req = 0L
-              if (len != 0) req = -1L >>> (64 - len)
-              var optionalIdx, idx = 0
+              val len      = fieldInfos.length
+              val map      = new StringToIntMap(fieldInfos.length)
+              var required = 0L
+              var idx      = 0
               while (idx < len) {
                 val field = fieldInfos(idx)
                 map.put(field.name, idx)
-                if (field.isOptional) {
-                  req ^= 1L << idx
-                  optionalIdx += 1
-                }
+                if (!(field.isOptional || field.isCollection)) required ^= 1L << idx
                 idx += 1
               }
-              val optionalFieldOffsets = new Array[Int](optionalIdx)
-              optionalIdx = 0
-              idx = 0
-              while (idx < len) {
-                val field = fieldInfos(idx)
-                if (field.isOptional) {
-                  optionalFieldOffsets(optionalIdx) = field.offset
-                  optionalIdx += 1
-                }
-                idx += 1
-              }
-              this.optionalFieldOffsets = optionalFieldOffsets
-              this.reqInit = req
+              this.required = required
+              this.map = map
             }
 
             override def decodeValue(in: JsonReader, default: A): A =
               if (in.isNextToken('{')) {
-                val regs = Registers(usedRegisters)
+                if (map eq null) init()
+                val regs        = Registers(usedRegisters)
+                val len         = fieldInfos.length
+                var seen        = 0L
+                var idx, keyLen = -1
                 if (!in.isNextToken('}')) {
                   in.rollbackToken()
-                  if (optionalFieldOffsets eq null) init()
-                  var len = optionalFieldOffsets.length
-                  var idx = 0
-                  while (idx < len) {
-                    regs.setObject(optionalFieldOffsets(idx), 0, None)
-                    idx += 1
-                  }
-                  len = fieldInfos.length
-                  var req             = reqInit
-                  var currIdx, keyLen = -1
                   while (keyLen < 0 || in.isNextToken(',')) {
                     keyLen = in.readKeyAsCharBuf()
                     var field: FieldInfo = null
                     if (
                       len > 0 && {
-                        currIdx += 1
-                        if (currIdx == len) currIdx = 0
-                        field = fieldInfos(currIdx)
-                        if (!in.isCharBufEqualsTo(keyLen, field.name)) {
-                          idx = map.get(in, keyLen)
-                          if (idx >= 0) {
+                        idx += 1
+                        if (idx == len) idx = 0
+                        field = fieldInfos(idx)
+                        in.isCharBufEqualsTo(keyLen, field.name) || {
+                          val keyIdx = map.get(in, keyLen)
+                          (keyIdx >= 0) && {
+                            idx = keyIdx
                             field = fieldInfos(idx)
-                            currIdx = idx
-                          } else field = null
+                            true
+                          }
                         }
-                        field ne null
                       }
                     ) {
-                      if (!field.isOptional) {
-                        val mask = 1L << currIdx
-                        if ((req & mask) == 0) in.duplicatedKeyError(keyLen)
-                        req ^= mask
-                      }
+                      val mask = 1L << idx
+                      if ((seen & mask) != 0) in.duplicatedKeyError(keyLen)
+                      seen ^= mask
                       try {
                         val codec  = field.codec
                         val offset = field.offset
@@ -1167,12 +1158,24 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                       } catch {
                         case error if NonFatal(error) =>
-                          in.decodeError(new DynamicOptic.Node.Field(fields(currIdx).name), error)
+                          in.decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                       }
                     } else skipOrReject(in, keyLen)
                   }
                   if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
-                  if (req != 0) missingRequiredFieldsError(in, req)
+                  val diff = ~seen & required
+                  if (diff != 0) missingRequiredFieldsError(in, diff)
+                }
+                idx = 0
+                while (idx < len) {
+                  if ((seen & (1L << idx)) == 0) {
+                    val field = fieldInfos(idx)
+                    if (field.isOptional) regs.setObject(field.offset, 0, None)
+                    else if (field.isCollection) {
+                      regs.setObject(field.offset, 0, field.codec.nullValue.asInstanceOf[AnyRef])
+                    }
+                  }
+                  idx += 1
                 }
                 constructor.construct(regs, 0)
               } else in.readNullOrTokenError(default, '{')
@@ -1195,6 +1198,13 @@ class JsonBinaryCodecDeriver private[json] (
                 if (field.isOptional) {
                   val value = regs.getObject(offset, 0)
                   if (!transientNone || (value ne None)) {
+                    if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
+                    else out.writeKey(name)
+                    codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
+                  }
+                } else if (field.isCollection) {
+                  val value = regs.getObject(offset, 0)
+                  if (!transientEmptyCollection || value.asInstanceOf[Iterable[?]].nonEmpty) {
                     if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
                     else out.writeKey(name)
                     codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
@@ -1339,6 +1349,9 @@ class JsonBinaryCodecDeriver private[json] (
       typeName.namespace == Namespace.scala && typeName.name == "Option" &&
       cases.length == 2 && cases(1).name == "Some"
     }
+
+  private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
+    !requireCollectionFields && (reflect.isSequence || reflect.isMap)
 
   private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isRecord && {
     val typeName = reflect.typeName
@@ -1525,8 +1538,13 @@ abstract class Info(name: String) {
   }
 }
 
-private case class FieldInfo(name: String, offset: RegisterOffset, codec: JsonBinaryCodec[?], isOptional: Boolean)
-    extends Info(name) {
+private case class FieldInfo(
+  name: String,
+  offset: RegisterOffset,
+  codec: JsonBinaryCodec[?],
+  isOptional: Boolean,
+  isCollection: Boolean
+) extends Info(name) {
   val valueType: Int = codec.valueType
 }
 
