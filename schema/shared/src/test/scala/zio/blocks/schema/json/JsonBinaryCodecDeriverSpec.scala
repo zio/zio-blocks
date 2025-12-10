@@ -1704,16 +1704,79 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError("""{"big_int":null}""", "missing required field \"bigDec\" at: .", codec2) &&
         decodeError("""{"big_int":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
       },
-      test("record with fields that have default values and custom codec to require fields with default values") {
-        val codec1 = Schema[Record6].derive(
-          JsonBinaryCodecDeriver.withTransientDefaultValue(false)
-        )
-        val codec2 = Schema[Record6].derive(
-          JsonBinaryCodecDeriver.withRequireDefaultValueFields(true)
-        )
+      test("record with fields that have default values and custom codecs") {
+        val codec1 = Schema[Record6]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            Record6.bl,
+            new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
+              def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
+
+              def encodeValue(x: Boolean, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .instance(
+            Record6.b,
+            new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
+              def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
+
+              def encodeValue(x: Byte, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .instance(
+            Record6.sh,
+            new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
+              def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
+
+              def encodeValue(x: Short, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .instance(
+            Record6.i,
+            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
+              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+
+              def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .instance(
+            Record6.l,
+            new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
+              def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
+
+              def encodeValue(x: Long, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .instance(
+            Record6.f,
+            new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
+              def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
+
+              def encodeValue(x: Float, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .instance(
+            Record6.d,
+            new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
+              def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
+
+              def encodeValue(x: Double, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .instance(
+            Record6.c,
+            new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // expecting char code numbers (not one-char strings)
+              def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
+
+              def encodeValue(x: Char, out: JsonWriter): Unit = out.writeVal(x.toInt)
+            }
+          )
+          .derive
+        val codec2 = Schema[Record6].derive(JsonBinaryCodecDeriver.withTransientDefaultValue(false))
+        val codec3 = Schema[Record6].derive(JsonBinaryCodecDeriver.withRequireDefaultValueFields(true))
         roundTrip(
-          Record6(),
-          """{"bl":false,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"}""",
+          Record6(true, 2.toByte, 3.toShort, 4, 5L, 6.0f, 7.0, '8', "WWW"),
+          """{"bl":"true","b":"2","sh":"3","i":"4","l":"5","f":"6.0","d":"7.0","c":56,"s":"WWW"}""",
           codec1
         ) &&
         roundTrip(
@@ -1721,9 +1784,14 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           """{"bl":false,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"}""",
           codec2
         ) &&
-        decodeError("""{}""", "missing required field \"bl\" at: .", codec2) &&
-        decodeError("""{"bl":false}""", "missing required field \"b\" at: .", codec2) &&
-        decodeError("""{"bl":false,"s":"VVV"}""", "missing required field \"b\" at: .", codec2)
+        roundTrip(
+          Record6(),
+          """{"bl":false,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"}""",
+          codec3
+        ) &&
+        decodeError("""{}""", "missing required field \"bl\" at: .", codec3) &&
+        decodeError("""{"bl":false}""", "missing required field \"b\" at: .", codec3) &&
+        decodeError("""{"bl":false,"s":"VVV"}""", "missing required field \"b\" at: .", codec3)
       },
       test("tuple record with a custom codec for primitives injected by type names") {
         val codec = Schema
@@ -1822,13 +1890,13 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           )
           .derive
         roundTrip(
-          Record3(UserId(1234567890123456789L), Email("backup@gmail.com"), Currency.getInstance("USD")),
+          Record3(UserId(1234567890123456789L), Email("backup@gmail.com"), Currency.getInstance("USD"), Map.empty),
           """{"userId":1234567890123456789,"email":"backup@gmail.com","currency":"USD"}""",
           codec
         ) &&
         decode(
           """{"userId":1234567890123456789,"email":"backup@gmail.com","currency":null}""",
-          Record3(UserId(1234567890123456789L), Email("backup@gmail.com"), Currency.getInstance("USD")),
+          Record3(UserId(1234567890123456789L), Email("backup@gmail.com"), Currency.getInstance("USD"), Map.empty),
           codec
         )
       },
@@ -2349,8 +2417,16 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("as a record field") {
         roundTrip[Record3](
-          Record3(UserId(1234567890123456789L), Email("backup@gmail.com"), Currency.getInstance("USD")),
-          """{"userId":1234567890123456789,"email":"backup@gmail.com","currency":"USD"}"""
+          Record3(
+            UserId(1234567890123456789L),
+            Email("backup@gmail.com"),
+            Currency.getInstance("USD"),
+            Map(
+              Currency.getInstance("USD") -> "VVV",
+              Currency.getInstance("EUR") -> "WWW"
+            )
+          ),
+          """{"userId":1234567890123456789,"email":"backup@gmail.com","currency":"USD","accounts":{"USD":"VVV","EUR":"WWW"}}"""
         )
       },
       test("as a map key") {
@@ -2699,7 +2775,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     )
   }
 
-  case class Record3(userId: UserId, email: Email, currency: Currency)
+  case class Record3(userId: UserId, email: Email, currency: Currency, accounts: Map[Currency, String])
 
   object Record3 {
     implicit val schema: Schema[Record3] = Schema.derived
@@ -2737,6 +2813,16 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
   object Record6 extends CompanionOptics[Record6] {
     implicit val schema: Schema[Record6] = Schema.derived
+
+    val bl: Lens[Record6, Boolean] = $(_.bl)
+    val b: Lens[Record6, Byte]     = $(_.b)
+    val sh: Lens[Record6, Short]   = $(_.sh)
+    val i: Lens[Record6, Int]      = $(_.i)
+    val l: Lens[Record6, Long]     = $(_.l)
+    val f: Lens[Record6, Float]    = $(_.f)
+    val d: Lens[Record6, Double]   = $(_.d)
+    val c: Lens[Record6, Char]     = $(_.c)
+    val s: Lens[Record6, String]   = $(_.s)
   }
 
   case class Dynamic(primitive: DynamicValue, record: DynamicValue)

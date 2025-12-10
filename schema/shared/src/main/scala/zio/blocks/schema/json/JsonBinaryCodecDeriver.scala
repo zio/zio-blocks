@@ -878,14 +878,21 @@ class JsonBinaryCodecDeriver private[json] (
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
             val name         = getName(field.modifiers, fieldNameMapper(field.name))
-            infos(idx) = new FieldInfo(
-              name,
-              offset,
-              codec,
-              isOptional(fieldReflect),
-              isCollection(fieldReflect),
-              defaultValueConstructor(fieldReflect)
-            )
+            val isOpt        = isOptional(fieldReflect)
+            val isColl       = isCollection(fieldReflect)
+            val defaultValue =
+              if (requireDefaultValueFields) None
+              else
+                {
+                  if (fieldReflect.isPrimitive) fieldReflect.asPrimitive.get.primitiveBinding
+                  else if (fieldReflect.isRecord) fieldReflect.asRecord.get.recordBinding
+                  else if (fieldReflect.isVariant) fieldReflect.asVariant.get.variantBinding
+                  else if (fieldReflect.isSequence) fieldReflect.asSequenceUnknown.get.sequence.seqBinding
+                  else if (fieldReflect.isMap) fieldReflect.asMapUnknown.get.map.mapBinding
+                  else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
+                  else fieldReflect.asDynamic.get.dynamicBinding
+                }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
+            infos(idx) = new FieldInfo(name, offset, codec, isOpt, isColl, defaultValue)
             offset += codec.valueOffset
             idx += 1
           }
@@ -1051,8 +1058,8 @@ class JsonBinaryCodecDeriver private[json] (
             private[this] val deconstructor       = binding.deconstructor
             private[this] val constructor         = binding.constructor
             private[this] val fieldInfos          = infos
-            private[this] var map: StringToIntMap = null
             private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
+            private[this] var map: StringToIntMap = null
             private[this] var required            = 0L
             private[this] val usedRegisters       = offset
             private[this] val doReject            = rejectExtraFields
@@ -1190,8 +1197,8 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                   if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
                 }
-                val diff = ~seen & required
-                if (diff != 0) missingRequiredFieldsError(in, diff)
+                val missingRequired = ~seen & required
+                if (missingRequired != 0) missingRequiredFieldsError(in, missingRequired)
                 idx = 0
                 while (idx < len) {
                   if ((seen & (1L << idx)) == 0) {
@@ -1353,10 +1360,6 @@ class JsonBinaryCodecDeriver private[json] (
                         else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
                       }
                     case _ =>
-                      if (() != default) {
-                        writeKey(out, field)
-                        codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue((), out)
-                      }
                   }
                 }
                 idx += 1
@@ -1370,8 +1373,8 @@ class JsonBinaryCodecDeriver private[json] (
               else out.writeKey(name)
             }
 
-            private[this] def missingRequiredFieldsError(in: JsonReader, req: Long): Nothing =
-              in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(req)).name)
+            private[this] def missingRequiredFieldsError(in: JsonReader, missingRequired: Long): Nothing =
+              in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(missingRequired)).name)
 
             private[this] def skipOrReject(in: JsonReader, keyLen: Int): Unit =
               if (doReject && ((discriminatorField eq null) || !in.isCharBufEqualsTo(keyLen, discriminatorField._1))) {
@@ -1466,38 +1469,6 @@ class JsonBinaryCodecDeriver private[json] (
 
   private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireCollectionFields && (reflect.isSequence || reflect.isMap)
-
-  private[this] def defaultValueConstructor[F[_, _], A](reflect: Reflect[F, A]): Option[() => A] =
-    if (requireDefaultValueFields) None
-    else if (reflect.isPrimitive) {
-      val binding = reflect.asPrimitive.get.primitiveBinding
-      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
-       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
-    } else if (reflect.isRecord) {
-      val binding = reflect.asRecord.get.recordBinding
-      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
-       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
-    } else if (reflect.isVariant) {
-      val binding = reflect.asVariant.get.variantBinding
-      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
-       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
-    } else if (reflect.isSequence) {
-      val binding = reflect.asSequenceUnknown.get.sequence.seqBinding
-      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
-       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
-    } else if (reflect.isMap) {
-      val binding = reflect.asMapUnknown.get.map.mapBinding
-      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
-       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
-    } else if (reflect.isWrapper) {
-      val binding = reflect.asWrapperUnknown.get.wrapper.wrapperBinding
-      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
-       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
-    } else {
-      val binding = reflect.asDynamic.get.dynamicBinding
-      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
-       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
-    }
 
   private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isRecord && {
     val typeName = reflect.typeName
