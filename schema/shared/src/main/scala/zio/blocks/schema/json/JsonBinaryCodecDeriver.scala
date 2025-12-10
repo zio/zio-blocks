@@ -22,7 +22,9 @@ object JsonBinaryCodecDeriver
       transientNone = true,
       requireOptionFields = false,
       transientEmptyCollection = true,
-      requireCollectionFields = false
+      requireCollectionFields = false,
+      transientDefaultValue = true,
+      requireDefaultValueFields = false
     )
 
 class JsonBinaryCodecDeriver private[json] (
@@ -34,7 +36,9 @@ class JsonBinaryCodecDeriver private[json] (
   transientNone: Boolean,
   requireOptionFields: Boolean,
   transientEmptyCollection: Boolean,
-  requireCollectionFields: Boolean
+  requireCollectionFields: Boolean,
+  transientDefaultValue: Boolean,
+  requireDefaultValueFields: Boolean
 ) extends Deriver[JsonBinaryCodec] {
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
@@ -60,6 +64,12 @@ class JsonBinaryCodecDeriver private[json] (
   def withRequireCollectionFields(requireCollectionFields: Boolean): JsonBinaryCodecDeriver =
     copy(requireCollectionFields = requireCollectionFields)
 
+  def withTransientDefaultValue(transientDefaultValue: Boolean): JsonBinaryCodecDeriver =
+    copy(transientDefaultValue = transientDefaultValue)
+
+  def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): JsonBinaryCodecDeriver =
+    copy(requireDefaultValueFields = requireDefaultValueFields)
+
   private def copy(
     fieldNameMapper: NameMapper = fieldNameMapper,
     caseNameMapper: NameMapper = caseNameMapper,
@@ -69,7 +79,9 @@ class JsonBinaryCodecDeriver private[json] (
     transientNone: Boolean = transientNone,
     requireOptionFields: Boolean = requireOptionFields,
     transientEmptyCollection: Boolean = transientEmptyCollection,
-    requireCollectionFields: Boolean = requireCollectionFields
+    requireCollectionFields: Boolean = requireCollectionFields,
+    transientDefaultValue: Boolean = transientDefaultValue,
+    requireDefaultValueFields: Boolean = requireDefaultValueFields
   ) =
     new JsonBinaryCodecDeriver(
       fieldNameMapper,
@@ -80,7 +92,9 @@ class JsonBinaryCodecDeriver private[json] (
       transientNone,
       requireOptionFields,
       transientEmptyCollection,
-      requireCollectionFields
+      requireCollectionFields,
+      transientDefaultValue,
+      requireDefaultValueFields
     )
 
   override def derivePrimitive[F[_, _], A](
@@ -864,7 +878,14 @@ class JsonBinaryCodecDeriver private[json] (
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
             val name         = getName(field.modifiers, fieldNameMapper(field.name))
-            infos(idx) = new FieldInfo(name, offset, codec, isOptional(fieldReflect), isCollection(fieldReflect))
+            infos(idx) = new FieldInfo(
+              name,
+              offset,
+              codec,
+              isOptional(fieldReflect),
+              isCollection(fieldReflect),
+              defaultValueConstructor(fieldReflect)
+            )
             offset += codec.valueOffset
             idx += 1
           }
@@ -1035,6 +1056,9 @@ class JsonBinaryCodecDeriver private[json] (
             private[this] var required            = 0L
             private[this] val usedRegisters       = offset
             private[this] val doReject            = rejectExtraFields
+            private[this] val skipNone            = transientNone
+            private[this] val skipEmptyCollection = transientEmptyCollection
+            private[this] val skipDefaultValue    = transientDefaultValue
 
             private[this] def init(): Unit = {
               val len      = fieldInfos.length
@@ -1044,7 +1068,9 @@ class JsonBinaryCodecDeriver private[json] (
               while (idx < len) {
                 val field = fieldInfos(idx)
                 map.put(field.name, idx)
-                if (!(field.isOptional || field.isCollection)) required ^= 1L << idx
+                if (!field.isOptional && !field.isCollection && field.defaultValueConstructor.isEmpty) {
+                  required ^= 1L << idx
+                }
                 idx += 1
               }
               this.required = required
@@ -1163,9 +1189,9 @@ class JsonBinaryCodecDeriver private[json] (
                     } else skipOrReject(in, keyLen)
                   }
                   if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
-                  val diff = ~seen & required
-                  if (diff != 0) missingRequiredFieldsError(in, diff)
                 }
+                val diff = ~seen & required
+                if (diff != 0) missingRequiredFieldsError(in, diff)
                 idx = 0
                 while (idx < len) {
                   if ((seen & (1L << idx)) == 0) {
@@ -1173,6 +1199,21 @@ class JsonBinaryCodecDeriver private[json] (
                     if (field.isOptional) regs.setObject(field.offset, 0, None)
                     else if (field.isCollection) {
                       regs.setObject(field.offset, 0, field.codec.nullValue.asInstanceOf[AnyRef])
+                    } else if (field.defaultValueConstructor ne None) {
+                      val value  = field.defaultValueConstructor.get.apply()
+                      val offset = field.offset
+                      field.valueType match {
+                        case JsonBinaryCodec.objectType  => regs.setObject(offset, 0, value.asInstanceOf[AnyRef])
+                        case JsonBinaryCodec.intType     => regs.setInt(offset, 0, value.asInstanceOf[Int])
+                        case JsonBinaryCodec.longType    => regs.setLong(offset, 0, value.asInstanceOf[Long])
+                        case JsonBinaryCodec.floatType   => regs.setFloat(offset, 0, value.asInstanceOf[Float])
+                        case JsonBinaryCodec.doubleType  => regs.setDouble(offset, 0, value.asInstanceOf[Double])
+                        case JsonBinaryCodec.booleanType => regs.setBoolean(offset, 0, value.asInstanceOf[Boolean])
+                        case JsonBinaryCodec.byteType    => regs.setByte(offset, 0, value.asInstanceOf[Byte])
+                        case JsonBinaryCodec.charType    => regs.setChar(offset, 0, value.asInstanceOf[Char])
+                        case JsonBinaryCodec.shortType   => regs.setShort(offset, 0, value.asInstanceOf[Short])
+                        case _                           =>
+                      }
                     }
                   }
                   idx += 1
@@ -1192,26 +1233,22 @@ class JsonBinaryCodecDeriver private[json] (
               var idx = 0
               while (idx < len) {
                 val field  = fieldInfos(idx)
-                val name   = field.name
                 val offset = field.offset
                 val codec  = field.codec
-                if (field.isOptional) {
+                if (skipNone && field.isOptional) {
                   val value = regs.getObject(offset, 0)
-                  if (!transientNone || (value ne None)) {
-                    if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
-                    else out.writeKey(name)
+                  if (value ne None) {
+                    writeKey(out, field)
                     codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
                   }
-                } else if (field.isCollection) {
+                } else if (skipEmptyCollection && field.isCollection) {
                   val value = regs.getObject(offset, 0)
-                  if (!transientEmptyCollection || value.asInstanceOf[Iterable[?]].nonEmpty) {
-                    if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
-                    else out.writeKey(name)
+                  if (value.asInstanceOf[Iterable[?]].nonEmpty) {
+                    writeKey(out, field)
                     codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
                   }
-                } else {
-                  if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
-                  else out.writeKey(name)
+                } else if (!(skipDefaultValue && (field.defaultValueConstructor ne None))) {
+                  writeKey(out, field)
                   field.valueType match {
                     case JsonBinaryCodec.objectType =>
                       val value = regs.getObject(offset, 0)
@@ -1250,10 +1287,87 @@ class JsonBinaryCodecDeriver private[json] (
                       else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
                     case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue((), out)
                   }
+                } else {
+                  val default = field.defaultValueConstructor.get.apply()
+                  field.valueType match {
+                    case JsonBinaryCodec.objectType =>
+                      val value = regs.getObject(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.intType =>
+                      val value = regs.getInt(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq intCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.longType =>
+                      val value = regs.getLong(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq longCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.floatType =>
+                      val value = regs.getFloat(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq floatCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.doubleType =>
+                      val value = regs.getDouble(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq doubleCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.booleanType =>
+                      val value = regs.getBoolean(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq booleanCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.byteType =>
+                      val value = regs.getByte(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq byteCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.charType =>
+                      val value = regs.getChar(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq charCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value, out)
+                      }
+                    case JsonBinaryCodec.shortType =>
+                      val value = regs.getShort(offset, 0)
+                      if (value != default) {
+                        writeKey(out, field)
+                        if (codec eq shortCodec) out.writeVal(value)
+                        else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
+                      }
+                    case _ =>
+                      if (() != default) {
+                        writeKey(out, field)
+                        codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue((), out)
+                      }
+                  }
                 }
                 idx += 1
               }
               out.writeObjectEnd()
+            }
+
+            private[this] def writeKey(out: JsonWriter, field: FieldInfo): Unit = {
+              val name = field.name
+              if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
+              else out.writeKey(name)
             }
 
             private[this] def missingRequiredFieldsError(in: JsonReader, req: Long): Nothing =
@@ -1352,6 +1466,38 @@ class JsonBinaryCodecDeriver private[json] (
 
   private[this] def isCollection[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireCollectionFields && (reflect.isSequence || reflect.isMap)
+
+  private[this] def defaultValueConstructor[F[_, _], A](reflect: Reflect[F, A]): Option[() => A] =
+    if (requireDefaultValueFields) None
+    else if (reflect.isPrimitive) {
+      val binding = reflect.asPrimitive.get.primitiveBinding
+      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
+       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
+    } else if (reflect.isRecord) {
+      val binding = reflect.asRecord.get.recordBinding
+      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
+       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
+    } else if (reflect.isVariant) {
+      val binding = reflect.asVariant.get.variantBinding
+      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
+       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
+    } else if (reflect.isSequence) {
+      val binding = reflect.asSequenceUnknown.get.sequence.seqBinding
+      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
+       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
+    } else if (reflect.isMap) {
+      val binding = reflect.asMapUnknown.get.map.mapBinding
+      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
+       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
+    } else if (reflect.isWrapper) {
+      val binding = reflect.asWrapperUnknown.get.wrapper.wrapperBinding
+      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
+       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
+    } else {
+      val binding = reflect.asDynamic.get.dynamicBinding
+      (if (binding.isInstanceOf[Binding[?, ?]]) binding.asInstanceOf[Binding[?, ?]]
+       else binding.asInstanceOf[BindingInstance[TC, ?, A]].binding).defaultValue.asInstanceOf[Option[() => A]]
+    }
 
   private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isRecord && {
     val typeName = reflect.typeName
@@ -1543,7 +1689,8 @@ private case class FieldInfo(
   offset: RegisterOffset,
   codec: JsonBinaryCodec[?],
   isOptional: Boolean,
-  isCollection: Boolean
+  isCollection: Boolean,
+  defaultValueConstructor: Option[() => ?]
 ) extends Info(name) {
   val valueType: Int = codec.valueType
 }

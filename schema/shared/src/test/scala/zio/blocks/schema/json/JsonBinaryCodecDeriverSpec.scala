@@ -1488,6 +1488,20 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           Schema[Record1].derive(JsonBinaryCodecDeriver.withRejectExtraFields(true))
         )
       },
+      test("simple record with fields that have default values") {
+        roundTrip(
+          Record6(),
+          """{}"""
+        ) &&
+        roundTrip(
+          Record6(bl = true, s = "WWW"),
+          """{"bl":true,"s":"WWW"}"""
+        ) &&
+        roundTrip(
+          Record6(true, 2: Byte, 3: Short, 4, 5L, 6.0f, 7.0, '8', "WWW"),
+          """{"bl":true,"b":2,"sh":3,"i":4,"l":5,"f":6.0,"d":7.0,"c":"8","s":"WWW"}"""
+        )
+      },
       test("tuple record") {
         implicit val schema: Schema[Tuple10[Unit, Boolean, Byte, Short, Int, Long, Float, Double, Char, String]] =
           Schema.derived
@@ -1686,9 +1700,30 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           s"""{"big_int":"$bigIntStr","bigDec":"$bigIntStr"}""",
           codec2
         ) &&
-        decode[Record5]("""{"big_int":null,"bigDec":null}""", Record5(BigInt(0), BigDecimal(0)), codec2) &&
-        decodeError[Record5]("""{"big_int":null}""", "missing required field \"bigDec\" at: .", codec2) &&
-        decodeError[Record5]("""{"big_int":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
+        decode("""{"big_int":null,"bigDec":null}""", Record5(BigInt(0), BigDecimal(0)), codec2) &&
+        decodeError("""{"big_int":null}""", "missing required field \"bigDec\" at: .", codec2) &&
+        decodeError("""{"big_int":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
+      },
+      test("record with fields that have default values and custom codec to require fields with default values") {
+        val codec1 = Schema[Record6].derive(
+          JsonBinaryCodecDeriver.withTransientDefaultValue(false)
+        )
+        val codec2 = Schema[Record6].derive(
+          JsonBinaryCodecDeriver.withRequireDefaultValueFields(true)
+        )
+        roundTrip(
+          Record6(),
+          """{"bl":false,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"}""",
+          codec1
+        ) &&
+        roundTrip(
+          Record6(),
+          """{"bl":false,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"}""",
+          codec2
+        ) &&
+        decodeError("""{}""", "missing required field \"bl\" at: .", codec2) &&
+        decodeError("""{"bl":false}""", "missing required field \"b\" at: .", codec2) &&
+        decodeError("""{"bl":false,"s":"VVV"}""", "missing required field \"b\" at: .", codec2)
       },
       test("tuple record with a custom codec for primitives injected by type names") {
         val codec = Schema
@@ -2686,6 +2721,22 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
     val bigInt: Lens[Record5, BigInt]         = $(_.bigInt)
     val bigDecimal: Lens[Record5, BigDecimal] = $(_.bigDecimal)
+  }
+
+  case class Record6(
+    bl: Boolean = false,
+    b: Byte = 1.toByte,
+    sh: Short = 2.toShort,
+    i: Int = 3,
+    l: Long = 4L,
+    f: Float = 5.0f,
+    d: Double = 6.0,
+    c: Char = '7',
+    s: String = "VVV"
+  )
+
+  object Record6 extends CompanionOptics[Record6] {
+    implicit val schema: Schema[Record6] = Schema.derived
   }
 
   case class Dynamic(primitive: DynamicValue, record: DynamicValue)
