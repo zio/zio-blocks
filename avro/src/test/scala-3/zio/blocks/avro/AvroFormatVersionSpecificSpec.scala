@@ -18,7 +18,7 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip[GenericTuple4]((1: Byte) *: (2: Short) *: 3 *: 4L *: EmptyTuple, 4)
       }
     ),
-    suite("enums")(
+    suite("variants")(
       test("constant values") {
         avroSchema[TrafficLight](
           "[{\"type\":\"record\",\"name\":\"Red\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Yellow\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Green\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]}]"
