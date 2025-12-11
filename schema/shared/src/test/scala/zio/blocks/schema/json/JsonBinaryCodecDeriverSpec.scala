@@ -3005,9 +3005,9 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     f63: Option[Int] = None,
     f64: Option[Int] = None,
     f65: Option[Int] = None,
-    f66: Option[Int] = None,
+    f66: Option[Int] = Some(1),
     f67: Option[BigProduct] = None,
-    f68: List[Int] = Nil,
+    f68: List[Int] = List(1, 2, 3),
     f69: Int
   )
 
