@@ -2255,7 +2255,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(Map("VVV" -> Map(1 -> 1L, 2 -> 2L)), """{"VVV":{"1":1,"2":2}}""")
       }
     ),
-    suite("variants")(
+    suite("enums")(
       test("case object enumeration") {
         roundTrip[TrafficLight](TrafficLight.Green, """"Green"""") &&
         roundTrip[TrafficLight](TrafficLight.Yellow, """"Yellow"""") &&
