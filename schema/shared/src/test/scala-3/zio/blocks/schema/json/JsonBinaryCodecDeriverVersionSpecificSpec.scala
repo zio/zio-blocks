@@ -31,13 +31,11 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip[Parent](Parent(Child(MySealedTrait.Bar("WWW"))), """{"child":{"test":{"Bar":{"bar":"WWW"}}}}""")
       }
     ),
-    suite("nested ADTs")(
+    suite("variants")(
       test("constant values on different hierarchy levels") {
         roundTrip[Foo](Foo1, """{"Foo1":{}}""") &&
         roundTrip[Foo](Bar1, """{"Bar":"Bar1"}""")
-      }
-    ),
-    suite("enums")(
+      },
       test("constant values") {
         roundTrip[TrafficLight](TrafficLight.Green, """"Green"""") &&
         roundTrip[TrafficLight](TrafficLight.Yellow, """"Yellow"""") &&

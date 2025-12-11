@@ -1505,6 +1505,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       test("tuple record") {
         implicit val schema: Schema[Tuple10[Unit, Boolean, Byte, Short, Int, Long, Float, Double, Char, String]] =
           Schema.derived
+
         roundTrip(
           ((), true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"),
           """[null,true,1,2,3,4,5.0,6.0,"7","VVV"]"""
@@ -1512,7 +1513,9 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       },
       test("tuple record (decode error)") {
         type TupleTest = Tuple10[Unit, Boolean, Byte, Short, Int, Long, Float, Double, Char, String]
+
         implicit val schema: Schema[TupleTest] = Schema.derived
+
         decodeError[TupleTest]("""""", "unexpected end of input at: .") &&
         decodeError[TupleTest]("""[null,true,1,2,3,4,5.0,6.0,"7","VVV"],""", "expected end of input at: .") &&
         decodeError[TupleTest]("""{null,true,1,2,3,4,5.0,6.0,"7","VVV"}""", "expected '[' at: .") &&
@@ -1528,6 +1531,21 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV")
           ),
           """{"r1_1":{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"},"r1_2":{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"7","s":"VVV"}}"""
+        )
+      },
+      test("big record with up to 128 fields") {
+        roundTrip(BigProduct(f00 = true, f69 = 1), """{"f00":true,"f69":1}""") &&
+        roundTrip(BigProduct(f00 = true, f63 = Some(2), f69 = 1), """{"f00":true,"f63":2,"f69":1}""") &&
+        roundTrip(
+          BigProduct(f00 = true, f67 = Some(BigProduct(f00 = false, f69 = 2)), f69 = 1),
+          """{"f00":true,"f67":{"f00":false,"f69":2},"f69":1}"""
+        ) &&
+        decodeError[BigProduct]("""{"f69":1}""", "missing required field \"f00\" at: .") &&
+        decodeError[BigProduct]("""{"f00":true}""", "missing required field \"f69\" at: .") &&
+        decodeError[BigProduct]("""{"f00":true,"f69":1,"f69":1}""", "duplicated field \"f69\" at: .") &&
+        decodeError[BigProduct](
+          """{"f00":true,"f67":{"f69":2},"f69":1}""",
+          "missing required field \"f00\" at: .f67.when[Some].value"
         )
       },
       test("recursive record") {
@@ -2255,7 +2273,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(Map("VVV" -> Map(1 -> 1L, 2 -> 2L)), """{"VVV":{"1":1,"2":2}}""")
       }
     ),
-    suite("enums")(
+    suite("variants")(
       test("case object enumeration") {
         roundTrip[TrafficLight](TrafficLight.Green, """"Green"""") &&
         roundTrip[TrafficLight](TrafficLight.Yellow, """"Yellow"""") &&
@@ -2919,4 +2937,81 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
   case class Dog(name: String, age: Either[String, Int], breed: String) extends Pet
 
   case class Bird(name: String, age: Either[String, Int], color: RGBColor) extends Pet
+
+  case class BigProduct(
+    f00: Boolean,
+    f01: Option[Byte] = None,
+    f02: Option[Short] = None,
+    f03: Option[Int] = None,
+    f04: Option[Long] = None,
+    f05: Option[Float] = None,
+    f06: Option[Double] = None,
+    f07: Option[Char] = None,
+    f08: Option[String] = None,
+    f09: Option[Int] = None,
+    f10: Option[Int] = None,
+    f11: Option[Int] = None,
+    f12: Option[Int] = None,
+    f13: Option[Int] = None,
+    f14: Option[Int] = None,
+    f15: Option[Int] = None,
+    f16: Option[Int] = None,
+    f17: Option[Int] = None,
+    f18: Option[Int] = None,
+    f19: Option[Int] = None,
+    f20: Option[Int] = None,
+    f21: Option[Int] = None,
+    f22: Option[Int] = None,
+    f23: Option[Int] = None,
+    f24: Option[Int] = None,
+    f25: Option[Int] = None,
+    f26: Option[Int] = None,
+    f27: Option[Int] = None,
+    f28: Option[Int] = None,
+    f29: Option[Int] = None,
+    f30: Option[Int] = None,
+    f31: Option[Int] = None,
+    f32: Option[Int] = None,
+    f33: Option[Int] = None,
+    f34: Option[Int] = None,
+    f35: Option[Int] = None,
+    f36: Option[Int] = None,
+    f37: Option[Int] = None,
+    f38: Option[Int] = None,
+    f39: Option[Int] = None,
+    f40: Option[Int] = None,
+    f41: Option[Int] = None,
+    f42: Option[Int] = None,
+    f43: Option[Int] = None,
+    f44: Option[Int] = None,
+    f45: Option[Int] = None,
+    f46: Option[Int] = None,
+    f47: Option[Int] = None,
+    f48: Option[Int] = None,
+    f49: Option[Int] = None,
+    f50: Option[Int] = None,
+    f51: Option[Int] = None,
+    f52: Option[Int] = None,
+    f53: Option[Int] = None,
+    f54: Option[Int] = None,
+    f55: Option[Int] = None,
+    f56: Option[Int] = None,
+    f57: Option[Int] = None,
+    f58: Option[Int] = None,
+    f59: Option[Int] = None,
+    f60: Option[Int] = None,
+    f61: Option[Int] = None,
+    f62: Option[Int] = None,
+    f63: Option[Int] = None,
+    f64: Option[Int] = None,
+    f65: Option[Int] = None,
+    f66: Option[Int] = None,
+    f67: Option[BigProduct] = None,
+    f68: List[Int] = Nil,
+    f69: Int
+  )
+
+  object BigProduct {
+    implicit val schema: Schema[BigProduct] = Schema.derived
+  }
 }
