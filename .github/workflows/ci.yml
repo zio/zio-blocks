@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Action
-        uses: coursier/setup-action@v1
+        uses: coursier/setup-action@v2
         with:
           jvm: temurin:11
           apps: sbt
@@ -54,7 +54,7 @@ jobs:
         run: echo "JAVA_TOOL_OPTIONS=-XX:+UseCompactObjectHeaders" >> $GITHUB_ENV
         shell: bash
       - name: Setup Action
-        uses: coursier/setup-action@v1
+        uses: coursier/setup-action@v2
         with:
           jvm: temurin:${{ matrix.java }}
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
@@ -84,7 +84,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Setup Action
-        uses: coursier/setup-action@v1
+        uses: coursier/setup-action@v2
         with:
           jvm: temurin:11
           apps: sbt
