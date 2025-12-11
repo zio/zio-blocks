@@ -1060,37 +1060,42 @@ class JsonBinaryCodecDeriver private[json] (
             private[this] val fieldInfos          = infos
             private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
             private[this] var map: StringToIntMap = null
-            private[this] var required            = 0L
+            private[this] var required1           = 0L
+            private[this] var required2           = 0L
             private[this] val usedRegisters       = offset
             private[this] val doReject            = rejectExtraFields
             private[this] val skipNone            = transientNone
             private[this] val skipEmptyCollection = transientEmptyCollection
             private[this] val skipDefaultValue    = transientDefaultValue
 
+            require(fieldInfos.length <= 128, "expected up to 128 fields")
+
             private[this] def init(): Unit = {
-              val len      = fieldInfos.length
-              val map      = new StringToIntMap(fieldInfos.length)
-              var required = 0L
-              var idx      = 0
+              val len        = fieldInfos.length
+              val map        = new StringToIntMap(fieldInfos.length)
+              var req1, req2 = 0L
+              var idx        = 0
               while (idx < len) {
                 val field = fieldInfos(idx)
                 map.put(field.name, idx)
                 if (!field.isOptional && !field.isCollection && field.defaultValueConstructor.isEmpty) {
-                  required ^= 1L << idx
+                  if (idx < 64) req1 ^= 1L << idx
+                  else req2 ^= 1L << (idx - 64)
                 }
                 idx += 1
               }
-              this.required = required
+              this.required1 = req1
+              this.required2 = req2
               this.map = map
             }
 
             override def decodeValue(in: JsonReader, default: A): A =
               if (in.isNextToken('{')) {
                 if (map eq null) init()
-                val regs        = Registers(usedRegisters)
-                val len         = fieldInfos.length
-                var seen        = 0L
-                var idx, keyLen = -1
+                val regs         = Registers(usedRegisters)
+                val len          = fieldInfos.length
+                var seen1, seen2 = 0L
+                var idx, keyLen  = -1
                 if (!in.isNextToken('}')) {
                   in.rollbackToken()
                   while (keyLen < 0 || in.isNextToken(',')) {
@@ -1111,9 +1116,15 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                       }
                     ) {
-                      val mask = 1L << idx
-                      if ((seen & mask) != 0) in.duplicatedKeyError(keyLen)
-                      seen ^= mask
+                      if (idx < 64) {
+                        val mask = 1L << idx
+                        if ((seen1 & mask) != 0L) in.duplicatedKeyError(keyLen)
+                        seen1 ^= mask
+                      } else {
+                        val mask = 1L << (idx - 64)
+                        if ((seen2 & mask) != 0L) in.duplicatedKeyError(keyLen)
+                        seen2 ^= mask
+                      }
                       try {
                         val codec  = field.codec
                         val offset = field.offset
@@ -1197,11 +1208,24 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                   if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
                 }
-                val missingRequired = ~seen & required
-                if (missingRequired != 0) missingRequiredFieldsError(in, missingRequired)
+                val missingRequired1 = ~seen1 & required1
+                if (missingRequired1 != 0L) {
+                  in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(missingRequired1)).name)
+                }
+                if (len > 64) {
+                  val missingRequired2 = ~seen2 & required2
+                  if (missingRequired2 != 0L) {
+                    in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(missingRequired2) + 64).name)
+                  }
+                }
                 idx = 0
                 while (idx < len) {
-                  if ((seen & (1L << idx)) == 0) {
+                  if (
+                    {
+                      if (idx < 64) seen1 & (1L << idx)
+                      else seen2 & (1L << (idx - 64))
+                    } == 0L
+                  ) {
                     val field = fieldInfos(idx)
                     if (field.isOptional) regs.setObject(field.offset, 0, None)
                     else if (field.isCollection) {
@@ -1372,9 +1396,6 @@ class JsonBinaryCodecDeriver private[json] (
               if (field.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
               else out.writeKey(name)
             }
-
-            private[this] def missingRequiredFieldsError(in: JsonReader, missingRequired: Long): Nothing =
-              in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(missingRequired)).name)
 
             private[this] def skipOrReject(in: JsonReader, keyLen: Int): Unit =
               if (doReject && ((discriminatorField eq null) || !in.isCharBufEqualsTo(keyLen, discriminatorField._1))) {

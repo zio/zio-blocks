@@ -659,7 +659,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Map(Map(1 -> 1L, 2 -> 2L) -> "WWW"), 12)
       }
     ),
-    suite("enums")(
+    suite("variants")(
       test("constant values") {
         avroSchema[TrafficLight](
           "[{\"type\":\"record\",\"name\":\"Red\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Yellow\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Green\",\"namespace\":\"zio.blocks.avro.AvroFormatSpec.TrafficLight\",\"fields\":[]}]"
