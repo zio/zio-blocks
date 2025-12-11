@@ -667,11 +667,11 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                 }
               case _ =>
-                val map   = new StringToIntMap(len)
-                val infos = new Array[CaseInfo](len)
                 discriminatorKind match {
                   case DiscriminatorKind.Field(fieldName) if hasOnlyRecordCases(variant) =>
-                    var idx = 0
+                    val infos = new Array[CaseInfo](len)
+                    val map   = new StringToIntMap(len)
+                    var idx   = 0
                     while (idx < len) {
                       val case_ = cases(idx)
                       val name  = getName(case_.modifiers, caseNameMapper(case_.name))
@@ -688,12 +688,12 @@ class JsonBinaryCodecDeriver private[json] (
                       private[this] val discriminatorFieldName = fieldName
 
                       def decodeValue(in: JsonReader, default: A): A = {
-                        in.setMark()
+                        val prevMark = in.setMark()
                         if (in.isNextToken('{')) {
                           if (in.skipToKey(discriminatorFieldName)) {
                             val idx = caseMap.get(in, in.readStringAsCharBuf())
                             if (idx >= 0) {
-                              in.rollbackToMark()
+                              in.rollbackToMark(prevMark)
                               val codec = caseInfos(idx).codec.asInstanceOf[JsonBinaryCodec[A]]
                               try codec.decodeValue(in, codec.nullValue)
                               catch {
@@ -703,7 +703,7 @@ class JsonBinaryCodecDeriver private[json] (
                             } else in.discriminatorValueError(discriminatorFieldName)
                           } else in.requiredFieldError(discriminatorFieldName)
                         } else {
-                          in.resetMark()
+                          in.resetMark(prevMark)
                           in.readNullOrTokenError(default, '{')
                         }
                       }
@@ -713,8 +713,42 @@ class JsonBinaryCodecDeriver private[json] (
                           .asInstanceOf[JsonBinaryCodec[A]]
                           .encodeValue(x, out)
                     }
+                  case DiscriminatorKind.None =>
+                    val codecs = new Array[JsonBinaryCodec[?]](len)
+                    var idx    = 0
+                    while (idx < len) {
+                      codecs(idx) = deriveCodec(cases(idx).value)
+                      idx += 1
+                    }
+                    new JsonBinaryCodec[A]() {
+                      private[this] val discriminator = discr
+                      private[this] val caseCodecs    = codecs
+
+                      def decodeValue(in: JsonReader, default: A): A = {
+                        val len = caseCodecs.length
+                        var idx = 0
+                        while (idx < len) {
+                          val prevMark = in.setMark()
+                          val codec    = caseCodecs(idx).asInstanceOf[JsonBinaryCodec[A]]
+                          try {
+                            val x = codec.decodeValue(in, codec.nullValue)
+                            in.resetMark(prevMark)
+                            return x
+                          } catch {
+                            case error if NonFatal(error) => in.rollbackToMark(prevMark)
+                          }
+                          idx += 1
+                        }
+                        in.decodeError("expected a variant value")
+                      }
+
+                      def encodeValue(x: A, out: JsonWriter): Unit =
+                        caseCodecs(discriminator.discriminate(x)).asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+                    }
                   case _ =>
-                    var idx = 0
+                    val map   = new StringToIntMap(len)
+                    val infos = new Array[CaseInfo](len)
+                    var idx   = 0
                     while (idx < len) {
                       val case_ = cases(idx)
                       val name  = getName(case_.modifiers, caseNameMapper(case_.name))

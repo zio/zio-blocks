@@ -131,10 +131,17 @@ final class JsonReader private[json] (
 
   /**
    * Sets the current read head position as a mark. Should be followed by
-   * `resetMark()` or `rollbackToMark()` calls. Pair of `setMark()` and
-   * `resetMark()` or `setMark()` and `rollbackToMark()` calls cannot be nested.
+   * `resetMark()` or `rollbackToMark()` calls. Mark operations can be nested by
+   * saving and restoring previous mark positions returned by `setMark()`.
+   *
+   * @return
+   *   the position of the previous mark, or -1 if no previous mark was set
    */
-  def setMark(): Unit = mark = head
+  def setMark(): Int = {
+    val prevMark = mark
+    mark = head
+    prevMark
+  }
 
   /**
    * Skips tokens with in the current JSON object until a key with the given
@@ -158,24 +165,28 @@ final class JsonReader private[json] (
   /**
    * Rolls back the read head position to the previously set mark.
    *
+   * @param prevMark
+   *   the position of the previous mark, or -1 if no previous mark was set
    * @throws java.lang.IllegalStateException
    *   in case of calling without preceding call of 'setMark()'
    */
-  def rollbackToMark(): Unit = {
+  def rollbackToMark(prevMark: Int): Unit = {
     if (mark < 0) missingSetMarkOperation()
     head = mark
-    mark = -1
+    mark = prevMark
   }
 
   /**
    * Reset mark without changing of the read head position.
    *
+   * @param prevMark
+   *   the position of the previous mark, or -1 if no previous mark was set
    * @throws java.lang.IllegalStateException
    *   in case of calling without preceding call of 'setMark()'
    */
-  def resetMark(): Unit = {
+  def resetMark(prevMark: Int): Unit = {
     if (mark < 0) missingSetMarkOperation()
-    mark = -1
+    mark = prevMark
   }
 
   /**
