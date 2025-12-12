@@ -188,6 +188,11 @@ object Schema extends SchemaVersionSpecific {
 
   implicit def vector[A](implicit element: Schema[A]): Schema[Vector[A]] = new Schema(Reflect.vector(element.reflect))
 
+  implicit def indexedSeq[A](implicit element: Schema[A]): Schema[IndexedSeq[A]] =
+    vector(element).asInstanceOf[Schema[IndexedSeq[A]]]
+
+  implicit def seq[A](implicit element: Schema[A]): Schema[Seq[A]] = list(element).asInstanceOf[Schema[Seq[A]]]
+
   implicit def arraySeq[A](implicit element: Schema[A]): Schema[ArraySeq[A]] =
     new Schema(Reflect.arraySeq(element.reflect))
 
