@@ -394,23 +394,23 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(record.map(_.fields.map(_.name)))(isSome(equalTo(Vector("as", "l", "m", "o", "v", "s"))))
       },
       test("derives schema for record with unit types") {
-        case class Record5(u: Unit, lu: List[Unit])
+        case class Record5(u: Unit, su: Seq[Unit])
 
         object Record5 extends CompanionOptics[Record5] {
           implicit val schema: Schema[Record5] = Schema.derived
           val u: Lens[Record5, Unit]           = optic(_.u)
-          val lu: Traversal[Record5, Unit]     = optic(_.lu.each)
+          val su: Traversal[Record5, Unit]     = optic(_.su.each)
         }
 
         val record = Record5.schema.reflect.asRecord
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 1)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 1)))) &&
         assert(Record5.u.focus.getDefaultValue)(isNone) &&
-        assert(Record5.lu.focus.getDefaultValue)(isNone) &&
+        assert(Record5.su.focus.getDefaultValue)(isNone) &&
         assert(Record5.u.get(Record5((), Nil)))(equalTo(())) &&
-        assert(Record5.lu.fold[Int](Record5((), List((), (), ())))(0, (z, _) => z + 1))(equalTo(3)) &&
-        assert(Record5.schema.fromDynamicValue(Record5.schema.toDynamicValue(Record5((), List((), (), ())))))(
-          isRight(equalTo(Record5((), List((), (), ()))))
+        assert(Record5.su.fold[Int](Record5((), Seq((), (), ())))(0, (z, _) => z + 1))(equalTo(3)) &&
+        assert(Record5.schema.fromDynamicValue(Record5.schema.toDynamicValue(Record5((), Seq((), (), ())))))(
+          isRight(equalTo(Record5((), Seq((), (), ()))))
         ) &&
         assert(Record5.schema)(
           equalTo(
@@ -418,7 +418,7 @@ object SchemaSpec extends ZIOSpecDefault {
               reflect = Reflect.Record[Binding, Record5](
                 fields = Vector(
                   Schema[Unit].reflect.asTerm("u"),
-                  Schema[List[Unit]].reflect.asTerm("lu")
+                  Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
@@ -493,22 +493,22 @@ object SchemaSpec extends ZIOSpecDefault {
         )
       },
       test("derives schema for record with dynamic values") {
-        case class Record7(d: DynamicValue, od: Option[DynamicValue], ld: List[DynamicValue])
+        case class Record7(d: DynamicValue, od: Option[DynamicValue], isd: IndexedSeq[DynamicValue])
 
         object Record7 extends CompanionOptics[Record7] {
-          implicit val schema: Schema[Record7]     = Schema.derived
-          val d: Lens[Record7, DynamicValue]       = optic(_.d)
-          val od: Optional[Record7, DynamicValue]  = optic(_.od.when[Some[DynamicValue]].value)
-          val ld: Traversal[Record7, DynamicValue] = optic(_.ld.each)
+          implicit val schema: Schema[Record7]      = Schema.derived
+          val d: Lens[Record7, DynamicValue]        = optic(_.d)
+          val od: Optional[Record7, DynamicValue]   = optic(_.od.when[Some[DynamicValue]].value)
+          val isd: Traversal[Record7, DynamicValue] = optic(_.isd.each)
         }
 
         val record = Record7.schema.reflect.asRecord
         assert(Record7.d.focus.isDynamic)(equalTo(true)) &&
         assert(Record7.od.focus.isDynamic)(equalTo(true)) &&
-        assert(Record7.ld.focus.isDynamic)(equalTo(true)) &&
+        assert(Record7.isd.focus.isDynamic)(equalTo(true)) &&
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 3)))) &&
-        assert(Record7.d.get(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), None, Nil)))(
+        assert(Record7.d.get(Record7(DynamicValue.Primitive(PrimitiveValue.Int(1)), None, IndexedSeq.empty)))(
           equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1)))
         ) &&
         assert(
@@ -516,16 +516,16 @@ object SchemaSpec extends ZIOSpecDefault {
             Record7(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
-              Nil
+              IndexedSeq.empty
             )
           )
         )(isSome(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(2))))) &&
         assert(
-          Record7.ld.fold[Int](
+          Record7.isd.fold[Int](
             Record7(
               DynamicValue.Primitive(PrimitiveValue.Int(1)),
               Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
-              List(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+              IndexedSeq(DynamicValue.Primitive(PrimitiveValue.Int(3)))
             )
           )(0, (z, _) => z + 1)
         )(equalTo(1)) &&
@@ -535,7 +535,7 @@ object SchemaSpec extends ZIOSpecDefault {
               Record7(
                 DynamicValue.Primitive(PrimitiveValue.Int(1)),
                 Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
-                List(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+                IndexedSeq(DynamicValue.Primitive(PrimitiveValue.Int(3)))
               )
             )
           )
@@ -545,7 +545,7 @@ object SchemaSpec extends ZIOSpecDefault {
               Record7(
                 DynamicValue.Primitive(PrimitiveValue.Int(1)),
                 Some(DynamicValue.Primitive(PrimitiveValue.Int(2))),
-                List(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+                IndexedSeq(DynamicValue.Primitive(PrimitiveValue.Int(3)))
               )
             )
           )
@@ -557,7 +557,7 @@ object SchemaSpec extends ZIOSpecDefault {
                 fields = Vector(
                   Schema[DynamicValue].reflect.asTerm("d"),
                   Schema[Option[DynamicValue]].reflect.asTerm("od"),
-                  Schema[List[DynamicValue]].reflect.asTerm("ld")
+                  Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),

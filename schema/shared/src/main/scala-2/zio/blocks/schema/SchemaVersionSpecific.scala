@@ -411,6 +411,12 @@ private object SchemaVersionSpecific {
         } else if (tpe <:< typeOf[Vector[?]]) {
           val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
           q"Schema.vector($schema)"
+        } else if (tpe <:< typeOf[IndexedSeq[?]]) {
+          val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
+          q"Schema.indexedSeq($schema)"
+        } else if (tpe <:< typeOf[Seq[?]]) {
+          val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
+          q"Schema.seq($schema)"
         } else cannotDeriveSchema(tpe)
       } else if (tpe <:< typeOf[Option[?]]) {
         if (tpe <:< typeOf[None.type]) deriveSchemaForEnumOrModuleValue(tpe)

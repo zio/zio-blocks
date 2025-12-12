@@ -759,6 +759,20 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             val schema = findImplicitOrDeriveSchema[et](eTpe)
             '{ Schema.vector($schema) }
         }
+      } else if (tpe <:< TypeRepr.of[IndexedSeq[?]]) {
+        val eTpe = typeArgs(tpe).head
+        eTpe.asType match {
+          case '[et] =>
+            val schema = findImplicitOrDeriveSchema[et](eTpe)
+            '{ Schema.indexedSeq($schema) }
+        }
+      } else if (tpe <:< TypeRepr.of[Seq[?]]) {
+        val eTpe = typeArgs(tpe).head
+        eTpe.asType match {
+          case '[et] =>
+            val schema = findImplicitOrDeriveSchema[et](eTpe)
+            '{ Schema.seq($schema) }
+        }
       } else cannotDeriveSchema(tpe)
     } else if (isGenericTuple(tpe)) {
       val tTpe = normalizeGenericTuple(tpe)
