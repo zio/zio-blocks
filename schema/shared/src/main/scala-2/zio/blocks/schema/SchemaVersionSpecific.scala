@@ -385,7 +385,7 @@ private object SchemaVersionSpecific {
             } else q"SeqConstructor.arrayConstructor"
           val tpeName = toTree(typeName(tpe))
           q"""new Schema(
-              reflect = new Reflect.Sequence[Binding, $elementTpe, _root_.scala.Array](
+              reflect = new Reflect.Sequence(
                 element = $schema.reflect,
                 typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                 seqBinding = new Binding.Seq(

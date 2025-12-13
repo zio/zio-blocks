@@ -2087,14 +2087,55 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         implicit val arrayOfByteSchema: Schema[Array[Byte]]       = Schema.derived
         implicit val arrayOfShortSchema: Schema[Array[Short]]     = Schema.derived
         implicit val arrayOfCharSchema: Schema[Array[Char]]       = Schema.derived
+        implicit val arrayOfIntSchema: Schema[Array[Int]]         = Schema.derived
+        implicit val arrayOfFloatSchema: Schema[Array[Float]]     = Schema.derived
+        implicit val arrayOfLongSchema: Schema[Array[Long]]       = Schema.derived
+        implicit val arrayOfDoubleSchema: Schema[Array[Double]]   = Schema.derived
 
         decode("""null""", List.empty[Int]) &&
         roundTrip(List.empty[Int], """[]""") &&
+        roundTrip(Array[Unit](), """[]""") &&
         roundTrip(Array[Unit]((), (), ()), """[null,null,null]""") &&
+        roundTrip(Array[Boolean](), """[]""") &&
         roundTrip(Array[Boolean](true, false, true), """[true,false,true]""") &&
+        decodeError[Array[Boolean]]("1", "expected '[' or null at: .") &&
+        decodeError[Array[Boolean]]("[true,false,true,false}", "expected ']' or ',' at: .") &&
+        decodeError[Array[Boolean]]("[true,false,true,false", "unexpected end of input at: .at(3)") &&
+        roundTrip(Array[Byte](), """[]""") &&
         roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte), """[1,2,3]""") &&
+        decodeError[Array[Byte]]("true", "expected '[' or null at: .") &&
+        decodeError[Array[Byte]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
+        decodeError[Array[Byte]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        roundTrip(Array[Short](), """[]""") &&
         roundTrip(Array[Short](1: Short, 2: Short, 3: Short), """[1,2,3]""") &&
-        roundTrip(Array('1', '2', '3'), """["1","2","3"]""") &&
+        decodeError[Array[Short]]("true", "expected '[' or null at: .") &&
+        decodeError[Array[Short]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
+        decodeError[Array[Short]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        roundTrip(Array[Char](), """[]""") &&
+        roundTrip(Array[Char]('1', '2', '3'), """["1","2","3"]""") &&
+        decodeError[Array[Char]]("true", "expected '[' or null at: .") &&
+        decodeError[Array[Char]]("""["1","2","3","4"}""", "expected ']' or ',' at: .") &&
+        decodeError[Array[Char]]("""["1","2","3","4""", "unexpected end of input at: .at(3)") &&
+        roundTrip(Array[Int](), """[]""") &&
+        roundTrip(Array[Int](1, 2, 3), """[1,2,3]""") &&
+        decodeError[Array[Int]]("true", "expected '[' or null at: .") &&
+        decodeError[Array[Int]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
+        decodeError[Array[Int]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        roundTrip(Array[Float](), """[]""") &&
+        roundTrip(Array[Float](1.0f, 2.0f, 3.0f), """[1.0,2.0,3.0]""") &&
+        decodeError[Array[Float]]("true", "expected '[' or null at: .") &&
+        decodeError[Array[Float]]("[1.0,2.0,3.0,4.0}", "expected ']' or ',' at: .") &&
+        decodeError[Array[Float]]("[1.0,2.0,3.0,4.0", "unexpected end of input at: .at(3)") &&
+        roundTrip(Array[Long](), """[]""") &&
+        roundTrip(Array[Long](1L, 2L, 3L), """[1,2,3]""") &&
+        decodeError[Array[Long]]("true", "expected '[' or null at: .") &&
+        decodeError[Array[Long]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
+        decodeError[Array[Long]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
+        roundTrip(Array[Double](), """[]""") &&
+        roundTrip(Array[Double](1.0, 2.0, 3.0), """[1.0,2.0,3.0]""") &&
+        decodeError[Array[Double]]("true", "expected '[' or null at: .") &&
+        decodeError[Array[Double]]("[1.0,2.0,3.0,4.0}", "expected ']' or ',' at: .") &&
+        decodeError[Array[Double]]("[1.0,2.0,3.0,4.0", "unexpected end of input at: .at(3)") &&
         roundTrip((1 to 100).toList, (1 to 100).mkString("[", ",", "]")) &&
         roundTrip(Set(1L, 2L, 3L), """[1,2,3]""") &&
         roundTrip(ArraySeq(1.0f, 2.0f, 3.0f), """[1.0,2.0,3.0]""") &&
@@ -2139,14 +2180,118 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             |]""".stripMargin,
           readerConfig = ReaderConfig,
           writerConfig = WriterConfig.withIndentionStep(2)
-        )
-      },
-      test("primitive values (decode error)") {
+        ) &&
         decodeError[List[Int]]("", "unexpected end of input at: .") &&
         decodeError[List[Int]]("true", "expected '[' or null at: .") &&
         decodeError[List[Int]]("[1,2,3,4}", "expected ']' or ',' at: .") &&
         decodeError[List[Int]]("[1,2,3,4", "unexpected end of input at: .at(3)") &&
         decodeError[List[Int]]("""[1,2,3,null]""", "illegal number at: .at(3)")
+      },
+      test("primitive values with custom codecs") {
+        val codec1 = Schema
+          .derived[Array[Boolean]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.boolean,
+            new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
+              def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
+
+              def encodeValue(x: Boolean, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .derive
+        val codec2 = Schema
+          .derived[Array[Byte]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.byte,
+            new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
+              def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
+
+              def encodeValue(x: Byte, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .derive
+        val codec3 = Schema
+          .derived[Array[Char]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.char,
+            new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // char values as numbers
+              def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
+
+              def encodeValue(x: Char, out: JsonWriter): Unit = out.writeVal(x.toInt)
+            }
+          )
+          .derive
+        val codec4 = Schema
+          .derived[Array[Short]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.short,
+            new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
+              def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
+
+              def encodeValue(x: Short, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .derive
+        val codec5 = Schema
+          .derived[Array[Int]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.int,
+            new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
+              def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
+
+              def encodeValue(x: Int, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .derive
+        val codec6 = Schema
+          .derived[Array[Float]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.float,
+            new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
+              def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
+
+              def encodeValue(x: Float, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .derive
+        val codec7 = Schema
+          .derived[Array[Long]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.long,
+            new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
+              def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
+
+              def encodeValue(x: Long, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .derive
+        val codec8 = Schema
+          .derived[Array[Double]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.double,
+            new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
+              def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
+
+              def encodeValue(x: Double, out: JsonWriter): Unit = out.writeValAsString(x)
+            }
+          )
+          .derive
+        roundTrip(Array[Boolean](true, false, true), """["true","false","true"]""", codec1) &&
+        roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte), """["1","2","3"]""", codec2) &&
+        roundTrip(Array[Char]('1', '2', '3'), """[49,50,51]""", codec3) &&
+        roundTrip(Array[Short](1: Short, 2: Short, 3: Short), """["1","2","3"]""", codec4) &&
+        roundTrip(Array[Int](1, 2, 3), """["1","2","3"]""", codec5) &&
+        roundTrip(Array[Float](1.0f, 2.0f, 3.0f), """["1.0","2.0","3.0"]""", codec6) &&
+        roundTrip(Array[Long](1L, 2L, 3L), """["1","2","3"]""", codec7) &&
+        roundTrip(Array[Double](1.0, 2.0, 3.0), """["1.0","2.0","3.0"]""", codec8)
       },
       test("complex values") {
         roundTrip(
