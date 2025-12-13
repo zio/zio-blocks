@@ -3,6 +3,7 @@ package zio.blocks.avro
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers}
+import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
@@ -719,49 +720,421 @@ object AvroFormat
             if (sequence.seqBinding.isInstanceOf[Binding[?, ?]]) {
               val binding = sequence.seqBinding.asInstanceOf[Binding.Seq[Col, Elem]]
               val codec   = deriveCodec(sequence.element).asInstanceOf[AvroBinaryCodec[Elem]]
-              new AvroBinaryCodec[Col[Elem]]() {
-                private[this] val deconstructor = binding.deconstructor
-                private[this] val constructor   = binding.constructor
-                private[this] val elementCodec  = codec
+              codec.valueType match {
+                case AvroBinaryCodec.booleanType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Boolean]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Boolean]]
 
-                val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
 
-                def decodeUnsafe(decoder: BinaryDecoder): Col[Elem] = {
-                  val builder = constructor.newObjectBuilder[Elem](8)
-                  var count   = 0L
-                  var size    = 0
-                  while ({
-                    size = decoder.readInt()
-                    size > 0
-                  }) {
-                    if (count + size > AvroBinaryCodec.maxCollectionSize) {
-                      decodeError(
-                        s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
-                      )
-                    }
-                    try {
-                      while (size > 0) {
-                        constructor.addObject(builder, elementCodec.decodeUnsafe(decoder))
-                        count += 1
-                        size -= 1
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Boolean] = {
+                      val builder = constructor.newBooleanBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addBoolean(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
                       }
-                    } catch {
-                      case error if NonFatal(error) => decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultBoolean(builder)
+                    }
+
+                    def encode(value: Col[Boolean], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
                     }
                   }
-                  if (size < 0) decodeError(s"Expected positive collection part size, got $size")
-                  constructor.resultObject[Elem](builder)
-                }
+                case AvroBinaryCodec.byteType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Byte]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Byte]]
 
-                def encode(value: Col[Elem], encoder: BinaryEncoder): Unit = {
-                  val size = deconstructor.size(value)
-                  if (size > 0) {
-                    encoder.writeInt(size)
-                    val it = deconstructor.deconstruct(value)
-                    while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Byte] = {
+                      val builder = constructor.newByteBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addByte(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultByte(builder)
+                    }
+
+                    def encode(value: Col[Byte], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
                   }
-                  encoder.writeInt(0)
-                }
+                case AvroBinaryCodec.charType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Char]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Char]]
+
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Char] = {
+                      val builder = constructor.newCharBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addChar(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultChar(builder)
+                    }
+
+                    def encode(value: Col[Char], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
+                  }
+                case AvroBinaryCodec.shortType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Short]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Short]]
+
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Short] = {
+                      val builder = constructor.newShortBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addShort(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultShort(builder)
+                    }
+
+                    def encode(value: Col[Short], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
+                  }
+                case AvroBinaryCodec.floatType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Float]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Float]]
+
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Float] = {
+                      val builder = constructor.newFloatBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addFloat(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultFloat(builder)
+                    }
+
+                    def encode(value: Col[Float], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
+                  }
+                case AvroBinaryCodec.intType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Int]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Int]]
+
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Int] = {
+                      val builder = constructor.newIntBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addInt(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultInt(builder)
+                    }
+
+                    def encode(value: Col[Int], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
+                  }
+                case AvroBinaryCodec.doubleType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Double]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Double]]
+
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Double] = {
+                      val builder = constructor.newDoubleBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addDouble(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultDouble(builder)
+                    }
+
+                    def encode(value: Col[Double], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
+                  }
+                case AvroBinaryCodec.longType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
+                  new AvroBinaryCodec[Col[Long]]() {
+                    private[this] val deconstructor = binding.deconstructor.asInstanceOf[SpecializedIndexed[Col]]
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec.asInstanceOf[AvroBinaryCodec[Long]]
+
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Long] = {
+                      val builder = constructor.newLongBuilder()
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addLong(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultLong(builder)
+                    }
+
+                    def encode(value: Col[Long], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
+                  }
+                case _ =>
+                  new AvroBinaryCodec[Col[Elem]]() {
+                    private[this] val deconstructor = binding.deconstructor
+                    private[this] val constructor   = binding.constructor
+                    private[this] val elementCodec  = codec
+
+                    val avroSchema: AvroSchema = AvroSchema.createArray(elementCodec.avroSchema)
+
+                    def decodeUnsafe(decoder: BinaryDecoder): Col[Elem] = {
+                      val builder = constructor.newObjectBuilder[Elem](8)
+                      var count   = 0L
+                      var size    = 0
+                      while ({
+                        size = decoder.readInt()
+                        size > 0
+                      }) {
+                        if (count + size > AvroBinaryCodec.maxCollectionSize) {
+                          decodeError(
+                            s"Expected collection size not greater than ${AvroBinaryCodec.maxCollectionSize}, got ${count + size}"
+                          )
+                        }
+                        try {
+                          while (size > 0) {
+                            constructor.addObject(builder, elementCodec.decodeUnsafe(decoder))
+                            count += 1
+                            size -= 1
+                          }
+                        } catch {
+                          case error if NonFatal(error) =>
+                            decodeError(new DynamicOptic.Node.AtIndex(count.toInt), error)
+                        }
+                      }
+                      if (size < 0) decodeError(s"Expected positive collection part size, got $size")
+                      constructor.resultObject[Elem](builder)
+                    }
+
+                    def encode(value: Col[Elem], encoder: BinaryEncoder): Unit = {
+                      val size = deconstructor.size(value)
+                      if (size > 0) {
+                        encoder.writeInt(size)
+                        val it = deconstructor.deconstruct(value)
+                        while (it.hasNext) elementCodec.encode(it.next(), encoder)
+                      }
+                      encoder.writeInt(0)
+                    }
+                  }
               }
             } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
           } else if (reflect.isMap) {

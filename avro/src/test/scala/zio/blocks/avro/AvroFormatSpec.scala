@@ -487,6 +487,10 @@ object AvroFormatSpec extends ZIOSpecDefault {
         implicit val arrayOfByteSchema: Schema[Array[Byte]]       = Schema.derived
         implicit val arrayOfShortSchema: Schema[Array[Short]]     = Schema.derived
         implicit val arrayOfCharSchema: Schema[Array[Char]]       = Schema.derived
+        implicit val arrayOfFloatSchema: Schema[Array[Float]]     = Schema.derived
+        implicit val arrayOfIntSchema: Schema[Array[Int]]         = Schema.derived
+        implicit val arrayOfDoubleSchema: Schema[Array[Double]]   = Schema.derived
+        implicit val arrayOfLongSchema: Schema[Array[Long]]       = Schema.derived
 
         avroSchema[Array[Unit]]("{\"type\":\"array\",\"items\":\"null\"}") &&
         roundTrip(Array[Unit]((), (), ()), 2) &&
@@ -498,6 +502,14 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Array[Short](1: Short, 2: Short, 3: Short), 5) &&
         avroSchema[Array[Char]]("{\"type\":\"array\",\"items\":\"int\"}") &&
         roundTrip(Array('1', '2', '3'), 5) &&
+        avroSchema[Array[Float]]("{\"type\":\"array\",\"items\":\"float\"}") &&
+        roundTrip(Array[Float](1.0f, 2.0f, 3.0f), 14) &&
+        avroSchema[Array[Int]]("{\"type\":\"array\",\"items\":\"int\"}") &&
+        roundTrip(Array[Int](1, 2, 3), 5) &&
+        avroSchema[Array[Double]]("{\"type\":\"array\",\"items\":\"double\"}") &&
+        roundTrip(Array[Double](1.0, 2.0, 3.0), 26) &&
+        avroSchema[Array[Long]]("{\"type\":\"array\",\"items\":\"long\"}") &&
+        roundTrip(Array[Long](1, 2, 3), 5) &&
         avroSchema[List[Int]]("{\"type\":\"array\",\"items\":\"int\"}") &&
         roundTrip((1 to 100).toList, 140) &&
         avroSchema[Set[Long]]("{\"type\":\"array\",\"items\":\"long\"}") &&
