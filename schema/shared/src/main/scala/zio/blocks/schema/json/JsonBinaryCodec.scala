@@ -64,7 +64,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    *   an instance of `JsonReader` which provides access to the JSON input to
    *   parse a JSON key to value of type `A`
    */
-  def decodeKey(in: JsonReader): A = in.decodeError("decoding as a JSON key is not supported")
+  def decodeKey(in: JsonReader): A = in.decodeError("decoding as JSON key is not supported")
 
   /**
    * Encodes the specified value using provided `JsonWriter` as a JSON key, but
@@ -77,7 +77,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    *   an instance of `JsonWriter` which provides access to JSON output to
    *   serialize the specified value as a JSON key
    */
-  def encodeKey(x: A, out: JsonWriter): Unit = out.encodeError("encoding as a JSON key is not supported")
+  def encodeKey(x: A, out: JsonWriter): Unit = out.encodeError("encoding as JSON key is not supported")
 
   override def decode(input: ByteBuffer): Either[SchemaError, A] = decode(input, ReaderConfig)
 
