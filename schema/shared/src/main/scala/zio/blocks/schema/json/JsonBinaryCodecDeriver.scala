@@ -2095,7 +2095,7 @@ class JsonBinaryCodecDeriver private[json] (
     override def encodeKey(x: DynamicValue, out: JsonWriter): Unit = x match {
       case primitive: DynamicValue.Primitive =>
         primitive.value match {
-          case _: PrimitiveValue.Unit.type      => out.encodeError("encoding as a JSON key is not supported")
+          case _: PrimitiveValue.Unit.type      => out.encodeError("encoding as JSON key is not supported")
           case v: PrimitiveValue.Boolean        => out.writeKey(v.value)
           case v: PrimitiveValue.Byte           => out.writeKey(v.value)
           case v: PrimitiveValue.Short          => out.writeKey(v.value)
@@ -2126,7 +2126,7 @@ class JsonBinaryCodecDeriver private[json] (
           case v: PrimitiveValue.Currency       => out.writeNonEscapedAsciiKey(v.value.toString)
           case v: PrimitiveValue.UUID           => out.writeKey(v.value)
         }
-      case _ => out.encodeError("encoding as a JSON key is not supported")
+      case _ => out.encodeError("encoding as JSON key is not supported")
     }
   }
 }
