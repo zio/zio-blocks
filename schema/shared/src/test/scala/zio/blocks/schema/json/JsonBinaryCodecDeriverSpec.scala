@@ -2402,8 +2402,8 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError[Map[Int, Long]]("""{"1":2]""", "expected '}' or ',' at: .")
       },
       test("unit key map (decode and encode error)") {
-        encodeError(Map(() -> 1L), "encoding as a JSON key is not supported") &&
-        decodeError[Map[Unit, Long]]("""{"null":1}""", "decoding as a JSON key is not supported at: .at(0)")
+        encodeError(Map(() -> 1L), "encoding as JSON key is not supported") &&
+        decodeError[Map[Unit, Long]]("""{"null":1}""", "decoding as JSON key is not supported at: .at(0)")
       },
       test("primitive key with recursive values") {
         roundTrip(
@@ -2801,13 +2801,13 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           DynamicValue.Map(
             Vector((DynamicValue.Primitive(PrimitiveValue.Unit), DynamicValue.Primitive(PrimitiveValue.Int(1))))
           ),
-          "encoding as a JSON key is not supported"
+          "encoding as JSON key is not supported"
         ) &&
         encodeError[DynamicValue](
           DynamicValue.Map(
             Vector((DynamicValue.Sequence(Vector.empty), DynamicValue.Primitive(PrimitiveValue.Int(1))))
           ),
-          "encoding as a JSON key is not supported"
+          "encoding as JSON key is not supported"
         ) &&
         decodeError[DynamicValue]("""{"1":2]""", "expected '}' or ',' at: .") &&
         decodeError[DynamicValue]("[1,2}", "expected ']' or ',' at: .") &&
