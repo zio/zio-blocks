@@ -2285,7 +2285,7 @@ final class JsonWriter private[json] (
           if (java.lang.Long.compareUnsigned(halfUlp + even, dotOne) > 0) {
             m10 = (hi64 >>> 6) * 10L
           } else {
-            m10 = hi64 * 10L + (unsignedMultiplyHigh2(
+            m10 = (hi64 * 10L + unsignedMultiplyHigh2(
               lo64,
               10L
             ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
@@ -2294,13 +2294,13 @@ final class JsonWriter private[json] (
             }) >>> 6
           }
         } else {
-          val tmp = (dotOne >>> 4) * 10
+          val tmp = (dotOne >>> 4) * 10L
           if (java.lang.Long.compareUnsigned((tmp << 4) >>> 4, (halfUlp >>> 4) * 5) > 0) {
             m10 = (hi64 >>> 6) * 10L + ((tmp >>> 60).toInt + 1)
           } else if (java.lang.Long.compareUnsigned(halfUlp >>> 1, dotOne) > 0) {
             m10 = (hi64 >>> 6) * 10L
           } else {
-            m10 = hi64 * 10L + (unsignedMultiplyHigh2(
+            m10 = (hi64 * 10L + unsignedMultiplyHigh2(
               lo64,
               10L
             ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
