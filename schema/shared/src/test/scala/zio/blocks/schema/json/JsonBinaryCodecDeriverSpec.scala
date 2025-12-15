@@ -115,8 +115,8 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(0.33007812f, "0.33007812") &&
         roundTrip(102067.11f, "102067.11") &&
         roundTrip(1.6777216e7f, "1.6777216E7") &&
-        roundTrip(1.4e-45f, "1.4E-45") &&
-        roundTrip(9.8e-45f, "9.8E-45") &&
+        roundTrip(1.0e-45f, "1.0E-45") &&
+        roundTrip(1.0e-44f, "1.0E-44") &&
         roundTrip(6.895867e-31f, "6.895867E-31") &&
         roundTrip(1.595711e-5f, "1.595711E-5") &&
         roundTrip(-1.5887592e7f, "-1.5887592E7") &&
@@ -172,7 +172,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(0.001, "0.001") &&
         roundTrip(1.0e7, "1.0E7") &&
         roundTrip(8572.431613041595, "8572.431613041595") &&
-        roundTrip(4.9e-324, "4.9E-324") &&
+        roundTrip(5.0e-324, "5.0E-324") &&
         roundTrip(8.707795712926552e15, "8.707795712926552E15") &&
         roundTrip(5.960464477539063e-8, "5.960464477539063E-8") &&
         decode("42.00000000000000", 42.0) &&
