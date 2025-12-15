@@ -353,6 +353,26 @@ object SeqConstructor {
     }
   }
 
+  val indexedSeqConstructor: SeqConstructor[IndexedSeq] = new Boxed[IndexedSeq] {
+    type ObjectBuilder[A] = scala.collection.mutable.Builder[A, IndexedSeq[A]]
+
+    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = IndexedSeq.newBuilder[A]
+
+    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+
+    def resultObject[A](builder: ObjectBuilder[A]): IndexedSeq[A] = builder.result()
+  }
+
+  val seqConstructor: SeqConstructor[collection.immutable.Seq] = new Boxed[collection.immutable.Seq] {
+    type ObjectBuilder[A] = scala.collection.mutable.Builder[A, collection.immutable.Seq[A]]
+
+    def newObjectBuilder[A](sizeHint: Int): ObjectBuilder[A] = collection.immutable.Seq.newBuilder[A]
+
+    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = builder.addOne(a)
+
+    def resultObject[A](builder: ObjectBuilder[A]): collection.immutable.Seq[A] = builder.result()
+  }
+
   val arrayConstructor: SeqConstructor[Array] = new ArrayConstructor
 
   class ArrayConstructor extends SeqConstructor[Array] {

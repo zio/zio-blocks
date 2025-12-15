@@ -87,6 +87,18 @@ object SeqDeconstructor {
     def charAt(c: ArraySeq[Char], index: Int): Char = c(index)
   }
 
+  val indexedSeqDeconstructor: SeqDeconstructor[IndexedSeq] = new SeqDeconstructor[IndexedSeq] {
+    def deconstruct[A](c: IndexedSeq[A]): Iterator[A] = c.iterator
+
+    def size[A](c: IndexedSeq[A]): Int = c.length
+  }
+
+  val seqDeconstructor: SeqDeconstructor[collection.immutable.Seq] = new SeqDeconstructor[collection.immutable.Seq] {
+    def deconstruct[A](c: collection.immutable.Seq[A]): Iterator[A] = c.iterator
+
+    def size[A](c: collection.immutable.Seq[A]): Int = c.size
+  }
+
   val arrayDeconstructor: SpecializedIndexed[Array] = new SpecializedIndexed[Array] {
     def deconstruct[A](c: Array[A]): Iterator[A] = c.iterator
 

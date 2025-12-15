@@ -1622,6 +1622,12 @@ object Reflect {
   def arraySeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, ArraySeq] =
     new Sequence(element, TypeName.arraySeq(element.typeName), F.fromBinding(Binding.Seq.arraySeq))
 
+  def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] =
+    new Sequence(element, TypeName.indexedSeq(element.typeName), F.fromBinding(Binding.Seq.indexedSeq))
+
+  def seq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Seq] =
+    new Sequence(element, TypeName.seq(element.typeName), F.fromBinding(Binding.Seq.seq))
+
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
   ): Map[F, K, V, collection.immutable.Map] = {

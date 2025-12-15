@@ -334,6 +334,12 @@ object Binding {
 
     def arraySeq[A]: Seq[ArraySeq, A] =
       new Seq(SeqConstructor.arraySeqConstructor, SeqDeconstructor.arraySeqDeconstructor)
+
+    def indexedSeq[A]: Seq[IndexedSeq, A] =
+      new Seq(SeqConstructor.indexedSeqConstructor, SeqDeconstructor.indexedSeqDeconstructor)
+
+    def seq[A]: Seq[collection.immutable.Seq, A] =
+      new Seq(SeqConstructor.seqConstructor, SeqDeconstructor.seqDeconstructor)
   }
 
   final case class Map[M[_, _], K, V](
