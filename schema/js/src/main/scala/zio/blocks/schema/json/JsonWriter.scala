@@ -2525,11 +2525,10 @@ final class JsonWriter private[json] (
             m10 = hi64 >>> 6
             m10 = (m10 << 3) + (m10 << 1)
           } else {
-            m10 =
-              (unsignedMultiplyHigh(lo64, 10L) + (hi64 << 3) + (hi64 << 1) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
-                if (dotOne == 0x4000000000000000L) 0x1fL
-                else 0x20L
-              }) >>> 6
+            m10 = (unsignedMultiplyHigh10(hi64, lo64) + {
+              if (dotOne == 0x4000000000000000L) 0x1fL
+              else 0x20L
+            }) >>> 6
           }
         } else {
           var tmp1 = dotOne >>> 4
@@ -2543,11 +2542,10 @@ final class JsonWriter private[json] (
             m10 = hi64 >>> 6
             m10 = (m10 << 3) + (m10 << 1)
           } else {
-            m10 =
-              (unsignedMultiplyHigh(lo64, 10L) + (hi64 << 3) + (hi64 << 1) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
-                if (dotOne == 0x4000000000000000L) 0x1fL
-                else 0x20L
-              }) >>> 6
+            m10 = (unsignedMultiplyHigh10(hi64, lo64) + {
+              if (dotOne == 0x4000000000000000L) 0x1fL
+              else 0x20L
+            }) >>> 6
           }
         }
       }
@@ -2618,6 +2616,10 @@ final class JsonWriter private[json] (
     val t  = xh * yl + (xl * yl >>> 32)
     xh * yh + (t >>> 32) + (xl * yh + (t & 0xffffffffL) >>> 32)
   }
+
+  @inline
+  private[this] def unsignedMultiplyHigh10(hi: Long, lo: Long): Long =
+    (hi << 3) + (hi << 1) + (lo >>> 61) + (lo >>> 63) + (java.lang.Long.compareUnsigned(lo * 10L, lo << 1) >>> 31)
 
   @inline
   private[this] def digitCount(x: Long): Int =
