@@ -89,11 +89,19 @@ object TypeName {
   def arraySeq[A](element: TypeName[A]): TypeName[ArraySeq[A]] =
     _arraySeq.copy(params = Seq(element)).asInstanceOf[TypeName[ArraySeq[A]]]
 
-  private[this] val _some     = new TypeName(Namespace.scala, "Some")
-  private[this] val _option   = new TypeName(Namespace.scala, "Option")
-  private[this] val _list     = new TypeName(Namespace.scalaCollectionImmutable, "List")
-  private[this] val _map      = new TypeName(Namespace.scalaCollectionImmutable, "Map")
-  private[this] val _set      = new TypeName(Namespace.scalaCollectionImmutable, "Set")
-  private[this] val _vector   = new TypeName(Namespace.scalaCollectionImmutable, "Vector")
-  private[this] val _arraySeq = new TypeName(Namespace.scalaCollectionImmutable, "ArraySeq")
+  def indexedSeq[A](element: TypeName[A]): TypeName[IndexedSeq[A]] =
+    _indexedSeq.copy(params = Seq(element)).asInstanceOf[TypeName[IndexedSeq[A]]]
+
+  def seq[A](element: TypeName[A]): TypeName[Seq[A]] =
+    _seq.copy(params = Seq(element)).asInstanceOf[TypeName[Seq[A]]]
+
+  private[this] val _some       = new TypeName(Namespace.scala, "Some")
+  private[this] val _option     = new TypeName(Namespace.scala, "Option")
+  private[this] val _list       = new TypeName(Namespace.scalaCollectionImmutable, "List")
+  private[this] val _map        = new TypeName(Namespace.scalaCollectionImmutable, "Map")
+  private[this] val _set        = new TypeName(Namespace.scalaCollectionImmutable, "Set")
+  private[this] val _vector     = new TypeName(Namespace.scalaCollectionImmutable, "Vector")
+  private[this] val _arraySeq   = new TypeName(Namespace.scalaCollectionImmutable, "ArraySeq")
+  private[this] val _indexedSeq = new TypeName(Namespace.scalaCollectionImmutable, "IndexedSeq")
+  private[this] val _seq        = new TypeName(Namespace.scalaCollectionImmutable, "Seq")
 }
