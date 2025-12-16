@@ -33,11 +33,11 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Record(
-              fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-              typeName = typeName,
-              recordBinding = binding,
-              doc = doc,
-              modifiers = modifiers
+              fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
+              typeName,
+              binding,
+              doc,
+              modifiers
             )
           )
         }
@@ -51,11 +51,11 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Variant(
-              cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-              typeName = typeName,
-              variantBinding = binding,
-              doc = doc,
-              modifiers = modifiers
+              cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
+              typeName,
+              binding,
+              doc,
+              modifiers
             )
           )
         }
@@ -82,12 +82,12 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[M[K, V]]] = Lazy {
           deriveCodec(
             new Reflect.Map(
-              key = key.asInstanceOf[Reflect[Binding, K]],
-              value = value.asInstanceOf[Reflect[Binding, V]],
-              typeName = typeName,
-              mapBinding = binding,
-              doc = doc,
-              modifiers = modifiers
+              key.asInstanceOf[Reflect[Binding, K]],
+              value.asInstanceOf[Reflect[Binding, V]],
+              typeName,
+              binding,
+              doc,
+              modifiers
             )
           )
         }
@@ -109,7 +109,7 @@ object AvroFormat
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] = Lazy {
           deriveCodec(
             new Reflect.Wrapper(
-              wrapped = wrapped.asInstanceOf[Reflect[Binding, B]],
+              wrapped.asInstanceOf[Reflect[Binding, B]],
               typeName,
               wrapperPrimitiveType,
               binding,

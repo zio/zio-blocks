@@ -116,11 +116,11 @@ class JsonBinaryCodecDeriver private[json] (
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Record(
-        fields = fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
-        typeName = typeName,
-        recordBinding = binding,
-        doc = doc,
-        modifiers = modifiers
+        fields.asInstanceOf[IndexedSeq[Term[Binding, A, ?]]],
+        typeName,
+        binding,
+        doc,
+        modifiers
       )
     )
   }
@@ -134,11 +134,11 @@ class JsonBinaryCodecDeriver private[json] (
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Variant(
-        cases = cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
-        typeName = typeName,
-        variantBinding = binding,
-        doc = doc,
-        modifiers = modifiers
+        cases.asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]],
+        typeName,
+        binding,
+        doc,
+        modifiers
       )
     )
   }
@@ -165,12 +165,12 @@ class JsonBinaryCodecDeriver private[json] (
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[M[K, V]]] = Lazy {
     deriveCodec(
       new Reflect.Map(
-        key = key.asInstanceOf[Reflect[Binding, K]],
-        value = value.asInstanceOf[Reflect[Binding, V]],
-        typeName = typeName,
-        mapBinding = binding,
-        doc = doc,
-        modifiers = modifiers
+        key.asInstanceOf[Reflect[Binding, K]],
+        value.asInstanceOf[Reflect[Binding, V]],
+        typeName,
+        binding,
+        doc,
+        modifiers
       )
     )
   }
@@ -192,7 +192,7 @@ class JsonBinaryCodecDeriver private[json] (
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[A]] = Lazy {
     deriveCodec(
       new Reflect.Wrapper(
-        wrapped = wrapped.asInstanceOf[Reflect[Binding, B]],
+        wrapped.asInstanceOf[Reflect[Binding, B]],
         typeName,
         wrapperPrimitiveType,
         binding,
@@ -586,11 +586,7 @@ class JsonBinaryCodecDeriver private[json] (
                   try new Some(codec.decodeValue(in, codec.nullValue))
                   catch {
                     case error if NonFatal(error) =>
-                      in.decodeError(
-                        new DynamicOptic.Node.Case("Some"),
-                        new DynamicOptic.Node.Field("value"),
-                        error
-                      )
+                      in.decodeError(new DynamicOptic.Node.Case("Some"), new DynamicOptic.Node.Field("value"), error)
                   }
                 }
 
@@ -604,161 +600,165 @@ class JsonBinaryCodecDeriver private[json] (
             val discr = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
             val cases = variant.cases
             val len   = cases.length
-            enumeration(variant) match {
-              case Some(constructors) =>
-                val infos = new Array[EnumValueInfo](len)
-                var idx   = 0
+            if (isEnumeration(variant)) {
+              val infos = new Array[EnumValueInfo](len)
+              var idx   = 0
+              while (idx < len) {
+                val case_       = cases(idx)
+                val name        = getName(case_.modifiers, caseNameMapper(case_.name))
+                val constructor = case_.value.asRecord.get.recordBinding
+                  .asInstanceOf[BindingInstance[TC, ?, ?]]
+                  .binding
+                  .asInstanceOf[Binding.Record[?]]
+                  .constructor
+                infos(idx) = new EnumValueInfo(name, constructor)
+                idx += 1
+              }
+              if (len <= 8) { // faster decoding for small enumerations
+                new JsonBinaryCodec[A]() {
+                  private[this] val discriminator  = discr
+                  private[this] val enumValueInfos = infos
+
+                  def decodeValue(in: JsonReader, default: A): A = {
+                    val valueLen = in.readStringAsCharBuf()
+                    val len      = enumValueInfos.length
+                    var idx      = 0
+                    while (idx < len) {
+                      val enumValueInfo = enumValueInfos(idx)
+                      if (in.isCharBufEqualsTo(valueLen, enumValueInfo.name)) {
+                        return enumValueInfo.constructor.construct(null, 0).asInstanceOf[A]
+                      }
+                      idx += 1
+                    }
+                    in.enumValueError(valueLen)
+                  }
+
+                  def encodeValue(x: A, out: JsonWriter): Unit = {
+                    val enumValueInfo = enumValueInfos(discriminator.discriminate(x))
+                    val name          = enumValueInfo.name
+                    if (enumValueInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
+                    else out.writeVal(name)
+                  }
+                }
+              } else {
+                val map = new StringToIntMap(len)
+                var idx = 0
                 while (idx < len) {
-                  val case_ = cases(idx)
-                  val name  = getName(case_.modifiers, caseNameMapper(case_.name))
-                  infos(idx) = new EnumValueInfo(name, constructors(idx))
+                  map.put(infos(idx).name, idx)
                   idx += 1
                 }
-                if (len <= 8) { // faster decoding for small enumerations
-                  new JsonBinaryCodec[A]() {
-                    private[this] val discriminator  = discr
-                    private[this] val enumValueInfos = infos
+                new JsonBinaryCodec[A]() {
+                  private[this] val discriminator  = discr
+                  private[this] val enumValueInfos = infos
+                  private[this] val caseMap        = map
 
-                    def decodeValue(in: JsonReader, default: A): A = {
-                      val valueLen = in.readStringAsCharBuf()
-                      val len      = enumValueInfos.length
-                      var idx      = 0
-                      while (idx < len) {
-                        val enumValueInfo = enumValueInfos(idx)
-                        if (in.isCharBufEqualsTo(valueLen, enumValueInfo.name)) {
-                          return enumValueInfo.constructor.construct(null, 0).asInstanceOf[A]
-                        }
-                        idx += 1
-                      }
-                      in.enumValueError(valueLen)
-                    }
-
-                    def encodeValue(x: A, out: JsonWriter): Unit = {
-                      val enumValueInfo = enumValueInfos(discriminator.discriminate(x))
-                      val name          = enumValueInfo.name
-                      if (enumValueInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
-                      else out.writeVal(name)
-                    }
+                  def decodeValue(in: JsonReader, default: A): A = {
+                    val valueLen = in.readStringAsCharBuf()
+                    val idx      = caseMap.get(in, valueLen)
+                    if (idx >= 0) enumValueInfos(idx).constructor.construct(null, 0).asInstanceOf[A]
+                    else in.enumValueError(valueLen)
                   }
-                } else {
-                  val map = new StringToIntMap(len)
+
+                  def encodeValue(x: A, out: JsonWriter): Unit = {
+                    val enumValueInfo = enumValueInfos(discriminator.discriminate(x))
+                    val name          = enumValueInfo.name
+                    if (enumValueInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
+                    else out.writeVal(name)
+                  }
+                }
+              }
+            } else {
+              val map   = new StringToIntMap(len)
+              val infos = new Array[CaseInfo](len)
+              discriminatorKind match {
+                case DiscriminatorKind.Field(fieldName) if hasOnlyRecordCases(variant) =>
                   var idx = 0
                   while (idx < len) {
-                    map.put(infos(idx).name, idx)
+                    val case_ = cases(idx)
+                    val name  = getName(case_.modifiers, caseNameMapper(case_.name))
+                    map.put(name, idx)
+                    discriminatorFields.set((fieldName, name) :: discriminatorFields.get)
+                    infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
+                    discriminatorFields.set(discriminatorFields.get.tail)
                     idx += 1
                   }
                   new JsonBinaryCodec[A]() {
-                    private[this] val discriminator  = discr
-                    private[this] val enumValueInfos = infos
-                    private[this] val caseMap        = map
+                    private[this] val discriminator          = discr
+                    private[this] val caseInfos              = infos
+                    private[this] val caseMap                = map
+                    private[this] val discriminatorFieldName = fieldName
 
                     def decodeValue(in: JsonReader, default: A): A = {
-                      val valueLen = in.readStringAsCharBuf()
-                      val idx      = caseMap.get(in, valueLen)
-                      if (idx >= 0) enumValueInfos(idx).constructor.construct(null, 0).asInstanceOf[A]
-                      else in.enumValueError(valueLen)
+                      in.setMark()
+                      if (in.isNextToken('{')) {
+                        if (in.skipToKey(discriminatorFieldName)) {
+                          val idx = caseMap.get(in, in.readStringAsCharBuf())
+                          if (idx >= 0) {
+                            in.rollbackToMark()
+                            val codec = caseInfos(idx).codec.asInstanceOf[JsonBinaryCodec[A]]
+                            try codec.decodeValue(in, codec.nullValue)
+                            catch {
+                              case error if NonFatal(error) =>
+                                in.decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
+                            }
+                          } else in.discriminatorValueError(discriminatorFieldName)
+                        } else in.requiredFieldError(discriminatorFieldName)
+                      } else {
+                        in.resetMark()
+                        in.readNullOrTokenError(default, '{')
+                      }
                     }
 
-                    def encodeValue(x: A, out: JsonWriter): Unit = {
-                      val enumValueInfo = enumValueInfos(discriminator.discriminate(x))
-                      val name          = enumValueInfo.name
-                      if (enumValueInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
-                      else out.writeVal(name)
-                    }
+                    def encodeValue(x: A, out: JsonWriter): Unit =
+                      caseInfos(discriminator.discriminate(x)).codec
+                        .asInstanceOf[JsonBinaryCodec[A]]
+                        .encodeValue(x, out)
                   }
-                }
-              case _ =>
-                val map   = new StringToIntMap(len)
-                val infos = new Array[CaseInfo](len)
-                discriminatorKind match {
-                  case DiscriminatorKind.Field(fieldName) if hasOnlyRecordCases(variant) =>
-                    var idx = 0
-                    while (idx < len) {
-                      val case_ = cases(idx)
-                      val name  = getName(case_.modifiers, caseNameMapper(case_.name))
-                      map.put(name, idx)
-                      discriminatorFields.set((fieldName, name) :: discriminatorFields.get)
-                      infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
-                      discriminatorFields.set(discriminatorFields.get.tail)
-                      idx += 1
-                    }
-                    new JsonBinaryCodec[A]() {
-                      private[this] val discriminator          = discr
-                      private[this] val caseInfos              = infos
-                      private[this] val caseMap                = map
-                      private[this] val discriminatorFieldName = fieldName
+                case _ =>
+                  var idx = 0
+                  while (idx < len) {
+                    val case_ = cases(idx)
+                    val name  = getName(case_.modifiers, caseNameMapper(case_.name))
+                    map.put(name, idx)
+                    infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
+                    idx += 1
+                  }
+                  new JsonBinaryCodec[A]() {
+                    private[this] val discriminator = discr
+                    private[this] val caseMap       = map
+                    private[this] val caseInfos     = infos
 
-                      def decodeValue(in: JsonReader, default: A): A = {
-                        in.setMark()
-                        if (in.isNextToken('{')) {
-                          if (in.skipToKey(discriminatorFieldName)) {
-                            val idx = caseMap.get(in, in.readStringAsCharBuf())
-                            if (idx >= 0) {
-                              in.rollbackToMark()
-                              val codec = caseInfos(idx).codec.asInstanceOf[JsonBinaryCodec[A]]
+                    def decodeValue(in: JsonReader, default: A): A =
+                      if (in.isNextToken('{')) {
+                        if (!in.isNextToken('}')) {
+                          in.rollbackToken()
+                          val idx = caseMap.get(in, in.readKeyAsCharBuf())
+                          if (idx >= 0) {
+                            val codec = caseInfos(idx).codec.asInstanceOf[JsonBinaryCodec[A]]
+                            val x     =
                               try codec.decodeValue(in, codec.nullValue)
                               catch {
                                 case error if NonFatal(error) =>
                                   in.decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
                               }
-                            } else in.discriminatorValueError(discriminatorFieldName)
-                          } else in.requiredFieldError(discriminatorFieldName)
-                        } else {
-                          in.resetMark()
-                          in.readNullOrTokenError(default, '{')
-                        }
-                      }
-
-                      def encodeValue(x: A, out: JsonWriter): Unit =
-                        caseInfos(discriminator.discriminate(x)).codec
-                          .asInstanceOf[JsonBinaryCodec[A]]
-                          .encodeValue(x, out)
-                    }
-                  case _ =>
-                    var idx = 0
-                    while (idx < len) {
-                      val case_ = cases(idx)
-                      val name  = getName(case_.modifiers, caseNameMapper(case_.name))
-                      map.put(name, idx)
-                      infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
-                      idx += 1
-                    }
-                    new JsonBinaryCodec[A]() {
-                      private[this] val discriminator = discr
-                      private[this] val caseMap       = map
-                      private[this] val caseInfos     = infos
-
-                      def decodeValue(in: JsonReader, default: A): A =
-                        if (in.isNextToken('{')) {
-                          if (!in.isNextToken('}')) {
-                            in.rollbackToken()
-                            val idx = caseMap.get(in, in.readKeyAsCharBuf())
-                            if (idx >= 0) {
-                              val codec = caseInfos(idx).codec.asInstanceOf[JsonBinaryCodec[A]]
-                              val x     =
-                                try codec.decodeValue(in, codec.nullValue)
-                                catch {
-                                  case error if NonFatal(error) =>
-                                    in.decodeError(new DynamicOptic.Node.Case(cases(idx).name), error)
-                                }
-                              if (!in.isNextToken('}')) in.objectEndOrCommaError()
-                              return x
-                            }
+                            if (!in.isNextToken('}')) in.objectEndOrCommaError()
+                            return x
                           }
-                          in.discriminatorError()
-                        } else in.readNullOrTokenError(default, '{')
+                        }
+                        in.discriminatorError()
+                      } else in.readNullOrTokenError(default, '{')
 
-                      def encodeValue(x: A, out: JsonWriter): Unit = {
-                        out.writeObjectStart()
-                        val caseInfo = caseInfos(discriminator.discriminate(x))
-                        val name     = caseInfo.name
-                        if (caseInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
-                        else out.writeKey(name)
-                        caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
-                        out.writeObjectEnd()
-                      }
+                    def encodeValue(x: A, out: JsonWriter): Unit = {
+                      out.writeObjectStart()
+                      val caseInfo = caseInfos(discriminator.discriminate(x))
+                      val name     = caseInfo.name
+                      if (caseInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
+                      else out.writeKey(name)
+                      caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+                      out.writeObjectEnd()
                     }
-                }
+                  }
+              }
             }
         }
       } else variant.variantBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -1918,17 +1918,8 @@ class JsonBinaryCodecDeriver private[json] (
     }
   }.asInstanceOf[JsonBinaryCodec[A]]
 
-  private[this] def enumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Array[Constructor[?]]] =
-    if (enumValuesAsStrings && variant.cases.forall(_.value.asRecord.exists(_.fields.isEmpty))) {
-      new Some(variant.cases.map { case_ =>
-        val recordBinding = case_.value.asRecord.get.recordBinding
-        val binding       = recordBinding match {
-          case value: Binding.Record[?] => value
-          case _                        => recordBinding.asInstanceOf[BindingInstance[TC, ?, ?]].binding.asInstanceOf[Binding.Record[?]]
-        }
-        binding.constructor
-      }.toArray)
-    } else None
+  private[this] def isEnumeration[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
+    enumValuesAsStrings && variant.cases.forall(_.value.asRecord.exists(_.fields.isEmpty))
 
   private[this] def hasOnlyRecordCases[F[_, _], A](variant: Reflect.Variant[F, A]): Boolean =
     variant.cases.forall(_.value.isRecord)
@@ -2009,12 +2000,7 @@ class JsonBinaryCodecDeriver private[json] (
           in.rollbackToken()
           val builder = new VectorBuilder[(String, DynamicValue)]
           while ({
-            builder.addOne(
-              (
-                in.readKeyAsString(),
-                decodeValue(in, default)
-              )
-            )
+            builder.addOne((in.readKeyAsString(), decodeValue(in, default)))
             in.isNextToken(',')
           }) ()
           if (in.isCurrentToken('}')) new DynamicValue.Record(builder.result())
