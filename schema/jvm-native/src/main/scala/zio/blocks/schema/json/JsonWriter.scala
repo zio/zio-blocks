@@ -2278,7 +2278,7 @@ final class JsonWriter private[json] (
         hi64 += java.lang.Long.compareUnsigned(lo64, lo64_1) >>> 31
         val dotOne  = (hi64 << 58) | (lo64 >>> 6)
         val halfUlp = pow10_1 >>> -h
-        val even    = (m2 + 1L) & 1L
+        val even    = (m2.toInt + 1) & 1
         if (java.lang.Long.compareUnsigned(halfUlp + even, -1 - dotOne) > 0) {
           m10 = (hi64 >>> 6) * 10L + 10L
         } else if (m2IEEE != 0) {
@@ -2295,7 +2295,7 @@ final class JsonWriter private[json] (
           }
         } else {
           val tmp = (dotOne >>> 4) * 10L
-          if (java.lang.Long.compareUnsigned((tmp << 4) >>> 4, (halfUlp >>> 4) * 5) > 0) {
+          if (java.lang.Long.compareUnsigned((tmp << 4) >>> 4, (halfUlp >>> 4) * 5L) > 0) {
             m10 = (hi64 >>> 6) * 10L + ((tmp >>> 60).toInt + 1)
           } else if (java.lang.Long.compareUnsigned(halfUlp >>> 1, dotOne) > 0) {
             m10 = (hi64 >>> 6) * 10L
