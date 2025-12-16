@@ -7,6 +7,7 @@ import java.time._
 import java.util.UUID
 import zio.blocks.schema.json.JsonWriter._
 import scala.annotation.tailrec
+import java.lang.Long.compareUnsigned
 
 /**
  * A writer for iterative serialization of JSON keys and values.
@@ -2162,8 +2163,8 @@ final class JsonWriter private[json] (
           m2.toLong << (h + 37)
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10, m2.toLong << (h + 37))
         m10 = (hi64 >>> 36).toInt * 10
-        val dotOne          = hi64 & 0xfffffffffL
         val halfUlpPlusEven = (pow10 >>> (28 - h)) + ((m2IEEE + 1) & 1)
+        val dotOne          = hi64 & 0xfffffffffL
         var m10Corr         =
           if (
             {
@@ -2275,39 +2276,17 @@ final class JsonWriter private[json] (
           cb
         ) // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(pow10_1, cb)
         val lo64 = lo64_1 + lo64_2
-        hi64 += java.lang.Long.compareUnsigned(lo64, lo64_1) >>> 31
-        val dotOne  = (hi64 << 58) | (lo64 >>> 6)
-        val halfUlp = pow10_1 >>> -h
-        val even    = (m2.toInt + 1) & 1
-        if (java.lang.Long.compareUnsigned(halfUlp + even, -1 - dotOne) > 0) {
-          m10 = (hi64 >>> 6) * 10L + 10L
-        } else if (m2IEEE != 0) {
-          if (java.lang.Long.compareUnsigned(halfUlp + even, dotOne) > 0) {
-            m10 = (hi64 >>> 6) * 10L
-          } else {
-            m10 = (hi64 * 10L + unsignedMultiplyHigh2(
-              lo64,
-              10L
-            ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
-              if (dotOne == 0x4000000000000000L) 0x1fL
-              else 0x20L
-            }) >>> 6
-          }
+        hi64 += compareUnsigned(lo64, lo64_1) >>> 31
+        m10 = (hi64 >>> 6) * 10L
+        val halfUlpPlusEven = (pow10_1 >>> -h) + ((m2.toInt + 1) & 1)
+        val dotOne          = (hi64 << 58) | (lo64 >>> 6)
+        if (compareUnsigned(halfUlpPlusEven, -1 - dotOne) > 0) m10 += 10L
+        else if (m2IEEE != 0) {
+          if (compareUnsigned(halfUlpPlusEven, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
         } else {
           val tmp = (dotOne >>> 4) * 10L
-          if (java.lang.Long.compareUnsigned((tmp << 4) >>> 4, (halfUlp >>> 4) * 5L) > 0) {
-            m10 = (hi64 >>> 6) * 10L + ((tmp >>> 60).toInt + 1)
-          } else if (java.lang.Long.compareUnsigned(halfUlp >>> 1, dotOne) > 0) {
-            m10 = (hi64 >>> 6) * 10L
-          } else {
-            m10 = (hi64 * 10L + unsignedMultiplyHigh2(
-              lo64,
-              10L
-            ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
-              if (dotOne == 0x4000000000000000L) 0x1fL
-              else 0x20L
-            }) >>> 6
-          }
+          if (compareUnsigned((tmp << 4) >>> 4, (halfUlpPlusEven >>> 4) * 5L) > 0) m10 += (tmp >>> 60).toInt + 1
+          else if (compareUnsigned(halfUlpPlusEven >>> 1, dotOne) <= 0) m10 = calculateM10(hi64, lo64, dotOne)
         }
       }
       val len = digitCount(m10)
@@ -2358,6 +2337,15 @@ final class JsonWriter private[json] (
     }
     count = pos
   }
+
+  private[this] def calculateM10(hi: Long, lo: Long, dotOne: Long): Long =
+    (hi * 10L + unsignedMultiplyHigh2(
+      lo,
+      10L
+    ) + { // TODO: when dropping JDK 17 support replace by Math.unsignedMultiplyHigh(lo64, 10L)
+      if (dotOne == 0x4000000000000000L) 0x1fL
+      else 0x20L
+    }) >>> 6
 
   private[this] def unsignedMultiplyHigh2(x: Long, y: Long): Long =
     Math.multiplyHigh(x, y) + (y & (x >> 63)) // Use implementation that works only when y is positive
@@ -2899,34 +2887,34 @@ object JsonWriter {
     0x83126e978d4fdf3bL, 0x645a1cac083126eaL, // -3
     0xa3d70a3d70a3d70aL, 0x3d70a3d70a3d70a4L, // -2
     0xccccccccccccccccL, 0xcccccccccccccccdL, // -1
-    0x8000000000000000L, 0x0,                 // 0
-    0xa000000000000000L, 0x0,                 // 1
-    0xc800000000000000L, 0x0,                 // 2
-    0xfa00000000000000L, 0x0,                 // 3
-    0x9c40000000000000L, 0x0,                 // 4
-    0xc350000000000000L, 0x0,                 // 5
-    0xf424000000000000L, 0x0,                 // 6
-    0x9896800000000000L, 0x0,                 // 7
-    0xbebc200000000000L, 0x0,                 // 8
-    0xee6b280000000000L, 0x0,                 // 9
-    0x9502f90000000000L, 0x0,                 // 10
-    0xba43b74000000000L, 0x0,                 // 11
-    0xe8d4a51000000000L, 0x0,                 // 12
-    0x9184e72a00000000L, 0x0,                 // 13
-    0xb5e620f480000000L, 0x0,                 // 14
-    0xe35fa931a0000000L, 0x0,                 // 15
-    0x8e1bc9bf04000000L, 0x0,                 // 16
-    0xb1a2bc2ec5000000L, 0x0,                 // 17
-    0xde0b6b3a76400000L, 0x0,                 // 18
-    0x8ac7230489e80000L, 0x0,                 // 19
-    0xad78ebc5ac620000L, 0x0,                 // 20
-    0xd8d726b7177a8000L, 0x0,                 // 21
-    0x878678326eac9000L, 0x0,                 // 22
-    0xa968163f0a57b400L, 0x0,                 // 23
-    0xd3c21bcecceda100L, 0x0,                 // 24
-    0x84595161401484a0L, 0x0,                 // 25
-    0xa56fa5b99019a5c8L, 0x0,                 // 26
-    0xcecb8f27f4200f3aL, 0x0,                 // 27
+    0x8000000000000000L, 0x0000000000000000L, // 0
+    0xa000000000000000L, 0x0000000000000000L, // 1
+    0xc800000000000000L, 0x0000000000000000L, // 2
+    0xfa00000000000000L, 0x0000000000000000L, // 3
+    0x9c40000000000000L, 0x0000000000000000L, // 4
+    0xc350000000000000L, 0x0000000000000000L, // 5
+    0xf424000000000000L, 0x0000000000000000L, // 6
+    0x9896800000000000L, 0x0000000000000000L, // 7
+    0xbebc200000000000L, 0x0000000000000000L, // 8
+    0xee6b280000000000L, 0x0000000000000000L, // 9
+    0x9502f90000000000L, 0x0000000000000000L, // 10
+    0xba43b74000000000L, 0x0000000000000000L, // 11
+    0xe8d4a51000000000L, 0x0000000000000000L, // 12
+    0x9184e72a00000000L, 0x0000000000000000L, // 13
+    0xb5e620f480000000L, 0x0000000000000000L, // 14
+    0xe35fa931a0000000L, 0x0000000000000000L, // 15
+    0x8e1bc9bf04000000L, 0x0000000000000000L, // 16
+    0xb1a2bc2ec5000000L, 0x0000000000000000L, // 17
+    0xde0b6b3a76400000L, 0x0000000000000000L, // 18
+    0x8ac7230489e80000L, 0x0000000000000000L, // 19
+    0xad78ebc5ac620000L, 0x0000000000000000L, // 20
+    0xd8d726b7177a8000L, 0x0000000000000000L, // 21
+    0x878678326eac9000L, 0x0000000000000000L, // 22
+    0xa968163f0a57b400L, 0x0000000000000000L, // 23
+    0xd3c21bcecceda100L, 0x0000000000000000L, // 24
+    0x84595161401484a0L, 0x0000000000000000L, // 25
+    0xa56fa5b99019a5c8L, 0x0000000000000000L, // 26
+    0xcecb8f27f4200f3aL, 0x0000000000000000L, // 27
     0x813f3978f8940984L, 0x4000000000000000L, // 28
     0xa18f07d736b90be5L, 0x5000000000000000L, // 29
     0xc9f2c9cd04674edeL, 0xa400000000000000L, // 30

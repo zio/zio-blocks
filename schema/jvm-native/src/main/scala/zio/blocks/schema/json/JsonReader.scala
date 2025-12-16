@@ -4659,24 +4659,6 @@ object JsonReader {
   private final val pow10Doubles: Array[Double] =
     Array(1, 1e+1, 1e+2, 1e+3, 1e+4, 1e+5, 1e+6, 1e+7, 1e+8, 1e+9, 1e+10, 1e+11, 1e+12, 1e+13, 1e+14, 1e+15, 1e+16,
       1e+17, 1e+18, 1e+19, 1e+20, 1e+21, 1e+22)
-  /* Use the following code to generate `pow10Mantissas` in Scala REPL:
-    val ms = new Array[Long](653)
-    var pow10 = BigInt(10)
-    var i = 342
-    while (i >= 0) {
-      ms(i) = ((BigInt(1) << (pow10.bitLength + 63)) / pow10).longValue
-      pow10 *= 10
-      i -= 1
-    }
-    pow10 = BigInt(1) << 63
-    i = 343
-    while (i < 653) {
-      ms(i) = (pow10 >> (pow10.bitLength - 64)).longValue
-      pow10 *= 10
-      i += 1
-    }
-    ms.grouped(4).map(_.mkString("L, ")).mkString("Array(\n", "L,\n", "L\n)")
-   */
   private final val pow10Mantissas: Array[Long] = Array(
     -4671960508600951122L, -1228264617323800998L, -7685194413468457480L, -4994806998408183946L, -1631822729582842029L,
     -7937418233630358124L, -5310086773610559751L, -2025922448585811785L, -8183730558007214222L, -5617977179081629873L,
@@ -4810,33 +4792,6 @@ object JsonReader {
     -7686947121313936181L, -4996997883215032323L, -1634561335591402499L, -7939129862385708418L, -5312226309554747619L,
     -2028596868516046619L, -8185402070463610993L, -5620066569652125837L
   )
-  /* Use the following code to generate `nibbles` in Scala REPL:
-    val ns = new Array[Byte](256)
-    java.util.Arrays.fill(ns, -1: Byte)
-    ns('0') = 0
-    ns('1') = 1
-    ns('2') = 2
-    ns('3') = 3
-    ns('4') = 4
-    ns('5') = 5
-    ns('6') = 6
-    ns('7') = 7
-    ns('8') = 8
-    ns('9') = 9
-    ns('A') = 10
-    ns('B') = 11
-    ns('C') = 12
-    ns('D') = 13
-    ns('E') = 14
-    ns('F') = 15
-    ns('a') = 10
-    ns('b') = 11
-    ns('c') = 12
-    ns('d') = 13
-    ns('e') = 14
-    ns('f') = 15
-    ns.grouped(16).map(_.mkString(", ")).mkString("Array(\n", ",\n", "\n)")
-   */
   private final val nibbles: Array[Byte] = Array(
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, -1, -1,
