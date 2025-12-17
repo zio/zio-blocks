@@ -1779,6 +1779,23 @@ object SchemaSpec extends ZIOSpecDefault {
           )
         )
       )
+    },
+    test(
+      "doesn't generate schema for classes with transient fields that are neither optional nor collection nor have default value"
+    ) {
+      typeCheck {
+        """case class WrongTransientField(i: Int, @Modifier.transient() a: String)
+
+           Schema.derived[WrongTransientField]"""
+      }.map(
+        assert(_)(
+          isLeft(
+            containsString(
+              "Missing default value for transient field 'a' in 'WrongTransientField'"
+            )
+          )
+        )
+      )
     }
   )
 

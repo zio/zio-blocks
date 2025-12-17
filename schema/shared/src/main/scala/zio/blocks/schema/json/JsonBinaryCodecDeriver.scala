@@ -1331,6 +1331,7 @@ class JsonBinaryCodecDeriver private[json] (
             val name         = getName(field.modifiers, fieldNameMapper(field.name))
             val isOpt        = isOptional(fieldReflect)
             val isColl       = isCollection(fieldReflect)
+            val nonTransient = !field.modifiers.exists(_.isInstanceOf[Modifier.transient])
             val defaultValue =
               if (requireDefaultValueFields) None
               else
@@ -1343,7 +1344,7 @@ class JsonBinaryCodecDeriver private[json] (
                   else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
                   else fieldReflect.asDynamic.get.dynamicBinding
                 }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
-            infos(idx) = new FieldInfo(name, offset, codec, isOpt, isColl, defaultValue)
+            infos(idx) = new FieldInfo(name, offset, codec, isOpt, isColl, nonTransient, defaultValue)
             offset += codec.valueOffset
             idx += 1
           }
@@ -1557,14 +1558,14 @@ class JsonBinaryCodecDeriver private[json] (
                         idx += 1
                         if (idx == len) idx = 0
                         field = fieldInfos(idx)
-                        in.isCharBufEqualsTo(keyLen, field.name) || {
+                        (in.isCharBufEqualsTo(keyLen, field.name) || {
                           val keyIdx = map.get(in, keyLen)
                           (keyIdx >= 0) && {
                             idx = keyIdx
                             field = fieldInfos(idx)
                             true
                           }
-                        }
+                        }) && field.nonTransient
                       }
                     ) {
                       if (idx < 64) {
@@ -1715,10 +1716,12 @@ class JsonBinaryCodecDeriver private[json] (
               var idx = 0
               while (idx < len) {
                 val field = fieldInfos(idx)
-                if (skipDefaultValue && (field.defaultValueConstructor ne None)) writeDefaultValue(out, field, regs)
-                else if (skipNone && field.isOptional) writeOptional(out, field, regs)
-                else if (skipEmptyCollection && field.isCollection) writeCollection(out, field, regs)
-                else writeRequired(out, field, regs)
+                if (field.nonTransient) {
+                  if (skipDefaultValue && (field.defaultValueConstructor ne None)) writeDefaultValue(out, field, regs)
+                  else if (skipNone && field.isOptional) writeOptional(out, field, regs)
+                  else if (skipEmptyCollection && field.isCollection) writeCollection(out, field, regs)
+                  else writeRequired(out, field, regs)
+                }
                 idx += 1
               }
               out.writeObjectEnd()
@@ -2132,6 +2135,7 @@ private case class FieldInfo(
   codec: JsonBinaryCodec[?],
   isOptional: Boolean,
   isCollection: Boolean,
+  nonTransient: Boolean,
   defaultValueConstructor: Option[() => ?]
 ) extends Info(name) {
   val valueType: Int = codec.valueType
