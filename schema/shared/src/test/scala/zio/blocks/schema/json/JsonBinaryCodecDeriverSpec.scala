@@ -2957,7 +2957,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     val optKey: Lens[Record4, Option[String]] = $(_.optKеy)
   }
 
-  case class Record5(bigInt: BigInt, bigDecimal: BigDecimal)
+  case class Record5(bigInt: BigInt, @Modifier.rename("bigDecimal") bigDecimal: BigDecimal)
 
   object Record5 extends CompanionOptics[Record5] {
     implicit val schema: Schema[Record5] = Schema.derived
