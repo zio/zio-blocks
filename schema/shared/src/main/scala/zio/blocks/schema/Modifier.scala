@@ -11,6 +11,8 @@ object Modifier {
 
   @field case class transient() extends Term
 
+  @field case class rename(name: String) extends Term
+
   sealed trait Reflect extends Modifier
 
   /**
