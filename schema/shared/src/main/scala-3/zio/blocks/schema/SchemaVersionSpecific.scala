@@ -58,6 +58,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   private val iteratorOfWildcardTpe = Symbol.requiredClass("scala.collection.Iterator").typeRef.appliedTo(wildcard)
   private val modifierReflectTpe    = Symbol.requiredClass("zio.blocks.schema.Modifier.Reflect").typeRef
   private val modifierTermTpe       = Symbol.requiredClass("zio.blocks.schema.Modifier.Term").typeRef
+  private val modifierTransientTpe  = Symbol.requiredClass("zio.blocks.schema.Modifier.transient").typeRef
   private val iArrayOfAnyRefTpe     = TypeRepr.of[IArray[AnyRef]]
   private val fromIArrayMethod      = Select.unique(Ref(Symbol.requiredModule("scala.runtime.TupleXXL")), "fromIArray")
   private val asInstanceOfMethod    = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
@@ -164,6 +165,8 @@ private class SchemaVersionSpecificImpl(using Quotes) {
 
   private def isIArray(tpe: TypeRepr): Boolean = tpe.typeSymbol.fullName == "scala.IArray$package$.IArray"
 
+  private def isOption(tpe: TypeRepr): Boolean = tpe <:< TypeRepr.of[Option[?]]
+
   private def isCollection(tpe: TypeRepr): Boolean =
     tpe <:< iterableOfWildcardTpe || tpe <:< iteratorOfWildcardTpe || tpe <:< arrayOfWildcardTpe || isIArray(tpe)
 
@@ -180,7 +183,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         tpe <:< TypeRepr.of[java.util.Currency] || tpe <:< TypeRepr.of[java.util.UUID] || isEnumOrModuleValue(tpe) ||
         tpe <:< TypeRepr.of[DynamicValue] || !nestedTpes.contains(tpe) && {
           val nestedTpes_ = tpe :: nestedTpes
-          if (tpe <:< TypeRepr.of[Option[?]] || tpe <:< TypeRepr.of[Either[?, ?]] || isCollection(tpe)) {
+          if (isOption(tpe) || tpe <:< TypeRepr.of[Either[?, ?]] || isCollection(tpe)) {
             typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isGenericTuple(tpe)) {
             genericTupleTypeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
@@ -469,7 +472,12 @@ private class SchemaVersionSpecificImpl(using Quotes) {
                   s"Default values of non-first parameter lists are not supported for '$symbol' in class '${tpe.show}'."
                 }
             })
-          } else None
+          } else {
+            if (modifiers.exists(_.tpe <:< modifierTransientTpe) && !isOption(fTpe) && !isCollection(fTpe)) {
+              fail(s"Missing default value for transient field '$name' in '${tpe.show}'")
+            }
+            None
+          }
           val fieldInfo = new FieldInfo(name, fTpe, defaultValue, getter, usedRegisters, modifiers)
           usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe))
           fieldInfo
@@ -808,7 +816,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             )
           }
       }
-    } else if (tpe <:< TypeRepr.of[Option[?]]) {
+    } else if (isOption(tpe)) {
       if (tpe <:< TypeRepr.of[None.type]) deriveSchemaForEnumOrModuleValue(tpe)
       else if (tpe <:< TypeRepr.of[Some[?]]) deriveSchemaForNonAbstractScalaClass(tpe)
       else {

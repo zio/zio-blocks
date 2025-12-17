@@ -51,6 +51,8 @@ private object SchemaVersionSpecific {
     def isJavaTime(tpe: Type): Boolean = tpe.typeSymbol.fullName.startsWith("java.time.") &&
       (tpe <:< typeOf[java.time.temporal.Temporal] || tpe <:< typeOf[java.time.temporal.TemporalAmount])
 
+    def isOption(tpe: Type): Boolean = tpe <:< typeOf[Option[?]]
+
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[?]] || tpe <:< typeOf[Iterator[?]] || tpe <:< typeOf[Array[?]]
 
@@ -105,7 +107,7 @@ private object SchemaVersionSpecific {
         tpe <:< typeOf[java.util.Currency] || tpe <:< typeOf[java.util.UUID] || isEnumOrModuleValue(tpe) ||
         tpe <:< typeOf[DynamicValue] || !nestedTpes.contains(tpe) && {
           val nestedTpes_ = tpe :: nestedTpes
-          if (tpe <:< typeOf[Option[?]] || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
+          if (isOption(tpe) || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
             typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
           else if (isNonAbstractScalaClass(tpe)) {
@@ -252,7 +254,12 @@ private object SchemaVersionSpecific {
             val modifiers    = annotations.getOrElse(name, Nil)
             val defaultValue =
               if (symbol.isParamWithDefault) new Some(q"$module.${TermName("$lessinit$greater$default$" + idx)}")
-              else None
+              else {
+                if (modifiers.exists(_.tpe <:< typeOf[Modifier.transient]) && !isOption(fTpe) && !isCollection(fTpe)) {
+                  fail(s"Missing default value for transient field '$name' in '$tpe'")
+                }
+                None
+              }
             val sTpe   = dealiasOnDemand(fTpe)
             val offset =
               if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
@@ -418,7 +425,7 @@ private object SchemaVersionSpecific {
           val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
           q"Schema.seq($schema)"
         } else cannotDeriveSchema(tpe)
-      } else if (tpe <:< typeOf[Option[?]]) {
+      } else if (isOption(tpe)) {
         if (tpe <:< typeOf[None.type]) deriveSchemaForEnumOrModuleValue(tpe)
         else if (tpe <:< typeOf[Some[?]]) deriveSchemaForNonAbstractScalaClass(tpe)
         else {
