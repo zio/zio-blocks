@@ -15,7 +15,7 @@ import zio.blocks.schema.binding.{Binding, BindingType}
  * val personEq: Eq[Person] = personSchema
  *   .deriving[Eq]
  *   .instance(Person.age, Eq[Int])
- *   .modifier(Person.name, Modifier.config("rename", "fullName"))
+ *   .modifier(Person.name, Modifier.rename("fullName"))
  *   .derive
  * }}}
  */
@@ -31,23 +31,31 @@ final case class DerivationBuilder[TC[_], A](
   def instance[B](typeName: TypeName[B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByType(typeName, Lazy(instance)))
 
-  def modifier[B](optic: Optic[A, B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
-    copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByOptic(optic.toDynamic, modifier))
-
   def modifier[B](typeName: TypeName[B], modifier: Modifier.Reflect): DerivationBuilder[TC, A] =
     copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByType(typeName, modifier))
 
-  def modifier[B](typeName: TypeName[B], termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
-    copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverride(typeName, termName, modifier))
-
-  def modifier(termName: String, modifier: Modifier.Term): DerivationBuilder[TC, A] =
-    copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverride(schema.reflect.typeName, termName, modifier))
+  def modifier[B](optic: Optic[A, B], modifier: Modifier): DerivationBuilder[TC, A] = modifier match {
+    case mr: Modifier.Reflect =>
+      copy(modifierOverrides = modifierOverrides :+ new ModifierReflectOverrideByOptic(optic.toDynamic, mr))
+    case mt: Modifier.Term =>
+      val nodes = optic.toDynamic.nodes
+      if (nodes.isEmpty) this
+      else {
+        val path = new DynamicOptic(nodes.init)
+        nodes.last match {
+          case DynamicOptic.Node.Field(name) =>
+            copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByOptic(path, name, mt))
+          case DynamicOptic.Node.Case(name) =>
+            copy(modifierOverrides = modifierOverrides :+ new ModifierTermOverrideByOptic(path, name, mt))
+          case _ => this
+        }
+      }
+  }
 
   lazy val derive: TC[A] = {
-    val allInstanceOverrides = deriver.instanceOverrides ++ instanceOverrides
-    val allModifierOverrides = deriver.modifierOverrides ++ modifierOverrides
-
-    val instanceByOpticMap =
+    val allInstanceOverrides = instanceOverrides ++ deriver.instanceOverrides
+    val allModifierOverrides = modifierOverrides ++ deriver.modifierOverrides
+    val instanceByOpticMap   =
       allInstanceOverrides.collect { case InstanceOverrideByOptic(optic, instance) => (optic, instance) }.toMap
     val instanceByTypeMap =
       allInstanceOverrides.collect { case InstanceOverrideByType(typeName, instance) => (typeName, instance) }.toMap
@@ -63,19 +71,33 @@ final case class DerivationBuilder[TC[_], A](
           acc.updated(typeName, acc.getOrElse(typeName, Vector.empty).appended(modifier))
         case (acc, _) => acc
       }
+    val modifierTermByOpticMap =
+      allModifierOverrides.foldLeft[Map[DynamicOptic, Vector[(String, Modifier.Term)]]](Map.empty) {
+        case (acc, ModifierTermOverrideByOptic(optic, termName, modifier)) =>
+          acc.updated(optic, acc.getOrElse(optic, Vector.empty).appended((termName, modifier)))
+        case (acc, _) => acc
+      }
     val modifierTermByTypeMap =
       allModifierOverrides.foldLeft[Map[TypeName[?], Vector[(String, Modifier.Term)]]](Map.empty) {
-        case (acc, ModifierTermOverride(typeName, termName, modifier)) =>
+        case (acc, ModifierTermOverrideByType(typeName, termName, modifier)) =>
           acc.updated(typeName, acc.getOrElse(typeName, Vector.empty).appended((termName, modifier)))
         case (acc, _) => acc
       }
 
-    def appendModifiers[A0](modifiers: Seq[Modifier.Reflect], path: DynamicOptic, typeName: TypeName[A0]) =
+    def prependCombinedModifiers[A0](modifiers: Seq[Modifier.Reflect], path: DynamicOptic, typeName: TypeName[A0]) =
       (modifierReflectByOpticMap.get(path), modifierReflectByTypeMap.get(typeName)) match {
-        case (Some(modifiers1), Some(modifiers2)) => modifiers ++ (modifiers1 ++ modifiers2)
-        case (Some(modifiers1), _)                => modifiers ++ modifiers1
-        case (_, Some(modifiers2))                => modifiers ++ modifiers2
+        case (Some(modifiers1), Some(modifiers2)) => (modifiers1 ++ modifiers2) ++ modifiers
+        case (Some(modifiers1), _)                => modifiers1 ++ modifiers
+        case (_, Some(modifiers2))                => modifiers2 ++ modifiers
         case _                                    => modifiers
+      }
+
+    def combineModifiers[A0](path: DynamicOptic, typeName: TypeName[A0]) =
+      (modifierTermByOpticMap.get(path), modifierTermByTypeMap.get(typeName)) match {
+        case (Some(modifiers1), Some(modifiers2)) => modifiers1 ++ modifiers2
+        case (Some(modifiers1), _)                => modifiers1
+        case (_, Some(modifiers2))                => modifiers2
+        case _                                    => Seq.empty
       }
 
     def getCustomInstance[A0](path: DynamicOptic, typeName: TypeName[A0]): Option[Lazy[TC[A0]]] =
@@ -102,19 +124,26 @@ final case class DerivationBuilder[TC[_], A](
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Record[G, A0]] = Lazy {
             val instance = getCustomInstance[A0](path, typeName).getOrElse {
-              val modifiersToAdd = modifierTermByTypeMap.getOrElse(typeName, Vector.empty)
-              val updatedFields  =
-                if (modifiersToAdd.isEmpty) fields
+              val modifiersToPrepend = combineModifiers(path, typeName)
+              val updatedFields      =
+                if (modifiersToPrepend.isEmpty) fields
                 else {
                   fields.map { field =>
-                    val fieldModifiersToAdd = modifiersToAdd.collect {
+                    val fieldModifiersToPrepend = modifiersToPrepend.collect {
                       case (name, modifier) if name == field.name => modifier
                     }
-                    if (fieldModifiersToAdd.isEmpty) field
-                    else field.copy(modifiers = field.modifiers ++ fieldModifiersToAdd).asInstanceOf[Term[G, A0, ?]]
+                    if (fieldModifiersToPrepend.isEmpty) field
+                    else field.copy(modifiers = fieldModifiersToPrepend ++ field.modifiers).asInstanceOf[Term[G, A0, ?]]
                   }
                 }
-              deriver.deriveRecord(updatedFields, typeName, metadata, doc, appendModifiers(modifiers, path, typeName))
+              deriver
+                .deriveRecord(
+                  updatedFields,
+                  typeName,
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeName)
+                )
             }
             new Reflect.Record(fields, typeName, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -128,20 +157,29 @@ final case class DerivationBuilder[TC[_], A](
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Variant[G, A0]] = Lazy {
             val instance = getCustomInstance[A0](path, typeName).getOrElse {
-              val modifiersToAdd = modifierTermByTypeMap.getOrElse(typeName, Vector.empty)
+              val modifiersToAdd = combineModifiers(path, typeName)
               val updatedCases   =
                 if (modifiersToAdd.isEmpty) cases
                 else {
                   cases.map { case_ =>
-                    val caseModifiersToAdd = modifiersToAdd.collect {
+                    val caseModifiersToPrepend = modifiersToAdd.collect {
                       case (name, modifier) if name == case_.name => modifier
                     }
-                    if (caseModifiersToAdd.isEmpty) case_
+                    if (caseModifiersToPrepend.isEmpty) case_
                     else
-                      case_.copy(modifiers = case_.modifiers ++ caseModifiersToAdd).asInstanceOf[Term[G, A0, ? <: A0]]
+                      case_
+                        .copy(modifiers = caseModifiersToPrepend ++ case_.modifiers)
+                        .asInstanceOf[Term[G, A0, ? <: A0]]
                   }
                 }
-              deriver.deriveVariant(updatedCases, typeName, metadata, doc, appendModifiers(modifiers, path, typeName))
+              deriver
+                .deriveVariant(
+                  updatedCases,
+                  typeName,
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeName)
+                )
             }
             new Reflect.Variant(cases, typeName, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -155,7 +193,8 @@ final case class DerivationBuilder[TC[_], A](
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Sequence[G, A0, C]] = Lazy {
             val instance = getCustomInstance[C[A0]](path, typeName).getOrElse(
-              deriver.deriveSequence(element, typeName, metadata, doc, appendModifiers(modifiers, path, typeName))
+              deriver
+                .deriveSequence(element, typeName, metadata, doc, prependCombinedModifiers(modifiers, path, typeName))
             )
             new Reflect.Sequence(element, typeName, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -170,7 +209,8 @@ final case class DerivationBuilder[TC[_], A](
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Map[G, Key, Value, M]] = Lazy {
             val instance = getCustomInstance[M[Key, Value]](path, typeName).getOrElse(
-              deriver.deriveMap(key, value, typeName, metadata, doc, appendModifiers(modifiers, path, typeName))
+              deriver
+                .deriveMap(key, value, typeName, metadata, doc, prependCombinedModifiers(modifiers, path, typeName))
             )
             new Reflect.Map(key, value, typeName, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -183,7 +223,7 @@ final case class DerivationBuilder[TC[_], A](
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
             val instance = getCustomInstance[DynamicValue](path, TypeName.dynamicValue)
-              .getOrElse(deriver.deriveDynamic[G](metadata, doc, appendModifiers(modifiers, path, typeName)))
+              .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeName)))
             new Reflect.Dynamic(new BindingInstance(metadata, instance), typeName, doc, modifiers)
           }
 
@@ -197,7 +237,13 @@ final case class DerivationBuilder[TC[_], A](
           ): Lazy[Reflect.Primitive[G, A0]] = Lazy {
             val instance = getCustomInstance[A0](path, typeName).getOrElse(
               deriver
-                .derivePrimitive(primitiveType, typeName, metadata, doc, appendModifiers(modifiers, path, typeName))
+                .derivePrimitive(
+                  primitiveType,
+                  typeName,
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeName)
+                )
             )
             new Reflect.Primitive(primitiveType, typeName, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -219,7 +265,7 @@ final case class DerivationBuilder[TC[_], A](
                   wrapperPrimitiveType,
                   metadata,
                   doc,
-                  appendModifiers(modifiers, path, typeName)
+                  prependCombinedModifiers(modifiers, path, typeName)
                 )
               )
             new Reflect.Wrapper(

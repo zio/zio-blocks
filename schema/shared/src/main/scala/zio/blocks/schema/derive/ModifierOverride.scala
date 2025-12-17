@@ -8,5 +8,8 @@ case class ModifierReflectOverrideByOptic(optic: DynamicOptic, modifier: Modifie
 
 case class ModifierReflectOverrideByType[A](typeName: TypeName[A], modifier: Modifier.Reflect) extends ModifierOverride
 
-case class ModifierTermOverride[A](typeName: TypeName[A], termName: String, modifier: Modifier.Term)
+case class ModifierTermOverrideByType[A](typeName: TypeName[A], termName: String, modifier: Modifier.Term)
+    extends ModifierOverride
+
+case class ModifierTermOverrideByOptic[A](optic: DynamicOptic, termName: String, modifier: Modifier.Term)
     extends ModifierOverride
