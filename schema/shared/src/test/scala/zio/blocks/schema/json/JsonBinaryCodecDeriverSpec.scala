@@ -1552,6 +1552,10 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           "missing required field \"f00\" at: .f67.when[Some].value"
         )
       },
+      test("record with transient field") {
+        encode(BigProduct(f00 = true, f66 = Some(2), f69 = 1), """{"f00":true,"f69":1}""") &&
+        decode("""{"f00":true,"f66":2,"f69":1}""", BigProduct(f00 = true, f66 = Some(1), f69 = 1))
+      },
       test("recursive record") {
         roundTrip(
           Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
@@ -3154,7 +3158,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     f63: Option[Int] = None,
     f64: Option[Int] = None,
     f65: Option[Int] = None,
-    f66: Option[Int] = Some(1),
+    @Modifier.transient() f66: Option[Int] = Some(1),
     f67: Option[BigProduct] = None,
     f68: List[Int] = List(1, 2, 3),
     f69: Int
