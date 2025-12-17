@@ -1683,7 +1683,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derive
         val codec2 = Record5.schema
           .deriving(JsonBinaryCodecDeriver.withFieldNameMapper(SnakeCase))
-          .modifier("bigDecimal", Modifiers.rename("bigDec"))
+          .modifier(Record5.bigDecimal, Modifier.rename("bigDec"))
           .instance(
             Record5.bigInt,
             new JsonBinaryCodec[BigInt]() { // stringifies BigInt values
@@ -2905,7 +2905,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
   object TrafficLight {
     implicit val schema: Schema[TrafficLight] = Schema.derived
 
-    @Modifier.config("json.rename", "Rеd") // using non-ASCII chars for field names intentionally
+    @Modifier.rename("Rеd") // using non-ASCII chars for field names intentionally
     case object Red extends TrafficLight
 
     case object Yellow extends TrafficLight
@@ -3052,8 +3052,8 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
     case object Black extends RGBColor(0x000000)
 
-    @Modifier.config("json.rename", "Mixed")
-    case class Mix(@Modifier.config("json.rename", "color") rgb: Int) extends RGBColor(rgb)
+    @Modifier.rename("Mixed")
+    case class Mix(@Modifier.rename("color") rgb: Int) extends RGBColor(rgb)
   }
 
   case class CamelPascalSnakeKebabCases(

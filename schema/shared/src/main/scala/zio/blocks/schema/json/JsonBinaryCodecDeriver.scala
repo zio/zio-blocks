@@ -1952,7 +1952,7 @@ class JsonBinaryCodecDeriver private[json] (
   }
 
   private[this] def getName(modifiers: Seq[Modifier.Term], name: String): String = modifiers.collectFirst {
-    case m: Modifier.config if m.key == Modifiers.renameKey => m.value
+    case m: Modifier.rename => m.name
   }.getOrElse(name)
 
   private[this] val dynamicValueCodec = new JsonBinaryCodec[DynamicValue]() {

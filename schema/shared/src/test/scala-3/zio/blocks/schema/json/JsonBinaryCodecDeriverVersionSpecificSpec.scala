@@ -88,10 +88,10 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
   enum LinkedList[+T] {
     case End
 
-    @Modifier.config("json.rename", "::")
+    @Modifier.rename("::")
     case Node(
-      @Modifier.config("json.rename", "val") value: T,
-      @Modifier.config("json.rename", "nxt") next: LinkedList[T]
+      @Modifier.rename("val") value: T,
+      @Modifier.rename("nxt") next: LinkedList[T]
     )
   }
 
