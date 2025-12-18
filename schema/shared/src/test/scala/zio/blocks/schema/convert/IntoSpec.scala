@@ -9,6 +9,10 @@ object IntoSpec extends ZIOSpecDefault {
   case class Point(x: Int, y: Int)
   case class Coord(y: Int, x: Int)
 
+  // Test types for unique type matching
+  case class Person(name: String, age: Int, active: Boolean)
+  case class User(username: String, yearsOld: Int, enabled: Boolean)
+
   def spec: Spec[TestEnvironment, Any] = suite("IntoSpec")(
     suite("Product to Product")(
       suite("Field reordering by name")(
@@ -18,6 +22,16 @@ object IntoSpec extends ZIOSpecDefault {
           
           // x→x, y→y (by name, not position)
           assert(result)(isRight(equalTo(Coord(y = 2, x = 1))))
+        }
+      ),
+      suite("Unambiguous by unique types")(
+        test("maps fields by unique type when names differ") {
+          val person = Person(name = "Alice", age = 30, active = true)
+          val result = Into.derived[Person, User].into(person)
+          
+          // Each type appears exactly once, so mapping is unambiguous:
+          // String→String, Int→Int, Boolean→Boolean
+          assert(result)(isRight(equalTo(User(username = "Alice", yearsOld = 30, enabled = true))))
         }
       )
     )
