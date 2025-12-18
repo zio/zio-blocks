@@ -27,8 +27,6 @@ object Macro {
            // tpe is a TypeTree
            val tagName = tpe.tpe.typeSymbol.name
            processPath(qualifier) :+ '{ DynamicOptic.Node.Case(${ Expr(tagName) }) }
-        case Select(qualifier, "each") =>
-           processPath(qualifier) :+ '{ DynamicOptic.Node.Elements }
         case Ident(_) =>
            // Base case: the lambda argument (s)
            Nil
@@ -49,15 +47,7 @@ object Macro {
 
   def validateMigrationImpl[A: Type, B: Type](builder: Expr[MigrationBuilder[A, B]])(using Quotes): Expr[Either[String, Migration[A, B]]] = {
     
-    // TODO: Implement comprehensive validation:
-    // 1. Extract source and target schema structures (fields, types)
-    // 2. Extract actions from the builder expression (if possible to analyze statically)
-    // 3. Verify that all target fields are populated
-    // 4. Verify that transformations are type-compatible
-    
-    // For now, we return the built migration, trusting the builder
-    // This allows us to keep the API signature while incrementally adding logic
-    
+    // Stub implementation for validation
     '{ Right($builder.buildPartial) }
   }
 }

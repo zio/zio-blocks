@@ -38,11 +38,12 @@ object DynamicMigrationCodec {
 
 
   // --- SchemaExpr Codec ---
-  implicit val schemaExprEncoder: JsonEncoder[SchemaExpr[Any, _]] = JsonEncoder[Json].contramap {
+  // Use existential types to cover all SchemaExpr regardless of A/B types
+  implicit val schemaExprEncoder: JsonEncoder[SchemaExpr[_, _]] = JsonEncoder[Json].contramap {
     case SchemaExpr.Constant(v) => Json.Obj("type" -> Json.Str("Constant"), "value" -> Json.Str(v.toString)) 
     case SchemaExpr.DefaultValue() => Json.Obj("type" -> Json.Str("DefaultValue"))
-    case SchemaExpr.ToUpperCase() => Json.Obj("type" -> Json.Str("ToUpperCase"))
-    case SchemaExpr.ToLowerCase() => Json.Obj("type" -> Json.Str("ToLowerCase"))
+    case _: SchemaExpr.ToUpperCase => Json.Obj("type" -> Json.Str("ToUpperCase"))
+    case _: SchemaExpr.ToLowerCase => Json.Obj("type" -> Json.Str("ToLowerCase"))
     case _ => Json.Obj("type" -> Json.Str("UnknownExpr"))
   }
   

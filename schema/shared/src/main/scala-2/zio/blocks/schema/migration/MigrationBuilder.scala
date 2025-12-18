@@ -8,18 +8,17 @@ final case class MigrationBuilder[A, B](
   actions: Vector[MigrationAction] = Vector.empty
 ) {
 
-  // Selector-based API methods
-  inline def addField(inline target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+  def addField(target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
     val optic = Macro.toPath(target)
     copy(actions = actions :+ MigrationAction.AddField(optic, default))
   }
 
-  inline def dropField(inline source: A => Any, defaultForReverse: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+  def dropField(source: A => Any, defaultForReverse: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
     val optic = Macro.toPath(source)
     copy(actions = actions :+ MigrationAction.DropField(optic, defaultForReverse))
   }
 
-  inline def renameField(inline from: A => Any, inline to: B => Any): MigrationBuilder[A, B] = {
+  def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = {
     val fromOptic = Macro.toPath(from)
     val toOptic = Macro.toPath(to)
     val toName = toOptic.nodes.lastOption match {
@@ -29,24 +28,24 @@ final case class MigrationBuilder[A, B](
     copy(actions = actions :+ MigrationAction.RenameField(fromOptic, toName))
   }
 
-  inline def transformField(inline from: A => Any, inline to: B => Any, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(from)
-    copy(actions = actions :+ MigrationAction.TransformValue(optic, transform))
+  def transformField(from: A => Any, to: B => Any, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    val path = Macro.toPath(from)
+    copy(actions = actions :+ MigrationAction.TransformValue(path, transform))
   }
 
-  inline def mandateField(inline source: A => Option[Any], inline target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.Mandate(optic, default))
+  def mandateField(source: A => Option[Any], target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    val path = Macro.toPath(source)
+    copy(actions = actions :+ MigrationAction.Mandate(path, default))
   }
 
-  inline def optionalizeField(inline source: A => Any, inline target: B => Option[Any]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.Optionalize(optic))
+  def optionalizeField(source: A => Any, target: B => Option[Any]): MigrationBuilder[A, B] = {
+    val path = Macro.toPath(source)
+    copy(actions = actions :+ MigrationAction.Optionalize(path))
   }
 
-  inline def changeFieldType(inline source: A => Any, inline target: B => Any, converter: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.ChangeType(optic, converter))
+  def changeFieldType(source: A => Any, target: B => Any, converter: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    val path = Macro.toPath(source)
+    copy(actions = actions :+ MigrationAction.ChangeType(path, converter))
   }
 
   def joinFields(target: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
@@ -55,7 +54,7 @@ final case class MigrationBuilder[A, B](
   def splitField(source: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.Split(source, targetPaths, splitter))
 
-  // Legacy DynamicOptic-based methods for compatibility
+  // Legacy/Overloaded methods
   def addField(target: DynamicOptic, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.AddField(target, default))
 
@@ -67,6 +66,12 @@ final case class MigrationBuilder[A, B](
 
   def transformField(from: DynamicOptic, unusedTo: DynamicOptic, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.TransformValue(from, transform))
+    
+  def renameCase[SumA, SumB](from: String, to: String): MigrationBuilder[A, B] =
+    copy(actions = actions :+ MigrationAction.RenameCase(DynamicOptic.root, from, to))
+
+  def transformCase[SumA, CaseA, SumB, CaseB](path: DynamicOptic, caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]): MigrationBuilder[A, B] =
+    ???
 
   def build: Migration[A, B] =
     Macro.validateMigration(this) match {
@@ -81,5 +86,3 @@ final case class MigrationBuilder[A, B](
       targetSchema
     )
 }
-
-
