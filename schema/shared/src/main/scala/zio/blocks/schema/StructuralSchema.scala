@@ -3,7 +3,9 @@ package zio.blocks.schema
 import scala.quoted._
 import zio.Chunk
 
-// A type class to provide a Schema for a structural type
+/**
+ * A type class to provide a Schema for a structural type
+ */
 trait StructuralSchema[T] {
   def schema: Schema[T]
 }
@@ -30,12 +32,14 @@ object StructuralSchemaMacro {
             val caseSchema = Expr.summon[Schema[c]].getOrElse {
               report.errorAndAbort(s"Cannot find Schema for enum case ${caseTpe.show}")
             }
-            '(Schema.Case[T, c](
-              name = ${Expr(caseTpe.typeSymbol.name)},
-              schema = ${caseSchema},
-              get = (t: T) => t.asInstanceOf[c],
-              set = (c: c) => c.asInstanceOf[T]
-            ))
+            '{
+              Schema.Case[T, c](
+                name = ${Expr(caseTpe.typeSymbol.name)},
+                schema = ${caseSchema},
+                get = (t: T) => t.asInstanceOf[c],
+                set = (c: c) => c.asInstanceOf[T]
+              )
+            }
         }
       }
       '{
@@ -44,7 +48,7 @@ object StructuralSchemaMacro {
         }
       }
     } else {
-      // Assume it's a record/struct type (as previously implemented)
+      // Assume it's a record/struct type
       val fields = sym.memberFields.collect { case s: Symbol if s.isValDef => s }
 
       val schemaFields = fields.map { fieldSymbol =>
@@ -68,36 +72,13 @@ object StructuralSchemaMacro {
         }
       }
 
-      val recordSchema = 
+      val recordSchema =
         '{Schema.Record(zio.Chunk.fromIterable(${Expr.ofSeq(schemaFields)})).asInstanceOf[Schema[T]]}
 
       '{
         new StructuralSchema[T] {
           def schema: Schema[T] = ${recordSchema}
         }
-      }
-    }
-  }
-}"Cannot find Schema for field '$fieldName' of type ${fieldType.show}")
-          }
-          val term = Ref(fieldSymbol).asExprOf[Any]
-          '{
-            Schema.Field[T, f](
-              name = ${Expr(fieldName)},
-              schema = ${fieldSchema},
-              get = (obj: T) => ${term.asExprOf[f]},
-              set = (obj: T, value: f) => obj // Structural types are immutable, set is not directly applicable in a generic way
-            )
-          }
-      }
-    }
-
-    val recordSchema = 
-      '{Schema.Record(zio.Chunk.fromIterable(${Expr.ofSeq(schemaFields)})).asInstanceOf[Schema[T]]}
-
-    '{
-      new StructuralSchema[T] {
-        def schema: Schema[T] = ${recordSchema}
       }
     }
   }

@@ -97,6 +97,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 }
 
 object Schema {
+  def structural[T](implicit structuralSchema: StructuralSchema[T]): Schema[T] = structuralSchema.schema
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
