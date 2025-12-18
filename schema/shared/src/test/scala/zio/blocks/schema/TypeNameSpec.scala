@@ -65,14 +65,6 @@ object TypeNameSpec extends ZIOSpecDefault {
 
         assertTrue(typeName.name == "{data: Map[String, List[Int]]}")
       },
-      // Ajay fix later
-      // test("stores field types as params") {
-      // val fields   = Seq("name" -> TypeName.string, "age" -> TypeName.int)
-      // val typeName = TypeName.structural[Any](fields)
-
-      // Params should be sorted by field name (age before name)
-      // assertTrue(typeName.params == Seq(TypeName.int, TypeName.string))
-      // },
       test("empty fields produce empty structural type") {
         val typeName = TypeName.structural[Any](Seq.empty)
 
