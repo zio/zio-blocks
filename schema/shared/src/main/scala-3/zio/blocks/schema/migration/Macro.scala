@@ -2,7 +2,6 @@ package zio.blocks.schema.migration
 
 import scala.quoted.*
 import zio.blocks.schema.DynamicOptic
-import zio.blocks.schema.Schema
 
 object Macro {
 
@@ -25,7 +24,8 @@ object Macro {
         case Apply(Select(qualifier, "at"), List(Literal(IntConstant(idx)))) =>
           processPath(qualifier) :+ '{ DynamicOptic.Node.AtIndex(${ Expr(idx) }) }
         case Apply(TypeApply(Select(qualifier, "when"), List(tpe)), _) =>
-           val tagName = TypeRepr.of(using tpe.tpe).typeSymbol.name
+           // tpe is a TypeTree
+           val tagName = tpe.tpe.typeSymbol.name
            processPath(qualifier) :+ '{ DynamicOptic.Node.Case(${ Expr(tagName) }) }
         case Select(qualifier, "each") =>
            processPath(qualifier) :+ '{ DynamicOptic.Node.Elements }
@@ -48,7 +48,6 @@ object Macro {
     ${ validateMigrationImpl('builder) }
 
   def validateMigrationImpl[A: Type, B: Type](builder: Expr[MigrationBuilder[A, B]])(using Quotes): Expr[Either[String, Migration[A, B]]] = {
-    import quotes.reflect.*
     
     // TODO: Implement comprehensive validation:
     // 1. Extract source and target schema structures (fields, types)

@@ -3,7 +3,6 @@ package zio.blocks.schema.migration
 import zio.json._
 import zio.json.ast.Json
 import zio.blocks.schema.DynamicOptic
-import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.migration.MigrationAction._
 
 object DynamicMigrationCodec {
@@ -26,7 +25,7 @@ object DynamicMigrationCodec {
       res <- typ match {
         case "Field" => obj.get("name").flatMap(_.asString).toRight("Missing name").map(DynamicOptic.Node.Field(_))
         case "Case" => obj.get("name").flatMap(_.asString).toRight("Missing name").map(DynamicOptic.Node.Case(_))
-        case "AtIndex" => obj.get("index").flatMap(_.asNumber).flatMap(_.toInt).toRight("Missing index").map(DynamicOptic.Node.AtIndex(_))
+        case "AtIndex" => obj.get("index").flatMap(_.as[Int].toOption).toRight("Missing index").map(DynamicOptic.Node.AtIndex(_))
         case "Elements" => Right(DynamicOptic.Node.Elements)
         case "Wrapped" => Right(DynamicOptic.Node.Wrapped)
         case _ => Left(s"Unknown node type: $typ")
@@ -39,8 +38,6 @@ object DynamicMigrationCodec {
 
 
   // --- SchemaExpr Codec ---
-  // Simplified for migration metadata. Note: Full function serialization is not possible.
-  // We rely on known structural subtypes.
   implicit val schemaExprEncoder: JsonEncoder[SchemaExpr[Any, _]] = JsonEncoder[Json].contramap {
     case SchemaExpr.Constant(v) => Json.Obj("type" -> Json.Str("Constant"), "value" -> Json.Str(v.toString)) 
     case SchemaExpr.DefaultValue() => Json.Obj("type" -> Json.Str("DefaultValue"))
@@ -56,7 +53,6 @@ object DynamicMigrationCodec {
       case "ToUpperCase" => Right(SchemaExpr.ToUpperCase().asInstanceOf[SchemaExpr[Any, _]])
       case "ToLowerCase" => Right(SchemaExpr.ToLowerCase().asInstanceOf[SchemaExpr[Any, _]])
       case "Constant" => 
-        // Best effort string constant
         val valStr = json.asObject.flatMap(_.get("value")).flatMap(_.asString).getOrElse("")
         Right(SchemaExpr.Constant(valStr).asInstanceOf[SchemaExpr[Any, _]])
       case _ => Left(s"Unsupported SchemaExpr type: $typ")
@@ -67,23 +63,23 @@ object DynamicMigrationCodec {
   implicit val migrationActionEncoder: JsonEncoder[MigrationAction] = JsonEncoder[Json].contramap { action =>
      val (tpe, data) = action match {
        case AddField(at, defVal) => 
-         ("AddField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "default" -> defVal.toJsonAST.getOrElse(Json.Null)))
+         ("AddField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "default" -> schemaExprEncoder.toJsonAST(defVal).getOrElse(Json.Null)))
        case DropField(at, defRev) => 
-         ("DropField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "defaultForReverse" -> defRev.toJsonAST.getOrElse(Json.Null)))
+         ("DropField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "defaultForReverse" -> schemaExprEncoder.toJsonAST(defRev).getOrElse(Json.Null)))
        case RenameField(at, newName) =>
          ("RenameField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "newName" -> Json.Str(newName)))
        case TransformValue(at, t) =>
-         ("TransformValue", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "transform" -> t.toJsonAST.getOrElse(Json.Null)))
+         ("TransformValue", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "transform" -> schemaExprEncoder.toJsonAST(t).getOrElse(Json.Null)))
        case Mandate(at, defVal) =>
-         ("Mandate", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "default" -> defVal.toJsonAST.getOrElse(Json.Null)))
+         ("Mandate", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "default" -> schemaExprEncoder.toJsonAST(defVal).getOrElse(Json.Null)))
        case Optionalize(at) =>
          ("Optionalize", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null)))
        case ChangeType(at, conv) =>
-         ("ChangeType", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "converter" -> conv.toJsonAST.getOrElse(Json.Null)))
+         ("ChangeType", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "converter" -> schemaExprEncoder.toJsonAST(conv).getOrElse(Json.Null)))
        case Join(at, paths, comb) =>
-          ("Join", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "sourcePaths" -> paths.toJsonAST.getOrElse(Json.Null), "combiner" -> comb.toJsonAST.getOrElse(Json.Null)))
+          ("Join", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "sourcePaths" -> paths.toJsonAST.getOrElse(Json.Null), "combiner" -> schemaExprEncoder.toJsonAST(comb).getOrElse(Json.Null)))
        case Split(at, paths, split) =>
-          ("Split", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "targetPaths" -> paths.toJsonAST.getOrElse(Json.Null), "splitter" -> split.toJsonAST.getOrElse(Json.Null)))
+          ("Split", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "targetPaths" -> paths.toJsonAST.getOrElse(Json.Null), "splitter" -> schemaExprEncoder.toJsonAST(split).getOrElse(Json.Null)))
        case _ => ("Unknown", Json.Obj())
      }
      Json.Obj("type" -> Json.Str(tpe), "data" -> data)
