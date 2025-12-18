@@ -49,6 +49,7 @@ class MigrationBenchmark extends BaseBenchmark {
   @Benchmark
   def migrationSerialization(bh: Blackhole): Unit = {
     import zio.json._
+    import zio.blocks.schema.migration.DynamicMigrationCodec._
     val jsonString = migration.dynamicMigration.toJson
     bh.consume(jsonString)
   }
@@ -56,7 +57,8 @@ class MigrationBenchmark extends BaseBenchmark {
   @Benchmark
   def migrationDeserialization(bh: Blackhole): Unit = {
     import zio.json._
-    val jsonString = migration.dynamicMigration.toJson // Assuming pre-serialized string for deserialization benchmark
+    import zio.blocks.schema.migration.DynamicMigrationCodec._
+    val jsonString = migration.dynamicMigration.toJson 
     val deserialized = jsonString.fromJson[DynamicMigration]
     bh.consume(deserialized)
   }

@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import zio.test._
 import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, Schema}
-import zio.blocks.schema.DeriveSchema
+
 
 object MigrationActionSpec extends ZIOSpecDefault {
 
@@ -36,8 +36,8 @@ object MigrationActionSpec extends ZIOSpecDefault {
         case class PersonV1(name: String)
         case class PersonV2(name: String, age: Int)
 
-        implicit val schemaV1: Schema[PersonV1] = DeriveSchema.gen[PersonV1]
-        implicit val schemaV2: Schema[PersonV2] = DeriveSchema.gen[PersonV2]
+        implicit val schemaV1: Schema[PersonV1] = Schema.derived[PersonV1]
+        implicit val schemaV2: Schema[PersonV2] = Schema.derived[PersonV2]
 
         val migration = Migration.newBuilder[PersonV1, PersonV2]
           .addField(DynamicOptic.root.field("age"), SchemaExpr.Constant(PrimitiveValue.Int(42)))

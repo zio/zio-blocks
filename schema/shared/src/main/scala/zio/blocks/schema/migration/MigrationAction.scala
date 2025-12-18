@@ -78,7 +78,10 @@ object MigrationAction {
   }
 
   final case class TransformValue(at: DynamicOptic, transform: SchemaExpr[Any, _]) extends MigrationAction {
-    def reverse: MigrationAction = ??? // requires reverse transform
+    def reverse: MigrationAction = transform.reverse match {
+      case Some(reverseTransform) => TransformValue(at, reverseTransform.asInstanceOf[SchemaExpr[Any, _]])
+      case None => TransformValue(at, SchemaExpr.DefaultValue())
+    }
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       DynamicOptic.modify(at, value) {
         transform(_).map(_.asInstanceOf[DynamicValue])
@@ -140,30 +143,66 @@ object MigrationAction {
       }
   }
 
-  // Mandate and Optionalize temporarily disabled due to DynamicValue representation issues
-  // final case class Mandate(at: DynamicOptic, default: SchemaExpr[Any, _]) extends MigrationAction {
-  //   def reverse: MigrationAction = Optionalize(at)
-  //   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = ???
-  // }
+  final case class Mandate(at: DynamicOptic, default: SchemaExpr[Any, _]) extends MigrationAction {
+    def reverse: MigrationAction = Optionalize(at)
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      DynamicOptic.modify(at, value) {
+        case DynamicValue.Variant("None", _) =>
+          default.apply(null).map(_.asInstanceOf[DynamicValue])
+        case DynamicValue.Variant("Some", v) =>
+          Right(v)
+        case other =>
+          Right(other) // Already mandatory
+      }
+    }
+  }
 
-  // final case class Optionalize(at: DynamicOptic) extends MigrationAction {
-  //   def reverse: MigrationAction = Mandate(at, SchemaExpr.DefaultValue())
-  //   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = ???
-  // }
+  final case class Optionalize(at: DynamicOptic) extends MigrationAction {
+    def reverse: MigrationAction = Mandate(at, SchemaExpr.DefaultValue())
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      DynamicOptic.modify(at, value) { v =>
+        Right(DynamicValue.Variant("Some", v))
+      }
+    }
+  }
 
-  // Join and Split temporarily disabled due to DynamicOptic.set not existing
-  // final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]) extends MigrationAction {
-  //   def reverse: MigrationAction = ??? // Complex reverse logic needed
-  //   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = ???
-  // }
+  final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]) extends MigrationAction {
+    def reverse: MigrationAction = combiner.reverse match {
+      case Some(reverseExpr) => Split(at, sourcePaths, reverseExpr.asInstanceOf[SchemaExpr[Any, _]])
+      case None => Split(at, sourcePaths, SchemaExpr.DefaultValue())
+    }
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      for {
+        sourceValues <- sourcePaths.foldLeft[Either[MigrationError, Vector[DynamicValue]]](Right(Vector.empty)) {
+          (acc, path) => acc.flatMap(vec => DynamicOptic.get(path, value).map(v => vec :+ v))
+        }
+        combined <- combiner.apply(sourceValues)
+        result <- DynamicOptic.set(at, value, combined.asInstanceOf[DynamicValue])
+      } yield result
+    }
+  }
 
-  // final case class Split(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]) extends MigrationAction {
-  //   def reverse: MigrationAction = ??? // Complex reverse logic needed
-  //   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = ???
-  // }
+  final case class Split(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]) extends MigrationAction {
+    def reverse: MigrationAction = splitter.reverse match {
+      case Some(reverseExpr) => Join(at, targetPaths, reverseExpr.asInstanceOf[SchemaExpr[Any, _]])
+      case None => Join(at, targetPaths, SchemaExpr.DefaultValue())
+    }
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      for {
+        sourceValue <- DynamicOptic.get(at, value)
+        splitValues <- splitter.apply(sourceValue).map(_.asInstanceOf[Vector[DynamicValue]])
+        result <- targetPaths.zip(splitValues).foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
+          case (acc, (path, newValue)) => acc.flatMap(v => DynamicOptic.set(path, v, newValue))
+        }
+      } yield result
+    }
+  }
 
   final case class ChangeType(at: DynamicOptic, converter: SchemaExpr[Any, _]) extends MigrationAction {
-    def reverse: MigrationAction = ??? // Would need reverse converter
+    def reverse: MigrationAction = converter.reverse match {
+      case Some(reverseConverter) => ChangeType(at, reverseConverter.asInstanceOf[SchemaExpr[Any, _]])
+      case None => ChangeType(at, SchemaExpr.DefaultValue())
+    }
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       DynamicOptic.modify(at, value) { currentValue =>
         converter.apply(currentValue).map(_.asInstanceOf[DynamicValue])

@@ -6,6 +6,8 @@ import zio.blocks.schema.Schema
 sealed trait SchemaExpr[A, +B] {
   def apply(value: A): Either[MigrationError, B]
 
+  def reverse: Option[SchemaExpr[_, A]] = None
+
   def map[C](f: B => C): SchemaExpr[A, C] =
     SchemaExpr.Map(this, f)
 
@@ -35,13 +37,21 @@ object SchemaExpr {
     }
 
     def substring(start: Int, end: Int): SchemaExpr[String, String] =
-        StringTo(s => Right(s.substring(start, end)))
+        StringTo(s => Right(s.substring(start, Math.min(end, s.length))))
     
-    def toUpperCase: SchemaExpr[String, String] =
-        StringTo(s => Right(s.toUpperCase))
+    final case class ToUpperCase() extends SchemaExpr[String, String] {
+        def apply(value: String): Either[MigrationError, String] = Right(value.toUpperCase)
+        override def reverse: Option[SchemaExpr[String, String]] = Some(ToLowerCase())
+    }
 
-    def toLowerCase: SchemaExpr[String, String] =
-        StringTo(s => Right(s.toLowerCase))
+    final case class ToLowerCase() extends SchemaExpr[String, String] {
+        def apply(value: String): Either[MigrationError, String] = Right(value.toLowerCase)
+        override def reverse: Option[SchemaExpr[String, String]] = Some(ToUpperCase())
+    }
+
+    def toUpperCase: SchemaExpr[String, String] = ToUpperCase()
+
+    def toLowerCase: SchemaExpr[String, String] = ToLowerCase()
 
     final case class Path[A, B](optic: DynamicOptic)(implicit schemaA: Schema[A], schemaB: Schema[B]) extends SchemaExpr[A, B] {
         def apply(value: A): Either[MigrationError, B] = {

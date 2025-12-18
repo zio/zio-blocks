@@ -30,6 +30,3 @@ object MacroSpec extends ZIOSpecDefault {
     }
   )
 }
-
-  )
-}

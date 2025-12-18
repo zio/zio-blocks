@@ -191,6 +191,13 @@ object DynamicOptic {
     case object Wrapped extends Node
   }
 
+  def set(
+    optic: DynamicOptic,
+    value: DynamicValue,
+    newValue: DynamicValue
+  ): Either[MigrationError, DynamicValue] =
+    modify(optic, value)(_ => Right(newValue))
+
   def get(
     optic: DynamicOptic,
     value: DynamicValue
