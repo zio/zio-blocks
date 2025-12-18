@@ -78,55 +78,119 @@ private object IntoVersionSpecificImpl {
       sourceInfo: ProductInfo,
       targetInfo: ProductInfo
     ): List[FieldMapping] = {
-      // For each target field, find a matching source field using priority:
-      // 1. Exact match: same name + same type
-      // 2. Unique type match: type appears exactly once in both source and target
+      // The macro establishes field mappings using three attributes:
+      // - Field name (identifier in source code)
+      // - Field position (ordinal position in declaration)
+      // - Field type (including coercible types)
+      //
+      // Priority for disambiguation:
+      // 1. Exact match: Same name + same type
+      // 2. Name match with coercion: Same name + coercible type
+      // 3. Unique type match: Type appears only once in both source and target
+      // 4. Position + unique type: Positional correspondence with unambiguous type
+      // 5. Fallback: If no unambiguous mapping exists, derivation fails at compile-time
 
       // Pre-compute type frequencies for unique type matching
       val sourceTypeFreq = sourceInfo.fields.groupBy(_.tpe.dealias.toString).view.mapValues(_.size).toMap
       val targetTypeFreq = targetInfo.fields.groupBy(_.tpe.dealias.toString).view.mapValues(_.size).toMap
 
-      // Track which source fields have been used (for unique type matching)
+      // Track which source fields have been used
       val usedSourceFields = scala.collection.mutable.Set[Int]()
 
       targetInfo.fields.map { targetField =>
-        // Priority 1: Exact match by name and type
-        val exactMatch = sourceInfo.fields.find { sourceField =>
-          sourceField.name == targetField.name && sourceField.tpe =:= targetField.tpe
-        }
-
-        exactMatch match {
+        findMatchingSourceField(
+          targetField,
+          sourceInfo,
+          sourceTypeFreq,
+          targetTypeFreq,
+          usedSourceFields
+        ) match {
           case Some(sourceField) =>
             usedSourceFields += sourceField.index
             new FieldMapping(sourceField, targetField)
           case None =>
-            // Priority 2: Unique type match
-            val targetTypeKey = targetField.tpe.dealias.toString
-            val isTargetTypeUnique = targetTypeFreq.getOrElse(targetTypeKey, 0) == 1
-
-            val uniqueTypeMatch = if (isTargetTypeUnique) {
-              sourceInfo.fields.find { sourceField =>
-                val sourceTypeKey = sourceField.tpe.dealias.toString
-                val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceTypeKey, 0) == 1
-                isSourceTypeUnique &&
-                  sourceField.tpe =:= targetField.tpe &&
-                  !usedSourceFields.contains(sourceField.index)
-              }
-            } else None
-
-            uniqueTypeMatch match {
-              case Some(sourceField) =>
-                usedSourceFields += sourceField.index
-                new FieldMapping(sourceField, targetField)
-              case None =>
-                fail(
-                  s"Cannot derive Into[$aTpe, $bTpe]: " +
-                  s"no matching field found for '${targetField.name}: ${targetField.tpe}' in source type. " +
-                  s"Fields must match by name+type or have unique types."
-                )
-            }
+            fail(
+              s"Cannot derive Into[$aTpe, $bTpe]: " +
+                s"no matching field found for '${targetField.name}: ${targetField.tpe}' in source type. " +
+                s"Fields must match by: (1) name+type, (2) name+coercible type, (3) unique type, or (4) position+unique type."
+            )
         }
       }
+    }
+
+    def findMatchingSourceField(
+      targetField: FieldInfo,
+      sourceInfo: ProductInfo,
+      sourceTypeFreq: Map[String, Int],
+      targetTypeFreq: Map[String, Int],
+      usedSourceFields: scala.collection.mutable.Set[Int]
+    ): Option[FieldInfo] = {
+      // Priority 1: Exact match - same name + same type
+      val exactMatch = sourceInfo.fields.find { sourceField =>
+        !usedSourceFields.contains(sourceField.index) &&
+          sourceField.name == targetField.name &&
+          sourceField.tpe =:= targetField.tpe
+      }
+      if (exactMatch.isDefined) return exactMatch
+
+      // Priority 2: Name match with coercion - same name + coercible type
+      val nameWithCoercion = sourceInfo.fields.find { sourceField =>
+        !usedSourceFields.contains(sourceField.index) &&
+          sourceField.name == targetField.name &&
+          isCoercible(sourceField.tpe, targetField.tpe)
+      }
+      if (nameWithCoercion.isDefined) return nameWithCoercion
+
+      // Priority 3: Unique type match - type appears only once in both source and target
+      val targetTypeKey = targetField.tpe.dealias.toString
+      val isTargetTypeUnique = targetTypeFreq.getOrElse(targetTypeKey, 0) == 1
+
+      if (isTargetTypeUnique) {
+        val uniqueTypeMatch = sourceInfo.fields.find { sourceField =>
+          if (usedSourceFields.contains(sourceField.index)) false
+          else {
+            val sourceTypeKey = sourceField.tpe.dealias.toString
+            val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceTypeKey, 0) == 1
+            isSourceTypeUnique && sourceField.tpe =:= targetField.tpe
+          }
+        }
+        if (uniqueTypeMatch.isDefined) return uniqueTypeMatch
+
+        // Also check for unique coercible type match
+        val uniqueCoercibleMatch = sourceInfo.fields.find { sourceField =>
+          if (usedSourceFields.contains(sourceField.index)) false
+          else {
+            val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceField.tpe.dealias.toString, 0) == 1
+            isSourceTypeUnique && isCoercible(sourceField.tpe, targetField.tpe)
+          }
+        }
+        if (uniqueCoercibleMatch.isDefined) return uniqueCoercibleMatch
+      }
+
+      // Priority 4: Position + matching type - positional correspondence with matching type
+      if (targetField.index < sourceInfo.fields.size) {
+        val positionalField = sourceInfo.fields(targetField.index)
+        if (!usedSourceFields.contains(positionalField.index)) {
+          if (positionalField.tpe =:= targetField.tpe) {
+            return Some(positionalField)
+          }
+          // Also check coercible for positional
+          if (isCoercible(positionalField.tpe, targetField.tpe)) {
+            return Some(positionalField)
+          }
+        }
+      }
+
+      // Fallback: No match found
+      None
+    }
+
+    /** Check if source type can be coerced to target type (e.g., Int -> Long) */
+    def isCoercible(sourceTpe: Type, targetTpe: Type): Boolean = {
+      // For now, only exact type match is supported
+      // TODO: Add numeric widening (Byte->Short->Int->Long, Float->Double)
+      // TODO: Add collection coercion (List[Int] -> List[Long])
+      sourceTpe =:= targetTpe
     }
 
     // === Derivation ===
