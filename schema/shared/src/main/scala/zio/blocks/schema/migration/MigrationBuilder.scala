@@ -17,7 +17,7 @@ final case class MigrationBuilder[A, B](
   def renameField(from: DynamicOptic, to: String): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.RenameField(from, to))
 
-  def transformField(from: DynamicOptic, to: DynamicOptic, transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+  def transformField(from: DynamicOptic, _: DynamicOptic, transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.TransformValue(from, transform)) // a bit simplified for now
 
   def build: Migration[A, B] =

@@ -1,7 +1,5 @@
 package zio.blocks.schema.migration
 
-import zio.blocks.schema.PrimitiveValue
-
 sealed trait SchemaExpr[-A, +B] {
   def apply(value: A): Either[MigrationError, B]
 }

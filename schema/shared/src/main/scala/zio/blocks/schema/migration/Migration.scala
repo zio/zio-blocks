@@ -1,7 +1,6 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.Schema
-import zio.blocks.schema.DynamicValue
 
 final case class Migration[A, B](
   dynamicMigration: DynamicMigration,
