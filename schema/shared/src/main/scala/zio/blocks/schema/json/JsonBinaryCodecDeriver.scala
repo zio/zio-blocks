@@ -605,11 +605,15 @@ class JsonBinaryCodecDeriver private[json] (
               val infos = new Array[EnumValueInfo](len)
               var idx   = 0
               while (idx < len) {
-                val case_ = cases(idx)
-                val name  = getName(case_.modifiers, caseNameMapper(case_.name))
+                val case_        = cases(idx)
+                var name: String = null
+                case_.modifiers.foreach {
+                  case m: Modifier.rename => if (name eq null) name = m.name
+                  case m: Modifier.alias  => map.put(m.name, idx)
+                  case _                  =>
+                }
+                if (name eq null) name = caseNameMapper(case_.name)
                 map.put(name, idx)
-                val aliases = getAliases(case_.modifiers)
-                aliases.foreach(name => map.put(name, idx))
                 val constructor = case_.value.asRecord.get.recordBinding
                   .asInstanceOf[BindingInstance[TC, ?, ?]]
                   .binding
@@ -643,11 +647,15 @@ class JsonBinaryCodecDeriver private[json] (
                 case DiscriminatorKind.Field(fieldName) if hasOnlyRecordCases(variant) =>
                   var idx = 0
                   while (idx < len) {
-                    val case_ = cases(idx)
-                    val name  = getName(case_.modifiers, caseNameMapper(case_.name))
+                    val case_        = cases(idx)
+                    var name: String = null
+                    case_.modifiers.foreach {
+                      case m: Modifier.rename => if (name eq null) name = m.name
+                      case m: Modifier.alias  => map.put(m.name, idx)
+                      case _                  =>
+                    }
+                    if (name eq null) name = caseNameMapper(case_.name)
                     map.put(name, idx)
-                    val aliases = getAliases(case_.modifiers)
-                    aliases.foreach(name => map.put(name, idx))
                     discriminatorFields.set((fieldName, name) :: discriminatorFields.get)
                     infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
                     discriminatorFields.set(discriminatorFields.get.tail)
@@ -688,11 +696,15 @@ class JsonBinaryCodecDeriver private[json] (
                 case _ =>
                   var idx = 0
                   while (idx < len) {
-                    val case_ = cases(idx)
-                    val name  = getName(case_.modifiers, caseNameMapper(case_.name))
+                    val case_        = cases(idx)
+                    var name: String = null
+                    case_.modifiers.foreach {
+                      case m: Modifier.rename => if (name eq null) name = m.name
+                      case m: Modifier.alias  => map.put(m.name, idx)
+                      case _                  =>
+                    }
+                    if (name eq null) name = caseNameMapper(case_.name)
                     map.put(name, idx)
-                    val aliases = getAliases(case_.modifiers)
-                    aliases.foreach(name => map.put(name, idx))
                     infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
                     idx += 1
                   }
@@ -1299,11 +1311,19 @@ class JsonBinaryCodecDeriver private[json] (
           val map = new StringToIntMap(len)
           var idx = 0
           while (idx < len) {
-            val field = fields(idx)
-            val name  = getName(field.modifiers, fieldNameMapper(field.name))
+            val field        = fields(idx)
+            var name: String = null
+            val aliases      = Array.newBuilder[String]
+            field.modifiers.foreach {
+              case m: Modifier.rename => if (name eq null) name = m.name
+              case m: Modifier.alias  =>
+                val name = m.name
+                aliases.addOne(name)
+                map.put(name, idx) // just for detection of duplicated names
+              case _ =>
+            }
+            if (name eq null) name = fieldNameMapper(field.name)
             map.put(name, idx) // just for detection of duplicated names
-            val aliases = getAliases(field.modifiers)
-            aliases.foreach(name => map.put(name, idx))
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
             val isOpt        = isOptional(fieldReflect)
@@ -1321,7 +1341,7 @@ class JsonBinaryCodecDeriver private[json] (
                   else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
                   else fieldReflect.asDynamic.get.dynamicBinding
                 }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
-            infos(idx) = new FieldInfo(name, codec, offset, isOpt, isColl, nonTransient, defaultValue, aliases)
+            infos(idx) = new FieldInfo(name, codec, offset, isOpt, isColl, nonTransient, defaultValue, aliases.result())
             offset += codec.valueOffset
             idx += 1
           }
@@ -1930,19 +1950,6 @@ class JsonBinaryCodecDeriver private[json] (
   private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isRecord && {
     val typeName = reflect.typeName
     typeName.namespace == Namespace.scala && typeName.name.startsWith("Tuple")
-  }
-
-  private[this] def getName(modifiers: Seq[Modifier.Term], name: String): String = modifiers.collectFirst {
-    case m: Modifier.rename => m.name
-  }.getOrElse(name)
-
-  private[this] def getAliases(modifiers: Seq[Modifier.Term]): Array[String] = {
-    val aliases = Array.newBuilder[String]
-    modifiers.foreach {
-      case m: Modifier.alias => aliases.addOne(m.name)
-      case _                 =>
-    }
-    aliases.result()
   }
 
   private[this] val dynamicValueCodec = new JsonBinaryCodec[DynamicValue]() {
