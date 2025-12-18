@@ -25,3 +25,8 @@ TAGS
 .metals
 .vscode/settings.json
 project/metals.sbt
+
+
+.opencode
+GEMINI.md
+gemini.md
