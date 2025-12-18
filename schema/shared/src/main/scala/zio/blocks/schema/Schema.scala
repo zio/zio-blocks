@@ -96,7 +96,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   )
 }
 
-object Schema extends SchemaVersionSpecific {
+object Schema {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
