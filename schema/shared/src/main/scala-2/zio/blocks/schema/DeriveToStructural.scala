@@ -7,7 +7,7 @@ object DeriveToStructural {
   def derivedImpl[A: c.WeakTypeTag](c: whitebox.Context): c.Expr[ToStructural[A]] = {
     import c.universe._
 
-    val tpe = weakTypeOf[A]
+    val tpe    = weakTypeOf[A]
     val symbol = tpe.typeSymbol
 
     if (!symbol.isClass || !symbol.asClass.isCaseClass) {
@@ -21,9 +21,9 @@ object DeriveToStructural {
 
     // (name, decodedName, type) pairs
     val fieldInfos = fields.map { f =>
-      val name = f.name
+      val name        = f.name
       val decodedName = name.decodedName.toString.trim
-      val returnType = f.returnType.asSeenFrom(tpe, symbol)
+      val returnType  = f.returnType.asSeenFrom(tpe, symbol)
       (name, decodedName, returnType)
     }
 

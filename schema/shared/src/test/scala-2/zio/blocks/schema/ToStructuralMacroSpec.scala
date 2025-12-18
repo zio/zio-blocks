@@ -22,7 +22,7 @@ object ToStructuralMacroSpec extends ZIOSpecDefault {
       assertTrue(sv.selectDynamic("y") == 20)
     },
     test("structuralSchema returns valid schema") {
-      implicit val ts = ToStructural.derived[Person]
+      implicit val ts                     = ToStructural.derived[Person]
       implicit val schema: Schema[Person] = Schema.derived[Person]
 
       val sSchema = ts.structuralSchema

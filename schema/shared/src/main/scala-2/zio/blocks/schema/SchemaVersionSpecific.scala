@@ -145,14 +145,14 @@ private object SchemaVersionSpecific {
           val methods = tpe.decls.toList.collect {
             case m: MethodSymbol if m.isGetter || (m.paramLists.isEmpty && !m.isConstructor) => m
           }.sortBy(_.name.toString)
-          
+
           val parts = methods.map { m =>
-             val name = NameTransformer.decode(m.name.toString)
-             val retType = m.returnType.dealias
-             val retTypeName = typeName(retType).name
-             s"$name: $retTypeName"
+            val name        = NameTransformer.decode(m.name.toString)
+            val retType     = m.returnType.dealias
+            val retTypeName = typeName(retType).name
+            s"$name: $retTypeName"
           }
-          
+
           val normalizedName = parts.mkString("{", ", ", "}")
           new SchemaTypeName(new Namespace(List.empty, List.empty), normalizedName, Nil)
         } else {
@@ -482,11 +482,11 @@ private object SchemaVersionSpecific {
     def deriveSchemaForRefinedType(tpe: Type): Tree = {
       val (fields, totalRegisters) = {
         var usedRegisters = RegisterOffset.Zero
-        val fieldDefs = tpe.decls.toList.sortBy(_.name.toString).collect {
+        val fieldDefs     = tpe.decls.toList.sortBy(_.name.toString).collect {
           case m: MethodSymbol if m.isGetter || (m.paramLists.isEmpty && !m.isConstructor) =>
-            val name = NameTransformer.decode(m.name.toString)
-            val fTpe = m.returnType.dealias
-            val sTpe = dealiasOnDemand(fTpe)
+            val name   = NameTransformer.decode(m.name.toString)
+            val fTpe   = m.returnType.dealias
+            val sTpe   = dealiasOnDemand(fTpe)
             val offset =
               if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
               else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
@@ -498,7 +498,7 @@ private object SchemaVersionSpecific {
               else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
               else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
               else RegisterOffset(objects = 1)
-            
+
             val primitiveType =
               if (sTpe <:< definitions.BooleanTpe) q"StructuralFieldInfo.Boolean"
               else if (sTpe <:< definitions.ByteTpe) q"StructuralFieldInfo.Byte"
@@ -517,13 +517,13 @@ private object SchemaVersionSpecific {
                 $primitiveType
               )
             """
-            
+
             // For the schema derivation later
-            val schemaRef = findImplicitOrDeriveSchema(fTpe)
+            val schemaRef   = findImplicitOrDeriveSchema(fTpe)
             val schemaField = if (isNonRecursive(fTpe)) {
-               q"$schemaRef.reflect.asTerm[$tpe]($name)"
+              q"$schemaRef.reflect.asTerm[$tpe]($name)"
             } else {
-               q"new Reflect.Deferred(() => $schemaRef.reflect).asTerm[$tpe]($name)"
+              q"new Reflect.Deferred(() => $schemaRef.reflect).asTerm[$tpe]($name)"
             }
 
             usedRegisters = RegisterOffset.add(usedRegisters, offset)
@@ -531,12 +531,12 @@ private object SchemaVersionSpecific {
         }
         (fieldDefs, usedRegisters)
       }
-      
+
       val structuralFields = fields.map(_._1)
-      val schemaFields = fields.map(_._2)
-      
+      val schemaFields     = fields.map(_._2)
+
       val tpeName = toTree(typeName(tpe))
-      
+
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..$schemaFields),

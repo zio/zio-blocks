@@ -73,8 +73,8 @@ class StructuralConstructor[A](
 }
 
 /**
- * A deconstructor that extracts field values from StructuralValue instances into
- * registers.
+ * A deconstructor that extracts field values from StructuralValue instances
+ * into registers.
  *
  * @param fields
  *   Metadata about each field in the structural type
@@ -127,13 +127,13 @@ class StructuralDeconstructor[A](
  */
 class StructuralValue(val values: Map[String, Any]) extends scala.Dynamic {
   def selectDynamic(name: String): Any = values(name)
-  
+
   override def toString: String = s"StructuralValue($values)"
-  
+
   override def equals(obj: Any): Boolean = obj match {
     case other: StructuralValue => values == other.values
-    case _ => false
+    case _                      => false
   }
-  
+
   override def hashCode(): Int = values.hashCode()
 }
