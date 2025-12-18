@@ -8,16 +8,16 @@ final case class MigrationBuilder[A, B](
   actions: Vector[MigrationAction] = Vector.empty
 ) {
 
-  def addField(target: DynamicOptic, default: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+  def addField(target: DynamicOptic, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.AddField(target, default))
 
-  def dropField(source: DynamicOptic, defaultForReverse: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+  def dropField(source: DynamicOptic, defaultForReverse: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.DropField(source, defaultForReverse))
 
   def renameField(from: DynamicOptic, to: String): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.RenameField(from, to))
 
-  def transformField(from: DynamicOptic, unusedTo: DynamicOptic, transform: SchemaExpr[_, _]): MigrationBuilder[A, B] =
+  def transformField(from: DynamicOptic, unusedTo: DynamicOptic, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.TransformValue(from, transform))
 
   def build: Migration[A, B] =

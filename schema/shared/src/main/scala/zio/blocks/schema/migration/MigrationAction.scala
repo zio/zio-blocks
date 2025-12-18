@@ -45,20 +45,20 @@ object MigrationAction {
   }
 
   // Record actions
-  final case class AddField(at: DynamicOptic, default: SchemaExpr[_, _]) extends MigrationAction {
+  final case class AddField(at: DynamicOptic, default: SchemaExpr[Any, _]) extends MigrationAction {
     def reverse: MigrationAction = DropField(at, SchemaExpr.DefaultValue())
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       at.nodes.lastOption match {
         case Some(DynamicOptic.Node.Field(fieldName)) =>
           val path = DynamicOptic(at.nodes.dropRight(1).toIndexedSeq)
           for {
-            defaultValue <- default.apply(null) // Assuming Constant or DefaultValue for now
+            defaultValue <- default.apply(null).map(_.asInstanceOf[DynamicValue])
             updatedValue <- modify(path, value) {
                              case DynamicValue.Record(fields) =>
                                if (fields.exists(_._1 == fieldName))
                                  Left(MigrationError.TransformationError(at, s"Field '$fieldName' already exists."))
                                else
-                                 Right(DynamicValue.Record(fields :+ (fieldName -> defaultValue.asInstanceOf[DynamicValue])))
+                                 Right(DynamicValue.Record(fields :+ (fieldName -> defaultValue)))
                              case other => Left(MigrationError.PathError(at, s"Cannot add field '$fieldName' to non-record value: $other"))
                            }
           } yield updatedValue
@@ -67,7 +67,7 @@ object MigrationAction {
     }
   }
 
-  final case class DropField(at: DynamicOptic, defaultForReverse: SchemaExpr[_, _]) extends MigrationAction {
+  final case class DropField(at: DynamicOptic, defaultForReverse: SchemaExpr[Any, _]) extends MigrationAction {
     def reverse: MigrationAction = AddField(at, defaultForReverse)
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
       at.nodes.lastOption match {
@@ -99,15 +99,8 @@ object MigrationAction {
           modify(path, value) {
             case DynamicValue.Record(fields) =>
               fields.indexWhere(_._1 == oldName) match {
-                case -1 =>
-                  Left(MigrationError.TransformationError(at, s"Field '$oldName' does not exist."))
-                case i =>
-                  if (fields.exists(_._1 == newName))
-                    Left(MigrationError.TransformationError(at, s"Field '$newName' already exists."))
-                  else {
-                    val (name, value) = fields(i)
-                    Right(DynamicValue.Record(fields.updated(i, newName -> value)))
-                  }
+                case -1 => Left(MigrationError.TransformationError(at, s"Field '$oldName' does not exist."))
+                case i  => Right(DynamicValue.Record(fields.updated(i, (newName, fields(i)._2))))
               }
             case other => Left(MigrationError.PathError(at, s"Cannot rename field '$oldName' in non-record value: $other"))
           }
@@ -116,9 +109,12 @@ object MigrationAction {
     }
   }
 
-  final case class TransformValue(at: DynamicOptic, transform: SchemaExpr[_, _]) extends MigrationAction {
+  final case class TransformValue(at: DynamicOptic, transform: SchemaExpr[Any, _]) extends MigrationAction {
     def reverse: MigrationAction = ??? // requires reverse transform
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = ???
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      modify(at, value) {
+        transform(_).map(_.asInstanceOf[DynamicValue])
+      }
   }
 
   // Enum actions
