@@ -1731,6 +1731,14 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError("""{"big_int":null}""", "missing required field \"bigDec\" at: .", codec2) &&
         decodeError("""{"big_int":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
       },
+      test("record with field name aliases") {
+        val codec = Record5.schema
+          .deriving(JsonBinaryCodecDeriver)
+          .modifier(Record5.bigDecimal, Modifier.alias("bd"))
+          .modifier(Record5.bigInt, Modifier.alias("bi"))
+          .derive
+        decode("""{"bi":1,"bd":2.0}""", Record5(BigInt(1), BigDecimal(2.0)), codec)
+      },
       test("record with duplicated field names") {
         assert(scala.util.Try {
           Record5.schema
@@ -2489,12 +2497,18 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           Schema[RGBColor].derive(JsonBinaryCodecDeriver.withCaseNameMapper(NameMapper.SnakeCase))
         )
       },
-      test("ADT with case key renaming using annotation") {
+      test("ADT with case key renaming and aliasing using annotation") {
         roundTrip[RGBColor](RGBColor.Green, """{"Green":{}}""") &&
         roundTrip[RGBColor](RGBColor.Yellow, """{"Yellow":{}}""") &&
         roundTrip[RGBColor](RGBColor.Orаnge, """{"Orаnge":{}}""") &&
         roundTrip[RGBColor](RGBColor.Red, """{"Red":{}}""") &&
-        roundTrip[RGBColor](RGBColor.Mix(0x123456), """{"Mixed":{"color":1193046}}""")
+        roundTrip[RGBColor](RGBColor.Mix(0x123456), """{"Mixed":{"color":1193046}}""") &&
+        decode[RGBColor]("""{"Azure":{}}""", RGBColor.Blue) &&
+        decode[RGBColor]("""{"Blue":{}}""", RGBColor.Blue) &&
+        decode[RGBColor]("""{"Indigo":{}}""", RGBColor.Blue) &&
+        decode[RGBColor]("""{"Navy":{}}""", RGBColor.Blue) &&
+        decode[RGBColor]("""{"Periwinkle":{}}""", RGBColor.Blue) &&
+        decode[RGBColor]("""{"Ultramarine":{}}""", RGBColor.Blue)
       },
       test("ADT with case key renaming using annotation (decode error)") {
         decodeError[RGBColor]("""null""", "expected '{' at: .") &&
@@ -2590,6 +2604,32 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .modifier(Color.red, Modifier.rename("Rose"))
           .derive
         roundTrip(Color.Red, """"Rose"""", codec)
+      },
+      test("variant with case name aliases") {
+        val codec = Color.schema
+          .deriving(JsonBinaryCodecDeriver)
+          .modifier(Color.red, Modifier.alias("Rose"))
+          .modifier(Color.red, Modifier.alias("Ruby"))
+          .modifier(Color.red, Modifier.alias("Coral"))
+          .modifier(Color.red, Modifier.alias("Scarlet"))
+          .modifier(Color.red, Modifier.alias("Oxblood"))
+          .modifier(Color.red, Modifier.alias("Vermilion"))
+          .modifier(Color.red, Modifier.alias("Crimson"))
+          .modifier(Color.red, Modifier.alias("Garnet"))
+          .modifier(Color.red, Modifier.alias("Salmon"))
+          .modifier(Color.red, Modifier.alias("Maroon"))
+          .derive
+        decode(""""Red"""", Color.Red, codec) &&
+        decode(""""Rose"""", Color.Red, codec) &&
+        decode(""""Ruby"""", Color.Red, codec) &&
+        decode(""""Coral"""", Color.Red, codec) &&
+        decode(""""Scarlet"""", Color.Red, codec) &&
+        decode(""""Oxblood"""", Color.Red, codec) &&
+        decode(""""Vermilion"""", Color.Red, codec) &&
+        decode(""""Crimson"""", Color.Red, codec) &&
+        decode(""""Garnet"""", Color.Red, codec) &&
+        decode(""""Salmon"""", Color.Red, codec) &&
+        decode(""""Maroon"""", Color.Red, codec)
       },
       test("variant with duplicated case names") {
         assert(scala.util.Try {
@@ -3072,6 +3112,11 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
     case object Turquoise extends RGBColor(0x007fff)
 
+    @Modifier.alias("Azure")
+    @Modifier.alias("Indigo")
+    @Modifier.alias("Navy")
+    @Modifier.alias("Periwinkle")
+    @Modifier.alias("Ultramarine")
     case object Blue extends RGBColor(0x0000ff)
 
     case object Violet extends RGBColor(0xff00ff)
