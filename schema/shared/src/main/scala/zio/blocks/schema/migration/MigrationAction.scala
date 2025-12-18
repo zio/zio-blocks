@@ -52,7 +52,7 @@ object MigrationAction {
         case Some(DynamicOptic.Node.Field(fieldName)) =>
           val path = DynamicOptic(at.nodes.dropRight(1).toIndexedSeq)
           for {
-            defaultValue <- default.apply(()) // Assuming Constant or DefaultValue for now
+            defaultValue <- default.apply(null) // Assuming Constant or DefaultValue for now
             updatedValue <- modify(path, value) {
                              case DynamicValue.Record(fields) =>
                                if (fields.exists(_._1 == fieldName))
@@ -92,7 +92,28 @@ object MigrationAction {
       val newPath = DynamicOptic(at.nodes.dropRight(1) :+ DynamicOptic.Node.Field(newName))
       RenameField(newPath, oldName)
     }
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = ???
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      at.nodes.lastOption match {
+        case Some(DynamicOptic.Node.Field(oldName)) =>
+          val path = DynamicOptic(at.nodes.dropRight(1).toIndexedSeq)
+          modify(path, value) {
+            case DynamicValue.Record(fields) =>
+              fields.indexWhere(_._1 == oldName) match {
+                case -1 =>
+                  Left(MigrationError.TransformationError(at, s"Field '$oldName' does not exist."))
+                case i =>
+                  if (fields.exists(_._1 == newName))
+                    Left(MigrationError.TransformationError(at, s"Field '$newName' already exists."))
+                  else {
+                    val (name, value) = fields(i)
+                    Right(DynamicValue.Record(fields.updated(i, newName -> value)))
+                  }
+              }
+            case other => Left(MigrationError.PathError(at, s"Cannot rename field '$oldName' in non-record value: $other"))
+          }
+        case _ => Left(MigrationError.PathError(at, "RenameField requires a field name at the end of the path."))
+      }
+    }
   }
 
   final case class TransformValue(at: DynamicOptic, transform: SchemaExpr[_, _]) extends MigrationAction {
