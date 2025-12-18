@@ -190,4 +190,97 @@ object DynamicOptic {
 
     case object Wrapped extends Node
   }
+
+  def get(
+    optic: DynamicOptic,
+    value: DynamicValue
+  ): Either[MigrationError, DynamicValue] = {
+    def loop(
+      nodes: List[DynamicOptic.Node],
+      currentValue: DynamicValue
+    ): Either[MigrationError, DynamicValue] =
+      nodes match {
+        case Nil => Right(currentValue)
+        case node :: tail =>
+          node match {
+            case DynamicOptic.Node.Field(name) =>
+              currentValue match {
+                case DynamicValue.Record(fields) =>
+                  fields.indexWhere(_._1 == name) match {
+                    case -1 =>
+                      Left(MigrationError.PathError(optic, s"Field '$name' not found."))
+                    case i =>
+                      loop(tail, fields(i)._2)
+                  }
+                case _ => Left(MigrationError.PathError(optic, "Field optic can only be used on a record."))
+              }
+            case DynamicOptic.Node.Case(name) =>
+              currentValue match {
+                case DynamicValue.Variant(tag, value) if tag == name =>
+                  loop(tail, value)
+                case DynamicValue.Variant(tag, _) =>
+                  Left(MigrationError.PathError(optic, s"Case '$name' does not match current sum type tag '$tag'."))
+                case _ =>
+                  Left(MigrationError.PathError(optic, "Case optic can only be used on a sum type."))
+              }
+            case DynamicOptic.Node.AtIndex(index) =>
+              currentValue match {
+                case DynamicValue.Sequence(values) =>
+                  if (index >= 0 && index < values.length) {
+                    loop(tail, values(index))
+                  } else {
+                    Left(MigrationError.PathError(optic, s"Index '$index' is out of bounds."))
+                  }
+                case _ =>
+                  Left(MigrationError.PathError(optic, "AtIndex optic can only be used on a sequence type."))
+              }
+            case DynamicOptic.Node.Elements =>
+              currentValue match {
+                case DynamicValue.Sequence(values) =>
+                  val initial: Either[MigrationError, Vector[DynamicValue]] = Right(Vector.empty)
+                  values.foldLeft(initial) { (acc, value) =>
+                    acc.flatMap(extractedValues => loop(tail, value).map(newValue => extractedValues :+ newValue))
+                  }.map(DynamicValue.Sequence(_))
+                case _ =>
+                  Left(MigrationError.PathError(optic, "Elements optic can only be used on a sequence type."))
+              }
+            case DynamicOptic.Node.AtMapKey(key) =>
+              currentValue match {
+                case DynamicValue.Map(entries) =>
+                  entries.indexWhere(_._1 == key) match {
+                    case -1 =>
+                      Left(MigrationError.PathError(optic, s"Key '$key' not found."))
+                    case i =>
+                      loop(tail, entries(i)._2)
+                  }
+                case _ =>
+                  Left(MigrationError.PathError(optic, "AtMapKey optic can only be used on a dictionary type."))
+              }
+            case DynamicOptic.Node.MapValues =>
+              currentValue match {
+                case DynamicValue.Map(entries) =>
+                  val initial: Either[MigrationError, Vector[(DynamicValue, DynamicValue)]] = Right(Vector.empty)
+                  entries.foldLeft(initial) { (acc, entry) =>
+                    val (key, value) = entry
+                    acc.flatMap(extractedEntries => loop(tail, value).map(newValue => extractedEntries :+ (key -> newValue)))
+                  }.map(DynamicValue.Map(_))
+                case _ =>
+                  Left(MigrationError.PathError(optic, "MapValues optic can only be used on a dictionary type."))
+              }
+            case DynamicOptic.Node.MapKeys =>
+               currentValue match {
+                 case DynamicValue.Map(entries) =>
+                   val initial: Either[MigrationError, Vector[(DynamicValue, DynamicValue)]] = Right(Vector.empty)
+                   entries.foldLeft(initial) { (acc, entry) =>
+                     val (key, value) = entry
+                     acc.flatMap(extractedEntries => loop(tail, key).map(newKey => extractedEntries :+ (newKey -> value)))
+                   }.map(DynamicValue.Map(_))
+                 case _ =>
+                   Left(MigrationError.PathError(optic, "MapKeys optic can only be used on a dictionary type."))
+               }
+             case _ => Left(MigrationError.NotYetImplemented)
+          }
+      }
+    loop(optic.nodes.toList, value)
+  }
 }
