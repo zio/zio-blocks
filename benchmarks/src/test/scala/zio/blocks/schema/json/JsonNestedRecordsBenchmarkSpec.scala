@@ -1,4 +1,4 @@
-package zio.blocks.json
+package zio.blocks.schema.json
 
 import zio.blocks.schema.json.JsonNestedRecordsBenchmark
 import zio.blocks.schema.{DynamicOptic, SchemaError}

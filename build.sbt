@@ -36,10 +36,10 @@ lazy val root = project
     schema.jvm,
     schema.js,
     schema.native,
+    `schema-avro`,
     streams.jvm,
     streams.js,
     streams.native,
-    avro,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
@@ -116,10 +116,10 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     )
   )
 
-lazy val avro = project
-  .settings(stdSettings("zio-blocks-avro"))
+lazy val `schema-avro` = project
+  .settings(stdSettings("zio-blocks-schema-avro"))
   .dependsOn(schema.jvm)
-  .settings(buildInfoSettings("zio.blocks.avro"))
+  .settings(buildInfoSettings("zio.blocks.schema.avro"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
     libraryDependencies ++= Seq(
@@ -148,7 +148,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
   .dependsOn(schema.jvm)
-  .dependsOn(avro)
+  .dependsOn(`schema-avro`)
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
