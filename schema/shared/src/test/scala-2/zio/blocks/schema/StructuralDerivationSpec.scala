@@ -51,7 +51,7 @@ object StructuralDerivationSpec extends ZIOSpecDefault {
       test("derives schema for single field structural type") {
         val schema     = Schema.derived[SingleField]
         val fieldCount = schema.reflect.asRecord.map(_.fields.size).getOrElse(-1)
-        val firstName = schema.reflect.asRecord.map(_.fields.head.name).getOrElse("")
+        val firstName  = schema.reflect.asRecord.map(_.fields.head.name).getOrElse("")
         assertTrue(fieldCount == 1) &&
         assertTrue(firstName == "value")
       },
@@ -77,9 +77,10 @@ object StructuralDerivationSpec extends ZIOSpecDefault {
         val pointSchema     = Schema.derived[Point]
         val withPointSchema = Schema.derived[WithPoint]
 
-        val pointFieldCount = pointSchema.reflect.asRecord.map(_.fields.size).getOrElse(-1)
+        val pointFieldCount     = pointSchema.reflect.asRecord.map(_.fields.size).getOrElse(-1)
         val withPointFieldCount = withPointSchema.reflect.asRecord.map(_.fields.size).getOrElse(-1)
-        val withPointFieldNames = withPointSchema.reflect.asRecord.map(_.fields.map(_.name).toSet).getOrElse(Set.empty[String])
+        val withPointFieldNames =
+          withPointSchema.reflect.asRecord.map(_.fields.map(_.name).toSet).getOrElse(Set.empty[String])
 
         assertTrue(pointFieldCount == 2) &&
         assertTrue(withPointFieldCount == 2) &&
