@@ -4,20 +4,11 @@ import zio.json._
 import zio.json.ast.Json
 import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.migration.MigrationAction._
 
 object DynamicMigrationCodec {
 
-  // DynamicOptic Codec
-  implicit val dynamicOpticEncoder: JsonEncoder[DynamicOptic] = JsonEncoder.string.contramap(_.toString)
-  implicit val dynamicOpticDecoder: JsonDecoder[DynamicOptic] = JsonDecoder.string.map { str =>
-     // Parsing logic would be needed here to fully support string-to-optic
-     // For now, we stub this or assume a simple structure if we wanted true roundtrip
-     // A better approach for robust serialization is to serialize the nodes structure
-     DynamicOptic.root // STUB: Proper parsing of logical paths is complex and requires a parser
-  }
-  
-  // To enable real roundtrip, we should serialize the internal structure (Nodes)
-  // Let's create a better codec for DynamicOptic nodes:
+  // --- DynamicOptic Codecs ---
   
   implicit val nodeEncoder: JsonEncoder[DynamicOptic.Node] = JsonEncoder[Json].contramap {
     case DynamicOptic.Node.Field(name) => Json.Obj("type" -> Json.Str("Field"), "name" -> Json.Str(name))
@@ -43,17 +34,18 @@ object DynamicMigrationCodec {
     } yield res
   }
 
-  implicit val properDynamicOpticEncoder: JsonEncoder[DynamicOptic] = JsonEncoder[Vector[DynamicOptic.Node]].contramap(_.nodes.toVector)
-  implicit val properDynamicOpticDecoder: JsonDecoder[DynamicOptic] = JsonDecoder[Vector[DynamicOptic.Node]].map(nodes => DynamicOptic(nodes))
+  implicit val dynamicOpticEncoder: JsonEncoder[DynamicOptic] = JsonEncoder[Vector[DynamicOptic.Node]].contramap(_.nodes.toVector)
+  implicit val dynamicOpticDecoder: JsonDecoder[DynamicOptic] = JsonDecoder[Vector[DynamicOptic.Node]].map(nodes => DynamicOptic(nodes))
 
 
-  // SchemaExpr Codec (Simplified for pure data schema expressions)
+  // --- SchemaExpr Codec ---
+  // Simplified for migration metadata. Note: Full function serialization is not possible.
+  // We rely on known structural subtypes.
   implicit val schemaExprEncoder: JsonEncoder[SchemaExpr[Any, _]] = JsonEncoder[Json].contramap {
-    case SchemaExpr.Constant(v) => Json.Obj("type" -> Json.Str("Constant"), "value" -> Json.Str(v.toString)) // Simplified
+    case SchemaExpr.Constant(v) => Json.Obj("type" -> Json.Str("Constant"), "value" -> Json.Str(v.toString)) 
     case SchemaExpr.DefaultValue() => Json.Obj("type" -> Json.Str("DefaultValue"))
     case SchemaExpr.ToUpperCase() => Json.Obj("type" -> Json.Str("ToUpperCase"))
     case SchemaExpr.ToLowerCase() => Json.Obj("type" -> Json.Str("ToLowerCase"))
-    // ... other cases
     case _ => Json.Obj("type" -> Json.Str("UnknownExpr"))
   }
   
@@ -63,21 +55,35 @@ object DynamicMigrationCodec {
       case "DefaultValue" => Right(SchemaExpr.DefaultValue())
       case "ToUpperCase" => Right(SchemaExpr.ToUpperCase().asInstanceOf[SchemaExpr[Any, _]])
       case "ToLowerCase" => Right(SchemaExpr.ToLowerCase().asInstanceOf[SchemaExpr[Any, _]])
-      // Constants require DynamicValue support for full fidelity
+      case "Constant" => 
+        // Best effort string constant
+        val valStr = json.asObject.flatMap(_.get("value")).flatMap(_.asString).getOrElse("")
+        Right(SchemaExpr.Constant(valStr).asInstanceOf[SchemaExpr[Any, _]])
       case _ => Left(s"Unsupported SchemaExpr type: $typ")
     }
   }
 
-  // MigrationAction Codec
+  // --- MigrationAction Codec ---
   implicit val migrationActionEncoder: JsonEncoder[MigrationAction] = JsonEncoder[Json].contramap { action =>
      val (tpe, data) = action match {
-       case MigrationAction.AddField(at, defVal) => 
+       case AddField(at, defVal) => 
          ("AddField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "default" -> defVal.toJsonAST.getOrElse(Json.Null)))
-       case MigrationAction.DropField(at, _) => 
-         ("DropField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null)))
-       case MigrationAction.RenameField(at, newName) =>
+       case DropField(at, defRev) => 
+         ("DropField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "defaultForReverse" -> defRev.toJsonAST.getOrElse(Json.Null)))
+       case RenameField(at, newName) =>
          ("RenameField", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "newName" -> Json.Str(newName)))
-       // ... others
+       case TransformValue(at, t) =>
+         ("TransformValue", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "transform" -> t.toJsonAST.getOrElse(Json.Null)))
+       case Mandate(at, defVal) =>
+         ("Mandate", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "default" -> defVal.toJsonAST.getOrElse(Json.Null)))
+       case Optionalize(at) =>
+         ("Optionalize", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null)))
+       case ChangeType(at, conv) =>
+         ("ChangeType", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "converter" -> conv.toJsonAST.getOrElse(Json.Null)))
+       case Join(at, paths, comb) =>
+          ("Join", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "sourcePaths" -> paths.toJsonAST.getOrElse(Json.Null), "combiner" -> comb.toJsonAST.getOrElse(Json.Null)))
+       case Split(at, paths, split) =>
+          ("Split", Json.Obj("at" -> at.toJsonAST.getOrElse(Json.Null), "targetPaths" -> paths.toJsonAST.getOrElse(Json.Null), "splitter" -> split.toJsonAST.getOrElse(Json.Null)))
        case _ => ("Unknown", Json.Obj())
      }
      Json.Obj("type" -> Json.Str(tpe), "data" -> data)
@@ -88,12 +94,62 @@ object DynamicMigrationCodec {
        obj <- json.asObject.toRight("Not an object")
        tpe <- obj.get("type").flatMap(_.asString).toRight("Missing type")
        data <- obj.get("data").flatMap(_.asObject).toRight("Missing data")
-       // Decoding logic here (requires extracting fields from data)
-       // This is a partial implementation due to complexity constraints in this prompt
+       
        res <- tpe match {
+         case "AddField" => 
+           for {
+             at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+             default <- data.get("default").flatMap(_.as[SchemaExpr[Any, _]].toOption).toRight("Invalid default")
+           } yield AddField(at, default)
+           
          case "DropField" => 
-           data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid 'at'").map(at => MigrationAction.DropField(at, SchemaExpr.DefaultValue()))
-         case _ => Left(s"Unsupported action: $tpe")
+           for {
+             at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+             default <- data.get("defaultForReverse").flatMap(_.as[SchemaExpr[Any, _]].toOption).toRight("Invalid defaultForReverse")
+           } yield DropField(at, default)
+           
+         case "RenameField" =>
+            for {
+              at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+              newName <- data.get("newName").flatMap(_.asString).toRight("Invalid newName")
+            } yield RenameField(at, newName)
+            
+         case "TransformValue" =>
+            for {
+              at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+              tr <- data.get("transform").flatMap(_.as[SchemaExpr[Any, _]].toOption).toRight("Invalid transform")
+            } yield TransformValue(at, tr)
+            
+         case "Mandate" =>
+             for {
+               at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+               defVal <- data.get("default").flatMap(_.as[SchemaExpr[Any, _]].toOption).toRight("Invalid default")
+             } yield Mandate(at, defVal)
+             
+         case "Optionalize" =>
+             data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at").map(Optionalize(_))
+             
+         case "ChangeType" =>
+             for {
+               at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+               conv <- data.get("converter").flatMap(_.as[SchemaExpr[Any, _]].toOption).toRight("Invalid converter")
+             } yield ChangeType(at, conv)
+         
+         case "Join" =>
+             for {
+                at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+                paths <- data.get("sourcePaths").flatMap(_.as[Vector[DynamicOptic]].toOption).toRight("Invalid sourcePaths")
+                comb <- data.get("combiner").flatMap(_.as[SchemaExpr[Any, _]].toOption).toRight("Invalid combiner")
+             } yield Join(at, paths, comb)
+             
+         case "Split" =>
+             for {
+                at <- data.get("at").flatMap(_.as[DynamicOptic].toOption).toRight("Invalid at")
+                paths <- data.get("targetPaths").flatMap(_.as[Vector[DynamicOptic]].toOption).toRight("Invalid targetPaths")
+                split <- data.get("splitter").flatMap(_.as[SchemaExpr[Any, _]].toOption).toRight("Invalid splitter")
+             } yield Split(at, paths, split)
+
+         case _ => Left(s"Unsupported or unknown action type: $tpe")
        }
      } yield res
   }

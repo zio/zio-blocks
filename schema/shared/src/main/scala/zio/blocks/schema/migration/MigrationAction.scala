@@ -191,6 +191,8 @@ object MigrationAction {
       for {
         sourceValue <- DynamicOptic.get(at, value)
         splitValues <- splitter.apply(sourceValue).map(_.asInstanceOf[Vector[DynamicValue]])
+        _ <- if (splitValues.size == targetPaths.size) Right(()) 
+             else Left(MigrationError.ConversionError(s"Split produced ${splitValues.size} values but expected ${targetPaths.size} paths"))
         result <- targetPaths.zip(splitValues).foldLeft[Either[MigrationError, DynamicValue]](Right(value)) {
           case (acc, (path, newValue)) => acc.flatMap(v => DynamicOptic.set(path, v, newValue))
         }
