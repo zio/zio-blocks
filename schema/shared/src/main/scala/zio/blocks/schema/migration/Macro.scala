@@ -5,12 +5,14 @@ import scala.quoted._
 
 object Macro {
 
-  extension [A](iter: Iterable[A])
+  extension [A](iter: Iterable[A]) {
     def each: A = ???
+  }
 
-  extension [K, V](map: Map[K, V])
+  extension [K, V](map: Map[K, V]) {
     def eachKey: K = ???
     def eachValue: V = ???
+  }
 
   // Commenting out select and SchemaExpr.Path for now to focus on toPath
   // inline def select[S, A](inline f: S => A)(using Schema[S], Schema[A]): SchemaExpr[S, A] = ${ selectImpl('f) }
@@ -31,7 +33,7 @@ object Macro {
     case DynamicOptic.Node.Wrapped => '{ DynamicOptic.Node.Wrapped }
     case DynamicOptic.Node.AtMapKey(key) => '{ DynamicOptic.Node.AtMapKey(${Expr(key.toString)}) } // Cast to String for now
     case DynamicOptic.Node.AtIndices(indices) => '{ DynamicOptic.Node.AtIndices(${Expr.ofSeq(indices.map(Expr(_)))}) }
-    case DynamicOptic.Node.AtMapKeys(keys) => '{ DynamicOptic.Node.AtMapKeys(${Expr.ofSeq(keys.map(Expr(_.toString)))}) } // Cast to String for now
+    case DynamicOptic.Node.AtMapKeys(keys) => '{ DynamicOptic.Node.AtMapKeys(${Expr.ofSeq(keys.map(k => Expr(k.toString)))}) }
     case _ => quotes.reflect.report.errorAndAbort(s"Unsupported DynamicOptic.Node: $node")
   }
 

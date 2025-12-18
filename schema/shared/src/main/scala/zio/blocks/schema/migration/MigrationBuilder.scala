@@ -34,26 +34,28 @@ final case class MigrationBuilder[A, B](
     copy(actions = actions :+ MigrationAction.TransformValue(optic, transform))
   }
 
-  inline def mandateField(inline source: A => Option[Any], inline target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.Mandate(optic, default))
-  }
+  // mandateField and optionalizeField temporarily disabled
+  // inline def mandateField(inline source: A => Option[Any], inline target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+  //   val optic = Macro.toPath(source)
+  //   copy(actions = actions :+ MigrationAction.Mandate(optic, default))
+  // }
 
-  inline def optionalizeField(inline source: A => Any, inline target: B => Option[Any]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.Optionalize(optic))
-  }
+  // inline def optionalizeField(inline source: A => Any, inline target: B => Option[Any]): MigrationBuilder[A, B] = {
+  //   val optic = Macro.toPath(source)
+  //   copy(actions = actions :+ MigrationAction.Optionalize(optic))
+  // }
 
   inline def changeFieldType(inline source: A => Any, inline target: B => Any, converter: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
     val optic = Macro.toPath(source)
     copy(actions = actions :+ MigrationAction.ChangeType(optic, converter))
   }
 
-  def joinFields(target: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Join(target, sourcePaths, combiner))
+  // joinFields and splitField temporarily disabled
+  // def joinFields(target: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
+  //   copy(actions = actions :+ MigrationAction.Join(target, sourcePaths, combiner))
 
-  def splitField(source: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Split(source, targetPaths, splitter))
+  // def splitField(source: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
+  //   copy(actions = actions :+ MigrationAction.Split(source, targetPaths, splitter))
 
   // Legacy DynamicOptic-based methods for compatibility
   def addField(target: DynamicOptic, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] =

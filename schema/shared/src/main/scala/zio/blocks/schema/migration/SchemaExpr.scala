@@ -1,7 +1,6 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.DynamicOptic
-import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.Schema
 
 sealed trait SchemaExpr[A, +B] {
