@@ -154,9 +154,9 @@ lazy val benchmarks = project
     libraryDependencies ++= Seq(
       "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.6",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
-      "dev.zio"                               %% "zio-json"              % "0.7.45",
-      "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
-      "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
+      "dev.zio"                               %% "zio-json"              % "0.8.0",
+      "dev.zio"                               %% "zio-schema-avro"       % "1.7.6",
+      "dev.zio"                               %% "zio-schema-json"       % "1.7.6",
       "io.github.arainko"                     %% "chanterelle"           % "0.1.1",
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",

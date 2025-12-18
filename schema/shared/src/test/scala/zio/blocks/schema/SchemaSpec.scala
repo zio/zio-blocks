@@ -1787,15 +1787,7 @@ object SchemaSpec extends ZIOSpecDefault {
         """case class WrongTransientField(i: Int, @Modifier.transient() a: String)
 
            Schema.derived[WrongTransientField]"""
-      }.map(
-        assert(_)(
-          isLeft(
-            containsString(
-              "Missing default value for transient field 'a' in 'WrongTransientField'"
-            )
-          )
-        )
-      )
+      }.map(assert(_)(isLeft(containsString("Missing default value for transient field 'a' in 'WrongTransientField'"))))
     }
   )
 
