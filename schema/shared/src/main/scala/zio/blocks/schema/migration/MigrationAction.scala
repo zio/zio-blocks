@@ -139,4 +139,63 @@ object MigrationAction {
         migration(element)
       }
   }
+
+  final case class Mandate(at: DynamicOptic, default: SchemaExpr[Any, _]) extends MigrationAction {
+    def reverse: MigrationAction = Optionalize(at)
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      DynamicOptic.modify(at, value) {
+        case DynamicValue.None => default.apply(null).map(_.asInstanceOf[DynamicValue])
+        case someValue => Right(someValue)
+      }
+    }
+  }
+
+  final case class Optionalize(at: DynamicOptic) extends MigrationAction {
+    def reverse: MigrationAction = Mandate(at, SchemaExpr.DefaultValue())
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      DynamicOptic.modify(at, value) { currentValue =>
+        Right(DynamicValue.Some(currentValue))
+      }
+    }
+  }
+
+  final case class Join(at: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]) extends MigrationAction {
+    def reverse: MigrationAction = ??? // Complex reverse logic needed
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      // Extract values from source paths and combine them
+      val sourceValues = sourcePaths.map(path =>
+        DynamicOptic.get(path, value).left.map(err => MigrationError.PathError(path, err.toString))
+      )
+      sourceValues.sequence.flatMap { values =>
+        combiner.apply(values.toArray).map(_.asInstanceOf[DynamicValue])
+      }.map(result => DynamicOptic.set(at, value, result).getOrElse(value))
+    }
+  }
+
+  final case class Split(at: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]) extends MigrationAction {
+    def reverse: MigrationAction = ??? // Complex reverse logic needed
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      DynamicOptic.get(at, value) match {
+        case Right(valueToSplit) =>
+          splitter.apply(valueToSplit).flatMap {
+            case DynamicValue.Sequence(elements) if elements.size == targetPaths.size =>
+              val updates = targetPaths.zip(elements).map { case (path, elem) =>
+                DynamicOptic.set(path, value, elem).toRight(MigrationError.PathError(path, "Cannot set split value"))
+              }
+              updates.sequence.map(_ => value)
+            case _ => Left(MigrationError.TransformationError(at, "Splitter must return sequence with correct number of elements"))
+          }
+        case Left(err) => Left(MigrationError.PathError(at, err.toString))
+      }
+    }
+  }
+
+  final case class ChangeType(at: DynamicOptic, converter: SchemaExpr[Any, _]) extends MigrationAction {
+    def reverse: MigrationAction = ??? // Would need reverse converter
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      DynamicOptic.modify(at, value) { currentValue =>
+        converter.apply(currentValue).map(_.asInstanceOf[DynamicValue])
+      }
+    }
+  }
 }
