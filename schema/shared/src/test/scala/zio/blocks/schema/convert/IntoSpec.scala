@@ -21,6 +21,16 @@ object IntoSpec extends ZIOSpecDefault {
   case class Employee(id: Long, name: String, department: Int)
   case class Worker(name: String, team: Int, identifier: Long)
 
+  // Case class to case class with unique type matching
+  case class PersonV1(name: String, age: Int)
+  case class PersonV2(fullName: String, age: Int)
+
+  // Case class to tuple
+  case class PointDouble(x: Double, y: Double)
+
+  // Tuple to case class
+  case class RGBColor(red: Int, green: Int, blue: Int)
+
   def spec: Spec[TestEnvironment, Any] = suite("IntoSpec")(
     suite("Product to Product")(
       suite("Priority 1: Exact match (same name + same type)")(
@@ -68,6 +78,46 @@ object IntoSpec extends ZIOSpecDefault {
           
           assert(result)(isRight(equalTo(Worker(name = "Bob", team = 5, identifier = 123L))))
         }
+      ),
+      suite("Case Class to Case Class")(
+        test("maps by unique type when field names differ") {
+          // 'name' is unique String in V1, 'fullName' is unique String in V2
+          // 'age' matches by name
+          val personV1 = PersonV1("Alice", 30)
+          val result = Into.derived[PersonV1, PersonV2].into(personV1)
+          
+          assert(result)(isRight(equalTo(PersonV2("Alice", 30))))
+        }
+      ),
+      suite("Case Class to Tuple")(
+        test("maps case class fields to tuple by position") {
+          val point = PointDouble(1.0, 2.0)
+          val result = Into.derived[PointDouble, (Double, Double)].into(point)
+          
+          assert(result)(isRight(equalTo((1.0, 2.0))))
+        }
+      ),
+      suite("Tuple to Case Class")(
+        test("maps tuple elements to case class fields by position") {
+          val tuple = (255, 128, 64)
+          val result = Into.derived[(Int, Int, Int), RGBColor].into(tuple)
+          
+          assert(result)(isRight(equalTo(RGBColor(red = 255, green = 128, blue = 64))))
+        }
+      ),
+      suite("Tuple to Tuple")(
+        test("maps tuple to tuple by position with same types") {
+          val tuple = (42, "hello")
+          val result = Into.derived[(Int, String), (Int, String)].into(tuple)
+          
+          assert(result)(isRight(equalTo((42, "hello"))))
+        }
+        // TODO: Add test for coercion (Int -> Long) once coercion is implemented
+        // test("maps tuple to tuple with type coercion") {
+        //   val tuple = (42, "hello")
+        //   val result = Into.derived[(Int, String), (Long, String)].into(tuple)
+        //   assert(result)(isRight(equalTo((42L, "hello"))))
+        // }
       )
     )
   )
