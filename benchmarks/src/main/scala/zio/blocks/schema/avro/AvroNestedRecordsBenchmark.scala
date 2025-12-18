@@ -1,9 +1,9 @@
-package zio.blocks.avro
+package zio.blocks.schema.avro
 
 import org.openjdk.jmh.annotations._
 import zio.blocks.BaseBenchmark
 import zio.blocks.schema.{Schema, SchemaError}
-import zio.blocks.avro.AvroFormat
+import zio.blocks.schema.avro.{AvroBinaryCodec, AvroFormat}
 
 class AvroNestedRecordsBenchmark extends BaseBenchmark {
   import AvroNestedRecordsBenchmark._

@@ -1,10 +1,10 @@
-package zio.blocks.avro
+package zio.blocks.schema.avro
 
 import org.openjdk.jmh.annotations._
 import zio.Chunk
 import zio.blocks.BaseBenchmark
 import zio.blocks.schema.Schema
-import zio.blocks.avro.AvroFormat
+import zio.blocks.schema.avro.{AvroBinaryCodec, AvroFormat}
 import zio.schema.codec.AvroCodec
 import zio.schema.{DeriveSchema, Schema => ZIOSchema}
 import java.io.ByteArrayOutputStream

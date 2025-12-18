@@ -1,4 +1,4 @@
-package zio.blocks.avro
+package zio.blocks.schema.avro
 
 import zio.test._
 import zio.test.Assertion._

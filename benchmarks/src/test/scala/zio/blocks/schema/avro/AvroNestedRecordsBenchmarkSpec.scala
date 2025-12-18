@@ -1,4 +1,4 @@
-package zio.blocks.avro
+package zio.blocks.schema.avro
 
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.test._
