@@ -1,7 +1,7 @@
-package zio.blocks.avro
+package zio.blocks.schema.avro
 
 import zio.blocks.schema.Schema
-import zio.blocks.avro.AvroTestUtils._
+import zio.blocks.schema.avro.AvroTestUtils._
 import zio.test._
 
 object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
@@ -21,7 +21,7 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
     suite("variants")(
       test("constant values") {
         avroSchema[TrafficLight](
-          "[{\"type\":\"record\",\"name\":\"Red\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Yellow\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Green\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]}]"
+          "[{\"type\":\"record\",\"name\":\"Red\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Yellow\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Green\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.TrafficLight\",\"fields\":[]}]"
         ) &&
         roundTrip[TrafficLight](TrafficLight.Green, 1) &&
         roundTrip[TrafficLight](TrafficLight.Yellow, 1) &&
@@ -34,11 +34,11 @@ object AvroFormatVersionSpecificSpec extends ZIOSpecDefault {
         val schema2 = Schema.derived[LinkedList[Option[String]]]
 
         avroSchema[LinkedList[Int]](
-          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
+          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
         )(schema1) &&
         roundTrip(Node(1, Node(2, End)), 5)(schema1) &&
         avroSchema[LinkedList[Option[String]]](
-          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
+          "[{\"type\":\"record\",\"name\":\"End\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Node\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatVersionSpecificSpec.LinkedList\",\"fields\":[{\"name\":\"value\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"string\"}]}]},{\"name\":\"next\",\"type\":[{\"type\":\"record\",\"name\":\"End_1\",\"fields\":[]},\"Node\"]}]}]"
         )(schema2) &&
         roundTrip(Node(Some("VVV"), Node(None, End)), 9)(schema2)
       },

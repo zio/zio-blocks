@@ -1,4 +1,4 @@
-package zio.blocks.avro
+package zio.blocks.schema.avro
 
 import org.apache.avro.io.{BinaryDecoder, BinaryEncoder}
 import org.apache.avro.{Schema => AvroSchema}
