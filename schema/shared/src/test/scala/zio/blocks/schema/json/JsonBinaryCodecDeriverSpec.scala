@@ -6,6 +6,7 @@ import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.NameMapper._
 import zio.test._
+import zio.test.Assertion._
 import zio.test.TestAspect._
 import java.math.MathContext
 import java.time._
@@ -1730,6 +1731,14 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         decodeError("""{"big_int":null}""", "missing required field \"bigDec\" at: .", codec2) &&
         decodeError("""{"big_int":null,"bigDec":1}""", "expected '\"' or null at: .bigDecimal", codec2)
       },
+      test("record with duplicated field names") {
+        assert(scala.util.Try {
+          Record5.schema
+            .deriving(JsonBinaryCodecDeriver)
+            .modifier(Record5.bigDecimal, Modifier.rename("bigInt"))
+            .derive
+        }.toEither)(isLeft(hasError("Cannot derive codec - duplicated name detected: 'bigInt'")))
+      },
       test("record with fields that have default values and custom codecs") {
         val codec1 = Schema[Record6]
           .deriving(JsonBinaryCodecDeriver)
@@ -2574,6 +2583,21 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           """{"$type":"Bird","name":"Tweety","age":{"$type":"Right","value":15},"color":{"$type":"Turquoise"}}""",
           codec
         )
+      },
+      test("variant with custom case names") {
+        val codec = Color.schema
+          .deriving(JsonBinaryCodecDeriver)
+          .modifier(Color.red, Modifier.rename("Rose"))
+          .derive
+        roundTrip(Color.Red, """"Rose"""", codec)
+      },
+      test("variant with duplicated case names") {
+        assert(scala.util.Try {
+          Color.schema
+            .deriving(JsonBinaryCodecDeriver)
+            .modifier(Color.red, Modifier.rename("Black"))
+            .derive
+        }.toEither)(isLeft(hasError("Cannot derive codec - duplicated name detected: 'Black'")))
       }
     ),
     suite("wrapper")(
@@ -3007,7 +3031,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
   sealed trait Color
 
-  object Color {
+  object Color extends CompanionOptics[Color] {
     implicit val schema: Schema[Color] = Schema.derived
 
     case object Red extends Color
@@ -3029,6 +3053,8 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     case object Gray extends Color
 
     case object Black extends Color
+
+    val red: Prism[Color, Color.Red.type] = $(_.when[Color.Red.type])
   }
 
   sealed abstract class RGBColor(val color: Int)
