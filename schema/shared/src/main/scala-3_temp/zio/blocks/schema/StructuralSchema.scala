@@ -57,15 +57,12 @@ object StructuralSchemaMacro {
               report.errorAndAbort(s"Cannot find Schema for field '$fieldName' of type ${fieldType.show}")
             }
             val term = Ref(fieldSymbol).asExprOf[Any]
-            // For structural types, we cannot provide a 'set' function easily as they are typically immutable
-            // and direct field modification is not part of the structural type interface.
-            // We'll provide a 'get' and a placeholder for 'set'.
             '{
               Schema.Field[T, f](
                 name = ${Expr(fieldName)},
                 schema = ${fieldSchema},
                 get = (obj: T) => ${term.asExprOf[f]},
-                set = (obj: T, value: f) => obj // Structural types are immutable, set is not directly applicable in a generic way
+                set = (obj: T, value: f) => obj
               )
             }
         }
@@ -78,6 +75,29 @@ object StructuralSchemaMacro {
         new StructuralSchema[T] {
           def schema: Schema[T] = ${recordSchema}
         }
+      }
+    }
+  }
+}"Cannot find Schema for field '$fieldName' of type ${fieldType.show}")
+          }
+          val term = Ref(fieldSymbol).asExprOf[Any]
+          '{
+            Schema.Field[T, f](
+              name = ${Expr(fieldName)},
+              schema = ${fieldSchema},
+              get = (obj: T) => ${term.asExprOf[f]},
+              set = (obj: T, value: f) => obj // Structural types are immutable, set is not directly applicable in a generic way
+            )
+          }
+      }
+    }
+
+    val recordSchema = 
+      '{Schema.Record(zio.Chunk.fromIterable(${Expr.ofSeq(schemaFields)})).asInstanceOf[Schema[T]]}
+
+    '{
+      new StructuralSchema[T] {
+        def schema: Schema[T] = ${recordSchema}
       }
     }
   }

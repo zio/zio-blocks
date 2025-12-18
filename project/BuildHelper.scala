@@ -45,7 +45,7 @@ object BuildHelper {
     val versions = CrossVersion.partialVersion(scalaVer) match {
       case Some((2, 12)) => Seq("2.12-2.13")
       case Some((2, 13)) => Seq("2.13+", "2.12-2.13")
-      case Some((3, _))  => Seq("2.13+")
+      case Some((3, _))  => Seq("3", "2.13+") // Include "3" for Scala 3 specific sources
       case _             => Seq()
     }
     platformSpecificSources(platform, conf, baseDir)(versions*)

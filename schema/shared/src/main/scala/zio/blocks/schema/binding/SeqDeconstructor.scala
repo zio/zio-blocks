@@ -132,40 +132,4 @@ object SeqDeconstructor {
 
     def charAt(c: Array[Char], index: Int): Char = c(index)
   }
-
-  val iArrayDeconstructor: SpecializedIndexed[IArray] = new SpecializedIndexed[IArray] {
-    def deconstruct[A](c: IArray[A]): Iterator[A] = c.iterator
-
-    def elementType[A](c: IArray[A]): RegisterType[A] = (c match {
-      case _: Array[Boolean] => RegisterType.Boolean
-      case _: Array[Byte]    => RegisterType.Byte
-      case _: Array[Short]   => RegisterType.Short
-      case _: Array[Int]     => RegisterType.Int
-      case _: Array[Long]    => RegisterType.Long
-      case _: Array[Float]   => RegisterType.Float
-      case _: Array[Double]  => RegisterType.Double
-      case _: Array[Char]    => RegisterType.Char
-      case _                 => RegisterType.Object()
-    }).asInstanceOf[RegisterType[A]]
-
-    def size[A](c: IArray[A]): Int = c.length
-
-    def objectAt[A](c: IArray[A], index: Int): A = c(index)
-
-    def booleanAt(c: IArray[Boolean], index: Int): Boolean = c(index)
-
-    def byteAt(c: IArray[Byte], index: Int): Byte = c(index)
-
-    def shortAt(c: IArray[Short], index: Int): Short = c(index)
-
-    def intAt(c: IArray[Int], index: Int): Int = c(index)
-
-    def longAt(c: IArray[Long], index: Int): Long = c(index)
-
-    def floatAt(c: IArray[Float], index: Int): Float = c(index)
-
-    def doubleAt(c: IArray[Double], index: Int): Double = c(index)
-
-    def charAt(c: IArray[Char], index: Int): Char = c(index)
-  }
 }

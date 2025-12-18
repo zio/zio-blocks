@@ -28,7 +28,4 @@ final case class MigrationBuilder[A, B](
     )
 }
 
-object Migration {
-    def newBuilder[A, B](implicit sourceSchema: Schema[A], targetSchema: Schema[B]): MigrationBuilder[A, B] =
-        MigrationBuilder(sourceSchema, targetSchema)
-}
+
