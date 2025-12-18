@@ -2386,9 +2386,8 @@ final class JsonWriter private[json] (
           m2 = m2IEEE
           e2 = -149
         } else if (e2 == 105) illegalNumberError(x)
-        e10 =
-          if (m2IEEE == 0) (e2 * 315653 - 131237) >> 20
-          else (e2 * 315653) >> 20
+        if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
+        else e10 = (e2 * 315653) >> 20
         val h     = (((e10 + 1) * -217707) >> 16) + e2
         val pow10 = floatPow10s(31 - e10)
         val hi64  = unsignedMultiplyHigh(
@@ -2398,17 +2397,16 @@ final class JsonWriter private[json] (
         m10 = (hi64 >>> 36).toInt * 10
         val halfUlpPlusEven = (pow10 >>> (28 - h)) + ((m2IEEE + 1) & 1)
         val dotOne          = hi64 & 0xfffffffffL
-        var m10Corr         =
-          if (
-            {
-              if (m2IEEE == 0) halfUlpPlusEven >>> 1
-              else halfUlpPlusEven
-            } > dotOne
-          ) 0
-          else if (halfUlpPlusEven > 0xfffffffffL - dotOne) 10
-          else (((dotOne << 4) + (dotOne << 2) + 0xffffffff9L + ((hi64 >>> 32) & 0xf)) >>> 37).toInt
-        if (m2IEEE == 0 && ((e2 == -119) | (e2 == 64) | (e2 == 67))) m10Corr += 1
-        m10 += m10Corr
+        if (
+          {
+            if (m2IEEE == 0) halfUlpPlusEven >>> 1
+            else halfUlpPlusEven
+          } <= dotOne
+        ) {
+          if (halfUlpPlusEven > 0xfffffffffL - dotOne) m10 += 10
+          else m10 += (((dotOne << 4) + (dotOne << 2) + ((hi64 >>> 32).toInt & 0xf) + 0xffffffff9L) >>> 37).toInt
+        }
+        if (m2IEEE == 0 && ((e2 == -119) | (e2 == 64) | (e2 == 67))) m10 += 1
       }
       val len = digitCount(m10)
       e10 += len - 1
@@ -2495,9 +2493,8 @@ final class JsonWriter private[json] (
           m2 = m2IEEE
           e2 = -1074
         } else if (e2 == 972) illegalNumberError(x)
-        e10 =
-          if (m2IEEE == 0) (e2 * 315653 - 131237) >> 20
-          else (e2 * 315653) >> 20
+        if (m2IEEE == 0) e10 = (e2 * 315653 - 131237) >> 20
+        else e10 = (e2 * 315653) >> 20
         val h       = (((e10 + 1) * -217707) >> 16) + e2
         val pow10s  = doublePow10s
         val i       = 292 - e10 << 1
