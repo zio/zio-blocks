@@ -8,6 +8,33 @@ final case class MigrationBuilder[A, B](
   actions: Vector[MigrationAction] = Vector.empty
 ) {
 
+  // Selector-based API methods
+  inline def addField(inline target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    val optic = Macro.toPath(target)
+    copy(actions = actions :+ MigrationAction.AddField(optic, default))
+  }
+
+  inline def dropField(inline source: A => Any, defaultForReverse: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    val optic = Macro.toPath(source)
+    copy(actions = actions :+ MigrationAction.DropField(optic, defaultForReverse))
+  }
+
+  inline def renameField(inline from: A => Any, inline to: B => Any): MigrationBuilder[A, B] = {
+    val fromOptic = Macro.toPath(from)
+    val toOptic = Macro.toPath(to)
+    val toName = toOptic.nodes.lastOption match {
+      case Some(DynamicOptic.Node.Field(name)) => name
+      case _ => throw new IllegalArgumentException("Target must be a field")
+    }
+    copy(actions = actions :+ MigrationAction.RenameField(fromOptic, toName))
+  }
+
+  inline def transformField(inline from: A => Any, inline to: B => Any, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    val optic = Macro.toPath(from)
+    copy(actions = actions :+ MigrationAction.TransformValue(optic, transform))
+  }
+
+  // Legacy DynamicOptic-based methods for compatibility
   def addField(target: DynamicOptic, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
     copy(actions = actions :+ MigrationAction.AddField(target, default))
 
@@ -18,7 +45,7 @@ final case class MigrationBuilder[A, B](
     copy(actions = actions :+ MigrationAction.RenameField(from, to))
 
   def transformField(from: DynamicOptic, unusedTo: DynamicOptic, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.TransformValue(from, transform)) // a bit simplified for now
+    copy(actions = actions :+ MigrationAction.TransformValue(from, transform))
 
   def build: Migration[A, B] =
     Migration(
