@@ -21,12 +21,36 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val aTpe = TypeRepr.of[A]
     val bTpe = TypeRepr.of[B]
 
-    (aTpe.classSymbol, bTpe.classSymbol) match {
-      case (Some(aClass), Some(bClass)) if isProductType(aClass) && isProductType(bClass) =>
+    val aIsProduct = aTpe.classSymbol.exists(isProductType)
+    val bIsProduct = bTpe.classSymbol.exists(isProductType)
+    val aIsTuple = isTupleType(aTpe)
+    val bIsTuple = isTupleType(bTpe)
+
+    (aIsProduct, bIsProduct, aIsTuple, bIsTuple) match {
+      case (true, true, _, _) =>
+        // Case class to case class
         deriveProductToProduct[A, B](aTpe, bTpe)
+      case (true, _, _, true) =>
+        // Case class to tuple
+        deriveCaseClassToTuple[A, B](aTpe, bTpe)
+      case (_, true, true, _) =>
+        // Tuple to case class
+        deriveTupleToCaseClass[A, B](aTpe, bTpe)
+      case (_, _, true, true) =>
+        // Tuple to tuple
+        deriveTupleToTuple[A, B](aTpe, bTpe)
       case _ =>
-        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: only case class to case class is currently supported")
+        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: unsupported type combination")
     }
+  }
+
+  private def isTupleType(tpe: TypeRepr): Boolean = {
+    tpe <:< TypeRepr.of[Tuple] || defn.isTupleClass(tpe.typeSymbol)
+  }
+
+  private def getTupleTypeArgs(tpe: TypeRepr): List[TypeRepr] = {
+    if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
+    else typeArgs(tpe)
   }
 
   private def deriveProductToProduct[A: Type, B: Type](
@@ -173,6 +197,164 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // TODO: Add collection coercion (List[Int] -> List[Long])
     sourceTpe =:= targetTpe
   }
+
+  // === Case Class to Tuple ===
+
+  private def deriveCaseClassToTuple[A: Type, B: Type](
+    aTpe: TypeRepr,
+    bTpe: TypeRepr
+  ): Expr[Into[A, B]] = {
+    val sourceInfo = new ProductInfo[A](aTpe)
+    val targetTypeArgs = getTupleTypeArgs(bTpe)
+
+    // Check field count matches
+    if (sourceInfo.fields.size != targetTypeArgs.size) {
+      fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: field count mismatch (${sourceInfo.fields.size} vs ${targetTypeArgs.size})")
+    }
+
+    // Check types match by position
+    sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
+      if (!(field.tpe =:= targetTpe) && !isCoercible(field.tpe, targetTpe)) {
+        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx: ${field.tpe.show} vs ${targetTpe.show}")
+      }
+    }
+
+    '{
+      new Into[A, B] {
+        def into(a: A): Either[SchemaError, B] = {
+          Right(${ constructTupleFromCaseClass[A, B](sourceInfo, bTpe, 'a) })
+        }
+      }
+    }
+  }
+
+  private def constructTupleFromCaseClass[A: Type, B: Type](
+    sourceInfo: ProductInfo[A],
+    bTpe: TypeRepr,
+    aExpr: Expr[A]
+  ): Expr[B] = {
+    val args = sourceInfo.fields.map { field =>
+      sourceInfo.fieldGetter(aExpr.asTerm, field)
+    }
+
+    // Create tuple using Tuple.apply or TupleN constructor
+    val tupleSize = args.size
+    if (tupleSize <= 22) {
+      val tupleCompanion = Symbol.requiredModule(s"scala.Tuple$tupleSize")
+      val applyMethod = tupleCompanion.methodMember("apply").head
+      Apply(
+        Select(Ref(tupleCompanion), applyMethod).appliedToTypes(sourceInfo.fields.map(_.tpe)),
+        args
+      ).asExprOf[B]
+    } else {
+      fail(s"Tuples with more than 22 elements are not supported")
+    }
+  }
+
+  // === Tuple to Case Class ===
+
+  private def deriveTupleToCaseClass[A: Type, B: Type](
+    aTpe: TypeRepr,
+    bTpe: TypeRepr
+  ): Expr[Into[A, B]] = {
+    val sourceTypeArgs = getTupleTypeArgs(aTpe)
+    val targetInfo = new ProductInfo[B](bTpe)
+
+    // Check field count matches
+    if (sourceTypeArgs.size != targetInfo.fields.size) {
+      fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: field count mismatch (${sourceTypeArgs.size} vs ${targetInfo.fields.size})")
+    }
+
+    // Check types match by position
+    sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
+      if (!(sourceTpe =:= field.tpe) && !isCoercible(sourceTpe, field.tpe)) {
+        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx: ${sourceTpe.show} vs ${field.tpe.show}")
+      }
+    }
+
+    '{
+      new Into[A, B] {
+        def into(a: A): Either[SchemaError, B] = {
+          Right(${ constructCaseClassFromTuple[A, B](aTpe, targetInfo, 'a) })
+        }
+      }
+    }
+  }
+
+  private def constructCaseClassFromTuple[A: Type, B: Type](
+    aTpe: TypeRepr,
+    targetInfo: ProductInfo[B],
+    aExpr: Expr[A]
+  ): Expr[B] = {
+    val sourceTypeArgs = getTupleTypeArgs(aTpe)
+    val args = sourceTypeArgs.zipWithIndex.map { case (tpe, idx) =>
+      // Access tuple element using _1, _2, etc.
+      val accessorName = s"_${idx + 1}"
+      val accessor = aTpe.typeSymbol.methodMember(accessorName).head
+      Select(aExpr.asTerm, accessor)
+    }
+
+    targetInfo.construct(args).asExprOf[B]
+  }
+
+  // === Tuple to Tuple ===
+
+  private def deriveTupleToTuple[A: Type, B: Type](
+    aTpe: TypeRepr,
+    bTpe: TypeRepr
+  ): Expr[Into[A, B]] = {
+    val sourceTypeArgs = getTupleTypeArgs(aTpe)
+    val targetTypeArgs = getTupleTypeArgs(bTpe)
+
+    // Check element count matches
+    if (sourceTypeArgs.size != targetTypeArgs.size) {
+      fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: element count mismatch (${sourceTypeArgs.size} vs ${targetTypeArgs.size})")
+    }
+
+    // Check types match by position
+    sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
+      if (!(sourceTpe =:= targetTpe) && !isCoercible(sourceTpe, targetTpe)) {
+        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx: ${sourceTpe.show} vs ${targetTpe.show}")
+      }
+    }
+
+    '{
+      new Into[A, B] {
+        def into(a: A): Either[SchemaError, B] = {
+          Right(${ constructTupleFromTuple[A, B](aTpe, bTpe, 'a) })
+        }
+      }
+    }
+  }
+
+  private def constructTupleFromTuple[A: Type, B: Type](
+    aTpe: TypeRepr,
+    bTpe: TypeRepr,
+    aExpr: Expr[A]
+  ): Expr[B] = {
+    val sourceTypeArgs = getTupleTypeArgs(aTpe)
+    val args = sourceTypeArgs.zipWithIndex.map { case (tpe, idx) =>
+      // Access tuple element using _1, _2, etc.
+      val accessorName = s"_${idx + 1}"
+      val accessor = aTpe.typeSymbol.methodMember(accessorName).head
+      Select(aExpr.asTerm, accessor)
+    }
+
+    val tupleSize = args.size
+    if (tupleSize <= 22) {
+      val tupleCompanion = Symbol.requiredModule(s"scala.Tuple$tupleSize")
+      val applyMethod = tupleCompanion.methodMember("apply").head
+      val targetTypeArgs = getTupleTypeArgs(bTpe)
+      Apply(
+        Select(Ref(tupleCompanion), applyMethod).appliedToTypes(targetTypeArgs),
+        args
+      ).asExprOf[B]
+    } else {
+      fail(s"Tuples with more than 22 elements are not supported")
+    }
+  }
+
+  // === Case Class to Case Class ===
 
   private def generateProductConversion[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
