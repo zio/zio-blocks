@@ -118,6 +118,27 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     case _ => false
   }
 
+  // Structural type detection - check if type is a refinement with val members
+  private def isStructuralType(tpe: TypeRepr): Boolean = {
+    val fields = extractStructuralFields(tpe)
+    fields.nonEmpty
+  }
+
+  // Extract fields from a structural/refinement type
+  // Returns a list of (fieldName, fieldType) pairs
+  private def extractStructuralFields(tpe: TypeRepr): List[(String, TypeRepr)] = {
+    def collectFields(t: TypeRepr, acc: List[(String, TypeRepr)]): List[(String, TypeRepr)] = t match {
+      case Refinement(parent, name, info) =>
+        val updatedAcc = info match {
+          case TypeBounds(_, _) => acc                      // Type member, skip
+          case fieldType        => (name, fieldType) :: acc // Val member
+        }
+        collectFields(parent, updatedAcc)
+      case _ => acc
+    }
+    collectFields(tpe, Nil)
+  }
+
   private def typeRefDealias(tpe: TypeRepr): TypeRepr = tpe match {
     case trTpe: TypeRef =>
       val sTpe = trTpe.translucentSuperType.dealias
@@ -204,6 +225,10 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             isNonRecursive(opaqueDealias(tpe), nestedTpes_)
           } else if (isZioPreludeNewtype(tpe)) {
             isNonRecursive(zioPreludeNewtypeDealias(tpe), nestedTpes_)
+          } else if (isStructuralType(tpe)) {
+            extractStructuralFields(tpe).forall { case (_, fTpe) =>
+              isNonRecursive(fTpe.dealias, nestedTpes_)
+            }
           } else if (isTypeRef(tpe)) {
             isNonRecursive(typeRefDealias(tpe), nestedTpes_)
           } else false
@@ -289,6 +314,16 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     val ps       = tpeName.params
     val params   = if (ps.isEmpty) '{ Nil } else Varargs(ps.map(param => toExpr(param.asInstanceOf[TypeName[T]])))
     '{ new TypeName[T](new Namespace($packages, $values), $name, $params) }
+  }
+
+  // Generate structural TypeName for a structural type
+  private def structuralTypeName[T: Type](fields: List[(String, TypeRepr)])(using Quotes): Expr[TypeName[T]] = {
+    val fieldExprs = fields.map { case (name, fTpe) =>
+      val nameExpr     = Expr(name)
+      val typeNameExpr = toExpr(typeName[Any](fTpe).asInstanceOf[TypeName[Any]])
+      '{ ($nameExpr, $typeNameExpr) }
+    }
+    '{ TypeName.structural[T](Seq(${ Varargs(fieldExprs) }*)) }
   }
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
@@ -662,6 +697,89 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       })
   }
 
+  private class StructuralTypeInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
+    // Extract fields from the structural type
+    private val structuralFields: List[(String, TypeRepr)] = extractStructuralFields(tpe)
+
+    val tpeTypeArgs: List[TypeRepr] = Nil
+
+    val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
+      var usedRegisters = RegisterOffset.Zero
+      (
+        structuralFields.map { case (name, fTpe) =>
+          val fieldInfo = new FieldInfo(name, fTpe.dealias, None, Symbol.noSymbol, usedRegisters, Nil)
+          usedRegisters = RegisterOffset.add(usedRegisters, fieldOffset(fTpe.dealias))
+          fieldInfo
+        },
+        Expr(usedRegisters)
+      )
+    }
+
+    def fields[S: Type](nameOverrides: Array[String])(using Quotes): Expr[Seq[SchemaTerm[Binding, S, ?]]] = {
+      var idx = -1
+      Varargs(fieldInfos.map { fieldInfo =>
+        idx += 1
+        val fTpe = fieldInfo.tpe
+        fTpe.asType match {
+          case '[ft] =>
+            val schema = findImplicitOrDeriveSchema[ft](fTpe)
+            val name   = Expr {
+              if (idx < nameOverrides.length) nameOverrides(idx)
+              else fieldInfo.name
+            }
+            if (isNonRecursive(fTpe)) '{ $schema.reflect.asTerm[S]($name) }
+            else '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name) }
+        }
+      })
+    }
+
+    def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
+      // Build field infos for StructuralConstructor at compile time
+      val fieldInfoExprs = fieldInfos.map { fieldInfo =>
+        val fTpe          = fieldInfo.tpe
+        val name          = Expr(fieldInfo.name)
+        val offset        = Expr(fieldInfo.usedRegisters)
+        val primitiveType = Expr(primitiveTypeCode(fTpe))
+        '{ StructuralFieldInfo($name, $offset, $primitiveType) }
+      }
+      val fieldsExpr = '{ IndexedSeq(${ Varargs(fieldInfoExprs) }*) }
+      '{
+        val constructor = new StructuralConstructor[T]($fieldsExpr, $usedRegisters)
+        constructor.construct($in, $baseOffset)
+      }
+    }
+
+    def deconstructor(out: Expr[Registers], baseOffset: Expr[RegisterOffset], in: Expr[T])(using Quotes): Term = {
+      // Build field infos for StructuralDeconstructor at compile time
+      val fieldInfoExprs = fieldInfos.map { fieldInfo =>
+        val fTpe          = fieldInfo.tpe
+        val name          = Expr(fieldInfo.name)
+        val offset        = Expr(fieldInfo.usedRegisters)
+        val primitiveType = Expr(primitiveTypeCode(fTpe))
+        '{ StructuralFieldInfo($name, $offset, $primitiveType) }
+      }
+      val fieldsExpr = '{ IndexedSeq(${ Varargs(fieldInfoExprs) }*) }
+      '{
+        val deconstructor = new StructuralDeconstructor[T]($fieldsExpr, $usedRegisters)
+        deconstructor.deconstruct($out, $baseOffset, $in)
+      }.asTerm
+    }
+
+    // Returns primitive type code for StructuralFieldInfo
+    private def primitiveTypeCode(fTpe: TypeRepr): Int = {
+      val sTpe = dealiasOnDemand(fTpe)
+      if (sTpe <:< booleanTpe) StructuralFieldInfo.Boolean
+      else if (sTpe <:< byteTpe) StructuralFieldInfo.Byte
+      else if (sTpe <:< shortTpe) StructuralFieldInfo.Short
+      else if (sTpe <:< intTpe) StructuralFieldInfo.Int
+      else if (sTpe <:< longTpe) StructuralFieldInfo.Long
+      else if (sTpe <:< floatTpe) StructuralFieldInfo.Float
+      else if (sTpe <:< doubleTpe) StructuralFieldInfo.Double
+      else if (sTpe <:< charTpe) StructuralFieldInfo.Char
+      else StructuralFieldInfo.Object
+    }
+  }
+
   private def deriveSchema[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
     if (isEnumOrModuleValue(tpe)) {
       deriveSchemaForEnumOrModuleValue(tpe)
@@ -908,6 +1026,8 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           val tpeName = toExpr(typeName[T](tpe).asInstanceOf[TypeName[s]])
           '{ new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[T]] }
       }
+    } else if (isStructuralType(tpe)) {
+      deriveSchemaForStructuralType(tpe)
     } else if (isTypeRef(tpe)) {
       val sTpe = typeRefDealias(tpe)
       sTpe.asType match { case '[s] => deriveSchema[s](sTpe) }
@@ -964,6 +1084,37 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           ),
           doc = ${ doc(tpe) },
           modifiers = ${ modifiers(tpe) }
+        )
+      )
+    }
+  }
+
+  private def deriveSchemaForStructuralType[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
+    val structuralTypeInfo = new StructuralTypeInfo[T](tpe)
+    val fields             = structuralTypeInfo.fields[T](Array.empty[String])
+    val structuralFields   = extractStructuralFields(tpe)
+    val tpeName            = structuralTypeName[T](structuralFields)
+    '{
+      new Schema(
+        reflect = new Reflect.Record[Binding, T](
+          fields = Vector($fields*),
+          typeName = $tpeName,
+          recordBinding = new Binding.Record(
+            constructor = new Constructor {
+              def usedRegisters: RegisterOffset = ${ structuralTypeInfo.usedRegisters }
+
+              def construct(in: Registers, baseOffset: RegisterOffset): T = ${
+                structuralTypeInfo.constructor('in, 'baseOffset)
+              }
+            },
+            deconstructor = new Deconstructor {
+              def usedRegisters: RegisterOffset = ${ structuralTypeInfo.usedRegisters }
+
+              def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = ${
+                structuralTypeInfo.deconstructor('out, 'baseOffset, 'in).asExpr
+              }
+            }
+          )
         )
       )
     }

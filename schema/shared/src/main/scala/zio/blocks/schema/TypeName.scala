@@ -95,6 +95,35 @@ object TypeName {
   def seq[A](element: TypeName[A]): TypeName[Seq[A]] =
     _seq.copy(params = Seq(element)).asInstanceOf[TypeName[Seq[A]]]
 
+  /**
+   * Creates a normalized TypeName for structural types.
+   *
+   * Fields are sorted alphabetically by name to ensure that structurally
+   * equivalent types (types with the same fields but potentially in different
+   * orders) produce the same TypeName.
+   *
+   * @param fields
+   *   Sequence of (fieldName, fieldTypeName) pairs
+   * @return
+   *   A TypeName with normalized name like `{age: Int, name: String}`
+   */
+  def structural[A](fields: Seq[(String, TypeName[?])]): TypeName[A] = {
+    val sortedFields = fields.sortBy(_._1)
+    val name         = sortedFields.map { case (fieldName, fieldType) =>
+      s"$fieldName: ${formatTypeName(fieldType)}"
+    }
+      .mkString("{", ", ", "}")
+    new TypeName[A](Namespace.empty, name, Nil)
+  }
+
+  private def formatTypeName(tn: TypeName[?]): String =
+    if (tn.params.isEmpty || tn.name.startsWith("{")) {
+      // Structural types (starting with {) already have field types embedded in the name
+      tn.name
+    } else {
+      s"${tn.name}[${tn.params.map(formatTypeName).mkString(", ")}]"
+    }
+
   private[this] val _some       = new TypeName(Namespace.scala, "Some")
   private[this] val _option     = new TypeName(Namespace.scala, "Option")
   private[this] val _list       = new TypeName(Namespace.scalaCollectionImmutable, "List")

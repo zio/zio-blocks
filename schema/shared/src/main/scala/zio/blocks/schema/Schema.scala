@@ -27,6 +27,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def defaultValue(value: => A): Schema[A] = new Schema(reflect.defaultValue(value))
 
+  def structural(implicit ts: ToStructural[A]): Schema[ts.StructuralType] = ts.structuralSchema(this)
+
   def derive[TC[_]](deriver: Deriver[TC]): TC[A] = deriving(deriver).derive
 
   def deriving[TC[_]](deriver: Deriver[TC]): DerivationBuilder[TC, A] =

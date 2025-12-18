@@ -98,6 +98,11 @@ private object SchemaVersionSpecific {
 
     val isNonRecursiveCache = new mutable.HashMap[Type, Boolean]
 
+    def isRefinedType(tpe: Type): Boolean = tpe match {
+      case RefinedType(_, _) => true
+      case _                 => false
+    }
+
     def isNonRecursive(tpe: Type, nestedTpes: List[Type] = Nil): Boolean = isNonRecursiveCache.getOrElseUpdate(
       tpe,
       tpe <:< typeOf[String] || tpe <:< definitions.IntTpe || tpe <:< definitions.FloatTpe ||
@@ -110,7 +115,11 @@ private object SchemaVersionSpecific {
           if (isOption(tpe) || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
             typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
-          else if (isNonAbstractScalaClass(tpe)) {
+          else if (isRefinedType(tpe)) {
+            tpe.decls.filter(_.isMethod).forall { m =>
+              isNonRecursive(m.asMethod.returnType, nestedTpes_)
+            }
+          } else if (isNonAbstractScalaClass(tpe)) {
             val tpeParams     = primaryConstructor(tpe).paramLists
             val tpeTypeArgs   = typeArgs(tpe)
             val tpeTypeParams =
@@ -132,7 +141,21 @@ private object SchemaVersionSpecific {
     def typeName(tpe: Type): SchemaTypeName[?] = {
       def calculateTypeName(tpe: Type): SchemaTypeName[?] =
         if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
-        else {
+        else if (isRefinedType(tpe)) {
+          val methods = tpe.decls.toList.collect {
+            case m: MethodSymbol if m.isGetter || (m.paramLists.isEmpty && !m.isConstructor) => m
+          }.sortBy(_.name.toString)
+          
+          val parts = methods.map { m =>
+             val name = NameTransformer.decode(m.name.toString)
+             val retType = m.returnType.dealias
+             val retTypeName = typeName(retType).name
+             s"$name: $retTypeName"
+          }
+          
+          val normalizedName = parts.mkString("{", ", ", "}")
+          new SchemaTypeName(new Namespace(List.empty, List.empty), normalizedName, Nil)
+        } else {
           var packages  = List.empty[String]
           var values    = List.empty[String]
           val tpeSymbol = tpe.typeSymbol
@@ -444,6 +467,8 @@ private object SchemaVersionSpecific {
             q"Schema.option($schema)"
           } else deriveSchemaForSealedTraitOrAbstractClass(tpe)
         }
+      } else if (isRefinedType(tpe)) {
+        deriveSchemaForRefinedType(tpe)
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         deriveSchemaForSealedTraitOrAbstractClass(tpe)
       } else if (isNonAbstractScalaClass(tpe)) {
@@ -453,6 +478,83 @@ private object SchemaVersionSpecific {
         val tpeName = toTree(typeName(tpe))
         q"new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
+
+    def deriveSchemaForRefinedType(tpe: Type): Tree = {
+      val (fields, totalRegisters) = {
+        var usedRegisters = RegisterOffset.Zero
+        val fieldDefs = tpe.decls.toList.sortBy(_.name.toString).collect {
+          case m: MethodSymbol if m.isGetter || (m.paramLists.isEmpty && !m.isConstructor) =>
+            val name = NameTransformer.decode(m.name.toString)
+            val fTpe = m.returnType.dealias
+            val sTpe = dealiasOnDemand(fTpe)
+            val offset =
+              if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
+              else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
+              else if (sTpe <:< definitions.LongTpe) RegisterOffset(longs = 1)
+              else if (sTpe <:< definitions.DoubleTpe) RegisterOffset(doubles = 1)
+              else if (sTpe <:< definitions.BooleanTpe) RegisterOffset(booleans = 1)
+              else if (sTpe <:< definitions.ByteTpe) RegisterOffset(bytes = 1)
+              else if (sTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
+              else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
+              else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
+              else RegisterOffset(objects = 1)
+            
+            val primitiveType =
+              if (sTpe <:< definitions.BooleanTpe) q"StructuralFieldInfo.Boolean"
+              else if (sTpe <:< definitions.ByteTpe) q"StructuralFieldInfo.Byte"
+              else if (sTpe <:< definitions.ShortTpe) q"StructuralFieldInfo.Short"
+              else if (sTpe <:< definitions.IntTpe) q"StructuralFieldInfo.Int"
+              else if (sTpe <:< definitions.LongTpe) q"StructuralFieldInfo.Long"
+              else if (sTpe <:< definitions.FloatTpe) q"StructuralFieldInfo.Float"
+              else if (sTpe <:< definitions.DoubleTpe) q"StructuralFieldInfo.Double"
+              else if (sTpe <:< definitions.CharTpe) q"StructuralFieldInfo.Char"
+              else q"StructuralFieldInfo.Object"
+
+            val fieldInfo = q"""
+              StructuralFieldInfo(
+                $name,
+                ${usedRegisters},
+                $primitiveType
+              )
+            """
+            
+            // For the schema derivation later
+            val schemaRef = findImplicitOrDeriveSchema(fTpe)
+            val schemaField = if (isNonRecursive(fTpe)) {
+               q"$schemaRef.reflect.asTerm[$tpe]($name)"
+            } else {
+               q"new Reflect.Deferred(() => $schemaRef.reflect).asTerm[$tpe]($name)"
+            }
+
+            usedRegisters = RegisterOffset.add(usedRegisters, offset)
+            (fieldInfo, schemaField)
+        }
+        (fieldDefs, usedRegisters)
+      }
+      
+      val structuralFields = fields.map(_._1)
+      val schemaFields = fields.map(_._2)
+      
+      val tpeName = toTree(typeName(tpe))
+      
+      q"""new Schema(
+            reflect = new Reflect.Record[Binding, $tpe](
+              fields = _root_.scala.Vector(..$schemaFields),
+              typeName = $tpeName,
+              recordBinding = new Binding.Record(
+                constructor = new StructuralConstructor[$tpe](
+                  _root_.scala.IndexedSeq(..$structuralFields),
+                  $totalRegisters
+                ),
+                deconstructor = new StructuralDeconstructor[$tpe](
+                   _root_.scala.IndexedSeq(..$structuralFields),
+                   $totalRegisters
+                )
+              ),
+              modifiers = _root_.scala.List.empty
+            )
+          )"""
+    }
 
     def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
       val tpeName = toTree(typeName(tpe))
