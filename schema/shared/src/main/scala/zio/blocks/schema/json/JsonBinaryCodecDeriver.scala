@@ -600,6 +600,7 @@ class JsonBinaryCodecDeriver private[json] (
             val discr = variant.variantBinding.asInstanceOf[Binding.Variant[A]].discriminator
             val cases = variant.cases
             val len   = cases.length
+            val map   = new StringToIntMap(len)
             if (isEnumeration(variant)) {
               val infos = new Array[EnumValueInfo](len)
               var idx   = 0
@@ -611,6 +612,7 @@ class JsonBinaryCodecDeriver private[json] (
                   .binding
                   .asInstanceOf[Binding.Record[?]]
                   .constructor
+                map.put(name, idx)
                 infos(idx) = new EnumValueInfo(name, constructor)
                 idx += 1
               }
@@ -641,12 +643,6 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                 }
               } else {
-                val map = new StringToIntMap(len)
-                var idx = 0
-                while (idx < len) {
-                  map.put(infos(idx).name, idx)
-                  idx += 1
-                }
                 new JsonBinaryCodec[A]() {
                   private[this] val discriminator  = discr
                   private[this] val enumValueInfos = infos
@@ -668,7 +664,6 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               }
             } else {
-              val map   = new StringToIntMap(len)
               val infos = new Array[CaseInfo](len)
               discriminatorKind match {
                 case DiscriminatorKind.Field(fieldName) if hasOnlyRecordCases(variant) =>
@@ -1323,12 +1318,14 @@ class JsonBinaryCodecDeriver private[json] (
           infos = new Array[FieldInfo](len)
           if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
           discriminatorFields.set(null :: discriminatorFields.get)
+          val map = new StringToIntMap(len)
           var idx = 0
           while (idx < len) {
-            val field        = fields(idx)
+            val field = fields(idx)
+            val name  = getName(field.modifiers, fieldNameMapper(field.name))
+            map.put(name, idx) // just for detection of duplicated names
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
-            val name         = getName(field.modifiers, fieldNameMapper(field.name))
             val isOpt        = isOptional(fieldReflect)
             val isColl       = isCollection(fieldReflect)
             val nonTransient = !field.modifiers.exists(_.isInstanceOf[Modifier.transient])
@@ -2158,10 +2155,12 @@ private class StringToIntMap(size: Int) {
       idx += 1
     }
     idx = hash & mask
+    var currKey: String = null
     while ({
-      val currKey = keys(idx)
+      currKey = keys(idx)
       (currKey ne null) && !currKey.equals(key)
     }) idx = (idx + 1) & mask
+    if (currKey ne null) sys.error(s"Cannot derive codec - duplicated name detected: '$key'")
     keys(idx) = key
     values(idx) = value
   }
