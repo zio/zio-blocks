@@ -74,20 +74,57 @@ private object IntoVersionSpecificImpl {
       val targetField: FieldInfo
     )
 
-    def matchFieldsByNameAndType(
+    def matchFields(
       sourceInfo: ProductInfo,
       targetInfo: ProductInfo
     ): List[FieldMapping] = {
+      // For each target field, find a matching source field using priority:
+      // 1. Exact match: same name + same type
+      // 2. Unique type match: type appears exactly once in both source and target
+
+      // Pre-compute type frequencies for unique type matching
+      val sourceTypeFreq = sourceInfo.fields.groupBy(_.tpe.dealias.toString).view.mapValues(_.size).toMap
+      val targetTypeFreq = targetInfo.fields.groupBy(_.tpe.dealias.toString).view.mapValues(_.size).toMap
+
+      // Track which source fields have been used (for unique type matching)
+      val usedSourceFields = scala.collection.mutable.Set[Int]()
+
       targetInfo.fields.map { targetField =>
-        sourceInfo.fields.find { sourceField =>
+        // Priority 1: Exact match by name and type
+        val exactMatch = sourceInfo.fields.find { sourceField =>
           sourceField.name == targetField.name && sourceField.tpe =:= targetField.tpe
-        } match {
-          case Some(sourceField) => new FieldMapping(sourceField, targetField)
+        }
+
+        exactMatch match {
+          case Some(sourceField) =>
+            usedSourceFields += sourceField.index
+            new FieldMapping(sourceField, targetField)
           case None =>
-            fail(
-              s"Cannot derive Into[$aTpe, $bTpe]: " +
-              s"no matching field found for '${targetField.name}: ${targetField.tpe}' in source type"
-            )
+            // Priority 2: Unique type match
+            val targetTypeKey = targetField.tpe.dealias.toString
+            val isTargetTypeUnique = targetTypeFreq.getOrElse(targetTypeKey, 0) == 1
+
+            val uniqueTypeMatch = if (isTargetTypeUnique) {
+              sourceInfo.fields.find { sourceField =>
+                val sourceTypeKey = sourceField.tpe.dealias.toString
+                val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceTypeKey, 0) == 1
+                isSourceTypeUnique &&
+                  sourceField.tpe =:= targetField.tpe &&
+                  !usedSourceFields.contains(sourceField.index)
+              }
+            } else None
+
+            uniqueTypeMatch match {
+              case Some(sourceField) =>
+                usedSourceFields += sourceField.index
+                new FieldMapping(sourceField, targetField)
+              case None =>
+                fail(
+                  s"Cannot derive Into[$aTpe, $bTpe]: " +
+                  s"no matching field found for '${targetField.name}: ${targetField.tpe}' in source type. " +
+                  s"Fields must match by name+type or have unique types."
+                )
+            }
         }
       }
     }
@@ -97,7 +134,7 @@ private object IntoVersionSpecificImpl {
     def deriveProductToProduct(): c.Expr[Into[A, B]] = {
       val sourceInfo = new ProductInfo(aTpe)
       val targetInfo = new ProductInfo(bTpe)
-      val fieldMappings = matchFieldsByNameAndType(sourceInfo, targetInfo)
+      val fieldMappings = matchFields(sourceInfo, targetInfo)
 
       // Build constructor arguments: for each target field, read from source using getter
       val args = fieldMappings.map { mapping =>
