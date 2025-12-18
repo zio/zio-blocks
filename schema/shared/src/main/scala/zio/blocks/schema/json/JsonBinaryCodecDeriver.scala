@@ -605,62 +605,36 @@ class JsonBinaryCodecDeriver private[json] (
               val infos = new Array[EnumValueInfo](len)
               var idx   = 0
               while (idx < len) {
-                val case_       = cases(idx)
-                val name        = getName(case_.modifiers, caseNameMapper(case_.name))
+                val case_ = cases(idx)
+                val name  = getName(case_.modifiers, caseNameMapper(case_.name))
+                map.put(name, idx)
+                val aliases = getAliases(case_.modifiers)
+                aliases.foreach(name => map.put(name, idx))
                 val constructor = case_.value.asRecord.get.recordBinding
                   .asInstanceOf[BindingInstance[TC, ?, ?]]
                   .binding
                   .asInstanceOf[Binding.Record[?]]
                   .constructor
-                map.put(name, idx)
                 infos(idx) = new EnumValueInfo(name, constructor)
                 idx += 1
               }
-              if (len <= 8) { // faster decoding for small enumerations
-                new JsonBinaryCodec[A]() {
-                  private[this] val discriminator  = discr
-                  private[this] val enumValueInfos = infos
+              new JsonBinaryCodec[A]() {
+                private[this] val discriminator  = discr
+                private[this] val enumValueInfos = infos
+                private[this] val caseMap        = map
 
-                  def decodeValue(in: JsonReader, default: A): A = {
-                    val valueLen = in.readStringAsCharBuf()
-                    val len      = enumValueInfos.length
-                    var idx      = 0
-                    while (idx < len) {
-                      val enumValueInfo = enumValueInfos(idx)
-                      if (in.isCharBufEqualsTo(valueLen, enumValueInfo.name)) {
-                        return enumValueInfo.constructor.construct(null, 0).asInstanceOf[A]
-                      }
-                      idx += 1
-                    }
-                    in.enumValueError(valueLen)
-                  }
-
-                  def encodeValue(x: A, out: JsonWriter): Unit = {
-                    val enumValueInfo = enumValueInfos(discriminator.discriminate(x))
-                    val name          = enumValueInfo.name
-                    if (enumValueInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
-                    else out.writeVal(name)
-                  }
+                def decodeValue(in: JsonReader, default: A): A = {
+                  val valueLen = in.readStringAsCharBuf()
+                  val idx      = caseMap.get(in, valueLen)
+                  if (idx >= 0) enumValueInfos(idx).constructor.construct(null, 0).asInstanceOf[A]
+                  else in.enumValueError(valueLen)
                 }
-              } else {
-                new JsonBinaryCodec[A]() {
-                  private[this] val discriminator  = discr
-                  private[this] val enumValueInfos = infos
-                  private[this] val caseMap        = map
 
-                  def decodeValue(in: JsonReader, default: A): A = {
-                    val valueLen = in.readStringAsCharBuf()
-                    val idx      = caseMap.get(in, valueLen)
-                    if (idx >= 0) enumValueInfos(idx).constructor.construct(null, 0).asInstanceOf[A]
-                    else in.enumValueError(valueLen)
-                  }
-
-                  def encodeValue(x: A, out: JsonWriter): Unit = {
-                    val enumValueInfo = enumValueInfos(discriminator.discriminate(x))
-                    val name          = enumValueInfo.name
-                    if (enumValueInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
-                    else out.writeVal(name)
-                  }
+                def encodeValue(x: A, out: JsonWriter): Unit = {
+                  val enumValueInfo = enumValueInfos(discriminator.discriminate(x))
+                  val name          = enumValueInfo.name
+                  if (enumValueInfo.isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
+                  else out.writeVal(name)
                 }
               }
             } else {
@@ -672,6 +646,8 @@ class JsonBinaryCodecDeriver private[json] (
                     val case_ = cases(idx)
                     val name  = getName(case_.modifiers, caseNameMapper(case_.name))
                     map.put(name, idx)
+                    val aliases = getAliases(case_.modifiers)
+                    aliases.foreach(name => map.put(name, idx))
                     discriminatorFields.set((fieldName, name) :: discriminatorFields.get)
                     infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
                     discriminatorFields.set(discriminatorFields.get.tail)
@@ -715,6 +691,8 @@ class JsonBinaryCodecDeriver private[json] (
                     val case_ = cases(idx)
                     val name  = getName(case_.modifiers, caseNameMapper(case_.name))
                     map.put(name, idx)
+                    val aliases = getAliases(case_.modifiers)
+                    aliases.foreach(name => map.put(name, idx))
                     infos(idx) = new CaseInfo(name, deriveCodec(case_.value))
                     idx += 1
                   }
@@ -1324,6 +1302,8 @@ class JsonBinaryCodecDeriver private[json] (
             val field = fields(idx)
             val name  = getName(field.modifiers, fieldNameMapper(field.name))
             map.put(name, idx) // just for detection of duplicated names
+            val aliases = getAliases(field.modifiers)
+            aliases.foreach(name => map.put(name, idx))
             val fieldReflect = field.value
             val codec        = deriveCodec(fieldReflect)
             val isOpt        = isOptional(fieldReflect)
@@ -1341,7 +1321,7 @@ class JsonBinaryCodecDeriver private[json] (
                   else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
                   else fieldReflect.asDynamic.get.dynamicBinding
                 }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
-            infos(idx) = new FieldInfo(name, offset, codec, isOpt, isColl, nonTransient, defaultValue)
+            infos(idx) = new FieldInfo(name, codec, offset, isOpt, isColl, nonTransient, defaultValue, aliases)
             offset += codec.valueOffset
             idx += 1
           }
@@ -1521,12 +1501,13 @@ class JsonBinaryCodecDeriver private[json] (
 
             private[this] def init(): Unit = {
               val len        = fieldInfos.length
-              val map        = new StringToIntMap(fieldInfos.length)
+              val map        = new StringToIntMap(len)
               var req1, req2 = 0L
               var idx        = 0
               while (idx < len) {
                 val field = fieldInfos(idx)
                 map.put(field.name, idx)
+                field.aliases.foreach(name => map.put(name, idx))
                 if (!field.isOptional && !field.isCollection && field.defaultValueConstructor.isEmpty) {
                   if (idx < 64) req1 ^= 1L << idx
                   else req2 ^= 1L << (idx - 64)
@@ -1955,6 +1936,15 @@ class JsonBinaryCodecDeriver private[json] (
     case m: Modifier.rename => m.name
   }.getOrElse(name)
 
+  private[this] def getAliases(modifiers: Seq[Modifier.Term]): Array[String] = {
+    val aliases = Array.newBuilder[String]
+    modifiers.foreach {
+      case m: Modifier.alias => aliases.addOne(m.name)
+      case _                 =>
+    }
+    aliases.result()
+  }
+
   private[this] val dynamicValueCodec = new JsonBinaryCodec[DynamicValue]() {
     private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
     private[this] val trueValue        = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
@@ -2128,12 +2118,13 @@ abstract class Info(name: String) {
 
 private case class FieldInfo(
   name: String,
-  offset: RegisterOffset,
   codec: JsonBinaryCodec[?],
+  offset: RegisterOffset,
   isOptional: Boolean,
   isCollection: Boolean,
   nonTransient: Boolean,
-  defaultValueConstructor: Option[() => ?]
+  defaultValueConstructor: Option[() => ?],
+  aliases: Array[String]
 ) extends Info(name) {
   val valueType: Int = codec.valueType
 }
@@ -2142,10 +2133,11 @@ private case class CaseInfo(name: String, codec: JsonBinaryCodec[?]) extends Inf
 
 private case class EnumValueInfo(name: String, constructor: Constructor[?]) extends Info(name)
 
-private class StringToIntMap(size: Int) {
-  private[this] val mask   = (Integer.highestOneBit(size | 1) << 2) - 1
-  private[this] val keys   = new Array[String](mask + 1)
-  private[this] val values = new Array[Int](mask + 1)
+private class StringToIntMap(initCapacity: Int) {
+  private[this] var size   = 0
+  private[this] var mask   = (Integer.highestOneBit(initCapacity | 1) << 2) - 1
+  private[this] var keys   = new Array[String](mask + 1)
+  private[this] var values = new Array[Int](mask + 1)
 
   def put(key: String, value: Int): Unit = {
     val len       = key.length
@@ -2163,6 +2155,8 @@ private class StringToIntMap(size: Int) {
     if (currKey ne null) sys.error(s"Cannot derive codec - duplicated name detected: '$key'")
     keys(idx) = key
     values(idx) = value
+    size += 1
+    if (size << 1 > mask) grow()
   }
 
   def get(in: JsonReader, len: Int): Int = {
@@ -2174,5 +2168,36 @@ private class StringToIntMap(size: Int) {
     }) idx = (idx + 1) & mask
     if (currKey eq null) -1
     else values(idx)
+  }
+
+  private[this] def grow(): Unit = {
+    val mask    = (Integer.highestOneBit(size | 1) << 2) - 1
+    val keys    = new Array[String](mask + 1)
+    val values  = new Array[Int](mask + 1)
+    val keysLen = this.keys.length
+    var keysIdx = 0
+    while (keysIdx < keysLen) {
+      val key = this.keys(keysIdx)
+      if (key ne null) {
+        val len       = key.length
+        var hash, idx = 0
+        while (idx < len) {
+          hash = (hash << 5) + (key.charAt(idx) - hash)
+          idx += 1
+        }
+        idx = hash & mask
+        var currKey: String = null
+        while ({
+          currKey = keys(idx)
+          (currKey ne null) && !currKey.equals(key)
+        }) idx = (idx + 1) & mask
+        keys(idx) = key
+        values(idx) = this.values(keysIdx)
+      }
+      keysIdx += 1
+    }
+    this.mask = mask
+    this.keys = keys
+    this.values = values
   }
 }

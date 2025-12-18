@@ -13,6 +13,8 @@ object Modifier {
 
   @field case class rename(name: String) extends Term
 
+  @field case class alias(name: String) extends Term
+
   sealed trait Reflect extends Modifier
 
   /**
