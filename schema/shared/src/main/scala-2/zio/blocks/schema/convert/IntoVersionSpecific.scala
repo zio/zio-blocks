@@ -193,7 +193,16 @@ private object IntoVersionSpecificImpl {
       sourceTpe =:= targetTpe
     }
 
-    // === Derivation ===
+    // === Tuple utilities ===
+
+    def isTupleType(tpe: Type): Boolean = {
+      val name = tpe.typeSymbol.fullName
+      name.startsWith("scala.Tuple") && name != "scala.Tuple"
+    }
+
+    def getTupleTypeArgs(tpe: Type): List[Type] = typeArgs(tpe)
+
+    // === Derivation: Case Class to Case Class ===
 
     def deriveProductToProduct(): c.Expr[Into[A, B]] = {
       val sourceInfo = new ProductInfo(aTpe)
@@ -217,12 +226,134 @@ private object IntoVersionSpecificImpl {
       )
     }
 
-    // === Main entry point ===
+    // === Derivation: Case Class to Tuple ===
 
-    if (!isProductType(aTpe) || !isProductType(bTpe)) {
-      fail(s"Cannot derive Into[$aTpe, $bTpe]: only case class to case class is currently supported")
+    def deriveCaseClassToTuple(): c.Expr[Into[A, B]] = {
+      val sourceInfo = new ProductInfo(aTpe)
+      val targetTypeArgs = getTupleTypeArgs(bTpe)
+
+      // Check field count matches
+      if (sourceInfo.fields.size != targetTypeArgs.size) {
+        fail(s"Cannot derive Into[$aTpe, $bTpe]: field count mismatch (${sourceInfo.fields.size} vs ${targetTypeArgs.size})")
+      }
+
+      // Check types match by position
+      sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
+        if (!(field.tpe =:= targetTpe) && !isCoercible(field.tpe, targetTpe)) {
+          fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: ${field.tpe} vs $targetTpe")
+        }
+      }
+
+      // Build tuple arguments by reading from source using getters
+      val args = sourceInfo.fields.map { field =>
+        q"a.${field.getter}"
+      }
+
+      val tupleCompanion = bTpe.typeSymbol.companion
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _root_.scala.Right($tupleCompanion(..$args))
+            }
+          }
+        """
+      )
     }
 
-    deriveProductToProduct()
+    // === Derivation: Tuple to Case Class ===
+
+    def deriveTupleToCaseClass(): c.Expr[Into[A, B]] = {
+      val sourceTypeArgs = getTupleTypeArgs(aTpe)
+      val targetInfo = new ProductInfo(bTpe)
+
+      // Check field count matches
+      if (sourceTypeArgs.size != targetInfo.fields.size) {
+        fail(s"Cannot derive Into[$aTpe, $bTpe]: field count mismatch (${sourceTypeArgs.size} vs ${targetInfo.fields.size})")
+      }
+
+      // Check types match by position
+      sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
+        if (!(sourceTpe =:= field.tpe) && !isCoercible(sourceTpe, field.tpe)) {
+          fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: $sourceTpe vs ${field.tpe}")
+        }
+      }
+
+      // Build case class arguments by reading from tuple using _1, _2, etc.
+      val args = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
+        val accessor = TermName(s"_${idx + 1}")
+        q"a.$accessor"
+      }
+
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _root_.scala.Right(new $bTpe(..$args))
+            }
+          }
+        """
+      )
+    }
+
+    // === Derivation: Tuple to Tuple ===
+
+    def deriveTupleToTuple(): c.Expr[Into[A, B]] = {
+      val sourceTypeArgs = getTupleTypeArgs(aTpe)
+      val targetTypeArgs = getTupleTypeArgs(bTpe)
+
+      // Check element count matches
+      if (sourceTypeArgs.size != targetTypeArgs.size) {
+        fail(s"Cannot derive Into[$aTpe, $bTpe]: element count mismatch (${sourceTypeArgs.size} vs ${targetTypeArgs.size})")
+      }
+
+      // Check types match by position
+      sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
+        if (!(sourceTpe =:= targetTpe) && !isCoercible(sourceTpe, targetTpe)) {
+          fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: $sourceTpe vs $targetTpe")
+        }
+      }
+
+      // Build tuple arguments by reading from source tuple using _1, _2, etc.
+      val args = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
+        val accessor = TermName(s"_${idx + 1}")
+        q"a.$accessor"
+      }
+
+      val tupleCompanion = bTpe.typeSymbol.companion
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              _root_.scala.Right($tupleCompanion(..$args))
+            }
+          }
+        """
+      )
+    }
+
+    // === Main entry point ===
+
+    val aIsProduct = isProductType(aTpe)
+    val bIsProduct = isProductType(bTpe)
+    val aIsTuple = isTupleType(aTpe)
+    val bIsTuple = isTupleType(bTpe)
+
+    (aIsProduct, bIsProduct, aIsTuple, bIsTuple) match {
+      case (true, true, _, _) =>
+        // Case class to case class
+        deriveProductToProduct()
+      case (true, _, _, true) =>
+        // Case class to tuple
+        deriveCaseClassToTuple()
+      case (_, true, true, _) =>
+        // Tuple to case class
+        deriveTupleToCaseClass()
+      case (_, _, true, true) =>
+        // Tuple to tuple
+        deriveTupleToTuple()
+      case _ =>
+        fail(s"Cannot derive Into[$aTpe, $bTpe]: unsupported type combination")
+    }
   }
 }
