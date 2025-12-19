@@ -1,7 +1,8 @@
 package zio.blocks.schema
 import zio.blocks.schema.migration.MigrationError
+import zio.json.{JsonDecoder, JsonEncoder}
 
-case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
+case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) derives JsonEncoder, JsonDecoder {
   import DynamicOptic.Node
 
   def apply(that: DynamicOptic): DynamicOptic = new DynamicOptic(nodes ++ that.nodes)
@@ -167,7 +168,7 @@ object DynamicOptic {
     loop(optic.nodes.toList, value)
   }
 
-  sealed trait Node
+  sealed trait Node derives JsonEncoder, JsonDecoder
 
   object Node {
     case class Field(name: String) extends Node

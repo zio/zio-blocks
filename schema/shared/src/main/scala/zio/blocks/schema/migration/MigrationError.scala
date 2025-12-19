@@ -1,8 +1,9 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.DynamicOptic
+import zio.json.{JsonDecoder, JsonEncoder}
 
-sealed trait MigrationError extends Product with Serializable
+sealed trait MigrationError derives JsonEncoder, JsonDecoder extends Product with Serializable
 
 object MigrationError {
   final case class ConversionError(message: String) extends MigrationError

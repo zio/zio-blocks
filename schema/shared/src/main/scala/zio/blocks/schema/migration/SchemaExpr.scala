@@ -2,8 +2,9 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.Schema
+import zio.json.{JsonDecoder, JsonEncoder}
 
-sealed trait SchemaExpr[A, +B] {
+sealed trait SchemaExpr[A, +B] derives JsonEncoder, JsonDecoder {
   def apply(value: A): Either[MigrationError, B]
 
   def reverse: Option[SchemaExpr[_, A]] = None

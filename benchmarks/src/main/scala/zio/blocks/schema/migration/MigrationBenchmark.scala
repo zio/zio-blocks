@@ -27,7 +27,7 @@ class MigrationBenchmark extends BaseBenchmark {
     migration = Migration.newBuilder[PersonV1, PersonV2]
       .renameField(_.name, _.fullName)
       .renameField(_.age, _.yearsOld)
-      .build
+      .buildPartial
   }
 
   @Benchmark
