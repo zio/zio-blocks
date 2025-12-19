@@ -21,16 +21,14 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val aTpe = TypeRepr.of[A]
     val bTpe = TypeRepr.of[B]
 
-
-    val aIsProduct   = aTpe.classSymbol.exists(isProductType)
-    val bIsProduct   = bTpe.classSymbol.exists(isProductType)
-    val aIsTuple     = isTupleType(aTpe)
-    val bIsTuple     = isTupleType(bTpe)
-    val aIsCoproduct = isCoproductType(aTpe)
-    val bIsCoproduct = isCoproductType(bTpe)
+    val aIsProduct    = aTpe.classSymbol.exists(isProductType)
+    val bIsProduct    = bTpe.classSymbol.exists(isProductType)
+    val aIsTuple      = isTupleType(aTpe)
+    val bIsTuple      = isTupleType(bTpe)
+    val aIsCoproduct  = isCoproductType(aTpe)
+    val bIsCoproduct  = isCoproductType(bTpe)
     val aIsStructural = isStructuralType(aTpe)
     val bIsStructural = isStructuralType(bTpe)
-
 
     (aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct, aIsStructural, bIsStructural) match {
       case (true, true, _, _, _, _, _, _) =>
@@ -78,7 +76,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val dealised = tpe.dealias
     dealised match {
       case Refinement(_, _, _) => true
-      case _ => false
+      case _                   => false
     }
   }
 
@@ -87,8 +85,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       case Refinement(parent, name, info) =>
         val memberType = info match {
           case MethodType(_, _, returnType) => returnType
-          case ByNameType(underlying) => underlying
-          case other => other
+          case ByNameType(underlying)       => underlying
+          case other                        => other
         }
         (name, memberType) :: collectMembers(parent)
       case _ => Nil
@@ -103,7 +101,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     bTpe: TypeRepr
   ): Expr[Into[A, B]] = {
     val structuralMembers = getStructuralMembers(aTpe)
-    val targetInfo = new ProductInfo[B](bTpe)
+    val targetInfo        = new ProductInfo[B](bTpe)
 
     // For each target field, find matching structural member (by name or unique type)
     val fieldMappings = targetInfo.fields.map { targetField =>
@@ -118,7 +116,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
       matchingMember match {
         case Some((memberName, _)) => (memberName, targetField)
-        case None =>
+        case None                  =>
           fail(
             s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: no matching structural member found for field '${targetField.name}: ${targetField.tpe.show}'"
           )
@@ -128,7 +126,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // Generate conversion using reflection to access structural type members
     '{
       new Into[A, B] {
-        def into(a: A): Either[SchemaError, B] = {
+        def into(a: A): Either[SchemaError, B] =
           Right(${
             val args: List[Term] = fieldMappings.map { case (memberName, targetField) =>
               targetField.tpe.asType match {
@@ -143,7 +141,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
             val resultExpr: Expr[B] = targetInfo.construct(args).asExprOf[B]
             resultExpr
           })
-        }
       }
     }
   }
@@ -153,12 +150,12 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def deriveProductToStructural[A: Type, B: Type](
     aTpe: TypeRepr,
     bTpe: TypeRepr
-  ): Expr[Into[A, B]] = {
+  ): Expr[Into[A, B]] =
     // Product → Structural type conversion requires experimental Symbol.newClass API
-    // 
+    //
     // EXPERIMENTAL PROOF OF CONCEPT STATUS:
     // We attempted to implement this using experimental Scala 3 APIs to generate anonymous
-    // classes with concrete getter methods. The approach is theoretically sound but the 
+    // classes with concrete getter methods. The approach is theoretically sound but the
     // experimental API is complex and unstable:
     //
     // 1. Symbol.newClass can create anonymous classes with Object + Selectable parents
@@ -177,14 +174,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     //
     // Note: Structural → Product conversion (reading from structural types) works fine
     // using reflective access with selectDynamic fallback.
-    
+
     fail(
       s"Product → Structural type conversion requires experimental compiler features. " +
-      s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]. " +
-      s"Structural → Product conversion IS supported. " +
-      s"Consider using case classes instead of structural types for the target."
+        s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]. " +
+        s"Structural → Product conversion IS supported. " +
+        s"Consider using case classes instead of structural types for the target."
     )
-  }
 
   // === Coproduct to Coproduct ===
 
@@ -629,4 +625,3 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 }
-

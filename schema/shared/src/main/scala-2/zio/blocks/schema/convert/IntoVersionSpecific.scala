@@ -474,6 +474,126 @@ private object IntoVersionSpecificImpl {
       cq"$bindingName: $sourceSubtype => _root_.scala.Right(new $targetSubtype(..$args))"
     }
 
+    // === Structural Type Support ===
+
+    def isStructuralType(tpe: Type): Boolean = {
+      tpe.dealias match {
+        case RefinedType(_, _) => true
+        case _ => false
+      }
+    }
+
+    def getStructuralMembers(tpe: Type): List[(String, Type)] = {
+      tpe.dealias.members.collect {
+        case m: MethodSymbol if m.isPublic && !m.isConstructor && m.paramLists.isEmpty && !isSyntheticMethod(m) =>
+          val name = NameTransformer.decode(m.name.toString)
+          val returnType = m.returnType.dealias
+          (name, returnType)
+      }.toList.reverse
+    }
+
+    def isSyntheticMethod(m: MethodSymbol): Boolean = {
+      val name = m.name.toString
+      // Filter out synthetic methods that come from Any, AnyRef, or compiler-generated methods
+      name == "isInstanceOf" || name == "asInstanceOf" || name == "==" || name == "!=" ||
+      name == "##" || name == "hashCode" || name == "equals" || name == "toString" ||
+      name == "getClass" || name == "ne" || name == "eq" || name == "notify" ||
+      name == "notifyAll" || name == "wait" || name == "synchronized" || name == "clone" ||
+      name == "finalize"
+    }
+
+    // === Derivation: Structural Type to Product ===
+
+    def deriveStructuralToProduct(): c.Expr[Into[A, B]] = {
+      val structuralMembers = getStructuralMembers(aTpe)
+      val targetInfo = new ProductInfo(bTpe)
+
+      // For each target field, find matching structural member (by name or unique type)
+      val fieldMappings = targetInfo.fields.map { targetField =>
+        val matchingMember = structuralMembers.find { case (name, memberTpe) =>
+          name == targetField.name && memberTpe =:= targetField.tpe
+        }.orElse {
+          val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
+            memberTpe =:= targetField.tpe
+          }
+          if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
+        }
+
+        matchingMember match {
+          case Some((memberName, _)) => (memberName, targetField)
+          case None =>
+            fail(
+              s"Cannot derive Into[$aTpe, $bTpe]: no matching structural member found for field '${targetField.name}: ${targetField.tpe}'"
+            )
+        }
+      }
+
+      // Generate code that uses reflection to access structural type members
+      val args = fieldMappings.map { case (memberName, targetField) =>
+        val methodName = TermName(memberName)
+        q"a.$methodName"
+      }
+
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              import scala.language.reflectiveCalls
+              _root_.scala.Right(new $bTpe(..$args))
+            }
+          }
+        """
+      )
+    }
+
+    // === Derivation: Product to Structural Type ===
+
+    def deriveProductToStructural(): c.Expr[Into[A, B]] = {
+      val sourceInfo = new ProductInfo(aTpe)
+      val structuralMembers = getStructuralMembers(bTpe)
+
+      // For each structural member, find matching source field
+      val fieldMappings = structuralMembers.map { case (memberName, memberTpe) =>
+        val matchingField = sourceInfo.fields.find { field =>
+          field.name == memberName && field.tpe =:= memberTpe
+        }.orElse {
+          val uniqueTypeMatches = sourceInfo.fields.filter(_.tpe =:= memberTpe)
+          if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
+        }
+
+        matchingField match {
+          case Some(field) => (memberName, field)
+          case None =>
+            fail(
+              s"Cannot derive Into[$aTpe, $bTpe]: no matching source field found for structural member '$memberName: $memberTpe'"
+            )
+        }
+      }
+
+      // Generate an anonymous class that implements the structural type
+      // We create val definitions for each member
+      val memberDefs = fieldMappings.map { case (memberName, sourceField) =>
+        val methodName = TermName(memberName)
+        val getter = sourceField.getter
+        q"val $methodName = a.$getter"
+      }
+
+      c.Expr[Into[A, B]](
+        q"""
+          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+            def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+              import scala.language.reflectiveCalls
+              _root_.scala.Right({
+                new {
+                  ..$memberDefs
+                }
+              }.asInstanceOf[$bTpe])
+            }
+          }
+        """
+      )
+    }
+
     // === Main entry point ===
 
     val aIsProduct = isProductType(aTpe)
@@ -482,23 +602,31 @@ private object IntoVersionSpecificImpl {
     val bIsTuple = isTupleType(bTpe)
     val aIsCoproduct = isSealedTrait(aTpe)
     val bIsCoproduct = isSealedTrait(bTpe)
+    val aIsStructural = isStructuralType(aTpe)
+    val bIsStructural = isStructuralType(bTpe)
 
-    (aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct) match {
-      case (true, true, _, _, _, _) =>
+    (aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct, aIsStructural, bIsStructural) match {
+      case (true, true, _, _, _, _, _, _) =>
         // Case class to case class
         deriveProductToProduct()
-      case (true, _, _, true, _, _) =>
+      case (true, _, _, true, _, _, _, _) =>
         // Case class to tuple
         deriveCaseClassToTuple()
-      case (_, true, true, _, _, _) =>
+      case (_, true, true, _, _, _, _, _) =>
         // Tuple to case class
         deriveTupleToCaseClass()
-      case (_, _, true, true, _, _) =>
+      case (_, _, true, true, _, _, _, _) =>
         // Tuple to tuple
         deriveTupleToTuple()
-      case (_, _, _, _, true, true) =>
+      case (_, _, _, _, true, true, _, _) =>
         // Coproduct to coproduct (sealed trait to sealed trait)
         deriveCoproductToCoproduct()
+      case (_, true, _, _, _, _, true, _) =>
+        // Structural type -> Product (structural source to case class target)
+        deriveStructuralToProduct()
+      case (true, _, _, _, _, _, _, true) =>
+        // Product -> Structural (case class source to structural target)
+        deriveProductToStructural()
       case _ =>
         fail(s"Cannot derive Into[$aTpe, $bTpe]: unsupported type combination")
     }
