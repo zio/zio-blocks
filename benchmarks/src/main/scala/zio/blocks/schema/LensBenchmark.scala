@@ -179,7 +179,7 @@ object LensDomain {
   )
 
   object NamedTuple25 extends CompanionOptics[NamedTuple25] {
-    implicit val schema: Schema[NamedTuple25] = Schema.derived
+    // implicit val schema: Schema[NamedTuple25] = Schema.derived
     val s25: Lens[NamedTuple25, String]       = $(_.s25)
   }
 }
