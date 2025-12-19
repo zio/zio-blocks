@@ -1,7 +1,5 @@
 package zio.blocks.typeid
 
-import scala.annotation.unused
-
 /**
  * Identity of a type or type constructor, phantom-typed by `A`.
  *
@@ -363,54 +361,72 @@ object TypeId extends TypeIdVersionSpecific {
   /**
    * Creates a TypeId for Some[A] with the element type.
    */
-  def some[A](@unused element: TypeId[A]): TypeId[Some[A]] =
+  def some[A](element: TypeId[A]): TypeId[Some[A]] = {
+    val _ = element
     nominal[Some[A]]("Some", Owner.scala, Nil)
+  }
 
   /**
    * Creates a TypeId for Option[A] with the element type.
    */
-  def option[A](@unused element: TypeId[A]): TypeId[Option[A]] =
+  def option[A](element: TypeId[A]): TypeId[Option[A]] = {
+    val _ = element
     nominal[Option[A]]("Option", Owner.scala, Nil)
+  }
 
   /**
    * Creates a TypeId for List[A] with the element type.
    */
-  def list[A](@unused element: TypeId[A]): TypeId[List[A]] =
+  def list[A](element: TypeId[A]): TypeId[List[A]] = {
+    val _ = element
     nominal[List[A]]("List", Owner.scalaCollectionImmutable, Nil)
+  }
 
   /**
    * Creates a TypeId for Vector[A] with the element type.
    */
-  def vector[A](@unused element: TypeId[A]): TypeId[Vector[A]] =
+  def vector[A](element: TypeId[A]): TypeId[Vector[A]] = {
+    val _ = element
     nominal[Vector[A]]("Vector", Owner.scalaCollectionImmutable, Nil)
+  }
 
   /**
    * Creates a TypeId for Set[A] with the element type.
    */
-  def set[A](@unused element: TypeId[A]): TypeId[Set[A]] =
+  def set[A](element: TypeId[A]): TypeId[Set[A]] = {
+    val _ = element
     nominal[Set[A]]("Set", Owner.scalaCollectionImmutable, Nil)
+  }
 
   /**
    * Creates a TypeId for Map[K, V] with key and value types.
    */
-  def map[K, V](@unused key: TypeId[K], @unused value: TypeId[V]): TypeId[Map[K, V]] =
+  def map[K, V](key: TypeId[K], value: TypeId[V]): TypeId[Map[K, V]] = {
+    val _ = (key, value)
     nominal[Map[K, V]]("Map", Owner.scalaCollectionImmutable, Nil)
+  }
 
   /**
    * Creates a TypeId for Seq[A] with the element type.
    */
-  def seq[A](@unused element: TypeId[A]): TypeId[Seq[A]] =
+  def seq[A](element: TypeId[A]): TypeId[Seq[A]] = {
+    val _ = element
     nominal[Seq[A]]("Seq", Owner.scalaCollectionImmutable, Nil)
+  }
 
   /**
    * Creates a TypeId for IndexedSeq[A] with the element type.
    */
-  def indexedSeq[A](@unused element: TypeId[A]): TypeId[IndexedSeq[A]] =
+  def indexedSeq[A](element: TypeId[A]): TypeId[IndexedSeq[A]] = {
+    val _ = element
     nominal[IndexedSeq[A]]("IndexedSeq", Owner.scalaCollectionImmutable, Nil)
+  }
 
   /**
    * Creates a TypeId for scala.collection.immutable.ArraySeq[A].
    */
-  def arraySeq[A](@unused element: TypeId[A]): TypeId[scala.collection.immutable.ArraySeq[A]] =
+  def arraySeq[A](element: TypeId[A]): TypeId[scala.collection.immutable.ArraySeq[A]] = {
+    val _ = element
     nominal[scala.collection.immutable.ArraySeq[A]]("ArraySeq", Owner.scalaCollectionImmutable, Nil)
+  }
 }
