@@ -135,7 +135,6 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
     }
   }
 
-
   implicit def arrayToIterable[A, B, F[_]](implicit
     intoAB: Into[A, B],
     factory: Factory[B, F[B]]
@@ -164,7 +163,10 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
     sequence(results).map(_.toArray)
   }
 
-  /** Sequence a list of Eithers into an Either of list, short-circuiting on first error */
+  /**
+   * Sequence a list of Eithers into an Either of list, short-circuiting on
+   * first error
+   */
   protected def sequence[E, A](list: List[Either[E, A]]): Either[E, List[A]] = {
     val builder = List.newBuilder[A]
     val iter    = list.iterator
@@ -181,4 +183,3 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
 trait IntoContainerInstancesLowPriority {
   // Low priority instances can go here if needed
 }
-

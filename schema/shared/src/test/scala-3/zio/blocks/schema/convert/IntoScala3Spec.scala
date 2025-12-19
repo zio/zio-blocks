@@ -16,7 +16,7 @@ object IntoScala3Spec extends ZIOSpecDefault {
   case class Point(x: Int, y: Int)
   case class Person(name: String, age: Int)
 
-  type Coord = { def x: Int; def y: Int }
+  type Coord      = { def x: Int; def y: Int }
   type PersonLike = { def name: String; def age: Int }
 
   def spec: Spec[TestEnvironment, Any] = suite("IntoScala3Spec")(
@@ -43,7 +43,7 @@ object IntoScala3Spec extends ZIOSpecDefault {
     suite("Structural Types")(
       // Product → Structural conversion requires experimental compiler features.
       // See IntoVersionSpecific.scala deriveProductToStructural for detailed explanation.
-      
+
       suite("Structural Type to Product")(
         test("converts structural type to case class") {
           // Create a concrete class that matches the structural type signature
