@@ -15,6 +15,7 @@ object Macro {
     @tailrec
     def toPathBody(term: Term): Term = term match {
       case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
+      case Lambda(_, body)                                 => body
       case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
       case _                                               => fail(s"Expected a lambda expression, got '${term.show}'")
     }
