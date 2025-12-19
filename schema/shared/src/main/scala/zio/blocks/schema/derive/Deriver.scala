@@ -27,7 +27,7 @@ trait Deriver[TC[_]] { self =>
     binding: Binding[BindingType.Primitive, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  ): Lazy[TC[A]] = derivePrimitive(primitiveType, typeIdToTypeName(typeId), binding, doc, modifiers)
+  ): Lazy[TC[A]] = derivePrimitive(primitiveType, typeIdToTypeName[A](typeId), binding, doc, modifiers)
 
   @deprecated("Use deriveRecord with TypeId instead", "0.1.0")
   def deriveRecord[F[_, _], A](
@@ -45,7 +45,7 @@ trait Deriver[TC[_]] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]] =
-    deriveRecord(fields, typeIdToTypeName(typeId), binding, doc, modifiers)
+    deriveRecord(fields, typeIdToTypeName[A](typeId), binding, doc, modifiers)
 
   @deprecated("Use deriveVariant with TypeId instead", "0.1.0")
   def deriveVariant[F[_, _], A](
@@ -63,7 +63,7 @@ trait Deriver[TC[_]] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]] =
-    deriveVariant(cases, typeIdToTypeName(typeId), binding, doc, modifiers)
+    deriveVariant(cases, typeIdToTypeName[A](typeId), binding, doc, modifiers)
 
   @deprecated("Use deriveSequence with TypeId instead", "0.1.0")
   def deriveSequence[F[_, _], C[_], A](
@@ -81,7 +81,7 @@ trait Deriver[TC[_]] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[C[A]]] =
-    deriveSequence(element, typeIdToTypeName(typeId), binding, doc, modifiers)
+    deriveSequence(element, typeIdToTypeName[C[A]](typeId), binding, doc, modifiers)
 
   @deprecated("Use deriveMap with TypeId instead", "0.1.0")
   def deriveMap[F[_, _], M[_, _], K, V](
@@ -101,7 +101,7 @@ trait Deriver[TC[_]] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[M[K, V]]] =
-    deriveMap(key, value, typeIdToTypeName(typeId), binding, doc, modifiers)
+    deriveMap(key, value, typeIdToTypeName[M[K, V]](typeId), binding, doc, modifiers)
 
   def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
@@ -127,7 +127,7 @@ trait Deriver[TC[_]] { self =>
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]] =
-    deriveWrapper(wrapped, typeIdToTypeName(typeId), wrapperPrimitiveType, binding, doc, modifiers)
+    deriveWrapper(wrapped, typeIdToTypeName[A](typeId), wrapperPrimitiveType, binding, doc, modifiers)
 
   def instanceOverrides: IndexedSeq[InstanceOverride] = IndexedSeq.empty
 
