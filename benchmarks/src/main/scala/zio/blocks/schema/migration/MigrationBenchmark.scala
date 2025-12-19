@@ -2,6 +2,7 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.Schema
 import zio.blocks.schema.DynamicValue
+import zio.blocks.schema.DynamicOptic
 import zio.blocks.BaseBenchmark
 import org.openjdk.jmh.infra.Blackhole
 import java.util.concurrent.TimeUnit
@@ -24,10 +25,14 @@ class MigrationBenchmark extends BaseBenchmark {
   @Setup
   def setup(): Unit = {
     personV1 = PersonV1("John Doe", 30)
-    migration = Migration.newBuilder[PersonV1, PersonV2]
-      .renameField(_.name, _.fullName)
-      .renameField(_.age, _.yearsOld)
-      .buildPartial
+    migration = Migration(
+      DynamicMigration(Vector(
+        MigrationAction.RenameField(DynamicOptic.root.field("name"), "fullName"),
+        MigrationAction.RenameField(DynamicOptic.root.field("age"), "yearsOld")
+      )),
+      personV1Schema,
+      personV2Schema
+    )
   }
 
   @Benchmark
