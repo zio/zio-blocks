@@ -374,7 +374,9 @@ object IntoSpec extends ZIOSpecDefault {
           )
         },
         test("Vector[List[Short]] to List[Vector[Int]]") {
-          assert(Into[Vector[List[Short]], List[Vector[Int]]].into(Vector(List(1.toShort, 2.toShort), List(3.toShort))))(
+          assert(
+            Into[Vector[List[Short]], List[Vector[Int]]].into(Vector(List(1.toShort, 2.toShort), List(3.toShort)))
+          )(
             isRight(equalTo(List(Vector(1, 2), Vector(3))))
           )
         }
@@ -383,76 +385,76 @@ object IntoSpec extends ZIOSpecDefault {
     suite("Collections with Product Types")(
       test("List[Point] to List[Coord] using derived Into") {
         implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
-        val points = List(Point(1, 2), Point(3, 4), Point(5, 6))
-        val result = Into[List[Point], List[Coord]].into(points)
+        val points                                    = List(Point(1, 2), Point(3, 4), Point(5, 6))
+        val result                                    = Into[List[Point], List[Coord]].into(points)
         assert(result)(isRight(equalTo(List(Coord(2, 1), Coord(4, 3), Coord(6, 5)))))
       },
       test("Vector[PersonV1] to Vector[PersonV2] using derived Into") {
         implicit val personV1ToV2: Into[PersonV1, PersonV2] = Into.derived[PersonV1, PersonV2]
-        val persons = Vector(PersonV1("Alice", 30), PersonV1("Bob", 25))
-        val result = Into[Vector[PersonV1], Vector[PersonV2]].into(persons)
+        val persons                                         = Vector(PersonV1("Alice", 30), PersonV1("Bob", 25))
+        val result                                          = Into[Vector[PersonV1], Vector[PersonV2]].into(persons)
         assert(result)(isRight(equalTo(Vector(PersonV2("Alice", 30), PersonV2("Bob", 25)))))
       },
       test("Set[Point] to Set[Coord] using derived Into") {
         implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
-        val points = Set(Point(1, 2), Point(3, 4))
-        val result = Into[Set[Point], Set[Coord]].into(points)
+        val points                                    = Set(Point(1, 2), Point(3, 4))
+        val result                                    = Into[Set[Point], Set[Coord]].into(points)
         assert(result)(isRight(equalTo(Set(Coord(2, 1), Coord(4, 3)))))
       },
       test("List[Point] to Vector[Coord] - cross collection with product type") {
         implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
-        val points = List(Point(10, 20), Point(30, 40))
-        val result = Into[List[Point], Vector[Coord]].into(points)
+        val points                                    = List(Point(10, 20), Point(30, 40))
+        val result                                    = Into[List[Point], Vector[Coord]].into(points)
         assert(result)(isRight(equalTo(Vector(Coord(20, 10), Coord(40, 30)))))
       },
       test("Option[Point] to Option[Coord] using derived Into") {
         implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
-        val somePoint: Option[Point] = Some(Point(5, 10))
-        val nonePoint: Option[Point] = None
+        val somePoint: Option[Point]                  = Some(Point(5, 10))
+        val nonePoint: Option[Point]                  = None
         assert(Into[Option[Point], Option[Coord]].into(somePoint))(isRight(equalTo(Some(Coord(10, 5))))) &&
         assert(Into[Option[Point], Option[Coord]].into(nonePoint))(isRight(equalTo(None)))
       },
       test("Map[String, Point] to Map[String, Coord] using derived Into") {
         implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
-        val map = Map("a" -> Point(1, 2), "b" -> Point(3, 4))
-        val result = Into[Map[String, Point], Map[String, Coord]].into(map)
+        val map                                       = Map("a" -> Point(1, 2), "b" -> Point(3, 4))
+        val result                                    = Into[Map[String, Point], Map[String, Coord]].into(map)
         assert(result)(isRight(equalTo(Map("a" -> Coord(2, 1), "b" -> Coord(4, 3)))))
       }
     ),
     suite("Collections with Sum Types")(
       test("List[Color] to List[Hue] using derived Into") {
         implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
-        val colors: List[Color] = List(Color.Red, Color.Blue, Color.Red)
-        val result = Into[List[Color], List[Hue]].into(colors)
+        val colors: List[Color]                   = List(Color.Red, Color.Blue, Color.Red)
+        val result                                = Into[List[Color], List[Hue]].into(colors)
         assert(result)(isRight(equalTo(List(Hue.Red, Hue.Blue, Hue.Red))))
       },
       test("Vector[ResultV1] to Vector[ResultV2] using derived Into") {
         implicit val resultV1ToV2: Into[ResultV1, ResultV2] = Into.derived[ResultV1, ResultV2]
-        val results: Vector[ResultV1] = Vector(SuccessV1(42), FailureV1("error"), SuccessV1(100))
-        val result = Into[Vector[ResultV1], Vector[ResultV2]].into(results)
+        val results: Vector[ResultV1]                       = Vector(SuccessV1(42), FailureV1("error"), SuccessV1(100))
+        val result                                          = Into[Vector[ResultV1], Vector[ResultV2]].into(results)
         assert(result)(isRight(equalTo(Vector(SuccessV2(42), FailureV2("error"), SuccessV2(100)))))
       },
       test("Option[Color] to Option[Hue] using derived Into") {
         implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
-        val someColor: Option[Color] = Some(Color.Blue)
-        val noneColor: Option[Color] = None
+        val someColor: Option[Color]              = Some(Color.Blue)
+        val noneColor: Option[Color]              = None
         assert(Into[Option[Color], Option[Hue]].into(someColor))(isRight(equalTo(Some(Hue.Blue)))) &&
         assert(Into[Option[Color], Option[Hue]].into(noneColor))(isRight(equalTo(None)))
       },
       test("Either[Color, Point] to Either[Hue, Coord] using derived Into") {
-        implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
+        implicit val colorToHue: Into[Color, Hue]     = Into.derived[Color, Hue]
         implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
-        val leftColor: Either[Color, Point] = Left(Color.Red)
-        val rightPoint: Either[Color, Point] = Right(Point(1, 2))
+        val leftColor: Either[Color, Point]           = Left(Color.Red)
+        val rightPoint: Either[Color, Point]          = Right(Point(1, 2))
         assert(Into[Either[Color, Point], Either[Hue, Coord]].into(leftColor))(isRight(equalTo(Left(Hue.Red)))) &&
         assert(Into[Either[Color, Point], Either[Hue, Coord]].into(rightPoint))(isRight(equalTo(Right(Coord(2, 1)))))
       },
       test("Map[Color, Point] to Map[Hue, Coord] using derived Into") {
-        implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
+        implicit val colorToHue: Into[Color, Hue]     = Into.derived[Color, Hue]
         implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
-        val map: Map[Color, Point] = Map(Color.Red -> Point(1, 2), Color.Blue -> Point(3, 4))
-        val result = Into[Map[Color, Point], Map[Hue, Coord]].into(map)
-        val expected: Map[Hue, Coord] = Map(Hue.Red -> Coord(2, 1), Hue.Blue -> Coord(4, 3))
+        val map: Map[Color, Point]                    = Map(Color.Red -> Point(1, 2), Color.Blue -> Point(3, 4))
+        val result                                    = Into[Map[Color, Point], Map[Hue, Coord]].into(map)
+        val expected: Map[Hue, Coord]                 = Map(Hue.Red -> Coord(2, 1), Hue.Blue -> Coord(4, 3))
         assert(result)(isRight(equalTo(expected)))
       }
     )
