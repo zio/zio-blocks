@@ -311,6 +311,150 @@ object IntoSpec extends ZIOSpecDefault {
       test("Either[Long, String] to Either[Int, String] - Left with overflow") {
         assert(Into[Either[Long, String], Either[Int, String]].into(Left(3000000000L)))(isLeft)
       }
+    ),
+    suite("Collection Type Conversions")(
+      suite("Between Standard Collection Types")(
+        test("List[Int] to Vector[Int]") {
+          assert(Into[List[Int], Vector[Int]].into(List(1, 2, 3)))(isRight(equalTo(Vector(1, 2, 3))))
+        },
+        test("Vector[String] to List[String]") {
+          assert(Into[Vector[String], List[String]].into(Vector("a", "b", "c")))(isRight(equalTo(List("a", "b", "c"))))
+        },
+        test("Array[Int] to List[Int]") {
+          val result = Into[Array[Int], List[Int]].into(Array(1, 2, 3))
+          assert(result)(isRight(equalTo(List(1, 2, 3))))
+        },
+        test("List[Int] to Array[Int]") {
+          val result = Into[List[Int], Array[Int]].into(List(1, 2, 3))
+          assert(result.map(_.toList))(isRight(equalTo(List(1, 2, 3))))
+        },
+        test("Seq[Int] to List[Int]") {
+          assert(Into[Seq[Int], List[Int]].into(Seq(1, 2, 3)))(isRight(equalTo(List(1, 2, 3))))
+        },
+        test("List[Int] to Seq[Int]") {
+          assert(Into[List[Int], Seq[Int]].into(List(1, 2, 3)))(isRight(equalTo(Seq(1, 2, 3))))
+        }
+      ),
+      suite("Set Conversions")(
+        test("List[Int] to Set[Int] - duplicates removed") {
+          assert(Into[List[Int], Set[Int]].into(List(1, 2, 2, 3)))(isRight(equalTo(Set(1, 2, 3))))
+        },
+        test("Vector[String] to Set[String] - duplicates removed") {
+          assert(Into[Vector[String], Set[String]].into(Vector("a", "b", "a")))(isRight(equalTo(Set("a", "b"))))
+        },
+        test("Set[Int] to List[Int]") {
+          val result = Into[Set[Int], List[Int]].into(Set(3, 1, 2))
+          // Set iteration order may vary, so check contents
+          assert(result.map(_.sorted))(isRight(equalTo(List(1, 2, 3))))
+        },
+        test("Set[String] to Vector[String]") {
+          val result = Into[Set[String], Vector[String]].into(Set("c", "a", "b"))
+          assert(result.map(_.sorted))(isRight(equalTo(Vector("a", "b", "c"))))
+        }
+      ),
+      suite("Combined Element and Collection Type Conversion")(
+        test("List[Int] to Vector[Long]") {
+          assert(Into[List[Int], Vector[Long]].into(List(1, 2, 3)))(isRight(equalTo(Vector(1L, 2L, 3L))))
+        },
+        test("Array[Short] to List[Int]") {
+          assert(Into[Array[Short], List[Int]].into(Array(10.toShort, 20.toShort)))(isRight(equalTo(List(10, 20))))
+        },
+        test("Set[Int] to List[Long]") {
+          val result = Into[Set[Int], List[Long]].into(Set(1, 2, 3))
+          assert(result.map(_.sorted))(isRight(equalTo(List(1L, 2L, 3L))))
+        },
+        test("Vector[Int] to Set[Long]") {
+          assert(Into[Vector[Int], Set[Long]].into(Vector(1, 2, 3)))(isRight(equalTo(Set(1L, 2L, 3L))))
+        }
+      ),
+      suite("Nested Collection Type Conversions")(
+        test("List[Vector[Int]] to Vector[List[Long]]") {
+          assert(Into[List[Vector[Int]], Vector[List[Long]]].into(List(Vector(1, 2), Vector(3, 4))))(
+            isRight(equalTo(Vector(List(1L, 2L), List(3L, 4L))))
+          )
+        },
+        test("Vector[List[Short]] to List[Vector[Int]]") {
+          assert(Into[Vector[List[Short]], List[Vector[Int]]].into(Vector(List(1.toShort, 2.toShort), List(3.toShort))))(
+            isRight(equalTo(List(Vector(1, 2), Vector(3))))
+          )
+        }
+      )
+    ),
+    suite("Collections with Product Types")(
+      test("List[Point] to List[Coord] using derived Into") {
+        implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
+        val points = List(Point(1, 2), Point(3, 4), Point(5, 6))
+        val result = Into[List[Point], List[Coord]].into(points)
+        assert(result)(isRight(equalTo(List(Coord(2, 1), Coord(4, 3), Coord(6, 5)))))
+      },
+      test("Vector[PersonV1] to Vector[PersonV2] using derived Into") {
+        implicit val personV1ToV2: Into[PersonV1, PersonV2] = Into.derived[PersonV1, PersonV2]
+        val persons = Vector(PersonV1("Alice", 30), PersonV1("Bob", 25))
+        val result = Into[Vector[PersonV1], Vector[PersonV2]].into(persons)
+        assert(result)(isRight(equalTo(Vector(PersonV2("Alice", 30), PersonV2("Bob", 25)))))
+      },
+      test("Set[Point] to Set[Coord] using derived Into") {
+        implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
+        val points = Set(Point(1, 2), Point(3, 4))
+        val result = Into[Set[Point], Set[Coord]].into(points)
+        assert(result)(isRight(equalTo(Set(Coord(2, 1), Coord(4, 3)))))
+      },
+      test("List[Point] to Vector[Coord] - cross collection with product type") {
+        implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
+        val points = List(Point(10, 20), Point(30, 40))
+        val result = Into[List[Point], Vector[Coord]].into(points)
+        assert(result)(isRight(equalTo(Vector(Coord(20, 10), Coord(40, 30)))))
+      },
+      test("Option[Point] to Option[Coord] using derived Into") {
+        implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
+        val somePoint: Option[Point] = Some(Point(5, 10))
+        val nonePoint: Option[Point] = None
+        assert(Into[Option[Point], Option[Coord]].into(somePoint))(isRight(equalTo(Some(Coord(10, 5))))) &&
+        assert(Into[Option[Point], Option[Coord]].into(nonePoint))(isRight(equalTo(None)))
+      },
+      test("Map[String, Point] to Map[String, Coord] using derived Into") {
+        implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
+        val map = Map("a" -> Point(1, 2), "b" -> Point(3, 4))
+        val result = Into[Map[String, Point], Map[String, Coord]].into(map)
+        assert(result)(isRight(equalTo(Map("a" -> Coord(2, 1), "b" -> Coord(4, 3)))))
+      }
+    ),
+    suite("Collections with Sum Types")(
+      test("List[Color] to List[Hue] using derived Into") {
+        implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
+        val colors: List[Color] = List(Color.Red, Color.Blue, Color.Red)
+        val result = Into[List[Color], List[Hue]].into(colors)
+        assert(result)(isRight(equalTo(List(Hue.Red, Hue.Blue, Hue.Red))))
+      },
+      test("Vector[ResultV1] to Vector[ResultV2] using derived Into") {
+        implicit val resultV1ToV2: Into[ResultV1, ResultV2] = Into.derived[ResultV1, ResultV2]
+        val results: Vector[ResultV1] = Vector(SuccessV1(42), FailureV1("error"), SuccessV1(100))
+        val result = Into[Vector[ResultV1], Vector[ResultV2]].into(results)
+        assert(result)(isRight(equalTo(Vector(SuccessV2(42), FailureV2("error"), SuccessV2(100)))))
+      },
+      test("Option[Color] to Option[Hue] using derived Into") {
+        implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
+        val someColor: Option[Color] = Some(Color.Blue)
+        val noneColor: Option[Color] = None
+        assert(Into[Option[Color], Option[Hue]].into(someColor))(isRight(equalTo(Some(Hue.Blue)))) &&
+        assert(Into[Option[Color], Option[Hue]].into(noneColor))(isRight(equalTo(None)))
+      },
+      test("Either[Color, Point] to Either[Hue, Coord] using derived Into") {
+        implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
+        implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
+        val leftColor: Either[Color, Point] = Left(Color.Red)
+        val rightPoint: Either[Color, Point] = Right(Point(1, 2))
+        assert(Into[Either[Color, Point], Either[Hue, Coord]].into(leftColor))(isRight(equalTo(Left(Hue.Red)))) &&
+        assert(Into[Either[Color, Point], Either[Hue, Coord]].into(rightPoint))(isRight(equalTo(Right(Coord(2, 1)))))
+      },
+      test("Map[Color, Point] to Map[Hue, Coord] using derived Into") {
+        implicit val colorToHue: Into[Color, Hue] = Into.derived[Color, Hue]
+        implicit val pointToCoord: Into[Point, Coord] = Into.derived[Point, Coord]
+        val map: Map[Color, Point] = Map(Color.Red -> Point(1, 2), Color.Blue -> Point(3, 4))
+        val result = Into[Map[Color, Point], Map[Hue, Coord]].into(map)
+        val expected: Map[Hue, Coord] = Map(Hue.Red -> Coord(2, 1), Hue.Blue -> Coord(4, 3))
+        assert(result)(isRight(equalTo(expected)))
+      }
     )
   )
 }

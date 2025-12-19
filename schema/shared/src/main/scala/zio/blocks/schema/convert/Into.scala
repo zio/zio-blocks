@@ -97,14 +97,10 @@ trait IntoPrimitiveInstances {
 
 trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
 
-  // === Option ===
-
   implicit def optionInto[A, B](implicit into: Into[A, B]): Into[Option[A], Option[B]] = {
     case Some(value) => into.into(value).map(Some(_))
     case None        => Right(None)
   }
-
-  // === Either ===
 
   implicit def eitherInto[L1, R1, L2, R2](implicit
     leftInto: Into[L1, L2],
@@ -113,28 +109,6 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
     case Left(l)  => leftInto.into(l).map(Left(_))
     case Right(r) => rightInto.into(r).map(Right(_))
   }
-
-  // === List ===
-
-  implicit def listInto[A, B](implicit into: Into[A, B]): Into[List[A], List[B]] =
-    iterableInto[A, B, List]
-
-  // === Vector ===
-
-  implicit def vectorInto[A, B](implicit into: Into[A, B]): Into[Vector[A], Vector[B]] =
-    iterableInto[A, B, Vector]
-
-  // === Set ===
-
-  implicit def setInto[A, B](implicit into: Into[A, B]): Into[Set[A], Set[B]] =
-    iterableInto[A, B, Set]
-
-  // === Seq ===
-
-  implicit def seqInto[A, B](implicit into: Into[A, B]): Into[Seq[A], Seq[B]] =
-    iterableInto[A, B, Seq]
-
-  // === Map ===
 
   implicit def mapInto[K1, V1, K2, V2](implicit
     keyInto: Into[K1, K2],
@@ -149,13 +123,11 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
     sequence(results).map(_.toMap)
   }
 
-  /** Helper to convert Iterable with a Factory */
-  protected def iterableInto[A, B, F[_]](implicit
+  implicit def iterableInto[A, B, F1[X] <: Iterable[X], F2[_]](implicit
     intoAB: Into[A, B],
-    factory: Factory[B, F[B]]
-  ): Into[F[A], F[B]] = { (a: F[A]) =>
-    val iterable = a.asInstanceOf[Iterable[A]]
-    val results  = iterable.map(intoAB.into).toList
+    factory: Factory[B, F2[B]]
+  ): Into[F1[A], F2[B]] = { (a: F1[A]) =>
+    val results = a.map(intoAB.into).toList
     sequence(results).map { list =>
       val builder = factory.newBuilder
       builder ++= list
@@ -163,10 +135,36 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
     }
   }
 
-  /**
-   * Sequence a list of Eithers into an Either of list, short-circuiting on
-   * first error
-   */
+
+  implicit def arrayToIterable[A, B, F[_]](implicit
+    intoAB: Into[A, B],
+    factory: Factory[B, F[B]]
+  ): Into[Array[A], F[B]] = { (a: Array[A]) =>
+    val results = a.map(intoAB.into).toList
+    sequence(results).map { list =>
+      val builder = factory.newBuilder
+      builder ++= list
+      builder.result()
+    }
+  }
+
+  implicit def iterableToArray[A, B, F[X] <: Iterable[X]](implicit
+    intoAB: Into[A, B],
+    ct: scala.reflect.ClassTag[B]
+  ): Into[F[A], Array[B]] = { (a: F[A]) =>
+    val results = a.map(intoAB.into).toList
+    sequence(results).map(_.toArray)
+  }
+
+  implicit def arrayToArray[A, B](implicit
+    intoAB: Into[A, B],
+    ct: scala.reflect.ClassTag[B]
+  ): Into[Array[A], Array[B]] = { (a: Array[A]) =>
+    val results = a.map(intoAB.into).toList
+    sequence(results).map(_.toArray)
+  }
+
+  /** Sequence a list of Eithers into an Either of list, short-circuiting on first error */
   protected def sequence[E, A](list: List[Either[E, A]]): Either[E, List[A]] = {
     val builder = List.newBuilder[A]
     val iter    = list.iterator
@@ -183,3 +181,4 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
 trait IntoContainerInstancesLowPriority {
   // Low priority instances can go here if needed
 }
+

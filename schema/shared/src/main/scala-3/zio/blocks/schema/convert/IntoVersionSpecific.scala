@@ -75,7 +75,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val caseMappings = sourceSubtypes.map { sourceSubtype =>
       findMatchingTargetSubtype(sourceSubtype, targetSubtypes, aTpe, bTpe) match {
         case Some(targetSubtype) => (sourceSubtype, targetSubtype)
-        case None =>
+        case None                =>
           fail(
             s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: " +
               s"no matching target case found for source case '${sourceSubtype.typeSymbol.name}'"
@@ -120,7 +120,9 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     None
   }
 
-  /** Get the name of a subtype - handles enum values and case objects/classes */
+  /**
+   * Get the name of a subtype - handles enum values and case objects/classes
+   */
   private def getSubtypeName(tpe: TypeRepr): String = {
     // For enum values and case objects, the termSymbol has the correct name
     val termSym = tpe.termSymbol
@@ -132,7 +134,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   }
 
   /** Get the type signature of a case class/object - list of field types */
-  private def getTypeSignature(tpe: TypeRepr): List[TypeRepr] = {
+  private def getTypeSignature(tpe: TypeRepr): List[TypeRepr] =
     if (isEnumOrModuleValue(tpe)) {
       // Case object / enum value - no fields
       Nil
@@ -145,13 +147,11 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         case _ => Nil
       }
     }
-  }
 
-  private def signaturesMatch(source: List[TypeRepr], target: List[TypeRepr]): Boolean = {
+  private def signaturesMatch(source: List[TypeRepr], target: List[TypeRepr]): Boolean =
     source.size == target.size && source.zip(target).forall { case (s, t) =>
       s =:= t || isCoercible(s, t)
     }
-  }
 
   private def generateCoproductConversion[A: Type, B: Type](
     aTpe: TypeRepr,
@@ -258,12 +258,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     aTpe: TypeRepr,
     bTpe: TypeRepr
   ): List[FieldMapping] = {
-    val sourceTypeFreq = sourceInfo.fields.groupBy(_.tpe.dealias.show).view.mapValues(_.size).toMap
-    val targetTypeFreq = targetInfo.fields.groupBy(_.tpe.dealias.show).view.mapValues(_.size).toMap
+    val sourceTypeFreq   = sourceInfo.fields.groupBy(_.tpe.dealias.show).view.mapValues(_.size).toMap
+    val targetTypeFreq   = targetInfo.fields.groupBy(_.tpe.dealias.show).view.mapValues(_.size).toMap
     val usedSourceFields = scala.collection.mutable.Set[Int]()
 
     targetInfo.fields.map { targetField =>
-      findMatchingSourceField(targetField, sourceInfo, sourceTypeFreq, targetTypeFreq, usedSourceFields, aTpe, bTpe) match {
+      findMatchingSourceField(
+        targetField,
+        sourceInfo,
+        sourceTypeFreq,
+        targetTypeFreq,
+        usedSourceFields,
+        aTpe,
+        bTpe
+      ) match {
         case Some(sourceField) =>
           usedSourceFields += sourceField.index
           FieldMapping(sourceField, targetField)
@@ -337,14 +345,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     sourceInfo: ProductInfo[A],
     targetInfo: ProductInfo[B],
     fieldMappings: List[FieldMapping]
-  ): Expr[Into[A, B]] = {
+  ): Expr[Into[A, B]] =
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] =
           Right(${ constructTarget[A, B](sourceInfo, targetInfo, fieldMappings, 'a) })
       }
     }
-  }
 
   private def constructTarget[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
@@ -437,7 +444,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     aExpr: Expr[A]
   ): Expr[B] = {
     val sourceTypeArgs = getTupleTypeArgs(aTpe)
-    val args = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
+    val args           = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
       val accessorName = s"_${idx + 1}"
       val accessor     = aTpe.typeSymbol.methodMember(accessorName).head
       Select(aExpr.asTerm, accessor)
@@ -478,7 +485,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     aExpr: Expr[A]
   ): Expr[B] = {
     val sourceTypeArgs = getTupleTypeArgs(aTpe)
-    val args = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
+    val args           = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
       val accessorName = s"_${idx + 1}"
       val accessor     = aTpe.typeSymbol.methodMember(accessorName).head
       Select(aExpr.asTerm, accessor)
@@ -498,4 +505,3 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 }
-
