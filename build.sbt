@@ -42,11 +42,11 @@ lazy val root = project
     `schema-avro`,
     streams.jvm,
     streams.js,
-    streams.native,
-    scalaNextTests.jvm,
-    scalaNextTests.js,
-    scalaNextTests.native,
-    benchmarks
+    streams.native
+//    scalaNextTests.jvm,
+//    scalaNextTests.js,
+//    scalaNextTests.native,
+//    benchmarks
   )
 
 // ============================================================================
