@@ -8,10 +8,10 @@ import zio.test._
 
 /**
  * Migration test suite for TypeName to TypeId migration.
- * 
- * This test suite serves as a "laboratory" for verifying the correctness
- * of conversions between TypeName and TypeId, and ensuring that TypeId
- * produces the same behavior as TypeName.
+ *
+ * This test suite serves as a "laboratory" for verifying the correctness of
+ * conversions between TypeName and TypeId, and ensuring that TypeId produces
+ * the same behavior as TypeName.
  */
 object MigrationSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("MigrationSpec")(
@@ -43,12 +43,12 @@ object MigrationSpec extends ZIOSpecDefault {
         }
       },
       test("TypeName to TypeId conversion for collections") {
-        val listTypeName  = TypeName.list(TypeName.int)
-        val listTypeId    = typeNameToTypeId(listTypeName)
-        val mapTypeName   = TypeName.map(TypeName.string, TypeName.int)
-        val mapTypeId     = typeNameToTypeId(mapTypeName)
-        val setTypeName   = TypeName.set(TypeName.string)
-        val setTypeId     = typeNameToTypeId(setTypeName)
+        val listTypeName   = TypeName.list(TypeName.int)
+        val listTypeId     = typeNameToTypeId(listTypeName)
+        val mapTypeName    = TypeName.map(TypeName.string, TypeName.int)
+        val mapTypeId      = typeNameToTypeId(mapTypeName)
+        val setTypeName    = TypeName.set(TypeName.string)
+        val setTypeId      = typeNameToTypeId(setTypeName)
         val vectorTypeName = TypeName.vector(TypeName.double)
         val vectorTypeId   = typeNameToTypeId(vectorTypeName)
 
@@ -93,8 +93,8 @@ object MigrationSpec extends ZIOSpecDefault {
         }
       },
       test("TypeName to TypeId round-trip conversion") {
-        val originalTypeName = TypeName.map(TypeName.string, TypeName.list(TypeName.int))
-        val typeId           = typeNameToTypeId(originalTypeName)
+        val originalTypeName  = TypeName.map(TypeName.string, TypeName.list(TypeName.int))
+        val typeId            = typeNameToTypeId(originalTypeName)
         val convertedTypeName = typeIdToTypeName[Map[String, List[Int]]](typeId)
 
         // Note: Round-trip may not be perfect due to type parameters being encoded in string
@@ -104,7 +104,7 @@ object MigrationSpec extends ZIOSpecDefault {
         assert(convertedTypeName.namespace.packages)(equalTo(originalTypeName.namespace.packages))
       },
       test("TypeId to TypeName conversion (backward compatibility)") {
-        val typeId = TypeId.Nominal(Chunk("test", "package"), Chunk.empty, "TestType")
+        val typeId   = TypeId.Nominal(Chunk("test", "package"), Chunk.empty, "TestType")
         val typeName = typeIdToTypeName[String](typeId)
 
         assert(typeName.name)(equalTo("TestType")) &&
@@ -152,7 +152,7 @@ object MigrationSpec extends ZIOSpecDefault {
           objectNames = Chunk.empty,
           typeName = "Int"
         )
-        
+
         typeId match {
           case TypeId.Nominal(packageName, objectNames, typeNameStr) =>
             assert(typeNameStr)(equalTo("Int")) &&
@@ -167,7 +167,7 @@ object MigrationSpec extends ZIOSpecDefault {
           objectNames = Chunk.empty,
           typeName = "List[Int]"
         )
-        
+
         typeId match {
           case TypeId.Nominal(packageName, objectNames, typeNameStr) =>
             assert(typeNameStr)(equalTo("List[Int]")) &&
@@ -179,4 +179,3 @@ object MigrationSpec extends ZIOSpecDefault {
     )
   )
 }
-

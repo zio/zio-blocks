@@ -12,24 +12,24 @@ import scala.collection.immutable.ArraySeq
 import scala.util.Try
 
 object JsonTestUtils {
+
   /**
-   * Normalizes JSON by removing insignificant whitespace.
-   * This makes JSON comparisons insensitive to formatting differences.
+   * Normalizes JSON by removing insignificant whitespace. This makes JSON
+   * comparisons insensitive to formatting differences.
    */
-  private def normalizeJson(json: String): String = {
+  private def normalizeJson(json: String): String =
     // Remove whitespace after opening braces/brackets and colons/commas
     // Remove whitespace before closing braces/brackets and colons/commas
     // Preserve whitespace inside string values
     json
-      .replaceAll("""\s+""", " ")  // Normalize multiple whitespace to single space
-      .replaceAll("""\s*\{\s*""", "{")  // Remove spaces around {
-      .replaceAll("""\s*\}\s*""", "}")  // Remove spaces around }
-      .replaceAll("""\s*\[\s*""", "[")  // Remove spaces around [
-      .replaceAll("""\s*\]\s*""", "]")  // Remove spaces around ]
-      .replaceAll("""\s*:\s*""", ":")   // Remove spaces around :
-      .replaceAll("""\s*,\s*""", ",")   // Remove spaces around ,
+      .replaceAll("""\s+""", " ")      // Normalize multiple whitespace to single space
+      .replaceAll("""\s*\{\s*""", "{") // Remove spaces around {
+      .replaceAll("""\s*\}\s*""", "}") // Remove spaces around }
+      .replaceAll("""\s*\[\s*""", "[") // Remove spaces around [
+      .replaceAll("""\s*\]\s*""", "]") // Remove spaces around ]
+      .replaceAll("""\s*:\s*""", ":")  // Remove spaces around :
+      .replaceAll("""\s*,\s*""", ",")  // Remove spaces around ,
       .trim
-  }
 
   def roundTrip[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
     roundTrip(value, expectedJson, getOrDeriveCodec(schema))

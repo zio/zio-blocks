@@ -300,7 +300,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       var packages: List[String]    = Nil
       var objectNames: List[String] = Nil
       var name: String              = null
-      val isUnionTpe                 = isUnion(tpe)
+      val isUnionTpe                = isUnion(tpe)
       if (isUnionTpe) name = "|"
       else {
         val tpeTypeSymbol = tpe.typeSymbol
@@ -380,20 +380,19 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       )
   }
 
-  private def toExprTypeId(typeId: TypeId)(using Quotes): Expr[TypeId] = {
+  private def toExprTypeId(typeId: TypeId)(using Quotes): Expr[TypeId] =
     typeId match {
       case TypeId.Nominal(packageName, objectNames, typeNameStr) =>
         val pkgExpr  = Varargs(packageName.toSeq.map(Expr(_)))
         val objExpr  = Varargs(objectNames.toSeq.map(Expr(_)))
         val nameExpr = Expr(typeNameStr)
         '{ TypeId.Nominal(Chunk($pkgExpr*), Chunk($objExpr*), $nameExpr) }
-      
+
       case other =>
         // Fallback for any other TypeId variants (e.g., if Structural exists as a sealed trait case)
         val nameExpr = Expr(other.toString)
         '{ TypeId.Nominal(Chunk.empty, Chunk.empty, $nameExpr) }
     }
-  }
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
     if (isEnumValue(tpe)) tpe.termSymbol
