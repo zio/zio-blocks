@@ -55,21 +55,22 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
-  .settings(
-    compileOrder := CompileOrder.JavaThenScala,
-    libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
-      "dev.zio" %%% "zio-test"     % "2.1.23"     % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23"     % Test
-    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, _)) =>
-        Seq(
-          "org.scala-lang" % "scala-reflect" % scalaVersion.value
-        )
-      case _ =>
-        Seq()
-    })
-  )
+   .settings(
+     compileOrder := CompileOrder.JavaThenScala,
+     libraryDependencies ++= Seq(
+       "dev.zio" %%% "zio-json"     % "0.7.45",
+       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
+       "dev.zio" %%% "zio-test"     % "2.1.23"     % Test,
+       "dev.zio" %%% "zio-test-sbt" % "2.1.23"     % Test
+     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+       case Some((2, _)) =>
+         Seq(
+           "org.scala-lang" % "scala-reflect" % scalaVersion.value
+         )
+       case _ =>
+         Seq()
+     })
+   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
