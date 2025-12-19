@@ -41,7 +41,7 @@ object MigrationActionSpec extends ZIOSpecDefault {
 
         val migration = Migration.newBuilder[PersonV1, PersonV2]
           .addField(DynamicOptic.root.field("age"), SchemaExpr.Constant(PrimitiveValue.Int(42)))
-          .build
+          .build.getOrElse(throw new RuntimeException("Migration build failed"))
 
         val personV1 = PersonV1("John")
         val expectedPersonV2 = PersonV2("John", 42)

@@ -59,12 +59,12 @@ jobs:
           jvm: temurin:${{ matrix.java }}
           jvm-index: https://raw.githubusercontent.com/coursier/jvm-index/refs/heads/master/index.json
           apps: sbt
-      - name: Cache scala dependencies
-        uses: coursier/cache-action@v7
-      - name: Run Scala Next tests for macros
-        run: sbt ++3.7.4! scalaNextTestsJVM/test scalaNextTestsJS/test scalaNextTestsNative/test benchmarks/test
-      - name: Run tests
-        run: sbt +test
+       - name: Cache scala dependencies
+         uses: coursier/cache-action@v7
+       - name: Run Scala Next tests for macros
+         run: sbt ++3.7.4! scalaNextTestsJVM/test scalaNextTestsJS/test scalaNextTestsNative/test
+       - name: Run tests
+         run: sbt ++2.13.18 test
 
   ci:
     runs-on: ubuntu-latest

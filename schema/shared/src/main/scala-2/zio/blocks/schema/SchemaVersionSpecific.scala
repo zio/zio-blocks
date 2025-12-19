@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
 trait SchemaVersionSpecific {
-  def derived[A]: Schema[A] = throw new NotImplementedError("Schema macros for Scala 2 are not implemented in this migration demo")
+  // Scala 2 does not support derived schemas
+  def derived[A]: Schema[A] = throw new UnsupportedOperationException("Derived schemas are not supported in Scala 2")
 }

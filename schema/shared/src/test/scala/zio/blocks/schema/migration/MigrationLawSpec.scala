@@ -21,12 +21,12 @@ object MigrationLawSpec extends ZIOSpecDefault {
     .renameField(_.name, _.fullName)
     .renameField(_.age, _.yearsOld)
     .addField(_.city, SchemaExpr.Constant(DynamicValue.Variant("None", DynamicValue.Sequence(Vector.empty))))
-    .build
+    .build.getOrElse(throw new RuntimeException("Migration build failed"))
 
   val migrationV2toV3: Migration[PersonV2, PersonV3] = Migration.newBuilder[PersonV2, PersonV3]
     .dropField(_.city, SchemaExpr.Constant(DynamicValue.Primitive(PrimitiveValue.String("Unknown"))))
     .addField(_.country, SchemaExpr.Constant(DynamicValue.Primitive(PrimitiveValue.String("USA"))))
-    .build
+    .build.getOrElse(throw new RuntimeException("Migration build failed"))
 
   val migrationV1toV3: Migration[PersonV1, PersonV3] = migrationV1toV2.andThen(migrationV2toV3)
 
@@ -39,7 +39,7 @@ object MigrationLawSpec extends ZIOSpecDefault {
     test("associativity law: (m1 ++ m2) ++ m3 == m1 ++ (m2 ++ m3)") {
       val m1 = migrationV1toV2
       val m2 = migrationV2toV3
-      val m3 = Migration.newBuilder[PersonV3, PersonV3](personV3Schema, personV3Schema).build // Identity migration for type C
+      val m3 = Migration.newBuilder[PersonV3, PersonV3](personV3Schema, personV3Schema).build.getOrElse(throw new RuntimeException("Migration build failed")) // Identity migration for type C
 
       val combined1 = (m1.andThen(m2)).andThen(m3)
       val combined2 = m1.andThen(m2.andThen(m3))

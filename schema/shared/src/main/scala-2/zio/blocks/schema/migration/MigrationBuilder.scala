@@ -8,81 +8,65 @@ final case class MigrationBuilder[A, B](
   actions: Vector[MigrationAction] = Vector.empty
 ) {
 
+  // Selector-based API methods - not supported in Scala 2
   def addField(target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(target)
-    copy(actions = actions :+ MigrationAction.AddField(optic, default))
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
   }
 
   def dropField(source: A => Any, defaultForReverse: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val optic = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.DropField(optic, defaultForReverse))
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
   }
 
   def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = {
-    val fromOptic = Macro.toPath(from)
-    val toOptic = Macro.toPath(to)
-    val toName = toOptic.nodes.lastOption match {
-      case Some(DynamicOptic.Node.Field(name)) => name
-      case _ => throw new IllegalArgumentException("Target must be a field")
-    }
-    copy(actions = actions :+ MigrationAction.RenameField(fromOptic, toName))
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
   }
 
   def transformField(from: A => Any, to: B => Any, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val path = Macro.toPath(from)
-    copy(actions = actions :+ MigrationAction.TransformValue(path, transform))
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
   }
 
   def mandateField(source: A => Option[Any], target: B => Any, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val path = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.Mandate(path, default))
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
   }
 
   def optionalizeField(source: A => Any, target: B => Option[Any]): MigrationBuilder[A, B] = {
-    val path = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.Optionalize(path))
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
   }
 
   def changeFieldType(source: A => Any, target: B => Any, converter: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
-    val path = Macro.toPath(source)
-    copy(actions = actions :+ MigrationAction.ChangeType(path, converter))
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
   }
 
-  def joinFields(target: DynamicOptic, sourcePaths: Vector[DynamicOptic], combiner: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Join(target, sourcePaths, combiner))
+  def joinFields(sources: (A => Any, A => Any), target: B => Any, join: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 
-  def splitField(source: DynamicOptic, targetPaths: Vector[DynamicOptic], splitter: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.Split(source, targetPaths, splitter))
+  def splitField(source: A => Any, targets: (B => Any, B => Any), split: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 
-  // Legacy/Overloaded methods
-  def addField(target: DynamicOptic, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.AddField(target, default))
+  // Legacy DynamicOptic-based methods for compatibility
+  def addField(target: DynamicOptic, default: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 
-  def dropField(source: DynamicOptic, defaultForReverse: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.DropField(source, defaultForReverse))
+  def dropField(source: DynamicOptic, defaultForReverse: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 
-  def renameField(from: DynamicOptic, to: String): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.RenameField(from, to))
+  def renameField(from: DynamicOptic, to: String): MigrationBuilder[A, B] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 
-  def transformField(from: DynamicOptic, unusedTo: DynamicOptic, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.TransformValue(from, transform))
-    
-  def renameCase[SumA, SumB](from: String, to: String): MigrationBuilder[A, B] =
-    copy(actions = actions :+ MigrationAction.RenameCase(DynamicOptic.root, from, to))
+  def transformField(from: DynamicOptic, unusedTo: DynamicOptic, transform: SchemaExpr[Any, _]): MigrationBuilder[A, B] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 
-  def transformCase[SumA, CaseA, SumB, CaseB](path: DynamicOptic, caseMigration: MigrationBuilder[CaseA, CaseB] => MigrationBuilder[CaseA, CaseB]): MigrationBuilder[A, B] =
-    ???
+  def build(): Either[MigrationError, Migration[A, B]] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 
-  def build: Migration[A, B] =
-    Macro.validateMigration(this) match {
-      case Right(migration) => migration
-      case Left(error) => throw new RuntimeException(s"Migration validation failed: $error")
-    }
-
-  def buildPartial: Migration[A, B] =
-    Migration(
-      DynamicMigration(actions),
-      sourceSchema,
-      targetSchema
-    )
+  def buildPartial(): Migration[A, B] = {
+    throw new UnsupportedOperationException("Migration building with macros is not supported in Scala 2")
+  }
 }

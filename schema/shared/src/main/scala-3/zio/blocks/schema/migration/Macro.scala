@@ -1,53 +1,49 @@
 package zio.blocks.schema.migration
 
-import scala.quoted.*
 import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.CommonMacroOps._
+
+import scala.annotation.tailrec
+import scala.quoted._
 
 object Macro {
+  inline def toPath[A, B](f: A => B): DynamicOptic = ${ toPathImpl[A, B]('f) }
 
-  inline def toPath[S, A](inline selector: S => A): DynamicOptic =
-    ${ toPathImpl('selector) }
+  private def toPathImpl[A: Type, B: Type](f: Expr[A => B])(using Quotes): Expr[DynamicOptic] = {
+    import quotes.reflect._
 
-  def toPathImpl[S: Type, A: Type](selector: Expr[S => A])(using Quotes): Expr[DynamicOptic] = {
-    import quotes.reflect.*
-
-    def normalize(term: Term): Term = term match {
-      case Inlined(_, _, params) => normalize(params)
-      case Block(List(), expr)   => normalize(expr)
-      case other                 => other
+    @tailrec
+    def toPathBody(term: Term): Term = term match {
+      case Inlined(_, _, inlinedBlock)                     => toPathBody(inlinedBlock)
+      case Block(List(DefDef(_, _, _, Some(pathBody))), _) => pathBody
+      case _                                               => fail(s"Expected a lambda expression, got '${term.show}'")
     }
 
-    def processPath(term: Term): List[Expr[DynamicOptic.Node]] =
-      term match {
-        case Select(qualifier, name) =>
-          processPath(qualifier) :+ '{ DynamicOptic.Node.Field(${ Expr(name) }) }
-        case Apply(Select(qualifier, "at"), List(Literal(IntConstant(idx)))) =>
-          processPath(qualifier) :+ '{ DynamicOptic.Node.AtIndex(${ Expr(idx) }) }
-        case Apply(TypeApply(Select(qualifier, "when"), List(tpe)), _) =>
-           // tpe is a TypeTree
-           val tagName = tpe.tpe.typeSymbol.name
-           processPath(qualifier) :+ '{ DynamicOptic.Node.Case(${ Expr(tagName) }) }
-        case Ident(_) =>
-           // Base case: the lambda argument (s)
-           Nil
-        case other =>
-          report.errorAndAbort(s"Unsupported selector expression: $other")
-      }
-
-    val nodes = normalize(selector.asTerm) match {
-      case Lambda(_, body) => processPath(body)
-      case other           => report.errorAndAbort(s"Expected a lambda selector, got: $other")
+    def buildDynamicOptic(term: Term): Expr[DynamicOptic] = term match {
+      case Select(parent, fieldName) =>
+        val parentOptic = buildDynamicOptic(parent)
+        '{ $parentOptic.field(${Expr(fieldName)}) }
+      case Ident(_) =>
+        '{ DynamicOptic.root }
+      case _ =>
+        fail(s"Unsupported path element: '${term.show}'. Expected field selections like .fieldName")
     }
 
-    '{ DynamicOptic(Vector(${ Varargs(nodes) }*)) }
+    val pathBody = toPathBody(f.asTerm)
+    buildDynamicOptic(pathBody)
   }
 
-  inline def validateMigration[A, B](inline builder: MigrationBuilder[A, B]): Either[String, Migration[A, B]] =
-    ${ validateMigrationImpl('builder) }
-
-  def validateMigrationImpl[A: Type, B: Type](builder: Expr[MigrationBuilder[A, B]])(using Quotes): Expr[Either[String, Migration[A, B]]] = {
-    
-    // Stub implementation for validation
-    '{ Right($builder.buildPartial) }
+  def validateMigration[A, B](builder: MigrationBuilder[A, B]): Either[MigrationError, Migration[A, B]] = {
+    // For now, we'll do basic validation - check that the builder has valid schemas
+    // More sophisticated validation would check that the paths in actions exist in the schemas
+    try {
+      Right(Migration(
+        DynamicMigration(builder.actions),
+        builder.sourceSchema,
+        builder.targetSchema
+      ))
+    } catch {
+      case e: Exception => Left(MigrationError.IncompatibleSchemas(e.getMessage))
+    }
   }
 }

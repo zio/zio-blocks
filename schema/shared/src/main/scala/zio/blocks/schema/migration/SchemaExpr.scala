@@ -25,7 +25,7 @@ object SchemaExpr {
     }
 
     final case class StringTo[B](fromString: String => Either[String, B]) extends SchemaExpr[String, B] {
-        def apply(value: String): Either[MigrationError, B] = fromString(value).left.map(MigrationError.ConversionError)
+        def apply(value: String): Either[MigrationError, B] = fromString(value).left.map(MigrationError.ConversionError.apply)
     }
 
     final case class Map[A, B, C](expr: SchemaExpr[A, B], f: B => C) extends SchemaExpr[A, C] {

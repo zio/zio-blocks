@@ -74,11 +74,8 @@ final case class MigrationBuilder[A, B](
     copy(actions = actions :+ MigrationAction.TransformValue(from, transform))
   }
 
-  def build: Migration[A, B] =
-    Macro.validateMigration(this) match {
-      case Right(migration) => migration
-      case Left(error) => throw new RuntimeException(s"Migration validation failed: $error")
-    }
+  def build: Either[MigrationError, Migration[A, B]] =
+    Macro.validateMigration(this)
 
   def buildPartial: Migration[A, B] =
     Migration(
