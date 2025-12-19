@@ -109,13 +109,24 @@ private object IntoVersionSpecificImpl {
             usedSourceFields += sourceField.index
             new FieldMapping(sourceField, targetField)
           case None =>
-            fail(
-              s"Cannot derive Into[$aTpe, $bTpe]: " +
-                s"no matching field found for '${targetField.name}: ${targetField.tpe}' in source type. " +
-                s"Fields must match by: (1) name+type, (2) name+coercible type, (3) unique type, or (4) position+unique type."
-            )
+            // If target field is Option[T] and no source field found, use None
+            if (isOptionType(targetField.tpe)) {
+              new FieldMapping(null, targetField) // null indicates to use None
+            } else {
+              fail(
+                s"Cannot derive Into[$aTpe, $bTpe]: " +
+                  s"no matching field found for '${targetField.name}: ${targetField.tpe}' in source type. " +
+                  s"Fields must match by: (1) name+type, (2) name+coercible type, (3) unique type, or (4) position+unique type."
+              )
+            }
         }
       }
+    }
+
+    def isOptionType(tpe: Type): Boolean = {
+      val dealiased = tpe.dealias
+      dealiased.typeSymbol == definitions.OptionClass ||
+      dealiased.typeConstructor.typeSymbol == definitions.OptionClass
     }
 
     def findMatchingSourceField(
@@ -187,10 +198,45 @@ private object IntoVersionSpecificImpl {
 
     /** Check if source type can be coerced to target type (e.g., Int -> Long) */
     def isCoercible(sourceTpe: Type, targetTpe: Type): Boolean = {
-      // For now, only exact type match is supported
-      // TODO: Add numeric widening (Byte->Short->Int->Long, Float->Double)
-      // TODO: Add collection coercion (List[Int] -> List[Long])
-      sourceTpe =:= targetTpe
+      if (sourceTpe =:= targetTpe) return true
+
+      // Numeric widening conversions (lossless)
+      val source = sourceTpe.dealias.typeSymbol
+      val target = targetTpe.dealias.typeSymbol
+
+      // Byte -> Short, Int, Long, Float, Double
+      if (source == definitions.ByteClass) {
+        target == definitions.ShortClass ||
+        target == definitions.IntClass ||
+        target == definitions.LongClass ||
+        target == definitions.FloatClass ||
+        target == definitions.DoubleClass
+      }
+      // Short -> Int, Long, Float, Double
+      else if (source == definitions.ShortClass) {
+        target == definitions.IntClass ||
+        target == definitions.LongClass ||
+        target == definitions.FloatClass ||
+        target == definitions.DoubleClass
+      }
+      // Int -> Long, Float, Double
+      else if (source == definitions.IntClass) {
+        target == definitions.LongClass ||
+        target == definitions.FloatClass ||
+        target == definitions.DoubleClass
+      }
+      // Long -> Float, Double
+      else if (source == definitions.LongClass) {
+        target == definitions.FloatClass ||
+        target == definitions.DoubleClass
+      }
+      // Float -> Double
+      else if (source == definitions.FloatClass) {
+        target == definitions.DoubleClass
+      }
+      else {
+        false
+      }
     }
 
     // === Tuple utilities ===
@@ -210,9 +256,38 @@ private object IntoVersionSpecificImpl {
       val fieldMappings = matchFields(sourceInfo, targetInfo)
 
       // Build constructor arguments: for each target field, read from source using getter
-      val args = fieldMappings.map { mapping =>
-        val getter = mapping.sourceField.getter
-        q"a.$getter"
+      val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+        if (mapping.sourceField == null) {
+          // No source field - target must be Option[T], provide None
+          q"_root_.scala.None"
+        } else {
+          val sourceField = mapping.sourceField
+          val getter = sourceField.getter
+          val sourceTpe = sourceField.tpe
+          val targetTpe = targetField.tpe
+
+          // If types differ and are coercible, use implicit Into instance
+          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
+            val intoType = c.universe.appliedType(
+              c.universe.typeOf[Into[Any, Any]].typeConstructor,
+              List(sourceTpe, targetTpe)
+            )
+            val intoInstance = c.inferImplicitValue(intoType)
+
+            if (intoInstance.isEmpty) {
+              fail(s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field coercion")
+            }
+
+            q"""
+              $intoInstance.into(a.$getter) match {
+                case _root_.scala.Right(v) => v
+                case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
+              }
+            """
+          } else {
+            q"a.$getter"
+          }
+        }
       }
 
       c.Expr[Into[A, B]](
@@ -466,9 +541,38 @@ private object IntoVersionSpecificImpl {
       val bindingName = TermName("x")
 
       // Build constructor arguments
-      val args = fieldMappings.map { mapping =>
-        val getter = mapping.sourceField.getter
-        q"$bindingName.$getter"
+      val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+        if (mapping.sourceField == null) {
+          // No source field - target must be Option[T], provide None
+          q"_root_.scala.None"
+        } else {
+          val sourceField = mapping.sourceField
+          val getter = sourceField.getter
+          val sourceTpe = sourceField.tpe
+          val targetTpe = targetField.tpe
+
+          // If types differ and are coercible, use implicit Into instance
+          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
+            val intoType = c.universe.appliedType(
+              c.universe.typeOf[Into[Any, Any]].typeConstructor,
+              List(sourceTpe, targetTpe)
+            )
+            val intoInstance = c.inferImplicitValue(intoType)
+
+            if (intoInstance.isEmpty) {
+              fail(s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field coercion")
+            }
+
+            q"""
+              $intoInstance.into($bindingName.$getter) match {
+                case _root_.scala.Right(v) => v
+                case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
+              }
+            """
+          } else {
+            q"$bindingName.$getter"
+          }
+        }
       }
 
       cq"$bindingName: $sourceSubtype => _root_.scala.Right(new $targetSubtype(..$args))"

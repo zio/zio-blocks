@@ -457,6 +457,63 @@ object IntoSpec extends ZIOSpecDefault {
         val expected: Map[Hue, Coord]                 = Map(Hue.Red -> Coord(2, 1), Hue.Blue -> Coord(4, 3))
         assert(result)(isRight(equalTo(expected)))
       }
+    ),
+    suite("Schema Evolution Patterns")(
+      suite("Adding Optional Fields")(
+        test("adds None for missing optional field") {
+          case class UserV1(id: String, name: String)
+          case class UserV2(id: String, name: String, email: Option[String])
+
+          val userV1 = UserV1("123", "Alice")
+          val result = Into.derived[UserV1, UserV2].into(userV1)
+
+          assert(result)(isRight(equalTo(UserV2("123", "Alice", None))))
+        }
+      ),
+      suite("Removing Optional Fields")(
+        test("drops optional field when converting to version without it") {
+          case class UserV2(id: String, name: String, email: Option[String])
+          case class UserV1(id: String, name: String)
+
+          val userV2 = UserV2("123", "Alice", Some("alice@example.com"))
+          val result = Into.derived[UserV2, UserV1].into(userV2)
+
+          assert(result)(isRight(equalTo(UserV1("123", "Alice"))))
+        }
+      ),
+      suite("Field Reordering")(
+        test("maps fields despite different ordering") {
+          case class PersonV1(name: String, age: Int, email: String)
+          case class PersonV2(email: String, name: String, age: Int)
+
+          val personV1 = PersonV1("Alice", 30, "alice@example.com")
+          val result   = Into.derived[PersonV1, PersonV2].into(personV1)
+
+          assert(result)(isRight(equalTo(PersonV2("alice@example.com", "Alice", 30))))
+        }
+      ),
+      suite("Field Renaming (with unique types)")(
+        test("maps renamed fields by unique type matching") {
+          case class PersonV1(fullName: String, yearOfBirth: Int)
+          case class PersonV2(name: String, birthYear: Int)
+
+          val personV1 = PersonV1("Alice Smith", 1990)
+          val result   = Into.derived[PersonV1, PersonV2].into(personV1)
+
+          assert(result)(isRight(equalTo(PersonV2("Alice Smith", 1990))))
+        }
+      ),
+      suite("Type Refinement")(
+        test("widens type from Int to Long") {
+          case class ConfigV1(port: Int, timeout: Int)
+          case class ConfigV2(port: Int, timeout: Long)
+
+          val configV1 = ConfigV1(8080, 30)
+          val result   = Into.derived[ConfigV1, ConfigV2].into(configV1)
+
+          assert(result)(isRight(equalTo(ConfigV2(8080, 30L))))
+        }
+      )
     )
   )
 }
