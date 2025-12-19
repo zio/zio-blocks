@@ -16,6 +16,9 @@ private object IntoVersionSpecificImpl {
     val aTpe = weakTypeOf[A].dealias
     val bTpe = weakTypeOf[B].dealias
 
+    // Cache for Into instances to handle recursive resolution
+    val intoRefs = scala.collection.mutable.HashMap[(Type, Type), Tree]()
+
     def fail(msg: String): Nothing = CommonMacroOps.fail(c)(msg)
 
     def typeArgs(tpe: Type): List[Type] = CommonMacroOps.typeArgs(c)(tpe)
@@ -144,11 +147,11 @@ private object IntoVersionSpecificImpl {
       }
       if (exactMatch.isDefined) return exactMatch
 
-      // Priority 2: Name match with coercion - same name + coercible type
+      // Priority 2: Name match with coercion - same name + coercible type or implicit Into available
       val nameWithCoercion = sourceInfo.fields.find { sourceField =>
         !usedSourceFields.contains(sourceField.index) &&
           sourceField.name == targetField.name &&
-          isCoercible(sourceField.tpe, targetField.tpe)
+          (isCoercible(sourceField.tpe, targetField.tpe) || findImplicitInto(sourceField.tpe, targetField.tpe).isDefined)
       }
       if (nameWithCoercion.isDefined) return nameWithCoercion
 
@@ -167,12 +170,12 @@ private object IntoVersionSpecificImpl {
         }
         if (uniqueTypeMatch.isDefined) return uniqueTypeMatch
 
-        // Also check for unique coercible type match
+        // Also check for unique coercible type match (including implicit Into)
         val uniqueCoercibleMatch = sourceInfo.fields.find { sourceField =>
           if (usedSourceFields.contains(sourceField.index)) false
           else {
             val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceField.tpe.dealias.toString, 0) == 1
-            isSourceTypeUnique && isCoercible(sourceField.tpe, targetField.tpe)
+            isSourceTypeUnique && (isCoercible(sourceField.tpe, targetField.tpe) || findImplicitInto(sourceField.tpe, targetField.tpe).isDefined)
           }
         }
         if (uniqueCoercibleMatch.isDefined) return uniqueCoercibleMatch
@@ -185,8 +188,8 @@ private object IntoVersionSpecificImpl {
           if (positionalField.tpe =:= targetField.tpe) {
             return Some(positionalField)
           }
-          // Also check coercible for positional
-          if (isCoercible(positionalField.tpe, targetField.tpe)) {
+          // Also check coercible for positional (including implicit Into)
+          if (isCoercible(positionalField.tpe, targetField.tpe) || findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
             return Some(positionalField)
           }
         }
@@ -200,7 +203,9 @@ private object IntoVersionSpecificImpl {
     def isCoercible(sourceTpe: Type, targetTpe: Type): Boolean = {
       if (sourceTpe =:= targetTpe) return true
 
-      // Numeric widening conversions (lossless)
+      // Only check for numeric widening conversions (lossless)
+      // Note: We don't check for implicit Into instances here to avoid issues
+      // Instead, we check for implicits lazily when generating code
       val source = sourceTpe.dealias.typeSymbol
       val target = targetTpe.dealias.typeSymbol
 
@@ -239,6 +244,29 @@ private object IntoVersionSpecificImpl {
       }
     }
 
+    // Find or use cached Into instance
+    def findImplicitInto(sourceTpe: Type, targetTpe: Type): Option[Tree] = {
+      // Check cache first
+      intoRefs.get((sourceTpe, targetTpe)) match {
+        case some @ Some(_) => some
+        case None =>
+          // Try to find implicit
+          val intoType = c.universe.appliedType(
+            c.universe.typeOf[Into[Any, Any]].typeConstructor,
+            List(sourceTpe, targetTpe)
+          )
+          val intoInstance = c.inferImplicitValue(intoType, silent = true)
+
+          if (intoInstance != EmptyTree) {
+            // Cache it for future use
+            intoRefs.update((sourceTpe, targetTpe), intoInstance)
+            Some(intoInstance)
+          } else {
+            None
+          }
+      }
+    }
+
     // === Tuple utilities ===
 
     def isTupleType(tpe: Type): Boolean = {
@@ -266,24 +294,23 @@ private object IntoVersionSpecificImpl {
           val sourceTpe = sourceField.tpe
           val targetTpe = targetField.tpe
 
-          // If types differ and are coercible, use implicit Into instance
-          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
-            val intoType = c.universe.appliedType(
-              c.universe.typeOf[Into[Any, Any]].typeConstructor,
-              List(sourceTpe, targetTpe)
-            )
-            val intoInstance = c.inferImplicitValue(intoType)
-
-            if (intoInstance.isEmpty) {
-              fail(s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field coercion")
+          // If types differ, try to find an implicit Into instance
+          if (!(sourceTpe =:= targetTpe)) {
+            findImplicitInto(sourceTpe, targetTpe) match {
+              case Some(intoInstance) =>
+                q"""
+                  $intoInstance.into(a.$getter) match {
+                    case _root_.scala.Right(v) => v
+                    case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
+                  }
+                """
+              case None =>
+                // No coercion available - fail at compile time
+                fail(
+                  s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field '${sourceField.name}'. " +
+                  s"Please provide an implicit Into instance in scope."
+                )
             }
-
-            q"""
-              $intoInstance.into(a.$getter) match {
-                case _root_.scala.Right(v) => v
-                case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
-              }
-            """
           } else {
             q"a.$getter"
           }
@@ -551,24 +578,23 @@ private object IntoVersionSpecificImpl {
           val sourceTpe = sourceField.tpe
           val targetTpe = targetField.tpe
 
-          // If types differ and are coercible, use implicit Into instance
-          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
-            val intoType = c.universe.appliedType(
-              c.universe.typeOf[Into[Any, Any]].typeConstructor,
-              List(sourceTpe, targetTpe)
-            )
-            val intoInstance = c.inferImplicitValue(intoType)
-
-            if (intoInstance.isEmpty) {
-              fail(s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field coercion")
+          // If types differ, try to find an implicit Into instance
+          if (!(sourceTpe =:= targetTpe)) {
+            findImplicitInto(sourceTpe, targetTpe) match {
+              case Some(intoInstance) =>
+                q"""
+                  $intoInstance.into($bindingName.$getter) match {
+                    case _root_.scala.Right(v) => v
+                    case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
+                  }
+                """
+              case None =>
+                // No coercion available - fail at compile time
+                fail(
+                  s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
+                  s"Please provide an implicit Into instance in scope."
+                )
             }
-
-            q"""
-              $intoInstance.into($bindingName.$getter) match {
-                case _root_.scala.Right(v) => v
-                case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
-              }
-            """
           } else {
             q"$bindingName.$getter"
           }
