@@ -2485,6 +2485,20 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         roundTrip(Color.Orаnge, """{"$type":"Orаnge"}""", codec2) &&
         roundTrip(Color.Red, """{"$type":"Red"}""", codec2)
       },
+      test("ADT with nested trait hierarchy") {
+        val codec1 = Schema[GeoJSON].derive(
+          JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))
+        )
+        roundTrip(
+          Feature(geometry = Point((1.0, 2.0))),
+          """{"type":"Feature","geometry":{"type":"Point","coordinates":[1.0,2.0]}}""",
+          codec1
+        ) &&
+        roundTrip[GeoJSON](
+          Feature(geometry = Point((1.0, 2.0))),
+          """{"Feature":{"geometry":{"Point":{"coordinates":[1.0,2.0]}}}}"""
+        )
+      },
       test("ADT with case key renaming using case name mapper") {
         roundTrip[RGBColor](
           RGBColor.Green,
@@ -3237,5 +3251,42 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
   object BigProduct {
     implicit val schema: Schema[BigProduct] = Schema.derived
+  }
+
+  sealed trait Geometry extends Product with Serializable
+
+  sealed trait SimpleGeometry extends Geometry
+
+  case class Point(coordinates: (Double, Double)) extends SimpleGeometry
+
+  case class MultiPoint(coordinates: IndexedSeq[(Double, Double)]) extends SimpleGeometry
+
+  case class LineString(coordinates: IndexedSeq[(Double, Double)]) extends SimpleGeometry
+
+  case class MultiLineString(coordinates: IndexedSeq[IndexedSeq[(Double, Double)]]) extends SimpleGeometry
+
+  case class Polygon(coordinates: IndexedSeq[IndexedSeq[(Double, Double)]]) extends SimpleGeometry
+
+  case class MultiPolygon(coordinates: IndexedSeq[IndexedSeq[IndexedSeq[(Double, Double)]]]) extends SimpleGeometry
+
+  case class GeometryCollection(geometries: IndexedSeq[SimpleGeometry]) extends Geometry
+
+  sealed trait GeoJSON extends Product with Serializable
+
+  sealed trait SimpleGeoJSON extends GeoJSON
+
+  case class Feature(
+    properties: Map[String, String] = Map.empty,
+    geometry: Geometry,
+    bbox: Option[(Double, Double, Double, Double)] = None
+  ) extends SimpleGeoJSON
+
+  case class FeatureCollection(
+    features: IndexedSeq[SimpleGeoJSON],
+    bbox: Option[(Double, Double, Double, Double)] = None
+  ) extends GeoJSON
+
+  object GeoJSON {
+    implicit val schema: Schema[GeoJSON] = Schema.derived
   }
 }
