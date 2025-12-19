@@ -139,7 +139,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               }
             }
             val resultExpr: Expr[B] = targetInfo.construct(args).asExprOf[B]
-            resultExpr
+            (resultExpr)
           })
       }
     }
@@ -346,8 +346,41 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val fieldMappings = matchFields(sourceInfo, targetInfo, sourceSubtype, targetSubtype)
 
     // Build constructor arguments
-    val args = fieldMappings.map { mapping =>
-      Select(sourceRef, mapping.sourceField.getter)
+    val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetFieldInfo) =>
+      mapping.sourceField match {
+        case Some(sourceField) =>
+          val sourceValue = Select(sourceRef, sourceField.getter)
+          val sourceTpe   = sourceField.tpe
+          val targetTpe   = targetFieldInfo.tpe
+
+          // If types differ and are coercible, use implicit Into instance
+          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
+            sourceTpe.asType match {
+              case '[st] =>
+                targetTpe.asType match {
+                  case '[tt] =>
+                    Expr.summon[Into[st, tt]] match {
+                      case Some(intoInstance) =>
+                        '{
+                          $intoInstance.into(${ sourceValue.asExprOf[st] }) match {
+                            case Right(v)  => v
+                            case Left(err) => throw new RuntimeException(s"Coercion failed: $err")
+                          }
+                        }.asTerm
+                      case None =>
+                        report.errorAndAbort(
+                          s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field coercion"
+                        )
+                    }
+                }
+            }
+          } else {
+            sourceValue
+          }
+        case None =>
+          // No source field - target must be Option[T], provide None
+          '{ None }.asTerm
+      }
     }
 
     // Construct target case class and wrap in Right
@@ -368,7 +401,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   }
 
   private case class FieldMapping(
-    sourceField: FieldInfo,
+    sourceField: Option[FieldInfo], // None means use default (None for Option types)
     targetField: FieldInfo
   )
 
@@ -394,15 +427,23 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       ) match {
         case Some(sourceField) =>
           usedSourceFields += sourceField.index
-          FieldMapping(sourceField, targetField)
+          FieldMapping(Some(sourceField), targetField)
         case None =>
-          fail(
-            s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: " +
-              s"no matching field found for '${targetField.name}: ${targetField.tpe.show}' in source type."
-          )
+          // If target field is Option[T] and no source field found, use None
+          if (isOptionType(targetField.tpe)) {
+            FieldMapping(None, targetField) // None indicates to use None as the value
+          } else {
+            fail(
+              s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: " +
+                s"no matching field found for '${targetField.name}: ${targetField.tpe.show}' in source type."
+            )
+          }
       }
     }
   }
+
+  private def isOptionType(tpe: TypeRepr): Boolean =
+    tpe.dealias.baseType(TypeRepr.of[Option[?]].typeSymbol) != TypeRepr.of[Nothing]
 
   private def findMatchingSourceField(
     targetField: FieldInfo,
@@ -458,8 +499,46 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     None
   }
 
-  private def isCoercible(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
-    sourceTpe =:= targetTpe
+  private def isCoercible(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
+    if (sourceTpe =:= targetTpe) return true
+
+    // Numeric widening conversions (lossless)
+    val source = sourceTpe.dealias.typeSymbol
+    val target = targetTpe.dealias.typeSymbol
+
+    // Byte -> Short, Int, Long, Float, Double
+    if (source == TypeRepr.of[Byte].typeSymbol) {
+      target == TypeRepr.of[Short].typeSymbol ||
+      target == TypeRepr.of[Int].typeSymbol ||
+      target == TypeRepr.of[Long].typeSymbol ||
+      target == TypeRepr.of[Float].typeSymbol ||
+      target == TypeRepr.of[Double].typeSymbol
+    }
+    // Short -> Int, Long, Float, Double
+    else if (source == TypeRepr.of[Short].typeSymbol) {
+      target == TypeRepr.of[Int].typeSymbol ||
+      target == TypeRepr.of[Long].typeSymbol ||
+      target == TypeRepr.of[Float].typeSymbol ||
+      target == TypeRepr.of[Double].typeSymbol
+    }
+    // Int -> Long, Float, Double
+    else if (source == TypeRepr.of[Int].typeSymbol) {
+      target == TypeRepr.of[Long].typeSymbol ||
+      target == TypeRepr.of[Float].typeSymbol ||
+      target == TypeRepr.of[Double].typeSymbol
+    }
+    // Long -> Float, Double
+    else if (source == TypeRepr.of[Long].typeSymbol) {
+      target == TypeRepr.of[Float].typeSymbol ||
+      target == TypeRepr.of[Double].typeSymbol
+    }
+    // Float -> Double
+    else if (source == TypeRepr.of[Float].typeSymbol) {
+      target == TypeRepr.of[Double].typeSymbol
+    } else {
+      false
+    }
+  }
 
   private def generateProductConversion[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
@@ -479,8 +558,44 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     fieldMappings: List[FieldMapping],
     aExpr: Expr[A]
   ): Expr[B] = {
-    val args = fieldMappings.map { mapping =>
-      sourceInfo.fieldGetter(aExpr.asTerm, mapping.sourceField)
+    val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetFieldInfo) =>
+      mapping.sourceField match {
+        case Some(sourceField) =>
+          // Get the source field value
+          val sourceValue = sourceInfo.fieldGetter(aExpr.asTerm, sourceField)
+          val sourceTpe   = sourceField.tpe
+          val targetTpe   = targetFieldInfo.tpe
+
+          // If types differ and are coercible, use implicit Into instance
+          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
+            sourceTpe.asType match {
+              case '[st] =>
+                targetTpe.asType match {
+                  case '[tt] =>
+                    // Look up implicit Into[st, tt] at macro expansion time
+                    Expr.summon[Into[st, tt]] match {
+                      case Some(intoInstance) =>
+                        '{
+                          $intoInstance.into(${ sourceValue.asExprOf[st] }) match {
+                            case Right(v)  => v
+                            case Left(err) => throw new RuntimeException(s"Coercion failed: $err")
+                          }
+                        }.asTerm
+                      case None =>
+                        report.errorAndAbort(
+                          s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field coercion"
+                        )
+                    }
+                }
+            }
+          } else {
+            // Types match or no coercion needed
+            sourceValue
+          }
+        case None =>
+          // No source field - target must be Option[T], provide None
+          '{ None }.asTerm
+      }
     }
     targetInfo.construct(args).asExprOf[B]
   }
