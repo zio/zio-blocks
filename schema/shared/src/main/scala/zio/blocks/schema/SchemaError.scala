@@ -20,6 +20,9 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception w
 }
 
 object SchemaError {
+  def conversionFailed(trace: List[DynamicOptic.Node], details: String): SchemaError =
+    new SchemaError(new ::(ConversionFailed(toDynamicOptic(trace), details), Nil))
+
   def expectationMismatch(trace: List[DynamicOptic.Node], expectation: String): SchemaError =
     new SchemaError(new ::(new ExpectationMismatch(toDynamicOptic(trace), expectation), Nil))
 
@@ -55,6 +58,15 @@ object SchemaError {
     def message: String
 
     def source: DynamicOptic
+  }
+
+  /** Sub-trait for Into conversion errors */
+  sealed trait IntoError extends Single {
+    def source: DynamicOptic
+  }
+
+  case class ConversionFailed(source: DynamicOptic, details: String) extends IntoError {
+    override def message: String = s"Conversion failed: $details"
   }
 
   case class MissingField(source: DynamicOptic, fieldName: String) extends Single {
