@@ -33,8 +33,8 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
     ),
     suite("variants")(
       test("constant values on different hierarchy levels") {
-        roundTrip[Foo](Foo1, """{"Foo1":{}}""") &&
-        roundTrip[Foo](Bar1, """{"Bar":"Bar1"}""")
+        roundTrip[Foo](Foo1, """"Foo1"""") &&
+        roundTrip[Foo](Bar1, """"Bar1"""")
       },
       test("constant values") {
         roundTrip[TrafficLight](TrafficLight.Green, """"Green"""") &&
