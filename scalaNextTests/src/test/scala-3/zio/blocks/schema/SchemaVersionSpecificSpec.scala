@@ -46,8 +46,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[b,sh,i,l]",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                  name = "NamedTuple[b,sh,i,l][Byte, Short, Int, Long]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -102,8 +102,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[i,s]",
-                  params = Seq(TypeName.int, TypeName.string)
+                  name = "NamedTuple[i,s][Int, String]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -130,11 +130,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[i,s]",
-                  params = Seq(
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.int, TypeName.long)),
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.string, TypeName.string))
-                  )
+                  name = "NamedTuple[i,s][Tuple2[Int, Long], Tuple2[String, String]]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -151,8 +148,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[i,s]",
-                  params = Seq(TypeName.option(TypeName.int), TypeName.option(TypeName.string))
+                  name = "NamedTuple[i,s][Option[Int], Option[String]]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -213,8 +210,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(TypeName.int, TypeName.string)
+                  name = "Tuple2[Int, String]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -256,8 +253,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[a,b]",
-                  params = Seq(TypeName.int, TypeName.string)
+                  name = "NamedTuple[a,b][Int, String]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -294,8 +291,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala"), Seq("NamedTuple")),
-                  name = "NamedTuple[a,b]",
-                  params = Seq(TypeName.list(TypeName.int), TypeName.set(TypeName.string))
+                  name = "NamedTuple[a,b][List[Int], Set[String]]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
