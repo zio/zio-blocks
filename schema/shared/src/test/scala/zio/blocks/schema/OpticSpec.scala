@@ -9,6 +9,7 @@ import zio.test.TestAspect.jvmOnly
 import zio.test._
 
 import scala.collection.immutable.ArraySeq
+import zio.blocks.typeid.{Owner, TypeId}
 
 object OpticSpec extends ZIOSpecDefault {
   import OpticSpecTypes._
@@ -3455,7 +3456,7 @@ object OpticSpecTypes {
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
-      typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Wrapper"),
+      typeId = TypeId.nominal("Wrapper", Owner.parse("zio.blocks.schema.OpticSpec"), Nil),
       wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,

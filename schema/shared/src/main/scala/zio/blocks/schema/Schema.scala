@@ -80,7 +80,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(wrap, unwrap)
     )
@@ -89,7 +89,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      reflect.typeName,
+      reflect.typeId,
       Reflect.unwrapToPrimitiveTypeOption(reflect),
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )

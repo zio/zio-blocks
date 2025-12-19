@@ -40,15 +40,42 @@ lazy val root = project
     streams.jvm,
     streams.js,
     streams.native,
+    typeid.jvm,
+    typeid.js,
+    typeid.native,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
     benchmarks
   )
 
+lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-typeid"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.typeid"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.23" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.23" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    })
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-schema"))
+  .dependsOn(typeid)
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
   .enablePlugins(BuildInfoPlugin)

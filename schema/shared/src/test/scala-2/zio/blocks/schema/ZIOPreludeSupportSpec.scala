@@ -4,6 +4,7 @@ import zio.blocks.schema.binding.Binding
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 import zio.test.Assertion._
+import zio.blocks.typeid.{Owner, TypeId}
 
 object ZIOPreludeSupportSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("ZIOPreludeSupportSpec")(
@@ -21,25 +22,29 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
+      assert(Planet.name.focus.typeId)(
         equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          TypeId.nominal("Name", Owner.parse("zio.blocks.schema.ZIOPreludeSupportSpec"), Nil)
         )
       ) &&
-      assert(Planet.mass.focus.typeName)(
+      assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          TypeId.nominal("Kilogram", Owner.parse("zio.blocks.schema.ZIOPreludeSupportSpec"), Nil)
         )
       ) &&
-      assert(Planet.radius.focus.typeName)(
+      assert(Planet.radius.focus.typeId)(
         equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId.nominal("Meter", Owner.parse("zio.blocks.schema.ZIOPreludeSupportSpec"), Nil)
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(Planet.distanceFromSun.focus.typeId)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId.nominal(
+            "Option",
+            Owner.parse("scala"),
+            Seq(
+              TypeId.nominal("Meter", Owner.parse("zio.blocks.schema.ZIOPreludeSupportSpec"), Nil)
+            )
           )
         )
       )

@@ -2,7 +2,7 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.RegisterOffset
-import zio.blocks.schema.{TypeName => SchemaTypeName}
+import zio.blocks.typeid.TypeId
 import zio.blocks.schema.CommonMacroOps
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
@@ -15,18 +15,6 @@ trait SchemaVersionSpecific {
 }
 
 private object SchemaVersionSpecific {
-  private[this] implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
-    override def compare(x: Array[String], y: Array[String]): Int = {
-      val minLen = Math.min(x.length, y.length)
-      var idx    = 0
-      while (idx < minLen) {
-        val cmp = x(idx).compareTo(y(idx))
-        if (cmp != 0) return cmp
-        idx += 1
-      }
-      x.length.compare(y.length)
-    }
-  }
 
   def derived[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[Schema[A]] = {
     import c.universe._
@@ -127,53 +115,51 @@ private object SchemaVersionSpecific {
         }
     )
 
-    val typeNameCache = new mutable.HashMap[Type, SchemaTypeName[?]]
-
-    def typeName(tpe: Type): SchemaTypeName[?] = {
-      def calculateTypeName(tpe: Type): SchemaTypeName[?] =
-        if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
-        else {
-          var packages  = List.empty[String]
-          var values    = List.empty[String]
-          val tpeSymbol = tpe.typeSymbol
-          var name      = NameTransformer.decode(tpeSymbol.name.toString)
-          val comp      = companion(tpe)
-          var owner     =
-            if (comp == null) tpeSymbol
-            else if (comp == NoSymbol) {
-              name += ".type"
-              tpeSymbol.asClass.module
-            } else comp
-          while ({
-            owner = owner.owner
-            owner.owner != NoSymbol
-          }) {
-            val ownerName = NameTransformer.decode(owner.name.toString)
-            if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
-            else values = ownerName :: values
-          }
-          new SchemaTypeName(new Namespace(packages, values), name, typeArgs(tpe).map(typeName))
+    def fullTermName(tpe: Type): Array[String] =
+      if (tpe =:= typeOf[java.lang.String]) Array("java", "lang", "String")
+      else {
+        var packages  = List.empty[String]
+        var values    = List.empty[String]
+        val tpeSymbol = tpe.typeSymbol
+        var name      = NameTransformer.decode(tpeSymbol.name.toString)
+        val comp      = companion(tpe)
+        var owner     =
+          if (comp == null) tpeSymbol
+          else if (comp == NoSymbol) {
+            name += ".type"
+            tpeSymbol.asClass.module
+          } else comp
+        while ({
+          owner = owner.owner
+          owner.owner != NoSymbol
+        }) {
+          val ownerName = NameTransformer.decode(owner.name.toString)
+          if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
+          else values = ownerName :: values
         }
-
-      typeNameCache.getOrElseUpdate(
-        tpe,
-        tpe match {
-          case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
-            var tpeName = calculateTypeName(compTpe)
-            if (tpeName.name.endsWith(".type")) tpeName = tpeName.copy(name = tpeName.name.stripSuffix(".type"))
-            tpeName
-          case _ =>
-            calculateTypeName(tpe)
+        val fullTermName = new Array[String](packages.size + values.size + 1)
+        var idx          = 0
+        packages.foreach { p =>
+          fullTermName(idx) = p
+          idx += 1
         }
-      )
-    }
+        values.foreach { p =>
+          fullTermName(idx) = p
+          idx += 1
+        }
+        fullTermName(idx) = name
+        fullTermName
+      }
 
-    def toTree(tpeName: SchemaTypeName[?]): Tree = {
-      val packages = tpeName.namespace.packages.toList
-      val values   = tpeName.namespace.values.toList
-      val name     = tpeName.name
-      val params   = tpeName.params.map(toTree).toList
-      q"new TypeName(new Namespace($packages, $values), $name, $params)"
+    def shortTermName(fullName: Array[String], from: Int): String = {
+      val str = new java.lang.StringBuilder
+      var idx = from
+      while (idx < fullName.length) {
+        if (idx != from) str.append('.')
+        str.append(fullName(idx))
+        idx += 1
+      }
+      str.toString
     }
 
     def modifiers(tpe: Type): List[Tree] = {
@@ -390,11 +376,10 @@ private object SchemaVersionSpecific {
                     new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
                 }"""
             } else q"SeqConstructor.arrayConstructor"
-          val tpeName = toTree(typeName(tpe))
           q"""new Schema(
-              reflect = new Reflect.Sequence(
+              reflect = new Reflect.Sequence[Binding, $elementTpe, Array](
                 element = $schema.reflect,
-                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                typeId = TypeId.derive[$tpe],
                 seqBinding = new Binding.Seq(
                   constructor = $constructor,
                   deconstructor = SeqDeconstructor.arrayDeconstructor
@@ -449,33 +434,30 @@ private object SchemaVersionSpecific {
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
-        val schema  = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
-        val tpeName = toTree(typeName(tpe))
-        q"new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[$tpe]]"
+        val schema = findImplicitOrDeriveSchema(zioPreludeNewtypeDealias(tpe))
+        q"new Schema($schema.reflect.typeId(TypeId.derive[$tpe].asInstanceOf[TypeId[${zioPreludeNewtypeDealias(tpe)}]])).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
 
-    def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
-      val tpeName = toTree(typeName(tpe))
+    def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree =
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
-              fields = _root_.scala.Vector.empty,
-              typeName = $tpeName,
+              fields = Vector.empty,
+              typeId = TypeId.derive[$tpe],
               recordBinding = new Binding.Record(
                 constructor = new ConstantConstructor[$tpe](${tpe.typeSymbol.asClass.module}),
                 deconstructor = new ConstantDeconstructor[$tpe]
               ),
+              doc = ${doc(tpe)},
               modifiers = ${modifiers(tpe)}
             )
           )"""
-    }
 
     def deriveSchemaForNonAbstractScalaClass(tpe: Type): Tree = {
       val classInfo = new ClassInfo(tpe)
-      val tpeName   = toTree(typeName(tpe))
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
-              fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
-              typeName = $tpeName,
+              fields = Vector(..${classInfo.fields(tpe)}),
+              typeId = TypeId.derive[$tpe],
               recordBinding = new Binding.Record(
                 constructor = new Constructor[$tpe] {
                   def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
@@ -490,7 +472,8 @@ private object SchemaVersionSpecific {
                   }
                 }
               ),
-              modifiers = ${modifiers(tpe)},
+              doc = ${doc(tpe)},
+              modifiers = ${modifiers(tpe)}
             )
           )"""
     }
@@ -498,7 +481,7 @@ private object SchemaVersionSpecific {
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {
       val subtypes = directSubTypes(tpe)
       if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-      val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+      val fullTermNames         = subtypes.map(sTpe => fullTermName(sTpe))
       val maxCommonPrefixLength = {
         val minFullTermName = fullTermNames.min
         val maxFullTermName = fullTermNames.max
@@ -509,7 +492,7 @@ private object SchemaVersionSpecific {
       }
       val cases = subtypes.zip(fullTermNames).map { case (sTpe, fullName) =>
         val modifiers = sTpe.typeSymbol.annotations.collect { case a if a.tree.tpe <:< typeOf[Modifier.Term] => a.tree }
-        val caseName  = toShortTermName(fullName, maxCommonPrefixLength)
+        val caseName  = shortTermName(fullName, maxCommonPrefixLength)
         val schema    = findImplicitOrDeriveSchema(sTpe)
         if (modifiers eq Nil) q"$schema.reflect.asTerm($caseName)"
         else {
@@ -531,50 +514,23 @@ private object SchemaVersionSpecific {
               }
             }"""
       }
-      val tpeName = toTree(typeName(tpe))
       q"""new Schema(
             reflect = new Reflect.Variant[Binding, $tpe](
-              cases = _root_.scala.Vector(..$cases),
-              typeName = $tpeName,
+              cases = Vector(..$cases),
+              typeId = TypeId.derive[$tpe],
               variantBinding = new Binding.Variant(
                 discriminator = new Discriminator[$tpe] {
                   def discriminate(a: $tpe): Int = a match {
                     case ..$discrCases
                   }
                 },
-                matchers = Matchers(..$matcherCases),
+                matchers = Matchers(..$matcherCases)
               ),
+              doc = ${doc(tpe)},
               modifiers = ${modifiers(tpe)}
             )
           )"""
-    }
 
-    def toFullTermName(tpeName: SchemaTypeName[?]): Array[String] = {
-      val packages     = tpeName.namespace.packages
-      val values       = tpeName.namespace.values
-      val fullTermName = new Array[String](packages.size + values.size + 1)
-      var idx          = 0
-      packages.foreach { p =>
-        fullTermName(idx) = p
-        idx += 1
-      }
-      values.foreach { p =>
-        fullTermName(idx) = p
-        idx += 1
-      }
-      fullTermName(idx) = tpeName.name
-      fullTermName
-    }
-
-    def toShortTermName(fullName: Array[String], from: Int): String = {
-      val str = new java.lang.StringBuilder
-      var idx = from
-      while (idx < fullName.length) {
-        if (idx != from) str.append('.')
-        str.append(fullName(idx))
-        idx += 1
-      }
-      str.toString
     }
 
     def cannotDeriveSchema(tpe: Type): Nothing = fail(s"Cannot derive schema for '$tpe'.")

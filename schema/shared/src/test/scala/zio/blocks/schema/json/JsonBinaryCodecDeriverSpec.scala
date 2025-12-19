@@ -12,6 +12,7 @@ import java.math.MathContext
 import java.time._
 import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
+import zio.blocks.typeid.{Owner, TypeId}
 
 object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverSpec")(
@@ -1841,7 +1842,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Tuple10[Unit, Boolean, Byte, Short, Int, Long, Float, Double, Char, String]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.boolean,
+            TypeId.derive[Boolean],
             new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
               def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
 
@@ -1849,7 +1850,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .instance(
-            TypeName.byte,
+            TypeId.derive[Byte],
             new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
               def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
 
@@ -1857,7 +1858,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .instance(
-            TypeName.short,
+            TypeId.derive[Short],
             new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
               def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
 
@@ -1865,7 +1866,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .instance(
-            TypeName.int,
+            TypeId.derive[Int],
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
               def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
 
@@ -1873,7 +1874,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .instance(
-            TypeName.long,
+            TypeId.derive[Long],
             new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
               def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
 
@@ -1881,7 +1882,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .instance(
-            TypeName.float,
+            TypeId.derive[Float],
             new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
               def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
 
@@ -1889,7 +1890,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .instance(
-            TypeName.double,
+            TypeId.derive[Double],
             new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
               def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
 
@@ -1897,7 +1898,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             }
           )
           .instance(
-            TypeName.char,
+            TypeId.derive[Char],
             new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // expecting char code numbers (not one-char strings)
               def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
 
@@ -1915,7 +1916,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         val codec = Record3.schema
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.currency,
+            TypeId.derive[Currency],
             new JsonBinaryCodec[Currency]() { // decode null values as the default one ("USD")
               def decodeValue(in: JsonReader, default: Currency): Currency =
                 if (in.isNextToken('n')) {
@@ -2022,7 +2023,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         val codec = Record2.schema
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.int,
+            TypeId.derive[Int],
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
               def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
 
@@ -2051,7 +2052,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         val codec = Record2.schema
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            Record1.schema.reflect.typeName,
+            Record1.schema.reflect.typeId,
             new JsonBinaryCodec[Record1]() { // allows null values which are prohibited for codecs derived by default
               private val codec = Record1.schema.derive(JsonBinaryCodecDeriver)
 
@@ -2217,7 +2218,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Boolean]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.boolean,
+            TypeId.derive[Boolean],
             new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) { // stringifies boolean values
               def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readStringAsBoolean()
 
@@ -2229,7 +2230,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Byte]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.byte,
+            TypeId.derive[Byte],
             new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) { // stringifies byte values
               def decodeValue(in: JsonReader, default: Byte): Byte = in.readStringAsByte()
 
@@ -2241,7 +2242,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Char]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.char,
+            TypeId.derive[Char],
             new JsonBinaryCodec[Char](JsonBinaryCodec.charType) { // char values as numbers
               def decodeValue(in: JsonReader, default: Char): Char = in.readInt().toChar
 
@@ -2253,7 +2254,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Short]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.short,
+            TypeId.derive[Short],
             new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) { // stringifies short values
               def decodeValue(in: JsonReader, default: Short): Short = in.readStringAsShort()
 
@@ -2265,7 +2266,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Int]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.int,
+            TypeId.derive[Int],
             new JsonBinaryCodec[Int](JsonBinaryCodec.intType) { // stringifies int values
               def decodeValue(in: JsonReader, default: Int): Int = in.readStringAsInt()
 
@@ -2277,7 +2278,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Float]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.float,
+            TypeId.derive[Float],
             new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) { // stringifies float values
               def decodeValue(in: JsonReader, default: Float): Float = in.readStringAsFloat()
 
@@ -2289,7 +2290,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Long]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.long,
+            TypeId.derive[Long],
             new JsonBinaryCodec[Long](JsonBinaryCodec.longType) { // stringifies long values
               def decodeValue(in: JsonReader, default: Long): Long = in.readStringAsLong()
 
@@ -2301,7 +2302,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .derived[Array[Double]]
           .deriving(JsonBinaryCodecDeriver)
           .instance(
-            TypeName.double,
+            TypeId.derive[Double],
             new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) { // stringifies double values
               def decodeValue(in: JsonReader, default: Double): Double = in.readStringAsDouble()
 
@@ -2997,7 +2998,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeName(Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email"),
+        TypeId.nominal("Email", Owner.parse("zio.blocks.schema.json.JsonBinaryCodecDeriverSpec"), Nil),
         None,
         new Binding.Wrapper(
           {
