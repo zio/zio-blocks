@@ -68,6 +68,52 @@ object IntoSpec extends ZIOSpecDefault {
   case class SuccessV2(value: Int)  extends ResultV2
   case class FailureV2(msg: String) extends ResultV2
 
+  // === Nested Conversion Types ===
+
+  // Nested Products
+  case class AddressV1(street: String, zip: Int)
+  case class PersonWithAddressV1(name: String, address: AddressV1)
+
+  case class AddressV2(street: String, zip: Long)
+  case class PersonWithAddressV2(name: String, address: AddressV2)
+
+  implicit val addressV1ToV2: Into[AddressV1, AddressV2] = Into.derived[AddressV1, AddressV2]
+
+  // Nested Coproducts
+  sealed trait Inner
+  object Inner {
+    case class A(x: Int)      extends Inner
+    case class B(y: String)   extends Inner
+  }
+
+  sealed trait Outer
+  object Outer {
+    case class Container(inner: Inner, label: String) extends Outer
+  }
+
+  sealed trait InnerV2
+  object InnerV2 {
+    case class A(x: Long)     extends InnerV2
+    case class B(y: String)   extends InnerV2
+  }
+
+  sealed trait OuterV2
+  object OuterV2 {
+    case class Container(inner: InnerV2, label: String) extends OuterV2
+  }
+
+  implicit val innerToInnerV2: Into[Inner, InnerV2] = Into.derived[Inner, InnerV2]
+
+  // Collections of Complex Types
+  case class PersonV1WithAge(name: String, age: Int)
+  case class PersonV2WithAge(name: String, age: Long)
+
+  implicit val personV1ToV2WithAge: Into[PersonV1WithAge, PersonV2WithAge] = Into.derived[PersonV1WithAge, PersonV2WithAge]
+
+  // Nested Collections
+  case class DataV1(values: List[Vector[Int]])
+  case class DataV2(values: Vector[List[Long]])
+
   def spec: Spec[TestEnvironment, Any] = suite("IntoSpec")(
     suite("Product to Product")(
       suite("Priority 1: Exact match (same name + same type)")(
@@ -512,6 +558,41 @@ object IntoSpec extends ZIOSpecDefault {
           val result   = Into.derived[ConfigV1, ConfigV2].into(configV1)
 
           assert(result)(isRight(equalTo(ConfigV2(8080, 30L))))
+        }
+      )
+    ),
+    suite("Nested Conversions")(
+      suite("Nested Products")(
+        test("converts nested case classes with field type coercion") {
+          val personV1 = PersonWithAddressV1("Alice", AddressV1("Main St", 12345))
+          val result   = Into.derived[PersonWithAddressV1, PersonWithAddressV2].into(personV1)
+
+          assert(result)(isRight(equalTo(PersonWithAddressV2("Alice", AddressV2("Main St", 12345L)))))
+        }
+      ),
+      suite("Nested Coproducts")(
+        test("converts nested sealed traits with type coercion in variants") {
+          val outer: Outer = Outer.Container(Inner.A(42), "test")
+          val result       = Into.derived[Outer, OuterV2].into(outer)
+
+          assert(result)(isRight(equalTo(OuterV2.Container(InnerV2.A(42L), "test"): OuterV2)))
+        }
+      ),
+      suite("Collections of Complex Types")(
+        test("converts list of case classes with field type coercion") {
+          val people = List(PersonV1WithAge("Alice", 30), PersonV1WithAge("Bob", 25))
+          val result = Into[List[PersonV1WithAge], List[PersonV2WithAge]].into(people)
+
+          assert(result)(isRight(equalTo(List(PersonV2WithAge("Alice", 30L), PersonV2WithAge("Bob", 25L)))))
+        }
+      ),
+      suite("Nested Collections with Type Conversions")(
+        test("converts nested collections with element type coercion") {
+
+          val dataV1 = DataV1(List(Vector(1, 2), Vector(3, 4)))
+          val result = Into.derived[DataV1, DataV2].into(dataV1)
+
+          assert(result)(isRight(equalTo(DataV2(Vector(List(1L, 2L), List(3L, 4L))))))
         }
       )
     )
