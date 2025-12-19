@@ -4,9 +4,9 @@ import scala.quoted.*
 
 /**
  * Scala 3.5+ macro implementation for TypeId derivation.
- * 
- * This object provides compile-time derivation of TypeId instances
- * using Scala 3's metaprogramming capabilities.
+ *
+ * This object provides compile-time derivation of TypeId instances using Scala
+ * 3's metaprogramming capabilities.
  */
 object TypeIdMacros {
 
@@ -24,15 +24,14 @@ object TypeIdMacros {
   def deriveMacro[A: Type](using Quotes): Expr[ZTypeId[A]] = {
     import quotes.reflect.*
 
-    val tpe = TypeRepr.of[A]
+    val tpe        = TypeRepr.of[A]
     val typeSymbol = tpe.typeSymbol
 
     // Build owner chain from symbol's owner hierarchy
     def ownerChain(sym: Symbol): List[Symbol] = {
-      def loop(s: Symbol, acc: List[Symbol]): List[Symbol] = {
+      def loop(s: Symbol, acc: List[Symbol]): List[Symbol] =
         if (s.isNoSymbol || s == defn.RootPackage || s == defn.RootClass) acc
         else loop(s.owner, s :: acc)
-      }
       loop(sym.owner, Nil)
     }
 
@@ -51,50 +50,49 @@ object TypeIdMacros {
     }
 
     // Build the owner segments
-    val owners = ownerChain(typeSymbol)
+    val owners                                        = ownerChain(typeSymbol)
     val ownerSegmentExprs: List[Expr[ZOwner.Segment]] = owners.map(symbolToSegment)
-    val ownerExpr: Expr[ZOwner] = '{
+    val ownerExpr: Expr[ZOwner]                       = '{
       ZOwner(${ Expr.ofList(ownerSegmentExprs) })
     }
 
     // Build type parameter info
-    def extractTypeParams(tpe: TypeRepr): List[Expr[TypeParam]] = {
+    def extractTypeParams(tpe: TypeRepr): List[Expr[TypeParam]] =
       tpe match {
-        case TypeLambda(paramNames, paramBounds, body) =>
+        case TypeLambda(paramNames, _, _) =>
           paramNames.zipWithIndex.map { case (name, index) =>
-            val nameExpr = Expr(name)
+            val nameExpr  = Expr(name)
             val indexExpr = Expr(index)
             '{ TypeParam($nameExpr, $indexExpr) }
           }
         case _ =>
           typeSymbol.typeMembers.filter(_.isTypeParam).zipWithIndex.map { case (param, index) =>
-            val nameExpr = Expr(param.name)
+            val nameExpr  = Expr(param.name)
             val indexExpr = Expr(index)
-            
+
             // Determine variance
-            val varianceExpr: Expr[Variance] = 
-              if (param.flags.is(Flags.Covariant)) 
+            val varianceExpr: Expr[Variance] =
+              if (param.flags.is(Flags.Covariant))
                 '{ Variance.Covariant }
-              else if (param.flags.is(Flags.Contravariant)) 
+              else if (param.flags.is(Flags.Contravariant))
                 '{ Variance.Contravariant }
-              else 
+              else
                 '{ Variance.Invariant }
 
             '{ new TypeParam($nameExpr, $indexExpr, $varianceExpr, TypeParam.Bounds.Unbounded, false) }
           }
       }
-    }
 
-    val typeParamExprs = extractTypeParams(tpe)
+    val typeParamExprs                        = extractTypeParams(tpe)
     val typeParamsExpr: Expr[List[TypeParam]] = Expr.ofList(typeParamExprs)
 
     val typeNameExpr = Expr(typeSymbol.name)
 
     // Check if this is an alias or opaque type
-    val result: Expr[ZTypeId[A]] = {
+    val result: Expr[ZTypeId[A]] =
       if (typeSymbol.isAliasType) {
         // Type alias
-        val aliased = tpe.dealias
+        val aliased         = tpe.dealias
         val aliasedReprExpr = typeToReprExpr(aliased)
         '{
           ZTypeId.alias[A](
@@ -107,7 +105,7 @@ object TypeIdMacros {
       } else if (typeSymbol.flags.is(Flags.Opaque)) {
         // Opaque type - try to get the underlying representation
         // Note: Opaque types hide their representation, so we just record it as opaque
-        val reprExpr = '{ ZTypeRepr.AnyType }  // Can't access the true representation
+        val reprExpr = '{ ZTypeRepr.AnyType } // Can't access the true representation
         '{
           ZTypeId.opaque[A](
             $typeNameExpr,
@@ -126,7 +124,6 @@ object TypeIdMacros {
           )
         }
       }
-    }
 
     result
   }
@@ -149,21 +146,21 @@ object TypeIdMacros {
       case '[Double]  => '{ ZTypeRepr.Ref(ZTypeId.double) }
       case '[Char]    => '{ ZTypeRepr.Ref(ZTypeId.char) }
       case '[String]  => '{ ZTypeRepr.Ref(ZTypeId.string) }
-      case '[t] =>
+      case '[t]       =>
         tpe match {
           case AppliedType(tycon, args) =>
             // Applied type like List[Int]
             val tyconRepr = typeToReprExpr(tycon)
-            val argReprs = Expr.ofList(args.map(typeToReprExpr))
+            val argReprs  = Expr.ofList(args.map(typeToReprExpr))
             '{ ZTypeRepr.Applied($tyconRepr, $argReprs) }
 
           case AndType(left, right) =>
-            val leftRepr = typeToReprExpr(left)
+            val leftRepr  = typeToReprExpr(left)
             val rightRepr = typeToReprExpr(right)
             '{ ZTypeRepr.Intersection($leftRepr, $rightRepr) }
 
           case OrType(left, right) =>
-            val leftRepr = typeToReprExpr(left)
+            val leftRepr  = typeToReprExpr(left)
             val rightRepr = typeToReprExpr(right)
             '{ ZTypeRepr.Union($leftRepr, $rightRepr) }
 
@@ -191,15 +188,17 @@ trait TypeIdVersionSpecific {
 
   /**
    * Derives a TypeId for type A at compile time.
-   * 
-   * == Example ==
+   *
+   * ==Example==
    * {{{
    * val listId: TypeId[List] = TypeId.derive[List]
    * val myClassId: TypeId[MyClass] = TypeId.derive[MyClass]
    * }}}
-   * 
-   * @tparam A The type to derive a TypeId for
-   * @return A TypeId representing type A
+   *
+   * @tparam A
+   *   The type to derive a TypeId for
+   * @return
+   *   A TypeId representing type A
    */
   inline def derive[A]: TypeId[A] = TypeIdMacros.derive[A]
 }

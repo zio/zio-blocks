@@ -4,14 +4,14 @@ import zio.test._
 
 /**
  * Comprehensive test suite for the TypeId module.
- * 
+ *
  * Tests cover:
- * - Owner construction and manipulation
- * - TypeParam creation with variance
- * - TypeId factory methods and pattern matching
- * - TypeRepr construction and substitution
- * - Member definitions
- * - Macro derivation (compile-time tests)
+ *   - Owner construction and manipulation
+ *   - TypeParam creation with variance
+ *   - TypeId factory methods and pattern matching
+ *   - TypeRepr construction and substitution
+ *   - Member definitions
+ *   - Macro derivation (compile-time tests)
  */
 object TypeIdSpec extends ZIOSpecDefault {
 
@@ -90,7 +90,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       )
     },
     test("variance modifiers work") {
-      val covariant = TypeParam.A.covariant
+      val covariant     = TypeParam.A.covariant
       val contravariant = TypeParam.A.contravariant
       assertTrue(
         covariant.variance.isCovariant,
@@ -102,7 +102,7 @@ object TypeIdSpec extends ZIOSpecDefault {
     test("bounds are represented correctly") {
       val upper = TypeParam("T", 0, bounds = TypeParam.Bounds.Upper("AnyRef"))
       val lower = TypeParam("T", 0, bounds = TypeParam.Bounds.Lower("Nothing"))
-      val both = TypeParam("T", 0, bounds = TypeParam.Bounds.Both("Nothing", "AnyRef"))
+      val both  = TypeParam("T", 0, bounds = TypeParam.Bounds.Both("Nothing", "AnyRef"))
       assertTrue(
         upper.isBounded,
         lower.isBounded,
@@ -149,7 +149,7 @@ object TypeIdSpec extends ZIOSpecDefault {
     },
     test("alias type preserves aliased representation") {
       val aliased = TypeRepr.Ref(TypeId.int)
-      val id = TypeId.alias[Int]("Age", Owner.fromPackages("myapp"), Nil, aliased)
+      val id      = TypeId.alias[Int]("Age", Owner.fromPackages("myapp"), Nil, aliased)
       assertTrue(
         id.isAlias,
         id.fullName == "myapp.Age"
@@ -157,7 +157,7 @@ object TypeIdSpec extends ZIOSpecDefault {
     },
     test("opaque type preserves representation info") {
       val repr = TypeRepr.Ref(TypeId.string)
-      val id = TypeId.opaque[String]("Email", Owner.fromPackages("myapp"), Nil, repr)
+      val id   = TypeId.opaque[String]("Email", Owner.fromPackages("myapp"), Nil, repr)
       assertTrue(
         id.isOpaque,
         id.fullName == "myapp.Email"
@@ -165,15 +165,15 @@ object TypeIdSpec extends ZIOSpecDefault {
     },
     test("pattern matching extractors work") {
       val nominal = TypeId.int
-      val alias = TypeId.alias[Int]("Age", Owner.Root, Nil, TypeRepr.intType)
-      
+      val alias   = TypeId.alias[Int]("Age", Owner.Root, Nil, TypeRepr.intType)
+
       val nominalMatch = nominal match {
         case TypeId.Nominal(name, _, _) => name
-        case _ => ""
+        case _                          => ""
       }
       val aliasMatch = alias match {
         case TypeId.Alias(name, _, _, _) => name
-        case _ => ""
+        case _                           => ""
       }
       assertTrue(
         nominalMatch == "Int",
@@ -197,7 +197,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       )
     },
     test("documentation can be added and removed") {
-      val id = TypeId.int.withDocumentation("A 32-bit integer")
+      val id      = TypeId.int.withDocumentation("A 32-bit integer")
       val removed = id.withoutDocumentation
       assertTrue(
         id.documentation == Some("A 32-bit integer"),
@@ -220,13 +220,13 @@ object TypeIdSpec extends ZIOSpecDefault {
       assertTrue(applied.show == "scala.collection.immutable.List[scala.Int]")
     },
     test("ParamRef substitution works") {
-      val param = TypeParam.A
-      val paramRef = TypeRepr.ParamRef(param)
+      val param       = TypeParam.A
+      val paramRef    = TypeRepr.ParamRef(param)
       val substituted = paramRef.substitute(Map(param -> TypeRepr.intType))
       assertTrue(substituted == TypeRepr.intType)
     },
     test("Applied substitution propagates") {
-      val param = TypeParam.A
+      val param   = TypeParam.A
       val listOfA = TypeRepr.Applied(
         TypeRepr.Ref(TypeId.list),
         List(TypeRepr.ParamRef(param))
@@ -300,7 +300,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       )
     },
     test("TypeMember shows correctly") {
-      val member = Member.TypeMember("T")
+      val member  = Member.TypeMember("T")
       val bounded = Member.TypeMember("T", upperBound = Some(TypeRepr.Ref(TypeId.string)))
       assertTrue(
         member.show == "type T",
@@ -312,12 +312,12 @@ object TypeIdSpec extends ZIOSpecDefault {
       assertTrue(alias.show == "type Alias = scala.Int")
     },
     test("Member substitution works") {
-      val param = TypeParam.A
-      val member = Member.Val("value", TypeRepr.ParamRef(param))
+      val param       = TypeParam.A
+      val member      = Member.Val("value", TypeRepr.ParamRef(param))
       val substituted = member.substitute(Map(param -> TypeRepr.stringType))
       substituted match {
         case v: Member.Val => assertTrue(v.tpe == TypeRepr.stringType)
-        case _ => assertTrue(false)
+        case _             => assertTrue(false)
       }
     }
   )
@@ -353,7 +353,7 @@ object TypeIdSpec extends ZIOSpecDefault {
     },
     test("type alias with substitution") {
       // type MyList[A] = List[A]
-      val param = TypeParam.A
+      val param   = TypeParam.A
       val aliased = TypeRepr.Applied(
         TypeRepr.Ref(TypeId.list),
         List(TypeRepr.ParamRef(param))
@@ -364,7 +364,7 @@ object TypeIdSpec extends ZIOSpecDefault {
         List(param),
         aliased
       )
-      
+
       // Substitute A -> Int
       val substituted = aliased.substitute(Map(param -> TypeRepr.intType))
       assertTrue(
@@ -373,7 +373,7 @@ object TypeIdSpec extends ZIOSpecDefault {
       )
     },
     test("TermPath for singleton types") {
-      val path = TermPath(List("scala"), "None")
+      val path      = TermPath(List("scala"), "None")
       val singleton = TypeRepr.Singleton(path)
       assertTrue(
         singleton.show == "scala.None.type",

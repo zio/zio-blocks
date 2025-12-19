@@ -2,19 +2,19 @@ package zio.blocks.typeid
 
 /**
  * Representation of type expressions in the Scala type system.
- * 
+ *
  * `TypeRepr` captures the full structure of types including:
- * - References to named types
- * - Type applications (generics)
- * - Structural/refinement types
- * - Intersection and union types
- * - Function and tuple types
- * - Singleton and constant types
- * 
- * This representation enables full type introspection and manipulation
- * at runtime while maintaining structural fidelity to the source types.
- * 
- * == Example ==
+ *   - References to named types
+ *   - Type applications (generics)
+ *   - Structural/refinement types
+ *   - Intersection and union types
+ *   - Function and tuple types
+ *   - Singleton and constant types
+ *
+ * This representation enables full type introspection and manipulation at
+ * runtime while maintaining structural fidelity to the source types.
+ *
+ * ==Example==
  * The type `Map[String, List[Int]]` would be represented as:
  * {{{
  * TypeRepr.Applied(
@@ -30,7 +30,7 @@ package zio.blocks.typeid
  * }}}
  */
 sealed trait TypeRepr extends Product with Serializable {
-  
+
   /**
    * Returns a human-readable string representation of this type.
    */
@@ -58,9 +58,11 @@ sealed trait TypeRepr extends Product with Serializable {
 
   /**
    * Substitutes type parameter references with concrete types.
-   * 
-   * @param substitutions Mapping from type parameters to their replacements
-   * @return A new TypeRepr with substitutions applied
+   *
+   * @param substitutions
+   *   Mapping from type parameters to their replacements
+   * @return
+   *   A new TypeRepr with substitutions applied
    */
   def substitute(substitutions: Map[TypeParam, TypeRepr]): TypeRepr
 }
@@ -73,11 +75,12 @@ object TypeRepr {
 
   /**
    * Reference to a named type constructor (unapplied).
-   * 
-   * If `id.arity == 0`, this is already a proper type (e.g., `Int`).
-   * If `id.arity > 0`, this is a type constructor (e.g., `List` without args).
-   * 
-   * @param id The TypeId of the referenced type
+   *
+   * If `id.arity == 0`, this is already a proper type (e.g., `Int`). If
+   * `id.arity > 0`, this is a type constructor (e.g., `List` without args).
+   *
+   * @param id
+   *   The TypeId of the referenced type
    */
   final case class Ref(id: TypeId[_]) extends TypeRepr {
     override def isRef: Boolean = true
@@ -89,10 +92,11 @@ object TypeRepr {
 
   /**
    * Reference to a type parameter.
-   * 
+   *
    * Used to represent type variables in polymorphic contexts.
-   * 
-   * @param param The type parameter being referenced
+   *
+   * @param param
+   *   The type parameter being referenced
    */
   final case class ParamRef(param: TypeParam) extends TypeRepr {
     def show: String = param.name
@@ -107,21 +111,24 @@ object TypeRepr {
 
   /**
    * Application of a type constructor to type arguments.
-   * 
-   * == Examples ==
-   * - `List[Int]` → `Applied(Ref(listId), List(Ref(intId)))`
-   * - `F[A]` → `Applied(ParamRef(F), List(ParamRef(A)))`
-   * - `Either[String, Int]` → `Applied(Ref(eitherId), List(Ref(stringId), Ref(intId)))`
-   * 
-   * @param tycon The type constructor being applied
-   * @param args  The type arguments
+   *
+   * ==Examples==
+   *   - `List[Int]` → `Applied(Ref(listId), List(Ref(intId)))`
+   *   - `F[A]` → `Applied(ParamRef(F), List(ParamRef(A)))`
+   *   - `Either[String, Int]` →
+   *     `Applied(Ref(eitherId), List(Ref(stringId), Ref(intId)))`
+   *
+   * @param tycon
+   *   The type constructor being applied
+   * @param args
+   *   The type arguments
    */
   final case class Applied(tycon: TypeRepr, args: List[TypeRepr]) extends TypeRepr {
     override def isApplied: Boolean = true
 
     def show: String = {
       val tyconStr = tycon.show
-      val argsStr = args.map(_.show).mkString(", ")
+      val argsStr  = args.map(_.show).mkString(", ")
       s"$tyconStr[$argsStr]"
     }
 
@@ -138,11 +145,13 @@ object TypeRepr {
 
   /**
    * Structural or refinement type: `{ def foo: Int; type T; ... }`
-   * 
+   *
    * Represents types defined by their members rather than by name.
-   * 
-   * @param parents The parent types this structural type extends
-   * @param members The members defined in this structural type
+   *
+   * @param parents
+   *   The parent types this structural type extends
+   * @param members
+   *   The members defined in this structural type
    */
   final case class Structural(
     parents: List[TypeRepr],
@@ -167,9 +176,11 @@ object TypeRepr {
 
   /**
    * Intersection type: `A & B` (Scala 3) or `A with B` (Scala 2).
-   * 
-   * @param left  The left type
-   * @param right The right type
+   *
+   * @param left
+   *   The left type
+   * @param right
+   *   The right type
    */
   final case class Intersection(left: TypeRepr, right: TypeRepr) extends TypeRepr {
     def show: String = s"${left.show} & ${right.show}"
@@ -183,9 +194,11 @@ object TypeRepr {
 
   /**
    * Union type: `A | B` (Scala 3 only).
-   * 
-   * @param left  The left type
-   * @param right The right type
+   *
+   * @param left
+   *   The left type
+   * @param right
+   *   The right type
    */
   final case class Union(left: TypeRepr, right: TypeRepr) extends TypeRepr {
     def show: String = s"${left.show} | ${right.show}"
@@ -203,8 +216,9 @@ object TypeRepr {
 
   /**
    * Tuple type: `(A, B, C)`.
-   * 
-   * @param elems The element types
+   *
+   * @param elems
+   *   The element types
    */
   final case class Tuple(elems: List[TypeRepr]) extends TypeRepr {
     override def isTuple: Boolean = true
@@ -217,9 +231,11 @@ object TypeRepr {
 
   /**
    * Function type: `(A, B) => C`.
-   * 
-   * @param params The parameter types
-   * @param result The result type
+   *
+   * @param params
+   *   The parameter types
+   * @param result
+   *   The result type
    */
   final case class Function(params: List[TypeRepr], result: TypeRepr) extends TypeRepr {
     override def isFunction: Boolean = true
@@ -242,8 +258,9 @@ object TypeRepr {
 
   /**
    * Singleton type: `x.type`.
-   * 
-   * @param path The term path to the singleton value
+   *
+   * @param path
+   *   The term path to the singleton value
    */
   final case class Singleton(path: TermPath) extends TypeRepr {
     def show: String = s"${path.show}.type"
@@ -253,8 +270,9 @@ object TypeRepr {
 
   /**
    * Constant/literal type: `42`, `"foo"`, `true`.
-   * 
-   * @param value The literal value
+   *
+   * @param value
+   *   The literal value
    */
   final case class Constant(value: Any) extends TypeRepr {
     def show: String = value match {
@@ -270,7 +288,7 @@ object TypeRepr {
    * The Any type (top type).
    */
   case object AnyType extends TypeRepr {
-    def show: String = "Any"
+    def show: String                                                  = "Any"
     def substitute(substitutions: Map[TypeParam, TypeRepr]): TypeRepr = this
   }
 
@@ -278,7 +296,7 @@ object TypeRepr {
    * The Nothing type (bottom type).
    */
   case object NothingType extends TypeRepr {
-    def show: String = "Nothing"
+    def show: String                                                  = "Nothing"
     def substitute(substitutions: Map[TypeParam, TypeRepr]): TypeRepr = this
   }
 
@@ -286,7 +304,7 @@ object TypeRepr {
    * The Null type.
    */
   case object NullType extends TypeRepr {
-    def show: String = "Null"
+    def show: String                                                  = "Null"
     def substitute(substitutions: Map[TypeParam, TypeRepr]): TypeRepr = this
   }
 
@@ -323,16 +341,16 @@ object TypeRepr {
   // Convenience Constructors for Common Types
   // ============================================================================
 
-  val unitType: Ref = Ref(TypeId.unit)
+  val unitType: Ref    = Ref(TypeId.unit)
   val booleanType: Ref = Ref(TypeId.boolean)
-  val byteType: Ref = Ref(TypeId.byte)
-  val shortType: Ref = Ref(TypeId.short)
-  val intType: Ref = Ref(TypeId.int)
-  val longType: Ref = Ref(TypeId.long)
-  val floatType: Ref = Ref(TypeId.float)
-  val doubleType: Ref = Ref(TypeId.double)
-  val charType: Ref = Ref(TypeId.char)
-  val stringType: Ref = Ref(TypeId.string)
+  val byteType: Ref    = Ref(TypeId.byte)
+  val shortType: Ref   = Ref(TypeId.short)
+  val intType: Ref     = Ref(TypeId.int)
+  val longType: Ref    = Ref(TypeId.long)
+  val floatType: Ref   = Ref(TypeId.float)
+  val doubleType: Ref  = Ref(TypeId.double)
+  val charType: Ref    = Ref(TypeId.char)
+  val stringType: Ref  = Ref(TypeId.string)
 
   /**
    * Creates a List[A] type representation.

@@ -2,11 +2,11 @@ package zio.blocks.typeid
 
 /**
  * Represents a path to a term (value) for singleton types.
- * 
- * Used to represent types like `x.type` where `x` is a singleton value.
- * The path captures the full qualifying path to the singleton.
- * 
- * == Example ==
+ *
+ * Used to represent types like `x.type` where `x` is a singleton value. The
+ * path captures the full qualifying path to the singleton.
+ *
+ * ==Example==
  * For `scala.None.type`:
  * {{{
  * TermPath(List(
@@ -14,8 +14,9 @@ package zio.blocks.typeid
  *   TermPath.Term("None")
  * ))
  * }}}
- * 
- * @param segments The path segments from root to the term
+ *
+ * @param segments
+ *   The path segments from root to the term
  */
 final case class TermPath(segments: List[TermPath.Segment]) {
 

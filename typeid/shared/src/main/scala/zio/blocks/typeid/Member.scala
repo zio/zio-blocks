@@ -2,11 +2,11 @@ package zio.blocks.typeid
 
 /**
  * Represents members of structural/refinement types.
- * 
- * Structural types in Scala can contain value members, method definitions,
- * and abstract type members. This sealed trait captures all these variants.
- * 
- * == Example ==
+ *
+ * Structural types in Scala can contain value members, method definitions, and
+ * abstract type members. This sealed trait captures all these variants.
+ *
+ * ==Example==
  * The structural type `{ def size: Int; val isEmpty: Boolean; type T }`:
  * {{{
  * List(
@@ -17,7 +17,7 @@ package zio.blocks.typeid
  * }}}
  */
 sealed trait Member extends Product with Serializable {
-  
+
   /**
    * The name of this member.
    */
@@ -38,10 +38,13 @@ object Member {
 
   /**
    * A val or var member: `val name: Type` or `var name: Type`.
-   * 
-   * @param name  The member name
-   * @param tpe   The type of this member
-   * @param isVar Whether this is a `var` (mutable) or `val` (immutable)
+   *
+   * @param name
+   *   The member name
+   * @param tpe
+   *   The type of this member
+   * @param isVar
+   *   Whether this is a `var` (mutable) or `val` (immutable)
    */
   final case class Val(
     name: String,
@@ -59,11 +62,15 @@ object Member {
 
   /**
    * A method member: `def name(params...): ReturnType`.
-   * 
-   * @param name       The method name
-   * @param typeParams Type parameters for this method (if any)
-   * @param paramLists The parameter lists (supporting curried methods)
-   * @param result     The return type
+   *
+   * @param name
+   *   The method name
+   * @param typeParams
+   *   Type parameters for this method (if any)
+   * @param paramLists
+   *   The parameter lists (supporting curried methods)
+   * @param result
+   *   The return type
    */
   final case class Def(
     name: String,
@@ -71,7 +78,7 @@ object Member {
     paramLists: List[List[Param]] = Nil,
     result: TypeRepr
   ) extends Member {
-    
+
     /**
      * Total number of value parameters.
      */
@@ -83,14 +90,14 @@ object Member {
     def isNullary: Boolean = paramLists.isEmpty
 
     def show: String = {
-      val typeParamsStr = 
-        if (typeParams.isEmpty) "" 
+      val typeParamsStr =
+        if (typeParams.isEmpty) ""
         else typeParams.map(_.signature).mkString("[", ", ", "]")
-      
+
       val paramsStr = paramLists.map { params =>
         params.map(p => s"${p.name}: ${p.tpe.show}").mkString("(", ", ", ")")
       }.mkString
-      
+
       s"def $name$typeParamsStr$paramsStr: ${result.show}"
     }
 
@@ -102,26 +109,31 @@ object Member {
   }
 
   object Def {
+
     /**
      * Creates a nullary method (no parameters).
      */
-    def apply(name: String, result: TypeRepr): Def = 
+    def apply(name: String, result: TypeRepr): Def =
       new Def(name, Nil, Nil, result)
 
     /**
      * Creates a method with a single parameter list.
      */
-    def apply(name: String, params: List[Param], result: TypeRepr): Def = 
+    def apply(name: String, params: List[Param], result: TypeRepr): Def =
       new Def(name, Nil, List(params), result)
   }
 
   /**
    * An abstract type member: `type T [>: L] [<: U]`.
-   * 
-   * @param name       The type member name
-   * @param typeParams Type parameters for this type member (if any)
-   * @param lowerBound Optional lower bound
-   * @param upperBound Optional upper bound
+   *
+   * @param name
+   *   The type member name
+   * @param typeParams
+   *   Type parameters for this type member (if any)
+   * @param lowerBound
+   *   Optional lower bound
+   * @param upperBound
+   *   Optional upper bound
    */
   final case class TypeMember(
     name: String,
@@ -129,7 +141,7 @@ object Member {
     lowerBound: Option[TypeRepr] = None,
     upperBound: Option[TypeRepr] = None
   ) extends Member {
-    
+
     /**
      * Whether this type member has any bounds.
      */
@@ -138,17 +150,17 @@ object Member {
     /**
      * Whether this is an alias (has both bounds equal).
      */
-    def isAliasDefinition: Boolean = 
+    def isAliasDefinition: Boolean =
       (lowerBound, upperBound) match {
         case (Some(l), Some(u)) => l == u
         case _                  => false
       }
 
     def show: String = {
-      val typeParamsStr = 
-        if (typeParams.isEmpty) "" 
+      val typeParamsStr =
+        if (typeParams.isEmpty) ""
         else typeParams.map(_.signature).mkString("[", ", ", "]")
-      
+
       val boundsStr = (lowerBound, upperBound) match {
         case (Some(l), Some(u)) if l == u => s" = ${l.show}"
         case (Some(l), Some(u))           => s" >: ${l.show} <: ${u.show}"
@@ -156,7 +168,7 @@ object Member {
         case (None, Some(u))              => s" <: ${u.show}"
         case (None, None)                 => ""
       }
-      
+
       s"type $name$typeParamsStr$boundsStr"
     }
 
@@ -168,10 +180,11 @@ object Member {
   }
 
   object TypeMember {
+
     /**
      * Creates an abstract type member with no bounds.
      */
-    def apply(name: String): TypeMember = 
+    def apply(name: String): TypeMember =
       new TypeMember(name, Nil, None, None)
 
     /**
@@ -184,11 +197,15 @@ object Member {
 
 /**
  * A value parameter in a method signature.
- * 
- * @param name      The parameter name
- * @param tpe       The parameter type
- * @param isImplicit Whether this is an implicit parameter
- * @param hasDefault Whether this parameter has a default value
+ *
+ * @param name
+ *   The parameter name
+ * @param tpe
+ *   The parameter type
+ * @param isImplicit
+ *   Whether this is an implicit parameter
+ * @param hasDefault
+ *   Whether this parameter has a default value
  */
 final case class Param(
   name: String,
@@ -198,15 +215,16 @@ final case class Param(
 ) {
   def show: String = {
     val implicitStr = if (isImplicit) "implicit " else ""
-    val defaultStr = if (hasDefault) " = ..." else ""
+    val defaultStr  = if (hasDefault) " = ..." else ""
     s"$implicitStr$name: ${tpe.show}$defaultStr"
   }
 }
 
 object Param {
+
   /**
    * Creates a simple parameter.
    */
-  def apply(name: String, tpe: TypeRepr): Param = 
+  def apply(name: String, tpe: TypeRepr): Param =
     new Param(name, tpe, false, false)
 }

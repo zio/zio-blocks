@@ -4,31 +4,32 @@ import zio.blocks.typeid.TypeId
 import zio.blocks.typeid.Owner
 
 /**
- * DEPRECATED: TypeName is replaced by TypeId.
- * This file provides backward compatibility during migration.
- * 
+ * DEPRECATED: TypeName is replaced by TypeId. This file provides backward
+ * compatibility during migration.
+ *
  * TypeName is now an alias for TypeId. All new code should use TypeId directly.
- * 
- * @deprecated Use zio.blocks.typeid.TypeId instead
+ *
+ * @deprecated
+ *   Use zio.blocks.typeid.TypeId instead
  */
 @deprecated("Use zio.blocks.typeid.TypeId instead", "2.0.0")
 object TypeNameCompat {
   type TypeName[A] = TypeId[A]
-  
+
   // Re-export from TypeId
-  val unit: TypeId[Unit]       = TypeId.unit
-  val boolean: TypeId[Boolean] = TypeId.boolean
-  val byte: TypeId[Byte]       = TypeId.byte
-  val short: TypeId[Short]     = TypeId.short
-  val int: TypeId[Int]         = TypeId.int
-  val long: TypeId[Long]       = TypeId.long
-  val float: TypeId[Float]     = TypeId.float
-  val double: TypeId[Double]   = TypeId.double
-  val char: TypeId[Char]       = TypeId.char
-  val string: TypeId[String]   = TypeId.string
-  val bigInt: TypeId[BigInt]   = TypeId.bigInt
+  val unit: TypeId[Unit]             = TypeId.unit
+  val boolean: TypeId[Boolean]       = TypeId.boolean
+  val byte: TypeId[Byte]             = TypeId.byte
+  val short: TypeId[Short]           = TypeId.short
+  val int: TypeId[Int]               = TypeId.int
+  val long: TypeId[Long]             = TypeId.long
+  val float: TypeId[Float]           = TypeId.float
+  val double: TypeId[Double]         = TypeId.double
+  val char: TypeId[Char]             = TypeId.char
+  val string: TypeId[String]         = TypeId.string
+  val bigInt: TypeId[BigInt]         = TypeId.bigInt
   val bigDecimal: TypeId[BigDecimal] = TypeId.bigDecimal
-  
+
   // Java time types
   val dayOfWeek: TypeId[java.time.DayOfWeek]           = TypeId.dayOfWeek
   val duration: TypeId[java.time.Duration]             = TypeId.duration
@@ -46,49 +47,50 @@ object TypeNameCompat {
   val zoneId: TypeId[java.time.ZoneId]                 = TypeId.zoneId
   val zoneOffset: TypeId[java.time.ZoneOffset]         = TypeId.zoneOffset
   val zonedDateTime: TypeId[java.time.ZonedDateTime]   = TypeId.zonedDateTime
-  
+
   // Java util types
   val currency: TypeId[java.util.Currency] = TypeId.currency
   val uuid: TypeId[java.util.UUID]         = TypeId.uuid
-  
+
   // None type
   val none: TypeId[None.type] = TypeId.none
-  
+
   // DynamicValue - needs to be defined in typeid
   val dynamicValue: TypeId[DynamicValue] = TypeId.nominal[DynamicValue]("DynamicValue", Owner.zioBlocksSchema)
-  
+
   // Factory methods for parameterized types
-  def some[A](element: TypeId[A]): TypeId[Some[A]] = TypeId.some(element)
-  def option[A](element: TypeId[A]): TypeId[Option[A]] = TypeId.option(element)
-  def list[A](element: TypeId[A]): TypeId[List[A]] = TypeId.list(element)
-  def map[K, V](key: TypeId[K], value: TypeId[V]): TypeId[Map[K, V]] = TypeId.map(key, value)
-  def set[A](element: TypeId[A]): TypeId[Set[A]] = TypeId.set(element)
-  def vector[A](element: TypeId[A]): TypeId[Vector[A]] = TypeId.vector(element)
+  def some[A](element: TypeId[A]): TypeId[Some[A]]                                    = TypeId.some(element)
+  def option[A](element: TypeId[A]): TypeId[Option[A]]                                = TypeId.option(element)
+  def list[A](element: TypeId[A]): TypeId[List[A]]                                    = TypeId.list(element)
+  def map[K, V](key: TypeId[K], value: TypeId[V]): TypeId[Map[K, V]]                  = TypeId.map(key, value)
+  def set[A](element: TypeId[A]): TypeId[Set[A]]                                      = TypeId.set(element)
+  def vector[A](element: TypeId[A]): TypeId[Vector[A]]                                = TypeId.vector(element)
   def arraySeq[A](element: TypeId[A]): TypeId[scala.collection.immutable.ArraySeq[A]] = TypeId.arraySeq(element)
-  def indexedSeq[A](element: TypeId[A]): TypeId[IndexedSeq[A]] = TypeId.indexedSeq(element)
-  def seq[A](element: TypeId[A]): TypeId[Seq[A]] = TypeId.seq(element)
-  
+  def indexedSeq[A](element: TypeId[A]): TypeId[IndexedSeq[A]]                        = TypeId.indexedSeq(element)
+  def seq[A](element: TypeId[A]): TypeId[Seq[A]]                                      = TypeId.seq(element)
+
   // Factory for creating TypeId from Namespace-like data (for migration)
   def apply[A](namespace: Namespace, name: String, params: Seq[TypeId[_]] = Nil): TypeId[A] = {
     val owner = namespaceToOwner(namespace)
     TypeId.nominal[A](name, owner, Nil)
   }
-  
+
   private def namespaceToOwner(ns: Namespace): Owner =
     Owner(ns.packages.toList.map(Owner.Package(_)) ++ ns.values.toList.map(Owner.Term(_)))
 }
 
 /**
- * DEPRECATED: Namespace is replaced by Owner.
- * This class provides backward compatibility during migration.
- * 
- * @deprecated Use zio.blocks.typeid.Owner instead
+ * DEPRECATED: Namespace is replaced by Owner. This class provides backward
+ * compatibility during migration.
+ *
+ * @deprecated
+ *   Use zio.blocks.typeid.Owner instead
  */
 @deprecated("Use zio.blocks.typeid.Owner instead", "2.0.0")
 final case class Namespace(packages: Seq[String], values: Seq[String] = Nil) {
   val elements: Seq[String] = packages ++ values
-  
-  def toOwner: Owner = 
+
+  def toOwner: Owner =
     Owner(packages.toList.map(Owner.Package(_)) ++ values.toList.map(Owner.Term(_)))
 }
 
@@ -104,7 +106,7 @@ object Namespace {
 // Type alias for gradual migration - TypeName is now TypeId
 @deprecated("Use zio.blocks.typeid.TypeId instead", "2.0.0")
 final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil) {
-  
+
   /**
    * Convert to the new TypeId representation.
    */

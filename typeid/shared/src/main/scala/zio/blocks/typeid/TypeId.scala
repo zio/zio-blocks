@@ -1,23 +1,25 @@
 package zio.blocks.typeid
 
+import scala.annotation.unused
+
 /**
  * Identity of a type or type constructor, phantom-typed by `A`.
- * 
+ *
  * `TypeId` provides a robust way to identify Scala types at runtime while
  * preserving type information through phantom types. It supports:
- * 
- * - '''Nominal types''': Regular classes, traits, and objects
- * - '''Type aliases''': Named type definitions
- * - '''Opaque types''': Scala 3 opaque type aliases
- * 
- * The phantom type parameter `A` allows type-safe operations on TypeIds
- * without runtime overhead.
- * 
- * == Example Usage ==
+ *
+ *   - '''Nominal types''': Regular classes, traits, and objects
+ *   - '''Type aliases''': Named type definitions
+ *   - '''Opaque types''': Scala 3 opaque type aliases
+ *
+ * The phantom type parameter `A` allows type-safe operations on TypeIds without
+ * runtime overhead.
+ *
+ * ==Example Usage==
  * {{{
  * // Macro-derived TypeId
  * val listId: TypeId[List] = TypeId.derive[List]
- * 
+ *
  * // Manual construction
  * val intId: TypeId[Int] = TypeId.nominal[Int](
  *   name = "Int",
@@ -25,8 +27,9 @@ package zio.blocks.typeid
  *   typeParams = Nil
  * )
  * }}}
- * 
- * @tparam A The type this TypeId represents (phantom type)
+ *
+ * @tparam A
+ *   The type this TypeId represents (phantom type)
  */
 sealed trait TypeId[A] extends Product with Serializable { self =>
 
@@ -52,8 +55,9 @@ sealed trait TypeId[A] extends Product with Serializable { self =>
 
   /**
    * The arity (number of type parameters) of this type.
-   * 
-   * @return 0 for proper types, >= 1 for type constructors
+   *
+   * @return
+   *   0 for proper types, >= 1 for type constructors
    */
   final def arity: Int = typeParams.size
 
@@ -69,8 +73,9 @@ sealed trait TypeId[A] extends Product with Serializable { self =>
 
   /**
    * The fully qualified name including the owner path.
-   * 
-   * @return e.g., "scala.collection.immutable.List"
+   *
+   * @return
+   *   e.g., "scala.collection.immutable.List"
    */
   final def fullName: String =
     if (owner.isRoot) name
@@ -102,11 +107,11 @@ sealed trait TypeId[A] extends Product with Serializable { self =>
   def isOpaque: Boolean = false
 
   /**
-   * Attempts to cast this TypeId to a more specific type parameter.
-   * This is unsafe and should only be used when you have external
-   * verification of the type relationship.
+   * Attempts to cast this TypeId to a more specific type parameter. This is
+   * unsafe and should only be used when you have external verification of the
+   * type relationship.
    */
-  final def asInstanceOf_![B]: TypeId[B] = 
+  final def asInstanceOf_![B]: TypeId[B] =
     this.asInstanceOf[TypeId[B]]
 }
 
@@ -117,7 +122,8 @@ object TypeId extends TypeIdVersionSpecific {
   // ============================================================================
 
   /**
-   * Implementation of TypeId for nominal types (regular classes, traits, objects).
+   * Implementation of TypeId for nominal types (regular classes, traits,
+   * objects).
    */
   private[typeid] final case class Nominal[A](
     name: String,
@@ -127,13 +133,13 @@ object TypeId extends TypeIdVersionSpecific {
   ) extends TypeId[A] {
     override def isNominal: Boolean = true
 
-    def withDocumentation(doc: String): TypeId[A] = 
+    def withDocumentation(doc: String): TypeId[A] =
       copy(documentation = Some(doc))
 
-    def withoutDocumentation: TypeId[A] = 
+    def withoutDocumentation: TypeId[A] =
       copy(documentation = None)
 
-    override def toString: String = 
+    override def toString: String =
       s"TypeId.Nominal($fullName${if (typeParams.nonEmpty) s"[${typeParams.map(_.name).mkString(", ")}]" else ""})"
   }
 
@@ -143,8 +149,9 @@ object TypeId extends TypeIdVersionSpecific {
 
   /**
    * Implementation of TypeId for type aliases.
-   * 
-   * @param aliased The type representation this alias expands to
+   *
+   * @param aliased
+   *   The type representation this alias expands to
    */
   private[typeid] final case class Alias[A](
     name: String,
@@ -155,13 +162,13 @@ object TypeId extends TypeIdVersionSpecific {
   ) extends TypeId[A] {
     override def isAlias: Boolean = true
 
-    def withDocumentation(doc: String): TypeId[A] = 
+    def withDocumentation(doc: String): TypeId[A] =
       copy(documentation = Some(doc))
 
-    def withoutDocumentation: TypeId[A] = 
+    def withoutDocumentation: TypeId[A] =
       copy(documentation = None)
 
-    override def toString: String = 
+    override def toString: String =
       s"TypeId.Alias($fullName = $aliased)"
   }
 
@@ -171,8 +178,9 @@ object TypeId extends TypeIdVersionSpecific {
 
   /**
    * Implementation of TypeId for opaque types (Scala 3).
-   * 
-   * @param representation The underlying type representation
+   *
+   * @param representation
+   *   The underlying type representation
    */
   private[typeid] final case class Opaque[A](
     name: String,
@@ -183,13 +191,13 @@ object TypeId extends TypeIdVersionSpecific {
   ) extends TypeId[A] {
     override def isOpaque: Boolean = true
 
-    def withDocumentation(doc: String): TypeId[A] = 
+    def withDocumentation(doc: String): TypeId[A] =
       copy(documentation = Some(doc))
 
-    def withoutDocumentation: TypeId[A] = 
+    def withoutDocumentation: TypeId[A] =
       copy(documentation = None)
 
-    override def toString: String = 
+    override def toString: String =
       s"TypeId.Opaque($fullName)"
   }
 
@@ -199,11 +207,15 @@ object TypeId extends TypeIdVersionSpecific {
 
   /**
    * Creates a TypeId for a nominal type (class, trait, or object).
-   * 
-   * @param name       The simple name of the type
-   * @param owner      The ownership chain (package/containing types)
-   * @param typeParams The type parameters declared by this type
-   * @return A TypeId representing the nominal type
+   *
+   * @param name
+   *   The simple name of the type
+   * @param owner
+   *   The ownership chain (package/containing types)
+   * @param typeParams
+   *   The type parameters declared by this type
+   * @return
+   *   A TypeId representing the nominal type
    */
   def nominal[A](
     name: String,
@@ -213,12 +225,17 @@ object TypeId extends TypeIdVersionSpecific {
 
   /**
    * Creates a TypeId for a type alias.
-   * 
-   * @param name       The name of the alias
-   * @param owner      The ownership chain
-   * @param typeParams The type parameters
-   * @param aliased    The type this alias expands to
-   * @return A TypeId representing the type alias
+   *
+   * @param name
+   *   The name of the alias
+   * @param owner
+   *   The ownership chain
+   * @param typeParams
+   *   The type parameters
+   * @param aliased
+   *   The type this alias expands to
+   * @return
+   *   A TypeId representing the type alias
    */
   def alias[A](
     name: String,
@@ -229,12 +246,17 @@ object TypeId extends TypeIdVersionSpecific {
 
   /**
    * Creates a TypeId for an opaque type.
-   * 
-   * @param name           The name of the opaque type
-   * @param owner          The ownership chain
-   * @param typeParams     The type parameters
-   * @param representation The underlying representation type
-   * @return A TypeId representing the opaque type
+   *
+   * @param name
+   *   The name of the opaque type
+   * @param owner
+   *   The ownership chain
+   * @param typeParams
+   *   The type parameters
+   * @param representation
+   *   The underlying representation type
+   * @return
+   *   A TypeId representing the opaque type
    */
   def opaque[A](
     name: String,
@@ -323,15 +345,16 @@ object TypeId extends TypeIdVersionSpecific {
   private val A = TypeParam("A", 0)
   private val B = TypeParam("B", 1)
 
-  val option: TypeId[Option[_]]    = nominal[Option[_]]("Option", Owner.scala, List(A.covariant))
-  val some: TypeId[Some[_]]        = nominal[Some[_]]("Some", Owner.scala, List(A.covariant))
-  val none: TypeId[None.type]      = nominal[None.type]("None", Owner.scala)
-  val list: TypeId[List[_]]        = nominal[List[_]]("List", Owner.scalaCollectionImmutable, List(A.covariant))
-  val vector: TypeId[Vector[_]]    = nominal[Vector[_]]("Vector", Owner.scalaCollectionImmutable, List(A.covariant))
-  val set: TypeId[Set[_]]          = nominal[Set[_]]("Set", Owner.scalaCollectionImmutable, List(A))
-  val map: TypeId[Map[_, _]]       = nominal[Map[_, _]]("Map", Owner.scalaCollectionImmutable, List(A, B.covariant))
-  val seq: TypeId[Seq[_]]          = nominal[Seq[_]]("Seq", Owner.scalaCollectionImmutable, List(A.covariant))
-  val indexedSeq: TypeId[IndexedSeq[_]] = nominal[IndexedSeq[_]]("IndexedSeq", Owner.scalaCollectionImmutable, List(A.covariant))
+  val option: TypeId[Option[_]]         = nominal[Option[_]]("Option", Owner.scala, List(A.covariant))
+  val some: TypeId[Some[_]]             = nominal[Some[_]]("Some", Owner.scala, List(A.covariant))
+  val none: TypeId[None.type]           = nominal[None.type]("None", Owner.scala)
+  val list: TypeId[List[_]]             = nominal[List[_]]("List", Owner.scalaCollectionImmutable, List(A.covariant))
+  val vector: TypeId[Vector[_]]         = nominal[Vector[_]]("Vector", Owner.scalaCollectionImmutable, List(A.covariant))
+  val set: TypeId[Set[_]]               = nominal[Set[_]]("Set", Owner.scalaCollectionImmutable, List(A))
+  val map: TypeId[Map[_, _]]            = nominal[Map[_, _]]("Map", Owner.scalaCollectionImmutable, List(A, B.covariant))
+  val seq: TypeId[Seq[_]]               = nominal[Seq[_]]("Seq", Owner.scalaCollectionImmutable, List(A.covariant))
+  val indexedSeq: TypeId[IndexedSeq[_]] =
+    nominal[IndexedSeq[_]]("IndexedSeq", Owner.scalaCollectionImmutable, List(A.covariant))
 
   // ============================================================================
   // Convenience Factory Methods for Applied Types
@@ -340,54 +363,54 @@ object TypeId extends TypeIdVersionSpecific {
   /**
    * Creates a TypeId for Some[A] with the element type.
    */
-  def some[A](element: TypeId[A]): TypeId[Some[A]] =
+  def some[A](@unused element: TypeId[A]): TypeId[Some[A]] =
     nominal[Some[A]]("Some", Owner.scala, Nil)
 
   /**
    * Creates a TypeId for Option[A] with the element type.
    */
-  def option[A](element: TypeId[A]): TypeId[Option[A]] =
+  def option[A](@unused element: TypeId[A]): TypeId[Option[A]] =
     nominal[Option[A]]("Option", Owner.scala, Nil)
 
   /**
    * Creates a TypeId for List[A] with the element type.
    */
-  def list[A](element: TypeId[A]): TypeId[List[A]] =
+  def list[A](@unused element: TypeId[A]): TypeId[List[A]] =
     nominal[List[A]]("List", Owner.scalaCollectionImmutable, Nil)
 
   /**
    * Creates a TypeId for Vector[A] with the element type.
    */
-  def vector[A](element: TypeId[A]): TypeId[Vector[A]] =
+  def vector[A](@unused element: TypeId[A]): TypeId[Vector[A]] =
     nominal[Vector[A]]("Vector", Owner.scalaCollectionImmutable, Nil)
 
   /**
    * Creates a TypeId for Set[A] with the element type.
    */
-  def set[A](element: TypeId[A]): TypeId[Set[A]] =
+  def set[A](@unused element: TypeId[A]): TypeId[Set[A]] =
     nominal[Set[A]]("Set", Owner.scalaCollectionImmutable, Nil)
 
   /**
    * Creates a TypeId for Map[K, V] with key and value types.
    */
-  def map[K, V](key: TypeId[K], value: TypeId[V]): TypeId[Map[K, V]] =
+  def map[K, V](@unused key: TypeId[K], @unused value: TypeId[V]): TypeId[Map[K, V]] =
     nominal[Map[K, V]]("Map", Owner.scalaCollectionImmutable, Nil)
 
   /**
    * Creates a TypeId for Seq[A] with the element type.
    */
-  def seq[A](element: TypeId[A]): TypeId[Seq[A]] =
+  def seq[A](@unused element: TypeId[A]): TypeId[Seq[A]] =
     nominal[Seq[A]]("Seq", Owner.scalaCollectionImmutable, Nil)
 
   /**
    * Creates a TypeId for IndexedSeq[A] with the element type.
    */
-  def indexedSeq[A](element: TypeId[A]): TypeId[IndexedSeq[A]] =
+  def indexedSeq[A](@unused element: TypeId[A]): TypeId[IndexedSeq[A]] =
     nominal[IndexedSeq[A]]("IndexedSeq", Owner.scalaCollectionImmutable, Nil)
 
   /**
    * Creates a TypeId for scala.collection.immutable.ArraySeq[A].
    */
-  def arraySeq[A](element: TypeId[A]): TypeId[scala.collection.immutable.ArraySeq[A]] =
+  def arraySeq[A](@unused element: TypeId[A]): TypeId[scala.collection.immutable.ArraySeq[A]] =
     nominal[scala.collection.immutable.ArraySeq[A]]("ArraySeq", Owner.scalaCollectionImmutable, Nil)
 }

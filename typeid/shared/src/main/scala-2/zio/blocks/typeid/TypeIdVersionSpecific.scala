@@ -91,12 +91,12 @@ object TypeIdMacros {
       case t if t =:= typeOf[Char]    => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.char)"
       case t if t =:= typeOf[String]  => q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.string)"
 
-      case TypeRef(_, sym, Nil) =>
+      case TypeRef(_, _, Nil) =>
         // Simple type reference
         val id = deriveTypeIdTree(c)(tpe)
         q"_root_.zio.blocks.typeid.TypeRepr.Ref($id)"
 
-      case TypeRef(_, sym, args) =>
+      case TypeRef(_, _, args) =>
         // Applied type
         val tyconId = deriveTypeIdTree(c)(tpe.typeConstructor)
         val argReprs = args.map(typeToRepr(c))

@@ -3,8 +3,8 @@ package zio.blocks.typeid
 import zio.test._
 
 /**
- * Tests for macro derivation of TypeId.
- * These tests verify compile-time derivation works correctly.
+ * Tests for macro derivation of TypeId. These tests verify compile-time
+ * derivation works correctly.
  */
 object TypeIdDerivationSpec extends ZIOSpecDefault {
 
@@ -12,7 +12,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
   case class Person(name: String, age: Int)
   case class GenericBox[A](value: A)
   case class TwoParams[A, B](first: A, second: B)
-  
+
   object Container {
     case class Nested(x: Int)
   }
@@ -50,9 +50,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       )
     },
     test("derives TypeId for primitive types") {
-      val intId = TypeId.derive[Int]
+      val intId    = TypeId.derive[Int]
       val stringId = TypeId.derive[String]
-      val boolId = TypeId.derive[Boolean]
+      val boolId   = TypeId.derive[Boolean]
       assertTrue(
         intId.name == "Int",
         stringId.name == "String",
@@ -60,9 +60,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       )
     },
     test("derives TypeId for standard library types") {
-      val listId = TypeId.derive[List[Int]]
+      val listId   = TypeId.derive[List[Int]]
       val optionId = TypeId.derive[Option[String]]
-      val mapId = TypeId.derive[Map[String, Int]]
+      val mapId    = TypeId.derive[Map[String, Int]]
       assertTrue(
         listId.name == "List",
         optionId.name == "Option",
@@ -70,7 +70,7 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
       )
     },
     test("derives TypeId for java types") {
-      val uuidId = TypeId.derive[java.util.UUID]
+      val uuidId    = TypeId.derive[java.util.UUID]
       val instantId = TypeId.derive[java.time.Instant]
       assertTrue(
         uuidId.name == "UUID",
@@ -80,9 +80,9 @@ object TypeIdDerivationSpec extends ZIOSpecDefault {
     test("derived TypeId has correct owner chain") {
       val id = TypeId.derive[scala.collection.immutable.List[Int]]
       assertTrue(
-        id.owner.asString.contains("scala") && 
-        id.owner.asString.contains("collection") && 
-        id.owner.asString.contains("immutable")
+        id.owner.asString.contains("scala") &&
+          id.owner.asString.contains("collection") &&
+          id.owner.asString.contains("immutable")
       )
     }
   )
