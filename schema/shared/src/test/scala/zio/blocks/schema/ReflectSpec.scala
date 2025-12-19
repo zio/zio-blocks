@@ -269,8 +269,8 @@ object ReflectSpec extends ZIOSpecDefault {
           equalTo(
             TypeName[(Byte, Short, Int, Long)](
               Namespace.scala,
-              "Tuple4",
-              Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+              "Tuple4[Byte, Short, Int, Long]",
+              Nil
             )
           )
         ) &&
@@ -365,7 +365,7 @@ object ReflectSpec extends ZIOSpecDefault {
       test("gets and updates variant type name") {
         assert(eitherReflect.typeName)(
           equalTo(
-            TypeName[Either[Int, Long]](Namespace(Seq("scala", "util")), "Either", Seq(TypeName.int, TypeName.long))
+            TypeName[Either[Int, Long]](Namespace(Seq("scala", "util")), "Either[Int, Long]", Nil)
           )
         ) &&
         assert(

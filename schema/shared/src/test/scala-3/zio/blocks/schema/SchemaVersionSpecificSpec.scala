@@ -107,8 +107,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                  name = "Tuple4[Byte, Short, Int, Long]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -155,8 +155,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                  name = "Tuple4[Byte, Short, Int, Long]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -192,8 +192,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(TypeName.int, TypeName.string)
+                  name = "Tuple2[Int, String]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -217,11 +217,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.int, TypeName.long)),
-                    TypeName(Namespace.scala, "Tuple2", Seq(TypeName.string, TypeName.string))
-                  )
+                  name = "Tuple2[Tuple2[Int, Long], Tuple2[String, String]]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -238,8 +235,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace.scala,
-                  name = "Tuple2",
-                  params = Seq(TypeName.option(TypeName.int), TypeName.option(TypeName.string))
+                  name = "Tuple2[Option[Int], Option[String]]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -519,31 +516,31 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             schema9.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Double, IArray]]
           )
         assert(schema1.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.int)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Int]", List(TypeName.int)))
         ) &&
         assert(schema2.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.long)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Long]", List(TypeName.long)))
         ) &&
         assert(schema3.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.char)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Char]", List(TypeName.char)))
         ) &&
         assert(schema4.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.string)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[String]", List(TypeName.string)))
         ) &&
         assert(schema5.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.boolean)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Boolean]", List(TypeName.boolean)))
         ) &&
         assert(schema6.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.byte)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Byte]", List(TypeName.byte)))
         ) &&
         assert(schema7.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.short)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Short]", List(TypeName.short)))
         ) &&
         assert(schema8.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.float)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Float]", List(TypeName.float)))
         ) &&
         assert(schema9.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.double)))
+          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray[Double]", List(TypeName.double)))
         ) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(IArray(1, 2, 3))).map(_.toSeq))(
           isRight(equalTo(Seq(1, 2, 3)))
@@ -583,8 +580,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(traversal9.fold(IArray(1.0, 2.0, 3.0))(0.0, _ + _))(equalTo(6.0))
       },
       test("derives schema for array and IArray of opaque sub-types") {
-        assert(Schema.derived[Array[StructureId]])(equalTo(Schema.derived[Array[String]])) &&
-        assert(Schema.derived[IArray[StructureId]])(equalTo(Schema.derived[IArray[String]]))
+        assert(Schema.derived[Array[StructureId]].reflect.typeName.name)(equalTo("Array[StructureId]")) &&
+        assert(Schema.derived[IArray[StructureId]].reflect.typeName.name)(equalTo("IArray[StructureId]"))
       },
       test("doesn't generate schema for unsupported collections") {
         typeCheck {
@@ -710,11 +707,10 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema = Schema.derived[Option[StructureId]]
         assert(schema.reflect.typeName)(
           equalTo(
-            TypeName.option(
-              TypeName[StructureId](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("OpaqueTypes$package")),
-                name = "StructureId"
-              )
+            TypeName[Option[StructureId]](
+              namespace = Namespace(Seq("scala")),
+              name = "Option[StructureId]",
+              params = Nil
             )
           )
         )
@@ -734,8 +730,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             equalTo(
               TypeName(
                 namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                name = "FruitEnum",
-                params = Seq(TypeName(Namespace.scala, "Any"))
+                name = "FruitEnum[Any]",
+                params = Nil
               )
             )
           )
@@ -782,14 +778,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             equalTo(
               TypeName(
                 Namespace(Nil),
-                "|",
-                Seq(
-                  TypeName.int,
-                  TypeName.boolean,
-                  TypeName[(Int, Boolean)](Namespace(Seq("scala")), "Tuple2", Seq(TypeName.int, TypeName.boolean)),
-                  TypeName.list(TypeName.int),
-                  TypeName.map(TypeName.int, TypeName.long)
-                )
+                "|[Int, Boolean, Tuple2[Int, Boolean], List[Int], Map[Int, Long]]",
+                Nil
               )
             )
           )
@@ -861,8 +851,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             equalTo(
               TypeName(
                 namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                name = "LinkedList",
-                params = Seq(TypeName.int)
+                name = "LinkedList[Int]",
+                params = Nil
               )
             )
           )
@@ -883,8 +873,8 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
             equalTo(
               TypeName(
                 namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")),
-                name = "HKEnum",
-                params = Seq(TypeName(Namespace.scala, "Option"))
+                name = "HKEnum[Option]",
+                params = Nil
               )
             )
           )

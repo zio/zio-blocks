@@ -164,8 +164,8 @@ object SchemaSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
+                  name = "Tuple4[Byte, Short, Int, Long]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -270,8 +270,8 @@ object SchemaSpec extends ZIOSpecDefault {
                 ),
                 typeName = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-2",
-                  params = Seq(TypeName.byte, TypeName.int)
+                  name = "Record-2[Byte, Int]",
+                  params = Nil
                 ),
                 recordBinding = null
               )
@@ -582,8 +582,8 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(
               TypeName[Record8[Option]](
                 namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Record8",
-                params = Seq(TypeName(Namespace.scala, "Option"))
+                name = "Record8[Option]",
+                params = Nil
               )
             )
           )
@@ -999,8 +999,8 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(
               TypeName[`Variant-2`[String]](
                 namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-2",
-                params = Seq(TypeName.string)
+                name = "Variant-2[String]",
+                params = Nil
               )
             )
           )
@@ -1099,8 +1099,8 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(
               TypeName[`Variant-3`[Option]](
                 namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-3",
-                params = Seq(TypeName(Namespace.scala, "Option"))
+                name = "Variant-3[Option]",
+                params = Nil
               )
             )
           )
@@ -1125,8 +1125,8 @@ object SchemaSpec extends ZIOSpecDefault {
             equalTo(
               TypeName[Variant4[String, Int]](
                 namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant4",
-                params = Seq(TypeName.string, TypeName.int)
+                name = "Variant4[String, Int]",
+                params = Nil
               )
             )
           )

@@ -38,8 +38,10 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
       ) &&
       assert(Planet.distanceFromSun.focus.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeName[Option[Meter]](
+            Namespace(Seq("scala")),
+            "Option[Meter]",
+            Nil
           )
         )
       )
@@ -59,32 +61,37 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(schema1.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          TypeName[Option[Name]](
+            Namespace(Seq("scala")),
+            "Option[Name]",
+            Nil
           )
         )
       ) &&
       assert(schema2.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          TypeName[Option[Kilogram]](
+            Namespace(Seq("scala")),
+            "Option[Kilogram]",
+            Nil
           )
         )
       ) &&
       assert(schema3.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeName[Option[Meter]](
+            Namespace(Seq("scala")),
+            "Option[Meter]",
+            Nil
           )
         )
       ) &&
       assert(schema4.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](
-              Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
-              "EmojiDataId"
-            )
+          TypeName[Option[EmojiDataId]](
+            Namespace(Seq("scala")),
+            "Option[EmojiDataId]",
+            Nil
           )
         )
       )

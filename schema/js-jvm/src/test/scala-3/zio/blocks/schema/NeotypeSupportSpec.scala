@@ -39,8 +39,10 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       ) &&
       assert(Planet.distanceFromSun.focus.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          TypeName[Option[Meter]](
+            Namespace(Seq("scala")),
+            "Option[Meter]",
+            Nil
           )
         )
       )
@@ -76,29 +78,37 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(schema1.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          TypeName[Option[Name]](
+            Namespace(Seq("scala")),
+            "Option[Name]",
+            Nil
           )
         )
       ) &&
       assert(schema2.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
+          TypeName[Option[Kilogram]](
+            Namespace(Seq("scala")),
+            "Option[Kilogram]",
+            Nil
           )
         )
       ) &&
       assert(schema3.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          TypeName[Option[Meter]](
+            Namespace(Seq("scala")),
+            "Option[Meter]",
+            Nil
           )
         )
       ) &&
       assert(schema4.reflect.typeName)(
         equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId")
+          TypeName[Option[EmojiDataId]](
+            Namespace(Seq("scala")),
+            "Option[EmojiDataId]",
+            Nil
           )
         )
       )

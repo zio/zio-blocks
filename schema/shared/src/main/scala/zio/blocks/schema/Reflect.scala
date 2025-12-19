@@ -1,8 +1,10 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.TypeNameConversions._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
+import zio.schema.TypeId
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
@@ -141,9 +143,15 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
+  @deprecated("Use typeId instead", "0.1.0")
   def typeName: TypeName[A]
 
+  @deprecated("Use typeId(value) instead", "0.1.0")
   def typeName(value: TypeName[A]): Reflect[F, A]
+
+  def typeId: TypeId = typeNameToTypeId(typeName)
+
+  def typeId(value: TypeId): Reflect[F, A] = typeName(typeIdToTypeName(value))
 
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
@@ -274,7 +282,7 @@ object Reflect {
 
   case class Record[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
-    typeName: TypeName[A],
+    @deprecated("Use typeId instead", "0.1.0") typeName: TypeName[A],
     recordBinding: F[BindingType.Record, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
@@ -417,7 +425,10 @@ object Reflect {
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Record[F, A] = copy(typeName = value)
+
+    override def typeId(value: TypeId): Record[F, A] = copy(typeName = typeIdToTypeName(value))
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
 
@@ -487,7 +498,7 @@ object Reflect {
 
   case class Variant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ? <: A]],
-    typeName: TypeName[A],
+    @deprecated("Use typeId instead", "0.1.0") typeName: TypeName[A],
     variantBinding: F[BindingType.Variant, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
@@ -580,7 +591,10 @@ object Reflect {
         variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
       } yield variant
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Variant[F, A] = copy(typeName = value)
+
+    override def typeId(value: TypeId): Variant[F, A] = copy(typeName = typeIdToTypeName(value))
 
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
 
@@ -595,7 +609,7 @@ object Reflect {
 
   case class Sequence[F[_, _], A, C[_]](
     element: Reflect[F, A],
-    typeName: TypeName[C[A]],
+    @deprecated("Use typeId instead", "0.1.0") typeName: TypeName[C[A]],
     seqBinding: F[BindingType.Seq[C], C[A]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
@@ -775,7 +789,10 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[C[A]]): Sequence[F, A, C] = copy(typeName = value)
+
+    override def typeId(value: TypeId): Sequence[F, A, C] = copy(typeName = typeIdToTypeName(value))
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
@@ -804,7 +821,7 @@ object Reflect {
   case class Map[F[_, _], K, V, M[_, _]](
     key: Reflect[F, K],
     value: Reflect[F, V],
-    typeName: TypeName[M[K, V]],
+    @deprecated("Use typeId instead", "0.1.0") typeName: TypeName[M[K, V]],
     mapBinding: F[BindingType.Map[M], M[K, V]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
@@ -889,7 +906,10 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
       } yield map
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[M[K, V]]): Map[F, K, V, M] = copy(typeName = value)
+
+    override def typeId(value: TypeId): Map[F, K, V, M] = copy(typeName = typeIdToTypeName(value))
 
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
@@ -918,7 +938,7 @@ object Reflect {
 
   case class Dynamic[F[_, _]](
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
-    typeName: TypeName[DynamicValue] = TypeName.dynamicValue,
+    @deprecated("Use typeId instead", "0.1.0") typeName: TypeName[DynamicValue] = TypeName.dynamicValue,
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, DynamicValue] {
@@ -958,7 +978,10 @@ object Reflect {
         dynamic <- f.transformDynamic(path, typeName, dynamicBinding, doc, modifiers)
       } yield dynamic
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[DynamicValue]): Dynamic[F] = copy(typeName = value)
+
+    override def typeId(value: TypeId): Dynamic[F] = copy(typeName = typeIdToTypeName(value))
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
@@ -973,7 +996,7 @@ object Reflect {
 
   case class Primitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
-    typeName: TypeName[A],
+    @deprecated("Use typeId instead", "0.1.0") typeName: TypeName[A],
     primitiveBinding: F[BindingType.Primitive, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
@@ -1014,7 +1037,10 @@ object Reflect {
         primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
       } yield primitive
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Primitive[F, A] = copy(typeName = value)
+
+    override def typeId(value: TypeId): Primitive[F, A] = copy(typeName = typeIdToTypeName(value))
 
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
 
@@ -1029,7 +1055,7 @@ object Reflect {
 
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
-    typeName: TypeName[A],
+    @deprecated("Use typeId instead", "0.1.0") typeName: TypeName[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
@@ -1081,7 +1107,10 @@ object Reflect {
         wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
       } yield wrapper
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
+
+    override def typeId(value: TypeId): Wrapper[F, A, B] = copy(typeName = typeIdToTypeName(value))
 
     override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
       def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped] = self.asInstanceOf[Reflect.Wrapper[F, Wrapping, Wrapped]]
@@ -1154,7 +1183,10 @@ object Reflect {
         }
       }
 
+    @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Deferred[F, A] = copy(_value = () => _value().typeName(value))
+
+    override def typeId(value: TypeId): Deferred[F, A] = copy(_value = () => _value().typeId(value))
 
     override def hashCode: Int = {
       val v = visited.get

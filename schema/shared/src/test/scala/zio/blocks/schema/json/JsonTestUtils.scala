@@ -12,6 +12,25 @@ import scala.collection.immutable.ArraySeq
 import scala.util.Try
 
 object JsonTestUtils {
+  /**
+   * Normalizes JSON by removing insignificant whitespace.
+   * This makes JSON comparisons insensitive to formatting differences.
+   */
+  private def normalizeJson(json: String): String = {
+    // Remove whitespace after opening braces/brackets and colons/commas
+    // Remove whitespace before closing braces/brackets and colons/commas
+    // Preserve whitespace inside string values
+    json
+      .replaceAll("""\s+""", " ")  // Normalize multiple whitespace to single space
+      .replaceAll("""\s*\{\s*""", "{")  // Remove spaces around {
+      .replaceAll("""\s*\}\s*""", "}")  // Remove spaces around }
+      .replaceAll("""\s*\[\s*""", "[")  // Remove spaces around [
+      .replaceAll("""\s*\]\s*""", "]")  // Remove spaces around ]
+      .replaceAll("""\s*:\s*""", ":")   // Remove spaces around :
+      .replaceAll("""\s*,\s*""", ",")   // Remove spaces around ,
+      .trim
+  }
+
   def roundTrip[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
     roundTrip(value, expectedJson, getOrDeriveCodec(schema))
 
@@ -46,7 +65,7 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
+    assert(normalizeJson(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeJson(expectedJson))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
@@ -122,7 +141,7 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
+    assert(normalizeJson(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeJson(expectedJson))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4)))

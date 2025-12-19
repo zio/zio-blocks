@@ -58,6 +58,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-schema"   % "1.7.5",
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.23"     % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.23"     % Test
