@@ -290,4 +290,26 @@ object DynamicOptic {
       }
     loop(optic.nodes.toList, value)
   }
+
+  // JSON serialization support for Scala 3+
+  import zio.json.*
+
+  given JsonEncoder[DynamicOptic] = JsonEncoder.string.contramap { optic =>
+    optic.nodes.collect {
+      case Node.Field(name) => s"field:$name"
+      case Node.Case(name) => s"case:$name"
+      case Node.AtIndex(idx) => s"index:$idx"
+      // Skip AtMapKey for simplicity - complex keys not supported in JSON
+    }.mkString(".")
+  }
+
+  given JsonDecoder[DynamicOptic] = JsonDecoder.string.map { str =>
+    val nodes = str.split("\\.").filter(_.nonEmpty).map { part =>
+      if (part.startsWith("field:")) Node.Field(part.substring(6))
+      else if (part.startsWith("case:")) Node.Case(part.substring(5))
+      else if (part.startsWith("index:")) Node.AtIndex(part.substring(6).toInt)
+      else throw new Exception(s"Unknown optic node: $part")
+    }.toIndexedSeq
+    DynamicOptic(nodes)
+  }
 }
