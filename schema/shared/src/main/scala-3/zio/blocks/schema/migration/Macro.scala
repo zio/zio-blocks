@@ -20,18 +20,25 @@ object Macro {
       case _                                               => fail(s"Expected a lambda expression, got '${term.show}'")
     }
 
-    def buildDynamicOptic(term: Term): Expr[DynamicOptic] = term match {
-      case Select(parent, fieldName) =>
-        val parentOptic = buildDynamicOptic(parent)
-        '{ $parentOptic.field(${Expr(fieldName)}) }
-      case Ident(_) =>
-        '{ DynamicOptic.root }
-      case _ =>
-        fail(s"Unsupported path element: '${term.show}'. Expected field selections like .fieldName")
+    def extractPath(term: Term): List[String] = {
+      @tailrec
+      def loop(t: Term, acc: List[String]): List[String] = t match {
+        case Select(qual, name) => loop(qual, name :: acc)
+        case Ident("_") => acc
+        case _ => fail(s"Unsupported path: ${t.show}")
+      }
+      loop(term, Nil).reverse
+    }
+
+    def pathToOptic(path: List[String]): Expr[DynamicOptic] = {
+      path.foldLeft('{DynamicOptic.root}) { (optic, field) =>
+        '{$optic.field(${Expr(field)})}
+      }
     }
 
     val pathBody = toPathBody(f.asTerm)
-    buildDynamicOptic(pathBody)
+    val path = extractPath(pathBody)
+    pathToOptic(path)
   }
 
   def validateMigration[A, B](builder: MigrationBuilder[A, B]): Either[MigrationError, Migration[A, B]] = {
