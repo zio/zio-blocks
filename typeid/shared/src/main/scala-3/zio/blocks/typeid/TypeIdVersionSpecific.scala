@@ -79,7 +79,7 @@ object TypeIdMacros {
               else
                 '{ Variance.Invariant }
 
-            '{ new TypeParam($nameExpr, $indexExpr, $varianceExpr, TypeParam.Bounds.Unbounded, false) }
+            '{ TypeParam($nameExpr, $indexExpr, $varianceExpr, TypeParam.Bounds.Unbounded, false) }
           }
       }
 
