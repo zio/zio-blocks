@@ -1,8 +1,9 @@
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.DynamicValue
+import zio.json.{JsonDecoder, JsonEncoder}
 
-final case class DynamicMigration(actions: Vector[MigrationAction]) {
+final case class DynamicMigration(actions: Vector[MigrationAction]) derives JsonEncoder, JsonDecoder {
   def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
     actions.foldLeft[Either[MigrationError, DynamicValue]](Right(value)) { (acc, action) =>
       acc.flatMap(action.apply)
