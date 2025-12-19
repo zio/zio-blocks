@@ -15,6 +15,9 @@ private object IntoVersionSpecificImpl {
 private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   import quotes.reflect.*
 
+  // Cache for Into instances to handle recursive resolution
+  private val intoRefs = scala.collection.mutable.HashMap[(TypeRepr, TypeRepr), Expr[Into[?, ?]]]()
+
   // === Derivation logic ===
 
   def derive[A: Type, B: Type]: Expr[Into[A, B]] = {
@@ -353,26 +356,30 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
           val sourceTpe   = sourceField.tpe
           val targetTpe   = targetFieldInfo.tpe
 
-          // If types differ and are coercible, use implicit Into instance
-          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
-            sourceTpe.asType match {
-              case '[st] =>
-                targetTpe.asType match {
-                  case '[tt] =>
-                    Expr.summon[Into[st, tt]] match {
-                      case Some(intoInstance) =>
+          // If types differ, try to find an implicit Into instance
+          if (!(sourceTpe =:= targetTpe)) {
+            // Try to find implicit Into instance for nested conversions
+            findImplicitInto(sourceTpe, targetTpe) match {
+              case Some(intoInstance) =>
+                sourceTpe.asType match {
+                  case '[st] =>
+                    targetTpe.asType match {
+                      case '[tt] =>
+                        val typedInto = intoInstance.asExprOf[Into[st, tt]]
                         '{
-                          $intoInstance.into(${ sourceValue.asExprOf[st] }) match {
+                          $typedInto.into(${ sourceValue.asExprOf[st] }) match {
                             case Right(v)  => v
                             case Left(err) => throw new RuntimeException(s"Coercion failed: $err")
                           }
                         }.asTerm
-                      case None =>
-                        report.errorAndAbort(
-                          s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field coercion"
-                        )
                     }
                 }
+              case None =>
+                // No coercion available - fail at compile time
+                report.errorAndAbort(
+                  s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field in coproduct case. " +
+                  s"Please provide an implicit Into instance in scope."
+                )
             }
           } else {
             sourceValue
@@ -460,9 +467,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
     if (exactMatch.isDefined) return exactMatch
 
-    // Priority 2: Name match with coercion
+    // Priority 2: Name match with coercion - same name + coercible type or implicit Into available
     val nameWithCoercion = sourceInfo.fields.find { sf =>
-      !usedSourceFields.contains(sf.index) && sf.name == targetField.name && isCoercible(sf.tpe, targetField.tpe)
+      !usedSourceFields.contains(sf.index) && sf.name == targetField.name &&
+      (isCoercible(sf.tpe, targetField.tpe) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
     }
     if (nameWithCoercion.isDefined) return nameWithCoercion
 
@@ -478,10 +486,11 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
       if (uniqueTypeMatch.isDefined) return uniqueTypeMatch
 
+      // Also check for unique coercible type match (including implicit Into)
       val uniqueCoercibleMatch = sourceInfo.fields.find { sf =>
         !usedSourceFields.contains(sf.index) && {
           val isSourceTypeUnique = sourceTypeFreq.getOrElse(sf.tpe.dealias.show, 0) == 1
-          isSourceTypeUnique && isCoercible(sf.tpe, targetField.tpe)
+          isSourceTypeUnique && (isCoercible(sf.tpe, targetField.tpe) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
         }
       }
       if (uniqueCoercibleMatch.isDefined) return uniqueCoercibleMatch
@@ -492,7 +501,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       val positionalField = sourceInfo.fields(targetField.index)
       if (!usedSourceFields.contains(positionalField.index)) {
         if (positionalField.tpe =:= targetField.tpe) return Some(positionalField)
-        if (isCoercible(positionalField.tpe, targetField.tpe)) return Some(positionalField)
+        // Also check coercible for positional (including implicit Into)
+        if (isCoercible(positionalField.tpe, targetField.tpe) || findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
+          return Some(positionalField)
+        }
       }
     }
 
@@ -502,7 +514,9 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def isCoercible(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
     if (sourceTpe =:= targetTpe) return true
 
-    // Numeric widening conversions (lossless)
+    // Only check for numeric widening conversions (lossless)
+    // Note: We don't check for implicit Into instances here as it causes compiler issues
+    // Instead, we check for implicits lazily when generating code
     val source = sourceTpe.dealias.typeSymbol
     val target = targetTpe.dealias.typeSymbol
 
@@ -540,24 +554,45 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
+  // Find or derive an Into instance, using cache to handle recursion
+  private def findImplicitInto(sourceTpe: TypeRepr, targetTpe: TypeRepr): Option[Expr[Into[?, ?]]] = {
+    // Check cache first
+    intoRefs.get((sourceTpe, targetTpe)) match {
+      case some @ Some(_) => some
+      case None =>
+        // Try to find implicit
+        val intoTpeApplied = TypeRepr.of[Into].typeSymbol.typeRef.appliedTo(List(sourceTpe, targetTpe))
+        Implicits.search(intoTpeApplied) match {
+          case success: ImplicitSearchSuccess =>
+            val expr = success.tree.asExpr.asInstanceOf[Expr[Into[?, ?]]]
+            // Cache it for future use
+            intoRefs.update((sourceTpe, targetTpe), expr)
+            Some(expr)
+          case _ =>
+            None
+        }
+    }
+  }
+
   private def generateProductConversion[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
     targetInfo: ProductInfo[B],
     fieldMappings: List[FieldMapping]
-  ): Expr[Into[A, B]] =
+  ): Expr[Into[A, B]] = {
+    val convertedExpr = constructTarget[A, B](sourceInfo, targetInfo, fieldMappings)
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] =
-          Right(${ constructTarget[A, B](sourceInfo, targetInfo, fieldMappings, 'a) })
+          Right(${ convertedExpr('a) })
       }
     }
+  }
 
   private def constructTarget[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
     targetInfo: ProductInfo[B],
-    fieldMappings: List[FieldMapping],
-    aExpr: Expr[A]
-  ): Expr[B] = {
+    fieldMappings: List[FieldMapping]
+  ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetFieldInfo) =>
       mapping.sourceField match {
         case Some(sourceField) =>
@@ -566,30 +601,33 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
           val sourceTpe   = sourceField.tpe
           val targetTpe   = targetFieldInfo.tpe
 
-          // If types differ and are coercible, use implicit Into instance
-          if (!(sourceTpe =:= targetTpe) && isCoercible(sourceTpe, targetTpe)) {
-            sourceTpe.asType match {
-              case '[st] =>
-                targetTpe.asType match {
-                  case '[tt] =>
-                    // Look up implicit Into[st, tt] at macro expansion time
-                    Expr.summon[Into[st, tt]] match {
-                      case Some(intoInstance) =>
+          // If types differ, try to find an implicit Into instance
+          if (!(sourceTpe =:= targetTpe)) {
+            // Try to find implicit Into instance for nested conversions
+            findImplicitInto(sourceTpe, targetTpe) match {
+              case Some(intoInstance) =>
+                sourceTpe.asType match {
+                  case '[st] =>
+                    targetTpe.asType match {
+                      case '[tt] =>
+                        val typedInto = intoInstance.asExprOf[Into[st, tt]]
                         '{
-                          $intoInstance.into(${ sourceValue.asExprOf[st] }) match {
+                          $typedInto.into(${ sourceValue.asExprOf[st] }) match {
                             case Right(v)  => v
                             case Left(err) => throw new RuntimeException(s"Coercion failed: $err")
                           }
                         }.asTerm
-                      case None =>
-                        report.errorAndAbort(
-                          s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field coercion"
-                        )
                     }
                 }
+              case None =>
+                // No coercion available and types don't match - fail at compile time
+                report.errorAndAbort(
+                  s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field '${sourceField.name}'. " +
+                  s"Please provide an implicit Into instance in scope."
+                )
             }
           } else {
-            // Types match or no coercion needed
+            // Types match exactly
             sourceValue
           }
         case None =>
@@ -619,19 +657,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
+    val buildTuple = constructTupleFromCaseClass[A, B](sourceInfo, bTpe)
+
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] =
-          Right(${ constructTupleFromCaseClass[A, B](sourceInfo, bTpe, 'a) })
+          Right(${ buildTuple('a) })
       }
     }
   }
 
   private def constructTupleFromCaseClass[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
-    bTpe: TypeRepr,
-    aExpr: Expr[A]
-  ): Expr[B] = {
+    bTpe: TypeRepr
+  ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val args      = sourceInfo.fields.map(field => sourceInfo.fieldGetter(aExpr.asTerm, field))
     val tupleSize = args.size
     if (tupleSize <= 22) {
@@ -665,19 +704,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
+    val buildCaseClass = constructCaseClassFromTuple[A, B](aTpe, targetInfo)
+
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] =
-          Right(${ constructCaseClassFromTuple[A, B](aTpe, targetInfo, 'a) })
+          Right(${ buildCaseClass('a) })
       }
     }
   }
 
   private def constructCaseClassFromTuple[A: Type, B: Type](
     aTpe: TypeRepr,
-    targetInfo: ProductInfo[B],
-    aExpr: Expr[A]
-  ): Expr[B] = {
+    targetInfo: ProductInfo[B]
+  ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val sourceTypeArgs = getTupleTypeArgs(aTpe)
     val args           = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
       val accessorName = s"_${idx + 1}"
@@ -706,19 +746,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
+    val buildTuple = constructTupleFromTuple[A, B](aTpe, bTpe)
+
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] =
-          Right(${ constructTupleFromTuple[A, B](aTpe, bTpe, 'a) })
+          Right(${ buildTuple('a) })
       }
     }
   }
 
   private def constructTupleFromTuple[A: Type, B: Type](
     aTpe: TypeRepr,
-    bTpe: TypeRepr,
-    aExpr: Expr[A]
-  ): Expr[B] = {
+    bTpe: TypeRepr
+  ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val sourceTypeArgs = getTupleTypeArgs(aTpe)
     val args           = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
       val accessorName = s"_${idx + 1}"
