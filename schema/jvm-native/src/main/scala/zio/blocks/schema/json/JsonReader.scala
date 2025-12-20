@@ -3,6 +3,7 @@ package zio.blocks.schema.json
 import java.io.InputStream
 import java.math.MathContext
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.time._
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -2536,7 +2537,7 @@ final class JsonReader private[json] (
   private[this] def toDouble(from: Int, newMark: Int, pos: Int): Double = {
     var offset = from
     if (mark == 0) offset -= newMark
-    java.lang.Double.parseDouble(new String(buf, 0, offset, pos - offset))
+    java.lang.Double.parseDouble(new String(buf, 0, offset, pos - offset, StandardCharsets.UTF_8))
   }
 
   def readFloat(isToken: Boolean): Float = {
@@ -2696,7 +2697,7 @@ final class JsonReader private[json] (
   private[this] def toFloat(from: Int, newMark: Int, pos: Int): Float = {
     var offset = from
     if (mark == 0) offset -= newMark
-    java.lang.Float.parseFloat(new String(buf, 0, offset, pos - offset))
+    java.lang.Float.parseFloat(new String(buf, 0, offset, pos - offset, StandardCharsets.UTF_8))
   }
 
   private[this] def unsignedMultiplyHigh(x: Long, y: Long): Long =
@@ -4869,7 +4870,7 @@ private class Key {
     }
   }
 
-  override def toString: String = new String(bs, 0, from, to - from)
+  override def toString: String = new String(bs, 0, from, to - from, StandardCharsets.UTF_8)
 
   private def bytes: Array[Byte] = bs
 

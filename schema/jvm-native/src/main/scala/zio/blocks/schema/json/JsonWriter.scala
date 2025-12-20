@@ -3,6 +3,7 @@ package zio.blocks.schema.json
 import java.io.OutputStream
 import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
+import java.nio.charset.StandardCharsets
 import java.time._
 import java.util.UUID
 import zio.blocks.schema.json.JsonWriter._
@@ -1138,7 +1139,7 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      x.getBytes(offset, newOffset, buf, pos)
+      x.getBytes(StandardCharsets.UTF_8, offset, newOffset, buf, pos)
       offset = newOffset
       pos += step
       remaining -= step
@@ -1158,7 +1159,7 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      x.getBytes(offset, newOffset, buf, pos)
+      x.getBytes(StandardCharsets.UTF_8, offset, newOffset, buf, pos)
       offset = newOffset
       pos += step
       remaining -= step
@@ -1174,7 +1175,7 @@ final class JsonWriter private[json] (
     val buf = this.buf
     buf(pos) = '"'
     pos += 1
-    s.getBytes(0, len, buf, pos)
+    s.getBytes(StandardCharsets.UTF_8, 0, len, buf, pos)
     pos += len
     buf(pos) = '"'
     count = pos + 1
@@ -1855,7 +1856,7 @@ final class JsonWriter private[json] (
         pos = flushAndGrowBuf(required, pos)
         buf = this.buf
       }
-      zoneId.getBytes(0, len, buf, pos)
+      zoneId.getBytes(StandardCharsets.UTF_8, 0, len, buf, pos)
       pos += len
       ByteArrayAccess.setShort(buf, pos, 0x225d)
       pos += 2
