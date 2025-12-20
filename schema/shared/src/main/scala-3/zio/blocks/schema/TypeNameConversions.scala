@@ -5,16 +5,16 @@ import zio.schema.TypeId
 /**
  * Scala 3 specific TypeId to TypeName conversion.
  *
- * In Scala 3, type parameters are encoded in the name string for
- * non-standard types (e.g., "Option[Meter]" instead of params list).
+ * In Scala 3, type parameters are encoded in the name string for non-standard
+ * types (e.g., "Option[Meter]" instead of params list).
  */
 private[schema] object TypeIdToTypeNameImpl {
 
   /**
    * Converts a zio.schema.TypeId to a TypeName for Scala 3.
    *
-   * Type parameters are kept encoded in the typeName string,
-   * with params = Nil for most cases.
+   * Type parameters are kept encoded in the typeName string, with params = Nil
+   * for most cases.
    */
   def typeIdToTypeName[A](typeId: TypeId): TypeName[A] =
     typeId match {
@@ -30,48 +30,57 @@ private[schema] object TypeIdToTypeNameImpl {
     }
 
   /**
-   * Standard collection types that may have params parsed.
-   * In Scala 3, we parse params for standard Scala types with simple parameters only.
+   * Standard collection types that may have params parsed. In Scala 3, we parse
+   * params for standard Scala types with simple parameters only.
    */
   private val standardCollectionTypes = Set(
-    "Option", "List", "Vector", "Set", "Map", "Seq", "ArraySeq", "IndexedSeq", "Some"
+    "Option",
+    "List",
+    "Vector",
+    "Set",
+    "Map",
+    "Seq",
+    "ArraySeq",
+    "IndexedSeq",
+    "Some"
   )
 
   /**
    * Parses a type name string that may contain type parameters.
    *
-   * In Scala 3, qualified type parameters stay encoded in the name.
-   * Only simple, standard Scala type parameters are parsed into params.
+   * In Scala 3, qualified type parameters stay encoded in the name. Only
+   * simple, standard Scala type parameters are parsed into params.
    */
   private def parseTypeNameWithParams(typeNameStr: String, namespace: Namespace): TypeName[?] = {
     val bracketIndex = typeNameStr.indexOf('[')
     if (bracketIndex == -1) {
       // No type parameters
-      val (finalNamespace, finalName) = if (namespace.packages.isEmpty && namespace.values.isEmpty && typeNameStr.contains(".")) {
-        val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(typeNameStr)
-        val simpleName = TypeNameConversions.extractSimpleTypeName(typeNameStr)
-        (inferredNamespace, simpleName)
-      } else {
-        (namespace, typeNameStr)
-      }
+      val (finalNamespace, finalName) =
+        if (namespace.packages.isEmpty && namespace.values.isEmpty && typeNameStr.contains(".")) {
+          val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(typeNameStr)
+          val simpleName        = TypeNameConversions.extractSimpleTypeName(typeNameStr)
+          (inferredNamespace, simpleName)
+        } else {
+          (namespace, typeNameStr)
+        }
       new TypeName(finalNamespace, finalName, Nil)
     } else {
       val baseNameWithNamespace = typeNameStr.substring(0, bracketIndex)
-      val paramsStr = typeNameStr.substring(bracketIndex + 1, typeNameStr.length - 1)
-      
+      val paramsStr             = typeNameStr.substring(bracketIndex + 1, typeNameStr.length - 1)
+
       // Extract namespace and simple name
       val (baseNamespace, baseName) = if (baseNameWithNamespace.contains(".")) {
         val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(baseNameWithNamespace)
-        val simpleName = TypeNameConversions.extractSimpleTypeName(baseNameWithNamespace)
+        val simpleName        = TypeNameConversions.extractSimpleTypeName(baseNameWithNamespace)
         (inferredNamespace, simpleName)
       } else {
         (namespace, baseNameWithNamespace)
       }
-      
+
       // In Scala 3: Check if params are qualified (contain dots)
-      val parsedParams = TypeNameConversions.parseTypeParams(paramsStr)
+      val parsedParams       = TypeNameConversions.parseTypeParams(paramsStr)
       val hasQualifiedParams = parsedParams.exists(_.contains("."))
-      
+
       // For standard collections with simple params, parse them into list
       // For anything with qualified params (e.g., Option[zio.blocks.schema.Meter]),
       // keep params encoded in name
@@ -80,10 +89,10 @@ private[schema] object TypeIdToTypeNameImpl {
           val trimmed = paramStr.trim
           if (trimmed.indexOf('[') == -1) {
             val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(trimmed)
-            val simpleName = TypeNameConversions.extractSimpleTypeName(trimmed)
+            val simpleName        = TypeNameConversions.extractSimpleTypeName(trimmed)
             new TypeName(inferredNamespace, simpleName, Nil)
           } else {
-            val paramBaseName = trimmed.substring(0, trimmed.indexOf('['))
+            val paramBaseName     = trimmed.substring(0, trimmed.indexOf('['))
             val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(paramBaseName)
             parseTypeNameWithParams(trimmed, inferredNamespace)
           }

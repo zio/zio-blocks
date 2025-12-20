@@ -46,8 +46,8 @@ object TypeNameConversions {
    * parsed and converted to TypeName params when possible.
    *
    * The behavior differs between Scala 2.13 and Scala 3:
-   * - Scala 2.13: Always parses params into list for standard collections
-   * - Scala 3: Keeps qualified params encoded in name string
+   *   - Scala 2.13: Always parses params into list for standard collections
+   *   - Scala 3: Keeps qualified params encoded in name string
    *
    * @param typeId
    *   The TypeId to convert
@@ -58,15 +58,16 @@ object TypeNameConversions {
     TypeIdToTypeNameImpl.typeIdToTypeName[A](typeId)
 
   /**
-   * Infers the namespace for a type name based on common patterns.
-   * For standard Scala types (Int, String, Long, etc.), returns scala namespace.
-   * For fully qualified names (e.g., "zio.blocks.schema.ZIOPreludeSupportSpec.Meter"),
-   * extracts the namespace from the qualified name.
-   * For other types, returns empty namespace.
+   * Infers the namespace for a type name based on common patterns. For standard
+   * Scala types (Int, String, Long, etc.), returns scala namespace. For fully
+   * qualified names (e.g., "zio.blocks.schema.ZIOPreludeSupportSpec.Meter"),
+   * extracts the namespace from the qualified name. For other types, returns
+   * empty namespace.
    *
-   * This is exposed as package-private for use by version-specific implementations.
+   * This is exposed as package-private for use by version-specific
+   * implementations.
    */
-  private[schema] def inferNamespaceForTypeName(typeName: String): Namespace = {
+  private[schema] def inferNamespaceForTypeName(typeName: String): Namespace =
     // Check if this is a fully qualified name (contains dots)
     if (typeName.contains(".")) {
       // Extract namespace from qualified name
@@ -75,7 +76,7 @@ object TypeNameConversions {
       if (parts.length >= 2) {
         // Last part is the type name, everything before is namespace
         val namespaceParts = parts.init
-        
+
         // Try to determine if last part before type name is an object or package
         // This is heuristic - we assume if it starts with uppercase, it's an object
         val (packages, objects) = if (namespaceParts.nonEmpty && namespaceParts.last.head.isUpper) {
@@ -85,7 +86,7 @@ object TypeNameConversions {
           // All parts are packages
           (namespaceParts, Nil)
         }
-        
+
         Namespace(packages, objects)
       } else {
         Namespace(Seq.empty, Nil)
@@ -93,13 +94,57 @@ object TypeNameConversions {
     } else {
       // Standard Scala primitive and common types
       val scalaTypes = Set(
-        "Int", "Long", "Short", "Byte", "Char", "Float", "Double", "Boolean", "Unit",
-        "String", "Any", "AnyRef", "AnyVal", "Nothing", "Null",
-        "Option", "Some", "None", "Either", "Left", "Right",
-        "List", "Vector", "Set", "Map", "Seq", "Array", "ArraySeq", "IndexedSeq",
-        "Tuple1", "Tuple2", "Tuple3", "Tuple4", "Tuple5", "Tuple6", "Tuple7", "Tuple8",
-        "Tuple9", "Tuple10", "Tuple11", "Tuple12", "Tuple13", "Tuple14", "Tuple15",
-        "Tuple16", "Tuple17", "Tuple18", "Tuple19", "Tuple20", "Tuple21", "Tuple22"
+        "Int",
+        "Long",
+        "Short",
+        "Byte",
+        "Char",
+        "Float",
+        "Double",
+        "Boolean",
+        "Unit",
+        "String",
+        "Any",
+        "AnyRef",
+        "AnyVal",
+        "Nothing",
+        "Null",
+        "Option",
+        "Some",
+        "None",
+        "Either",
+        "Left",
+        "Right",
+        "List",
+        "Vector",
+        "Set",
+        "Map",
+        "Seq",
+        "Array",
+        "ArraySeq",
+        "IndexedSeq",
+        "Tuple1",
+        "Tuple2",
+        "Tuple3",
+        "Tuple4",
+        "Tuple5",
+        "Tuple6",
+        "Tuple7",
+        "Tuple8",
+        "Tuple9",
+        "Tuple10",
+        "Tuple11",
+        "Tuple12",
+        "Tuple13",
+        "Tuple14",
+        "Tuple15",
+        "Tuple16",
+        "Tuple17",
+        "Tuple18",
+        "Tuple19",
+        "Tuple20",
+        "Tuple21",
+        "Tuple22"
       )
       if (scalaTypes.contains(typeName)) {
         Namespace(Seq("scala"), Nil)
@@ -107,42 +152,40 @@ object TypeNameConversions {
         Namespace(Seq.empty, Nil)
       }
     }
-  }
-  
+
   /**
-   * Extracts the simple type name from a potentially qualified name.
-   * Example: "zio.blocks.schema.ZIOPreludeSupportSpec.Meter" -> "Meter"
-   * Example: "Int" -> "Int"
+   * Extracts the simple type name from a potentially qualified name. Example:
+   * "zio.blocks.schema.ZIOPreludeSupportSpec.Meter" -> "Meter" Example: "Int"
+   * -> "Int"
    *
-   * This is exposed as package-private for use by version-specific implementations.
+   * This is exposed as package-private for use by version-specific
+   * implementations.
    */
-  private[schema] def extractSimpleTypeName(qualifiedName: String): String = {
+  private[schema] def extractSimpleTypeName(qualifiedName: String): String =
     if (qualifiedName.contains(".")) {
       qualifiedName.split('.').last
     } else {
       qualifiedName
     }
-  }
-
-
 
   /**
-   * Parses comma-separated type parameters, handling nested brackets.
-   * Example: "String, Int" -> List("String", "Int")
-   * Example: "String, Option[Int]" -> List("String", "Option[Int]")
-   * Example: "List[Option[Int]], String" -> List("List[Option[Int]]", "String")
+   * Parses comma-separated type parameters, handling nested brackets. Example:
+   * "String, Int" -> List("String", "Int") Example: "String, Option[Int]" ->
+   * List("String", "Option[Int]") Example: "List[Option[Int]], String" ->
+   * List("List[Option[Int]]", "String")
    *
-   * This is exposed as package-private for use by version-specific implementations.
+   * This is exposed as package-private for use by version-specific
+   * implementations.
    */
-  private[schema] def parseTypeParams(paramsStr: String): List[String] = {
+  private[schema] def parseTypeParams(paramsStr: String): List[String] =
     if (paramsStr.trim.isEmpty) {
       Nil
     } else {
-      var result = List.empty[String]
-      val current = new StringBuilder
+      var result       = List.empty[String]
+      val current      = new StringBuilder
       var bracketDepth = 0
-      var i = 0
-      
+      var i            = 0
+
       while (i < paramsStr.length) {
         val char = paramsStr(i)
         char match {
@@ -164,16 +207,15 @@ object TypeNameConversions {
         }
         i += 1
       }
-      
+
       // Add the last parameter
       val lastParam = current.toString.trim
       if (lastParam.nonEmpty) {
         result = lastParam :: result
       }
-      
+
       result.reverse
     }
-  }
 
   /**
    * Extension methods for TypeName to enable easy conversion to TypeId.
