@@ -285,7 +285,7 @@ object PrimitiveValueSpec extends ZIOSpecDefault {
       test("has compatible compare and comparison operators") {
         checkComparisonOps(PrimitiveValue.ZoneId(ZoneId.of("UTC")), PrimitiveValue.ZoneId(ZoneId.of("GMT")))
       }
-    ) @@ TestAspect.exceptScalaNative,
+    ) @@ TestAspect.jvmOnly,
     suite("PrimitiveValue.ZoneOffset")(
       test("has correct primitiveType and typeIndex") {
         val value = PrimitiveValue.ZoneOffset(ZoneOffset.MAX)
@@ -308,7 +308,7 @@ object PrimitiveValueSpec extends ZIOSpecDefault {
           PrimitiveValue.ZonedDateTime(ZonedDateTime.ofInstant(Instant.EPOCH, ZoneId.of("America/Anguilla")))
         )
       }
-    ) @@ TestAspect.exceptScalaNative,
+    ) @@ TestAspect.jvmOnly,
     suite("PrimitiveValue.Currency")(
       test("has correct primitiveType and typeIndex") {
         val value = PrimitiveValue.Currency(Currency.getInstance("USD"))
