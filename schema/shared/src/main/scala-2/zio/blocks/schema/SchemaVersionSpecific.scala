@@ -183,6 +183,34 @@ private object SchemaVersionSpecific {
       )
     }
 
+    // Helper function to generate simple type name without type parameters for variant cases
+    def simpleTypeNameForVariantCase(tpe: Type): SchemaTypeName[?] = {
+      if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
+      else {
+        var packages  = List.empty[String]
+        var values    = List.empty[String]
+        val tpeSymbol = tpe.typeSymbol
+        var name      = NameTransformer.decode(tpeSymbol.name.toString)
+        val comp      = companion(tpe)
+        var owner     =
+          if (comp == null) tpeSymbol
+          else if (comp == NoSymbol) {
+            name += ".type"
+            tpeSymbol.asClass.module
+          } else comp
+        while ({
+          owner = owner.owner
+          owner.owner != NoSymbol
+        }) {
+          val ownerName = NameTransformer.decode(owner.name.toString)
+          if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
+          else values = ownerName :: values
+        }
+        // Use simple name without type parameters
+        new SchemaTypeName(new Namespace(packages, values), name, Nil)
+      }
+    }
+
     def toTree(tpeName: SchemaTypeName[?]): Tree = {
       val packages = tpeName.namespace.packages.toList
       val values   = tpeName.namespace.values.toList
@@ -513,7 +541,7 @@ private object SchemaVersionSpecific {
     def deriveSchemaForSealedTraitOrAbstractClass(tpe: Type): Tree = {
       val subtypes = directSubTypes(tpe)
       if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '$tpe'.")
-      val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+      val fullTermNames         = subtypes.map(sTpe => toFullTermName(simpleTypeNameForVariantCase(sTpe)))
       val maxCommonPrefixLength = {
         val minFullTermName = fullTermNames.min
         val maxFullTermName = fullTermNames.max

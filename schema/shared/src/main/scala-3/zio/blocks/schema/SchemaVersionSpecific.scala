@@ -285,6 +285,32 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       .asInstanceOf[TypeName[T]]
   }
 
+  // Helper function to generate simple type name without type parameters for variant cases
+  private def simpleTypeNameForVariantCase[T: Type](tpe: TypeRepr)(using Quotes): TypeName[T] = {
+    if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string.asInstanceOf[TypeName[T]]
+    else {
+      var packages: List[String] = Nil
+      var values: List[String]   = Nil
+      var name: String           = null
+      val tpeTypeSymbol = tpe.typeSymbol
+      name = tpeTypeSymbol.name
+      if (isEnumValue(tpe)) {
+        values = name :: values
+        name = tpe.termSymbol.name
+      } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+      var owner = tpeTypeSymbol.owner
+      while (owner != defn.RootClass) {
+        val ownerName = owner.name
+        if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
+        else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
+        else values = ownerName :: values
+        owner = owner.owner
+      }
+      // Use simple name without type parameters
+      new TypeName(new Namespace(packages, values), name, Nil).asInstanceOf[TypeName[T]]
+    }
+  }
+
   private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = {
     val packages = Varargs(tpeName.namespace.packages.map(Expr(_)))
     val vs       = tpeName.namespace.values
@@ -1087,7 +1113,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       if (isUnion(tpe)) allUnionTypes(tpe)
       else directSubTypes(tpe)
     if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-    val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+    val fullTermNames         = subtypes.map(sTpe => toFullTermName(simpleTypeNameForVariantCase(sTpe)))
     val maxCommonPrefixLength = {
       val minFullTermName = fullTermNames.min
       val maxFullTermName = fullTermNames.max
