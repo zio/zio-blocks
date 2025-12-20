@@ -151,7 +151,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def typeId: TypeId = typeNameToTypeId(typeName)
 
-  def typeId(value: TypeId): Reflect[F, A] = typeName(typeIdToTypeName(value))
+  def typeId(value: TypeId): Reflect[F, A] = typeName(typeIdToTypeName[A](value))
 
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
@@ -428,7 +428,7 @@ object Reflect {
     @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Record[F, A] = copy(typeName = value)
 
-    override def typeId(value: TypeId): Record[F, A] = copy(typeName = typeIdToTypeName(value))
+    override def typeId(value: TypeId): Record[F, A] = copy(typeName = typeIdToTypeName[A](value))
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
 
@@ -594,7 +594,7 @@ object Reflect {
     @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Variant[F, A] = copy(typeName = value)
 
-    override def typeId(value: TypeId): Variant[F, A] = copy(typeName = typeIdToTypeName(value))
+    override def typeId(value: TypeId): Variant[F, A] = copy(typeName = typeIdToTypeName[A](value))
 
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
 
@@ -792,7 +792,7 @@ object Reflect {
     @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[C[A]]): Sequence[F, A, C] = copy(typeName = value)
 
-    override def typeId(value: TypeId): Sequence[F, A, C] = copy(typeName = typeIdToTypeName(value))
+    override def typeId(value: TypeId): Sequence[F, A, C] = copy(typeName = typeIdToTypeName[C[A]](value))
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
@@ -909,7 +909,7 @@ object Reflect {
     @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[M[K, V]]): Map[F, K, V, M] = copy(typeName = value)
 
-    override def typeId(value: TypeId): Map[F, K, V, M] = copy(typeName = typeIdToTypeName(value))
+    override def typeId(value: TypeId): Map[F, K, V, M] = copy(typeName = typeIdToTypeName[M[K, V]](value))
 
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
@@ -981,7 +981,7 @@ object Reflect {
     @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[DynamicValue]): Dynamic[F] = copy(typeName = value)
 
-    override def typeId(value: TypeId): Dynamic[F] = copy(typeName = typeIdToTypeName(value))
+    override def typeId(value: TypeId): Dynamic[F] = copy(typeName = typeIdToTypeName[DynamicValue](value))
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
@@ -1040,7 +1040,7 @@ object Reflect {
     @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Primitive[F, A] = copy(typeName = value)
 
-    override def typeId(value: TypeId): Primitive[F, A] = copy(typeName = typeIdToTypeName(value))
+    override def typeId(value: TypeId): Primitive[F, A] = copy(typeName = typeIdToTypeName[A](value))
 
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
 
@@ -1110,7 +1110,7 @@ object Reflect {
     @deprecated("Use typeId(value) instead", "0.1.0")
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
 
-    override def typeId(value: TypeId): Wrapper[F, A, B] = copy(typeName = typeIdToTypeName(value))
+    override def typeId(value: TypeId): Wrapper[F, A, B] = copy(typeName = typeIdToTypeName[A](value))
 
     override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
       def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped] = self.asInstanceOf[Reflect.Wrapper[F, Wrapping, Wrapped]]
