@@ -6,27 +6,8 @@ import zio.test.Assertion._
 import zio.test._
 import java.time._
 import java.util.{Currency, UUID}
-import java.io.{FileWriter, PrintWriter}
-import java.nio.file.Paths
 
 object ReflectSpec extends ZIOSpecDefault {
-  // #region agent log
-  private def debugLog(hypothesisId: String, location: String, message: String, data: Map[String, String]): Unit = {
-    try {
-      val logPath = Paths.get(".cursor", "debug.log")
-      val dataJson = data.map { case (k, v) => s""""$k":"${v.replace("\"", "\\\"")}"""" }.mkString(",")
-      val logEntry = s"""{"sessionId":"debug-session","runId":"run1","hypothesisId":"$hypothesisId","location":"$location","message":"$message","data":{$dataJson},"timestamp":${System.currentTimeMillis()}}"""
-      val writer = new PrintWriter(new FileWriter(logPath.toFile, true))
-      try {
-        writer.println(logEntry)
-      } finally {
-        writer.close()
-      }
-    } catch {
-      case _: Exception => // Ignore logging errors
-    }
-  }
-  // #endregion
   def spec: Spec[TestEnvironment, Any] = suite("ReflectSpec")(
     suite("Reflect")(
       test("has consistent asDynamic and isDynamic") {
@@ -284,23 +265,7 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates record type name") {
-        val actualTypeName = tuple4Reflect.typeName
-        // #region agent log
-        debugLog(
-          "A",
-          "ReflectSpec.scala:268",
-          "Tuple4 TypeName structure before assertion",
-          Map(
-            "name" -> actualTypeName.name,
-            "paramsCount" -> actualTypeName.params.size.toString,
-            "paramsNames" -> actualTypeName.params.map(_.name).mkString(", "),
-            "namespacePackages" -> actualTypeName.namespace.packages.mkString(", "),
-            "expectedName" -> "Tuple4[Byte, Short, Int, Long]",
-            "expectedParamsEmpty" -> "true"
-          )
-        )
-        // #endregion
-        assert(actualTypeName)(
+        assert(tuple4Reflect.typeName)(
           equalTo(
             TypeName[(Byte, Short, Int, Long)](
               Namespace.scala,
@@ -398,23 +363,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(eitherReflect.fromDynamicValue(eitherReflect.toDynamicValue(Left(0))))(isRight(equalTo(Left(0))))
       },
       test("gets and updates variant type name") {
-        val actualTypeName = eitherReflect.typeName
-        // #region agent log
-        debugLog(
-          "B",
-          "ReflectSpec.scala:366",
-          "Either TypeName structure before assertion",
-          Map(
-            "name" -> actualTypeName.name,
-            "paramsCount" -> actualTypeName.params.size.toString,
-            "paramsNames" -> actualTypeName.params.map(_.name).mkString(", "),
-            "namespacePackages" -> actualTypeName.namespace.packages.mkString(", "),
-            "expectedName" -> "Either[Int, Long]",
-            "expectedParamsEmpty" -> "true"
-          )
-        )
-        // #endregion
-        assert(actualTypeName)(
+        assert(eitherReflect.typeName)(
           equalTo(
             TypeName[Either[Int, Long]](Namespace(Seq("scala", "util")), "Either[Int, Long]", Nil)
           )
