@@ -45,8 +45,9 @@ object StructuralDerivationSpec extends ZIOSpecDefault {
       },
       test("structural schema has normalized TypeName") {
         val schema = Schema.derived[SimpleStructural]
-        // TypeName should be normalized with fields sorted alphabetically
-        assertTrue(schema.reflect.typeName.name == "{age: Int, name: String}")
+        // implementation details: we expect "{age:Int,name:String}"
+        // because "age" < "name"
+        assertTrue(schema.reflect.typeName.name == "{age:Int,name:String}")
       },
       test("derives schema for single field structural type") {
         val schema     = Schema.derived[SingleField]

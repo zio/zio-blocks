@@ -20,7 +20,7 @@ object TypeNameSpec extends ZIOSpecDefault {
 
         val typeName = TypeName.structural[Any](fields)
 
-        assertTrue(typeName.name == "{age: Int, name: String}")
+        assertTrue(typeName.name == "{age:Int,name:String}")
       },
       test("uses empty namespace for structural types") {
         val fields   = Seq("x" -> TypeName.int)
@@ -37,6 +37,21 @@ object TypeNameSpec extends ZIOSpecDefault {
 
         assertTrue(typeName1 != typeName2)
       },
+      test("formats union types without brackets") {
+        val unionType =
+          new TypeName[Any](Namespace.empty, "|", Seq(TypeName.int, TypeName.string))
+
+        val typeName = TypeName.structural[Any](Seq("result" -> unionType))
+
+        assertTrue(typeName.name == "{result:Int|String}")
+      },
+      test("formats union types with nested structural members") {
+        val inner      = TypeName.structural[Any](Seq("value" -> TypeName.int))
+        val unionType  = new TypeName[Any](Namespace.empty, "|", Seq(inner, TypeName.string))
+        val structural = TypeName.structural[Any](Seq("res" -> unionType))
+
+        assertTrue(structural.name == "{res:{value:Int}|String}")
+      },
       test("handles nested structural types") {
         val innerFields = Seq("x" -> TypeName.int, "y" -> TypeName.int)
         val innerType   = TypeName.structural[Any](innerFields)
@@ -44,7 +59,7 @@ object TypeNameSpec extends ZIOSpecDefault {
         val outerFields = Seq("point" -> innerType, "label" -> TypeName.string)
         val outerType   = TypeName.structural[Any](outerFields)
 
-        assertTrue(outerType.name == "{label: String, point: {x: Int, y: Int}}")
+        assertTrue(outerType.name == "{label:String,point:{x:Int,y:Int}}")
       },
       test("handles generic types in fields") {
         val fields = Seq(
@@ -54,7 +69,7 @@ object TypeNameSpec extends ZIOSpecDefault {
 
         val typeName = TypeName.structural[Any](fields)
 
-        assertTrue(typeName.name == "{age: Int, names: List[String]}")
+        assertTrue(typeName.name == "{age:Int,names:List[String]}")
       },
       test("handles nested generic types") {
         val fields = Seq(
@@ -63,7 +78,7 @@ object TypeNameSpec extends ZIOSpecDefault {
 
         val typeName = TypeName.structural[Any](fields)
 
-        assertTrue(typeName.name == "{data: Map[String, List[Int]]}")
+        assertTrue(typeName.name == "{data:Map[String,List[Int]]}")
       },
       test("empty fields produce empty structural type") {
         val typeName = TypeName.structural[Any](Seq.empty)

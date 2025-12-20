@@ -19,7 +19,7 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
       val schema           = Schema.derived[Person]
       val structuralSchema = schema.structural
 
-      assertTrue(structuralSchema.reflect.typeName.name == "{age: Int, name: String}")
+      assertTrue(structuralSchema.reflect.typeName.name == "{age:Int,name:String}")
     },
     test("Schema.structural works with ToStructural conversion") {
       val person = Person("Alice", 30)
@@ -40,18 +40,18 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
           assertTrue(false)
       }
     },
-    test("Nested structures (shallow conversion)") {
-      // The current macro performs shallow conversion.
-      // The 'ceo' field in the structural type will still be of type 'Person', not a structural type.
+    test("Nested structures are converted deeply") {
       val ceo     = Person("Boss", 50)
       val company = Company("TechCorp", ceo)
       val ts      = implicitly[ToStructural[Company]]
 
-      val sValue = ts.toStructural(company)
-      val sv     = sValue.asInstanceOf[StructuralValue]
+      val sValue   = ts.toStructural(company)
+      val sv       = sValue.asInstanceOf[StructuralValue]
+      val ceoValue = sv.selectDynamic("ceo").asInstanceOf[StructuralValue]
 
       assertTrue(sv.selectDynamic("name") == "TechCorp") &&
-      assertTrue(sv.selectDynamic("ceo") == ceo) // field type is Person
+      assertTrue(ceoValue.selectDynamic("name") == "Boss") &&
+      assertTrue(ceoValue.selectDynamic("age") == 50)
     },
     test("Collections in structural types") {
       val p1    = Person("A", 1)
@@ -61,9 +61,11 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
 
       val sValue  = ts.toStructural(group)
       val sv      = sValue.asInstanceOf[StructuralValue]
-      val members = sv.selectDynamic("members").asInstanceOf[List[Person]]
+      val members = sv.selectDynamic("members").asInstanceOf[List[StructuralValue]]
 
-      assertTrue(members == List(p1, p2))
+      assertTrue(members.size == 2) &&
+      assertTrue(members(0).selectDynamic("name") == "A") &&
+      assertTrue(members(1).selectDynamic("name") == "B")
     },
     test("Option fields in structural types") {
       val u1 = User(Some("foo@bar.com"))
@@ -94,6 +96,16 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
         case Left(_) =>
           assertTrue(false)
       }
+    },
+    test("Tuples convert to structural types") {
+      val tuple = ("foo", 123)
+      val ts    = ToStructural.derived[(String, Int)]
+
+      val sValue = ts.toStructural(tuple)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+
+      assertTrue(sv.selectDynamic("_1") == "foo") &&
+      assertTrue(sv.selectDynamic("_2") == 123)
     }
   )
 }

@@ -146,15 +146,13 @@ private object SchemaVersionSpecific {
             case m: MethodSymbol if m.isGetter || (m.paramLists.isEmpty && !m.isConstructor) => m
           }.sortBy(_.name.toString)
 
-          val parts = methods.map { m =>
-            val name        = NameTransformer.decode(m.name.toString)
-            val retType     = m.returnType.dealias
-            val retTypeName = typeName(retType).name
-            s"$name: $retTypeName"
+          val fields = methods.map { m =>
+            val name    = NameTransformer.decode(m.name.toString)
+            val retType = m.returnType.dealias
+            (name, typeName(retType))
           }
 
-          val normalizedName = parts.mkString("{", ", ", "}")
-          new SchemaTypeName(new Namespace(List.empty, List.empty), normalizedName, Nil)
+          SchemaTypeName.structural(fields)
         } else {
           var packages  = List.empty[String]
           var values    = List.empty[String]

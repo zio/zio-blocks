@@ -42,7 +42,7 @@ object ToStructuralSpec extends ZIOSpecDefault {
       assertTrue(name == "Alice") &&
       assertTrue(age == 30) &&
       assertTrue(schema != null) &&
-      assertTrue(schema.reflect.typeName.name == "{age: Int, name: String}")
+      assertTrue(schema.reflect.typeName.name == "{age:Int,name:String}")
     }
   )
 }

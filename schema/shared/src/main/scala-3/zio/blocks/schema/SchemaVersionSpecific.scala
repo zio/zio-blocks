@@ -130,8 +130,10 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     def collectFields(t: TypeRepr, acc: List[(String, TypeRepr)]): List[(String, TypeRepr)] = t match {
       case Refinement(parent, name, info) =>
         val updatedAcc = info match {
-          case TypeBounds(_, _) => acc                      // Type member, skip
-          case fieldType        => (name, fieldType) :: acc // Val member
+          case TypeBounds(_, _)          => acc                       // Type member, skip
+          case ByNameType(underlying)    => (name, underlying) :: acc // ByName member (def without parens)
+          case MethodType(_, _, resType) => (name, resType) :: acc    // Method member (def with parens)
+          case fieldType                 => (name, fieldType) :: acc  // Val member
         }
         collectFields(parent, updatedAcc)
       case _ => acc

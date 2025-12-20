@@ -110,18 +110,21 @@ object TypeName {
   def structural[A](fields: Seq[(String, TypeName[?])]): TypeName[A] = {
     val sortedFields = fields.sortBy(_._1)
     val name         = sortedFields.map { case (fieldName, fieldType) =>
-      s"$fieldName: ${formatTypeName(fieldType)}"
+      s"$fieldName:${formatTypeName(fieldType)}"
     }
-      .mkString("{", ", ", "}")
+      .mkString("{", ",", "}")
     new TypeName[A](Namespace.empty, name, Nil)
   }
 
   private def formatTypeName(tn: TypeName[?]): String =
-    if (tn.params.isEmpty || tn.name.startsWith("{")) {
+    if (tn.name == "|") {
+      // Union types (Scala 3): render as `A|B|C` instead of `|[A,B,C]`
+      tn.params.map(formatTypeName).mkString("|")
+    } else if (tn.params.isEmpty || tn.name.startsWith("{")) {
       // Structural types (starting with {) already have field types embedded in the name
       tn.name
     } else {
-      s"${tn.name}[${tn.params.map(formatTypeName).mkString(", ")}]"
+      s"${tn.name}[${tn.params.map(formatTypeName).mkString(",")}]"
     }
 
   private[this] val _some       = new TypeName(Namespace.scala, "Some")

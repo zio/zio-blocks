@@ -27,7 +27,7 @@ object ToStructuralMacroSpec extends ZIOSpecDefault {
 
       val sSchema = ts.structuralSchema
 
-      assertTrue(sSchema.reflect.typeName.name == "{age: Int, name: String}")
+      assertTrue(sSchema.reflect.typeName.name == "{age:Int,name:String}")
     }
   )
 }
