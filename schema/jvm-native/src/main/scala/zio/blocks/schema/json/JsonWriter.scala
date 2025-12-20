@@ -1139,7 +1139,7 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      val bytes = x.substring(offset, newOffset).getBytes(StandardCharsets.UTF_8)
+      val bytes     = x.substring(offset, newOffset).getBytes(StandardCharsets.UTF_8)
       System.arraycopy(bytes, 0, buf, pos, bytes.length)
       offset = newOffset
       pos += bytes.length
@@ -1160,7 +1160,7 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      val bytes = x.substring(offset, newOffset).getBytes(StandardCharsets.UTF_8)
+      val bytes     = x.substring(offset, newOffset).getBytes(StandardCharsets.UTF_8)
       System.arraycopy(bytes, 0, buf, pos, bytes.length)
       offset = newOffset
       pos += bytes.length
