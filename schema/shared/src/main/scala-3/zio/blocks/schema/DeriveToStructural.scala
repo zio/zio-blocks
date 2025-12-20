@@ -373,7 +373,10 @@ object DeriveToStructural {
 
             def toStructural(value: A): StructuralType =
               ${
-                if (symbol.flags.is(Flags.Case)) {
+                if (symbol.fullName.startsWith("scala.Tuple")) {
+                  // Tuples are case classes but need special handling via transformExpr
+                  transformExpr('value, Type.of[A])
+                } else if (symbol.flags.is(Flags.Case)) {
                   // Manual deconstruction for Case Class Root to avoid infinite recursion
                   val fields  = symbol.caseFields
                   val entries = fields.map { f =>
