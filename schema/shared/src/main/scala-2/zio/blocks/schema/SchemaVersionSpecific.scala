@@ -249,14 +249,28 @@ private object SchemaVersionSpecific {
           name
         } else {
           // Encode type parameters in name
+          // For non-standard namespaces, encode the full qualified name to preserve namespace info
           val argNames = tpeTypeArgs.map { arg =>
             if (nestedTpes.contains(arg)) "Any"
             else {
               val argId = typeId(arg, arg :: nestedTpes)
-              // Extract name from TypeId - this will be the typeNameStr from Nominal
+              // Extract name from TypeId - encode full qualified name if namespace is non-standard
               argId match {
-                case TypeId.Nominal(_, _, n) => n
-                case _                        => "Any"
+                case TypeId.Nominal(argPkgs, argObjs, argName) =>
+                  // Check if this is a standard Scala type (packages == Chunk("scala") and no objectNames)
+                  val isStandardScalaType = argPkgs.toSeq == Seq("scala") && argObjs.isEmpty
+                  if (isStandardScalaType) {
+                    // Use simple name for standard types
+                    argName
+                  } else if (argPkgs.toSeq == Seq("java", "lang") && argObjs.isEmpty && argName == "String") {
+                    // Normalize java.lang.String to String
+                    "String"
+                  } else {
+                    // Encode full qualified name for non-standard types to preserve namespace
+                    val fullPath = (argPkgs.toSeq ++ argObjs.toSeq :+ argName).mkString(".")
+                    fullPath
+                  }
+                case _ => "Any"
               }
             }
           }
