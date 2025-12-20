@@ -1572,12 +1572,18 @@ object Reflect {
   private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
     new Record(Vector(), TypeName.none, F.fromBinding(Binding.Record.none))
 
-  def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
+  def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] = {
+    // For Wrapper types (e.g., Newtype), use the wrapped type's typeName instead of the wrapper's typeName
+    val elementTypeName: TypeName[A] = element.asWrapperUnknown match {
+      case Some(unknown) => unknown.wrapper.wrapped.typeName.asInstanceOf[TypeName[A]]
+      case None          => element.typeName
+    }
     new Variant(
       Vector(new Term("None", none), new Term("Some", some(element))),
-      TypeName.option(element.typeName),
+      TypeName.option(elementTypeName),
       F.fromBinding(Binding.Variant.option)
     )
+  }
 
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(

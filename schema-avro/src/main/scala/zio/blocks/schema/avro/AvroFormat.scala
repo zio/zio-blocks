@@ -1230,7 +1230,20 @@ object AvroFormat
                   if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
                   namespaceBuilder.append(element)
                 }
-                val avroSchema = createAvroRecord(namespaceBuilder.toString, typeName.name)
+                // Extract simple name without type parameters for Avro schema validation
+                val rawName  = typeName.name
+                val baseName = {
+                  val idx = rawName.indexOf('[')
+                  if (idx >= 0) rawName.substring(0, idx) else rawName
+                }
+                // Keep only letters, digits and underscore for Avro name; ensure it doesn't start with digit
+                val sanitized = baseName.replaceAll("[^A-Za-z0-9_]", "_")
+                val finalName =
+                  if (sanitized.isEmpty) "Anonymous"
+                  else if (sanitized.charAt(0).isDigit) "_" + sanitized
+                  else sanitized
+
+                val avroSchema = createAvroRecord(namespaceBuilder.toString, finalName)
                 val len        = fields.length
                 val codecs     = new Array[AvroBinaryCodec[?]](len)
                 codecsWithAvroSchema = (codecs, avroSchema)
