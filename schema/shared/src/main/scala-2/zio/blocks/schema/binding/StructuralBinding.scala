@@ -126,7 +126,7 @@ class StructuralDeconstructor[A](
  * scala.Dynamic to support selectDynamic calls for structural types.
  */
 class StructuralValue(val values: Map[String, Any]) extends scala.Dynamic {
-  def selectDynamic(name: String): Any = values(name)
+  def selectDynamic(name: String): Any = values.get(name).orNull
 
   override def toString: String = s"StructuralValue($values)"
 

@@ -220,8 +220,7 @@ object StructuralBindingSpec extends ZIOSpecDefault {
           value.selectDynamic("y") == 20,
           value.selectDynamic("label") == "point"
         )
-      }
-      /* TODO Ajay: These tests fail - look at StructuralValue.scala to see why
+      },
       test("missing field returns null") {
         val value = new StructuralValue(Map("x" -> 10))
 
@@ -237,7 +236,6 @@ object StructuralBindingSpec extends ZIOSpecDefault {
         // Extra fields are still accessible if needed
         assertTrue(value.selectDynamic("extra") == "ignored")
       }
-       */
     )
   )
 }
