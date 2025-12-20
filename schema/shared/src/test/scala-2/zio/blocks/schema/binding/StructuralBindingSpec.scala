@@ -226,7 +226,6 @@ object StructuralBindingSpec extends ZIOSpecDefault {
         val value = new StructuralValue(Map("x" -> 10))
         assertTrue(value.selectDynamic("nonexistent") == null)
       },
-
       test("extra fields in source are preserved but not accessed") {
         val value = new StructuralValue(Map("x" -> 10, "y" -> 20, "extra" -> "ignored"))
 

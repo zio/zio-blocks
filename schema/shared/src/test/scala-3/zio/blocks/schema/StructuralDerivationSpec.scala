@@ -239,9 +239,6 @@ object StructuralDerivationSpec extends ZIOSpecDefault {
       test("empty case class derives to empty structural") {
         case class Empty()
         val ts = ToStructural.derived[Empty]
-
-        val empty = Empty()
-
         // Empty structural type should have TypeName "{}"
         implicit val schema: Schema[Empty] = Schema.derived[Empty]
         val sSchema                        = ts.structuralSchema

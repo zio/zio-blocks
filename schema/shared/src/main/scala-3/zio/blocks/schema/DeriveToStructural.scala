@@ -49,7 +49,7 @@ object DeriveToStructural {
     def isCaseClass(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
       import q.reflect._
       val sym = t.typeSymbol
-      sym.isClassDef && sym.flags.is(Flags.Case) && !sym.flags.is(Flags.Sealed)
+      sym.isClassDef && sym.flags.is(Flags.Case) && !sym.flags.is(Flags.Sealed) && !sym.flags.is(Flags.Module)
     }
 
     def isSealed(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
@@ -155,6 +155,7 @@ object DeriveToStructural {
             // For now, simple recursion check on child raw type
             checkRecursive(childTpe, dealt :: stack)
           }
+          // Ignore terms (enum cases / objects) as they are leaves
         }
       }
     }
@@ -212,9 +213,9 @@ object DeriveToStructural {
         // Union of children structural types
         val children   = dealt.typeSymbol.children
         val childTypes = children.map { childSym =>
-          if (childSym.flags.is(Flags.Module)) {
-            // Object
-            Ref(childSym).tpe
+          if (childSym.isTerm) {
+            // Object or Enum Case -> Empty Structural Type
+            TypeRepr.of[Selectable]
           } else {
             // Class
             val cType = TypeIdent(childSym).tpe
@@ -330,32 +331,37 @@ object DeriveToStructural {
           val term = expr.asTerm
 
           val cases = children.map { childSym =>
-            val childTpe = if (childSym.flags.is(Flags.Module)) {
-              Ref(childSym).tpe
+            if (childSym.isTerm) {
+              // Handle singleton case (Object / Enum Case)
+              val pattern = Ref(childSym)
+              val body    = '{ new StructuralValue(Map.empty) }.asTerm
+              CaseDef(pattern, None, body)
             } else {
-              val cType      = TypeIdent(childSym).tpe
+              val cType = TypeIdent(childSym).tpe
+              // Handle generics if possible
               val typeParams =
                 cType.typeSymbol.primaryConstructor.paramSymss.headOption.map(_.filter(_.isTypeParam)).getOrElse(Nil)
-              if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
-                cType.appliedTo(dealt.typeArgs)
-              } else {
-                cType
-              }
-            }
-
-            childTpe.asType match {
-              case '[c] =>
-                val bindName   = "x"
-                val bindSymbol = Symbol.newBind(Symbol.spliceOwner, bindName, Flags.EmptyFlags, childTpe)
-                val pattern    = Bind(bindSymbol, Typed(Wildcard(), TypeTree.of[c]))
-
-                val body = childTpe.asType match {
-                  case '[ct] =>
-                    val ref = Ref(bindSymbol).asExprOf[ct]
-                    transformExpr(ref, Type.of[ct]).asTerm
+              val childTpe =
+                if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
+                  cType.appliedTo(dealt.typeArgs)
+                } else {
+                  cType
                 }
 
-                CaseDef(pattern, None, body)
+              childTpe.asType match {
+                case '[c] =>
+                  val bindName   = "x"
+                  val bindSymbol = Symbol.newBind(Symbol.spliceOwner, bindName, Flags.EmptyFlags, childTpe)
+                  val pattern    = Bind(bindSymbol, Typed(Wildcard(), TypeTree.of[c]))
+
+                  val body = childTpe.asType match {
+                    case '[ct] =>
+                      val ref = Ref(bindSymbol).asExprOf[ct]
+                      transformExpr(ref, Type.of[ct]).asTerm
+                  }
+
+                  CaseDef(pattern, None, body)
+              }
             }
           }
 
