@@ -121,7 +121,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   // Structural type detection - check if type is a refinement with val members
   private def isStructuralType(tpe: TypeRepr): Boolean = {
     val fields = extractStructuralFields(tpe)
-    fields.nonEmpty
+    fields.nonEmpty || tpe =:= TypeRepr.of[scala.Selectable]
   }
 
   // Extract fields from a structural/refinement type

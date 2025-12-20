@@ -235,17 +235,12 @@ object StructuralDerivationSpec extends ZIOSpecDefault {
         assertTrue(schema1.reflect.typeName.name == schema2.reflect.typeName.name)
       }
     ),
-    // TODO Ajay: Empty  and Case Objects tests commented out - Scala 3 macro produces scala.Selectable
-    // which cannot derive a Schema. Fix in DeriveToStructural.scala
-    /*
     suite("Empty and edge cases")(
       test("empty case class derives to empty structural") {
         case class Empty()
         val ts = ToStructural.derived[Empty]
 
-        val empty  = Empty()
-        val sValue = ts.toStructural(empty)
-        val sv     = sValue.asInstanceOf[StructuralValue]
+        val empty = Empty()
 
         // Empty structural type should have TypeName "{}"
         implicit val schema: Schema[Empty] = Schema.derived[Empty]
@@ -256,16 +251,12 @@ object StructuralDerivationSpec extends ZIOSpecDefault {
         case object Singleton
         val ts = ToStructural.derived[Singleton.type]
 
-        val sValue = ts.toStructural(Singleton)
-        val sv     = sValue.asInstanceOf[StructuralValue]
-
         // Case object should have TypeName "{}"
         implicit val schema: Schema[Singleton.type] = Schema.derived[Singleton.type]
         val sSchema                                 = ts.structuralSchema
         assertTrue(sSchema.reflect.typeName.name == "{}")
       }
     ),
-     */
     suite("Large products")(
       test("large product with 21 fields converts correctly") {
         case class LargeRecord(

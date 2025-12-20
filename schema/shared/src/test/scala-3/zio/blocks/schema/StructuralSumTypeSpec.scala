@@ -63,7 +63,7 @@ object StructuralSumTypeSpec extends ZIOSpecDefault {
       assertTrue(innerSv1.selectDynamic("x") == 42) &&
       assertTrue(innerSv2.selectDynamic("y") == "hello")
     }
-    // TODO: Case objects in sealed traits fail - produces scala.Selectable which can't derive Schema
+    // TODO Ajay: Case objects in sealed traits fail - produces scala.Selectable which can't derive Schema
     // Fix in DeriveToStructural.scala
     /*
     test("sealed trait with case objects converts to structural") {
@@ -80,7 +80,7 @@ object StructuralSumTypeSpec extends ZIOSpecDefault {
       assertTrue(svOn != null) && assertTrue(svOff != null)
     },
     
-    // TODO: Simple enum cases fail - macro tries to create TypeIdent from val symbols
+    // TODO Ajay: Simple enum cases fail - macro tries to create TypeIdent from val symbols
     // Fix in DeriveToStructural.scala
     
     test("enum with simple cases converts to structural") {
