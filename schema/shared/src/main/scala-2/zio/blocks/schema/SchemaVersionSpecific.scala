@@ -152,7 +152,22 @@ private object SchemaVersionSpecific {
             if (owner.isPackage || owner.isPackageClass) packages = ownerName :: packages
             else values = ownerName :: values
           }
-          new SchemaTypeName(new Namespace(packages, values), name, typeArgs(tpe).map(typeName))
+          // Calculate type parameter names recursively
+          val tpeTypeArgs = typeArgs(tpe).map(typeName)
+          
+          // Include type parameters in name if present
+          val finalName = if (tpeTypeArgs.isEmpty) {
+            name
+          } else {
+            // Encode type parameters in name as "TypeName[Param1, Param2, ...]"
+            val paramNames = tpeTypeArgs.map(_.name)
+            s"$name[${paramNames.mkString(", ")}]"
+          }
+          
+          // Set params to Nil when parameters are included in name
+          val finalParams = Nil
+          
+          new SchemaTypeName(new Namespace(packages, values), finalName, finalParams)
         }
 
       typeNameCache.getOrElseUpdate(
