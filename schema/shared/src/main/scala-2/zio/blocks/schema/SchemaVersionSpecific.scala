@@ -184,7 +184,7 @@ private object SchemaVersionSpecific {
     }
 
     // Helper function to generate simple type name without type parameters for variant cases
-    def simpleTypeNameForVariantCase(tpe: Type): SchemaTypeName[?] = {
+    def simpleTypeNameForVariantCase(tpe: Type): SchemaTypeName[?] =
       if (tpe =:= typeOf[java.lang.String]) SchemaTypeName.string
       else {
         var packages  = List.empty[String]
@@ -209,7 +209,6 @@ private object SchemaVersionSpecific {
         // Use simple name without type parameters
         new SchemaTypeName(new Namespace(packages, values), name, Nil)
       }
-    }
 
     def toTree(tpeName: SchemaTypeName[?]): Tree = {
       val packages = tpeName.namespace.packages.toList
