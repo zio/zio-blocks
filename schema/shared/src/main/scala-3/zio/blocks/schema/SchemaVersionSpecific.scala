@@ -286,13 +286,13 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   }
 
   // Helper function to generate simple type name without type parameters for variant cases
-  private def simpleTypeNameForVariantCase[T: Type](tpe: TypeRepr)(using Quotes): TypeName[T] = {
+  private def simpleTypeNameForVariantCase[T: Type](tpe: TypeRepr)(using Quotes): TypeName[T] =
     if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string.asInstanceOf[TypeName[T]]
     else {
       var packages: List[String] = Nil
       var values: List[String]   = Nil
       var name: String           = null
-      val tpeTypeSymbol = tpe.typeSymbol
+      val tpeTypeSymbol          = tpe.typeSymbol
       name = tpeTypeSymbol.name
       if (isEnumValue(tpe)) {
         values = name :: values
@@ -309,7 +309,6 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       // Use simple name without type parameters
       new TypeName(new Namespace(packages, values), name, Nil).asInstanceOf[TypeName[T]]
     }
-  }
 
   private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = {
     val packages = Varargs(tpeName.namespace.packages.map(Expr(_)))
