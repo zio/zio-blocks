@@ -37,6 +37,32 @@ object StructuralRecursionSafetySpec extends ZIOSpecDefault {
             containsString("Edge")
         )
       )
+    },
+    test("fails compilation for non-sealed trait") {
+      assertZIO(
+        typeCheck(
+          """
+            |import zio.blocks.schema._
+            |trait OpenTrait { def x: Int }
+            |val ts = ToStructural.derived[OpenTrait]
+            |""".stripMargin
+        )
+      )(
+        isLeft(anything) // Should produce some error for unsupported type
+      )
+    },
+    test("fails compilation for abstract class") {
+      assertZIO(
+        typeCheck(
+          """
+            |import zio.blocks.schema._
+            |abstract class AbstractClass(val x: Int)
+            |val ts = ToStructural.derived[AbstractClass]
+            |""".stripMargin
+        )
+      )(
+        isLeft(anything) // Should produce some error for unsupported type
+      )
     }
   )
 }

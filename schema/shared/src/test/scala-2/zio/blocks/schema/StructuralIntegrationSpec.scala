@@ -26,6 +26,26 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
     implicit val ts: ToStructural[User] = ToStructural.derived[User]
   }
 
+  case class VectorGroup(items: Vector[Person])
+  object VectorGroup {
+    implicit val ts: ToStructural[VectorGroup] = ToStructural.derived[VectorGroup]
+  }
+
+  case class SetHolder(tags: Set[String])
+  object SetHolder {
+    implicit val ts: ToStructural[SetHolder] = ToStructural.derived[SetHolder]
+  }
+
+  case class MapHolder(data: Map[String, Int])
+  object MapHolder {
+    implicit val ts: ToStructural[MapHolder] = ToStructural.derived[MapHolder]
+  }
+
+  case class EitherHolder(result: Either[String, Int])
+  object EitherHolder {
+    implicit val ts: ToStructural[EitherHolder] = ToStructural.derived[EitherHolder]
+  }
+
   def spec: Spec[TestEnvironment, Any] = suite("StructuralIntegrationSpec")(
     test("Schema.structural API returns correct schema") {
       val schema           = Schema.derived[Person]
@@ -125,6 +145,125 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
       val tn = Schema.derived[Container].structural(ts).reflect.typeName.name
 
       assertTrue(tn == "{data:Map[String,List[Int]]}")
+    },
+    test("Vector in structural types") {
+      val p1    = Person("X", 10)
+      val p2    = Person("Y", 20)
+      val group = VectorGroup(Vector(p1, p2))
+      val ts    = implicitly[ToStructural[VectorGroup]]
+
+      val sValue = ts.toStructural(group)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+      val items  = sv.selectDynamic("items").asInstanceOf[Vector[StructuralValue]]
+
+      assertTrue(items.size == 2) &&
+      assertTrue(items(0).selectDynamic("name") == "X") &&
+      assertTrue(items(1).selectDynamic("name") == "Y")
+    },
+    test("Set in structural types") {
+      val holder = SetHolder(Set("a", "b", "c"))
+      val ts     = implicitly[ToStructural[SetHolder]]
+
+      val sValue = ts.toStructural(holder)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+      val tags   = sv.selectDynamic("tags").asInstanceOf[Set[String]]
+
+      assertTrue(tags == Set("a", "b", "c"))
+    },
+    test("Map in structural types") {
+      val holder = MapHolder(Map("x" -> 1, "y" -> 2))
+      val ts     = implicitly[ToStructural[MapHolder]]
+
+      val sValue = ts.toStructural(holder)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+      val data   = sv.selectDynamic("data").asInstanceOf[Map[String, Int]]
+
+      assertTrue(data == Map("x" -> 1, "y" -> 2))
+    },
+    test("Either in structural types - Right") {
+      val holder = EitherHolder(Right(42))
+      val ts     = implicitly[ToStructural[EitherHolder]]
+
+      val sValue = ts.toStructural(holder)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+      val result = sv.selectDynamic("result").asInstanceOf[Either[String, Int]]
+
+      assertTrue(result == Right(42))
+    },
+    test("Either in structural types - Left") {
+      val holder = EitherHolder(Left("error"))
+      val ts     = implicitly[ToStructural[EitherHolder]]
+
+      val sValue = ts.toStructural(holder)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+      val result = sv.selectDynamic("result").asInstanceOf[Either[String, Int]]
+
+      assertTrue(result == Left("error"))
+    },
+    test("3-tuple converts to structural types") {
+      val tuple = ("a", 1, true)
+      val ts    = ToStructural.derived[(String, Int, Boolean)]
+
+      val sValue = ts.toStructural(tuple)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+
+      assertTrue(sv.selectDynamic("_1") == "a") &&
+      assertTrue(sv.selectDynamic("_2") == 1) &&
+      assertTrue(sv.selectDynamic("_3") == true)
+    },
+    test("5-tuple converts to structural types") {
+      val tuple = ("a", 1, true, 2.5, 'x')
+      val ts    = ToStructural.derived[(String, Int, Boolean, Double, Char)]
+
+      val sValue = ts.toStructural(tuple)
+      val sv     = sValue.asInstanceOf[StructuralValue]
+
+      assertTrue(sv.selectDynamic("_1") == "a") &&
+      assertTrue(sv.selectDynamic("_2") == 1) &&
+      assertTrue(sv.selectDynamic("_3") == true) &&
+      assertTrue(sv.selectDynamic("_4") == 2.5) &&
+      assertTrue(sv.selectDynamic("_5") == 'x')
+    },
+    test("fully applied generic type to structural") {
+      case class Container[T](value: T, label: String)
+      val ts = ToStructural.derived[Container[Int]]
+
+      val container = Container(42, "answer")
+      val sValue    = ts.toStructural(container)
+      val sv        = sValue.asInstanceOf[StructuralValue]
+
+      assertTrue(sv.selectDynamic("value") == 42) &&
+      assertTrue(sv.selectDynamic("label") == "answer")
+    },
+    test("generic with nested case class fields") {
+      case class Inner(x: Int, y: Int)
+      case class Wrapper[T](inner: T, name: String)
+      val ts = ToStructural.derived[Wrapper[Inner]]
+
+      val wrapper = Wrapper(Inner(1, 2), "point")
+      val sValue  = ts.toStructural(wrapper)
+      val sv      = sValue.asInstanceOf[StructuralValue]
+
+      val innerSv = sv.selectDynamic("inner").asInstanceOf[StructuralValue]
+
+      assertTrue(sv.selectDynamic("name") == "point") &&
+      assertTrue(innerSv.selectDynamic("x") == 1) &&
+      assertTrue(innerSv.selectDynamic("y") == 2)
+    },
+    test("generic with List of case class") {
+      case class Item(id: Int, name: String)
+      case class Container[T](items: List[T])
+      val ts = ToStructural.derived[Container[Item]]
+
+      val container = Container(List(Item(1, "a"), Item(2, "b")))
+      val sValue    = ts.toStructural(container)
+      val sv        = sValue.asInstanceOf[StructuralValue]
+
+      val items = sv.selectDynamic("items").asInstanceOf[List[StructuralValue]]
+
+      assertTrue(items.size == 2) &&
+      assertTrue(items(0).selectDynamic("id") == 1) &&
+      assertTrue(items(1).selectDynamic("name") == "b")
     }
   )
 }

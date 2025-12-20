@@ -206,6 +206,127 @@ object StructuralDerivationSpec extends ZIOSpecDefault {
         // Both should have the same normalized TypeName
         assertTrue(schema1.reflect.typeName.name == schema2.reflect.typeName.name)
       }
+    ),
+    suite("Empty and edge cases")(
+      test("empty case class derives to empty structural") {
+        case class Empty()
+        val ts = ToStructural.derived[Empty]
+
+        val empty  = Empty()
+        val sValue = ts.toStructural(empty)
+        val sv     = sValue.asInstanceOf[StructuralValue]
+
+        // Empty structural type should have TypeName "{}"
+        implicit val schema: Schema[Empty] = Schema.derived[Empty]
+        val sSchema                        = ts.structuralSchema
+        assertTrue(sSchema.reflect.typeName.name == "{}")
+      },
+      test("case object derives to empty structural") {
+        case object Singleton
+        val ts = ToStructural.derived[Singleton.type]
+
+        val sValue = ts.toStructural(Singleton)
+        val sv     = sValue.asInstanceOf[StructuralValue]
+
+        // Case object should have TypeName "{}"
+        implicit val schema: Schema[Singleton.type] = Schema.derived[Singleton.type]
+        val sSchema                                 = ts.structuralSchema
+        assertTrue(sSchema.reflect.typeName.name == "{}")
+      }
+    ),
+    suite("Large products")(
+      test("large product with 21 fields converts correctly") {
+        case class LargeRecord(
+          f1: String,
+          f2: Int,
+          f3: Boolean,
+          f4: Double,
+          f5: Long,
+          f6: String,
+          f7: Int,
+          f8: Boolean,
+          f9: Double,
+          f10: Long,
+          f11: String,
+          f12: Int,
+          f13: Boolean,
+          f14: Double,
+          f15: Long,
+          f16: String,
+          f17: Int,
+          f18: Boolean,
+          f19: Double,
+          f20: Long,
+          f21: String
+        )
+
+        val ts = ToStructural.derived[LargeRecord]
+
+        val record = LargeRecord(
+          "a",
+          1,
+          true,
+          1.1,
+          1L,
+          "b",
+          2,
+          false,
+          2.2,
+          2L,
+          "c",
+          3,
+          true,
+          3.3,
+          3L,
+          "d",
+          4,
+          false,
+          4.4,
+          4L,
+          "e"
+        )
+        val sValue = ts.toStructural(record)
+        val sv     = sValue.asInstanceOf[StructuralValue]
+
+        assertTrue(sv.selectDynamic("f1") == "a") &&
+        assertTrue(sv.selectDynamic("f11") == "c") &&
+        assertTrue(sv.selectDynamic("f21") == "e")
+      },
+      test("large product TypeName is generated correctly") {
+        case class LargeRecord(
+          f1: String,
+          f2: Int,
+          f3: Boolean,
+          f4: Double,
+          f5: Long,
+          f6: String,
+          f7: Int,
+          f8: Boolean,
+          f9: Double,
+          f10: Long,
+          f11: String,
+          f12: Int,
+          f13: Boolean,
+          f14: Double,
+          f15: Long,
+          f16: String,
+          f17: Int,
+          f18: Boolean,
+          f19: Double,
+          f20: Long,
+          f21: String
+        )
+
+        val ts                                   = ToStructural.derived[LargeRecord]
+        implicit val schema: Schema[LargeRecord] = Schema.derived[LargeRecord]
+        val sSchema                              = ts.structuralSchema
+        val typeName                             = sSchema.reflect.typeName.name
+
+        // TypeName should contain all 21 fields sorted alphabetically
+        assertTrue(typeName.contains("f1:String")) &&
+        assertTrue(typeName.contains("f10:Long")) &&
+        assertTrue(typeName.contains("f21:String"))
+      }
     )
   )
 }
