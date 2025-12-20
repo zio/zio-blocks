@@ -59,7 +59,7 @@ final class JsonReader private[json] (
     var i = appendString("missing required field \"", 0)
     i = appendString(reqField, i)
     i = appendChar('"', i)
-    decodeError(i, head - 1)
+    decodeError(i)
   }
 
   /**
@@ -74,7 +74,7 @@ final class JsonReader private[json] (
   def duplicatedKeyError(len: Int): Nothing = {
     var i = prependString("duplicated field \"", len)
     i = appendChar('"', i)
-    decodeError(i, head - 1)
+    decodeError(i)
   }
 
   /**
@@ -89,7 +89,7 @@ final class JsonReader private[json] (
   def unexpectedKeyError(len: Int): Nothing = {
     var i = prependString("unexpected field \"", len)
     i = appendChar('"', i)
-    decodeError(i, head - 1)
+    decodeError(i)
   }
 
   /**
@@ -111,7 +111,7 @@ final class JsonReader private[json] (
     var i = appendString("illegal value of discriminator field \"", 0)
     i = appendString(discriminatorFieldName, i)
     i = appendChar('"', i)
-    decodeError(i, head - 1)
+    decodeError(i)
   }
 
   /**
@@ -126,7 +126,7 @@ final class JsonReader private[json] (
   def enumValueError(len: Int): Nothing = {
     var i = prependString("illegal enum value \"", len)
     i = appendChar('"', i)
-    decodeError(i, head - 1)
+    decodeError(i)
   }
 
   /**
@@ -1338,30 +1338,6 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a raw JSON value into a `Array[Byte]` instance without parsing.
-   *
-   * @return
-   *   a `Array[Byte]` instance containing the raw bytes of the JSON value.
-   * @throws JsonBinaryCodecError
-   *   in cases of reaching the end of input or invalid type of JSON value
-   */
-  def readRawValAsBytes(): Array[Byte] = {
-    var from    = head
-    val oldMark = mark
-    val newMark =
-      if (oldMark < 0) from
-      else oldMark
-    mark = newMark
-    skip()
-    if (mark == 0) from -= newMark
-    if (mark > oldMark) mark = oldMark
-    val len = head - from
-    val x   = new Array[Byte](len)
-    System.arraycopy(buf, from, x, 0, len)
-    x
-  }
-
-  /**
    * Finishes reading the `null` JSON value and returns the provided default
    * value or throws [[JsonBinaryCodecError]]. Before calling it the `n` token
    * should be parsed already.
@@ -1388,11 +1364,11 @@ final class JsonReader private[json] (
           if (bs == 0x6c6c756e) {
             head = pos + 3
             default
-          } else decodeError(msg, bs, pos)
+          } else decodeError(msg)
         } else if (buf(pos - 1) == 'n') {
           head = loadMoreOrError(pos - 1) + 1
           readNullOrError(default, msg)
-        } else decodeError(msg, pos - 1)
+        } else decodeError(msg)
       } else illegalTokenOperation()
     } else decodeError(msg)
 
@@ -1424,7 +1400,7 @@ final class JsonReader private[json] (
           if (bs == 0x6c6c756e) {
             head = pos + 3
             default
-          } else tokenOrNullError(t, bs, pos)
+          } else tokenOrNullError(t)
         } else if (buf(pos - 1) == 'n') {
           head = loadMoreOrError(pos - 1) + 1
           readNullOrTokenError(default, t)
@@ -1595,7 +1571,7 @@ final class JsonReader private[json] (
    * @throws JsonBinaryCodecError
    *   always
    */
-  def decodeError(msg: String): Nothing = decodeError(msg, head - 1)
+  def decodeError(msg: String): Nothing = decodeError(appendString(msg, 0))
 
   def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: JsonBinaryCodecError =>
@@ -1764,8 +1740,7 @@ final class JsonReader private[json] (
    * @throws JsonBinaryCodecError
    *   when there is at least one non-whitespace character left in the input
    */
-  private[json] def endOfInputOrError(): Unit =
-    if (skipWhitespaces()) decodeError("expected end of input", head)
+  private[json] def endOfInputOrError(): Unit = if (skipWhitespaces()) decodeError("expected end of input")
 
   /**
    * Skips whitespace characters in the input.
@@ -1791,40 +1766,37 @@ final class JsonReader private[json] (
     pos != tail
   }
 
-  private[this] def tokenOrDigitError(t: Byte, pos: Int): Nothing = {
+  private[this] def tokenOrDigitError(t: Byte): Nothing = {
     var i = appendString("expected '", 0)
     i = appendChar(t.toChar, i)
     i = appendString("' or digit", i)
-    decodeError(i, pos)
+    decodeError(i)
   }
 
-  private[this] def tokensError(t1: Byte, t2: Byte, pos: Int = head - 1): Nothing = {
+  private[this] def tokensError(t1: Byte, t2: Byte): Nothing = {
     var i = appendString("expected '", 0)
     i = appendChar(t1.toChar, i)
     i = appendString("' or '", i)
     i = appendChar(t2.toChar, i)
     i = appendChar('\'', i)
-    decodeError(i, pos)
+    decodeError(i)
   }
 
-  private[this] def tokenOrNullError(t: Byte, pos: Int = head - 1): Nothing = {
+  private[this] def tokenOrNullError(t: Byte): Nothing = {
     var i = appendString("expected '", 0)
     i = appendChar(t.toChar, i)
     i = appendString("' or null", i)
-    decodeError(i, pos)
+    decodeError(i)
   }
 
-  private[this] def tokenError(t: Byte, pos: Int = head - 1): Nothing = {
+  private[this] def tokenError(t: Byte): Nothing = {
     var i = appendString("expected '", 0)
     i = appendChar(t.toChar, i)
     i = appendChar('\'', i)
-    decodeError(i, pos)
+    decodeError(i)
   }
 
-  private[this] def decodeError(msg: String, pos: Int): Nothing =
-    decodeError(appendString(msg, 0), pos)
-
-  private[this] def decodeError(from: Int, pos: Int): Nothing =
+  private[this] def decodeError(from: Int): Nothing =
     throw new JsonBinaryCodecError(Nil, new String(charBuf, 0, from))
 
   @tailrec
@@ -1837,7 +1809,7 @@ final class JsonReader private[json] (
   @tailrec
   private[this] def nextByteOrError(t: Byte, pos: Int): Unit =
     if (pos < tail) {
-      if (buf(pos) != t) tokenError(t, pos)
+      if (buf(pos) != t) tokenError(t)
       head = pos + 1
     } else nextByteOrError(t, loadMoreOrError(pos))
 
@@ -1911,7 +1883,7 @@ final class JsonReader private[json] (
     var year = ByteArrayAccess.getInt(buf, pos) - 0x30303030
     val m    =
       (year + 0x76767676 | year) & 0x80808080 // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
-    if (m != 0) digitError((java.lang.Integer.numberOfTrailingZeros(m) >> 3) + pos)
+    if (m != 0) digitError()
     year = (year * 2561 >> 8 & 0xff00ff) * 6553601 >> 16
     pos += 4
     var yearDigits = 4
@@ -1931,10 +1903,10 @@ final class JsonReader private[json] (
       pos += 1
     }
     head = pos + 1
-    if (b1 == '-' && year == 0 || yearDigits == 10 && year > 1000000000) yearError(pos - 1)
-    if (b != t) yearError(t, maxDigits, pos, b1, yearDigits)
+    if (b1 == '-' && year == 0 || yearDigits == 10 && year > 1000000000) yearError()
+    if (b != t) yearError(t, maxDigits, b1, yearDigits)
     if (b1 == '-') year = -year
-    if (year >= 0 && year < 10000) digitError(pos)
+    if (year >= 0 && year < 10000) digitError()
     year
   }
 
@@ -1947,10 +1919,9 @@ final class JsonReader private[json] (
       val b3    = buf(pos + 2)
       val month = b1 * 10 + b2 - 528 // 528 == '0' * 11
       head = pos + 3
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (month < 1 || month > 12) monthError(pos + 1)
-      if (b3 != t) tokenError(t, pos + 2)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (month < 1 || month > 12) monthError()
+      if (b3 != t) tokenError(t)
       month
     } else parseMonthWithByte(t, loadMoreOrError(pos))
 
@@ -1963,10 +1934,9 @@ final class JsonReader private[json] (
       val b3  = buf(pos + 2)
       val day = b1 * 10 + b2 - 528 // 528 == '0' * 11
       head = pos + 3
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (day == 0 || (day > 28 && day > maxDayForYearMonth(year, month))) dayError(pos + 1)
-      if (b3 != t) tokenError(t, pos + 2)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (day == 0 || (day > 28 && day > maxDayForYearMonth(year, month))) dayError()
+      if (b3 != t) tokenError(t)
       day
     } else parseDayWithByte(year, month, t, loadMoreOrError(pos))
 
@@ -1979,10 +1949,9 @@ final class JsonReader private[json] (
       val b3   = buf(pos + 2)
       val hour = b1 * 10 + b2 - 528 // 528 == '0' * 11
       head = pos + 3
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (hour > 23) hourError(pos + 1)
-      if (b3 != ':') tokenError(':', pos + 2)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (hour > 23) hourError()
+      if (b3 != ':') tokenError(':')
       hour
     } else parseHourWithColon(loadMoreOrError(pos))
 
@@ -1994,10 +1963,9 @@ final class JsonReader private[json] (
       val b2  = buf(pos + 1)
       val b3  = buf(pos + 2)
       head = pos + 3
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (b1 > '5') minuteError(pos + 1)
-      if (b3 != ':') tokenError(':', pos + 2)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (b1 > '5') minuteError()
+      if (b3 != ':') tokenError(':')
       b1 * 10 + b2 - 528 // 528 == '0' * 11
     } else parseMinuteWithColon(loadMoreOrError(pos))
 
@@ -2008,9 +1976,8 @@ final class JsonReader private[json] (
       val b1  = buf(pos)
       val b2  = buf(pos + 1)
       head = pos + 2
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (b1 > '5') minuteError(pos + 1)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (b1 > '5') minuteError()
       b1 * 10 + b2 - 528 // 528 == '0' * 11
     } else parseMinute(loadMoreOrError(pos))
 
@@ -2021,9 +1988,8 @@ final class JsonReader private[json] (
       val b1  = buf(pos)
       val b2  = buf(pos + 1)
       head = pos + 2
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (b1 > '5') secondError(pos + 1)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (b1 > '5') secondError()
       b1 * 10 + b2 - 528 // 528 == '0' * 11
     } else parseSecond(loadMoreOrError(pos))
 
@@ -2035,9 +2001,8 @@ final class JsonReader private[json] (
       val b2         = buf(pos + 1)
       val offsetHour = b1 * 10 + b2 - 528 // 528 == '0' * 11
       head = pos + 2
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (offsetHour > 18) timezoneOffsetHourError(pos + 1)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (offsetHour > 18) timezoneOffsetHourError()
       offsetHour
     } else parseOffsetHour(loadMoreOrError(pos))
 
@@ -2050,9 +2015,8 @@ final class JsonReader private[json] (
       head = pos + 2
       if (b1 == '0' && b2 == '0') 0
       else {
-        if (b1 < '0' || b1 > '9') digitError(pos)
-        if (b2 < '0' || b2 > '9') digitError(pos + 1)
-        if (b1 > '5') timezoneOffsetMinuteError(pos + 1)
+        if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+        if (b1 > '5') timezoneOffsetMinuteError()
         b1 * 10 + b2 - 528 // 528 == '0' * 11
       }
     } else parseOffsetMinute(loadMoreOrError(pos))
@@ -2064,9 +2028,8 @@ final class JsonReader private[json] (
       val b1  = buf(pos)
       val b2  = buf(pos + 1)
       head = pos + 2
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (b1 > '5') timezoneOffsetSecondError(pos + 1)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (b1 > '5') timezoneOffsetSecondError()
       b1 * 10 + b2 - 528 // 528 == '0' * 11
     } else parseOffsetSecond(loadMoreOrError(pos))
 
@@ -2078,10 +2041,9 @@ final class JsonReader private[json] (
       val b2  = buf(pos + 1)
       val b3  = buf(pos + 2)
       head = pos + 3
-      if (b1 < '0' || b1 > '9') digitError(pos)
-      if (b2 < '0' || b2 > '9') digitError(pos + 1)
-      if (b1 > '5') timezoneOffsetSecondError(pos + 1)
-      if (b3 != '"') tokenError('"', pos + 2)
+      if (b1 < '0' || b1 > '9' || b2 < '0' || b2 > '9') digitError()
+      if (b1 > '5') timezoneOffsetSecondError()
+      if (b3 != '"') tokenError('"')
       b1 * 10 + b2 - 528 // 528 == '0' * 11
     } else parseOffsetSecondWithDoubleQuotes(loadMoreOrError(pos))
 
@@ -2156,7 +2118,7 @@ final class JsonReader private[json] (
         head = pos + 4
         true
       } else if (bs == 0x736c6166) {
-        if (nextByte(pos + 4) != 'e') booleanError(pos + 4)
+        if (nextByte(pos + 4) != 'e') booleanError()
         false
       } else if (
         isToken && {
@@ -2164,20 +2126,12 @@ final class JsonReader private[json] (
           b1 == ' ' || b1 == '\n' || (b1 | 0x4) == '\r'
         }
       ) parseBoolean(isToken, pos + 1)
-      else booleanError(bs, pos)
+      else booleanError()
     } else parseBoolean(isToken, loadMoreOrError(pos))
 
-  private[this] def booleanError(bs: Int, pos: Int): Nothing =
-    booleanError(
-      (Math.max(
-        java.lang.Integer.numberOfTrailingZeros(bs ^ 0x65757274),
-        java.lang.Integer.numberOfTrailingZeros(bs ^ 0x736c6166)
-      ) >> 3) + pos
-    )
+  private[this] def booleanError(): Nothing = decodeError("illegal boolean")
 
-  private[this] def booleanError(pos: Int): Nothing = decodeError("illegal boolean", pos)
-
-  def readByte(isToken: Boolean): Byte = {
+  private[this] def readByte(isToken: Boolean): Byte = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
@@ -2203,19 +2157,19 @@ final class JsonReader private[json] (
         }
       ) {
         x = x * 10 + (b - '0')
-        if (x > 128) byteOverflowError(pos)
+        if (x > 128) byteOverflowError()
         pos += 1
       }
       head = pos
       x ^= s
       x -= s
-      if (x == 128) byteOverflowError(pos - 1)
-      if ((b | 0x20) == 'e' || b == '.') numberError(pos)
+      if (x == 128) byteOverflowError()
+      if ((b | 0x20) == 'e' || b == '.') numberError()
     }
     x.toByte
   }
 
-  def readShort(isToken: Boolean): Short = {
+  private[this] def readShort(isToken: Boolean): Short = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
@@ -2241,19 +2195,19 @@ final class JsonReader private[json] (
         }
       ) {
         x = x * 10 + (b - '0')
-        if (x > 32768) shortOverflowError(pos)
+        if (x > 32768) shortOverflowError()
         pos += 1
       }
       head = pos
       x ^= s
       x -= s
-      if (x == 32768) shortOverflowError(pos - 1)
-      if ((b | 0x20) == 'e' || b == '.') numberError(pos)
+      if (x == 32768) shortOverflowError()
+      if ((b | 0x20) == 'e' || b == '.') numberError()
     }
     x.toShort
   }
 
-  def readInt(isToken: Boolean): Int = {
+  private[this] def readInt(isToken: Boolean): Int = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
@@ -2283,19 +2237,19 @@ final class JsonReader private[json] (
             x = x * 10 + ('0' - b)
             x > 0
           }
-        ) intOverflowError(pos)
+        ) intOverflowError()
         pos += 1
       }
       head = pos
       x ^= s
       x -= s
-      if ((s & x) == -2147483648) intOverflowError(pos - 1)
-      if ((b | 0x20) == 'e' || b == '.') numberError(pos)
+      if ((s & x) == -2147483648) intOverflowError()
+      if ((b | 0x20) == 'e' || b == '.') numberError()
     }
     x
   }
 
-  def readLong(isToken: Boolean): Long = {
+  private[this] def readLong(isToken: Boolean): Long = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
@@ -2332,7 +2286,7 @@ final class JsonReader private[json] (
             x -= ((dec >> 8 & 0xff000000ffL) * 4294967296000100L + (dec >> 24 & 0xff000000ffL) * 42949672960001L >> 32)
             x > 0
           }
-        ) longOverflowError(pos + 2)
+        ) longOverflowError()
         pos += 8
       }
       while (
@@ -2350,14 +2304,14 @@ final class JsonReader private[json] (
             x = x * 10 + ('0' - b)
             x > 0
           }
-        ) longOverflowError(pos)
+        ) longOverflowError()
         pos += 1
       }
       head = pos
       x ^= s
       x -= s
-      if ((s & x) == -9223372036854775808L) longOverflowError(pos - 1)
-      if ((b | 0x20) == 'e' || b == '.') numberError(pos)
+      if ((s & x) == -9223372036854775808L) longOverflowError()
+      if ((b | 0x20) == 'e' || b == '.') numberError()
     }
     x
   }
@@ -2372,10 +2326,10 @@ final class JsonReader private[json] (
         val b = buf(pos)
         b >= '0' && b <= '9'
       }
-    ) leadingZeroError(pos - 1)
+    ) leadingZeroError()
   }
 
-  def readDouble(isToken: Boolean): Double = {
+  private[this] def readDouble(isToken: Boolean): Double = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
@@ -2406,7 +2360,7 @@ final class JsonReader private[json] (
           b = buf(pos)
           b >= '0' && b <= '9'
         }
-      ) leadingZeroError(pos - 1)
+      ) leadingZeroError()
     } else {
       while (
         (pos < tail || {
@@ -2447,7 +2401,7 @@ final class JsonReader private[json] (
         pos += 1
       }
       e10 -= digits
-      if (noFracDigits) numberError(pos)
+      if (noFracDigits) numberError()
     }
     if ((b | 0x20) == 'e') {
       b = nextByte(pos + 1)
@@ -2539,7 +2493,7 @@ final class JsonReader private[json] (
     java.lang.Double.parseDouble(new String(buf, 0, offset, pos - offset))
   }
 
-  def readFloat(isToken: Boolean): Float = {
+  private[this] def readFloat(isToken: Boolean): Float = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
@@ -2570,7 +2524,7 @@ final class JsonReader private[json] (
           b = buf(pos)
           b >= '0' && b <= '9'
         }
-      ) leadingZeroError(pos - 1)
+      ) leadingZeroError()
     } else {
       while (
         (pos < tail || {
@@ -2611,7 +2565,7 @@ final class JsonReader private[json] (
         pos += 1
       }
       e10 -= digits
-      if (noFracDigits) numberError(pos)
+      if (noFracDigits) numberError()
     }
     if ((b | 0x20) == 'e') {
       b = nextByte(pos + 1)
@@ -2702,7 +2656,7 @@ final class JsonReader private[json] (
   private[this] def unsignedMultiplyHigh(x: Long, y: Long): Long =
     Math.multiplyHigh(x, y) + x + y // Use implementation that works only when both params are negative
 
-  def readBigInt(isToken: Boolean, default: BigInt, digitsLimit: Int): BigInt = {
+  private[this] def readBigInt(isToken: Boolean, default: BigInt, digitsLimit: Int): BigInt = {
     var b =
       if (isToken) nextToken(head)
       else nextByte(head)
@@ -2761,8 +2715,8 @@ final class JsonReader private[json] (
         if (mark == 0) from -= newMark
         if (mark > oldMark) mark = oldMark
         val len = pos - from
-        if (len >= digitsLimit) digitsLimitError(from + digitsLimit - 1)
-        if ((b | 0x20) == 'e' || b == '.') numberError(pos)
+        if (len >= digitsLimit) digitsLimitError()
+        if ((b | 0x20) == 'e' || b == '.') numberError()
         if (len < 19) {
           var x = (buf(from) - '0').toLong
           from += 1
@@ -2788,7 +2742,7 @@ final class JsonReader private[json] (
     }
   }
 
-  def readBigDecimal(
+  private[this] def readBigDecimal(
     isToken: Boolean,
     default: BigDecimal,
     mc: MathContext,
@@ -2825,7 +2779,7 @@ final class JsonReader private[json] (
             b = buf(pos)
             b >= '0' && b <= '9'
           }
-        ) leadingZeroError(pos - 1)
+        ) leadingZeroError()
       } else {
         digits -= pos
         var m, bs = 0L
@@ -2866,7 +2820,7 @@ final class JsonReader private[json] (
         digits += pos
       }
       var fracLen, scale = 0
-      if (digits >= digitsLimit) digitsLimitError(pos + digitsLimit - digits - 1)
+      if (digits >= digitsLimit) digitsLimitError()
       if (b == '.') {
         pos += 1
         fracLen -= pos
@@ -2907,8 +2861,8 @@ final class JsonReader private[json] (
         }
         fracLen += pos
         digits += fracLen
-        if (fracLen == 0) numberError(pos)
-        if (digits >= digitsLimit) digitsLimitError(pos + digitsLimit - digits - 1)
+        if (fracLen == 0) numberError()
+        if (digits >= digitsLimit) digitsLimitError()
       }
       if ((b | 0x20) == 'e') {
         b = nextByte(pos + 1)
@@ -2936,12 +2890,12 @@ final class JsonReader private[json] (
               scale = scale * 10 + ('0' - b)
               scale > 0
             }
-          ) numberError(pos)
+          ) numberError()
           pos += 1
         }
         scale ^= ss
         scale -= ss
-        if (scale == -2147483648) numberError(pos - 1)
+        if (scale == -2147483648) numberError()
       }
       head = pos
       if (mark == 0) from -= newMark
@@ -3128,31 +3082,25 @@ final class JsonReader private[json] (
         if (bs == 0x6c6c756e) {
           head = pos + 3
           default
-        } else decodeError("expected number or null", bs, pos)
+        } else decodeError("expected number or null")
       } else readNullOrNumberError(default, loadMoreOrError(pos - 1) + 1)
-    } else numberError(pos - 1)
+    } else numberError()
 
-  private[this] def numberError(pos: Int = head - 1): Nothing = decodeError("illegal number", pos)
+  private[this] def numberError(): Nothing = decodeError("illegal number")
 
-  private[this] def digitsLimitError(pos: Int): Nothing = decodeError("value exceeds limit for number of digits", pos)
+  private[this] def digitsLimitError(): Nothing = decodeError("value exceeds limit for number of digits")
 
-  private[this] def scaleLimitError(pos: Int = head - 1): Nothing = decodeError("value exceeds limit for scale", pos)
+  private[this] def scaleLimitError(): Nothing = decodeError("value exceeds limit for scale")
 
-  private[this] def leadingZeroError(pos: Int): Nothing = decodeError("illegal number with leading zero", pos)
+  private[this] def leadingZeroError(): Nothing = decodeError("illegal number with leading zero")
 
-  private[this] def byteOverflowError(pos: Int): Nothing = decodeError("value is too large for byte", pos)
+  private[this] def byteOverflowError(): Nothing = decodeError("value is too large for byte")
 
-  private[this] def shortOverflowError(pos: Int): Nothing = decodeError("value is too large for short", pos)
+  private[this] def shortOverflowError(): Nothing = decodeError("value is too large for short")
 
-  private[this] def intOverflowError(pos: Int): Nothing = decodeError("value is too large for int", pos)
+  private[this] def intOverflowError(): Nothing = decodeError("value is too large for int")
 
-  private[this] def longOverflowError(pos: Int): Nothing = decodeError("value is too large for long", pos)
-
-  private[this] def decodeError(msg: String, bs: Int, pos: Int): Nothing =
-    decodeError(msg, (java.lang.Integer.numberOfTrailingZeros(bs ^ 0x6c6c756e) >> 3) + pos - 1)
-
-  private[this] def tokenOrNullError(t: Byte, bs: Int, pos: Int): Nothing =
-    tokenOrNullError(t, (java.lang.Integer.numberOfTrailingZeros(bs ^ 0x6c6c756e) >> 3) + pos - 1)
+  private[this] def longOverflowError(): Nothing = decodeError("value is too large for long")
 
   private[this] def parseDuration(): Duration = {
     var b = nextByte(head)
@@ -3195,24 +3143,24 @@ final class JsonReader private[json] (
             x = x * 10 + ('0' - b)
             x > 0
           }
-        ) durationError(pos)
+        ) durationError()
         pos += 1
       }
       if (b == 'D' && state < 0) {
-        if (x < -106751991167300L) durationError(pos) // -106751991167300L == Long.MinValue / 86400
+        if (x < -106751991167300L) durationError() // -106751991167300L == Long.MinValue / 86400
         seconds = (sx - (x ^ sx)) * 86400
         state = 0
       } else if (b == 'H' && state <= 0) {
-        if (x < -2562047788015215L) durationError(pos) // -2562047788015215L == Long.MinValue / 3600
-        seconds = sumSeconds((sx - (x ^ sx)) * 3600, seconds, pos)
+        if (x < -2562047788015215L) durationError() // -2562047788015215L == Long.MinValue / 3600
+        seconds = sumSeconds((sx - (x ^ sx)) * 3600, seconds)
         state = 1
       } else if (b == 'M' && state <= 1) {
-        if (x < -153722867280912930L) durationError(pos) // -153722867280912930L == Long.MinValue / 60
-        seconds = sumSeconds((sx - (x ^ sx)) * 60, seconds, pos)
+        if (x < -153722867280912930L) durationError() // -153722867280912930L == Long.MinValue / 60
+        seconds = sumSeconds((sx - (x ^ sx)) * 60, seconds)
         state = 2
       } else if (b == 'S' || b == '.') {
-        if ((x | sx) == -9223372036854775808L) durationError(pos)
-        seconds = sumSeconds(sx - (x ^ sx), seconds, pos)
+        if ((x | sx) == -9223372036854775808L) durationError()
+        seconds = sumSeconds(sx - (x ^ sx), seconds)
         state = 3
         if (b == '.') {
           pos += 1
@@ -3254,10 +3202,10 @@ final class JsonReader private[json] (
               pos += 1
             }
           }
-          if (b != 'S') nanoError(nanoDigitWeight, 'S', pos)
+          if (b != 'S') nanoError(nanoDigitWeight, 'S')
           nano = ((nano ^ sx) - sx).toInt
         }
-      } else durationError(state, pos)
+      } else durationError(state)
       b = nextByte(pos + 1)
       b != '"'
     }) {
@@ -3270,9 +3218,9 @@ final class JsonReader private[json] (
     else Duration.ofSeconds(seconds, nano.toLong)
   }
 
-  private[this] def sumSeconds(s1: Long, s2: Long, pos: Int): Long = {
+  private[this] def sumSeconds(s1: Long, s2: Long): Long = {
     val s = s1 + s2
-    if (((s1 ^ s) & (s2 ^ s)) < 0) durationError(pos)
+    if (((s1 ^ s) & (s2 ^ s)) < 0) durationError()
     s
   }
 
@@ -3360,7 +3308,7 @@ final class JsonReader private[json] (
       else offsetTotal = parseOffsetTotalWithDoubleQuotes(pos)
       if (b == '-') epochSecond += offsetTotal
       else epochSecond -= offsetTotal
-    } else timeError(nanoDigitWeight, pos - 1)
+    } else timeError(nanoDigitWeight)
     if (nano == 0) Instant.ofEpochSecond(epochSecond)
     else Instant.ofEpochSecond(epochSecond, nano.toLong)
   }
@@ -3467,8 +3415,8 @@ final class JsonReader private[json] (
           nanoDigitWeight = (nanoDigitWeight * 429496730L >> 32).toInt // divide a small positive int by 10
         }
       }
-      if (b != '"') nanoError(nanoDigitWeight, '"', pos - 1)
-    } else if (b != '"') tokensError('.', '"', pos - 1)
+      if (b != '"') nanoError(nanoDigitWeight, '"')
+    } else if (b != '"') tokensError('.', '"')
     head = pos
     LocalDateTime.of(year, monthDay.toByte.toInt, monthDay >> 24, hour, minute, second, nano)
   }
@@ -3548,8 +3496,8 @@ final class JsonReader private[json] (
           nanoDigitWeight = (nanoDigitWeight * 429496730L >> 32).toInt // divide a small positive int by 10
         }
       }
-      if (b != '"') nanoError(nanoDigitWeight, '"', pos - 1)
-    } else if (b != '"') tokensError('.', '"', pos - 1)
+      if (b != '"') nanoError(nanoDigitWeight, '"')
+    } else if (b != '"') tokensError('.', '"')
     head = pos
     LocalTime.of(hour, minute, second, nano)
   }
@@ -3566,8 +3514,8 @@ final class JsonReader private[json] (
         monthDayError(
           pos
         ) // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
-      if (month < 1 || month > 12) monthError(pos + 3)
-      if (day == 0 || (day > 28 && day > maxDayForMonth(month))) dayError(pos + 6)
+      if (month < 1 || month > 12) monthError()
+      if (day == 0 || (day > 28 && day > maxDayForMonth(month))) dayError()
       MonthDay.of(month, day)
     } else parseMonthDay(loadMoreOrError(pos))
 
@@ -3690,7 +3638,7 @@ final class JsonReader private[json] (
         ) head = pos + 6
         else offsetTotal = parseOffsetTotalWithDoubleQuotes(pos)
         toZoneOffset(b, offsetTotal)
-      } else timeError(nanoDigitWeight, pos - 1)
+      } else timeError(nanoDigitWeight)
     OffsetDateTime.of(year, monthDay.toByte.toInt, monthDay >> 24, hour, minute, second, nano, zoneOffset)
   }
 
@@ -3790,7 +3738,7 @@ final class JsonReader private[json] (
         ) head = pos + 6
         else offsetTotal = parseOffsetTotalWithDoubleQuotes(pos)
         toZoneOffset(b, offsetTotal)
-      } else timeError(nanoDigitWeight, pos - 1)
+      } else timeError(nanoDigitWeight)
     OffsetTime.of(hour, minute, second, nano, zoneOffset)
   }
 
@@ -3829,11 +3777,11 @@ final class JsonReader private[json] (
             x = x * 10 + ('0' - b)
             x > 0
           }
-        ) periodError(pos)
+        ) periodError()
         pos += 1
       }
       x = sx - (x ^ sx)
-      if ((sx | x) == -2147483648) periodError(pos)
+      if ((sx | x) == -2147483648) periodError()
       if (b == 'Y' && state <= 0) {
         years = x
         state = 1
@@ -3841,15 +3789,15 @@ final class JsonReader private[json] (
         months = x
         state = 2
       } else if (b == 'W' && state <= 2) {
-        if (x < -306783378 || x > 306783378) periodError(pos)
+        if (x < -306783378 || x > 306783378) periodError()
         days = x * 7
         state = 3
       } else if (b == 'D') {
         val ds = x.toLong + days
         days = ds.toInt
         state = 4
-        if (ds != days) periodError(pos)
-      } else periodError(state, pos)
+        if (ds != days) periodError()
+      } else periodError(state)
       b = nextByte(pos + 1)
       b != '"'
     }) {
@@ -3993,7 +3941,7 @@ final class JsonReader private[json] (
           if (offsetTotal > 64800) timezoneOffsetError() // 64800 == 18 * 60 * 60
         }
         toZoneOffset(sb, offsetTotal)
-      } else timeError(nanoDigitWeight, pos - 1)
+      } else timeError(nanoDigitWeight)
     if (b == '"') ZonedDateTime.ofLocal(localDateTime, zoneOffset, null)
     else if (b == '[') {
       pos = head
@@ -4028,7 +3976,7 @@ final class JsonReader private[json] (
         pos = loadMoreOrError(pos)
         buf = this.buf
       }
-      if (buf(pos) != '"') tokenError('"', pos)
+      if (buf(pos) != '"') tokenError('"')
       head = pos + 1
       ZonedDateTime.ofInstant(localDateTime, zoneOffset, zoneId)
     } else zonedDateTimeError(nanoDigitWeight)
@@ -4045,7 +3993,7 @@ final class JsonReader private[json] (
       }
       return zoneId
     } catch {
-      case _: DateTimeException => timezoneError(pos)
+      case _: DateTimeException => timezoneError()
     }
 
   private[this] def parseZoneOffset(): ZoneOffset = {
@@ -4123,23 +4071,22 @@ final class JsonReader private[json] (
 
   private[this] def fourDigitYearWithByteError(t: Byte, pos: Int, y: Int): Nothing = {
     val m = (y + 0x76767676 | y) & 0x80808080
-    if (m == 0) tokenError(t, pos + 4)
-    else if (m.toByte != 0) decodeError("expected '-' or '+' or digit", pos)
-    else digitError((java.lang.Integer.numberOfTrailingZeros(m) >> 3) + pos)
+    if (m == 0) tokenError(t)
+    else if (m.toByte != 0) decodeError("expected '-' or '+' or digit")
+    else digitError()
   }
 
-  private[this] def digitError(pos: Int): Nothing = decodeError("expected digit", pos)
+  private[this] def digitError(): Nothing = decodeError("expected digit")
 
-  private[this] def periodError(pos: Int): Nothing = decodeError("illegal period", pos)
+  private[this] def periodError(): Nothing = decodeError("illegal period")
 
-  private[this] def periodError(state: Int, pos: Int): Nothing = decodeError(
+  private[this] def periodError(state: Int): Nothing = decodeError(
     state match {
       case 0 => "expected 'Y' or 'M' or 'W' or 'D' or digit"
       case 1 => "expected 'M' or 'W' or 'D' or digit"
       case 2 => "expected 'W' or 'D' or digit"
       case _ => "expected 'D' or digit"
-    },
-    pos
+    }
   )
 
   private[this] def durationOrPeriodStartError(s: Int): Nothing = decodeError {
@@ -4153,74 +4100,68 @@ final class JsonReader private[json] (
     else "expected '\"' or '-' or digit"
   }
 
-  private[this] def durationError(pos: Int): Nothing = decodeError("illegal duration", pos)
+  private[this] def durationError(): Nothing = decodeError("illegal duration")
 
-  private[this] def durationError(state: Int, pos: Int): Nothing = decodeError(
+  private[this] def durationError(state: Int): Nothing = decodeError(
     state match {
       case -1 => "expected 'D' or digit"
       case 0  => "expected 'H' or 'M' or 'S' or '.' or digit"
       case 1  => "expected 'M' or 'S' or '.' or digit"
       case _  => "expected 'S' or '.' or digit"
-    },
-    pos
+    }
   )
 
-  private[this] def yearError(t: Byte, maxDigits: Int, pos: Int, b: Byte, yearDigits: Int): Nothing = {
-    if (b != '-' && yearDigits == 4) digitError(pos)
-    if (yearDigits == maxDigits) tokenError(t, pos)
-    tokenOrDigitError(t, pos)
+  private[this] def yearError(t: Byte, maxDigits: Int, b: Byte, yearDigits: Int): Nothing = {
+    if (b != '-' && yearDigits == 4) digitError()
+    if (yearDigits == maxDigits) tokenError(t)
+    tokenOrDigitError(t)
   }
 
-  private[this] def yearError(pos: Int): Nothing = decodeError("illegal year", pos)
+  private[this] def yearError(): Nothing = decodeError("illegal year")
 
   private[this] def monthDayError(pos: Int): Nothing = {
     val buf = this.buf
-    if (buf(pos) != '-') tokenError('-', pos)
-    if (buf(pos + 1) != '-') tokenError('-', pos + 1)
+    if (buf(pos) != '-' || buf(pos + 1) != '-') tokenError('-')
     val b3 = buf(pos + 2)
     val b4 = buf(pos + 3)
-    if (b3 < '0' || b3 > '9') digitError(pos + 2)
-    if (b4 < '0' || b4 > '9') digitError(pos + 3)
-    if (buf(pos + 4) != '-') tokenError('-', pos + 4)
+    if (b3 < '0' || b3 > '9' || b4 < '0' || b4 > '9') digitError()
+    if (buf(pos + 4) != '-') tokenError('-')
     val b6 = buf(pos + 5)
     val b7 = buf(pos + 6)
-    if (b6 < '0' || b6 > '9') digitError(pos + 5)
-    if (b7 < '0' || b7 > '9') digitError(pos + 6)
-    tokenError('"', pos + 7)
+    if (b6 < '0' || b6 > '9' || b7 < '0' || b7 > '9') digitError()
+    tokenError('"')
   }
 
-  private[this] def monthError(pos: Int): Nothing = decodeError("illegal month", pos)
+  private[this] def monthError(): Nothing = decodeError("illegal month")
 
-  private[this] def dayError(pos: Int): Nothing = decodeError("illegal day", pos)
+  private[this] def dayError(): Nothing = decodeError("illegal day")
 
-  private[this] def hourError(pos: Int): Nothing = decodeError("illegal hour", pos)
+  private[this] def hourError(): Nothing = decodeError("illegal hour")
 
-  private[this] def minuteError(pos: Int): Nothing = decodeError("illegal minute", pos)
+  private[this] def minuteError(): Nothing = decodeError("illegal minute")
 
-  private[this] def secondError(pos: Int): Nothing = decodeError("illegal second", pos)
+  private[this] def secondError(): Nothing = decodeError("illegal second")
 
-  private[this] def nanoError(nanoDigitWeight: Int, t: Byte, pos: Int): Nothing =
-    if (nanoDigitWeight == 0) tokenError(t, pos)
-    else tokenOrDigitError(t, pos)
+  private[this] def nanoError(nanoDigitWeight: Int, t: Byte): Nothing =
+    if (nanoDigitWeight == 0) tokenError(t)
+    else tokenOrDigitError(t)
 
-  private[this] def timeError(nanoDigitWeight: Int, pos: Int): Nothing = decodeError(
+  private[this] def timeError(nanoDigitWeight: Int): Nothing = decodeError(
     if (nanoDigitWeight == -2) "expected '.' or '+' or '-' or 'Z'"
     else if (nanoDigitWeight == -1) "expected ':' or '+' or '-' or 'Z'"
     else if (nanoDigitWeight == 0) "expected '+' or '-' or 'Z'"
-    else "expected '+' or '-' or 'Z' or digit",
-    pos
+    else "expected '+' or '-' or 'Z' or digit"
   )
 
-  private[this] def timezoneError(pos: Int): Nothing =
-    decodeError("illegal timezone", pos - 1)
+  private[this] def timezoneError(): Nothing = decodeError("illegal timezone")
 
   private[this] def timezoneOffsetError(): Nothing = decodeError("illegal timezone offset")
 
-  private[this] def timezoneOffsetHourError(pos: Int): Nothing = decodeError("illegal timezone offset hour", pos)
+  private[this] def timezoneOffsetHourError(): Nothing = decodeError("illegal timezone offset hour")
 
-  private[this] def timezoneOffsetMinuteError(pos: Int): Nothing = decodeError("illegal timezone offset minute", pos)
+  private[this] def timezoneOffsetMinuteError(): Nothing = decodeError("illegal timezone offset minute")
 
-  private[this] def timezoneOffsetSecondError(pos: Int): Nothing = decodeError("illegal timezone offset second", pos)
+  private[this] def timezoneOffsetSecondError(): Nothing = decodeError("illegal timezone offset second")
 
   private[this] def zonedDateTimeError(nanoDigitWeight: Int): Nothing = decodeError {
     if (nanoDigitWeight > -3) "expected '[' or '\"'"
@@ -4241,29 +4182,29 @@ final class JsonReader private[json] (
             ns(buf(pos + 5) & 0xff) << 8 |
             ns(buf(pos + 6) & 0xff) << 4 |
             ns(buf(pos + 7) & 0xff))
-      if (mostSigBits1 < 0) hexDigitError(pos)
-      if (buf(pos + 8) != '-') tokenError('-', pos + 8)
+      if (mostSigBits1 < 0) hexDigitError()
+      if (buf(pos + 8) != '-') tokenError('-')
       val mostSigBits2 =
         ns(buf(pos + 9) & 0xff) << 12 |
           ns(buf(pos + 10) & 0xff) << 8 |
           ns(buf(pos + 11) & 0xff) << 4 |
           ns(buf(pos + 12) & 0xff)
-      if (mostSigBits2 < 0) hexDigitError(pos + 9)
-      if (buf(pos + 13) != '-') tokenError('-', pos + 13)
+      if (mostSigBits2 < 0) hexDigitError()
+      if (buf(pos + 13) != '-') tokenError('-')
       val mostSigBits3 =
         ns(buf(pos + 14) & 0xff) << 12 |
           ns(buf(pos + 15) & 0xff) << 8 |
           ns(buf(pos + 16) & 0xff) << 4 |
           ns(buf(pos + 17) & 0xff)
-      if (mostSigBits3 < 0) hexDigitError(pos + 14)
-      if (buf(pos + 18) != '-') tokenError('-', pos + 18)
+      if (mostSigBits3 < 0) hexDigitError()
+      if (buf(pos + 18) != '-') tokenError('-')
       val leastSigBits1 =
         ns(buf(pos + 19) & 0xff) << 12 |
           ns(buf(pos + 20) & 0xff) << 8 |
           ns(buf(pos + 21) & 0xff) << 4 |
           ns(buf(pos + 22) & 0xff)
-      if (leastSigBits1 < 0) hexDigitError(pos + 19)
-      if (buf(pos + 23) != '-') tokenError('-', pos + 23)
+      if (leastSigBits1 < 0) hexDigitError()
+      if (buf(pos + 23) != '-') tokenError('-')
       val leastSigBits2 =
         (ns(buf(pos + 24) & 0xff) << 16 |
           ns(buf(pos + 25) & 0xff) << 12 |
@@ -4277,8 +4218,8 @@ final class JsonReader private[json] (
             ns(buf(pos + 33) & 0xff) << 8 |
             ns(buf(pos + 34) & 0xff) << 4 |
             ns(buf(pos + 35) & 0xff))
-      if (leastSigBits2 < 0) hexDigitError(pos + 24)
-      if (buf(pos + 36) != '"') tokenError('"', pos + 36)
+      if (leastSigBits2 < 0) hexDigitError()
+      if (buf(pos + 36) != '"') tokenError('"')
       head = pos + 37
       new UUID(
         mostSigBits1 << 32 | mostSigBits2.toLong << 16 | mostSigBits3,
@@ -4326,7 +4267,7 @@ final class JsonReader private[json] (
             head = pos + 1
             i
           } else if (b1 != '\\') { // 0aaaaaaa (UTF-8 byte) -> 000000000aaaaaaa (UTF-16 char)
-            if (b1 < ' ') unescapedControlCharacterError(pos)
+            if (b1 < ' ') unescapedControlCharacterError()
             charBuf(i) = b1.toChar
             parseEncodedString(i + 1, lim, charBuf, pos + 1)
           } else if (remaining > 1) {
@@ -4341,7 +4282,7 @@ final class JsonReader private[json] (
                 case 'f'  => '\f'
                 case '\\' => '\\'
                 case '/'  => '/'
-                case _    => escapeSequenceError(pos + 1)
+                case _    => escapeSequenceError()
               }
               parseEncodedString(i + 1, lim, charBuf, pos + 2)
             } else if (remaining > 5) {
@@ -4349,11 +4290,10 @@ final class JsonReader private[json] (
               charBuf(i) = ch1
               if ((ch1 & 0xf800) != 0xd800) parseEncodedString(i + 1, lim, charBuf, pos + 6)
               else if (remaining > 11) {
-                if (buf(pos + 6) != '\\') escapeSequenceError(pos + 6)
-                if (buf(pos + 7) != 'u') escapeSequenceError(pos + 7)
+                if (buf(pos + 6) != '\\' || buf(pos + 7) != 'u') escapeSequenceError()
                 val ch2 = readEscapedUnicode(pos + 8, buf)
                 charBuf(i + 1) = ch2
-                if (ch1 >= 0xdc00 || (ch2 & 0xfc00) != 0xdc00) decodeError("illegal surrogate character pair", pos + 11)
+                if (ch1 >= 0xdc00 || (ch2 & 0xfc00) != 0xdc00) decodeError("illegal surrogate character pair")
                 parseEncodedString(i + 2, lim, charBuf, pos + 12)
               } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
             } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
@@ -4363,7 +4303,7 @@ final class JsonReader private[json] (
             val b2 = buf(pos + 1)
             val ch = (b1 << 6 ^ b2 ^ 0xf80).toChar // 0xF80 == 0xC0.toByte << 6 ^ 0x80.toByte
             charBuf(i) = ch
-            if ((b2 & 0xc0) != 0x80 || ch < 0x80) malformedBytesError(b1, b2, pos)
+            if ((b2 & 0xc0) != 0x80 || ch < 0x80) malformedBytesError(b1, b2)
             parseEncodedString(i + 1, lim, charBuf, pos + 2)
           } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
         } else if ((b1 & 0xf0) == 0xe0) { // 1110cccc 10bbbbbb 10aaaaaa (UTF-8 bytes) -> ccccbbbbbbaaaaaa (UTF-16 char)
@@ -4375,7 +4315,7 @@ final class JsonReader private[json] (
             if (
               (b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || ch < 0x800 ||
               (ch & 0xf800) == 0xd800
-            ) malformedBytesError(b1, b2, b3, pos)
+            ) malformedBytesError(b1, b2, b3)
             parseEncodedString(i + 1, lim, charBuf, pos + 3)
           } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
         } else if ((b1 & 0xf8) == 0xf0) { // 11110ddd 10ddcccc 10bbbbbb 10aaaaaa (UTF-8 bytes) -> 110110uuuuccccbb 110111bbbbaaaaaa (UTF-16 chars), where uuuu = ddddd - 1
@@ -4391,10 +4331,10 @@ final class JsonReader private[json] (
             if (
               (b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || (b4 & 0xc0) != 0x80 ||
               (ch1 & 0xf800) != 0xd800
-            ) malformedBytesError(b1, b2, b3, b4, pos)
+            ) malformedBytesError(b1, b2, b3, b4)
             parseEncodedString(i + 2, lim, charBuf, pos + 4)
           } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
-        } else malformedBytesError(b1, pos)
+        } else malformedBytesError(b1)
       } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
     } else parseEncodedString(i, growCharBuf(i + 2) - 1, this.charBuf, pos) // 2 is length of surrogate pair
   }
@@ -4405,9 +4345,9 @@ final class JsonReader private[json] (
     if (remaining > 0) {
       val b1 = buf(pos)
       if (b1 >= 0) {
-        if (b1 == '"') characterError(pos)
+        if (b1 == '"') characterError()
         else if (b1 != '\\') { // 0aaaaaaa (UTF-8 byte) -> 000000000aaaaaaa (UTF-16 char)
-          if (b1 < ' ') unescapedControlCharacterError(pos)
+          if (b1 < ' ') unescapedControlCharacterError()
           head = pos + 1
           return b1.toChar
         } else if (remaining > 1) {
@@ -4423,12 +4363,12 @@ final class JsonReader private[json] (
               case '"'  => return '"'
               case '/'  => return '/'
               case '\\' => return '\\'
-              case _    => escapeSequenceError(pos + 1)
+              case _    => escapeSequenceError()
             }
           } else if (remaining > 5) {
             val ch = readEscapedUnicode(pos + 2, buf)
             head = pos + 6
-            if ((ch & 0xf800) == 0xd800) surrogateCharacterError(pos + 5)
+            if ((ch & 0xf800) == 0xd800) surrogateCharacterError()
             return ch
           }
         }
@@ -4437,7 +4377,7 @@ final class JsonReader private[json] (
           val b2 = buf(pos + 1)
           val ch = (b1 << 6 ^ b2 ^ 0xf80).toChar // 0xF80 == 0xC0.toByte << 6 ^ 0x80.toByte
           head = pos + 2
-          if ((b2 & 0xc0) != 0x80 || ch < 0x80) malformedBytesError(b1, b2, pos)
+          if ((b2 & 0xc0) != 0x80 || ch < 0x80) malformedBytesError(b1, b2)
           return ch
         }
       } else if ((b1 & 0xf0) == 0xe0) { // 1110cccc 10bbbbbb 10aaaaaa (UTF-8 bytes) -> ccccbbbbbbaaaaaa (UTF-16 char)
@@ -4449,11 +4389,11 @@ final class JsonReader private[json] (
           if (
             (b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || ch < 0x800 ||
             (ch & 0xf800) == 0xd800
-          ) malformedBytesError(b1, b2, b3, pos)
+          ) malformedBytesError(b1, b2, b3)
           return ch
         }
-      } else if ((b1 & 0xf8) == 0xf0) surrogateCharacterError(pos + 3)
-      else malformedBytesError(b1, pos)
+      } else if ((b1 & 0xf8) == 0xf0) surrogateCharacterError()
+      else malformedBytesError(b1)
     }
     parseChar(loadMoreOrError(pos))
   }
@@ -4465,40 +4405,36 @@ final class JsonReader private[json] (
         ns(buf(pos + 1) & 0xff) << 8 |
         ns(buf(pos + 2) & 0xff) << 4 |
         ns(buf(pos + 3) & 0xff)
-    if (x < 0) hexDigitError(pos)
+    if (x < 0) hexDigitError()
     x.toChar
   }
 
-  @tailrec
-  private[this] def hexDigitError(pos: Int): Nothing = {
-    if (nibbles(buf(pos) & 0xff) < 0) decodeError("expected hex digit", pos)
-    hexDigitError(pos + 1)
-  }
+  private[this] def hexDigitError(): Nothing = decodeError("expected hex digit")
 
-  private[this] def characterError(pos: Int): Nothing = decodeError("illegal character", pos)
+  private[this] def characterError(): Nothing = decodeError("illegal character")
 
-  private[this] def escapeSequenceError(pos: Int): Nothing = decodeError("illegal escape sequence", pos)
+  private[this] def escapeSequenceError(): Nothing = decodeError("illegal escape sequence")
 
-  private[this] def surrogateCharacterError(pos: Int): Nothing = decodeError("illegal surrogate character", pos)
+  private[this] def surrogateCharacterError(): Nothing = decodeError("illegal surrogate character")
 
-  private[this] def unescapedControlCharacterError(pos: Int): Nothing = decodeError("unescaped control character", pos)
+  private[this] def unescapedControlCharacterError(): Nothing = decodeError("unescaped control character")
 
-  private[this] def malformedBytesError(b1: Byte, pos: Int): Nothing = {
+  private[this] def malformedBytesError(b1: Byte): Nothing = {
     var i = appendString("malformed byte(s): 0x", 0)
     i = appendHexByte(b1, i, hexDigits)
-    decodeError(i, pos)
+    decodeError(i)
   }
 
-  private[this] def malformedBytesError(b1: Byte, b2: Byte, pos: Int): Nothing = {
+  private[this] def malformedBytesError(b1: Byte, b2: Byte): Nothing = {
     val ds = hexDigits
     var i  = appendString("malformed byte(s): 0x", 0)
     i = appendHexByte(b1, i, ds)
     i = appendString(", 0x", i)
     i = appendHexByte(b2, i, ds)
-    decodeError(i, pos + 1)
+    decodeError(i)
   }
 
-  private[this] def malformedBytesError(b1: Byte, b2: Byte, b3: Byte, pos: Int): Nothing = {
+  private[this] def malformedBytesError(b1: Byte, b2: Byte, b3: Byte): Nothing = {
     val ds = hexDigits
     var i  = appendString("malformed byte(s): 0x", 0)
     i = appendHexByte(b1, i, ds)
@@ -4506,10 +4442,10 @@ final class JsonReader private[json] (
     i = appendHexByte(b2, i, ds)
     i = appendString(", 0x", i)
     i = appendHexByte(b3, i, ds)
-    decodeError(i, pos + 2)
+    decodeError(i)
   }
 
-  private[this] def malformedBytesError(b1: Byte, b2: Byte, b3: Byte, b4: Byte, pos: Int): Nothing = {
+  private[this] def malformedBytesError(b1: Byte, b2: Byte, b3: Byte, b4: Byte): Nothing = {
     val ds = hexDigits
     var i  = appendString("malformed byte(s): 0x", 0)
     i = appendHexByte(b1, i, ds)
@@ -4519,7 +4455,7 @@ final class JsonReader private[json] (
     i = appendHexByte(b3, i, ds)
     i = appendString(", 0x", i)
     i = appendHexByte(b4, i, ds)
-    decodeError(i, pos + 3)
+    decodeError(i)
   }
 
   private[this] def appendHexByte(b: Byte, i: Int, ds: Array[Char]): Int = {
@@ -4644,11 +4580,11 @@ final class JsonReader private[json] (
     buf = java.util.Arrays.copyOf(buf, bufLen)
   }
 
-  private[this] def tooLongInputError(): Nothing = decodeError("too long part of input exceeded 'maxBufSize'", tail)
+  private[this] def tooLongInputError(): Nothing = decodeError("too long part of input exceeded 'maxBufSize'")
 
-  private[this] def tooLongStringError(): Nothing = decodeError("too long string exceeded 'maxCharBufSize'", tail)
+  private[this] def tooLongStringError(): Nothing = decodeError("too long string exceeded 'maxCharBufSize'")
 
-  private[this] def endOfInputError(): Nothing = decodeError("unexpected end of input", tail)
+  private[this] def endOfInputError(): Nothing = decodeError("unexpected end of input")
 
   private[this] def reallocateBufToPreferredSize(): Unit = buf = new Array[Byte](config.preferredBufSize)
 
