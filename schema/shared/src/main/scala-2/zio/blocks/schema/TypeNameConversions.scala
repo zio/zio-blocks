@@ -34,53 +34,62 @@ private[schema] object TypeIdToTypeNameImpl {
    * This matches the behavior of the old typeName() function in Scala 2.13.
    */
   private val typesWithParamsInList = Set(
-    "Option", "List", "Map", "Set", "Vector", "ArraySeq", "IndexedSeq", "Seq", "Some"
+    "Option",
+    "List",
+    "Map",
+    "Set",
+    "Vector",
+    "ArraySeq",
+    "IndexedSeq",
+    "Seq",
+    "Some"
   )
 
   /**
    * Parses a type name string that may contain type parameters.
    *
-   * In Scala 2.13, for standard collection types, parameters are ALWAYS
-   * parsed into the params list, even if they contain qualified names.
+   * In Scala 2.13, for standard collection types, parameters are ALWAYS parsed
+   * into the params list, even if they contain qualified names.
    */
   private def parseTypeNameWithParams(typeNameStr: String, namespace: Namespace): TypeName[?] = {
     val bracketIndex = typeNameStr.indexOf('[')
     if (bracketIndex == -1) {
       // No type parameters
-      val (finalNamespace, finalName) = if (namespace.packages.isEmpty && namespace.values.isEmpty && typeNameStr.contains(".")) {
-        val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(typeNameStr)
-        val simpleName = TypeNameConversions.extractSimpleTypeName(typeNameStr)
-        (inferredNamespace, simpleName)
-      } else {
-        (namespace, typeNameStr)
-      }
+      val (finalNamespace, finalName) =
+        if (namespace.packages.isEmpty && namespace.values.isEmpty && typeNameStr.contains(".")) {
+          val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(typeNameStr)
+          val simpleName        = TypeNameConversions.extractSimpleTypeName(typeNameStr)
+          (inferredNamespace, simpleName)
+        } else {
+          (namespace, typeNameStr)
+        }
       new TypeName(finalNamespace, finalName, Nil)
     } else {
       val baseNameWithNamespace = typeNameStr.substring(0, bracketIndex)
-      val paramsStr = typeNameStr.substring(bracketIndex + 1, typeNameStr.length - 1)
-      
+      val paramsStr             = typeNameStr.substring(bracketIndex + 1, typeNameStr.length - 1)
+
       // Extract namespace and simple name from baseName if it's qualified
       val (baseNamespace, baseName) = if (baseNameWithNamespace.contains(".")) {
         val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(baseNameWithNamespace)
-        val simpleName = TypeNameConversions.extractSimpleTypeName(baseNameWithNamespace)
+        val simpleName        = TypeNameConversions.extractSimpleTypeName(baseNameWithNamespace)
         (inferredNamespace, simpleName)
       } else {
         (namespace, baseNameWithNamespace)
       }
-      
+
       // In Scala 2.13: ALWAYS parse params into list for standard collection types
       if (typesWithParamsInList.contains(baseName)) {
         val params = TypeNameConversions.parseTypeParams(paramsStr).map { paramStr =>
           val trimmed = paramStr.trim
           if (trimmed.indexOf('[') == -1) {
             // Simple type name - infer namespace
-            val paramName = trimmed
+            val paramName         = trimmed
             val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(paramName)
-            val simpleName = TypeNameConversions.extractSimpleTypeName(paramName)
+            val simpleName        = TypeNameConversions.extractSimpleTypeName(paramName)
             new TypeName(inferredNamespace, simpleName, Nil)
           } else {
             // Complex type - parse recursively
-            val paramBaseName = trimmed.substring(0, trimmed.indexOf('['))
+            val paramBaseName     = trimmed.substring(0, trimmed.indexOf('['))
             val inferredNamespace = TypeNameConversions.inferNamespaceForTypeName(paramBaseName)
             parseTypeNameWithParams(trimmed, inferredNamespace)
           }

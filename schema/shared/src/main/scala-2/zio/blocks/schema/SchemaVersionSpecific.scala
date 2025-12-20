@@ -245,7 +245,7 @@ private object SchemaVersionSpecific {
           }
         }
         val tpeTypeArgs = typeArgs(tpe)
-        val finalName = if (tpeTypeArgs.isEmpty) {
+        val finalName   = if (tpeTypeArgs.isEmpty) {
           name
         } else {
           // Encode type parameters in name
@@ -298,7 +298,7 @@ private object SchemaVersionSpecific {
       q"new TypeName(new Namespace($packages, $values), $name, $params)"
     }
 
-    def toTreeTypeId(typeId: TypeId): Tree = {
+    def toTreeTypeId(typeId: TypeId): Tree =
       typeId match {
         case TypeId.Nominal(packageName, objectNames, typeNameStr) =>
           val pkgList = packageName.toSeq.toList
@@ -309,7 +309,6 @@ private object SchemaVersionSpecific {
           val nameStr = other.toString
           q"_root_.zio.schema.TypeId.Nominal(_root_.zio.Chunk.empty, _root_.zio.Chunk.empty, $nameStr)"
       }
-    }
 
     def modifiers(tpe: Type): List[Tree] = {
       val modifiers = new mutable.ListBuffer[Tree]
@@ -525,9 +524,10 @@ private object SchemaVersionSpecific {
                     new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
                 }"""
             } else q"SeqConstructor.arrayConstructor"
-          val tpeId   = typeId(tpe)
-          val tpeName = toTreeTypeId(tpeId)
-          val tpeNameConverted = q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
+          val tpeId            = typeId(tpe)
+          val tpeName          = toTreeTypeId(tpeId)
+          val tpeNameConverted =
+            q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
@@ -586,18 +586,19 @@ private object SchemaVersionSpecific {
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
-        val sTpe    = zioPreludeNewtypeDealias(tpe)
-        val schema  = findImplicitOrDeriveSchema(sTpe)
-        val tpeId   = typeId(tpe)
-        val tpeName = toTreeTypeId(tpeId)
+        val sTpe             = zioPreludeNewtypeDealias(tpe)
+        val schema           = findImplicitOrDeriveSchema(sTpe)
+        val tpeId            = typeId(tpe)
+        val tpeName          = toTreeTypeId(tpeId)
         val tpeNameConverted = q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[$sTpe]($tpeName)"
         q"new Schema($schema.reflect.typeName($tpeNameConverted)).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
 
     def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
-      val tpeId   = typeId(tpe)
-      val tpeName = toTreeTypeId(tpeId)
-          val tpeNameConverted = q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
+      val tpeId            = typeId(tpe)
+      val tpeName          = toTreeTypeId(tpeId)
+      val tpeNameConverted =
+        q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector.empty,
@@ -612,10 +613,11 @@ private object SchemaVersionSpecific {
     }
 
     def deriveSchemaForNonAbstractScalaClass(tpe: Type): Tree = {
-      val classInfo = new ClassInfo(tpe)
-      val tpeId     = typeId(tpe)
-      val tpeName   = toTreeTypeId(tpeId)
-          val tpeNameConverted = q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
+      val classInfo        = new ClassInfo(tpe)
+      val tpeId            = typeId(tpe)
+      val tpeName          = toTreeTypeId(tpeId)
+      val tpeNameConverted =
+        q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
       q"""new Schema(
             reflect = new Reflect.Record[Binding, $tpe](
               fields = _root_.scala.Vector(..${classInfo.fields(tpe)}),
@@ -675,9 +677,10 @@ private object SchemaVersionSpecific {
               }
             }"""
       }
-      val tpeId   = typeId(tpe)
-      val tpeName = toTreeTypeId(tpeId)
-          val tpeNameConverted = q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
+      val tpeId            = typeId(tpe)
+      val tpeName          = toTreeTypeId(tpeId)
+      val tpeNameConverted =
+        q"_root_.zio.blocks.schema.TypeNameConversions.typeIdToTypeName[_root_.scala.Any]($tpeName).asInstanceOf[_root_.zio.blocks.schema.TypeName[$tpe]]"
       q"""new Schema(
             reflect = new Reflect.Variant[Binding, $tpe](
               cases = _root_.scala.Vector(..$cases),
