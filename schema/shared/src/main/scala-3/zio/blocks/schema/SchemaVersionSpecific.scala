@@ -386,8 +386,8 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             // Extract name from TypeId - encode full qualified name if namespace is non-standard
             argId match {
               case TypeId.Nominal(argPkgs, argObjs, argName) =>
-                // Check if this is a standard Scala type (packages == Chunk("scala") and no objectNames)
-                val isStandardScalaType = argPkgs.toSeq == Seq("scala") && argObjs.isEmpty
+                // Check if this is a standard Scala type (packages start with "scala" and no objectNames)
+                val isStandardScalaType = argPkgs.headOption.contains("scala") && argObjs.isEmpty
                 if (isStandardScalaType) {
                   // Use simple name for standard types
                   argName
