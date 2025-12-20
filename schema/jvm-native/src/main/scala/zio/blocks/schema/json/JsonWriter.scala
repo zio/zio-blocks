@@ -899,17 +899,6 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a byte array as a JSON raw binary value.
-   *
-   * @param bs
-   *   the byte array to write
-   */
-  def writeRawVal(bs: Array[Byte]): Unit = {
-    writeOptionalCommaAndIndentionBeforeValue()
-    writeRawBytes(bs)
-  }
-
-  /**
    * Writes a JSON `null` value.
    */
   def writeNull(): Unit = {
@@ -1109,22 +1098,6 @@ final class JsonWriter private[json] (
     if (pos >= limit) pos = flushAndGrowBuf(1, pos)
     buf(pos) = b
     count = pos + 1
-  }
-
-  private[this] def writeRawBytes(bs: Array[Byte]): Unit = {
-    var pos       = count
-    var step      = Math.max(config.preferredBufSize, limit - pos)
-    var remaining = bs.length
-    var offset    = 0
-    while (remaining > 0) {
-      step = Math.min(step, remaining)
-      if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
-      System.arraycopy(bs, offset, buf, pos, step)
-      offset += step
-      pos += step
-      remaining -= step
-    }
-    count = pos
   }
 
   private[this] def writeLongNonEscapedAsciiKey(x: String): Unit = {
