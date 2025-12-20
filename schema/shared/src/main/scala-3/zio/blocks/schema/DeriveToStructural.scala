@@ -49,7 +49,7 @@ object DeriveToStructural {
     def isCaseClass(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
       import q.reflect._
       val sym = t.typeSymbol
-      sym.isClassDef && sym.flags.is(Flags.Case) && !sym.flags.is(Flags.Sealed) && !sym.flags.is(Flags.Module)
+      sym.isClassDef && sym.flags.is(Flags.Case) && !sym.flags.is(Flags.Sealed)
     }
 
     def isSealed(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
