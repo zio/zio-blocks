@@ -1139,9 +1139,10 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      x.getBytes(StandardCharsets.UTF_8, offset, newOffset, buf, pos)
+      val bytes = x.substring(offset, newOffset).getBytes(StandardCharsets.UTF_8)
+      System.arraycopy(bytes, 0, buf, pos, bytes.length)
       offset = newOffset
-      pos += step
+      pos += bytes.length
       remaining -= step
     }
     count = pos
@@ -1159,9 +1160,10 @@ final class JsonWriter private[json] (
       step = Math.min(step, remaining)
       if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
       val newOffset = offset + step
-      x.getBytes(StandardCharsets.UTF_8, offset, newOffset, buf, pos)
+      val bytes = x.substring(offset, newOffset).getBytes(StandardCharsets.UTF_8)
+      System.arraycopy(bytes, 0, buf, pos, bytes.length)
       offset = newOffset
-      pos += step
+      pos += bytes.length
       remaining -= step
     }
     count = pos
@@ -1175,8 +1177,9 @@ final class JsonWriter private[json] (
     val buf = this.buf
     buf(pos) = '"'
     pos += 1
-    s.getBytes(StandardCharsets.UTF_8, 0, len, buf, pos)
-    pos += len
+    val bytes = s.substring(0, len).getBytes(StandardCharsets.UTF_8)
+    System.arraycopy(bytes, 0, buf, pos, bytes.length)
+    pos += bytes.length
     buf(pos) = '"'
     count = pos + 1
   }
@@ -1856,8 +1859,9 @@ final class JsonWriter private[json] (
         pos = flushAndGrowBuf(required, pos)
         buf = this.buf
       }
-      zoneId.getBytes(StandardCharsets.UTF_8, 0, len, buf, pos)
-      pos += len
+      val bytes = zoneId.substring(0, len).getBytes(StandardCharsets.UTF_8)
+      System.arraycopy(bytes, 0, buf, pos, bytes.length)
+      pos += bytes.length
       ByteArrayAccess.setShort(buf, pos, 0x225d)
       pos += 2
     }
