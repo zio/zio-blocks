@@ -272,11 +272,11 @@ object DeriveToStructural {
             else '{ $mapped.toSeq }
         }
       } else if (isMap(dealt)) {
-        val kTpe    = dealt.typeArgs(0)
-        val vTpe    = dealt.typeArgs(1)
-        val mapExpr = expr.asExprOf[Map[Any, Any]]
+        val kTpe = dealt.typeArgs(0)
+        val vTpe = dealt.typeArgs(1)
         (kTpe.asType, vTpe.asType) match {
           case ('[k], '[v]) =>
+            val mapExpr = expr.asExprOf[Map[k, v]]
             '{
               $mapExpr.map { case (key, value) =>
                 (${ transformExpr('key, Type.of[k]) }, ${ transformExpr('value, Type.of[v]) })

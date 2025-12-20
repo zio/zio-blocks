@@ -18,12 +18,7 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
 
   case class SetHolder(tags: Set[String]) derives ToStructural
 
-  /*
-  case class MapHolder(data: Map[String, Int])
-  object MapHolder {
-    given ToStructural[MapHolder] = ToStructural.derived[MapHolder]
-  }
-   */
+  case class MapHolder(data: Map[String, Int]) derives ToStructural
   case class EitherHolder(result: Either[String, Int]) derives ToStructural
 
   def spec: Spec[TestEnvironment, Any] = suite("StructuralIntegrationSpec")(
@@ -143,8 +138,6 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
 
       assertTrue(tags == Set("a", "b", "c"))
     },
-    // TODO Ajay: This fails look at DeriveToStructural.scala to see how it handles Maps
-    /*
     test("Map in structural types") {
       val holder = MapHolder(Map("x" -> 1, "y" -> 2))
       val ts     = implicitly[ToStructural[MapHolder]]
@@ -154,7 +147,7 @@ object StructuralIntegrationSpec extends ZIOSpecDefault {
       val data   = sv.selectDynamic("data").asInstanceOf[Map[String, Int]]
 
       assertTrue(data == Map("x" -> 1, "y" -> 2))
-    },*/
+    },
     test("Either in structural types - Right") {
       val holder = EitherHolder(Right(42))
       val ts     = implicitly[ToStructural[EitherHolder]]

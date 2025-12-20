@@ -32,7 +32,6 @@ object IntoIntegrationSpec extends ZIOSpecDefault {
       // Structural intermediary
       type PersonStructure = { def fullName: String; def age: Int }
 
-      implicit val v1Schema: Schema[PersonV1]                = Schema.derived[PersonV1]
       implicit val v2Schema: Schema[PersonV2]                = Schema.derived[PersonV2]
       implicit val structuralSchema: Schema[PersonStructure] = Schema.derived[PersonStructure]
 
