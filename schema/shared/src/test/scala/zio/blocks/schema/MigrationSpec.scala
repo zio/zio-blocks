@@ -111,7 +111,7 @@ object MigrationSpec extends ZIOSpecDefault {
         assert(typeName.namespace.packages)(equalTo(Seq("test", "package")))
       },
       test("TypeId Nominal with encoded type parameters") {
-        // Type parameters are encoded in the typeName string
+        // Type parameters are encoded in the typeName string and parsed back
         val typeId = TypeId.Nominal(
           packageName = Chunk("scala"),
           objectNames = Chunk.empty,
@@ -119,11 +119,11 @@ object MigrationSpec extends ZIOSpecDefault {
         )
         val typeName = typeIdToTypeName[Option[String]](typeId)
 
-        assert(typeName.name)(equalTo("Option[String]")) &&
+        assert(typeName.name)(equalTo("Option")) &&
         assert(typeName.namespace.packages)(equalTo(Seq("scala"))) &&
-        // Note: Type parameters are encoded in the name string, so params will be empty
-        // This is a limitation of the conversion
-        assertTrue(typeName.params.isEmpty)
+        // Type parameters are now parsed and preserved in params
+        assert(typeName.params.size)(equalTo(1)) &&
+        assert(typeName.params.head.name)(equalTo("String"))
       },
       test("Extension method toTypeId works") {
         val typeName = TypeName.int
