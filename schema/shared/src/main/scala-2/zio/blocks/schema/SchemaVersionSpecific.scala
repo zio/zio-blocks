@@ -154,7 +154,7 @@ private object SchemaVersionSpecific {
           }
           // Calculate type parameter names recursively
           val tpeTypeArgs = typeArgs(tpe).map(typeName)
-          
+
           // Include type parameters in name if present
           val finalName = if (tpeTypeArgs.isEmpty) {
             name
@@ -163,10 +163,10 @@ private object SchemaVersionSpecific {
             val paramNames = tpeTypeArgs.map(_.name)
             s"$name[${paramNames.mkString(", ")}]"
           }
-          
+
           // Set params to Nil when parameters are included in name
           val finalParams = Nil
-          
+
           new SchemaTypeName(new Namespace(packages, values), finalName, finalParams)
         }
 
