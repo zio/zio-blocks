@@ -223,10 +223,10 @@ object StructuralBindingSpec extends ZIOSpecDefault {
       },
       test("missing field returns null") {
         val value = new StructuralValue(Map("x" -> 10))
-        /* TODO Ajay: problem in scala 2 as well
-        // Accessing a non-existent field should return null
         assertTrue(value.selectDynamic("nonexistent") == null)
       },
+      /* TODO Ajay: problem in scala 2 as well
+      // Accessing a non-existent field should return null
       test("extra fields in source are preserved but not accessed") {
         val value = new StructuralValue(Map("x" -> 10, "y" -> 20, "extra" -> "ignored"))
 
@@ -235,8 +235,8 @@ object StructuralBindingSpec extends ZIOSpecDefault {
         assertTrue(value.selectDynamic("y") == 20) &&
         // Extra fields are still accessible if needed
         assertTrue(value.selectDynamic("extra") == "ignored")
-         */
       }
+      */
     )
   )
 }
