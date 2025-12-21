@@ -283,11 +283,11 @@ private object IntoVersionSpecificImpl {
       val targetInfo = new ProductInfo(bTpe)
       val fieldMappings = matchFields(sourceInfo, targetInfo)
 
-      // Build constructor arguments: for each target field, read from source using getter
-      val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+      // Build field conversions that return Either[SchemaError, FieldType]
+      val fieldEithers = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
         if (mapping.sourceField == null) {
-          // No source field - target must be Option[T], provide None
-          q"_root_.scala.None"
+          // No source field - target must be Option[T], provide None wrapped in Right
+          q"_root_.scala.Right(_root_.scala.None)"
         } else {
           val sourceField = mapping.sourceField
           val getter = sourceField.getter
@@ -298,12 +298,8 @@ private object IntoVersionSpecificImpl {
           if (!(sourceTpe =:= targetTpe)) {
             findImplicitInto(sourceTpe, targetTpe) match {
               case Some(intoInstance) =>
-                q"""
-                  $intoInstance.into(a.$getter) match {
-                    case _root_.scala.Right(v) => v
-                    case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
-                  }
-                """
+                // Use Into instance, which already returns Either
+                q"$intoInstance.into(a.$getter)"
               case None =>
                 // No coercion available - fail at compile time
                 fail(
@@ -312,16 +308,40 @@ private object IntoVersionSpecificImpl {
                 )
             }
           } else {
-            q"a.$getter"
+            // Types match - wrap in Right
+            q"_root_.scala.Right(a.$getter)"
           }
         }
       }
+
+      // Build nested flatMap chain to sequence Either values
+      def buildFlatMapChain(eithers: List[Tree], accumulatedVals: List[TermName]): Tree = {
+        eithers match {
+          case Nil =>
+            // All fields sequenced - construct target with accumulated values
+            val constructorArgs = accumulatedVals.reverse.map(v => q"$v")
+            q"_root_.scala.Right(new $bTpe(..$constructorArgs))"
+
+          case eitherExpr :: tail =>
+            // Generate a unique variable name for this field
+            val valName = TermName(c.freshName("field"))
+            val restExpr = buildFlatMapChain(tail, valName :: accumulatedVals)
+
+            q"""
+              $eitherExpr.flatMap { case $valName =>
+                $restExpr
+              }
+            """
+        }
+      }
+
+      val sequencedExpr = buildFlatMapChain(fieldEithers, Nil)
 
       c.Expr[Into[A, B]](
         q"""
           new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
-              _root_.scala.Right(new $bTpe(..$args))
+              $sequencedExpr
             }
           }
         """
@@ -567,11 +587,11 @@ private object IntoVersionSpecificImpl {
       // Generate binding pattern: case x: SourceType => ...
       val bindingName = TermName("x")
 
-      // Build constructor arguments
-      val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+      // Build field conversions that return Either[SchemaError, FieldType]
+      val fieldEithers = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
         if (mapping.sourceField == null) {
-          // No source field - target must be Option[T], provide None
-          q"_root_.scala.None"
+          // No source field - target must be Option[T], provide None wrapped in Right
+          q"_root_.scala.Right(_root_.scala.None)"
         } else {
           val sourceField = mapping.sourceField
           val getter = sourceField.getter
@@ -582,12 +602,8 @@ private object IntoVersionSpecificImpl {
           if (!(sourceTpe =:= targetTpe)) {
             findImplicitInto(sourceTpe, targetTpe) match {
               case Some(intoInstance) =>
-                q"""
-                  $intoInstance.into($bindingName.$getter) match {
-                    case _root_.scala.Right(v) => v
-                    case _root_.scala.Left(err) => throw new RuntimeException("Coercion failed: " + err)
-                  }
-                """
+                // Use Into instance, which already returns Either
+                q"$intoInstance.into($bindingName.$getter)"
               case None =>
                 // No coercion available - fail at compile time
                 fail(
@@ -596,12 +612,36 @@ private object IntoVersionSpecificImpl {
                 )
             }
           } else {
-            q"$bindingName.$getter"
+            // Types match - wrap in Right
+            q"_root_.scala.Right($bindingName.$getter)"
           }
         }
       }
 
-      cq"$bindingName: $sourceSubtype => _root_.scala.Right(new $targetSubtype(..$args))"
+      // Build nested flatMap chain to sequence Either values
+      def buildFlatMapChain(eithers: List[Tree], accumulatedVals: List[TermName]): Tree = {
+        eithers match {
+          case Nil =>
+            // All fields sequenced - construct target with accumulated values
+            val constructorArgs = accumulatedVals.reverse.map(v => q"$v")
+            q"_root_.scala.Right(new $targetSubtype(..$constructorArgs))"
+
+          case eitherExpr :: tail =>
+            // Generate a unique variable name for this field
+            val valName = TermName(c.freshName("field"))
+            val restExpr = buildFlatMapChain(tail, valName :: accumulatedVals)
+
+            q"""
+              $eitherExpr.flatMap { case $valName =>
+                $restExpr
+              }
+            """
+        }
+      }
+
+      val sequencedExpr = buildFlatMapChain(fieldEithers, Nil)
+
+      cq"$bindingName: $sourceSubtype => $sequencedExpr"
     }
 
     // === Structural Type Support ===

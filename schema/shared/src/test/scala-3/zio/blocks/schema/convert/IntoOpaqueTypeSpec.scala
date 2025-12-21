@@ -151,6 +151,101 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
           result.map(_.age.toInt).getOrElse(-1) == 150
         )
       }
+    ),
+    suite("Error Accumulation with Opaque Types")(
+      test("stops at first validation failure - does not accumulate multiple errors") {
+        // With flatMap-based sequencing, errors fail fast (first error wins)
+        val person = PersonWithEmailV1("Invalid", -5, "bad-email")
+        val result = Into.derived[PersonWithEmailV1, PersonWithEmailV2].into(person)
+
+        // Should fail on the first field (age) and not even try to validate email
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("age"))
+        )
+      },
+      test("nested opaque type validation failures are propagated") {
+        case class AddressV1(street: String, zipCode: Int)
+        case class AddressV2(street: String, zipCode: PositiveInt)
+        case class PersonWithAddressV1(name: String, age: Int, address: AddressV1)
+        case class PersonWithAddressV2(name: String, age: SimpleAge, address: AddressV2)
+
+        implicit val addressInto: Into[AddressV1, AddressV2] = Into.derived[AddressV1, AddressV2]
+
+        val person = PersonWithAddressV1("Alice", 30, AddressV1("Main St", -12345))
+        val result = Into.derived[PersonWithAddressV1, PersonWithAddressV2].into(person)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("must be positive"))
+        )
+      },
+      test("opaque type in collection - error propagates from collection element") {
+        case class AgeList(ages: List[Int])
+        case class ValidatedAgeList(ages: List[SimpleAge])
+
+        implicit val intToAge: Into[Int, SimpleAge] = new Into[Int, SimpleAge] {
+          def into(i: Int): Either[zio.blocks.schema.SchemaError, SimpleAge] =
+            SimpleAge(i).left.map(err =>
+              zio.blocks.schema.SchemaError.conversionFailed(Nil, s"Age validation failed: $err")
+            )
+        }
+
+        val ageList = AgeList(List(30, 200, 40)) // 200 is invalid
+        val result = Into.derived[AgeList, ValidatedAgeList].into(ageList)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("Invalid age"))
+        )
+      },
+      test("validation error message contains field context") {
+        val person = PersonV1("Test", -1)
+        val result = Into.derived[PersonV1, PersonV2].into(person)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("field")),
+          result.swap.exists(err => err.toString.contains("age"))
+        )
+      },
+      test("multiple opaque types - fails on first invalid field") {
+        case class ProductV1(name: String, price: Int, stock: Int, rating: Int)
+        case class ProductV2(name: String, price: PositiveInt, stock: PositiveInt, rating: PositiveInt)
+
+        // price is invalid, should fail there
+        val product = ProductV1("Widget", -100, 50, 5)
+        val result = Into.derived[ProductV1, ProductV2].into(product)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("must be positive"))
+        )
+      },
+      test("opaque type validation in coproduct case") {
+        sealed trait RequestV1
+        case class CreateV1(name: String, age: Int) extends RequestV1
+
+        sealed trait RequestV2
+        case class CreateV2(name: String, age: SimpleAge) extends RequestV2
+
+        val request: RequestV1 = CreateV1("Alice", -5)
+        val result = Into.derived[RequestV1, RequestV2].into(request)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("Invalid age"))
+        )
+      },
+      test("successful validation returns Right with opaque type") {
+        val person = PersonV1("Valid", 25)
+        val result = Into.derived[PersonV1, PersonV2].into(person)
+
+        assertTrue(
+          result.isRight,
+          result.exists(p => p.age.toInt == 25)
+        )
+      }
     )
   )
 }

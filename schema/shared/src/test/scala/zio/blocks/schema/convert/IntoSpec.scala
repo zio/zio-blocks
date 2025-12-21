@@ -595,6 +595,90 @@ object IntoSpec extends ZIOSpecDefault {
           assert(result)(isRight(equalTo(DataV2(Vector(List(1L, 2L), List(3L, 4L))))))
         }
       )
+    ),
+    suite("Error Accumulation")(
+      test("fails fast on first field conversion error in nested Into") {
+        // When converting nested types, the first error should short-circuit
+        case class Inner1(value: Long)
+        case class Inner2(value: Int)
+        case class Outer1(inner: Inner1, name: String)
+        case class Outer2(inner: Inner2, name: String)
+
+        implicit val inner1ToInner2: Into[Inner1, Inner2] = Into.derived[Inner1, Inner2]
+
+        val outer1 = Outer1(Inner1(Long.MaxValue), "test") // Will overflow when converting to Int
+        val result = Into.derived[Outer1, Outer2].into(outer1)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("overflow") || err.toString.contains("out of range"))
+        )
+      },
+      test("propagates errors through Either monad without throwing") {
+        // Test that errors are returned as Left, not thrown
+        case class Source(value: Long)
+        case class Target(value: Int)
+
+        val source = Source(Long.MaxValue)
+        val result = Into.derived[Source, Target].into(source)
+
+        // Should return Left, not throw
+        assertTrue(result.isLeft)
+      },
+      test("nested conversion errors are propagated as Left") {
+        case class Level3(value: Long)
+        case class Level2(inner: Level3, name: String)
+        case class Level1(middle: Level2, id: Int)
+
+        case class Level3V2(value: Int)
+        case class Level2V2(inner: Level3V2, name: String)
+        case class Level1V2(middle: Level2V2, id: Int)
+
+        implicit val level3To3V2: Into[Level3, Level3V2] = Into.derived[Level3, Level3V2]
+        implicit val level2To2V2: Into[Level2, Level2V2] = Into.derived[Level2, Level2V2]
+
+        val level1 = Level1(Level2(Level3(Long.MaxValue), "test"), 42)
+        val result = Into.derived[Level1, Level1V2].into(level1)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("overflow") || err.toString.contains("out of range"))
+        )
+      },
+      test("coproduct case conversion errors are propagated as Left") {
+        sealed trait SourceADT
+        case class SourceCase(value: Long) extends SourceADT
+
+        sealed trait TargetADT
+        case class TargetCase(value: Int) extends TargetADT
+
+        val source: SourceADT = SourceCase(Long.MaxValue)
+        val result = Into.derived[SourceADT, TargetADT].into(source)
+
+        assertTrue(
+          result.isLeft,
+          result.swap.exists(err => err.toString.contains("overflow") || err.toString.contains("out of range"))
+        )
+      },
+      test("Either conversion propagates errors from both sides") {
+        // Test Left side error
+        val sourceLeft: Either[Long, String] = Left(Long.MaxValue)
+        val resultLeft = Into.derived[Either[Long, String], Either[Int, String]].into(sourceLeft)
+
+        assertTrue(
+          resultLeft.isLeft,
+          resultLeft.swap.exists(err => err.toString.contains("overflow") || err.toString.contains("out of range"))
+        )
+
+        // Test Right side error
+        val sourceRight: Either[String, Long] = Right(Long.MaxValue)
+        val resultRight = Into.derived[Either[String, Long], Either[String, Int]].into(sourceRight)
+
+        assertTrue(
+          resultRight.isLeft,
+          resultRight.swap.exists(err => err.toString.contains("overflow") || err.toString.contains("out of range"))
+        )
+      }
     )
   )
 }
