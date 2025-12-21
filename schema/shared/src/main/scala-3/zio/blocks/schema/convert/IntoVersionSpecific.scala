@@ -109,10 +109,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // For each target field, find matching structural member (by name or unique type)
     val fieldMappings = targetInfo.fields.map { targetField =>
       val matchingMember = structuralMembers.find { case (name, memberTpe) =>
-        name == targetField.name && (memberTpe =:= targetField.tpe || isCoercible(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined)
+        name == targetField.name && (memberTpe =:= targetField.tpe || requiresOpaqueConversion(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined)
       }.orElse {
         val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
-          memberTpe =:= targetField.tpe || isCoercible(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined
+          memberTpe =:= targetField.tpe || requiresOpaqueConversion(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined
         }
         if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
       }
@@ -273,7 +273,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
   private def signaturesMatch(source: List[TypeRepr], target: List[TypeRepr]): Boolean =
     source.size == target.size && source.zip(target).forall { case (s, t) =>
-      s =:= t || isCoercible(s, t)
+      s =:= t || requiresOpaqueConversion(s, t) || findImplicitInto(s, t).isDefined
     }
 
   private def generateCoproductConversion[A: Type, B: Type](caseMappings: List[(TypeRepr, TypeRepr)]): Expr[Into[A, B]] = {
@@ -465,12 +465,12 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
     if (exactMatch.isDefined) return exactMatch
 
-    // Priority 2: Name match with coercion - same name + coercible type or implicit Into available
-    val nameWithCoercion = sourceInfo.fields.find { sf =>
+    // Priority 2: Name match with conversion - same name + implicit Into available or opaque type conversion
+    val nameWithConversion = sourceInfo.fields.find { sf =>
       !usedSourceFields.contains(sf.index) && sf.name == targetField.name &&
-      (isCoercible(sf.tpe, targetField.tpe) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
+      (requiresOpaqueConversion(sf.tpe, targetField.tpe) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
     }
-    if (nameWithCoercion.isDefined) return nameWithCoercion
+    if (nameWithConversion.isDefined) return nameWithConversion
 
     // Priority 3: Unique type match
     val targetTypeKey      = targetField.tpe.dealias.show
@@ -484,14 +484,14 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
       if (uniqueTypeMatch.isDefined) return uniqueTypeMatch
 
-      // Also check for unique coercible type match (including implicit Into)
-      val uniqueCoercibleMatch = sourceInfo.fields.find { sf =>
+      // Also check for unique type match with conversion (implicit Into or opaque type)
+      val uniqueConvertibleMatch = sourceInfo.fields.find { sf =>
         !usedSourceFields.contains(sf.index) && {
           val isSourceTypeUnique = sourceTypeFreq.getOrElse(sf.tpe.dealias.show, 0) == 1
-          isSourceTypeUnique && (isCoercible(sf.tpe, targetField.tpe) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
+          isSourceTypeUnique && (requiresOpaqueConversion(sf.tpe, targetField.tpe) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
         }
       }
-      if (uniqueCoercibleMatch.isDefined) return uniqueCoercibleMatch
+      if (uniqueConvertibleMatch.isDefined) return uniqueConvertibleMatch
     }
 
     // Priority 4: Position + matching type
@@ -499,8 +499,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       val positionalField = sourceInfo.fields(targetField.index)
       if (!usedSourceFields.contains(positionalField.index)) {
         if (positionalField.tpe =:= targetField.tpe) return Some(positionalField)
-        // Also check coercible for positional (including implicit Into)
-        if (isCoercible(positionalField.tpe, targetField.tpe) || findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
+        // Also check for positional conversion (implicit Into or opaque type)
+        if (requiresOpaqueConversion(positionalField.tpe, targetField.tpe) || findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
           return Some(positionalField)
         }
       }
@@ -509,51 +509,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     None
   }
 
-  private def isCoercible(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
-    if (sourceTpe =:= targetTpe) return true
-
-    // Check if target is an opaque type and source matches its underlying type
-    if (requiresOpaqueConversion(sourceTpe, targetTpe)) return true
-
-    // Only check for numeric widening conversions (lossless)
-    // Note: We don't check for implicit Into instances here as it causes compiler issues
-    // Instead, we check for implicits lazily when generating code
-    val source = sourceTpe.dealias.typeSymbol
-    val target = targetTpe.dealias.typeSymbol
-
-    // Byte -> Short, Int, Long, Float, Double
-    if (source == TypeRepr.of[Byte].typeSymbol) {
-      target == TypeRepr.of[Short].typeSymbol ||
-      target == TypeRepr.of[Int].typeSymbol ||
-      target == TypeRepr.of[Long].typeSymbol ||
-      target == TypeRepr.of[Float].typeSymbol ||
-      target == TypeRepr.of[Double].typeSymbol
-    }
-    // Short -> Int, Long, Float, Double
-    else if (source == TypeRepr.of[Short].typeSymbol) {
-      target == TypeRepr.of[Int].typeSymbol ||
-      target == TypeRepr.of[Long].typeSymbol ||
-      target == TypeRepr.of[Float].typeSymbol ||
-      target == TypeRepr.of[Double].typeSymbol
-    }
-    // Int -> Long, Float, Double
-    else if (source == TypeRepr.of[Int].typeSymbol) {
-      target == TypeRepr.of[Long].typeSymbol ||
-      target == TypeRepr.of[Float].typeSymbol ||
-      target == TypeRepr.of[Double].typeSymbol
-    }
-    // Long -> Float, Double
-    else if (source == TypeRepr.of[Long].typeSymbol) {
-      target == TypeRepr.of[Float].typeSymbol ||
-      target == TypeRepr.of[Double].typeSymbol
-    }
-    // Float -> Double
-    else if (source == TypeRepr.of[Float].typeSymbol) {
-      target == TypeRepr.of[Double].typeSymbol
-    } else {
-      false
-    }
-  }
+  // isCoercible has been removed - implicit Into resolution now handles all type conversions
+  // including numeric widening/narrowing and opaque types
 
   // Find or derive an Into instance, using cache to handle recursion
   private def findImplicitInto(sourceTpe: TypeRepr, targetTpe: TypeRepr): Option[Expr[Into[?, ?]]] = {
@@ -704,7 +661,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
-      if (!(field.tpe =:= targetTpe) && !isCoercible(field.tpe, targetTpe) && findImplicitInto(field.tpe, targetTpe).isEmpty) {
+      if (!(field.tpe =:= targetTpe) && !requiresOpaqueConversion(field.tpe, targetTpe) && findImplicitInto(field.tpe, targetTpe).isEmpty) {
         fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${field.tpe.show}, ${targetTpe.show}] found.")
       }
     }
@@ -750,7 +707,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
-      if (!(sourceTpe =:= field.tpe) && !isCoercible(sourceTpe, field.tpe) && findImplicitInto(sourceTpe, field.tpe).isEmpty) {
+      if (!(sourceTpe =:= field.tpe) && !requiresOpaqueConversion(sourceTpe, field.tpe) && findImplicitInto(sourceTpe, field.tpe).isEmpty) {
         fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${field.tpe.show}] found.")
       }
     }
@@ -792,7 +749,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
-      if (!(sourceTpe =:= targetTpe) && !isCoercible(sourceTpe, targetTpe) && findImplicitInto(sourceTpe, targetTpe).isEmpty) {
+      if (!(sourceTpe =:= targetTpe) && !requiresOpaqueConversion(sourceTpe, targetTpe) && findImplicitInto(sourceTpe, targetTpe).isEmpty) {
         fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${targetTpe.show}] found.")
       }
     }
