@@ -10,367 +10,524 @@ object DeriveToStructural {
     val tpe    = TypeRepr.of[A]
     val symbol = tpe.typeSymbol
 
-    // Basic validation
-    if (!symbol.isClassDef) {
-      report.errorAndAbort(
-        s"ToStructural derivation only supports class definitions (case classes or sealed traits), found: ${tpe.show}"
-      )
-    }
-    // We allow Case classes and Sealed traits/classes
-    val isCase       = symbol.flags.is(Flags.Case)
+    // Validate that the type is a case class or sealed trait/class
+    val isCaseType   = symbol.flags.is(Flags.Case)
     val isSealedType = symbol.flags.is(Flags.Sealed)
 
-    if (!isCase && !isSealedType) {
-      report.errorAndAbort(s"ToStructural derivation requires a case class or a sealed trait/class, found: ${tpe.show}")
+    if (!symbol.isClassDef || (!isCaseType && !isSealedType)) {
+      report.errorAndAbort(
+        s"ToStructural derivation requires a case class or sealed trait, found: ${tpe.show}"
+      )
     }
 
-    // --- Portable Helpers (Context-Aware) ---
-
-    def isPrimitiveLike(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._
-      val pure = t.dealias
-      pure =:= TypeRepr.of[Boolean] ||
-      pure =:= TypeRepr.of[Byte] ||
-      pure =:= TypeRepr.of[Short] ||
-      pure =:= TypeRepr.of[Int] ||
-      pure =:= TypeRepr.of[Long] ||
-      pure =:= TypeRepr.of[Float] ||
-      pure =:= TypeRepr.of[Double] ||
-      pure =:= TypeRepr.of[Char] ||
-      pure =:= TypeRepr.of[Unit] ||
-      pure =:= TypeRepr.of[String] ||
-      pure =:= TypeRepr.of[BigDecimal] ||
-      pure =:= TypeRepr.of[BigInt] ||
-      pure =:= TypeRepr.of[java.util.UUID] ||
-      pure =:= TypeRepr.of[java.util.Currency] ||
-      pure.typeSymbol.fullName.startsWith("java.time.")
+    // Type categorization ADT - single source of truth for type classification
+    enum TypeCategory {
+      case PrimitiveLike
+      case OptionType(element: TypeRepr)
+      case ListType(element: TypeRepr)
+      case VectorType(element: TypeRepr)
+      case SeqType(element: TypeRepr)
+      case SetType(element: TypeRepr)
+      case MapType(key: TypeRepr, value: TypeRepr)
+      case EitherType(left: TypeRepr, right: TypeRepr)
+      case TupleType(elements: List[TypeRepr])
+      case CaseClassType(fields: List[(Symbol, TypeRepr)])
+      case SealedType(children: List[Symbol])
+      case Unknown
     }
 
-    def isCaseClass(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._
-      val sym = t.typeSymbol
-      sym.isClassDef && sym.flags.is(Flags.Case) && !sym.flags.is(Flags.Sealed)
+    // Single categorization function - replaces all the isX predicates
+    def categorize(t: TypeRepr): TypeCategory = {
+      val dealt = t.dealias
+
+      // Check primitives first
+      if (
+        dealt =:= TypeRepr.of[Boolean] ||
+        dealt =:= TypeRepr.of[Byte] ||
+        dealt =:= TypeRepr.of[Short] ||
+        dealt =:= TypeRepr.of[Int] ||
+        dealt =:= TypeRepr.of[Long] ||
+        dealt =:= TypeRepr.of[Float] ||
+        dealt =:= TypeRepr.of[Double] ||
+        dealt =:= TypeRepr.of[Char] ||
+        dealt =:= TypeRepr.of[Unit] ||
+        dealt =:= TypeRepr.of[String] ||
+        dealt =:= TypeRepr.of[BigDecimal] ||
+        dealt =:= TypeRepr.of[BigInt] ||
+        dealt =:= TypeRepr.of[java.util.UUID] ||
+        dealt =:= TypeRepr.of[java.util.Currency] ||
+        dealt.typeSymbol.fullName.startsWith("java.time.")
+      ) {
+        return TypeCategory.PrimitiveLike
+      }
+
+      // Check containers and structural types
+      if (dealt <:< TypeRepr.of[Option[?]]) {
+        TypeCategory.OptionType(dealt.typeArgs.head)
+      } else if (dealt <:< TypeRepr.of[List[?]]) {
+        TypeCategory.ListType(dealt.typeArgs.head)
+      } else if (dealt <:< TypeRepr.of[Vector[?]]) {
+        TypeCategory.VectorType(dealt.typeArgs.head)
+      } else if (dealt <:< TypeRepr.of[Seq[?]]) {
+        TypeCategory.SeqType(dealt.typeArgs.head)
+      } else if (dealt <:< TypeRepr.of[Set[?]]) {
+        TypeCategory.SetType(dealt.typeArgs.head)
+      } else if (dealt <:< TypeRepr.of[Map[?, ?]]) {
+        TypeCategory.MapType(dealt.typeArgs(0), dealt.typeArgs(1))
+      } else if (dealt <:< TypeRepr.of[Either[?, ?]]) {
+        TypeCategory.EitherType(dealt.typeArgs(0), dealt.typeArgs(1))
+      } else if (dealt.typeSymbol.fullName.startsWith("scala.Tuple")) {
+        TypeCategory.TupleType(dealt.typeArgs)
+      } else {
+        val sym = dealt.typeSymbol
+        if (sym.isClassDef && sym.flags.is(Flags.Case) && !sym.flags.is(Flags.Sealed)) {
+          val fields = sym.caseFields.map(f => (f, dealt.memberType(f)))
+          TypeCategory.CaseClassType(fields)
+        } else if (
+          sym.flags.is(Flags.Sealed) && (sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract) || sym.isClassDef)
+        ) {
+          TypeCategory.SealedType(sym.children)
+        } else {
+          TypeCategory.Unknown
+        }
+      }
     }
 
-    def isSealed(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._
-      val sym = t.typeSymbol
-      sym.flags.is(Flags.Sealed) && (sym.flags.is(Flags.Trait) || sym.flags.is(Flags.Abstract) || sym.isClassDef)
-    }
-
-    def isTuple(using q: Quotes)(t: q.reflect.TypeRepr): Boolean =
-      t.typeSymbol.fullName.startsWith("scala.Tuple")
-
-    def isOption(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._; t.dealias <:< TypeRepr.of[Option[_]]
-    }
-    def isList(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._; t.dealias <:< TypeRepr.of[List[_]]
-    }
-    def isVector(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._; t.dealias <:< TypeRepr.of[Vector[_]]
-    }
-    def isSeq(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._; t.dealias <:< TypeRepr.of[Seq[_]]
-    }
-    def isSet(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._; t.dealias <:< TypeRepr.of[Set[_]]
-    }
-    def isMap(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._; t.dealias <:< TypeRepr.of[Map[_, _]]
-    }
-    def isEither(using q: Quotes)(t: q.reflect.TypeRepr): Boolean = {
-      import q.reflect._; t.dealias <:< TypeRepr.of[Either[_, _]]
-    }
-
-    // --- Check Recursion (Outer Quotes) ---
-
+    // Recursion Fail message
     def failRecursion(loopType: TypeRepr, stack: List[TypeRepr]): Nothing = {
-      val typeName = loopType.typeSymbol.name
+      // Extract the cycle: types from when we first saw loopType until now
+      val cycle = stack.takeWhile(t => !(t =:= loopType)) :+ loopType
 
-      val path             = stack.takeWhile(t => !(t =:= loopType)) :+ loopType
-      val recursiveClasses =
-        (loopType :: path)
-          .filter(t =>
-            (isCaseClass(t) || isSealed(t)) &&
-              !isOption(t) && !isList(t) && !isVector(t) && !isSeq(t) && !isSet(t) && !isMap(t) && !isEither(
-                t
-              ) && !isTuple(
-                t
-              )
-          )
-          .map(_.typeSymbol.name)
-          .distinct
+      // Find all structural types (case classes/sealed traits) in the cycle
+      // Filter out containers (List, Option, etc.) as they're not the recursive types themselves
+      val structuralTypesInCycle = cycle.filter { t =>
+        categorize(t) match {
+          case TypeCategory.CaseClassType(_) | TypeCategory.SealedType(_) => true
+          case _                                                          => false
+        }
+      }
+        .map(_.typeSymbol.name)
+        .distinct
 
-      if (recursiveClasses.size > 1) {
+      // Multiple types in cycle = mutual recursion, single type = direct recursion
+      if (structuralTypesInCycle.size > 1) {
         report.errorAndAbort(
-          s"Cannot generate structural type: mutually recursive types detected: ${recursiveClasses.mkString(", ")}"
+          s"Cannot generate structural type: mutually recursive types detected: ${structuralTypesInCycle.mkString(", ")}. " +
+            "Structural types cannot represent cyclic dependencies."
         )
       } else {
         report.errorAndAbort(
-          s"Cannot generate structural type for recursive type $typeName. Structural types cannot represent recursive structures."
+          s"Cannot generate structural type: recursive type detected: ${loopType.typeSymbol.name}. " +
+            "Structural types cannot represent recursive structures."
         )
       }
     }
 
     def checkRecursive(t: TypeRepr, stack: List[TypeRepr]): Unit = {
       val dealt = t.dealias
-      if (stack.exists(_ =:= dealt)) failRecursion(dealt, stack)
 
-      if (isPrimitiveLike(dealt)) ()
-      else if (isOption(dealt) || isList(dealt) || isVector(dealt) || isSeq(dealt) || isSet(dealt)) {
-        dealt.typeArgs.headOption.foreach(arg => checkRecursive(arg, dealt :: stack))
-      } else if (isMap(dealt)) {
-        dealt.typeArgs match {
-          case k :: v :: _ =>
-            checkRecursive(k, dealt :: stack)
-            checkRecursive(v, dealt :: stack)
-          case _ => ()
-        }
-      } else if (isEither(dealt)) {
-        dealt.typeArgs match {
-          case l :: r :: _ =>
-            checkRecursive(l, dealt :: stack)
-            checkRecursive(r, dealt :: stack)
-          case _ => ()
-        }
-      } else if (isTuple(dealt)) {
-        dealt.typeArgs.foreach(arg => checkRecursive(arg, dealt :: stack))
-      } else if (isCaseClass(dealt)) {
-        val fields = dealt.typeSymbol.caseFields
-        fields.foreach { f =>
-          val fieldTpe = dealt.memberType(f)
-          checkRecursive(fieldTpe, dealt :: stack)
-        }
-      } else if (isSealed(dealt)) {
-        // Check children
-        val children = dealt.typeSymbol.children
-        children.foreach { childSym =>
-          if (childSym.isClassDef) {
-            val childTpe = if (childSym.flags.is(Flags.Module)) {
-              Ref(childSym).tpe
-            } else {
-              TypeIdent(childSym).tpe
-            }
-            // For now, simple recursion check on child raw type
-            checkRecursive(childTpe, dealt :: stack)
+      // If we've seen this type before in our traversal path, we have a cycle
+      if (stack.exists(_ =:= dealt)) {
+        failRecursion(dealt, stack)
+      }
+
+      // Traverse the type structure recursively using pattern matching
+      categorize(dealt) match {
+        case TypeCategory.PrimitiveLike =>
+          // Base case: primitives don't contain other types
+          ()
+
+        case TypeCategory.Unknown =>
+          // Base case: unknown types don't contain other types
+          ()
+
+        case TypeCategory.OptionType(elem) =>
+          // Unary container: recurse into the element type
+          checkRecursive(elem, dealt :: stack)
+
+        case TypeCategory.ListType(elem) =>
+          // Unary container: recurse into the element type
+          checkRecursive(elem, dealt :: stack)
+
+        case TypeCategory.VectorType(elem) =>
+          // Unary container: recurse into the element type
+          checkRecursive(elem, dealt :: stack)
+
+        case TypeCategory.SeqType(elem) =>
+          // Unary container: recurse into the element type
+          checkRecursive(elem, dealt :: stack)
+
+        case TypeCategory.SetType(elem) =>
+          // Unary container: recurse into the element type
+          checkRecursive(elem, dealt :: stack)
+
+        case TypeCategory.MapType(key, value) =>
+          // Binary container: recurse into both key and value types
+          checkRecursive(key, dealt :: stack)
+          checkRecursive(value, dealt :: stack)
+
+        case TypeCategory.EitherType(left, right) =>
+          // Binary container: recurse into both left and right types
+          checkRecursive(left, dealt :: stack)
+          checkRecursive(right, dealt :: stack)
+
+        case TypeCategory.TupleType(elements) =>
+          // Product type: recurse into all element types
+          elements.foreach(elem => checkRecursive(elem, dealt :: stack))
+
+        case TypeCategory.CaseClassType(fields) =>
+          // Case class: recurse into all field types
+          fields.foreach { case (_, fieldTpe) =>
+            checkRecursive(fieldTpe, dealt :: stack)
           }
-          // Ignore terms (enum cases / objects) as they are leaves
-        }
+
+        case TypeCategory.SealedType(children) =>
+          // Sealed trait: recurse into all children (case classes/objects)
+          children.foreach { childSym =>
+            if (childSym.isClassDef) {
+              val childTpe = if (childSym.flags.is(Flags.Module)) {
+                Ref(childSym).tpe
+              } else {
+                TypeIdent(childSym).tpe
+              }
+              checkRecursive(childTpe, dealt :: stack)
+            }
+            // Case objects are leaves (no fields to recurse into)
+          }
       }
     }
 
+    // Recursion Validation
     checkRecursive(tpe, Nil)
 
-    // --- Structural Type Construction (Outer Quotes) ---
-
+    // Transforms a nominal type into its structural representation.
     def transformType(t: TypeRepr, seen: Set[TypeRepr]): TypeRepr = {
       val dealt = t.dealias
-      if (seen.exists(_ =:= dealt)) dealt
-      else if (isPrimitiveLike(dealt)) dealt
-      else if (isOption(dealt)) {
-        val inner = transformType(dealt.typeArgs.head, seen + dealt)
-        TypeRepr.of[Option].appliedTo(inner)
-      } else if (isList(dealt)) {
-        val inner = transformType(dealt.typeArgs.head, seen + dealt)
-        TypeRepr.of[List].appliedTo(inner)
-      } else if (isVector(dealt)) {
-        val inner = transformType(dealt.typeArgs.head, seen + dealt)
-        TypeRepr.of[Vector].appliedTo(inner)
-      } else if (isSeq(dealt)) {
-        val inner = transformType(dealt.typeArgs.head, seen + dealt)
-        TypeRepr.of[Seq].appliedTo(inner)
-      } else if (isSet(dealt)) {
-        val inner = transformType(dealt.typeArgs.head, seen + dealt)
-        TypeRepr.of[Set].appliedTo(inner)
-      } else if (isMap(dealt)) {
-        val k = transformType(dealt.typeArgs(0), seen + dealt)
-        val v = transformType(dealt.typeArgs(1), seen + dealt)
-        TypeRepr.of[Map].appliedTo(List(k, v))
-      } else if (isEither(dealt)) {
-        val l = transformType(dealt.typeArgs(0), seen + dealt)
-        val r = transformType(dealt.typeArgs(1), seen + dealt)
-        TypeRepr.of[Either].appliedTo(List(l, r))
-      } else if (isTuple(dealt)) {
-        val args = dealt.typeArgs.zipWithIndex.map { case (arg, idx) =>
-          (s"_${idx + 1}", transformType(arg, seen + dealt))
-        }
-        val base = TypeRepr.of[Selectable]
-        args.foldLeft(base) { case (parent, (name, fTpe)) =>
-          Refinement(parent, name, fTpe)
-        }
-      } else if (isCaseClass(dealt)) {
-        val fields = dealt.typeSymbol.caseFields.map { f =>
-          val name = f.name
-          val fTpe = dealt.memberType(f)
-          (name, transformType(fTpe, seen + dealt))
-        }
-        val base = TypeRepr.of[Selectable]
-        fields.foldLeft(base) { case (parent, (name, fTpe)) =>
-          Refinement(parent, name, fTpe)
-        }
-      } else if (isSealed(dealt)) {
-        // Union of children structural types
-        val children   = dealt.typeSymbol.children
-        val childTypes = children.map { childSym =>
-          if (childSym.isTerm) {
-            // Object or Enum Case -> Empty Structural Type
-            TypeRepr.of[Selectable]
-          } else {
-            // Class
-            val cType = TypeIdent(childSym).tpe
-            // Handle generics if possible
-            val typeParams =
-              cType.typeSymbol.primaryConstructor.paramSymss.headOption.map(_.filter(_.isTypeParam)).getOrElse(Nil)
-            if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
-              cType.appliedTo(dealt.typeArgs)
+
+      // If we're already processing this type, return it as-is to prevent infinite loops
+      if (seen.exists(_ =:= dealt)) {
+        return dealt
+      }
+
+      categorize(dealt) match {
+        case TypeCategory.PrimitiveLike | TypeCategory.Unknown =>
+          // Primitives and unknown types pass through unchanged
+          dealt
+
+        case TypeCategory.OptionType(elem) =>
+          // Option[T] → Option[structural(T)]
+          val inner = transformType(elem, seen + dealt)
+          TypeRepr.of[Option].appliedTo(inner)
+
+        case TypeCategory.ListType(elem) =>
+          // List[T] → List[structural(T)]
+          val inner = transformType(elem, seen + dealt)
+          TypeRepr.of[List].appliedTo(inner)
+
+        case TypeCategory.VectorType(elem) =>
+          // Vector[T] → Vector[structural(T)]
+          val inner = transformType(elem, seen + dealt)
+          TypeRepr.of[Vector].appliedTo(inner)
+
+        case TypeCategory.SeqType(elem) =>
+          // Seq[T] → Seq[structural(T)]
+          val inner = transformType(elem, seen + dealt)
+          TypeRepr.of[Seq].appliedTo(inner)
+
+        case TypeCategory.SetType(elem) =>
+          // Set[T] → Set[structural(T)]
+          val inner = transformType(elem, seen + dealt)
+          TypeRepr.of[Set].appliedTo(inner)
+
+        case TypeCategory.MapType(key, value) =>
+          // Map[K, V] → Map[structural(K), structural(V)]
+          val k = transformType(key, seen + dealt)
+          val v = transformType(value, seen + dealt)
+          TypeRepr.of[Map].appliedTo(List(k, v))
+
+        case TypeCategory.EitherType(left, right) =>
+          // Either[L, R] → Either[structural(L), structural(R)]
+          val l = transformType(left, seen + dealt)
+          val r = transformType(right, seen + dealt)
+          TypeRepr.of[Either].appliedTo(List(l, r))
+
+        case TypeCategory.TupleType(elements) =>
+          // (T1, T2, T3) → Selectable { def _1: structural(T1); def _2: structural(T2); def _3: structural(T3) }
+          val args = elements.zipWithIndex.map { case (arg, idx) =>
+            (s"_${idx + 1}", transformType(arg, seen + dealt))
+          }
+          // Build refinement type by folding over fields
+          val base = TypeRepr.of[Selectable]
+          args.foldLeft(base) { case (parent, (name, fTpe)) =>
+            Refinement(parent, name, fTpe)
+          }
+
+        case TypeCategory.CaseClassType(fields) =>
+          // case class Person(name: String, age: Int)
+          //   → Selectable { def name: String; def age: Int }
+          val transformedFields = fields.map { case (fieldSym, fieldTpe) =>
+            (fieldSym.name, transformType(fieldTpe, seen + dealt))
+          }
+          // Build refinement type by folding over fields
+          val base = TypeRepr.of[Selectable]
+          transformedFields.foldLeft(base) { case (parent, (name, fTpe)) =>
+            Refinement(parent, name, fTpe)
+          }
+
+        case TypeCategory.SealedType(children) =>
+          // sealed trait Result with children Success(value: Int) and Failure(error: String)
+          //   → { def value: Int } | { def error: String }
+          val childTypes = children.map { childSym =>
+            if (childSym.isTerm) {
+              // Case object → empty structural type {}
+              TypeRepr.of[Selectable]
             } else {
-              cType
+              // Case class child - handle type parameters if present
+              val cType      = TypeIdent(childSym).tpe
+              val typeParams =
+                cType.typeSymbol.primaryConstructor.paramSymss.headOption.map(_.filter(_.isTypeParam)).getOrElse(Nil)
+              // Apply parent's type arguments if child has matching type parameters
+              if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
+                cType.appliedTo(dealt.typeArgs)
+              } else {
+                cType
+              }
             }
           }
-        }
 
-        if (childTypes.isEmpty) {
-          TypeRepr.of[Nothing]
-        } else {
-          val structuralChildren = childTypes.map(ct => transformType(ct, seen + dealt))
-          structuralChildren.reduce((a, b) => OrType(a, b))
-        }
-      } else {
-        dealt
+          if (childTypes.isEmpty) {
+            TypeRepr.of[Nothing]
+          } else {
+            // Transform each child to structural and combine with OrType (union)
+            val structuralChildren = childTypes.map(ct => transformType(ct, seen + dealt))
+            structuralChildren.reduce((a, b) => OrType(a, b))
+          }
       }
     }
 
+    // Compute the structural type for the root type A
     val structuralTypeRepr = transformType(tpe, Set.empty)
 
-    // --- Expression Transformation (Portable) ---
-
+    // Generates runtime code to transform a value from nominal to structural form.
     def transformExpr(expr: Expr[Any], tpe: Type[_])(using q: Quotes): Expr[Any] = {
       import q.reflect._
       val dealt = TypeRepr.of(using tpe).dealias
 
-      if (isPrimitiveLike(dealt)) expr
-      else if (isOption(dealt)) {
-        val innerTpe = dealt.typeArgs.head
-        tpe match {
-          case '[t] =>
-            val optExpr = expr.asExprOf[Option[Any]]
-            innerTpe.asType match {
-              case '[i] =>
-                '{ $optExpr.map(v => ${ transformExpr('v, Type.of[i]) }) }
-            }
-        }
-      } else if (isList(dealt) || isVector(dealt) || isSeq(dealt) || isSet(dealt)) {
-        val innerTpe = dealt.typeArgs.head
-        val colExpr  = expr.asExprOf[Iterable[Any]]
-        innerTpe.asType match {
-          case '[i] =>
-            val mapped = '{ $colExpr.map(v => ${ transformExpr('v, Type.of[i]) }) }
+      // Local type categorization for transformExpr's Quotes instance
+      enum LocalCategory {
+        case PrimitiveLike
+        case OptionType
+        case ListType
+        case VectorType
+        case SeqType
+        case SetType
+        case MapType
+        case EitherType
+        case TupleType
+        case CaseClassType
+        case SealedType
+        case Unknown
+      }
 
-            if (isList(dealt)) '{ $mapped.toList }
-            else if (isVector(dealt)) '{ $mapped.toVector }
-            else if (isSet(dealt)) '{ $mapped.toSet }
-            else '{ $mapped.toSeq }
-        }
-      } else if (isMap(dealt)) {
-        val kTpe = dealt.typeArgs(0)
-        val vTpe = dealt.typeArgs(1)
-        (kTpe.asType, vTpe.asType) match {
-          case ('[k], '[v]) =>
-            val mapExpr = expr.asExprOf[Map[k, v]]
-            '{
-              $mapExpr.map { case (key, value) =>
-                (${ transformExpr('key, Type.of[k]) }, ${ transformExpr('value, Type.of[v]) })
-              }
-            }
-          case _ => report.errorAndAbort("Unexpected type structure for Map")
-        }
-      } else if (isEither(dealt)) {
-        val lTpe       = dealt.typeArgs(0)
-        val rTpe       = dealt.typeArgs(1)
-        val eitherExpr = expr.asExprOf[Either[Any, Any]]
-        (lTpe.asType, rTpe.asType) match {
-          case ('[l], '[r]) =>
-            '{
-              $eitherExpr match {
-                case Left(v)  => Left(${ transformExpr('v, Type.of[l]) })
-                case Right(v) => Right(${ transformExpr('v, Type.of[r]) })
-              }
-            }
-          case _ => report.errorAndAbort("Unexpected type structure for Either")
-        }
-      } else if (isTuple(dealt)) {
-        val args      = dealt.typeArgs.zipWithIndex
-        val tupleExpr = expr.asTerm
+      def categorizeLocal(t: TypeRepr): LocalCategory = {
+        // Check primitives first
+        if (
+          t =:= TypeRepr.of[Boolean] ||
+          t =:= TypeRepr.of[Byte] ||
+          t =:= TypeRepr.of[Short] ||
+          t =:= TypeRepr.of[Int] ||
+          t =:= TypeRepr.of[Long] ||
+          t =:= TypeRepr.of[Float] ||
+          t =:= TypeRepr.of[Double] ||
+          t =:= TypeRepr.of[Char] ||
+          t =:= TypeRepr.of[Unit] ||
+          t =:= TypeRepr.of[String] ||
+          t =:= TypeRepr.of[BigDecimal] ||
+          t =:= TypeRepr.of[BigInt] ||
+          t =:= TypeRepr.of[java.util.UUID] ||
+          t =:= TypeRepr.of[java.util.Currency] ||
+          t.typeSymbol.fullName.startsWith("java.time.")
+        ) LocalCategory.PrimitiveLike
+        else if (t <:< TypeRepr.of[Option[?]]) LocalCategory.OptionType
+        else if (t <:< TypeRepr.of[List[?]]) LocalCategory.ListType
+        else if (t <:< TypeRepr.of[Vector[?]]) LocalCategory.VectorType
+        else if (t <:< TypeRepr.of[Seq[?]]) LocalCategory.SeqType
+        else if (t <:< TypeRepr.of[Set[?]]) LocalCategory.SetType
+        else if (t <:< TypeRepr.of[Map[?, ?]]) LocalCategory.MapType
+        else if (t <:< TypeRepr.of[Either[?, ?]]) LocalCategory.EitherType
+        else if (t.typeSymbol.fullName.startsWith("scala.Tuple")) LocalCategory.TupleType
+        else if (t.typeSymbol.isClassDef && t.typeSymbol.flags.is(Flags.Case) && !t.typeSymbol.flags.is(Flags.Sealed))
+          LocalCategory.CaseClassType
+        else if (t.typeSymbol.flags.is(Flags.Sealed)) LocalCategory.SealedType
+        else LocalCategory.Unknown
+      }
 
-        val entries = args.map { case (argTpe, idx) =>
-          val name     = s"_${idx + 1}"
-          val fieldVal = Select.unique(tupleExpr, name).asExpr
-          argTpe.asType match {
-            case '[a] =>
-              val converted = transformExpr(fieldVal, Type.of[a])
-              '{ ${ Expr(name) } -> $converted }
+      categorizeLocal(dealt) match {
+        case LocalCategory.PrimitiveLike | LocalCategory.Unknown =>
+          // Primitives and unknown types pass through unchanged
+          expr
+
+        case LocalCategory.OptionType =>
+          // Generate: optionValue.map(v => transformExpr(v))
+          val innerTpe = dealt.typeArgs.head
+          tpe match {
+            case '[t] =>
+              val optExpr = expr.asExprOf[Option[Any]]
+              innerTpe.asType match {
+                case '[i] =>
+                  '{ $optExpr.map(v => ${ transformExpr('v, Type.of[i]) }) }
+              }
           }
-        }
 
-        '{ new StructuralValue(Map(${ Varargs(entries) }*)) }
+        case LocalCategory.ListType =>
+          // Generate: list.map(v => transformExpr(v)).toList
+          val innerTpe = dealt.typeArgs.head
+          val colExpr  = expr.asExprOf[Iterable[Any]]
+          innerTpe.asType match {
+            case '[i] =>
+              val mapped = '{ $colExpr.map(v => ${ transformExpr('v, Type.of[i]) }) }
+              '{ $mapped.toList }
+          }
 
-      } else if (isCaseClass(dealt)) {
-        tpe match {
-          case '[d] =>
-            Expr.summon[ToStructural[d]] match {
-              case Some(ts) => '{ $ts.toStructural($expr.asInstanceOf[d]) }
-              case None     =>
-                '{ ToStructural.derived[d].toStructural($expr.asInstanceOf[d]) }
-            }
-        }
-      } else if (isSealed(dealt)) {
-        val children = dealt.typeSymbol.children
-        if (children.isEmpty) expr
-        else {
-          val term = expr.asTerm
+        case LocalCategory.VectorType =>
+          // Generate: vector.map(v => transformExpr(v)).toVector
+          val innerTpe = dealt.typeArgs.head
+          val colExpr  = expr.asExprOf[Iterable[Any]]
+          innerTpe.asType match {
+            case '[i] =>
+              val mapped = '{ $colExpr.map(v => ${ transformExpr('v, Type.of[i]) }) }
+              '{ $mapped.toVector }
+          }
 
-          val cases = children.map { childSym =>
-            if (childSym.isTerm) {
-              // Handle singleton case (Object / Enum Case)
-              val pattern = Ref(childSym)
-              val body    = '{ new StructuralValue(Map.empty) }.asTerm
-              CaseDef(pattern, None, body)
-            } else {
-              val cType = TypeIdent(childSym).tpe
-              // Handle generics if possible
-              val typeParams =
-                cType.typeSymbol.primaryConstructor.paramSymss.headOption.map(_.filter(_.isTypeParam)).getOrElse(Nil)
-              val childTpe =
-                if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
-                  cType.appliedTo(dealt.typeArgs)
-                } else {
-                  cType
+        case LocalCategory.SeqType =>
+          // Generate: seq.map(v => transformExpr(v)).toSeq
+          val innerTpe = dealt.typeArgs.head
+          val colExpr  = expr.asExprOf[Iterable[Any]]
+          innerTpe.asType match {
+            case '[i] =>
+              val mapped = '{ $colExpr.map(v => ${ transformExpr('v, Type.of[i]) }) }
+              '{ $mapped.toSeq }
+          }
+
+        case LocalCategory.SetType =>
+          // Generate: set.map(v => transformExpr(v)).toSet
+          val innerTpe = dealt.typeArgs.head
+          val colExpr  = expr.asExprOf[Iterable[Any]]
+          innerTpe.asType match {
+            case '[i] =>
+              val mapped = '{ $colExpr.map(v => ${ transformExpr('v, Type.of[i]) }) }
+              '{ $mapped.toSet }
+          }
+
+        case LocalCategory.MapType =>
+          // Generate: map.map { case (k, v) => (transformExpr(k), transformExpr(v)) }
+          val kTpe = dealt.typeArgs(0)
+          val vTpe = dealt.typeArgs(1)
+          (kTpe.asType, vTpe.asType) match {
+            case ('[k], '[v]) =>
+              val mapExpr = expr.asExprOf[Map[k, v]]
+              '{
+                $mapExpr.map { case (key, value) =>
+                  (${ transformExpr('key, Type.of[k]) }, ${ transformExpr('value, Type.of[v]) })
                 }
+              }
+            case _ => report.errorAndAbort("Unexpected type structure for Map")
+          }
 
-              childTpe.asType match {
-                case '[c] =>
-                  val bindName   = "x"
-                  val bindSymbol = Symbol.newBind(Symbol.spliceOwner, bindName, Flags.EmptyFlags, childTpe)
-                  val pattern    = Bind(bindSymbol, Typed(Wildcard(), TypeTree.of[c]))
+        case LocalCategory.EitherType =>
+          // Generate: either match { case Left(v) => Left(transformExpr(v)); case Right(v) => Right(transformExpr(v)) }
+          val lTpe       = dealt.typeArgs(0)
+          val rTpe       = dealt.typeArgs(1)
+          val eitherExpr = expr.asExprOf[Either[Any, Any]]
+          (lTpe.asType, rTpe.asType) match {
+            case ('[l], '[r]) =>
+              '{
+                $eitherExpr match {
+                  case Left(v)  => Left(${ transformExpr('v, Type.of[l]) })
+                  case Right(v) => Right(${ transformExpr('v, Type.of[r]) })
+                }
+              }
+            case _ => report.errorAndAbort("Unexpected type structure for Either")
+          }
 
-                  val body = childTpe.asType match {
-                    case '[ct] =>
-                      val ref = Ref(bindSymbol).asExprOf[ct]
-                      transformExpr(ref, Type.of[ct]).asTerm
+        case LocalCategory.TupleType =>
+          // Generate: new StructuralValue(Map("_1" -> tuple._1, "_2" -> tuple._2, ...))
+          val args      = dealt.typeArgs.zipWithIndex
+          val tupleExpr = expr.asTerm
+
+          val entries = args.map { case (argTpe, idx) =>
+            val name     = s"_${idx + 1}"
+            val fieldVal = Select.unique(tupleExpr, name).asExpr
+            argTpe.asType match {
+              case '[a] =>
+                val converted = transformExpr(fieldVal, Type.of[a])
+                '{ ${ Expr(name) } -> $converted }
+            }
+          }
+
+          '{ new StructuralValue(Map(${ Varargs(entries) }*)) }
+
+        case LocalCategory.CaseClassType =>
+          // Nested case class: Delegate to its ToStructural instance
+          tpe match {
+            case '[d] =>
+              Expr.summon[ToStructural[d]] match {
+                case Some(ts) => '{ $ts.toStructural($expr.asInstanceOf[d]) }
+                case None     =>
+                  '{ ToStructural.derived[d].toStructural($expr.asInstanceOf[d]) }
+              }
+          }
+
+        case LocalCategory.SealedType =>
+          // Generate: value match { case child1: Type1 => ...; case child2: Type2 => ... }
+          val children = dealt.typeSymbol.children
+          if (children.isEmpty) {
+            expr
+          } else {
+            val term = expr.asTerm
+
+            val cases = children.map { childSym =>
+              if (childSym.isTerm) {
+                // Case object → StructuralValue(Map.empty)
+                val pattern = Ref(childSym)
+                val body    = '{ new StructuralValue(Map.empty) }.asTerm
+                CaseDef(pattern, None, body)
+              } else {
+                // Case class child → recursively transform it
+                val cType = TypeIdent(childSym).tpe
+                // Handle type parameters if present
+                val typeParams =
+                  cType.typeSymbol.primaryConstructor.paramSymss.headOption.map(_.filter(_.isTypeParam)).getOrElse(Nil)
+                val childTpe =
+                  if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
+                    cType.appliedTo(dealt.typeArgs)
+                  } else {
+                    cType
                   }
 
-                  CaseDef(pattern, None, body)
+                childTpe.asType match {
+                  case '[c] =>
+                    val bindName   = "x"
+                    val bindSymbol = Symbol.newBind(Symbol.spliceOwner, bindName, Flags.EmptyFlags, childTpe)
+                    val pattern    = Bind(bindSymbol, Typed(Wildcard(), TypeTree.of[c]))
+
+                    val body = childTpe.asType match {
+                      case '[ct] =>
+                        val ref = Ref(bindSymbol).asExprOf[ct]
+                        transformExpr(ref, Type.of[ct]).asTerm
+                    }
+
+                    CaseDef(pattern, None, body)
+                }
               }
             }
-          }
 
-          Match(term, cases).asExpr
-        }
-      } else expr
+            Match(term, cases).asExpr
+          }
+      }
     }
 
-    // Main conversion logic
+    // Generate the ToStructural instance
     structuralTypeRepr.asType match {
       case '[st] =>
         '{
@@ -380,10 +537,10 @@ object DeriveToStructural {
             def toStructural(value: A): StructuralType =
               ${
                 if (symbol.fullName.startsWith("scala.Tuple")) {
-                  // Tuples are case classes but need special handling via transformExpr
+                  // Tuples are handled via transformExpr,due to special field naming (_1, _2)
                   transformExpr('value, Type.of[A])
                 } else if (symbol.flags.is(Flags.Case)) {
-                  // Manual deconstruction for Case Class Root to avoid infinite recursion
+                  // Root case class: Manually deconstruct to avoid infinite recursion
                   val fields  = symbol.caseFields
                   val entries = fields.map { f =>
                     val name     = f.name
@@ -391,13 +548,14 @@ object DeriveToStructural {
                     val fTpe     = tpe.memberType(f)
                     fTpe.asType match {
                       case '[ft] =>
+                        // transformExpr will handle nested types by delegating to their ToStructural
                         val converted = transformExpr(fieldVal, Type.of[ft])
                         '{ ${ Expr(name) } -> $converted }
                     }
                   }
                   '{ new StructuralValue(Map(${ Varargs(entries) }*)) }
                 } else {
-                  // Sealed trait - rely on transformExpr which handles dispatch to children
+                  // Root sealed trait: Use transformExpr to generate pattern match
                   transformExpr('value, Type.of[A])
                 }
               }.asInstanceOf[StructuralType]
