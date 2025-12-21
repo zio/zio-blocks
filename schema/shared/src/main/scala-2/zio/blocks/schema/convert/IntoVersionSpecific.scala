@@ -151,7 +151,7 @@ private object IntoVersionSpecificImpl {
       val nameWithCoercion = sourceInfo.fields.find { sourceField =>
         !usedSourceFields.contains(sourceField.index) &&
           sourceField.name == targetField.name &&
-          (isCoercible(sourceField.tpe, targetField.tpe) || findImplicitInto(sourceField.tpe, targetField.tpe).isDefined)
+          findImplicitInto(sourceField.tpe, targetField.tpe).isDefined
       }
       if (nameWithCoercion.isDefined) return nameWithCoercion
 
@@ -175,7 +175,7 @@ private object IntoVersionSpecificImpl {
           if (usedSourceFields.contains(sourceField.index)) false
           else {
             val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceField.tpe.dealias.toString, 0) == 1
-            isSourceTypeUnique && (isCoercible(sourceField.tpe, targetField.tpe) || findImplicitInto(sourceField.tpe, targetField.tpe).isDefined)
+            isSourceTypeUnique && findImplicitInto(sourceField.tpe, targetField.tpe).isDefined
           }
         }
         if (uniqueCoercibleMatch.isDefined) return uniqueCoercibleMatch
@@ -189,7 +189,7 @@ private object IntoVersionSpecificImpl {
             return Some(positionalField)
           }
           // Also check coercible for positional (including implicit Into)
-          if (isCoercible(positionalField.tpe, targetField.tpe) || findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
+          if (findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
             return Some(positionalField)
           }
         }
@@ -199,50 +199,8 @@ private object IntoVersionSpecificImpl {
       None
     }
 
-    /** Check if source type can be coerced to target type (e.g., Int -> Long) */
-    def isCoercible(sourceTpe: Type, targetTpe: Type): Boolean = {
-      if (sourceTpe =:= targetTpe) return true
-
-      // Only check for numeric widening conversions (lossless)
-      // Note: We don't check for implicit Into instances here to avoid issues
-      // Instead, we check for implicits lazily when generating code
-      val source = sourceTpe.dealias.typeSymbol
-      val target = targetTpe.dealias.typeSymbol
-
-      // Byte -> Short, Int, Long, Float, Double
-      if (source == definitions.ByteClass) {
-        target == definitions.ShortClass ||
-        target == definitions.IntClass ||
-        target == definitions.LongClass ||
-        target == definitions.FloatClass ||
-        target == definitions.DoubleClass
-      }
-      // Short -> Int, Long, Float, Double
-      else if (source == definitions.ShortClass) {
-        target == definitions.IntClass ||
-        target == definitions.LongClass ||
-        target == definitions.FloatClass ||
-        target == definitions.DoubleClass
-      }
-      // Int -> Long, Float, Double
-      else if (source == definitions.IntClass) {
-        target == definitions.LongClass ||
-        target == definitions.FloatClass ||
-        target == definitions.DoubleClass
-      }
-      // Long -> Float, Double
-      else if (source == definitions.LongClass) {
-        target == definitions.FloatClass ||
-        target == definitions.DoubleClass
-      }
-      // Float -> Double
-      else if (source == definitions.FloatClass) {
-        target == definitions.DoubleClass
-      }
-      else {
-        false
-      }
-    }
+    // isCoercible has been removed - implicit Into resolution now handles all type conversions
+    // including numeric widening/narrowing
 
     // Find or use cached Into instance
     def findImplicitInto(sourceTpe: Type, targetTpe: Type): Option[Tree] = {
@@ -361,7 +319,7 @@ private object IntoVersionSpecificImpl {
 
       // Check types match by position
       sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
-        if (!(field.tpe =:= targetTpe) && !isCoercible(field.tpe, targetTpe)) {
+        if (!(field.tpe =:= targetTpe) && findImplicitInto(field.tpe, targetTpe).isEmpty) {
           fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: ${field.tpe} vs $targetTpe")
         }
       }
@@ -396,7 +354,7 @@ private object IntoVersionSpecificImpl {
 
       // Check types match by position
       sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
-        if (!(sourceTpe =:= field.tpe) && !isCoercible(sourceTpe, field.tpe)) {
+        if (!(sourceTpe =:= field.tpe) && findImplicitInto(sourceTpe, field.tpe).isEmpty) {
           fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: $sourceTpe vs ${field.tpe}")
         }
       }
@@ -431,7 +389,7 @@ private object IntoVersionSpecificImpl {
 
       // Check types match by position
       sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
-        if (!(sourceTpe =:= targetTpe) && !isCoercible(sourceTpe, targetTpe)) {
+        if (!(sourceTpe =:= targetTpe) && findImplicitInto(sourceTpe, targetTpe).isEmpty) {
           fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: $sourceTpe vs $targetTpe")
         }
       }
@@ -492,7 +450,7 @@ private object IntoVersionSpecificImpl {
 
     def signaturesMatch(source: List[Type], target: List[Type]): Boolean = {
       source.size == target.size && source.zip(target).forall { case (s, t) =>
-        s =:= t || isCoercible(s, t)
+        s =:= t || findImplicitInto(s, t).isDefined
       }
     }
 
