@@ -206,7 +206,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-    generateCoproductConversion[A, B](aTpe, bTpe, caseMappings)
+    generateCoproductConversion[A, B](caseMappings)
   }
 
   private def findMatchingTargetSubtype(
@@ -276,17 +276,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       s =:= t || isCoercible(s, t)
     }
 
-  private def generateCoproductConversion[A: Type, B: Type](
-    aTpe: TypeRepr,
-    bTpe: TypeRepr,
-    caseMappings: List[(TypeRepr, TypeRepr)]
-  ): Expr[Into[A, B]] = {
+  private def generateCoproductConversion[A: Type, B: Type](caseMappings: List[(TypeRepr, TypeRepr)]): Expr[Into[A, B]] = {
     // Generate the match expression builder that will be called at runtime with 'a'
     // We need to build the CaseDef list inside the splice to avoid closure issues
 
     def buildMatchExpr(aExpr: Expr[A]): Expr[Either[SchemaError, B]] = {
       val cases = caseMappings.map { case (sourceSubtype, targetSubtype) =>
-        generateCaseClause[B](sourceSubtype, targetSubtype, bTpe)
+        generateCaseClause[B](sourceSubtype, targetSubtype)
       }
       Match(aExpr.asTerm, cases).asExprOf[Either[SchemaError, B]]
     }
@@ -303,7 +299,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def generateCaseClause[B: Type](
     sourceSubtype: TypeRepr,
     targetSubtype: TypeRepr,
-    bTpe: TypeRepr
   ): CaseDef = {
     val bindingName = Symbol.newVal(Symbol.spliceOwner, "x", sourceSubtype, Flags.Case, Symbol.noSymbol)
     val bindingRef  = Ref(bindingName)
@@ -514,6 +509,9 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def isCoercible(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
     if (sourceTpe =:= targetTpe) return true
 
+    // Check if target is an opaque type and source matches its underlying type
+    if (requiresOpaqueConversion(sourceTpe, targetTpe)) return true
+
     // Only check for numeric widening conversions (lossless)
     // Note: We don't check for implicit Into instances here as it causes compiler issues
     // Instead, we check for implicits lazily when generating code
@@ -583,7 +581,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] =
-          Right(${ convertedExpr('a) })
+          ${ convertedExpr('a) }
       }
     }
   }
@@ -592,50 +590,101 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     sourceInfo: ProductInfo[A],
     targetInfo: ProductInfo[B],
     fieldMappings: List[FieldMapping]
-  ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
-    val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetFieldInfo) =>
-      mapping.sourceField match {
-        case Some(sourceField) =>
-          // Get the source field value
-          val sourceValue = sourceInfo.fieldGetter(aExpr.asTerm, sourceField)
-          val sourceTpe   = sourceField.tpe
-          val targetTpe   = targetFieldInfo.tpe
+  ): Expr[A] => Expr[Either[SchemaError, B]] = (aExpr: Expr[A]) => {
 
-          // If types differ, try to find an implicit Into instance
-          if (!(sourceTpe =:= targetTpe)) {
-            // Try to find implicit Into instance for nested conversions
-            findImplicitInto(sourceTpe, targetTpe) match {
-              case Some(intoInstance) =>
-                sourceTpe.asType match {
-                  case '[st] =>
-                    targetTpe.asType match {
-                      case '[tt] =>
-                        val typedInto = intoInstance.asExprOf[Into[st, tt]]
-                        '{
-                          $typedInto.into(${ sourceValue.asExprOf[st] }) match {
-                            case Right(v)  => v
-                            case Left(err) => throw new RuntimeException(s"Coercion failed: $err")
-                          }
-                        }.asTerm
-                    }
-                }
-              case None =>
-                // No coercion available and types don't match - fail at compile time
-                report.errorAndAbort(
-                  s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field '${sourceField.name}'. " +
-                  s"Please provide an implicit Into instance in scope."
-                )
+    // Build list of field conversion expressions
+    val fieldConversions: List[(Int, Expr[Either[SchemaError, Any]])] = fieldMappings.zipWithIndex.map {
+      case (mapping, idx) =>
+        val targetFieldInfo = targetInfo.fields(idx)
+        val eitherExpr = mapping.sourceField match {
+          case Some(sourceField) =>
+            val sourceValue = sourceInfo.fieldGetter(aExpr.asTerm, sourceField)
+            val sourceTpe   = sourceField.tpe
+            val targetTpe   = targetFieldInfo.tpe
+
+            // Check if target is an opaque type with validation
+            if (requiresOpaqueConversion(sourceTpe, targetTpe)) {
+              convertToOpaqueTypeEither(sourceValue, sourceTpe, targetTpe, sourceField.name)
             }
-          } else {
-            // Types match exactly
-            sourceValue
-          }
-        case None =>
-          // No source field - target must be Option[T], provide None
-          '{ None }.asTerm
-      }
+            // If types differ, try to find an implicit Into instance
+            else if (!(sourceTpe =:= targetTpe)) {
+              findImplicitInto(sourceTpe, targetTpe) match {
+                case Some(intoInstance) =>
+                  sourceTpe.asType match {
+                    case '[st] =>
+                      targetTpe.asType match {
+                        case '[tt] =>
+                          val typedInto = intoInstance.asExprOf[Into[st, tt]]
+                          '{
+                            $typedInto.into(${ sourceValue.asExprOf[st] }).asInstanceOf[Either[SchemaError, Any]]
+                          }
+                      }
+                  }
+                case None =>
+                  report.errorAndAbort(
+                    s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field '${sourceField.name}'. " +
+                    s"Please provide an implicit Into instance in scope."
+                  )
+              }
+            } else {
+              // Types match exactly - wrap in Right
+              '{ Right(${ sourceValue.asExprOf[Any] }) }
+            }
+          case None =>
+            // No source field - target must be Option[T], provide None wrapped in Right
+            '{ Right(None) }
+        }
+        (idx, eitherExpr)
     }
-    targetInfo.construct(args).asExprOf[B]
+
+    // Generate code that sequences the Either values and constructs the target
+    // We need to build the args list at runtime based on the sequencing result
+    buildSequencedConstruction[B](fieldConversions, targetInfo)
+  }
+
+  /**
+   * Build an expression that sequences field conversions and constructs the target object
+   */
+  private def buildSequencedConstruction[B: Type](
+    fieldConversions: List[(Int, Expr[Either[SchemaError, Any]])],
+    targetInfo: ProductInfo[B]
+  ): Expr[Either[SchemaError, B]] = {
+    fieldConversions match {
+      case Nil =>
+        // No fields - just construct empty object
+        val emptyArgs = List.empty[Term]
+        '{ Right(${ targetInfo.construct(emptyArgs).asExprOf[B] }) }
+
+      case fields =>
+        // Use nested flatMap to sequence Either values while preserving types
+        // We know each field's exact type from targetInfo, so we can cast properly
+        def buildSequence(remaining: List[(Int, Expr[Either[SchemaError, Any]])], constructorArgs: List[Term]): Expr[Either[SchemaError, B]] = {
+          remaining match {
+            case Nil =>
+              // All fields collected - construct the target
+              '{ Right(${ targetInfo.construct(constructorArgs.reverse).asExprOf[B] }) }
+
+            case (idx, fieldEither) :: tail =>
+              // We know the exact field type from targetInfo
+              val fieldType = targetInfo.fields(idx).tpe
+              fieldEither.asTerm.tpe.asType match {
+                case '[Either[SchemaError, t]] =>
+                  fieldType.asType match {
+                    case '[ft] =>
+                      '{
+                        ${fieldEither.asExprOf[Either[SchemaError, t]]}.flatMap { value =>
+                          // Cast value to the known field type
+                          val typedValue = value.asInstanceOf[ft]
+                          ${ buildSequence(tail, '{ typedValue }.asTerm :: constructorArgs) }
+                        }
+                      }
+                  }
+              }
+          }
+        }
+
+        buildSequence(fields, Nil)
+    }
   }
 
   // === Case Class to Tuple ===
@@ -657,7 +706,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-    val buildTuple = constructTupleFromCaseClass[A, B](sourceInfo, bTpe)
+    val buildTuple = constructTupleFromCaseClass[A, B](sourceInfo)
 
     '{
       new Into[A, B] {
@@ -669,7 +718,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
   private def constructTupleFromCaseClass[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
-    bTpe: TypeRepr
   ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val args      = sourceInfo.fields.map(field => sourceInfo.fieldGetter(aExpr.asTerm, field))
     val tupleSize = args.size
@@ -780,4 +828,191 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       fail(s"Tuples with more than 22 elements are not supported")
     }
   }
+
+  // === Opaque Type and Newtype Support ===
+
+  /**
+   * Checks if the target type is an opaque type
+   */
+  private def isOpaqueType(tpe: TypeRepr): Boolean = {
+    tpe.typeSymbol.flags.is(Flags.Opaque)
+  }
+
+  /**
+   * Gets the underlying type of an opaque type
+   */
+  private def getOpaqueUnderlying(tpe: TypeRepr): TypeRepr = {
+    opaqueDealias(tpe)
+  }
+
+  /**
+   * Tries to find a validation method (apply) that returns Either[_, OpaqueType]
+   * Returns (companionObject, applyMethod, errorType) if found
+   */
+  private def findOpaqueValidationMethod(tpe: TypeRepr): Option[(Term, Symbol, TypeRepr)] = {
+    getOpaqueCompanion(tpe).flatMap { case (companionRef, companion) =>
+      val applyMethods = companion.methodMembers.filter(_.name == "apply")
+
+      applyMethods.find { method =>
+        method.paramSymss match {
+          case List(params) if params.size == 1 =>
+            // Check if return type is Either[ErrorType, OpaqueType]
+            method.tree match {
+              case DefDef(_, _, returnTpt, _) =>
+                val returnType = returnTpt.tpe
+                returnType.dealias match {
+                  case AppliedType(eitherTpe, List(_, resultTpe)) if eitherTpe.typeSymbol.fullName == "scala.util.Either" =>
+                    // Check if result type matches our opaque type (use direct match for opaque types)
+                    resultTpe =:= tpe
+                  case _ => false
+                }
+              case _ => false
+            }
+          case _ => false
+        }
+      }.map { method =>
+        // Extract error type from Either[ErrorType, OpaqueType]
+        val errorTpe = method.tree match {
+          case DefDef(_, _, returnTpt, _) =>
+            returnTpt.tpe.dealias match {
+              case AppliedType(_, List(errorTpe, _)) => errorTpe
+              case _                                 => TypeRepr.of[String]
+            }
+          case _ => TypeRepr.of[String]
+        }
+        (companionRef, method, errorTpe)
+      }
+    }
+  }
+
+  /**
+   * Tries to find an unsafe constructor method for opaque types without validation
+   * Returns (companionObject, unsafeMethod) if found
+   */
+  private def findOpaqueUnsafeMethod(tpe: TypeRepr): Option[(Term, Symbol)] = {
+    getOpaqueCompanion(tpe).flatMap { case (companionRef, companion) =>
+      val allMethods = (companion.declaredMethods ++ companion.methodMembers).distinct
+      val unsafeMethods = allMethods.filter(m => m.name == "unsafe" || m.name == "unsafeWrap")
+
+      unsafeMethods.find { method =>
+        method.paramSymss match {
+          case List(params) if params.size == 1 =>
+            method.tree match {
+              case DefDef(_, _, returnTpt, _) =>
+                // For opaque types, use direct match (not dealiased)
+                returnTpt.tpe =:= tpe
+              case _ => false
+            }
+          case _ => false
+        }
+      }.map(method => (companionRef, method))
+    }
+  }
+
+  /**
+   * Helper to find the companion object for an opaque type
+   */
+  private def getOpaqueCompanion(tpe: TypeRepr): Option[(Term, Symbol)] = {
+    val typeSym = tpe.typeSymbol
+    val companionSym = typeSym.companionModule
+
+    val actualCompanion = if (companionSym == Symbol.noSymbol) {
+      // Try to find companion object by constructing its expected module path
+      val companionName = typeSym.name
+      val owner = typeSym.owner
+
+      // The owner.fullName for objects ends with $, strip it for path construction
+      val ownerPath = owner.fullName
+      val cleanOwnerPath = if (ownerPath.endsWith("$package$")) {
+        ownerPath.stripSuffix("$package$").stripSuffix(".")
+      } else if (ownerPath.endsWith("$")) {
+        ownerPath.stripSuffix("$")
+      } else {
+        ownerPath
+      }
+
+      val companionPath = if (cleanOwnerPath.isEmpty) companionName else s"$cleanOwnerPath.$companionName"
+
+      try {
+        Some(Symbol.requiredModule(companionPath))
+      } catch {
+        case _: Exception =>
+          // Last resort: look in owner declarations
+          owner.declarations.find { s =>
+            s.name == companionName && s.flags.is(Flags.Module)
+          }
+      }
+    } else {
+      Some(companionSym)
+    }
+
+    actualCompanion.map(companion => (Ref(companion), companion))
+  }
+
+  /**
+   * Converts a value to an opaque type, applying validation if available
+   * Returns an Expr[Either[SchemaError, OpaqueType]]
+   */
+  private def convertToOpaqueTypeEither(sourceValue: Term, sourceTpe: TypeRepr, targetTpe: TypeRepr, fieldName: String): Expr[Either[SchemaError, Any]] = {
+    val underlying = getOpaqueUnderlying(targetTpe)
+
+    // Check if source type matches the underlying type
+    if (!(sourceTpe =:= underlying)) {
+      report.errorAndAbort(
+        s"Cannot convert field '$fieldName' from ${sourceTpe.show} to opaque type ${targetTpe.show} " +
+        s"(underlying type: ${underlying.show}). Types must match."
+      )
+    }
+
+    // Priority 1: Try validation method (apply) first
+    findOpaqueValidationMethod(targetTpe) match {
+      case Some((companionRef, applyMethod, errorTpe)) =>
+        // Generate validation call that returns Either
+        val applyCall = Select(companionRef, applyMethod).appliedTo(sourceValue)
+
+        // Map the error type to SchemaError
+        errorTpe.asType match {
+          case '[et] =>
+            targetTpe.asType match {
+              case '[tt] =>
+                '{
+                  ${applyCall.asExprOf[Either[et, tt]]}.left.map { err =>
+                    SchemaError.conversionFailed(Nil, s"Validation failed for field '${${ Expr(fieldName) }}': $err")
+                  }.asInstanceOf[Either[SchemaError, Any]]
+                }
+            }
+        }
+
+      case None =>
+        // Priority 2: Try unsafe constructor as fallback
+        findOpaqueUnsafeMethod(targetTpe) match {
+          case Some((companionRef, unsafeMethod)) =>
+            // Use unsafe constructor (no validation) - wrap in Right
+            targetTpe.asType match {
+              case '[tt] =>
+                val unsafeCall = Select(companionRef, unsafeMethod).appliedTo(sourceValue)
+                '{
+                  Right(${unsafeCall.asExprOf[tt]}).asInstanceOf[Either[SchemaError, Any]]
+                }
+            }
+
+          case None =>
+            // No validation or unsafe method found - report error
+            report.errorAndAbort(
+              s"Cannot convert to opaque type ${targetTpe.show}: no 'apply' or 'unsafe' method found in companion object"
+            )
+        }
+    }
+  }
+
+  /**
+   * Checks if conversion requires opaque type handling
+   */
+  private def requiresOpaqueConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
+    isOpaqueType(targetTpe) && {
+      val underlying = getOpaqueUnderlying(targetTpe)
+      sourceTpe =:= underlying
+    }
+  }
+
 }
