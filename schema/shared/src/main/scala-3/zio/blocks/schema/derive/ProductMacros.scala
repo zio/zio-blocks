@@ -598,6 +598,9 @@ object ProductMacros {
         val (extract0, _) = extractField(info0)
         val (extract1, _) = extractField(info1)
 
+        // Check if target is a tuple before generating code
+        val isTuple = target.typeSymbol.fullName.startsWith("scala.Tuple")
+
         '{
           new zio.blocks.schema.Into[A, B] {
             private val f0 = $extract0
@@ -611,14 +614,20 @@ object ProductMacros {
               (r0, r1) match {
                 case (Right(v0), Right(v1)) =>
                   Right(${
-                    val newExpr = Select(New(Inferred(target)), constructor)
-                    Apply(
-                      newExpr,
-                      List(
-                        '{ v0.asInstanceOf[t0] }.asTerm,
-                        '{ v1.asInstanceOf[t1] }.asTerm
-                      )
-                    ).asExpr.asInstanceOf[Expr[B]]
+                    if (isTuple) {
+                      // For tuples, use tuple syntax: (v0, v1)
+                      '{ (v0.asInstanceOf[t0], v1.asInstanceOf[t1]) }.asInstanceOf[Expr[B]]
+                    } else {
+                      // For case classes, use constructor
+                      val newExpr = Select(New(Inferred(target)), constructor)
+                      Apply(
+                        newExpr,
+                        List(
+                          '{ v0.asInstanceOf[t0] }.asTerm,
+                          '{ v1.asInstanceOf[t1] }.asTerm
+                        )
+                      ).asExpr.asInstanceOf[Expr[B]]
+                    }
                   })
                 case _ =>
                   val errors = List(r0, r1).collect { case Left(e) => e }
