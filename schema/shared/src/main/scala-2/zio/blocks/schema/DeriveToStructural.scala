@@ -29,17 +29,17 @@ object DeriveToStructural {
     // Type categorization ADT - single source of truth for type classification
     sealed trait TypeCategory
     object TypeCategory {
-      case object PrimitiveLike                                        extends TypeCategory
-      case class OptionType(element: Type)                             extends TypeCategory
-      case class ListType(element: Type)                               extends TypeCategory
-      case class VectorType(element: Type)                             extends TypeCategory
-      case class SeqType(element: Type)                                extends TypeCategory
-      case class SetType(element: Type)                                extends TypeCategory
-      case class MapType(key: Type, value: Type)                       extends TypeCategory
-      case class EitherType(left: Type, right: Type)                   extends TypeCategory
-      case class TupleType(elements: List[Type])                       extends TypeCategory
-      case class CaseClassType(fields: List[(MethodSymbol, Type)])     extends TypeCategory
-      case object Unknown                                              extends TypeCategory
+      case object PrimitiveLike                                    extends TypeCategory
+      case class OptionType(element: Type)                         extends TypeCategory
+      case class ListType(element: Type)                           extends TypeCategory
+      case class VectorType(element: Type)                         extends TypeCategory
+      case class SeqType(element: Type)                            extends TypeCategory
+      case class SetType(element: Type)                            extends TypeCategory
+      case class MapType(key: Type, value: Type)                   extends TypeCategory
+      case class EitherType(left: Type, right: Type)               extends TypeCategory
+      case class TupleType(elements: List[Type])                   extends TypeCategory
+      case class CaseClassType(fields: List[(MethodSymbol, Type)]) extends TypeCategory
+      case object Unknown                                          extends TypeCategory
     }
 
     // Single categorization function - replaces all the isX predicates
@@ -146,49 +146,38 @@ object DeriveToStructural {
       // Traverse the type structure recursively using pattern matching
       categorize(dealt) match {
         case TypeCategory.PrimitiveLike =>
-          // Base case: primitives don't contain other types
           ()
 
         case TypeCategory.Unknown =>
-          // Base case: unknown types don't contain other types
           ()
 
         case TypeCategory.OptionType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.ListType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.VectorType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.SeqType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.SetType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.MapType(key, value) =>
-          // Binary container: recurse into both key and value types
           checkRecursive(key, dealt :: stack)
           checkRecursive(value, dealt :: stack)
 
         case TypeCategory.EitherType(left, right) =>
-          // Binary container: recurse into both left and right types
           checkRecursive(left, dealt :: stack)
           checkRecursive(right, dealt :: stack)
 
         case TypeCategory.TupleType(elements) =>
-          // Product type: recurse into all element types
           elements.foreach(elem => checkRecursive(elem, dealt :: stack))
 
         case TypeCategory.CaseClassType(fields) =>
-          // Case class: recurse into all field types
           fields.foreach { case (_, fieldTpe) =>
             checkRecursive(fieldTpe, dealt :: stack)
           }

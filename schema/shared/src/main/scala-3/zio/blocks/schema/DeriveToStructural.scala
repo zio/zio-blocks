@@ -134,55 +134,43 @@ object DeriveToStructural {
       // Traverse the type structure recursively using pattern matching
       categorize(dealt) match {
         case TypeCategory.PrimitiveLike =>
-          // Base case: primitives don't contain other types
           ()
 
         case TypeCategory.Unknown =>
-          // Base case: unknown types don't contain other types
           ()
 
         case TypeCategory.OptionType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.ListType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.VectorType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.SeqType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.SetType(elem) =>
-          // Unary container: recurse into the element type
           checkRecursive(elem, dealt :: stack)
 
         case TypeCategory.MapType(key, value) =>
-          // Binary container: recurse into both key and value types
           checkRecursive(key, dealt :: stack)
           checkRecursive(value, dealt :: stack)
 
         case TypeCategory.EitherType(left, right) =>
-          // Binary container: recurse into both left and right types
           checkRecursive(left, dealt :: stack)
           checkRecursive(right, dealt :: stack)
 
         case TypeCategory.TupleType(elements) =>
-          // Product type: recurse into all element types
           elements.foreach(elem => checkRecursive(elem, dealt :: stack))
 
         case TypeCategory.CaseClassType(fields) =>
-          // Case class: recurse into all field types
           fields.foreach { case (_, fieldTpe) =>
             checkRecursive(fieldTpe, dealt :: stack)
           }
 
         case TypeCategory.SealedType(children) =>
-          // Sealed trait: recurse into all children (case classes/objects)
           children.foreach { childSym =>
             if (childSym.isClassDef) {
               val childTpe = if (childSym.flags.is(Flags.Module)) {
@@ -329,7 +317,7 @@ object DeriveToStructural {
         case Unknown
       }
 
-      def categorizeLocal(t: TypeRepr): LocalCategory = {
+      def categorizeLocal(t: TypeRepr): LocalCategory =
         // Check primitives first
         if (
           t =:= TypeRepr.of[Boolean] ||
@@ -360,7 +348,6 @@ object DeriveToStructural {
           LocalCategory.CaseClassType
         else if (t.typeSymbol.flags.is(Flags.Sealed)) LocalCategory.SealedType
         else LocalCategory.Unknown
-      }
 
       categorizeLocal(dealt) match {
         case LocalCategory.PrimitiveLike | LocalCategory.Unknown =>
