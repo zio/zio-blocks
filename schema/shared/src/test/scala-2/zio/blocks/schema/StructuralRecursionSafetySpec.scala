@@ -16,7 +16,7 @@ object StructuralRecursionSafetySpec extends ZIOSpecDefault {
         )
       )(
         isLeft(
-          containsString("Cannot generate structural type for recursive type Tree")
+          containsString("Cannot generate structural type: recursive type detected: Tree.")
         )
       )
     },
@@ -32,9 +32,7 @@ object StructuralRecursionSafetySpec extends ZIOSpecDefault {
         )
       )(
         isLeft(
-          containsString("mutually recursive types") &&
-            containsString("Node") &&
-            containsString("Edge")
+          containsString("Cannot generate structural type: mutually recursive types detected: Edge, Node.")
         )
       )
     },
