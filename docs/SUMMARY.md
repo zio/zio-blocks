@@ -14,7 +14,7 @@ The ZIO Blocks Schema `Into[A, B]` and `As[A, B]` type classes are **production-
 - Complete collection conversion support
 - Full schema evolution patterns
 - Opaque types (Scala 3)
-- ZIO Prelude newtypes (Scala 2)
+- ZIO Prelude newtypes (Scala 3, temporarily disabled)
 - Nested conversions
 - Structural types (Scala 3)
 

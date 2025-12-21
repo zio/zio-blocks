@@ -5,55 +5,53 @@ import zio.test._
 
 /**
  * Comprehensive tests for Into conversions with ZIO Prelude newtypes.
- * 
+ *
  * These tests verify that Into can handle conversions involving:
- * - Newtype wrapping/unwrapping
- * - Subtype wrapping/unwrapping
- * - Newtypes in product types
- * - Newtypes in collections
- * - Newtypes with validation
+ *   - Newtype wrapping/unwrapping
+ *   - Subtype wrapping/unwrapping
+ *   - Newtypes in product types
+ *   - Newtypes in collections
+ *   - Newtypes with validation
  */
 // Temporarily disabled - Newtype.apply is final in this version of ZIO Prelude
 // TODO: Fix compatibility with ZIO Prelude Newtype API
 object IntoZIOPreludeSpec extends ZIOSpecDefault {
-  
+
   // Test newtypes
   // Using make method instead of apply (which is final in ZIO Prelude)
   // NewtypeMacros supports: make, apply, validate, fromString, fromInt, etc.
   type UserId = UserId.Type
   object UserId extends Newtype[String] {
-    def applyUnsafe(s: String): UserId = wrap(s)
-    override def make(s: String): zio.prelude.Validation[String, UserId] = {
+    def applyUnsafe(s: String): UserId                                   = wrap(s)
+    override def make(s: String): zio.prelude.Validation[String, UserId] =
       if (s.nonEmpty && s.forall(_.isLetterOrDigit)) zio.prelude.Validation.succeed(wrap(s))
       else zio.prelude.Validation.fail(s"UserId must be non-empty alphanumeric, got: $s")
-    }
   }
-  
+
   type Age = Age.Type
   object Age extends Newtype[Int] {
-    def applyUnsafe(i: Int): Age = wrap(i)
-    override def make(i: Int): zio.prelude.Validation[String, Age] = {
+    def applyUnsafe(i: Int): Age                                   = wrap(i)
+    override def make(i: Int): zio.prelude.Validation[String, Age] =
       if (i >= 0 && i <= 150) zio.prelude.Validation.succeed(wrap(i))
       else zio.prelude.Validation.fail(s"Age must be between 0 and 150, got $i")
-    }
   }
-  
+
   type Salary = Salary.Type
   object Salary extends Subtype[Long]
-  
+
   type Count = Count.Type
   object Count extends Newtype[Int] {
-    override def make(i: Int): zio.prelude.Validation[String, Count] = 
-      zio.prelude.Validation.succeed(wrap(i))  // No validation, simple wrapping
+    override def make(i: Int): zio.prelude.Validation[String, Count] =
+      zio.prelude.Validation.succeed(wrap(i)) // No validation, simple wrapping
   }
-  
+
   // Test case classes with newtypes
   case class PersonV1(name: String, age: Int, salary: Long)
   case class PersonV2(name: String, age: Age, salary: Salary)
-  
+
   case class UserV1(id: String, name: String)
   case class UserV2(id: UserId, name: String)
-  
+
   case class EmployeeV1(id: String, age: Int, count: Int)
   case class EmployeeV2(id: UserId, age: Age, count: Count)
 
@@ -62,8 +60,8 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
   object TestFixtures {
     // UserIdAlt newtype with Validation-returning make method
     object UserIdAlt extends Newtype[String] {
-      override def make(s: String): zio.prelude.Validation[String, UserIdAlt] = 
-        if (s.nonEmpty) zio.prelude.Validation.succeed(wrap(s)) 
+      override def make(s: String): zio.prelude.Validation[String, UserIdAlt] =
+        if (s.nonEmpty) zio.prelude.Validation.succeed(wrap(s))
         else zio.prelude.Validation.fail("Empty ID")
       def applyUnsafe(s: String): UserIdAlt = wrap(s)
     }
@@ -85,10 +83,9 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
 
     // CountAlt newtype (for commented-out tests)
     object CountAlt extends Newtype[Int] {
-      override def make(i: Int): zio.prelude.Validation[String, CountAlt] = {
+      override def make(i: Int): zio.prelude.Validation[String, CountAlt] =
         if (i > 0) zio.prelude.Validation.succeed(wrap(i))
         else zio.prelude.Validation.fail(s"Count must be greater than 0, got $i")
-      }
     }
     type CountAlt = CountAlt.Type
 
@@ -96,7 +93,7 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
     case class DataV1Alt(counts: List[Int])
     case class DataV2Alt(counts: List[CountAlt])
   }
-  
+
   def spec: Spec[TestEnvironment, Any] = suite("Into with ZIO Prelude Newtypes")(
     suite("Newtype wrapping (underlying -> newtype)")(
       test("String -> UserId (with validation)") {
@@ -104,7 +101,9 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         assertTrue(
           into.into("alice123") == Right(UserId.applyUnsafe("alice123")),
           into.into("") == Left(SchemaError.expectationMismatch(Nil, "UserId must be non-empty alphanumeric, got: ")),
-          into.into("invalid!") == Left(SchemaError.expectationMismatch(Nil, "UserId must be non-empty alphanumeric, got: invalid!"))
+          into.into("invalid!") == Left(
+            SchemaError.expectationMismatch(Nil, "UserId must be non-empty alphanumeric, got: invalid!")
+          )
         )
       },
       test("Int -> Age (with validation)") {
@@ -133,33 +132,31 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         )
       }
     ),
-
     suite("Newtype unwrapping (newtype -> underlying)")(
       test("UserId -> String") {
-        val into = Into.derived[UserId, String]
+        val into   = Into.derived[UserId, String]
         val userId = UserId.applyUnsafe("alice123")
         assertTrue(into.into(userId) == Right("alice123"))
       },
       test("Age -> Int") {
         val into = Into.derived[Age, Int]
-        val age = Age.applyUnsafe(25)
+        val age  = Age.applyUnsafe(25)
         assertTrue(into.into(age) == Right(25))
       },
       test("Count -> Int") {
-        val into = Into.derived[Count, Int]
+        val into  = Into.derived[Count, Int]
         val count = Count.make(42).toEither.right.get
         assertTrue(into.into(count) == Right(42))
       },
       test("Salary -> Long") {
-        val into = Into.derived[Salary, Long]
+        val into   = Into.derived[Salary, Long]
         val salary = Salary.wrap(50000L)
         assertTrue(into.into(salary) == Right(50000L))
       }
     ),
-
     suite("Newtypes in product types")(
       test("PersonV1 -> PersonV2 (partial newtype conversion)") {
-        val into = Into.derived[PersonV1, PersonV2]
+        val into   = Into.derived[PersonV1, PersonV2]
         val person = PersonV1("Alice", 30, 50000L)
         val result = into.into(person)
         assertTrue(
@@ -170,8 +167,8 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         )
       },
       test("UserV1 -> UserV2 (newtype in first field)") {
-        val into = Into.derived[UserV1, UserV2]
-        val user = UserV1("alice123", "Alice")
+        val into   = Into.derived[UserV1, UserV2]
+        val user   = UserV1("alice123", "Alice")
         val result = into.into(user)
         assertTrue(
           result.isRight,
@@ -180,9 +177,9 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         )
       },
       test("EmployeeV1 -> EmployeeV2 (multiple newtypes)") {
-        val into = Into.derived[EmployeeV1, EmployeeV2]
+        val into     = Into.derived[EmployeeV1, EmployeeV2]
         val employee = EmployeeV1("bob456", 35, 10)
-        val result = into.into(employee)
+        val result   = into.into(employee)
         assertTrue(
           result.isRight,
           result.map(_.id) == Right(UserId.applyUnsafe("bob456")),
@@ -191,12 +188,11 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         )
       }
     ),
-
     suite("Newtypes in collections")(
       test("List[String] -> List[UserId]") {
-        val into = Into.derived[List[String], List[UserId]]
+        val into    = Into.derived[List[String], List[UserId]]
         val strings = List("alice", "bob", "charlie")
-        val result = into.into(strings)
+        val result  = into.into(strings)
         assertTrue(
           result.isRight,
           result.map(_.size) == Right(3),
@@ -204,8 +200,8 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         )
       },
       test("List[Int] -> List[Age]") {
-        val into = Into.derived[List[Int], List[Age]]
-        val ages = List(25, 30, 35)
+        val into   = Into.derived[List[Int], List[Age]]
+        val ages   = List(25, 30, 35)
         val result = into.into(ages)
         assertTrue(
           result.isRight,
@@ -220,8 +216,8 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         )
       },
       test("Map[String, Int] -> Map[UserId, Age]") {
-        val into = Into.derived[Map[String, Int], Map[UserId, Age]]
-        val map = Map("alice" -> 25, "bob" -> 30)
+        val into   = Into.derived[Map[String, Int], Map[UserId, Age]]
+        val map    = Map("alice" -> 25, "bob" -> 30)
         val result = into.into(map)
         assertTrue(
           result.isRight,
@@ -229,36 +225,34 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
         )
       }
     ),
-
     suite("Newtype validation errors")(
       test("Invalid UserId in product type") {
-        val into = Into.derived[UserV1, UserV2]
-        val user = UserV1("", "Alice") // Invalid UserId
+        val into   = Into.derived[UserV1, UserV2]
+        val user   = UserV1("", "Alice") // Invalid UserId
         val result = into.into(user)
         assertTrue(result.isLeft)
       },
       test("Invalid Age in product type") {
-        val into = Into.derived[PersonV1, PersonV2]
+        val into   = Into.derived[PersonV1, PersonV2]
         val person = PersonV1("Alice", 200, 50000L) // Invalid Age
         val result = into.into(person)
         assertTrue(result.isLeft)
       },
       test("Invalid UserId in collection") {
-        val into = Into.derived[List[String], List[UserId]]
+        val into    = Into.derived[List[String], List[UserId]]
         val strings = List("valid", "", "invalid!")
-        val result = into.into(strings)
+        val result  = into.into(strings)
         assertTrue(result.isLeft) // Should fail on first invalid element
       }
     ),
-
     suite("Nested newtypes")(
       test("Case class with newtype field containing newtype") {
         case class ContainerV1(value: String)
         case class ContainerV2(value: UserId)
-        
-        val into = Into.derived[ContainerV1, ContainerV2]
+
+        val into      = Into.derived[ContainerV1, ContainerV2]
         val container = ContainerV1("alice123")
-        val result = into.into(container)
+        val result    = into.into(container)
         assertTrue(
           result.isRight,
           result.map(_.value) == Right(UserId.applyUnsafe("alice123"))
@@ -271,42 +265,40 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
       // Test newtype with Validation-returning make method
       test("Newtype validation success (UserV1 -> UserV2)") {
         import TestFixtures._
-        val v1 = UserV1Alt("user123", "Alice")
-        val into = Into.derived[UserV1Alt, UserV2Alt]
+        val v1     = UserV1Alt("user123", "Alice")
+        val into   = Into.derived[UserV1Alt, UserV2Alt]
         val result = into.into(v1)
-        
+
         assertTrue(result.isRight) &&
         assertTrue(result.exists(_.id == UserIdAlt.wrap("user123")))
       },
-
       test("Newtype validation failure (UserV1 -> UserV2)") {
         import TestFixtures._
-        val v1 = UserV1Alt("", "Alice") // Invalid ID
-        val into = Into.derived[UserV1Alt, UserV2Alt]
+        val v1     = UserV1Alt("", "Alice") // Invalid ID
+        val into   = Into.derived[UserV1Alt, UserV2Alt]
         val result = into.into(v1)
-        
+
         assertTrue(result.isLeft)
       },
 
       // Test Subtype with assertion
       test("Subtype validation success (PersonV1 -> PersonV2)") {
         import TestFixtures._
-        val v1 = PersonV1Alt("Bob", 30, 50000L)
-        val into = Into.derived[PersonV1Alt, PersonV2Alt]
+        val v1     = PersonV1Alt("Bob", 30, 50000L)
+        val into   = Into.derived[PersonV1Alt, PersonV2Alt]
         val result = into.into(v1)
-        
+
         assertTrue(result.isRight) &&
         assertTrue(result.exists(_.age == AgeSub.wrap(30)))
       },
-
       test("Subtype validation failure (PersonV1 -> PersonV2)") {
         import TestFixtures._
-        val v1 = PersonV1Alt("Bob", -5, 50000L) // Invalid Age
-        val into = Into.derived[PersonV1Alt, PersonV2Alt]
+        val v1     = PersonV1Alt("Bob", -5, 50000L) // Invalid Age
+        val into   = Into.derived[PersonV1Alt, PersonV2Alt]
         val result = into.into(v1)
-        
+
         assertTrue(result.isLeft)
-      },
+      }
 
       // Test newtype with validation in collections
       // TODO: These tests are temporarily disabled due to macro expansion issues
@@ -321,7 +313,7 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
       //   val v1 = DataV1Alt(List(1, 2, 3))
       //   val into = Into.derived[DataV1Alt, DataV2Alt]
       //   val result = into.into(v1)
-      //   
+      //
       //   assertTrue(result.isRight) &&
       //   assertTrue(result.exists(_.counts.length == 3))
       // },
@@ -331,10 +323,9 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
       //   val v1 = DataV1Alt(List(1, 0, 3)) // 0 is invalid for Count (> 0)
       //   val into = Into.derived[DataV1Alt, DataV2Alt]
       //   val result = into.into(v1)
-      //   
+      //
       //   assertTrue(result.isLeft)
       // }
     )
   )
 }
-

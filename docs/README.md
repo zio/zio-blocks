@@ -56,7 +56,7 @@ val backward = as.from(forward.getOrElse(???)) // Right(UserV1("Alice", 30))
 | Core functionality | ✅ | ✅ |
 | Opaque types | ❌ | ✅ |
 | Structural types | ❌ | ✅ |
-| ZIO Prelude newtypes | ✅ | ❌ |
+| ZIO Prelude newtypes | ❌ | ⚠️ |
 
 ## Examples
 
@@ -66,7 +66,7 @@ See the usage guides for detailed examples:
 
 ## Project Status
 
-See [PROJECT_STATUS.md](../PROJECT_STATUS.md) for detailed implementation status.
+See [Project Summary](SUMMARY.md) for detailed implementation status.
 
-**Current Completion: ~92%**
+**Current Completion: ~96%**
 

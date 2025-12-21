@@ -128,7 +128,7 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception
 ### Special Types
 
 - **Opaque types** (Scala 3) - with validation support
-- **ZIO Prelude newtypes** (Scala 2) - Newtype and Subtype
+- **ZIO Prelude newtypes** (Scala 3) - Newtype and Subtype (temporarily disabled due to API compatibility)
 - **Structural types** (Scala 3) - Selectable support
 
 ---
@@ -144,7 +144,13 @@ final case class SchemaError(errors: ::[SchemaError.Single]) extends Exception
 | Collections | ✅ | ✅ |
 | Opaque types | ❌ | ✅ |
 | Structural types | ✅ | ✅ |
-| ZIO Prelude newtypes | ✅ | ❌ |
+| ZIO Prelude newtypes | ❌ | ⚠️ |
+
+### ZIO Prelude Newtypes Note
+
+**Scala 2 Support:** Not implemented due to macro system limitations. Manual `Into` instances can be provided as a workaround.
+
+**Scala 3 Support:** Implementation exists (`NewtypeMacros`) but is temporarily disabled in tests due to API compatibility issues with the current version of ZIO Prelude. The macro implementation supports `make`, `apply`, `validate`, and other ZIO Prelude newtype methods.
 
 ### Structural Types Note
 

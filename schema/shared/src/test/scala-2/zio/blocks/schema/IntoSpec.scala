@@ -3,24 +3,24 @@ package zio.blocks.schema
 import zio.test._
 
 object IntoSpec extends ZIOSpecDefault {
-  
+
   case class Person(name: String, age: Int)
   case class User(name: String, age: Int)
-  
+
   sealed trait Color
   object Color {
-    case object Red extends Color
+    case object Red   extends Color
     case object Green extends Color
-    case object Blue extends Color
+    case object Blue  extends Color
   }
-  
+
   sealed trait Colour
   object Colour {
-    case object Red extends Colour
+    case object Red   extends Colour
     case object Green extends Colour
-    case object Blue extends Colour
+    case object Blue  extends Colour
   }
-  
+
   def spec: Spec[TestEnvironment, Any] = suite("Into - Scala 2")(
     suite("Numeric coercions")(
       test("Int -> Long (widening)") {
@@ -98,7 +98,7 @@ object IntoSpec extends ZIOSpecDefault {
     suite("Map and Either")(
       test("Map[Int, String] to Map[Long, String]") {
         val into = Into.derived[Map[Int, String], Map[Long, String]]
-        val map = Map(1 -> "a", 2 -> "b")
+        val map  = Map(1 -> "a", 2 -> "b")
         assertTrue(
           into.into(map) == Right(Map(1L -> "a", 2L -> "b"))
         )
@@ -115,8 +115,8 @@ object IntoSpec extends ZIOSpecDefault {
       test("case class to structural type") {
         case class Point(x: Int, y: Int)
         type PointStruct = { def x: Int; def y: Int }
-        val into = Into.derived[Point, PointStruct]
-        val point = Point(10, 20)
+        val into   = Into.derived[Point, PointStruct]
+        val point  = Point(10, 20)
         val result = into.into(point)
         assertTrue(result.isRight)
         val struct = result.getOrElse(throw new RuntimeException)
@@ -128,9 +128,9 @@ object IntoSpec extends ZIOSpecDefault {
         type PointStruct = { def x: Int; def y: Int }
         val into = Into.derived[PointStruct, Point]
         // Create a structural type instance using a case class
-        val point = Point(10, 20)
+        val point               = Point(10, 20)
         val struct: PointStruct = point
-        val result = into.into(struct)
+        val result              = into.into(struct)
         assertTrue(result.isRight)
         val converted = result.getOrElse(throw new RuntimeException)
         assertTrue(converted.x == 10)
@@ -139,7 +139,7 @@ object IntoSpec extends ZIOSpecDefault {
       test("structural type conversion with missing field fails") {
         case class Point(x: Int, y: Int)
         type PointStruct = { def x: Int; def y: Int; def z: Int }
-        val into = Into.derived[Point, PointStruct]
+        val into  = Into.derived[Point, PointStruct]
         val point = Point(10, 20)
         // This should compile but may fail at runtime depending on implementation
         // In Scala 2, structural types are checked at compile time, so this might not compile
@@ -151,4 +151,3 @@ object IntoSpec extends ZIOSpecDefault {
     )
   )
 }
-

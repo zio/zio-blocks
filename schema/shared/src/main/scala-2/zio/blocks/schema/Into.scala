@@ -5,32 +5,40 @@ import scala.reflect.macros.blackbox
 
 /**
  * Type class for type-safe conversions from A to B with runtime validation.
- * 
- * Into[A, B] provides a unidirectional conversion that may fail with a SchemaError.
- * It handles:
- * - Numeric coercions (widening and narrowing with validation)
- * - Product types (case classes, tuples)
- * - Coproduct types (sealed traits)
- * - Collection types with element coercion
- * 
- * @tparam A Source type
- * @tparam B Target type
+ *
+ * Into[A, B] provides a unidirectional conversion that may fail with a
+ * SchemaError. It handles:
+ *   - Numeric coercions (widening and narrowing with validation)
+ *   - Product types (case classes, tuples)
+ *   - Coproduct types (sealed traits)
+ *   - Collection types with element coercion
+ *
+ * @tparam A
+ *   Source type
+ * @tparam B
+ *   Target type
  */
 trait Into[A, B] {
+
   /**
    * Convert a value of type A to type B.
-   * 
-   * @param input The value to convert
-   * @return Right(b) if conversion succeeds, Left(error) if it fails
+   *
+   * @param input
+   *   The value to convert
+   * @return
+   *   Right(b) if conversion succeeds, Left(error) if it fails
    */
   def into(input: A): Either[SchemaError, B]
-  
+
   /**
    * Convert a value of type A to type B, throwing on failure.
-   * 
-   * @param input The value to convert
-   * @return The converted value
-   * @throws SchemaError if conversion fails
+   *
+   * @param input
+   *   The value to convert
+   * @return
+   *   The converted value
+   * @throws SchemaError
+   *   if conversion fails
    */
   final def intoOrThrow(input: A): B = into(input) match {
     case Right(b)  => b
@@ -39,16 +47,17 @@ trait Into[A, B] {
 }
 
 object Into {
+
   /**
    * Summon an Into[A, B] instance from implicit scope or derive it.
    */
   def apply[A, B](implicit into: Into[A, B]): Into[A, B] = into
-  
+
   /**
    * Automatically derive Into[A, B] instances at compile time.
    */
   implicit def derived[A, B]: Into[A, B] = macro IntoMacros.deriveInto[A, B]
-  
+
   /**
    * Identity conversion (A to A).
    */
@@ -60,21 +69,21 @@ object Into {
 private object IntoMacros {
   def deriveInto[A: c.WeakTypeTag, B: c.WeakTypeTag](c: blackbox.Context): c.Expr[Into[A, B]] = {
     import c.universe._
-    
+
     val aType = weakTypeOf[A]
     val bType = weakTypeOf[B]
-    
+
     def fail(msg: String): Nothing = c.abort(c.enclosingPosition, msg)
-    
+
     // Try numeric coercion first
     def numericCoercion(source: Type, target: Type): Option[c.Expr[Into[_, _]]] = {
-      val intTpe = typeOf[Int]
-      val longTpe = typeOf[Long]
-      val floatTpe = typeOf[Float]
+      val intTpe    = typeOf[Int]
+      val longTpe   = typeOf[Long]
+      val floatTpe  = typeOf[Float]
       val doubleTpe = typeOf[Double]
-      val byteTpe = typeOf[Byte]
-      val shortTpe = typeOf[Short]
-      
+      val byteTpe   = typeOf[Byte]
+      val shortTpe  = typeOf[Short]
+
       // Widening conversions (lossless)
       if (source =:= byteTpe && target =:= shortTpe) {
         Some(c.Expr[Into[Byte, Short]](q"""
@@ -238,25 +247,29 @@ private object IntoMacros {
         None
       }
     }
-    
+
     // If types are the same, use identity
     if (aType =:= bType) {
-      return c.Expr[Into[A, B]](q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]")
+      return c.Expr[Into[A, B]](
+        q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]"
+      )
     }
-    
+
     // Try numeric coercion
     numericCoercion(aType, bType) match {
       case Some(expr) => return expr.asInstanceOf[c.Expr[Into[A, B]]]
-      case None => ()
+      case None       => ()
     }
-    
+
     // Try collection conversion
     if (aType <:< typeOf[Option[_]] && bType <:< typeOf[Option[_]]) {
       val sourceElemType = aType.typeArgs.head
       val targetElemType = bType.typeArgs.head
-      
+
       if (sourceElemType =:= targetElemType) {
-        return c.Expr[Into[A, B]](q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]")
+        return c.Expr[Into[A, B]](
+          q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]"
+        )
       } else {
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
@@ -273,26 +286,27 @@ private object IntoMacros {
         """)
       }
     }
-    
+
     // Try list/vector/set conversions
     val sourceIsIterable = aType <:< typeOf[Iterable[_]]
     val targetIsIterable = bType <:< typeOf[Iterable[_]]
-    
+
     if (sourceIsIterable && targetIsIterable) {
       val sourceElemType = aType.typeArgs.headOption.getOrElse(typeOf[Any])
       val targetElemType = bType.typeArgs.headOption.getOrElse(typeOf[Any])
-      
-      val targetIsList = bType <:< typeOf[List[_]]
+
+      val targetIsList   = bType <:< typeOf[List[_]]
       val targetIsVector = bType <:< typeOf[Vector[_]]
-      val targetIsSet = bType <:< typeOf[Set[_]]
-      
+      val targetIsSet    = bType <:< typeOf[Set[_]]
+
       if (sourceElemType =:= targetElemType) {
         // Same element type - just convert collection structure
-        val conversion = if (targetIsList) q"coll.toList"
+        val conversion =
+          if (targetIsList) q"coll.toList"
           else if (targetIsVector) q"coll.toVector"
           else if (targetIsSet) q"coll.toSet"
           else q"coll.toSeq"
-        
+
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
             def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
@@ -303,11 +317,12 @@ private object IntoMacros {
         """)
       } else {
         // Need element conversion
-        val conversion = if (targetIsList) q"reversed"
+        val conversion =
+          if (targetIsList) q"reversed"
           else if (targetIsVector) q"reversed.toVector"
           else if (targetIsSet) q"reversed.toSet"
           else q"reversed.toSeq"
-        
+
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
             def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
@@ -332,19 +347,21 @@ private object IntoMacros {
         """)
       }
     }
-    
+
     // Try Map conversion
     if (aType <:< typeOf[Map[_, _]] && bType <:< typeOf[Map[_, _]]) {
-      val sourceKeyType = aType.typeArgs(0)
+      val sourceKeyType   = aType.typeArgs(0)
       val sourceValueType = aType.typeArgs(1)
-      val targetKeyType = bType.typeArgs(0)
+      val targetKeyType   = bType.typeArgs(0)
       val targetValueType = bType.typeArgs(1)
-      
-      val keySame = sourceKeyType =:= targetKeyType
+
+      val keySame   = sourceKeyType =:= targetKeyType
       val valueSame = sourceValueType =:= targetValueType
-      
+
       if (keySame && valueSame) {
-        return c.Expr[Into[A, B]](q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]")
+        return c.Expr[Into[A, B]](
+          q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]"
+        )
       } else {
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
@@ -355,13 +372,13 @@ private object IntoMacros {
                 case (Right(acc), (k, v)) =>
                   for {
                     convertedKey <- ${
-                      if (keySame) q"Right(k)"
-                      else q"_root_.zio.blocks.schema.Into.derived[$sourceKeyType, $targetKeyType].into(k)"
-                    }
+            if (keySame) q"Right(k)"
+            else q"_root_.zio.blocks.schema.Into.derived[$sourceKeyType, $targetKeyType].into(k)"
+          }
                     convertedValue <- ${
-                      if (valueSame) q"Right(v)"
-                      else q"_root_.zio.blocks.schema.Into.derived[$sourceValueType, $targetValueType].into(v)"
-                    }
+            if (valueSame) q"Right(v)"
+            else q"_root_.zio.blocks.schema.Into.derived[$sourceValueType, $targetValueType].into(v)"
+          }
                   } yield acc + (convertedKey -> convertedValue)
                 case (left @ Left(_), _) => left
               }.asInstanceOf[Either[_root_.zio.blocks.schema.SchemaError, $bType]]
@@ -370,19 +387,21 @@ private object IntoMacros {
         """)
       }
     }
-    
+
     // Try Either conversion
     if (aType <:< typeOf[Either[_, _]] && bType <:< typeOf[Either[_, _]]) {
-      val sourceLeftType = aType.typeArgs(0)
+      val sourceLeftType  = aType.typeArgs(0)
       val sourceRightType = aType.typeArgs(1)
-      val targetLeftType = bType.typeArgs(0)
+      val targetLeftType  = bType.typeArgs(0)
       val targetRightType = bType.typeArgs(1)
-      
-      val leftSame = sourceLeftType =:= targetLeftType
+
+      val leftSame  = sourceLeftType =:= targetLeftType
       val rightSame = sourceRightType =:= targetRightType
-      
+
       if (leftSame && rightSame) {
-        return c.Expr[Into[A, B]](q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]")
+        return c.Expr[Into[A, B]](
+          q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]"
+        )
       } else {
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
@@ -390,34 +409,35 @@ private object IntoMacros {
               input.asInstanceOf[Either[$sourceLeftType, $sourceRightType]] match {
                 case Left(left) =>
                   ${
-                    if (leftSame) q"Right(Left(left))"
-                    else q"_root_.zio.blocks.schema.Into.derived[$sourceLeftType, $targetLeftType].into(left).map(l => Left(l))"
-                  }.asInstanceOf[Either[_root_.zio.blocks.schema.SchemaError, $bType]]
+            if (leftSame) q"Right(Left(left))"
+            else q"_root_.zio.blocks.schema.Into.derived[$sourceLeftType, $targetLeftType].into(left).map(l => Left(l))"
+          }.asInstanceOf[Either[_root_.zio.blocks.schema.SchemaError, $bType]]
                 case Right(right) =>
                   ${
-                    if (rightSame) q"Right(Right(right))"
-                    else q"_root_.zio.blocks.schema.Into.derived[$sourceRightType, $targetRightType].into(right).map(r => Right(r))"
-                  }.asInstanceOf[Either[_root_.zio.blocks.schema.SchemaError, $bType]]
+            if (rightSame) q"Right(Right(right))"
+            else
+              q"_root_.zio.blocks.schema.Into.derived[$sourceRightType, $targetRightType].into(right).map(r => Right(r))"
+          }.asInstanceOf[Either[_root_.zio.blocks.schema.SchemaError, $bType]]
               }
             }
           }
         """)
       }
     }
-    
+
     // Try product type conversion (case class)
     val isSourceCaseClassForProduct = aType.typeSymbol.isClass && aType.typeSymbol.asClass.isCaseClass
     val isTargetCaseClassForProduct = bType.typeSymbol.isClass && bType.typeSymbol.asClass.isCaseClass
-    
+
     if (isSourceCaseClassForProduct && isTargetCaseClassForProduct) {
       val sourceParams = aType.decls.collect {
         case m: MethodSymbol if m.isCaseAccessor => m
       }.toList
-      
+
       val targetParams = bType.decls.collect {
         case m: MethodSymbol if m.isCaseAccessor => m
       }.toList
-      
+
       if (sourceParams.size >= targetParams.size) {
         // Simple positional mapping for now
         val fieldAssignments = targetParams.zipWithIndex.map { case (targetParam, idx) =>
@@ -428,7 +448,7 @@ private object IntoMacros {
             fail(s"Not enough source fields for target field ${targetParam.name}")
           }
         }
-        
+
         val targetCompanion = bType.typeSymbol.companion
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
@@ -439,21 +459,23 @@ private object IntoMacros {
         """)
       }
     }
-    
+
     // Try coproduct type conversion (sealed trait)
     val isSourceSealed = aType.typeSymbol.isClass && aType.typeSymbol.asClass.isSealed
     val isTargetSealed = bType.typeSymbol.isClass && bType.typeSymbol.asClass.isSealed
-    
+
     if (isSourceSealed && isTargetSealed) {
-      val sourceCases = aType.typeSymbol.asClass.knownDirectSubclasses.toList.map(_.asType.toType.asSeenFrom(aType, aType.typeSymbol))
-      val targetCases = bType.typeSymbol.asClass.knownDirectSubclasses.toList.map(_.asType.toType.asSeenFrom(bType, bType.typeSymbol))
-      
+      val sourceCases =
+        aType.typeSymbol.asClass.knownDirectSubclasses.toList.map(_.asType.toType.asSeenFrom(aType, aType.typeSymbol))
+      val targetCases =
+        bType.typeSymbol.asClass.knownDirectSubclasses.toList.map(_.asType.toType.asSeenFrom(bType, bType.typeSymbol))
+
       val cases = sourceCases.flatMap { sourceCase =>
         val sourceName = sourceCase.typeSymbol.name.toString.stripSuffix("$")
         targetCases.find(tc => tc.typeSymbol.name.toString.stripSuffix("$") == sourceName).map { targetCase =>
           val isSourceModule = sourceCase.typeSymbol.isModuleClass
           val isTargetModule = targetCase.typeSymbol.isModuleClass
-          
+
           if (isSourceModule && isTargetModule) {
             cq"_: $sourceCase => Right(${targetCase.termSymbol})"
           } else {
@@ -465,7 +487,7 @@ private object IntoMacros {
           }
         }
       }
-      
+
       if (cases.nonEmpty) {
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
@@ -482,50 +504,52 @@ private object IntoMacros {
         """)
       }
     }
-    
+
     // Try structural type conversion (Scala 2 - enhanced support)
     // Note: Scala 2 structural types use RefinedType and require runtime reflection
-    val isSourceCaseClass = aType.typeSymbol.isClass && aType.typeSymbol.asClass.isCaseClass
+    val isSourceCaseClass  = aType.typeSymbol.isClass && aType.typeSymbol.asClass.isCaseClass
     val isSourceStructural = isStructuralType(c)(aType)
     val isTargetStructural = isStructuralType(c)(bType)
-    val isTargetCaseClass = bType.typeSymbol.isClass && bType.typeSymbol.asClass.isCaseClass
-    
+    val isTargetCaseClass  = bType.typeSymbol.isClass && bType.typeSymbol.asClass.isCaseClass
+
     // Case 1: Case class → Structural type
     if (isSourceCaseClass && isTargetStructural) {
       return generateCaseClassToStructural(c)(aType, bType).asInstanceOf[c.Expr[Into[A, B]]]
     }
-    
+
     // Case 2: Structural type → Case class
     if (isSourceStructural && isTargetCaseClass) {
       return generateStructuralToCaseClass(c)(aType, bType).asInstanceOf[c.Expr[Into[A, B]]]
     }
-    
+
     fail(s"Cannot derive Into[$aType, $bType]. No conversion available between these types.")
   }
-  
+
   /**
    * Generate conversion from case class to structural type with validation.
    */
   private def generateCaseClassToStructural(c: blackbox.Context)(aType: c.Type, bType: c.Type): c.Expr[Into[_, _]] = {
     import c.universe._
-    
+
     // Extract required methods from structural type
     val requiredMethods = extractStructuralMethods(c)(bType)
-    
+
     // Extract source fields from case class
     val sourceFields = extractCaseClassFields(c)(aType)
-    
+
     // Validate all required methods exist
     val missingMethods = requiredMethods.filter { methodName =>
       !sourceFields.exists(_.name.toString == methodName)
     }
-    
+
     if (missingMethods.nonEmpty) {
-      c.abort(c.enclosingPosition, 
+      c.abort(
+        c.enclosingPosition,
         s"Cannot convert ${aType} to structural type ${bType}. " +
-        s"Missing required methods: ${missingMethods.mkString(", ")}")
+          s"Missing required methods: ${missingMethods.mkString(", ")}"
+      )
     }
-    
+
     // Generate code with validation
     c.Expr[Into[_, _]](q"""
       new _root_.zio.blocks.schema.Into[$aType, $bType] {
@@ -550,38 +574,40 @@ private object IntoMacros {
       }
     """)
   }
-  
+
   /**
    * Generate conversion from structural type to case class.
    */
   private def generateStructuralToCaseClass(c: blackbox.Context)(aType: c.Type, bType: c.Type): c.Expr[Into[_, _]] = {
     import c.universe._
-    
+
     // Extract target case class fields
     val targetFields = extractCaseClassFields(c)(bType)
-    
+
     // Extract available methods from structural type
     val availableMethods = extractStructuralMethods(c)(aType)
-    
+
     // Validate all target fields have corresponding methods
     val missingFields = targetFields.filter { field =>
       !availableMethods.contains(field.name.toString)
     }
-    
+
     if (missingFields.nonEmpty) {
       val missingNames = missingFields.map(_.name.toString).mkString(", ")
-      c.abort(c.enclosingPosition,
+      c.abort(
+        c.enclosingPosition,
         s"Cannot convert structural type ${aType} to ${bType}. " +
-        s"Missing required methods: $missingNames")
+          s"Missing required methods: $missingNames"
+      )
     }
-    
+
     // Get companion object for case class construction
     val targetClass = bType.typeSymbol.asClass
-    val companion = targetClass.companion
-    
+    val companion   = targetClass.companion
+
     // Generate code using runtime reflection to extract values and construct case class
     val fieldExtractions = targetFields.zipWithIndex.map { case (field, idx) =>
-      val fieldName = field.name.toString
+      val fieldName        = field.name.toString
       val fieldNameLiteral = Literal(Constant(fieldName))
       q"""
         val ${TermName(s"field$idx")} = try {
@@ -595,9 +621,9 @@ private object IntoMacros {
         }
       """
     }
-    
+
     val fieldValues = targetFields.indices.map(idx => q"${TermName(s"field$idx")}")
-    
+
     c.Expr[Into[_, _]](q"""
       new _root_.zio.blocks.schema.Into[$aType, $bType] {
         def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
@@ -616,14 +642,14 @@ private object IntoMacros {
       }
     """)
   }
-  
+
   /**
    * Extract method names from a structural type (refinement type).
    */
   private def extractStructuralMethods(c: blackbox.Context)(tpe: c.Type): List[String] = {
     import c.universe._
-    
-    def extractFromType(acc: List[String], current: Type): List[String] = {
+
+    def extractFromType(acc: List[String], current: Type): List[String] =
       current match {
         case RefinedType(parents, decls) =>
           val methodNames = decls.collect {
@@ -637,49 +663,47 @@ private object IntoMacros {
         case _ =>
           acc
       }
-    }
-    
+
     extractFromType(Nil, tpe).distinct
   }
-  
+
   /**
    * Extract field information from a case class.
    */
   private def extractCaseClassFields(c: blackbox.Context)(tpe: c.Type): List[c.universe.MethodSymbol] = {
     import c.universe._
-    
+
     val classSymbol = tpe.typeSymbol.asClass
     if (!classSymbol.isCaseClass) {
       return Nil
     }
-    
+
     val constructor = classSymbol.primaryConstructor.asMethod
     constructor.paramLists.flatten.map { param =>
       // Get the accessor method for this field
       val accessorName = param.name
-      val accessor = tpe.member(accessorName).asMethod
+      val accessor     = tpe.member(accessorName).asMethod
       accessor
     }
   }
-  
+
   /**
    * Check if a type is a structural type (refinement type) in Scala 2.
    * Structural types in Scala 2 are identified by refinement types.
    */
   private def isStructuralType(c: blackbox.Context)(tpe: c.Type): Boolean = {
     import c.universe._
-    
+
     // Check if type is a refinement type (structural type)
     // In Scala 2, structural types are represented as refinement types
     def isRefinementType(t: Type): Boolean = t match {
       case RefinedType(_, _) => true
-      case _ => false
+      case _                 => false
     }
-    
+
     // Check if type has Dynamic marker (some structural types use this)
     val hasDynamic = tpe <:< typeOf[scala.Dynamic]
-    
+
     isRefinementType(tpe) || hasDynamic
   }
 }
-
