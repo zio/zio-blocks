@@ -109,10 +109,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // For each target field, find matching structural member (by name or unique type)
     val fieldMappings = targetInfo.fields.map { targetField =>
       val matchingMember = structuralMembers.find { case (name, memberTpe) =>
-        name == targetField.name && memberTpe =:= targetField.tpe
+        name == targetField.name && (memberTpe =:= targetField.tpe || isCoercible(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined)
       }.orElse {
         val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
-          memberTpe =:= targetField.tpe
+          memberTpe =:= targetField.tpe || isCoercible(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined
         }
         if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
       }
@@ -704,8 +704,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
-      if (!(field.tpe =:= targetTpe) && !isCoercible(field.tpe, targetTpe)) {
-        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx")
+      if (!(field.tpe =:= targetTpe) && !isCoercible(field.tpe, targetTpe) && findImplicitInto(field.tpe, targetTpe).isEmpty) {
+        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${field.tpe.show}, ${targetTpe.show}] found.")
       }
     }
 
@@ -750,8 +750,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
-      if (!(sourceTpe =:= field.tpe) && !isCoercible(sourceTpe, field.tpe)) {
-        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx")
+      if (!(sourceTpe =:= field.tpe) && !isCoercible(sourceTpe, field.tpe) && findImplicitInto(sourceTpe, field.tpe).isEmpty) {
+        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${field.tpe.show}] found.")
       }
     }
 
@@ -792,8 +792,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
-      if (!(sourceTpe =:= targetTpe) && !isCoercible(sourceTpe, targetTpe)) {
-        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx")
+      if (!(sourceTpe =:= targetTpe) && !isCoercible(sourceTpe, targetTpe) && findImplicitInto(sourceTpe, targetTpe).isEmpty) {
+        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${targetTpe.show}] found.")
       }
     }
 
