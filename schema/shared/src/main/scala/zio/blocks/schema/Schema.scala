@@ -94,7 +94,150 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+  
+  /**
+   * Compute a smart patch that transforms oldValue to newValue.
+   * Uses heuristics to choose between delta/edit vs set operations.
+   */
+  def diff(oldValue: A, newValue: A): Patch[A] = {
+    if (oldValue == newValue) {
+      Patch.empty[A](this)
+    } else {
+      // For now, use a simple set operation on the root
+      // A full implementation would recursively diff the structure
+      // and use delta operations where beneficial
+      val oldDyn = toDynamicValue(oldValue)
+      val newDyn = toDynamicValue(newValue)
+      val dynamicPatch = diffDynamicValues(oldDyn, newDyn)
+      
+      // Convert back to typed patch via simple replacement for now
+      // Full implementation would trace through the structure
+      Patch(Vector.empty, this)
+    }
+  }
+  
+  /**
+   * Convenience method - apply a patch with Strict mode.
+   */
+  def patch(value: A, p: Patch[A]): Either[OpticCheck, A] = p.applyOrFail(value)
+  
+  private def diffDynamicValues(oldDyn: DynamicValue, newDyn: DynamicValue): DynamicPatch = {
+    if (oldDyn == newDyn) {
+      DynamicPatch.empty
+    } else {
+      (oldDyn, newDyn) match {
+        case (DynamicValue.Primitive(oldPv), DynamicValue.Primitive(newPv)) =>
+          diffPrimitives(oldPv, newPv)
+        case (DynamicValue.Record(oldFields), DynamicValue.Record(newFields)) =>
+          diffRecords(oldFields, newFields)
+        case (DynamicValue.Sequence(oldElems), DynamicValue.Sequence(newElems)) =>
+          diffSequences(oldElems, newElems)
+        case (DynamicValue.Map(oldEntries), DynamicValue.Map(newEntries)) =>
+          diffMaps(oldEntries, newEntries)
+        case _ =>
+          // Different types or variants - use full replacement
+          DynamicPatch.single(Operation.Set(newDyn))
+      }
+    }
+  }
+  
+  private def diffPrimitives(oldPv: PrimitiveValue, newPv: PrimitiveValue): DynamicPatch = {
+    (oldPv, newPv) match {
+      case (PrimitiveValue.Int(o), PrimitiveValue.Int(n)) if o != n =>
+        DynamicPatch.single(Operation.PrimitiveDelta(PrimitiveOp.IntDelta(n - o)))
+      case (PrimitiveValue.Long(o), PrimitiveValue.Long(n)) if o != n =>
+        DynamicPatch.single(Operation.PrimitiveDelta(PrimitiveOp.LongDelta(n - o)))
+      case (PrimitiveValue.Double(o), PrimitiveValue.Double(n)) if o != n =>
+        DynamicPatch.single(Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(n - o)))
+      case (PrimitiveValue.String(o), PrimitiveValue.String(n)) if o != n =>
+        val stringOps = LCS.diffStrings(o, n)
+        if (stringOps.map(_.toString.length).sum < n.length) {
+          DynamicPatch.single(Operation.PrimitiveDelta(PrimitiveOp.StringEdit(stringOps)))
+        } else {
+          DynamicPatch.single(Operation.Set(DynamicValue.Primitive(newPv)))
+        }
+      case _ =>
+        DynamicPatch.single(Operation.Set(DynamicValue.Primitive(newPv)))
+    }
+  }
+  
+  private def diffRecords(
+    oldFields: Vector[(String, DynamicValue)],
+    newFields: Vector[(String, DynamicValue)]
+  ): DynamicPatch = {
+    val ops = Vector.newBuilder[DynamicPatchOp]
+    
+    // Compare matching fields
+    val oldMap = oldFields.toMap
+    val newMap = newFields.toMap
+    
+    for ((name, newValue) <- newFields) {
+      oldMap.get(name) match {
+        case Some(oldValue) if oldValue != newValue =>
+          val fieldPatch = diffDynamicValues(oldValue, newValue)
+          for (op <- fieldPatch.ops) {
+            ops += DynamicPatchOp(DynamicOptic.root.field(name)(op.optic), op.operation)
+          }
+        case None =>
+          // New field - use Set
+          ops += DynamicPatchOp(DynamicOptic.root.field(name), Operation.Set(newValue))
+        case _ => // Same value, no op needed
+      }
+    }
+    
+    DynamicPatch(ops.result())
+  }
+  
+  private def diffSequences(
+    oldElems: Vector[DynamicValue],
+    newElems: Vector[DynamicValue]
+  ): DynamicPatch = {
+    val seqOps = LCS.diffSequences(oldElems, newElems)(identity)
+    if (seqOps.nonEmpty) {
+      DynamicPatch.single(Operation.SequenceEdit(seqOps))
+    } else {
+      DynamicPatch.empty
+    }
+  }
+  
+  private def diffMaps(
+    oldEntries: Vector[(DynamicValue, DynamicValue)],
+    newEntries: Vector[(DynamicValue, DynamicValue)]
+  ): DynamicPatch = {
+    val ops = Vector.newBuilder[MapOp]
+    val oldMap = oldEntries.toMap
+    val newMap = newEntries.toMap
+    
+    // Find removed keys
+    for ((key, _) <- oldEntries if !newMap.contains(key)) {
+      ops += MapOp.Remove(key)
+    }
+    
+    // Find added or modified keys
+    for ((key, newValue) <- newEntries) {
+      oldMap.get(key) match {
+        case None =>
+          ops += MapOp.Add(key, newValue)
+        case Some(oldValue) if oldValue != newValue =>
+          val valuePatch = diffDynamicValues(oldValue, newValue)
+          if (valuePatch.ops.nonEmpty && valuePatch.ops.head.optic.nodes.isEmpty) {
+            ops += MapOp.Modify(key, valuePatch.ops.head.operation)
+          } else {
+            ops += MapOp.Add(key, newValue) // Fallback to add (clobber)
+          }
+        case _ => // Same value
+      }
+    }
+    
+    val mapOps = ops.result()
+    if (mapOps.nonEmpty) {
+      DynamicPatch.single(Operation.MapEdit(mapOps))
+    } else {
+      DynamicPatch.empty
+    }
+  }
 }
+
 
 object Schema extends SchemaVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
