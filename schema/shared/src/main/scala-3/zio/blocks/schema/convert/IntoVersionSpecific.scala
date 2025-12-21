@@ -343,17 +343,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // Match fields between source and target case classes
     val fieldMappings = matchFields(sourceInfo, targetInfo, sourceSubtype, targetSubtype)
 
-    // Build constructor arguments
-    val args = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetFieldInfo) =>
+    // Build field conversions that return Either[SchemaError, FieldType]
+    val fieldEithers = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetFieldInfo) =>
       mapping.sourceField match {
         case Some(sourceField) =>
           val sourceValue = Select(sourceRef, sourceField.getter)
           val sourceTpe   = sourceField.tpe
           val targetTpe   = targetFieldInfo.tpe
 
+          // Check if target is an opaque type with validation
+          if (requiresOpaqueConversion(sourceTpe, targetTpe)) {
+            convertToOpaqueTypeEither(sourceValue, sourceTpe, targetTpe, sourceField.name).asTerm
+          }
           // If types differ, try to find an implicit Into instance
-          if (!(sourceTpe =:= targetTpe)) {
-            // Try to find implicit Into instance for nested conversions
+          else if (!(sourceTpe =:= targetTpe)) {
             findImplicitInto(sourceTpe, targetTpe) match {
               case Some(intoInstance) =>
                 sourceTpe.asType match {
@@ -362,10 +365,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                       case '[tt] =>
                         val typedInto = intoInstance.asExprOf[Into[st, tt]]
                         '{
-                          $typedInto.into(${ sourceValue.asExprOf[st] }) match {
-                            case Right(v)  => v
-                            case Left(err) => throw new RuntimeException(s"Coercion failed: $err")
-                          }
+                          $typedInto.into(${ sourceValue.asExprOf[st] }).asInstanceOf[Either[SchemaError, Any]]
                         }.asTerm
                     }
                 }
@@ -377,17 +377,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 )
             }
           } else {
-            sourceValue
+            // Types match exactly - wrap in Right
+            '{ Right(${ sourceValue.asExprOf[Any] }) }.asTerm
           }
         case None =>
-          // No source field - target must be Option[T], provide None
-          '{ None }.asTerm
+          // No source field - target must be Option[T], provide None wrapped in Right
+          '{ Right(None) }.asTerm
       }
     }
 
-    // Construct target case class and wrap in Right
-    val targetConstruction = targetInfo.construct(args)
-    '{ Right(${ targetConstruction.asExprOf[B] }) }.asTerm
+    // Build nested flatMap chain to sequence Either values - reuse the same logic as product-to-product
+    buildSequencedConstruction[B](
+      fieldEithers.zipWithIndex.map { case (term, idx) => (idx, term.asExprOf[Either[SchemaError, Any]]) },
+      targetInfo.asInstanceOf[ProductInfo[B]]
+    ).asTerm
   }
 
   // === Product to Product ===
