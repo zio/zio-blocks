@@ -679,6 +679,126 @@ object IntoSpec extends ZIOSpecDefault {
           resultRight.swap.exists(err => err.toString.contains("overflow") || err.toString.contains("out of range"))
         )
       }
+    ),
+    suite("Implicit Into Discovery in All Derivation Paths")(
+      test("Case Class to Tuple - uses implicit Into for field conversion") {
+        case class Source(id: Int, name: String)
+        case class Target(id: Long, name: String)
+
+        // Provide implicit Into for custom conversion
+        implicit val customIntToLong: Into[Int, Long] = (i: Int) => Right(i.toLong * 2)
+
+        val source = Source(21, "test")
+        val result = Into.derived[Source, (Long, String)].into(source)
+
+        // Should use the custom Into instance that doubles the value
+        assert(result)(isRight(equalTo((42L, "test"))))
+      },
+      test("Tuple to Case Class - uses implicit Into for field conversion") {
+        case class Target(value: Long, label: String)
+
+        // Provide implicit Into for custom conversion
+        implicit val customIntToLong: Into[Int, Long] = (i: Int) => Right(i.toLong * 3)
+
+        val source = (10, "label")
+        val result = Into.derived[(Int, String), Target].into(source)
+
+        // Should use the custom Into instance that triples the value
+        assert(result)(isRight(equalTo(Target(30L, "label"))))
+      },
+      test("Tuple to Tuple - uses implicit Into for element conversion") {
+        // Provide implicit Into for custom conversion
+        implicit val customIntToLong: Into[Int, Long] = (i: Int) => Right(i.toLong + 100)
+
+        val source = (5, "data")
+        val result = Into.derived[(Int, String), (Long, String)].into(source)
+
+        // Should use the custom Into instance that adds 100
+        assert(result)(isRight(equalTo((105L, "data"))))
+      },
+      test("Case Class to Tuple - fails with overflow using standard Into") {
+        case class Source(value: Long, label: String)
+
+        val source = Source(Long.MaxValue, "test")
+        val result = Into.derived[Source, (Int, String)].into(source)
+
+        // Should fail because Long.MaxValue overflows Int
+        assertTrue(result.isLeft)
+      },
+      test("Tuple to Case Class - fails with overflow using standard Into") {
+        case class Target(value: Int, label: String)
+
+        val source = (Long.MaxValue, "test")
+        val result = Into.derived[(Long, String), Target].into(source)
+
+        // Should fail because Long.MaxValue overflows Int
+        assertTrue(result.isLeft)
+      },
+      test("Tuple to Tuple - fails with overflow using standard Into") {
+        val source = (Long.MaxValue, "test")
+        val result = Into.derived[(Long, String), (Int, String)].into(source)
+
+        // Should fail because Long.MaxValue overflows Int
+        assertTrue(result.isLeft)
+      },
+      test("Case Class to Tuple - with nested custom Into") {
+        case class Inner(x: Int)
+        case class Source(inner: Inner, name: String)
+
+        implicit val innerToLong: Into[Inner, Long] = (i: Inner) => Right(i.x.toLong * 10)
+
+        val source = Source(Inner(5), "nested")
+        val result = Into.derived[Source, (Long, String)].into(source)
+
+        // Should use the custom Into instance for Inner -> Long
+        assert(result)(isRight(equalTo((50L, "nested"))))
+      },
+      test("Tuple to Case Class - with nested custom Into") {
+        case class Inner(x: Int)
+        case class Target(inner: Long, name: String)
+
+        implicit val innerToLong: Into[Inner, Long] = (i: Inner) => Right(i.x.toLong * 7)
+
+        val source = (Inner(3), "test")
+        val result = Into.derived[(Inner, String), Target].into(source)
+
+        // Should use the custom Into instance for Inner -> Long
+        assert(result)(isRight(equalTo(Target(21L, "test"))))
+      },
+      test("Multiple fields using different implicit Into instances") {
+        case class CustomType1(value: Int)
+        case class CustomType2(value: Int)
+        case class Source(a: CustomType1, b: CustomType2, c: String)
+
+        implicit val custom1ToLong: Into[CustomType1, Long] = (c: CustomType1) => Right(c.value.toLong * 2)
+
+        implicit val custom2ToLong: Into[CustomType2, Long] = (c: CustomType2) => Right(c.value.toLong * 3)
+
+        val source = Source(CustomType1(5), CustomType2(7), "test")
+        val result = Into.derived[Source, (Long, Long, String)].into(source)
+
+        // Should use different custom Into instances for each field
+        assert(result)(isRight(equalTo((10L, 21L, "test"))))
+      },
+      test("Implicit Into with validation errors in tuple conversion") {
+        case class ValidatedInt(value: Int)
+        case class Source(validated: ValidatedInt, name: String)
+
+        implicit val validatedToInt: Into[ValidatedInt, Int] = (v: ValidatedInt) => if (v.value > 0) Right(v.value)
+        else Left(zio.blocks.schema.SchemaError.conversionFailed(Nil, s"Value must be positive: ${v.value}"))
+
+        val invalidSource = Source(ValidatedInt(-5), "fail")
+        val validSource = Source(ValidatedInt(10), "success")
+
+        val invalidResult = Into.derived[Source, (Int, String)].into(invalidSource)
+        val validResult = Into.derived[Source, (Int, String)].into(validSource)
+
+        assertTrue(
+          invalidResult.isLeft,
+          invalidResult.swap.exists(err => err.toString.contains("must be positive")),
+          validResult == Right((10, "success"))
+        )
+      }
     )
   )
 }
