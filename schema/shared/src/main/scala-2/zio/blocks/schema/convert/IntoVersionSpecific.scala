@@ -724,6 +724,46 @@ private object IntoVersionSpecificImpl {
 
     // === Main entry point ===
 
+    // === ZIO Prelude Newtype Support (Scala 2) ===
+
+    /**
+     * Checks if a type is a ZIO Prelude Newtype or Subtype
+     * Works without requiring zio-prelude as a dependency
+     */
+    def isZIONewtype(tpe: Type): Boolean = {
+      val baseTypes = tpe.baseClasses.map(_.fullName)
+      baseTypes.exists(name =>
+        name.startsWith("zio.prelude.Newtype") ||
+        name.startsWith("zio.prelude.Subtype")
+      )
+    }
+
+    /**
+     * Gets the underlying type of a ZIO Prelude newtype
+     * For Newtype[A] or Subtype[A], returns A
+     */
+    def getNewtypeUnderlying(tpe: Type): Type = {
+      // Look through base types to find Newtype[A] or Subtype[A]
+      tpe.baseClasses.collectFirst {
+        case baseClass if baseClass.fullName.startsWith("zio.prelude.Newtype") ||
+                         baseClass.fullName.startsWith("zio.prelude.Subtype") =>
+          tpe.baseType(baseClass) match {
+            case TypeRef(_, _, List(underlying)) => underlying
+            case _ => tpe
+          }
+      }.getOrElse(tpe)
+    }
+
+    /**
+     * Checks if conversion requires ZIO Prelude newtype handling
+     */
+    def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean = {
+      isZIONewtype(targetTpe) && {
+        val underlying = getNewtypeUnderlying(targetTpe)
+        sourceTpe =:= underlying
+      }
+    }
+
     val aIsProduct = isProductType(aTpe)
     val bIsProduct = isProductType(bTpe)
     val aIsTuple = isTupleType(aTpe)
