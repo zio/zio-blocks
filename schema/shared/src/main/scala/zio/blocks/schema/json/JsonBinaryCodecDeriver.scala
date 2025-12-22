@@ -731,6 +731,57 @@ class JsonBinaryCodecDeriver private[json] (
                     def encodeValue(x: A, out: JsonWriter): Unit =
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
                   }
+                case DiscriminatorKind.None =>
+                  def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
+                    val cases = variant.cases
+                    val len   = cases.length
+                    val infos = new Array[CaseInfo](len)
+                    var idx   = 0
+                    while (idx < len) {
+                      val case_       = cases(idx)
+                      val caseReflect = case_.value
+                      infos(idx) = if (caseReflect.isVariant) {
+                        val discr = caseReflect.asVariant.get.variantBinding
+                          .asInstanceOf[BindingInstance[TC, ?, ?]]
+                          .binding
+                          .asInstanceOf[Binding.Variant[A]]
+                          .discriminator
+                        new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
+                      } else {
+                        val caseLeafInfo = new CaseLeafInfo("", deriveCodec(caseReflect), null)
+                        allCaseLeafInfos.addOne(caseLeafInfo)
+                        caseLeafInfo
+                      }
+                      idx += 1
+                    }
+                    infos
+                  }
+
+                  new JsonBinaryCodec[A]() {
+                    private[this] val root          = new CaseNodeInfo(discr, getInfos(variant))
+                    private[this] val caseLeafInfos = allCaseLeafInfos.result()
+
+                    def decodeValue(in: JsonReader, default: A): A = {
+                      var idx = 0
+                      while (idx < caseLeafInfos.length) {
+                        val caseInfo = caseLeafInfos(idx)
+                        in.setMark()
+                        val codec = caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]]
+                        try {
+                          val x = codec.decodeValue(in, codec.nullValue)
+                          in.resetMark()
+                          return x
+                        } catch {
+                          case error if NonFatal(error) => in.rollbackToMark()
+                        }
+                        idx += 1
+                      }
+                      in.decodeError("expected a variant value")
+                    }
+
+                    def encodeValue(x: A, out: JsonWriter): Unit =
+                      root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
+                  }
                 case _ =>
                   def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
                     val cases = variant.cases

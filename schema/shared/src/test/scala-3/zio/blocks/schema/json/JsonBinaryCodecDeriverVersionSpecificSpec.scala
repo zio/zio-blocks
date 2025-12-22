@@ -56,7 +56,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
           """{"::":{"val":"VVV","nxt":{"::":{"nxt":{"End":{}}}}}}"""
         )(schema2)
       },
-      test("union type") {
+      test("union type with key discriminator") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
 
         implicit val schema: Schema[Value] = Schema.derived
@@ -66,6 +66,42 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
         roundTrip[Value]("VVV", """{"String":"VVV"}""") &&
         roundTrip[Value]((1, true), """{"Tuple2":[1,true]}""") &&
         roundTrip[Value](List(1, 2, 3), """{"collection.immutable.List":[1,2,3]}""")
+      },
+      test("union type without discriminator") {
+        type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
+
+        val codec = Schema.derived[Value].derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+        roundTrip(1, "1", codec) &&
+        roundTrip(true, "true", codec) &&
+        roundTrip("VVV", """"VVV"""", codec) &&
+        roundTrip((1, true), "[1,true]", codec) &&
+        roundTrip(List(1, 2, 3), "[1,2,3]", codec) &&
+        decodeError("[1,true,2]", "expected a variant value at: .", codec) &&
+        decodeError("[1.0,2.0]", "expected a variant value at: .", codec) &&
+        decodeError("1.001", "expected a variant value at: .", codec) &&
+        decodeError("01", "expected a variant value at: .", codec) &&
+        decodeError("1e+1", "expected a variant value at: .", codec)
+      },
+      test("nested variants without discriminator") {
+        type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
+
+        sealed trait Base
+
+        case class Case1(value: Value) extends Base
+
+        case class Case2(value: Map[Int, Long]) extends Base
+
+        val codec = Schema.derived[Base].derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+        roundTrip(Case1(1), """{"value":1}""", codec) &&
+        roundTrip(Case1(true), """{"value":true}""", codec) &&
+        roundTrip(Case1("VVV"), """{"value":"VVV"}""", codec) &&
+        roundTrip(Case1((1, true)), """{"value":[1,true]}""", codec) &&
+        roundTrip(Case1(List(1, 2, 3)), """{"value":[1,2,3]}""", codec) &&
+        roundTrip(Case2(Map(1 -> 2L)), """{"value":{"1":2}}""", codec) &&
+        roundTrip(Case2(Map.empty), """{}""", codec) &&
+        decodeError("""{"value":[1,2.0,3]}""", "expected a variant value at: .", codec) &&
+        decodeError("""{"value":{"VVV":1}}""", "expected a variant value at: .", codec) &&
+        decodeError("""{"value":}""", "expected a variant value at: .", codec)
       }
     ),
     suite("sequences")(

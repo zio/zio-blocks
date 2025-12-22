@@ -36,12 +36,13 @@ final class JsonReader private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
   private[this] var head: Int = 0,
   private[this] var tail: Int = 0,
-  private[this] var mark: Int = -1,
   private[this] var charBuf: Array[Char] = new Array[Char](4096),
   private[this] var bbuf: ByteBuffer = null,
   private[this] var in: InputStream = null,
   private[this] var totalRead: Long = 0,
-  private[this] var config: ReaderConfig = null
+  private[this] var config: ReaderConfig = null,
+  private[this] var markNum: Int = 0,
+  private[this] var marks: Array[Int] = Array.empty
 ) {
   private[this] var magnitude: Array[Byte] = null
   private[this] var zoneIdKey: Key         = null
@@ -132,9 +133,16 @@ final class JsonReader private[json] (
   /**
    * Sets the current read head position as a mark. Should be followed by
    * `resetMark()` or `rollbackToMark()` calls. Pair of `setMark()` and
-   * `resetMark()` or `setMark()` and `rollbackToMark()` calls cannot be nested.
+   * `resetMark()` or `setMark()` and `rollbackToMark()` calls can be nested.
    */
-  def setMark(): Unit = mark = head
+  def setMark(): Unit = setMark(head)
+
+  private[this] def setMark(pos: Int): Unit = {
+    val i = markNum
+    if (i == marks.length) marks = java.util.Arrays.copyOf(marks, (i | 1) << 1)
+    marks(i) = pos
+    markNum = i + 1
+  }
 
   /**
    * Skips tokens with in the current JSON object until a key with the given
@@ -162,9 +170,11 @@ final class JsonReader private[json] (
    *   in case of calling without preceding call of 'setMark()'
    */
   def rollbackToMark(): Unit = {
-    if (mark < 0) missingSetMarkOperation()
-    head = mark
-    mark = -1
+    var i = markNum
+    if (i == 0) missingSetMarkOperation()
+    i -= 1
+    head = marks(i)
+    markNum = i
   }
 
   /**
@@ -174,8 +184,9 @@ final class JsonReader private[json] (
    *   in case of calling without preceding call of 'setMark()'
    */
   def resetMark(): Unit = {
-    if (mark < 0) missingSetMarkOperation()
-    mark = -1
+    val i = markNum
+    if (i == 0) missingSetMarkOperation()
+    markNum = i - 1
   }
 
   /**
@@ -1626,7 +1637,7 @@ final class JsonReader private[json] (
       head = from
       tail = to
       totalRead = 0
-      mark = -1
+      markNum = 0
       val x = codec.decodeValue(this, codec.nullValue)
       if (head != to && config.checkForEndOfInput) endOfInputOrError()
       x
@@ -1662,7 +1673,7 @@ final class JsonReader private[json] (
       head = 0
       tail = 0
       totalRead = 0
-      mark = -1
+      markNum = 0
       if (buf.length < config.preferredBufSize) reallocateBufToPreferredSize()
       val x = codec.decodeValue(this, codec.nullValue)
       if (config.checkForEndOfInput) endOfInputOrError()
@@ -1703,7 +1714,7 @@ final class JsonReader private[json] (
         head = offset + bbuf.position()
         tail = to
         totalRead = 0
-        mark = -1
+        markNum = 0
         val x = codec.decodeValue(this, codec.nullValue)
         if (head != to && config.checkForEndOfInput) endOfInputOrError()
         x
@@ -1720,7 +1731,7 @@ final class JsonReader private[json] (
         head = 0
         tail = 0
         totalRead = 0
-        mark = -1
+        markNum = 0
         if (buf.length < config.preferredBufSize) reallocateBufToPreferredSize()
         val x = codec.decodeValue(this, codec.nullValue)
         if (config.checkForEndOfInput) endOfInputOrError()
@@ -2048,37 +2059,32 @@ final class JsonReader private[json] (
     } else parseOffsetSecondWithDoubleQuotes(loadMoreOrError(pos))
 
   private[this] def parseZoneId(): ZoneId = {
-    var pos     = head
-    var buf     = this.buf
-    var from    = pos
-    val oldMark = mark
-    val newMark =
-      if (oldMark < 0) from
-      else oldMark
-    mark = newMark
-    var hash    = 0
-    var b: Byte = 0
-    while ({
-      if (pos >= tail) {
-        pos = loadMoreOrError(pos)
-        buf = this.buf
+    var pos = head
+    var buf = this.buf
+    setMark(pos)
+    try {
+      var hash    = 0
+      var b: Byte = 0
+      while ({
+        if (pos >= tail) {
+          pos = loadMoreOrError(pos)
+          buf = this.buf
+        }
+        b = buf(pos)
+        pos += 1
+        b != '"'
+      }) hash = (hash << 5) - hash + b
+      var k = zoneIdKey
+      if (k eq null) {
+        k = new Key
+        zoneIdKey = k
       }
-      b = buf(pos)
-      pos += 1
-      b != '"'
-    }) hash = (hash << 5) - hash + b
-    if (mark == 0) from -= newMark
-    if (mark > oldMark) mark = oldMark
-    var k = zoneIdKey
-    if (k eq null) {
-      k = new Key
-      zoneIdKey = k
-    }
-    k.set(hash, buf, from, pos - 1)
-    var zoneId = zoneIds.get(k)
-    if (zoneId eq null) zoneId = toZoneId(k, pos)
-    head = pos
-    zoneId
+      k.set(hash, buf, marks(markNum - 1), pos - 1)
+      var zoneId = zoneIds.get(k)
+      if (zoneId eq null) zoneId = toZoneId(k)
+      head = pos
+      zoneId
+    } finally resetMark()
   }
 
   private[this] def appendChar(ch: Char, i: Int): Int = {
@@ -2339,118 +2345,114 @@ final class JsonReader private[json] (
       isNeg = true
     }
     if (b < '0' || b > '9') numberError()
-    var pos     = head
-    var buf     = this.buf
-    val from    = pos - 1
-    val oldMark = mark
-    val newMark =
-      if (oldMark < 0) from
-      else oldMark
-    mark = newMark
-    var m10    = (b - '0').toLong
-    var e10    = 0
-    var digits = 1
-    if (isToken && m10 == 0) {
-      if (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
+    var pos = head
+    var buf = this.buf
+    setMark(pos - 1)
+    try {
+      var m10    = (b - '0').toLong
+      var e10    = 0
+      var digits = 1
+      if (isToken && m10 == 0) {
+        if (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) leadingZeroError()
+      } else {
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) {
+          if (m10 < 922337203685477580L) {
+            m10 = m10 * 10 + (b - '0')
+            digits += 1
+          } else e10 += 1
+          pos += 1
         }
-      ) leadingZeroError()
-    } else {
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
-        }
-      ) {
-        if (m10 < 922337203685477580L) {
-          m10 = m10 * 10 + (b - '0')
-          digits += 1
-        } else e10 += 1
+      }
+      if (b == '.') {
         pos += 1
-      }
-    }
-    if (b == '.') {
-      pos += 1
-      e10 += digits
-      var noFracDigits = true
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
+        e10 += digits
+        var noFracDigits = true
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) {
+          if (m10 < 922337203685477580L) {
+            m10 = m10 * 10 + (b - '0')
+            digits += 1
+          }
+          noFracDigits = false
+          pos += 1
         }
-      ) {
-        if (m10 < 922337203685477580L) {
-          m10 = m10 * 10 + (b - '0')
-          digits += 1
-        }
-        noFracDigits = false
-        pos += 1
+        e10 -= digits
+        if (noFracDigits) numberError()
       }
-      e10 -= digits
-      if (noFracDigits) numberError()
-    }
-    if ((b | 0x20) == 'e') {
-      b = nextByte(pos + 1)
-      var s = 0
-      if (b == '-' || b == '+') {
-        s = '+' - b >> 31
-        b = nextByte(head)
-      }
-      if (b < '0' || b > '9') numberError()
-      var exp = b - '0'
-      pos = head
-      buf = this.buf
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
+      if ((b | 0x20) == 'e') {
+        b = nextByte(pos + 1)
+        var s = 0
+        if (b == '-' || b == '+') {
+          s = '+' - b >> 31
+          b = nextByte(head)
         }
-      ) {
-        if (exp < 214748364) exp = exp * 10 + (b - '0')
-        pos += 1
-      }
-      exp ^= s
-      exp -= s
-      e10 += exp
-    }
-    head = pos
-    var x: Double =
-      if (e10 == 0 && m10 < 922337203685477580L) m10.toDouble
-      else if (m10 < 4503599627370496L && e10 >= -22 && e10 <= 38 - digits) {
-        val pow10 = pow10Doubles
-        if (e10 < 0) m10 / pow10(-e10)
-        else if (e10 <= 22) m10 * pow10(e10)
-        else {
-          val slop = 16 - digits
-          (m10 * pow10(slop)) * pow10(e10 - slop)
+        if (b < '0' || b > '9') numberError()
+        var exp = b - '0'
+        pos = head
+        buf = this.buf
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) {
+          if (exp < 214748364) exp = exp * 10 + (b - '0')
+          pos += 1
         }
-      } else toDouble(m10, e10, from, newMark, pos)
-    if (isNeg) x = -x
-    if (mark > oldMark) mark = oldMark
-    x
+        exp ^= s
+        exp -= s
+        e10 += exp
+      }
+      head = pos
+      var x: Double =
+        if (e10 == 0 && m10 < 922337203685477580L) m10.toDouble
+        else if (m10 < 4503599627370496L && e10 >= -22 && e10 <= 38 - digits) {
+          val pow10 = pow10Doubles
+          if (e10 < 0) m10 / pow10(-e10)
+          else if (e10 <= 22) m10 * pow10(e10)
+          else {
+            val slop = 16 - digits
+            (m10 * pow10(slop)) * pow10(e10 - slop)
+          }
+        } else toDouble(m10, e10, pos)
+      if (isNeg) x = -x
+      x
+    } finally resetMark()
   }
 
   // Based on the 'Moderate Path' algorithm from the awesome library of Alexander Huszagh: https://github.com/Alexhuszagh/rust-lexical
   // Here is his inspiring post: https://www.reddit.com/r/rust/comments/a6j5j1/making_rust_float_parsing_fast_and_correct
-  private[this] def toDouble(m10: Long, e10: Int, from: Int, newMark: Int, pos: Int): Double =
+  private[this] def toDouble(m10: Long, e10: Int, pos: Int): Double =
     if (m10 == 0 || e10 < -343) 0.0
     else if (e10 >= 310) Double.PositiveInfinity
     else {
@@ -2484,13 +2486,12 @@ final class JsonReader private[json] (
         else if (e2 >= 972) 0x7ff0000000000000L
         else (e2 + 1075).toLong << 52 | m2 & 0xfffffffffffffL
       }
-      else toDouble(from, newMark, pos)
+      else toDouble(pos)
     }
 
-  private[this] def toDouble(from: Int, newMark: Int, pos: Int): Double = {
-    var offset = from
-    if (mark == 0) offset -= newMark
-    java.lang.Double.parseDouble(new String(buf, 0, offset, pos - offset))
+  private[this] def toDouble(pos: Int): Double = {
+    val from = marks(markNum - 1)
+    java.lang.Double.parseDouble(new String(buf, 0, from, pos - from))
   }
 
   private[this] def readFloat(isToken: Boolean): Float = {
@@ -2503,114 +2504,110 @@ final class JsonReader private[json] (
       isNeg = true
     }
     if (b < '0' || b > '9') numberError()
-    var pos     = head
-    var buf     = this.buf
-    val from    = pos - 1
-    val oldMark = mark
-    val newMark =
-      if (oldMark < 0) from
-      else oldMark
-    mark = newMark
-    var m10    = (b - '0').toLong
-    var e10    = 0
-    var digits = 1
-    if (isToken && m10 == 0) {
-      if (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
+    var pos = head
+    var buf = this.buf
+    setMark(pos - 1)
+    try {
+      var m10    = (b - '0').toLong
+      var e10    = 0
+      var digits = 1
+      if (isToken && m10 == 0) {
+        if (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) leadingZeroError()
+      } else {
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) {
+          if (m10 < 922337203685477580L) {
+            m10 = m10 * 10 + (b - '0')
+            digits += 1
+          } else e10 += 1
+          pos += 1
         }
-      ) leadingZeroError()
-    } else {
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
-        }
-      ) {
-        if (m10 < 922337203685477580L) {
-          m10 = m10 * 10 + (b - '0')
-          digits += 1
-        } else e10 += 1
+      }
+      if (b == '.') {
         pos += 1
-      }
-    }
-    if (b == '.') {
-      pos += 1
-      e10 += digits
-      var noFracDigits = true
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
+        e10 += digits
+        var noFracDigits = true
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) {
+          if (m10 < 922337203685477580L) {
+            m10 = m10 * 10 + (b - '0')
+            digits += 1
+          }
+          noFracDigits = false
+          pos += 1
         }
-      ) {
-        if (m10 < 922337203685477580L) {
-          m10 = m10 * 10 + (b - '0')
-          digits += 1
+        e10 -= digits
+        if (noFracDigits) numberError()
+      }
+      if ((b | 0x20) == 'e') {
+        b = nextByte(pos + 1)
+        var s = 0
+        if (b == '-' || b == '+') {
+          s = '+' - b >> 31
+          b = nextByte(head)
         }
-        noFracDigits = false
-        pos += 1
-      }
-      e10 -= digits
-      if (noFracDigits) numberError()
-    }
-    if ((b | 0x20) == 'e') {
-      b = nextByte(pos + 1)
-      var s = 0
-      if (b == '-' || b == '+') {
-        s = '+' - b >> 31
-        b = nextByte(head)
-      }
-      if (b < '0' || b > '9') numberError()
-      var exp = b - '0'
-      pos = head
-      buf = this.buf
-      while (
-        (pos < tail || {
-          pos = loadMore(pos)
-          buf = this.buf
-          pos < tail
-        }) && {
-          b = buf(pos)
-          b >= '0' && b <= '9'
+        if (b < '0' || b > '9') numberError()
+        var exp = b - '0'
+        pos = head
+        buf = this.buf
+        while (
+          (pos < tail || {
+            pos = loadMore(pos)
+            buf = this.buf
+            pos < tail
+          }) && {
+            b = buf(pos)
+            b >= '0' && b <= '9'
+          }
+        ) {
+          if (exp < 214748364) exp = exp * 10 + (b - '0')
+          pos += 1
         }
-      ) {
-        if (exp < 214748364) exp = exp * 10 + (b - '0')
-        pos += 1
+        exp ^= s
+        exp -= s
+        e10 += exp
       }
-      exp ^= s
-      exp -= s
-      e10 += exp
-    }
-    head = pos
-    var x: Float =
-      if (e10 == 0 && m10 < 922337203685477580L) m10.toFloat
-      else if (m10 < 4294967296L && e10 >= digits - 23 && e10 <= 19 - digits) {
-        val pow10 = pow10Doubles
-        (if (e10 < 0) m10 / pow10(-e10)
-         else m10 * pow10(e10)).toFloat
-      } else toFloat(m10, e10, from, newMark, pos)
-    if (isNeg) x = -x
-    if (mark > oldMark) mark = oldMark
-    x
+      head = pos
+      var x: Float =
+        if (e10 == 0 && m10 < 922337203685477580L) m10.toFloat
+        else if (m10 < 4294967296L && e10 >= digits - 23 && e10 <= 19 - digits) {
+          val pow10 = pow10Doubles
+          (if (e10 < 0) m10 / pow10(-e10)
+           else m10 * pow10(e10)).toFloat
+        } else toFloat(m10, e10, pos)
+      if (isNeg) x = -x
+      x
+    } finally resetMark()
   }
 
   // Based on the 'Moderate Path' algorithm from the awesome library of Alexander Huszagh: https://github.com/Alexhuszagh/rust-lexical
   // Here is his inspiring post: https://www.reddit.com/r/rust/comments/a6j5j1/making_rust_float_parsing_fast_and_correct
-  private[this] def toFloat(m10: Long, e10: Int, from: Int, newMark: Int, pos: Int): Float =
+  private[this] def toFloat(m10: Long, e10: Int, pos: Int): Float =
     if (m10 == 0 || e10 < -64) 0.0f
     else if (e10 >= 39) Float.PositiveInfinity
     else {
@@ -2644,13 +2641,12 @@ final class JsonReader private[json] (
         else if (e2 >= 105) 0x7f800000
         else e2 + 150 << 23 | mf & 0x7fffff
       }
-      else toFloat(from, newMark, pos)
+      else toFloat(pos)
     }
 
-  private[this] def toFloat(from: Int, newMark: Int, pos: Int): Float = {
-    var offset = from
-    if (mark == 0) offset -= newMark
-    java.lang.Float.parseFloat(new String(buf, 0, offset, pos - offset))
+  private[this] def toFloat(pos: Int): Float = {
+    val from = marks(markNum - 1)
+    java.lang.Float.parseFloat(new String(buf, 0, from, pos - from))
   }
 
   private[this] def unsignedMultiplyHigh(x: Long, y: Long): Long =
@@ -2672,72 +2668,68 @@ final class JsonReader private[json] (
         ensureNotLeadingZero()
         BigInt(0)
       } else {
-        var pos     = head
-        var buf     = this.buf
-        var from    = pos - 1
-        val oldMark = mark
-        val newMark =
-          if (oldMark < 0) from
-          else oldMark
-        mark = newMark
-        var m, bs = 0L
-        while (
-          (pos + 7 < tail || {
-            pos = loadMore(pos)
-            buf = this.buf
-            pos + 7 < tail
-          }) && {
-            bs = ByteArrayAccess.getLong(
-              buf,
-              pos
-            ) // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
-            m = (bs + 0x4646464646464646L | bs - 0x3030303030303030L) & 0x8080808080808080L
-            m == 0
-          }
-        ) pos += 8
-        if (m == 0) {
+        var pos = head
+        var buf = this.buf
+        setMark(pos - 1)
+        try {
+          var m, bs = 0L
           while (
-            (pos < tail || {
+            (pos + 7 < tail || {
               pos = loadMore(pos)
               buf = this.buf
-              pos < tail
+              pos + 7 < tail
             }) && {
-              b = buf(pos)
-              b >= '0' && b <= '9'
+              bs = ByteArrayAccess.getLong(
+                buf,
+                pos
+              ) // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+              m = (bs + 0x4646464646464646L | bs - 0x3030303030303030L) & 0x8080808080808080L
+              m == 0
             }
-          ) pos += 1
-        } else {
-          val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
-          pos += offset
-          b = (bs >> (offset << 3)).toByte
-        }
-        head = pos
-        if (mark == 0) from -= newMark
-        if (mark > oldMark) mark = oldMark
-        val len = pos - from
-        if (len >= digitsLimit) digitsLimitError()
-        if ((b | 0x20) == 'e' || b == '.') numberError()
-        if (len < 19) {
-          var x = (buf(from) - '0').toLong
-          from += 1
-          while (from < pos) {
-            x = x * 10 + (buf(from) - '0')
-            from += 1
+          ) pos += 8
+          if (m == 0) {
+            while (
+              (pos < tail || {
+                pos = loadMore(pos)
+                buf = this.buf
+                pos < tail
+              }) && {
+                b = buf(pos)
+                b >= '0' && b <= '9'
+              }
+            ) pos += 1
+          } else {
+            val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
+            pos += offset
+            b = (bs >> (offset << 3)).toByte
           }
-          BigInt((x ^ s) - s)
-        } else if (len <= 36) toBigInt36(buf, from, pos, s)
-        else
-          new BigInt({
-            if (len <= 308) toBigInteger308(buf, from, pos, s)
-            else {
-              // Based on the great idea of Eric Obermühlner to use a tree of smaller BigDecimals for parsing huge numbers
-              // with O(n^1.5) complexity instead of O(n^2) when using the constructor for the decimal representation from JDK:
-              // https://github.com/eobermuhlner/big-math/commit/7a5419aac8b2adba2aa700ccf00197f97b2ad89f
-              val mid    = len >> 1
-              val midPos = pos - mid
-              toBigDecimal(buf, from, midPos, s, -mid).add(toBigDecimal(buf, midPos, pos, s, 0)).unscaledValue
+          head = pos
+          var from = marks(markNum - 1)
+          val len  = pos - from
+          if (len >= digitsLimit) digitsLimitError()
+          if ((b | 0x20) == 'e' || b == '.') numberError()
+          if (len < 19) {
+            var x = (buf(from) - '0').toLong
+            from += 1
+            while (from < pos) {
+              x = x * 10 + (buf(from) - '0')
+              from += 1
             }
-          })
+            BigInt((x ^ s) - s)
+          } else if (len <= 36) toBigInt36(buf, from, pos, s)
+          else
+            new BigInt({
+              if (len <= 308) toBigInteger308(buf, from, pos, s)
+              else {
+                // Based on the great idea of Eric Obermühlner to use a tree of smaller BigDecimals for parsing huge numbers
+                // with O(n^1.5) complexity instead of O(n^2) when using the constructor for the decimal representation from JDK:
+                // https://github.com/eobermuhlner/big-math/commit/7a5419aac8b2adba2aa700ccf00197f97b2ad89f
+                val mid    = len >> 1
+                val midPos = pos - mid
+                toBigDecimal(buf, from, midPos, s, -mid).add(toBigDecimal(buf, midPos, pos, s, 0)).unscaledValue
+              }
+            })
+        } finally resetMark()
       }
     }
   }
@@ -2760,169 +2752,166 @@ final class JsonReader private[json] (
         s = -1
       }
       if (b < '0' || b > '9') numberError()
-      var pos     = head
-      var buf     = this.buf
-      var from    = pos - 1
-      val oldMark = mark
-      val newMark =
-        if (oldMark < 0) from
-        else oldMark
-      mark = newMark
-      var digits = 1
-      if (isToken && b == '0') {
-        if (
-          (pos < tail || {
-            pos = loadMore(pos)
-            buf = this.buf
-            pos < tail
-          }) && {
-            b = buf(pos)
-            b >= '0' && b <= '9'
-          }
-        ) leadingZeroError()
-      } else {
-        digits -= pos
-        var m, bs = 0L
-        while (
-          (pos + 7 < tail || {
-            digits += pos
-            pos = loadMore(pos)
-            digits -= pos
-            buf = this.buf
-            pos + 7 < tail
-          }) && {
-            bs = ByteArrayAccess.getLong(
-              buf,
-              pos
-            ) // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
-            m = (bs + 0x4646464646464646L | bs - 0x3030303030303030L) & 0x8080808080808080L
-            m == 0
-          }
-        ) pos += 8
-        if (m == 0) {
-          while (
+      var pos = head
+      var buf = this.buf
+      setMark(pos - 1)
+      try {
+        var digits = 1
+        if (isToken && b == '0') {
+          if (
             (pos < tail || {
+              pos = loadMore(pos)
+              buf = this.buf
+              pos < tail
+            }) && {
+              b = buf(pos)
+              b >= '0' && b <= '9'
+            }
+          ) leadingZeroError()
+        } else {
+          digits -= pos
+          var m, bs = 0L
+          while (
+            (pos + 7 < tail || {
               digits += pos
               pos = loadMore(pos)
               digits -= pos
               buf = this.buf
-              pos < tail
+              pos + 7 < tail
             }) && {
-              b = buf(pos)
-              b >= '0' && b <= '9'
+              bs = ByteArrayAccess.getLong(
+                buf,
+                pos
+              ) // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+              m = (bs + 0x4646464646464646L | bs - 0x3030303030303030L) & 0x8080808080808080L
+              m == 0
             }
-          ) pos += 1
-        } else {
-          val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
-          pos += offset
-          b = (bs >> (offset << 3)).toByte
-        }
-        digits += pos
-      }
-      var fracLen, scale = 0
-      if (digits >= digitsLimit) digitsLimitError()
-      if (b == '.') {
-        pos += 1
-        fracLen -= pos
-        var m, bs = 0L
-        while (
-          (pos + 7 < tail || {
-            fracLen += pos
-            pos = loadMore(pos)
-            fracLen -= pos
-            buf = this.buf
-            pos + 7 < tail
-          }) && {
-            bs = ByteArrayAccess.getLong(
-              buf,
-              pos
-            ) // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
-            m = (bs + 0x4646464646464646L | bs - 0x3030303030303030L) & 0x8080808080808080L
-            m == 0
+          ) pos += 8
+          if (m == 0) {
+            while (
+              (pos < tail || {
+                digits += pos
+                pos = loadMore(pos)
+                digits -= pos
+                buf = this.buf
+                pos < tail
+              }) && {
+                b = buf(pos)
+                b >= '0' && b <= '9'
+              }
+            ) pos += 1
+          } else {
+            val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
+            pos += offset
+            b = (bs >> (offset << 3)).toByte
           }
-        ) pos += 8
-        if (m == 0) {
+          digits += pos
+        }
+        var fracLen, scale = 0
+        if (digits >= digitsLimit) digitsLimitError()
+        if (b == '.') {
+          pos += 1
+          fracLen -= pos
+          var m, bs = 0L
           while (
-            (pos < tail || {
+            (pos + 7 < tail || {
               fracLen += pos
               pos = loadMore(pos)
               fracLen -= pos
+              buf = this.buf
+              pos + 7 < tail
+            }) && {
+              bs = ByteArrayAccess.getLong(
+                buf,
+                pos
+              ) // Based on the fast parsing of numbers by 8-byte words: https://github.com/wrandelshofer/FastDoubleParser/blob/0903817a765b25e654f02a5a9d4f1476c98a80c9/src/main/java/ch.randelshofer.fastdoubleparser/ch/randelshofer/fastdoubleparser/FastDoubleSimd.java#L114-L130
+              m = (bs + 0x4646464646464646L | bs - 0x3030303030303030L) & 0x8080808080808080L
+              m == 0
+            }
+          ) pos += 8
+          if (m == 0) {
+            while (
+              (pos < tail || {
+                fracLen += pos
+                pos = loadMore(pos)
+                fracLen -= pos
+                buf = this.buf
+                pos < tail
+              }) && {
+                b = buf(pos)
+                b >= '0' && b <= '9'
+              }
+            ) pos += 1
+          } else {
+            val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
+            pos += offset
+            b = (bs >> (offset << 3)).toByte
+          }
+          fracLen += pos
+          digits += fracLen
+          if (fracLen == 0) numberError()
+          if (digits >= digitsLimit) digitsLimitError()
+        }
+        if ((b | 0x20) == 'e') {
+          b = nextByte(pos + 1)
+          var ss = 0
+          if (b == '-' || b == '+') {
+            ss = '+' - b >> 31
+            b = nextByte(head)
+          }
+          if (b < '0' || b > '9') numberError()
+          scale = '0' - b
+          pos = head
+          buf = this.buf
+          while (
+            (pos < tail || {
+              pos = loadMore(pos)
               buf = this.buf
               pos < tail
             }) && {
               b = buf(pos)
               b >= '0' && b <= '9'
             }
-          ) pos += 1
-        } else {
-          val offset = java.lang.Long.numberOfTrailingZeros(m) >> 3
-          pos += offset
-          b = (bs >> (offset << 3)).toByte
-        }
-        fracLen += pos
-        digits += fracLen
-        if (fracLen == 0) numberError()
-        if (digits >= digitsLimit) digitsLimitError()
-      }
-      if ((b | 0x20) == 'e') {
-        b = nextByte(pos + 1)
-        var ss = 0
-        if (b == '-' || b == '+') {
-          ss = '+' - b >> 31
-          b = nextByte(head)
-        }
-        if (b < '0' || b > '9') numberError()
-        scale = '0' - b
-        pos = head
-        buf = this.buf
-        while (
-          (pos < tail || {
-            pos = loadMore(pos)
-            buf = this.buf
-            pos < tail
-          }) && {
-            b = buf(pos)
-            b >= '0' && b <= '9'
+          ) {
+            if (
+              scale < -214748364 || {
+                scale = scale * 10 + ('0' - b)
+                scale > 0
+              }
+            ) numberError()
+            pos += 1
           }
-        ) {
-          if (
-            scale < -214748364 || {
-              scale = scale * 10 + ('0' - b)
-              scale > 0
-            }
-          ) numberError()
-          pos += 1
+          scale ^= ss
+          scale -= ss
+          if (scale == -2147483648) numberError()
         }
-        scale ^= ss
-        scale -= ss
-        if (scale == -2147483648) numberError()
-      }
-      head = pos
-      if (mark == 0) from -= newMark
-      if (mark > oldMark) mark = oldMark
-      var d =
-        if (fracLen != 0) {
-          val limit     = from + digits + 1
-          val fracPos   = limit - fracLen
-          val fracLimit = fracPos - 1
-          if (digits < 19) {
-            var x = (buf(from) - '0').toLong
-            from += 1
-            while (from < fracLimit) {
-              x = x * 10 + (buf(from) - '0')
+        head = pos
+        var from = marks(markNum - 1)
+        var d    =
+          if (fracLen != 0) {
+            val limit     = from + digits + 1
+            val fracPos   = limit - fracLen
+            val fracLimit = fracPos - 1
+            if (digits < 19) {
+              var x = (buf(from) - '0').toLong
               from += 1
-            }
-            from += 1
-            while (from < limit) {
-              x = x * 10 + (buf(from) - '0')
+              while (from < fracLimit) {
+                x = x * 10 + (buf(from) - '0')
+                from += 1
+              }
               from += 1
-            }
-            java.math.BigDecimal.valueOf((x ^ s) - s, scale + fracLen)
-          } else toBigDecimal(buf, from, fracLimit, s, scale).add(toBigDecimal(buf, fracPos, limit, s, scale + fracLen))
-        } else toBigDecimal(buf, from, from + digits, s, scale)
-      if (mc.getPrecision < digits) d = d.plus(mc)
-      if (Math.abs(d.scale) >= scaleLimit) scaleLimitError()
-      new BigDecimal(d, mc)
+              while (from < limit) {
+                x = x * 10 + (buf(from) - '0')
+                from += 1
+              }
+              java.math.BigDecimal.valueOf((x ^ s) - s, scale + fracLen)
+            } else
+              toBigDecimal(buf, from, fracLimit, s, scale).add(toBigDecimal(buf, fracPos, limit, s, scale + fracLen))
+          } else toBigDecimal(buf, from, from + digits, s, scale)
+        if (mc.getPrecision < digits) d = d.plus(mc)
+        if (Math.abs(d.scale) >= scaleLimit) scaleLimitError()
+        new BigDecimal(d, mc)
+      } finally resetMark()
     }
   }
 
@@ -3946,43 +3935,38 @@ final class JsonReader private[json] (
     else if (b == '[') {
       pos = head
       buf = this.buf
-      var from    = pos
-      val oldMark = mark
-      val newMark =
-        if (oldMark < 0) from
-        else oldMark
-      mark = newMark
-      var hash = 0
-      while ({
+      setMark(pos)
+      try {
+        var hash = 0
+        while ({
+          if (pos >= tail) {
+            pos = loadMoreOrError(pos)
+            buf = this.buf
+          }
+          b = buf(pos)
+          pos += 1
+          b != ']'
+        }) hash = (hash << 5) - hash + b
+        var k = zoneIdKey
+        if (k eq null) {
+          k = new Key
+          zoneIdKey = k
+        }
+        k.set(hash, buf, marks(markNum - 1), pos - 1)
+        var zoneId = zoneIds.get(k)
+        if (zoneId eq null) zoneId = toZoneId(k)
         if (pos >= tail) {
           pos = loadMoreOrError(pos)
           buf = this.buf
         }
-        b = buf(pos)
-        pos += 1
-        b != ']'
-      }) hash = (hash << 5) - hash + b
-      if (mark == 0) from -= newMark
-      if (mark > oldMark) mark = oldMark
-      var k = zoneIdKey
-      if (k eq null) {
-        k = new Key
-        zoneIdKey = k
-      }
-      k.set(hash, buf, from, pos - 1)
-      var zoneId = zoneIds.get(k)
-      if (zoneId eq null) zoneId = toZoneId(k, pos)
-      if (pos >= tail) {
-        pos = loadMoreOrError(pos)
-        buf = this.buf
-      }
-      if (buf(pos) != '"') tokenError('"')
-      head = pos + 1
-      ZonedDateTime.ofInstant(localDateTime, zoneOffset, zoneId)
+        if (buf(pos) != '"') tokenError('"')
+        head = pos + 1
+        ZonedDateTime.ofInstant(localDateTime, zoneOffset, zoneId)
+      } finally resetMark()
     } else zonedDateTimeError(nanoDigitWeight)
   }
 
-  private[this] def toZoneId(k: Key, pos: Int): ZoneId =
+  private[this] def toZoneId(k: Key): ZoneId =
     try {
       val zoneId = ZoneId.of(k.toString)
       if (
@@ -4182,7 +4166,7 @@ final class JsonReader private[json] (
             ns(buf(pos + 5) & 0xff) << 8 |
             ns(buf(pos + 6) & 0xff) << 4 |
             ns(buf(pos + 7) & 0xff))
-      if (mostSigBits1 < 0) hexDigitError()
+      if (mostSigBits1 < 0L) hexDigitError()
       if (buf(pos + 8) != '-') tokenError('-')
       val mostSigBits2 =
         ns(buf(pos + 9) & 0xff) << 12 |
@@ -4218,7 +4202,7 @@ final class JsonReader private[json] (
             ns(buf(pos + 33) & 0xff) << 8 |
             ns(buf(pos + 34) & 0xff) << 4 |
             ns(buf(pos + 35) & 0xff))
-      if (leastSigBits2 < 0) hexDigitError()
+      if (leastSigBits2 < 0L) hexDigitError()
       if (buf(pos + 36) != '"') tokenError('"')
       head = pos + 37
       new UUID(
@@ -4312,10 +4296,9 @@ final class JsonReader private[json] (
             val b3 = buf(pos + 2)
             val ch = (b1 << 12 ^ b2 << 6 ^ b3 ^ 0x1f80).toChar // 0x1F80 == (0x80.toByte << 6 ^ 0x80.toByte).toChar
             charBuf(i) = ch
-            if (
-              (b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || ch < 0x800 ||
-              (ch & 0xf800) == 0xd800
-            ) malformedBytesError(b1, b2, b3)
+            if ((b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || ch < 0x800 || (ch & 0xf800) == 0xd800) {
+              malformedBytesError(b1, b2, b3)
+            }
             parseEncodedString(i + 1, lim, charBuf, pos + 3)
           } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
         } else if ((b1 & 0xf8) == 0xf0) { // 11110ddd 10ddcccc 10bbbbbb 10aaaaaa (UTF-8 bytes) -> 110110uuuuccccbb 110111bbbbaaaaaa (UTF-16 chars), where uuuu = ddddd - 1
@@ -4328,10 +4311,9 @@ final class JsonReader private[json] (
             val ch1 = ((cp >>> 10) + 0xd7c0).toChar // 0xD7C0 == 0xD800 - (0x10000 >>> 10)
             charBuf(i) = ch1
             charBuf(i + 1) = ((cp & 0x3ff) | 0xdc00).toChar
-            if (
-              (b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || (b4 & 0xc0) != 0x80 ||
-              (ch1 & 0xf800) != 0xd800
-            ) malformedBytesError(b1, b2, b3, b4)
+            if ((b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || (b4 & 0xc0) != 0x80 || (ch1 & 0xf800) != 0xd800) {
+              malformedBytesError(b1, b2, b3, b4)
+            }
             parseEncodedString(i + 2, lim, charBuf, pos + 4)
           } else parseEncodedString(i, lim, charBuf, loadMoreOrError(pos))
         } else malformedBytesError(b1)
@@ -4386,10 +4368,9 @@ final class JsonReader private[json] (
           val b3 = buf(pos + 2)
           val ch = (b1 << 12 ^ b2 << 6 ^ b3 ^ 0x1f80).toChar // 0x1F80 == (0x80.toByte << 6 ^ 0x80.toByte).toChar
           head = pos + 3
-          if (
-            (b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || ch < 0x800 ||
-            (ch & 0xf800) == 0xd800
-          ) malformedBytesError(b1, b2, b3)
+          if ((b2 & 0xc0) != 0x80 || (b3 & 0xc0) != 0x80 || ch < 0x800 || (ch & 0xf800) == 0xd800) {
+            malformedBytesError(b1, b2, b3)
+          }
           return ch
         }
       } else if ((b1 & 0xf8) == 0xf0) surrogateCharacterError()
@@ -4545,8 +4526,8 @@ final class JsonReader private[json] (
   private[this] def loadMore(pos: Int, throwOnEndOfInput: Boolean): Int = {
     var newPos = pos
     val offset =
-      if (mark < 0) pos
-      else mark
+      if (markNum == 0) pos
+      else marks(0)
     if (offset > 0) {
       newPos -= offset
       val buf       = this.buf
@@ -4556,7 +4537,11 @@ final class JsonReader private[json] (
         buf(i) = buf(i + offset)
         i += 1
       }
-      if (mark > 0) mark = 0
+      i = 0
+      while (i < markNum) {
+        marks(i) -= offset
+        i += 1
+      }
       tail = remaining
       head = newPos
     } else if (buf.length == tail) growBuf()
