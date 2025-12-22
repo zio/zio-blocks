@@ -192,7 +192,7 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
         }
 
         val ageList = AgeList(List(30, 200, 40)) // 200 is invalid
-        val result = Into.derived[AgeList, ValidatedAgeList].into(ageList)
+        val result  = Into.derived[AgeList, ValidatedAgeList].into(ageList)
 
         assertTrue(
           result.isLeft,
@@ -215,7 +215,7 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
 
         // price is invalid, should fail there
         val product = ProductV1("Widget", -100, 50, 5)
-        val result = Into.derived[ProductV1, ProductV2].into(product)
+        val result  = Into.derived[ProductV1, ProductV2].into(product)
 
         assertTrue(
           result.isLeft,
@@ -230,7 +230,7 @@ object IntoOpaqueTypeSpec extends ZIOSpecDefault {
         case class CreateV2(name: String, age: SimpleAge) extends RequestV2
 
         val request: RequestV1 = CreateV1("Alice", -5)
-        val result = Into.derived[RequestV1, RequestV2].into(request)
+        val result             = Into.derived[RequestV1, RequestV2].into(request)
 
         assertTrue(
           result.isLeft,
