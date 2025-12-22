@@ -82,8 +82,8 @@ object IntoSpec extends ZIOSpecDefault {
   // Nested Coproducts
   sealed trait Inner
   object Inner {
-    case class A(x: Int)      extends Inner
-    case class B(y: String)   extends Inner
+    case class A(x: Int)    extends Inner
+    case class B(y: String) extends Inner
   }
 
   sealed trait Outer
@@ -93,8 +93,8 @@ object IntoSpec extends ZIOSpecDefault {
 
   sealed trait InnerV2
   object InnerV2 {
-    case class A(x: Long)     extends InnerV2
-    case class B(y: String)   extends InnerV2
+    case class A(x: Long)   extends InnerV2
+    case class B(y: String) extends InnerV2
   }
 
   sealed trait OuterV2
@@ -108,7 +108,8 @@ object IntoSpec extends ZIOSpecDefault {
   case class PersonV1WithAge(name: String, age: Int)
   case class PersonV2WithAge(name: String, age: Long)
 
-  implicit val personV1ToV2WithAge: Into[PersonV1WithAge, PersonV2WithAge] = Into.derived[PersonV1WithAge, PersonV2WithAge]
+  implicit val personV1ToV2WithAge: Into[PersonV1WithAge, PersonV2WithAge] =
+    Into.derived[PersonV1WithAge, PersonV2WithAge]
 
   // Nested Collections
   case class DataV1(values: List[Vector[Int]])
@@ -653,7 +654,7 @@ object IntoSpec extends ZIOSpecDefault {
         case class TargetCase(value: Int) extends TargetADT
 
         val source: SourceADT = SourceCase(Long.MaxValue)
-        val result = Into.derived[SourceADT, TargetADT].into(source)
+        val result            = Into.derived[SourceADT, TargetADT].into(source)
 
         assertTrue(
           result.isLeft,
@@ -663,7 +664,7 @@ object IntoSpec extends ZIOSpecDefault {
       test("Either conversion propagates errors from both sides") {
         // Test Left side error
         val sourceLeft: Either[Long, String] = Left(Long.MaxValue)
-        val resultLeft = Into.derived[Either[Long, String], Either[Int, String]].into(sourceLeft)
+        val resultLeft                       = Into.derived[Either[Long, String], Either[Int, String]].into(sourceLeft)
 
         assertTrue(
           resultLeft.isLeft,
@@ -672,7 +673,7 @@ object IntoSpec extends ZIOSpecDefault {
 
         // Test Right side error
         val sourceRight: Either[String, Long] = Right(Long.MaxValue)
-        val resultRight = Into.derived[Either[String, Long], Either[String, Int]].into(sourceRight)
+        val resultRight                       = Into.derived[Either[String, Long], Either[String, Int]].into(sourceRight)
 
         assertTrue(
           resultRight.isLeft,
@@ -784,14 +785,15 @@ object IntoSpec extends ZIOSpecDefault {
         case class ValidatedInt(value: Int)
         case class Source(validated: ValidatedInt, name: String)
 
-        implicit val validatedToInt: Into[ValidatedInt, Int] = (v: ValidatedInt) => if (v.value > 0) Right(v.value)
-        else Left(zio.blocks.schema.SchemaError.conversionFailed(Nil, s"Value must be positive: ${v.value}"))
+        implicit val validatedToInt: Into[ValidatedInt, Int] = (v: ValidatedInt) =>
+          if (v.value > 0) Right(v.value)
+          else Left(zio.blocks.schema.SchemaError.conversionFailed(Nil, s"Value must be positive: ${v.value}"))
 
         val invalidSource = Source(ValidatedInt(-5), "fail")
-        val validSource = Source(ValidatedInt(10), "success")
+        val validSource   = Source(ValidatedInt(10), "success")
 
         val invalidResult = Into.derived[Source, (Int, String)].into(invalidSource)
-        val validResult = Into.derived[Source, (Int, String)].into(validSource)
+        val validResult   = Into.derived[Source, (Int, String)].into(validSource)
 
         assertTrue(
           invalidResult.isLeft,

@@ -147,11 +147,11 @@ private object IntoVersionSpecificImpl {
       }
       if (exactMatch.isDefined) return exactMatch
 
-      // Priority 2: Name match with coercion - same name + coercible type or implicit Into available
+      // Priority 2: Name match with coercion - same name + coercible type, implicit Into available, or newtype conversion
       val nameWithCoercion = sourceInfo.fields.find { sourceField =>
         !usedSourceFields.contains(sourceField.index) &&
           sourceField.name == targetField.name &&
-          findImplicitInto(sourceField.tpe, targetField.tpe).isDefined
+          (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined || requiresNewtypeConversion(sourceField.tpe, targetField.tpe))
       }
       if (nameWithCoercion.isDefined) return nameWithCoercion
 
@@ -170,12 +170,12 @@ private object IntoVersionSpecificImpl {
         }
         if (uniqueTypeMatch.isDefined) return uniqueTypeMatch
 
-        // Also check for unique coercible type match (including implicit Into)
+        // Also check for unique coercible type match (including implicit Into and newtype conversion)
         val uniqueCoercibleMatch = sourceInfo.fields.find { sourceField =>
           if (usedSourceFields.contains(sourceField.index)) false
           else {
             val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceField.tpe.dealias.toString, 0) == 1
-            isSourceTypeUnique && findImplicitInto(sourceField.tpe, targetField.tpe).isDefined
+            isSourceTypeUnique && (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined || requiresNewtypeConversion(sourceField.tpe, targetField.tpe))
           }
         }
         if (uniqueCoercibleMatch.isDefined) return uniqueCoercibleMatch
@@ -188,8 +188,8 @@ private object IntoVersionSpecificImpl {
           if (positionalField.tpe =:= targetField.tpe) {
             return Some(positionalField)
           }
-          // Also check coercible for positional (including implicit Into)
-          if (findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
+          // Also check coercible for positional (including implicit Into and newtype conversion)
+          if (findImplicitInto(positionalField.tpe, targetField.tpe).isDefined || requiresNewtypeConversion(positionalField.tpe, targetField.tpe)) {
             return Some(positionalField)
           }
         }
@@ -199,8 +199,230 @@ private object IntoVersionSpecificImpl {
       None
     }
 
-    // isCoercible has been removed - implicit Into resolution now handles all type conversions
-    // including numeric widening/narrowing
+    // === ZIO Prelude Newtype Support ===
+
+    /**
+     * Checks if a type is a ZIO Prelude newtype (Newtype[A] or Subtype[A])
+     *
+     * ZIO Prelude newtypes follow the pattern:
+     *   object Age extends Subtype[Int]
+     *   type Age = Age.Type
+     *
+     * We check if the type name is "Type" and if its owner extends Newtype or Subtype
+     */
+    def isZIONewtype(tpe: Type): Boolean = {
+      val dealiased = tpe.dealias
+      val typeSymbol = dealiased.typeSymbol
+
+      // Check if the type symbol name is "Type" (the inner type alias pattern)
+      val typeName = typeSymbol.name.decodedName.toString
+
+      if (typeName == "Type") {
+        // Get the owner (which should be the companion object/module)
+        val owner = typeSymbol.owner
+        val ownerFullName = owner.fullName
+
+        // Check if owner.fullName contains ZIO Prelude newtype patterns
+        // This avoids loading TASTy files which can cause version mismatches
+        val isZIOPreludeNewtype = ownerFullName.contains("zio.prelude.Subtype") ||
+                                  ownerFullName.contains("zio.prelude.Newtype")
+
+        isZIOPreludeNewtype
+      } else {
+        false
+      }
+    }
+
+    /**
+     * Checks if conversion from source to target requires ZIO Prelude newtype conversion
+     */
+    def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean = {
+      isZIONewtype(targetTpe) && !(sourceTpe =:= targetTpe)
+    }
+
+    /**
+     * Generates code to convert a value to a ZIO Prelude newtype using runtime reflection
+     * Returns code that evaluates to Either[SchemaError, NeType]
+     */
+    def convertToNewtypeEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type, fieldName: String): Tree = {
+      // Dealias the type to get the actual type (e.g., Age.Type)
+      val dealiased = targetTpe.dealias
+
+      // For ZIO Prelude newtypes, the type is like "SomeObject.Type"
+      // We need to extract "SomeObject" from the type's prefix
+      val companionPath = dealiased match {
+        case TypeRef(pre, sym, _) if sym.name.toString == "Type" =>
+          // The prefix contains the companion object
+          // For example: TypeRef(SingleType(pre, Domain.Age), Type, Nil)
+          // We want "Domain.Age"
+          pre match {
+            case SingleType(outerPre, companionSym) =>
+              // Found it! companionSym is the Age object
+              companionSym.fullName
+            case other =>
+              // Fallback to string manipulation
+              val str = dealiased.toString
+              if (str.endsWith(".Type")) str.stripSuffix(".Type") else str
+          }
+        case _ =>
+          // Fallback to string manipulation
+          val str = dealiased.toString
+          if (str.endsWith(".Type")) str.stripSuffix(".Type") else str
+      }
+
+
+      val companionPathLiteral = Literal(Constant(companionPath))
+      val fieldNameLiteral = Literal(Constant(fieldName))
+
+      // Create the target type tree for type ascription
+      val targetTypeTree = TypeTree(targetTpe)
+
+      // Generate unique variable names to avoid conflicts when multiple newtype conversions
+      // are generated in the same scope (e.g., case class with multiple newtype fields)
+      val sourceValueName = TermName(c.freshName("sourceValue"))
+      val companionClassNameName = TermName(c.freshName("companionClassName"))
+      val basePathName = TermName(c.freshName("basePath"))
+      val partsName = TermName(c.freshName("parts"))
+      val packageEndName = TermName(c.freshName("packageEnd"))
+      val packagePartName = TermName(c.freshName("packagePart"))
+      val classPartName = TermName(c.freshName("classPart"))
+      val pkgName = TermName(c.freshName("pkg"))
+      val clsName = TermName(c.freshName("cls"))
+      val companionObjClassName = TermName(c.freshName("companionObjClass"))
+      val companionModuleName = TermName(c.freshName("companionModule"))
+      val companionClassName = TermName(c.freshName("companionClass"))
+      val assertionMethodName = TermName(c.freshName("assertionMethod"))
+      val assertionName = TermName(c.freshName("assertion"))
+      val methodName = TermName(c.freshName("method"))
+      val resultName = TermName(c.freshName("result"))
+      val eitherName = TermName(c.freshName("either"))
+
+      q"""
+        {
+          val $sourceValueName = $sourceExpr
+          try {
+            // Convert the companion path to JVM class name
+            // Input:  "zio.blocks.schema.convert.IntoZIOPreludeNewtypeSpec.Domain.Email"
+            // Output: "zio.blocks.schema.convert.IntoZIOPreludeNewtypeSpec<dollar>Domain<dollar>Email<dollar>"
+            val $companionClassNameName = {
+              val $basePathName = $companionPathLiteral
+              val $partsName = $basePathName.split('.').toList
+
+              // Find where the package ends (first capital letter indicates class/object)
+              val $packageEndName = $partsName.indexWhere(part => part.nonEmpty && part.head.isUpper)
+
+              if ($packageEndName >= 0) {
+                val $packagePartName = $partsName.take($packageEndName)
+                val $classPartName = $partsName.drop($packageEndName)
+
+                // Join package with dots
+                val $pkgName = if ($packagePartName.isEmpty) "" else $packagePartName.mkString(".") + "."
+
+                // For class/object parts: use dollar as separator and end with dollar
+                // mkString uses the argument as the separator between elements
+                val $clsName = if ($classPartName.isEmpty) {
+                  ""
+                } else {
+                  // Use a char that will be replaced to avoid quasiquote issues
+                  val dollarStr = java.lang.String.valueOf(36.toChar)
+                  $classPartName.mkString(dollarStr) + dollarStr
+                }
+
+                $pkgName + $clsName
+              } else {
+                // All lowercase, likely all package - should not happen for newtypes
+                val dollarStr = java.lang.String.valueOf(36.toChar)
+                $basePathName + dollarStr
+              }
+            }
+
+            val $companionObjClassName = _root_.java.lang.Class.forName($companionClassNameName)
+            // Try both getField (public) and getDeclaredField (any visibility)
+            val $companionModuleName = try {
+              $companionObjClassName.getField("MODULE$$").get(null)
+            } catch {
+              case _: _root_.java.lang.NoSuchFieldException =>
+                try {
+                  val field = $companionObjClassName.getDeclaredField("MODULE$$")
+                  field.setAccessible(true)
+                  field.get(null)
+                } catch {
+                  case _: _root_.java.lang.NoSuchFieldException =>
+                    // For some Scala object structures, try getting instance differently
+                    // List all fields for debugging
+                    val allFields = $companionObjClassName.getFields.map(_.getName).mkString(", ")
+                    val declFields = $companionObjClassName.getDeclaredFields.map(_.getName).mkString(", ")
+                    throw new _root_.java.lang.RuntimeException(
+                      "Cannot access MODULE$$ on " + $companionClassNameName +
+                      ". Public fields: [" + allFields + "]. Declared fields: [" + declFields + "]")
+                }
+            }
+
+            // For ZIO Prelude newtypes:
+            // - 'make' is a macro and does NOT exist at runtime (in Scala 2)
+            // - We need to get the 'assertion' method which returns QuotedAssertion[A]
+            // - Call assertion.run(value) which returns Either[AssertionError, Unit]
+            // - If Right(()), cast the value directly (newtypes are just type aliases at runtime)
+            // - If Left(error), return the error
+            val $companionClassName = $companionModuleName.getClass
+
+            // Get the assertion method - it's defined on Newtype/Subtype
+            val $assertionMethodName = try {
+              $companionClassName.getMethod("assertion")
+            } catch {
+              case _: _root_.java.lang.NoSuchMethodException =>
+                // Try getDeclaredMethod as backup
+                val m = $companionClassName.getDeclaredMethod("assertion")
+                m.setAccessible(true)
+                m
+            }
+
+            val $assertionName = $assertionMethodName.invoke($companionModuleName)
+
+            // QuotedAssertion has a run method: def run(value: A): Either[AssertionError, Unit]
+            // The method takes Object due to erasure. We need to find it by searching methods.
+            val $methodName = {
+              val assertionClass = $assertionName.getClass
+              // Try to find 'run' method that takes one Object parameter
+              val methods = assertionClass.getMethods.filter(m => m.getName == "run" && m.getParameterCount == 1)
+              if (methods.isEmpty) {
+                throw new _root_.java.lang.NoSuchMethodException(
+                  "No 'run' method found on QuotedAssertion. Available methods: " +
+                  assertionClass.getMethods.map(m => m.getName + "(" + m.getParameterTypes.map(_.getName).mkString(", ") + ")").mkString(", ")
+                )
+              }
+              methods.head
+            }
+
+            val $resultName = $methodName.invoke($assertionName, $sourceValueName.asInstanceOf[_root_.java.lang.Object])
+              .asInstanceOf[_root_.scala.Either[_root_.scala.Any, _root_.scala.Unit]]
+
+            // Map the result: Right(()) means valid, so cast value; Left(err) means invalid
+            val $eitherName = $resultName match {
+              case _root_.scala.Right(_) =>
+                // Validation passed - newtypes are just type aliases, so cast directly
+                _root_.scala.Right($sourceValueName.asInstanceOf[$targetTypeTree])
+              case _root_.scala.Left(err) =>
+                _root_.scala.Left(
+                  _root_.zio.blocks.schema.SchemaError.conversionFailed(
+                    _root_.scala.Nil,
+                    "Validation failed for field '" + $fieldNameLiteral + "': " + err.toString
+                  )
+                )
+            }
+
+            $eitherName.asInstanceOf[_root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $targetTypeTree]]
+          } catch {
+            case e: _root_.java.lang.ClassNotFoundException =>
+              _root_.scala.Left(_root_.zio.blocks.schema.SchemaError.conversionFailed(_root_.scala.Nil, "Companion object not found for newtype: " + $companionPathLiteral + ": " + e.getMessage))
+            case e: _root_.java.lang.NoSuchMethodException =>
+              _root_.scala.Left(_root_.zio.blocks.schema.SchemaError.conversionFailed(_root_.scala.Nil, "Method not found for newtype: " + $companionPathLiteral + ": " + e.getMessage))
+            case e: _root_.java.lang.Exception =>
+              _root_.scala.Left(_root_.zio.blocks.schema.SchemaError.conversionFailed(_root_.scala.Nil, "Error converting to newtype: " + e.getClass.getName + ": " + e.getMessage))
+          }
+        }: _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $targetTypeTree]
+      """
+    }
 
     // Find or use cached Into instance
     def findImplicitInto(sourceTpe: Type, targetTpe: Type): Option[Tree] = {
@@ -252,18 +474,25 @@ private object IntoVersionSpecificImpl {
           val sourceTpe = sourceField.tpe
           val targetTpe = targetField.tpe
 
-          // If types differ, try to find an implicit Into instance
+          // If types differ, try to find an implicit Into instance or handle newtype conversion
           if (!(sourceTpe =:= targetTpe)) {
-            findImplicitInto(sourceTpe, targetTpe) match {
-              case Some(intoInstance) =>
-                // Use Into instance, which already returns Either
-                q"$intoInstance.into(a.$getter)"
-              case None =>
-                // No coercion available - fail at compile time
-                fail(
-                  s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field '${sourceField.name}'. " +
-                  s"Please provide an implicit Into instance in scope."
-                )
+            // Check if it's a newtype conversion
+            val isNewtype = requiresNewtypeConversion(sourceTpe, targetTpe)
+            if (isNewtype) {
+              // Generate runtime reflection code to call the newtype's make method
+              convertToNewtypeEither(q"a.$getter", sourceTpe, targetTpe, sourceField.name)
+            } else {
+              findImplicitInto(sourceTpe, targetTpe) match {
+                case Some(intoInstance) =>
+                  // Use Into instance, which already returns Either
+                  q"$intoInstance.into(a.$getter)"
+                case None =>
+                  // No coercion available - fail at compile time
+                  fail(
+                    s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field '${sourceField.name}'. " +
+                    s"Please provide an implicit Into instance in scope."
+                  )
+              }
             }
           } else {
             // Types match - wrap in Right
@@ -724,45 +953,6 @@ private object IntoVersionSpecificImpl {
 
     // === Main entry point ===
 
-    // === ZIO Prelude Newtype Support (Scala 2) ===
-
-    /**
-     * Checks if a type is a ZIO Prelude Newtype or Subtype
-     * Works without requiring zio-prelude as a dependency
-     */
-    def isZIONewtype(tpe: Type): Boolean = {
-      val baseTypes = tpe.baseClasses.map(_.fullName)
-      baseTypes.exists(name =>
-        name.startsWith("zio.prelude.Newtype") ||
-        name.startsWith("zio.prelude.Subtype")
-      )
-    }
-
-    /**
-     * Gets the underlying type of a ZIO Prelude newtype
-     * For Newtype[A] or Subtype[A], returns A
-     */
-    def getNewtypeUnderlying(tpe: Type): Type = {
-      // Look through base types to find Newtype[A] or Subtype[A]
-      tpe.baseClasses.collectFirst {
-        case baseClass if baseClass.fullName.startsWith("zio.prelude.Newtype") ||
-                         baseClass.fullName.startsWith("zio.prelude.Subtype") =>
-          tpe.baseType(baseClass) match {
-            case TypeRef(_, _, List(underlying)) => underlying
-            case _ => tpe
-          }
-      }.getOrElse(tpe)
-    }
-
-    /**
-     * Checks if conversion requires ZIO Prelude newtype handling
-     */
-    def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean = {
-      isZIONewtype(targetTpe) && {
-        val underlying = getNewtypeUnderlying(targetTpe)
-        sourceTpe =:= underlying
-      }
-    }
 
     val aIsProduct = isProductType(aTpe)
     val bIsProduct = isProductType(bTpe)

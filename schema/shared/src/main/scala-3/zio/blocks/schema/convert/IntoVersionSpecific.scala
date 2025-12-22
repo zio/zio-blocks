@@ -109,10 +109,22 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // For each target field, find matching structural member (by name or unique type)
     val fieldMappings = targetInfo.fields.map { targetField =>
       val matchingMember = structuralMembers.find { case (name, memberTpe) =>
-        name == targetField.name && (memberTpe =:= targetField.tpe || requiresOpaqueConversion(memberTpe, targetField.tpe) || requiresNewtypeConversion(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined)
+        name == targetField.name && (memberTpe =:= targetField.tpe || requiresOpaqueConversion(
+          memberTpe,
+          targetField.tpe
+        ) || requiresNewtypeConversion(memberTpe, targetField.tpe) || findImplicitInto(
+          memberTpe,
+          targetField.tpe
+        ).isDefined)
       }.orElse {
         val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
-          memberTpe =:= targetField.tpe || requiresOpaqueConversion(memberTpe, targetField.tpe) || requiresNewtypeConversion(memberTpe, targetField.tpe) || findImplicitInto(memberTpe, targetField.tpe).isDefined
+          memberTpe =:= targetField.tpe || requiresOpaqueConversion(
+            memberTpe,
+            targetField.tpe
+          ) || requiresNewtypeConversion(memberTpe, targetField.tpe) || findImplicitInto(
+            memberTpe,
+            targetField.tpe
+          ).isDefined
         }
         if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
       }
@@ -276,7 +288,9 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       s =:= t || requiresOpaqueConversion(s, t) || requiresNewtypeConversion(s, t) || findImplicitInto(s, t).isDefined
     }
 
-  private def generateCoproductConversion[A: Type, B: Type](caseMappings: List[(TypeRepr, TypeRepr)]): Expr[Into[A, B]] = {
+  private def generateCoproductConversion[A: Type, B: Type](
+    caseMappings: List[(TypeRepr, TypeRepr)]
+  ): Expr[Into[A, B]] = {
     // Generate the match expression builder that will be called at runtime with 'a'
     // We need to build the CaseDef list inside the splice to avoid closure issues
 
@@ -298,7 +312,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
   private def generateCaseClause[B: Type](
     sourceSubtype: TypeRepr,
-    targetSubtype: TypeRepr,
+    targetSubtype: TypeRepr
   ): CaseDef = {
     val bindingName = Symbol.newVal(Symbol.spliceOwner, "x", sourceSubtype, Flags.Case, Symbol.noSymbol)
     val bindingRef  = Ref(bindingName)
@@ -377,7 +391,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 // No coercion available - fail at compile time
                 report.errorAndAbort(
                   s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field in coproduct case. " +
-                  s"Please provide an implicit Into instance in scope."
+                    s"Please provide an implicit Into instance in scope."
                 )
             }
           } else {
@@ -475,8 +489,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val nameWithConversion = sourceInfo.fields.find { sf =>
       val nameMatches = !usedSourceFields.contains(sf.index) && sf.name == targetField.name
       if (nameMatches) {
-        val opaqueConv = requiresOpaqueConversion(sf.tpe, targetField.tpe)
-        val newtypeConv = requiresNewtypeConversion(sf.tpe, targetField.tpe)
+        val opaqueConv   = requiresOpaqueConversion(sf.tpe, targetField.tpe)
+        val newtypeConv  = requiresNewtypeConversion(sf.tpe, targetField.tpe)
         val implicitInto = findImplicitInto(sf.tpe, targetField.tpe).isDefined
         opaqueConv || newtypeConv || implicitInto
       } else {
@@ -503,7 +517,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       val uniqueConvertibleMatch = sourceInfo.fields.find { sf =>
         !usedSourceFields.contains(sf.index) && {
           val isSourceTypeUnique = sourceTypeFreq.getOrElse(sf.tpe.dealias.show, 0) == 1
-          isSourceTypeUnique && (requiresOpaqueConversion(sf.tpe, targetField.tpe) || requiresNewtypeConversion(sf.tpe, targetField.tpe) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
+          isSourceTypeUnique && (requiresOpaqueConversion(sf.tpe, targetField.tpe) || requiresNewtypeConversion(
+            sf.tpe,
+            targetField.tpe
+          ) || findImplicitInto(sf.tpe, targetField.tpe).isDefined)
         }
       }
       if (uniqueConvertibleMatch.isDefined) return uniqueConvertibleMatch
@@ -515,7 +532,12 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       if (!usedSourceFields.contains(positionalField.index)) {
         if (positionalField.tpe =:= targetField.tpe) return Some(positionalField)
         // Also check for positional conversion (implicit Into, opaque type, or newtype)
-        if (requiresOpaqueConversion(positionalField.tpe, targetField.tpe) || requiresNewtypeConversion(positionalField.tpe, targetField.tpe) || findImplicitInto(positionalField.tpe, targetField.tpe).isDefined) {
+        if (
+          requiresOpaqueConversion(positionalField.tpe, targetField.tpe) || requiresNewtypeConversion(
+            positionalField.tpe,
+            targetField.tpe
+          ) || findImplicitInto(positionalField.tpe, targetField.tpe).isDefined
+        ) {
           return Some(positionalField)
         }
       }
@@ -528,11 +550,11 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   // including numeric widening/narrowing and opaque types
 
   // Find or derive an Into instance, using cache to handle recursion
-  private def findImplicitInto(sourceTpe: TypeRepr, targetTpe: TypeRepr): Option[Expr[Into[?, ?]]] = {
+  private def findImplicitInto(sourceTpe: TypeRepr, targetTpe: TypeRepr): Option[Expr[Into[?, ?]]] =
     // Check cache first
     intoRefs.get((sourceTpe, targetTpe)) match {
       case some @ Some(_) => some
-      case None =>
+      case None           =>
         // Try to find implicit
         val intoTpeApplied = TypeRepr.of[Into].typeSymbol.typeRef.appliedTo(List(sourceTpe, targetTpe))
         Implicits.search(intoTpeApplied) match {
@@ -545,7 +567,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
             None
         }
     }
-  }
 
   private def generateProductConversion[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
@@ -571,7 +592,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val fieldConversions: List[(Int, Expr[Either[SchemaError, Any]])] = fieldMappings.zipWithIndex.map {
       case (mapping, idx) =>
         val targetFieldInfo = targetInfo.fields(idx)
-        val eitherExpr = mapping.sourceField match {
+        val eitherExpr      = mapping.sourceField match {
           case Some(sourceField) =>
             val sourceValue = sourceInfo.fieldGetter(aExpr.asTerm, sourceField)
             val sourceTpe   = sourceField.tpe
@@ -602,7 +623,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 case None =>
                   report.errorAndAbort(
                     s"Cannot find implicit Into[${sourceTpe.show}, ${targetTpe.show}] for field '${sourceField.name}'. " +
-                    s"Please provide an implicit Into instance in scope."
+                      s"Please provide an implicit Into instance in scope."
                   )
               }
             } else {
@@ -622,12 +643,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   }
 
   /**
-   * Build an expression that sequences field conversions and constructs the target object
+   * Build an expression that sequences field conversions and constructs the
+   * target object
    */
   private def buildSequencedConstruction[B: Type](
     fieldConversions: List[(Int, Expr[Either[SchemaError, Any]])],
     targetInfo: ProductInfo[B]
-  ): Expr[Either[SchemaError, B]] = {
+  ): Expr[Either[SchemaError, B]] =
     fieldConversions match {
       case Nil =>
         // No fields - just construct empty object
@@ -637,7 +659,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       case fields =>
         // Use nested flatMap to sequence Either values while preserving types
         // We know each field's exact type from targetInfo, so we can cast properly
-        def buildSequence(remaining: List[(Int, Expr[Either[SchemaError, Any]])], constructorArgs: List[Term]): Expr[Either[SchemaError, B]] = {
+        def buildSequence(
+          remaining: List[(Int, Expr[Either[SchemaError, Any]])],
+          constructorArgs: List[Term]
+        ): Expr[Either[SchemaError, B]] =
           remaining match {
             case Nil =>
               // All fields collected - construct the target
@@ -651,7 +676,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                   fieldType.asType match {
                     case '[ft] =>
                       '{
-                        ${fieldEither.asExprOf[Either[SchemaError, t]]}.flatMap { value =>
+                        ${ fieldEither.asExprOf[Either[SchemaError, t]] }.flatMap { value =>
                           // Cast value to the known field type
                           val typedValue = value.asInstanceOf[ft]
                           ${ buildSequence(tail, '{ typedValue }.asTerm :: constructorArgs) }
@@ -660,11 +685,9 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                   }
               }
           }
-        }
 
         buildSequence(fields, Nil)
     }
-  }
 
   // === Case Class to Tuple ===
 
@@ -680,8 +703,15 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
-      if (!(field.tpe =:= targetTpe) && !requiresOpaqueConversion(field.tpe, targetTpe) && !requiresNewtypeConversion(field.tpe, targetTpe) && findImplicitInto(field.tpe, targetTpe).isEmpty) {
-        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${field.tpe.show}, ${targetTpe.show}] found.")
+      if (
+        !(field.tpe =:= targetTpe) && !requiresOpaqueConversion(field.tpe, targetTpe) && !requiresNewtypeConversion(
+          field.tpe,
+          targetTpe
+        ) && findImplicitInto(field.tpe, targetTpe).isEmpty
+      ) {
+        fail(
+          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${field.tpe.show}, ${targetTpe.show}] found."
+        )
       }
     }
 
@@ -696,7 +726,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   }
 
   private def constructTupleFromCaseClass[A: Type, B: Type](
-    sourceInfo: ProductInfo[A],
+    sourceInfo: ProductInfo[A]
   ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val args      = sourceInfo.fields.map(field => sourceInfo.fieldGetter(aExpr.asTerm, field))
     val tupleSize = args.size
@@ -726,8 +756,15 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
-      if (!(sourceTpe =:= field.tpe) && !requiresOpaqueConversion(sourceTpe, field.tpe) && !requiresNewtypeConversion(sourceTpe, field.tpe) && findImplicitInto(sourceTpe, field.tpe).isEmpty) {
-        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${field.tpe.show}] found.")
+      if (
+        !(sourceTpe =:= field.tpe) && !requiresOpaqueConversion(sourceTpe, field.tpe) && !requiresNewtypeConversion(
+          sourceTpe,
+          field.tpe
+        ) && findImplicitInto(sourceTpe, field.tpe).isEmpty
+      ) {
+        fail(
+          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${field.tpe.show}] found."
+        )
       }
     }
 
@@ -768,8 +805,15 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
     sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
-      if (!(sourceTpe =:= targetTpe) && !requiresOpaqueConversion(sourceTpe, targetTpe) && !requiresNewtypeConversion(sourceTpe, targetTpe) && findImplicitInto(sourceTpe, targetTpe).isEmpty) {
-        fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${targetTpe.show}] found.")
+      if (
+        !(sourceTpe =:= targetTpe) && !requiresOpaqueConversion(sourceTpe, targetTpe) && !requiresNewtypeConversion(
+          sourceTpe,
+          targetTpe
+        ) && findImplicitInto(sourceTpe, targetTpe).isEmpty
+      ) {
+        fail(
+          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${targetTpe.show}] found."
+        )
       }
     }
 
@@ -813,22 +857,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   /**
    * Checks if the target type is an opaque type
    */
-  private def isOpaqueType(tpe: TypeRepr): Boolean = {
+  private def isOpaqueType(tpe: TypeRepr): Boolean =
     tpe.typeSymbol.flags.is(Flags.Opaque)
-  }
 
   /**
    * Gets the underlying type of an opaque type
    */
-  private def getOpaqueUnderlying(tpe: TypeRepr): TypeRepr = {
+  private def getOpaqueUnderlying(tpe: TypeRepr): TypeRepr =
     opaqueDealias(tpe)
-  }
 
   /**
-   * Tries to find a validation method (apply) that returns Either[_, OpaqueType]
-   * Returns (companionObject, applyMethod, errorType) if found
+   * Tries to find a validation method (apply) that returns Either[_,
+   * OpaqueType] Returns (companionObject, applyMethod, errorType) if found
    */
-  private def findOpaqueValidationMethod(tpe: TypeRepr): Option[(Term, Symbol, TypeRepr)] = {
+  private def findOpaqueValidationMethod(tpe: TypeRepr): Option[(Term, Symbol, TypeRepr)] =
     getOpaqueCompanion(tpe).flatMap { case (companionRef, companion) =>
       val applyMethods = companion.methodMembers.filter(_.name == "apply")
 
@@ -840,7 +882,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               case DefDef(_, _, returnTpt, _) =>
                 val returnType = returnTpt.tpe
                 returnType.dealias match {
-                  case AppliedType(eitherTpe, List(_, resultTpe)) if eitherTpe.typeSymbol.fullName == "scala.util.Either" =>
+                  case AppliedType(eitherTpe, List(_, resultTpe))
+                      if eitherTpe.typeSymbol.fullName == "scala.util.Either" =>
                     // Check if result type matches our opaque type (use direct match for opaque types)
                     resultTpe =:= tpe
                   case _ => false
@@ -862,15 +905,14 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         (companionRef, method, errorTpe)
       }
     }
-  }
 
   /**
-   * Tries to find an unsafe constructor method for opaque types without validation
-   * Returns (companionObject, unsafeMethod) if found
+   * Tries to find an unsafe constructor method for opaque types without
+   * validation Returns (companionObject, unsafeMethod) if found
    */
-  private def findOpaqueUnsafeMethod(tpe: TypeRepr): Option[(Term, Symbol)] = {
+  private def findOpaqueUnsafeMethod(tpe: TypeRepr): Option[(Term, Symbol)] =
     getOpaqueCompanion(tpe).flatMap { case (companionRef, companion) =>
-      val allMethods = (companion.declaredMethods ++ companion.methodMembers).distinct
+      val allMethods    = (companion.declaredMethods ++ companion.methodMembers).distinct
       val unsafeMethods = allMethods.filter(m => m.name == "unsafe" || m.name == "unsafeWrap")
 
       unsafeMethods.find { method =>
@@ -886,22 +928,21 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         }
       }.map(method => (companionRef, method))
     }
-  }
 
   /**
    * Helper to find the companion object for an opaque type
    */
   private def getOpaqueCompanion(tpe: TypeRepr): Option[(Term, Symbol)] = {
-    val typeSym = tpe.typeSymbol
+    val typeSym      = tpe.typeSymbol
     val companionSym = typeSym.companionModule
 
     val actualCompanion = if (companionSym == Symbol.noSymbol) {
       // Try to find companion object by constructing its expected module path
       val companionName = typeSym.name
-      val owner = typeSym.owner
+      val owner         = typeSym.owner
 
       // The owner.fullName for objects ends with $, strip it for path construction
-      val ownerPath = owner.fullName
+      val ownerPath      = owner.fullName
       val cleanOwnerPath = if (ownerPath.endsWith("$package$")) {
         ownerPath.stripSuffix("$package$").stripSuffix(".")
       } else if (ownerPath.endsWith("$")) {
@@ -932,14 +973,19 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
    * Converts a value to an opaque type, applying validation if available
    * Returns an Expr[Either[SchemaError, OpaqueType]]
    */
-  private def convertToOpaqueTypeEither(sourceValue: Term, sourceTpe: TypeRepr, targetTpe: TypeRepr, fieldName: String): Expr[Either[SchemaError, Any]] = {
+  private def convertToOpaqueTypeEither(
+    sourceValue: Term,
+    sourceTpe: TypeRepr,
+    targetTpe: TypeRepr,
+    fieldName: String
+  ): Expr[Either[SchemaError, Any]] = {
     val underlying = getOpaqueUnderlying(targetTpe)
 
     // Check if source type matches the underlying type
     if (!(sourceTpe =:= underlying)) {
       report.errorAndAbort(
         s"Cannot convert field '$fieldName' from ${sourceTpe.show} to opaque type ${targetTpe.show} " +
-        s"(underlying type: ${underlying.show}). Types must match."
+          s"(underlying type: ${underlying.show}). Types must match."
       )
     }
 
@@ -955,7 +1001,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
             targetTpe.asType match {
               case '[tt] =>
                 '{
-                  ${applyCall.asExprOf[Either[et, tt]]}.left.map { err =>
+                  ${ applyCall.asExprOf[Either[et, tt]] }.left.map { err =>
                     SchemaError.conversionFailed(Nil, s"Validation failed for field '${${ Expr(fieldName) }}': $err")
                   }.asInstanceOf[Either[SchemaError, Any]]
                 }
@@ -971,7 +1017,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               case '[tt] =>
                 val unsafeCall = Select(companionRef, unsafeMethod).appliedTo(sourceValue)
                 '{
-                  Right(${unsafeCall.asExprOf[tt]}).asInstanceOf[Either[SchemaError, Any]]
+                  Right(${ unsafeCall.asExprOf[tt] }).asInstanceOf[Either[SchemaError, Any]]
                 }
             }
 
@@ -987,25 +1033,23 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   /**
    * Checks if conversion requires opaque type handling
    */
-  private def requiresOpaqueConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
+  private def requiresOpaqueConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
     isOpaqueType(targetTpe) && {
       val underlying = getOpaqueUnderlying(targetTpe)
       sourceTpe =:= underlying
     }
-  }
 
   // === ZIO Prelude Newtype Support (Scala 3) ===
 
   /**
-   * Checks if a type is a ZIO Prelude Newtype or Subtype
-   * Works without requiring zio-prelude as a dependency
-   * Checks both the type and its companion object for newtype markers
+   * Checks if a type is a ZIO Prelude Newtype or Subtype Works without
+   * requiring zio-prelude as a dependency Checks both the type and its
+   * companion object for newtype markers
    */
   private def isZIONewtype(tpe: TypeRepr): Boolean = {
-    val typeSym = tpe.typeSymbol
+    val typeSym        = tpe.typeSymbol
     val typeSymbolName = typeSym.name
-    val owner = typeSym.owner
-
+    val owner          = typeSym.owner
 
     // For ZIO Prelude newtypes: type Age = Age.Type where Age extends Subtype[Int]
     // The pattern is:
@@ -1016,31 +1060,28 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     // which can cause "Bad symbolic reference" errors with TASTy version mismatches
 
     if (typeSymbolName == "Type") {
-      val ownerFullName = owner.fullName
+      val ownerFullName       = owner.fullName
       val isZIOPreludeNewtype = ownerFullName.contains("zio.prelude.Subtype") ||
-                                ownerFullName.contains("zio.prelude.Newtype")
-
+        ownerFullName.contains("zio.prelude.Newtype")
 
       if (isZIOPreludeNewtype) {
         return true
       }
-    } else {
-    }
+    } else {}
 
     false
   }
 
   /**
-   * Gets the underlying type of a ZIO Prelude newtype
-   * For Newtype[A] or Subtype[A], returns A
+   * Gets the underlying type of a ZIO Prelude newtype For Newtype[A] or
+   * Subtype[A], returns A
    *
-   * For ZIO Prelude, the pattern is:
-   *   object Age extends Subtype[Int]
-   *   type Age = Age.Type
+   * For ZIO Prelude, the pattern is: object Age extends Subtype[Int] type Age =
+   * Age.Type
    *
-   * When we receive Age.Type (which is an opaque type alias to Int), we need to find
-   * the Age object (the actual owner in the enclosing scope, not the Subtype parent)
-   * and check what type parameter it has.
+   * When we receive Age.Type (which is an opaque type alias to Int), we need to
+   * find the Age object (the actual owner in the enclosing scope, not the
+   * Subtype parent) and check what type parameter it has.
    */
   private def getNewtypeUnderlying(tpe: TypeRepr): TypeRepr = {
 
@@ -1081,20 +1122,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   }
 
   /**
-   * Helper to find the companion object for a ZIO Prelude newtype
-   * Uses the same logic as getOpaqueCompanion
+   * Helper to find the companion object for a ZIO Prelude newtype Uses the same
+   * logic as getOpaqueCompanion
    */
   private def getNewtypeCompanion(tpe: TypeRepr): Option[(Term, Symbol)] = {
-    val typeSym = tpe.typeSymbol
+    val typeSym      = tpe.typeSymbol
     val companionSym = typeSym.companionModule
 
     val actualCompanion = if (companionSym == Symbol.noSymbol) {
       // Try to find companion object by constructing its expected module path
       val companionName = typeSym.name
-      val owner = typeSym.owner
+      val owner         = typeSym.owner
 
       // The owner.fullName for objects ends with $, strip it for path construction
-      val ownerPath = owner.fullName
+      val ownerPath      = owner.fullName
       val cleanOwnerPath = if (ownerPath.endsWith("$package$")) {
         ownerPath.stripSuffix("$package$").stripSuffix(".")
       } else if (ownerPath.endsWith("$")) {
@@ -1123,12 +1164,12 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   }
 
   /**
-   * Finds the 'make' method in a ZIO Prelude newtype companion
-   * ZIO Prelude newtypes have a 'make' method that returns Validation[E, NewtypeType]
-   * We can convert Validation to Either using .toEither
-   * Returns (companionRef, method) if make method exists
+   * Finds the 'make' method in a ZIO Prelude newtype companion ZIO Prelude
+   * newtypes have a 'make' method that returns Validation[E, NewtypeType] We
+   * can convert Validation to Either using .toEither Returns (companionRef,
+   * method) if make method exists
    */
-  private def findNewtypeMakeMethod(tpe: TypeRepr): Option[(Term, Symbol)] = {
+  private def findNewtypeMakeMethod(tpe: TypeRepr): Option[(Term, Symbol)] =
     getNewtypeCompanion(tpe).flatMap { case (companionRef, companion) =>
       // Look for 'make' method (standard ZIO Prelude newtype pattern)
       val allMethods = (companion.declaredMethods ++ companion.methodMembers).distinct
@@ -1153,29 +1194,26 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         (companionRef, method)
       }
     }
-  }
 
   /**
    * Finds the unsafe wrap method in a ZIO Prelude newtype companion
    */
   private def findNewtypeUnsafeMethod(tpe: TypeRepr): Option[(Term, Symbol)] = {
-    val typeSym = tpe.typeSymbol
+    val typeSym      = tpe.typeSymbol
     val companionSym = typeSym.companionModule
 
     if (companionSym == Symbol.noSymbol) return None
 
     val companionRef = Ref(companionSym)
-    val companion = companionSym
+    val companion    = companionSym
 
-    val allMethods = (companion.declaredMethods ++ companion.methodMembers).distinct
-    val unsafeMethods = allMethods.filter(m =>
-      m.name == "unsafeWrap" || m.name == "unsafe" || m.name == "unsafeMake"
-    )
+    val allMethods    = (companion.declaredMethods ++ companion.methodMembers).distinct
+    val unsafeMethods = allMethods.filter(m => m.name == "unsafeWrap" || m.name == "unsafe" || m.name == "unsafeMake")
 
     unsafeMethods.find { method =>
       method.paramSymss match {
         case List(params) if params.size == 1 => true
-        case _ => false
+        case _                                => false
       }
     }.map(method => (companionRef, method))
   }
@@ -1184,13 +1222,19 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
    * Converts a value to a ZIO Prelude newtype, applying validation if available
    * Returns an Expr[Either[SchemaError, NewtypeType]]
    *
-   * This uses runtime reflection to avoid loading ZIO Prelude's TASTy files at compile time,
-   * which can cause "Bad symbolic reference" errors with version mismatches.
+   * This uses runtime reflection to avoid loading ZIO Prelude's TASTy files at
+   * compile time, which can cause "Bad symbolic reference" errors with version
+   * mismatches.
    */
-  private def convertToNewtypeEither(sourceValue: Term, sourceTpe: TypeRepr, targetTpe: TypeRepr, fieldName: String): Expr[Either[SchemaError, Any]] = {
+  private def convertToNewtypeEither(
+    sourceValue: Term,
+    sourceTpe: TypeRepr,
+    targetTpe: TypeRepr,
+    fieldName: String
+  ): Expr[Either[SchemaError, Any]] = {
     // Get the companion object path for runtime reflection
     // For ZIO Prelude newtypes like Domain.PositiveInt.Type, we need to extract Domain.PositiveInt
-    val fullTypeName = targetTpe.show
+    val fullTypeName  = targetTpe.show
     val companionPath = if (fullTypeName.endsWith(".Type")) {
       // Remove the .Type suffix to get the companion object path
       fullTypeName.stripSuffix(".Type")
@@ -1209,26 +1253,26 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 // Convert the companion path to JVM class name
                 // For nested objects like Domain.Age, the JVM class is Domain$Age$
                 val companionClassName = {
-                  val basePath = ${Expr(companionPath)}
+                  val basePath = ${ Expr(companionPath) }
                   // Split by dot and check each segment to see if it's an object
                   // For now, assume all segments except the package are objects (common pattern)
                   // We need to replace dots with $ for object nesting
 
                   // Simple heuristic: if path contains uppercase letters after a dot,
                   // those are likely objects/classes, not packages
-                  val parts = basePath.split('.')
+                  val parts      = basePath.split('.')
                   val packageEnd = parts.indexWhere(part => part.nonEmpty && part.head.isUpper)
 
                   if (packageEnd >= 0) {
                     val packagePart = parts.take(packageEnd).mkString(".")
-                    val objectPart = parts.drop(packageEnd).mkString("$")
+                    val objectPart  = parts.drop(packageEnd).mkString("$")
                     if (packagePart.isEmpty) objectPart + "$" else packagePart + "." + objectPart + "$"
                   } else {
                     basePath + "$"
                   }
                 }
 
-                val companionClass = Class.forName(companionClassName)
+                val companionClass  = Class.forName(companionClassName)
                 val companionModule = companionClass.getField("MODULE$").get(null)
 
                 // ZIO Prelude newtypes always have:
@@ -1240,11 +1284,12 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 val paramClass = classOf[Object]
 
                 // Try to find and call the 'make' method (returns Validation with validation)
-                val makeMethodOpt = try {
-                  Some(companionClass.getMethod("make", paramClass))
-                } catch {
-                  case _: NoSuchMethodException => None
-                }
+                val makeMethodOpt =
+                  try {
+                    Some(companionClass.getMethod("make", paramClass))
+                  } catch {
+                    case _: NoSuchMethodException => None
+                  }
 
                 makeMethodOpt match {
                   case Some(makeMethod) =>
@@ -1252,31 +1297,42 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
                     // Call toEither on the Validation result to get Either[NonEmptyChunk[String], Type]
                     val toEitherMethod = validation.getClass.getMethod("toEither")
-                    val either = toEitherMethod.invoke(validation).asInstanceOf[Either[Any, tt]]
+                    val either         = toEitherMethod.invoke(validation).asInstanceOf[Either[Any, tt]]
 
                     either.left.map { err =>
-                      SchemaError.conversionFailed(Nil, s"Validation failed for field '${${Expr(fieldName)}}': $err")
+                      SchemaError.conversionFailed(Nil, s"Validation failed for field '${${ Expr(fieldName) }}': $err")
                     }
 
                   case None =>
                     // Fall back to wrap if make not found (shouldn't happen for ZIO Prelude newtypes)
-                    val wrapMethodOpt = try {
-                      Some(companionClass.getMethod("wrap", paramClass))
-                    } catch {
-                      case _: NoSuchMethodException => None
-                    }
+                    val wrapMethodOpt =
+                      try {
+                        Some(companionClass.getMethod("wrap", paramClass))
+                      } catch {
+                        case _: NoSuchMethodException => None
+                      }
 
                     wrapMethodOpt match {
                       case Some(wrapMethod) =>
                         val result = wrapMethod.invoke(companionModule, $src.asInstanceOf[Object]).asInstanceOf[tt]
                         Right(result)
                       case None =>
-                        Left(SchemaError.conversionFailed(Nil, s"No 'make' or 'wrap' method found for newtype at $companionClassName"))
+                        Left(
+                          SchemaError.conversionFailed(
+                            Nil,
+                            s"No 'make' or 'wrap' method found for newtype at $companionClassName"
+                          )
+                        )
                     }
                 }
               } catch {
                 case e: ClassNotFoundException =>
-                  Left(SchemaError.conversionFailed(Nil, s"Companion object not found for newtype: ${${Expr(companionPath)}}: ${e.getMessage}"))
+                  Left(
+                    SchemaError.conversionFailed(
+                      Nil,
+                      s"Companion object not found for newtype: ${${ Expr(companionPath) }}: ${e.getMessage}"
+                    )
+                  )
                 case e: Exception =>
                   Left(SchemaError.conversionFailed(Nil, s"Error converting to newtype: ${e.getMessage}"))
               }
@@ -1305,4 +1361,3 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   }
 
 }
-
