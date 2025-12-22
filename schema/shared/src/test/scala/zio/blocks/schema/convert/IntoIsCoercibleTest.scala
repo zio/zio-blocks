@@ -4,8 +4,9 @@ import zio.test._
 import zio.test.Assertion._
 
 /**
- * Tests to verify that implicit Into resolution can handle all cases that isCoercible currently handles.
- * If these tests pass, we can potentially remove isCoercible from the macro.
+ * Tests to verify that implicit Into resolution can handle all cases that
+ * isCoercible currently handles. If these tests pass, we can potentially remove
+ * isCoercible from the macro.
  */
 object IntoIsCoercibleTest extends ZIOSpecDefault {
 
@@ -164,7 +165,7 @@ object IntoIsCoercibleTest extends ZIOSpecDefault {
         case class TargetCase(value: Int) extends TargetADT
 
         val source: SourceADT = SourceCase(42.toByte)
-        val result = Into.derived[SourceADT, TargetADT].into(source)
+        val result            = Into.derived[SourceADT, TargetADT].into(source)
 
         assert(result)(isRight(equalTo(TargetCase(42): TargetADT)))
       },
@@ -176,7 +177,7 @@ object IntoIsCoercibleTest extends ZIOSpecDefault {
         case class TargetCase(value: Long) extends TargetADT
 
         val source: SourceADT = SourceCase(12345)
-        val result = Into.derived[SourceADT, TargetADT].into(source)
+        val result            = Into.derived[SourceADT, TargetADT].into(source)
 
         assert(result)(isRight(equalTo(TargetCase(12345L): TargetADT)))
       }
@@ -194,4 +195,3 @@ object IntoIsCoercibleTest extends ZIOSpecDefault {
     )
   )
 }
-
