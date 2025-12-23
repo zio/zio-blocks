@@ -1,5 +1,6 @@
 package zio.blocks.schema.derive
 
+import scala.annotation.experimental
 import scala.quoted.*
 import scala.reflect.Selectable.reflectiveSelectable
 import zio.blocks.schema.IntoMacro
@@ -8,6 +9,7 @@ import zio.blocks.schema.IntoMacro
  * Macros for handling product type conversions (case classes and tuples) in
  * Into derivation.
  */
+@experimental
 object ProductMacros {
 
   /**

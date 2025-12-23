@@ -1,5 +1,6 @@
 package zio.blocks.schema.derive
 
+import scala.annotation.experimental
 import scala.quoted.*
 import zio.blocks.schema.IntoMacro
 
@@ -8,6 +9,7 @@ import zio.blocks.schema.IntoMacro
  *
  * Handles Option, Either, Map, Array, List, Vector, Set, and Seq conversions.
  */
+@experimental
 object CollectionMacros {
 
   /**
