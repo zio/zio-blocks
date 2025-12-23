@@ -1,4 +1,4 @@
-package zio.blocks.schema.convert
+package zio.blocks.schema
 
 import zio.blocks.schema.CommonMacroOps
 import scala.language.experimental.macros
@@ -228,16 +228,16 @@ private object AsVersionSpecificImpl {
     // Now try to derive both Into instances using the existing Into.derived macro
     // We use c.typecheck to ensure the macros expand correctly
 
-    val intoABExpr = q"_root_.zio.blocks.schema.convert.Into.derived[$aTpe, $bTpe]"
-    val intoBAExpr = q"_root_.zio.blocks.schema.convert.Into.derived[$bTpe, $aTpe]"
+    val intoABExpr = q"_root_.zio.blocks.schema.Into.derived[$aTpe, $bTpe]"
+    val intoBAExpr = q"_root_.zio.blocks.schema.Into.derived[$bTpe, $aTpe]"
 
     c.Expr[As[A, B]](
       q"""
         {
-          val intoAB: _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] = $intoABExpr
-          val intoBA: _root_.zio.blocks.schema.convert.Into[$bTpe, $aTpe] = $intoBAExpr
+          val intoAB: _root_.zio.blocks.schema.Into[$aTpe, $bTpe] = $intoABExpr
+          val intoBA: _root_.zio.blocks.schema.Into[$bTpe, $aTpe] = $intoBAExpr
 
-          new _root_.zio.blocks.schema.convert.As[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.As[$aTpe, $bTpe] {
             def into(input: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] =
               intoAB.into(input)
             def from(input: $bTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $aTpe] =

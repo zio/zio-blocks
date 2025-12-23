@@ -1,16 +1,17 @@
-package zio.blocks.schema.convert
+package zio.blocks.schema
 
 import scala.quoted.*
-import zio.blocks.schema.{MacroUtils, SchemaError}
 
 trait AsVersionSpecific {
+
   /**
    * Derives a bidirectional conversion As[A, B].
-   * 
+   *
    * This macro will:
-   * 1. Verify that both Into[A, B] and Into[B, A] can be derived
-   * 2. Check compatibility rules (no default values, consistent field mappings)
-   * 3. Generate an As[A, B] that delegates to both derived Into instances
+   *   1. Verify that both Into[A, B] and Into[B, A] can be derived
+   *   2. Check compatibility rules (no default values, consistent field
+   *      mappings)
+   *   3. Generate an As[A, B] that delegates to both derived Into instances
    */
   inline def derived[A, B]: As[A, B] = ${ AsVersionSpecificImpl.derived[A, B] }
 }
@@ -27,10 +28,10 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
     val aTpe = TypeRepr.of[A]
     val bTpe = TypeRepr.of[B]
 
-    val aIsProduct = aTpe.classSymbol.exists(isProductType)
-    val bIsProduct = bTpe.classSymbol.exists(isProductType)
-    val aIsTuple = isTupleType(aTpe)
-    val bIsTuple = isTupleType(bTpe)
+    val aIsProduct   = aTpe.classSymbol.exists(isProductType)
+    val bIsProduct   = bTpe.classSymbol.exists(isProductType)
+    val aIsTuple     = isTupleType(aTpe)
+    val bIsTuple     = isTupleType(bTpe)
     val aIsCoproduct = isCoproductType(aTpe)
     val bIsCoproduct = isCoproductType(bTpe)
 
@@ -60,13 +61,13 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
         }
 
       case (_, _, true, true, _, _) =>
-        // Tuple to tuple - no default value checks needed
+      // Tuple to tuple - no default value checks needed
 
       case (_, _, _, _, true, true) =>
-        // Coproduct to coproduct - no additional checks needed
+      // Coproduct to coproduct - no additional checks needed
 
       case _ =>
-        // Try to derive anyway - the Into macros will fail if not possible
+      // Try to derive anyway - the Into macros will fail if not possible
     }
 
     // Use inline expansion to derive both Into instances
@@ -101,27 +102,27 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
 
   private class ProductInfoCompat[T](tpe: TypeRepr)(using Type[T]) {
     val fields: List[FieldInfoCompat] = {
-      val sym = tpe.classSymbol.getOrElse(report.errorAndAbort(s"${tpe.show} is not a class"))
+      val sym         = tpe.classSymbol.getOrElse(report.errorAndAbort(s"${tpe.show} is not a class"))
       val constructor = sym.primaryConstructor
-      
+
       // Get type args from applied type
       val tpeTypeArgs = typeArgs(tpe)
-      
+
       // Get parameter lists, filtering out type parameters
       val (tpeTypeParams, tpeParams) = constructor.paramSymss match {
         case tps :: ps if tps.exists(_.isTypeParam) => (tps, ps)
-        case ps => (Nil, ps)
+        case ps                                     => (Nil, ps)
       }
 
       var idx = 0
       tpeParams.flatten.map { paramSym =>
-        val name = paramSym.name
+        val name     = paramSym.name
         var paramTpe = tpe.memberType(paramSym).dealias
         if (tpeTypeArgs.nonEmpty) {
           paramTpe = paramTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
         }
         val hasDefault = paramSym.flags.is(Flags.HasDefault)
-        val field = FieldInfoCompat(name, paramTpe, idx, hasDefault)
+        val field      = FieldInfoCompat(name, paramTpe, idx, hasDefault)
         idx += 1
         field
       }
@@ -130,7 +131,12 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
 
   // === Compatibility Checks ===
 
-  private def checkNoDefaultValues[A, B](info: ProductInfoCompat[?], direction: String, aTpe: TypeRepr, bTpe: TypeRepr): Unit = {
+  private def checkNoDefaultValues[A, B](
+    info: ProductInfoCompat[?],
+    direction: String,
+    aTpe: TypeRepr,
+    bTpe: TypeRepr
+  ): Unit = {
     val fieldsWithDefaults = info.fields.filter(_.hasDefault)
     if (fieldsWithDefaults.nonEmpty) {
       fail(
@@ -179,20 +185,24 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
             }
           }
         case None =>
-          // Source has field that target doesn't have - this is OK
-          // Extra fields get dropped when going to target
+        // Source has field that target doesn't have - this is OK
+        // Extra fields get dropped when going to target
       }
     }
   }
 
   private def isNumericCoercible(from: TypeRepr, to: TypeRepr): Boolean = {
     val numericTypes = List(
-      TypeRepr.of[Byte], TypeRepr.of[Short], TypeRepr.of[Int], TypeRepr.of[Long],
-      TypeRepr.of[Float], TypeRepr.of[Double]
+      TypeRepr.of[Byte],
+      TypeRepr.of[Short],
+      TypeRepr.of[Int],
+      TypeRepr.of[Long],
+      TypeRepr.of[Float],
+      TypeRepr.of[Double]
     )
 
     val fromIdx = numericTypes.indexWhere(t => from =:= t)
-    val toIdx = numericTypes.indexWhere(t => to =:= t)
+    val toIdx   = numericTypes.indexWhere(t => to =:= t)
 
     // Any numeric type can convert to any other with runtime validation
     fromIdx >= 0 && toIdx >= 0
@@ -202,8 +212,7 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
     val intoTpeApplied = TypeRepr.of[Into].typeSymbol.typeRef.appliedTo(List(from, to))
     Implicits.search(intoTpeApplied) match {
       case _: ImplicitSearchSuccess => true
-      case _ => false
+      case _                        => false
     }
   }
 }
-
