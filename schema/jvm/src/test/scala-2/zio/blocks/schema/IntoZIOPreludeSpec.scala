@@ -199,4 +199,4 @@ object IntoZIOPreludeSpec extends ZIOSpecDefault {
   )
 }
 
-
+// scalafmt:off-on workaround to force CI to pick up latest formatting
