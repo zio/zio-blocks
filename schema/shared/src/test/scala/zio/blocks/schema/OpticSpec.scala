@@ -135,7 +135,7 @@ object OpticSpec extends ZIOSpecDefault {
 
              object Test extends CompanionOptics[Test] {
                implicit val schema: Schema[Test] = Schema.derived
-               val lens                          = optic(_.equals(null))
+               val lens: Any                     = optic(_.equals(null))
              }"""
         }.map(
           assert(_)(
@@ -314,7 +314,7 @@ object OpticSpec extends ZIOSpecDefault {
 
              object Test extends CompanionOptics[Test] {
                implicit val schema: Schema[Test] = Schema.derived
-               val prism                         = optic(null.asInstanceOf[Test => Double])
+               val prism: Any                    = optic(null.asInstanceOf[Test => Double])
              }"""
         }.map(assert(_)(isLeft(startsWithString("Expected a lambda expression, got 'null.asInstanceOf["))))
       },
