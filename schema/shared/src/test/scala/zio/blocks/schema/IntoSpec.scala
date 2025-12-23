@@ -808,7 +808,7 @@ object IntoSpec extends ZIOSpecDefault {
           import scala.language.reflectiveCalls
 
           type CoordStructural = { def x: Int; def y: Int }
-          val point = Point(5, 10)
+          val point  = Point(5, 10)
           val result = Into.derived[Point, CoordStructural].into(point)
 
           // The result should be Right and the structural type should have the same values

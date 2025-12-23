@@ -1,5 +1,6 @@
-package zio.blocks.schema
+package zio.blocks.schema.into.validation
 
+import zio.blocks.schema.Into
 import zio.test.*
 
 object OpaqueTypeDefs {

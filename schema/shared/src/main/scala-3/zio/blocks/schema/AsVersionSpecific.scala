@@ -151,9 +151,59 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def isOptionType(tpe: TypeRepr): Boolean =
     tpe.dealias.baseType(TypeRepr.of[Option[?]].typeSymbol) != TypeRepr.of[Nothing]
 
-  private def getOptionInnerType(tpe: TypeRepr): TypeRepr = {
-    val args = typeArgs(tpe.dealias)
-    if (args.nonEmpty) args.head else report.errorAndAbort(s"Cannot extract inner type from Option: ${tpe.show}")
+  private def isListType(tpe: TypeRepr): Boolean =
+    tpe.dealias.baseType(TypeRepr.of[List[?]].typeSymbol) != TypeRepr.of[Nothing]
+
+  private def isVectorType(tpe: TypeRepr): Boolean =
+    tpe.dealias.baseType(TypeRepr.of[Vector[?]].typeSymbol) != TypeRepr.of[Nothing]
+
+  private def isSetType(tpe: TypeRepr): Boolean =
+    tpe.dealias.baseType(TypeRepr.of[Set[?]].typeSymbol) != TypeRepr.of[Nothing]
+
+  private def isSeqType(tpe: TypeRepr): Boolean =
+    tpe.dealias.baseType(TypeRepr.of[Seq[?]].typeSymbol) != TypeRepr.of[Nothing]
+
+  private def getContainerElementType(tpe: TypeRepr): Option[TypeRepr] =
+    typeArgs(tpe.dealias).headOption
+
+  /**
+   * Checks if two container types (Option, List, Vector, Set, Seq) have bidirectionally
+   * convertible element types (including when elements have implicit As instances available).
+   */
+  private def areBidirectionallyConvertibleContainers(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
+    // Check if both are Options
+    val bothOptions = isOptionType(sourceTpe) && isOptionType(targetTpe)
+
+    // Check if both are collection types (can be different collection types)
+    val bothCollections = (isListType(sourceTpe) || isVectorType(sourceTpe) || isSetType(sourceTpe) || isSeqType(sourceTpe)) &&
+                          (isListType(targetTpe) || isVectorType(targetTpe) || isSetType(targetTpe) || isSeqType(targetTpe))
+
+    if (bothOptions || bothCollections) {
+      (getContainerElementType(sourceTpe), getContainerElementType(targetTpe)) match {
+        case (Some(sourceElem), Some(targetElem)) =>
+          // Same element type - trivially convertible
+          if (sourceElem =:= targetElem) {
+            true
+          } else {
+            // Check if element types are bidirectionally convertible
+            val hasAsInstance = isImplicitAsAvailable(sourceElem, targetElem)
+            if (hasAsInstance) {
+              true
+            } else {
+              // Check numeric coercion and Into instances
+              val canConvertElems = isNumericCoercible(sourceElem, targetElem) ||
+                isImplicitIntoAvailable(sourceElem, targetElem)
+              val canConvertElemsBack = isNumericCoercible(targetElem, sourceElem) ||
+                isImplicitIntoAvailable(targetElem, sourceElem)
+
+              canConvertElems && canConvertElemsBack
+            }
+          }
+        case _ => false
+      }
+    } else {
+      false
+    }
   }
 
   private def checkFieldMappingConsistency(
@@ -171,17 +221,41 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
         case Some(targetField) =>
           // Both have this field - types must be convertible in both directions
           if (!(sourceField.tpe =:= targetField.tpe)) {
-            val canConvert = isNumericCoercible(sourceField.tpe, targetField.tpe) ||
-              isImplicitIntoAvailable(sourceField.tpe, targetField.tpe)
-            val canConvertBack = isNumericCoercible(targetField.tpe, sourceField.tpe) ||
-              isImplicitIntoAvailable(targetField.tpe, sourceField.tpe)
+            // Check if As[source, target] is available (bidirectional)
+            val hasAsInstance = isImplicitAsAvailable(sourceField.tpe, targetField.tpe)
 
-            if (!canConvert || !canConvertBack) {
-              fail(
-                s"Cannot derive As[${aTpe.show}, ${bTpe.show}]: field '$name' has types that are not bidirectionally convertible. " +
-                  s"Source: ${sourceField.tpe.show}, Target: ${targetField.tpe.show}. " +
-                  s"Both directions must be convertible."
-              )
+            if (hasAsInstance) {
+              // As instance provides both directions
+            } else {
+              // Check for container types (Option, List, etc.) with different element types
+              val containerConvertible = areBidirectionallyConvertibleContainers(sourceField.tpe, targetField.tpe)
+
+              if (containerConvertible) {
+                // Container types with bidirectionally convertible elements
+              } else {
+                // Fall back to checking Into in both directions
+                val canConvert = isNumericCoercible(sourceField.tpe, targetField.tpe) ||
+                  requiresOpaqueConversion(sourceField.tpe, targetField.tpe) ||
+                  requiresOpaqueUnwrapping(sourceField.tpe, targetField.tpe) ||
+                  requiresNewtypeConversion(sourceField.tpe, targetField.tpe) ||
+                  requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe) ||
+                  isImplicitIntoAvailable(sourceField.tpe, targetField.tpe)
+
+                val canConvertBack = isNumericCoercible(targetField.tpe, sourceField.tpe) ||
+                  requiresOpaqueConversion(targetField.tpe, sourceField.tpe) ||
+                  requiresOpaqueUnwrapping(targetField.tpe, sourceField.tpe) ||
+                  requiresNewtypeConversion(targetField.tpe, sourceField.tpe) ||
+                  requiresNewtypeUnwrapping(targetField.tpe, sourceField.tpe) ||
+                  isImplicitIntoAvailable(targetField.tpe, sourceField.tpe)
+
+                if (!canConvert || !canConvertBack) {
+                  fail(
+                    s"Cannot derive As[${aTpe.show}, ${bTpe.show}]: field '$name' has types that are not bidirectionally convertible. " +
+                      s"Source: ${sourceField.tpe.show}, Target: ${targetField.tpe.show}. " +
+                      s"Both directions must be convertible."
+                  )
+                }
+              }
             }
           }
         case None =>
@@ -215,4 +289,38 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
       case _                        => false
     }
   }
+
+  private def isImplicitAsAvailable(from: TypeRepr, to: TypeRepr): Boolean = {
+    val asTpeApplied = TypeRepr.of[As].typeSymbol.typeRef.appliedTo(List(from, to))
+    Implicits.search(asTpeApplied) match {
+      case _: ImplicitSearchSuccess => true
+      case _                        => false
+    }
+  }
+
+  // === Opaque and Newtype Helpers ===
+
+  private def requiresOpaqueConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
+    isOpaque(targetTpe) && {
+      val underlying = opaqueDealias(targetTpe)
+      sourceTpe =:= underlying
+    }
+
+  private def requiresOpaqueUnwrapping(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
+    isOpaque(sourceTpe) && {
+      val underlying = opaqueDealias(sourceTpe)
+      underlying =:= targetTpe
+    }
+
+  private def requiresNewtypeConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
+    isZioPreludeNewtype(targetTpe) && {
+      val underlying = zioPreludeNewtypeDealias(targetTpe)
+      sourceTpe =:= underlying
+    }
+
+  private def requiresNewtypeUnwrapping(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
+    isZioPreludeNewtype(sourceTpe) && {
+      val underlying = zioPreludeNewtypeDealias(sourceTpe)
+      underlying =:= targetTpe
+    }
 }
