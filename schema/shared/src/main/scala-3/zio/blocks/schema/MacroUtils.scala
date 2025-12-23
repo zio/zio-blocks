@@ -66,7 +66,9 @@ private[schema] trait MacroUtils(using val quotes: Quotes) {
     name: String,
     tpe: TypeRepr,
     index: Int,
-    getter: Symbol
+    getter: Symbol,
+    hasDefault: Boolean = false,
+    defaultValue: Option[Term] = None
   )
 
   /**
@@ -99,7 +101,12 @@ private[schema] trait MacroUtils(using val quotes: Quotes) {
         case ps                                     => (Nil, ps)
       }
       val caseFields = tpeClassSymbol.caseFields
-      var idx        = 0
+
+      // Lazy initialization for companion access (only needed if there are defaults)
+      lazy val companionRef   = Ref(tpe.typeSymbol.companionModule)
+      lazy val companionClass = tpe.typeSymbol.companionClass
+
+      var idx = 0
 
       tpeParams.flatten.map { symbol =>
         idx += 1
@@ -123,7 +130,22 @@ private[schema] trait MacroUtils(using val quotes: Quotes) {
           )
         }
 
-        FieldInfo(name, fTpe, idx - 1, getter)
+        // Check for default value
+        val hasDefault                 = symbol.flags.is(Flags.HasDefault)
+        val defaultValue: Option[Term] = if (hasDefault) {
+          val dvMethodName = s"$$lessinit$$greater$$default$$$idx"
+          companionClass.declaredMethod(dvMethodName).headOption.map { dvMethod =>
+            val dvSelectNoTypes = Select(companionRef, dvMethod)
+            dvMethod.paramSymss match {
+              case Nil                                          => dvSelectNoTypes
+              case List(params) if params.exists(_.isTypeParam) =>
+                dvSelectNoTypes.appliedToTypes(tpeTypeArgs)
+              case _ => dvSelectNoTypes // Fall back for complex cases
+            }
+          }
+        } else None
+
+        FieldInfo(name, fTpe, idx - 1, getter, hasDefault, defaultValue)
       }
     }
 

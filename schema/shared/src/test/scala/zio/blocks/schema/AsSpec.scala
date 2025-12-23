@@ -72,9 +72,9 @@ object AsSpec extends ZIOSpecDefault {
 
   // === Structural Types ===
   type PointStructural = { def x: Double; def y: Double }
-  type PersonLike = { def name: String; def age: Int }
-  type CoordA = { def x: Int; def y: Int }
-  type CoordB = { def x: Int; def y: Int }
+  type PersonLike      = { def name: String; def age: Int }
+  type CoordA          = { def x: Int; def y: Int }
+  type CoordB          = { def x: Int; def y: Int }
 
   // Helper implementation classes for structural types
   class PointImpl(val x: Double, val y: Double)
@@ -401,17 +401,17 @@ object AsSpec extends ZIOSpecDefault {
           )
         },
         test("converts structural type to case class") {
-          val as: As[Point, PointStructural]     = As.derived[Point, PointStructural]
-          val structural: PointStructural        = new PointImpl(5.0, 10.0)
-          val result                             = as.from(structural)
+          val as: As[Point, PointStructural] = As.derived[Point, PointStructural]
+          val structural: PointStructural    = new PointImpl(5.0, 10.0)
+          val result                         = as.from(structural)
 
           assertTrue(result == Right(Point(5.0, 10.0)))
         },
         test("round-trip case class → structural type → case class") {
-          val as     = As.derived[Point, PointStructural]
+          val as       = As.derived[Point, PointStructural]
           val original = Point(3.5, 7.5)
 
-          val converted = as.into(original)
+          val converted    = as.into(original)
           val roundTripped = converted.flatMap(as.from)
 
           assertTrue(roundTripped == Right(original))
@@ -427,9 +427,9 @@ object AsSpec extends ZIOSpecDefault {
           )
         },
         test("converts PersonLike structural type to Person case class") {
-          val as: As[PersonV1, PersonLike]    = As.derived[PersonV1, PersonLike]
-          val personLike: PersonLike          = new PersonLikeImpl("Bob", 25)
-          val result                          = as.from(personLike)
+          val as: As[PersonV1, PersonLike] = As.derived[PersonV1, PersonLike]
+          val personLike: PersonLike       = new PersonLikeImpl("Bob", 25)
+          val result                       = as.from(personLike)
 
           assertTrue(result == Right(PersonV1("Bob", 25)))
         },
@@ -442,7 +442,7 @@ object AsSpec extends ZIOSpecDefault {
 
           assertTrue(roundTripped == Right(original))
         }
-      ),
+      )
     )
   )
 }
