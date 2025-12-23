@@ -2,9 +2,8 @@ package zio.blocks.schema.migration
 
 import zio.blocks.schema.DynamicOptic
 import zio.blocks.schema.DynamicValue
-import zio.json.{JsonDecoder, JsonEncoder}
 
-sealed trait MigrationAction derives JsonEncoder, JsonDecoder {
+sealed trait MigrationAction {
   def at: DynamicOptic
   def reverse: MigrationAction
 
