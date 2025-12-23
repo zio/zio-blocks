@@ -99,10 +99,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ),
     // Exclude IntoZIOPreludeSpec from Native tests (uses reflection which is not supported)
-    Test / unmanagedSources / excludeFilter := {
-      val baseFilter = (Test / unmanagedSources / excludeFilter).value
-      baseFilter || "**/IntoZIOPreludeSpec.scala"
-    }
+    Test / sources := (Test / sources).value.filterNot(_.getName == "IntoZIOPreludeSpec.scala")
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -148,7 +145,10 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     mimaPreviousArtifacts := Set()
   )
   .jsSettings(jsSettings)
-  .nativeSettings(nativeSettings)
+  .nativeSettings(
+    nativeSettings,
+    Test / sources := (Test / sources).value.filterNot(_.getName == "IntoZIOPreludeSpec.scala")
+  )
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))

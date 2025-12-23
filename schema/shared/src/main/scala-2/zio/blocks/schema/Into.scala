@@ -297,7 +297,10 @@ private object IntoMacros {
     val sourceIsIterable = aType <:< typeOf[Iterable[_]]
     val targetIsIterable = bType <:< typeOf[Iterable[_]]
 
-    if (sourceIsIterable && targetIsIterable) {
+    // IMPORTANT (Scala 2): guard against Map/tuple-like types accidentally
+    // flowing through the generic Iterable branch. We only treat types with a
+    // single type argument as plain collections here.
+    if (sourceIsIterable && targetIsIterable && aType.typeArgs.size == 1) {
       val sourceElemType = aType.typeArgs.headOption.getOrElse(typeOf[Any])
       val targetElemType = bType.typeArgs.headOption.getOrElse(typeOf[Any])
 
@@ -355,11 +358,27 @@ private object IntoMacros {
     }
 
     // Try Map conversion
-    if (aType <:< typeOf[Map[_, _]] && bType <:< typeOf[Map[_, _]]) {
-      val sourceKeyType   = aType.typeArgs(0)
-      val sourceValueType = aType.typeArgs(1)
-      val targetKeyType   = bType.typeArgs(0)
-      val targetValueType = bType.typeArgs(1)
+    //
+    // NOTE (Scala 2): we intentionally avoid using `<:< typeOf[Map[_, _]]` directly here
+    // because it can be unreliable in the presence of type aliases and type erasure.
+    // Instead we:
+    //   1. Grab the `Map` symbol once (using scala.collection.Map to capture
+    //      immutable, mutable and alias variants)
+    //   2. Use `baseType` to see if the current type has a `Map` in its hierarchy
+    //   3. Extract key/value types from the resulting `baseType`
+    val mapSymbol = typeOf[scala.collection.Map[_, _]].typeSymbol
+
+    val mapTypeA = aType.baseType(mapSymbol)
+    val mapTypeB = bType.baseType(mapSymbol)
+
+    val isMapA = mapTypeA != NoType
+    val isMapB = mapTypeB != NoType
+
+    if (isMapA && isMapB) {
+      val sourceKeyType   = mapTypeA.typeArgs(0)
+      val sourceValueType = mapTypeA.typeArgs(1)
+      val targetKeyType   = mapTypeB.typeArgs(0)
+      val targetValueType = mapTypeB.typeArgs(1)
 
       val keySame   = sourceKeyType =:= targetKeyType
       val valueSame = sourceValueType =:= targetValueType
@@ -369,25 +388,50 @@ private object IntoMacros {
           q"_root_.zio.blocks.schema.Into.identity[$aType].asInstanceOf[_root_.zio.blocks.schema.Into[$aType, $bType]]"
         )
       } else {
+        // Helpful debug signal during macro expansion to verify we are in the
+        // specialized Map conversion branch instead of the generic Iterable one.
+        c.echo(c.enclosingPosition, s"Generating Map conversion for $aType -> $bType")
+
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
             def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
               val map = input.asInstanceOf[Map[$sourceKeyType, $sourceValueType]]
-              
-              map.iterator.foldLeft[Either[_root_.zio.blocks.schema.SchemaError, Map[$targetKeyType, $targetValueType]]](Right(Map.empty)) {
-                case (Right(acc), (k, v)) =>
-                  for {
-                    convertedKey <- ${
+
+              var result = Right(
+                Map.empty[$targetKeyType, $targetValueType]
+              ): Either[_root_.zio.blocks.schema.SchemaError, Map[$targetKeyType, $targetValueType]]
+
+              val it = map.iterator
+
+              while (it.hasNext && result.isRight) {
+                val entry = it.next()
+                val k     = entry._1
+                val v     = entry._2
+
+                result = result match {
+                  case Right(acc) =>
+                    val converted: Either[_root_.zio.blocks.schema.SchemaError, ($targetKeyType, $targetValueType)] =
+                      for {
+                        convertedKey <- ${
             if (keySame) q"Right(k)"
             else q"_root_.zio.blocks.schema.Into.derived[$sourceKeyType, $targetKeyType].into(k)"
           }
-                    convertedValue <- ${
+                        convertedValue <- ${
             if (valueSame) q"Right(v)"
             else q"_root_.zio.blocks.schema.Into.derived[$sourceValueType, $targetValueType].into(v)"
           }
-                  } yield acc + (convertedKey -> convertedValue)
-                case (left @ Left(_), _) => left
-              }.asInstanceOf[Either[_root_.zio.blocks.schema.SchemaError, $bType]]
+                      } yield (convertedKey, convertedValue)
+
+                    converted match {
+                      case Right((ck, cv)) => Right(acc + (ck -> cv))
+                      case Left(err)       => Left(err)
+                    }
+
+                  case left @ Left(_) => left
+                }
+              }
+
+              result.asInstanceOf[Either[_root_.zio.blocks.schema.SchemaError, $bType]]
             }
           }
         """)
