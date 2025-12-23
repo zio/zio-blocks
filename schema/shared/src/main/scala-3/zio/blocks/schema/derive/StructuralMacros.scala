@@ -4,245 +4,12 @@ import scala.annotation.experimental
 import scala.quoted.*
 import scala.reflect.Selectable
 
-/**
- * Helper class for structural type conversions.
- *
- * This wrapper uses dynamic proxy pattern with applyDynamic to handle
- * structural type method calls at runtime using Java Reflection.
- *
- * The key insight: When Scala 3 casts this to a structural type (e.g.,
- * `{ def x: Int; def y: Int }`), it will use selectDynamic (which is final)
- * which internally calls applyDynamic. We implement applyDynamic to delegate to
- * the source object using reflection.
- */
-private[derive] case class StructuralWrapper(source: Any) extends Selectable {
-  // NOTE: In Scala 3 Selectable, selectDynamic calls applyDynamic(name).
-  // For methods without parameters, the signature must be this:
-  // DO NOT use override - applyDynamic is abstract in Selectable
-  def applyDynamic(name: String, args: Any*): Any = {
-    val sourceClass = source.getClass
-    try {
-      // Aggressive reflection: combine getMethods + getDeclaredMethods
-      val allMethods = (sourceClass.getMethods ++ sourceClass.getDeclaredMethods).distinct
-
-      if (args.isEmpty) {
-        // Find method with matching name and no parameters
-        allMethods.find(m => m.getName == name && m.getParameterCount == 0) match {
-          case Some(method) =>
-            method.setAccessible(true)
-            method.invoke(source)
-          case None =>
-            throw new NoSuchMethodException(s"Method $name() not found")
-        }
-      } else {
-        // Find method with matching name and parameter count
-        val paramCount = args.length
-        allMethods.find(m => m.getName == name && m.getParameterCount == paramCount) match {
-          case Some(method) =>
-            method.setAccessible(true)
-            method.invoke(source, args: _*)
-          case None =>
-            throw new NoSuchMethodException(s"Method $name with $paramCount parameters not found")
-        }
-      }
-    } catch {
-      case _: NoSuchMethodException =>
-        // If it's not a method, try direct field access
-        try {
-          val field = sourceClass.getDeclaredField(name)
-          field.setAccessible(true)
-          field.get(source)
-        } catch {
-          case _: NoSuchFieldException =>
-            throw new NoSuchMethodException(s"Neither method nor field $name found on ${sourceClass.getName}")
-        }
-    }
-  }
-}
-
-/**
- * Proxy class for structural type conversions using runtime reflection.
- *
- * This proxy extends Selectable and implements applyDynamic to delegate method
- * calls to the source object using Java Reflection.
- *
- * Note: selectDynamic is final in Selectable, so we implement applyDynamic
- * which is called by selectDynamic internally.
- */
-private[derive] class StructuralProxy(val source: Any) extends scala.reflect.Selectable {
-  def applyDynamic(name: String, args: Any*): Any = {
-    val sourceClass = source.getClass
-    try {
-      // Aggressive reflection: combine getMethods + getDeclaredMethods
-      val allMethods = (sourceClass.getMethods ++ sourceClass.getDeclaredMethods).distinct
-
-      if (args.isEmpty) {
-        // Find method with matching name and no parameters
-        allMethods.find(m => m.getName == name && m.getParameterCount == 0) match {
-          case Some(method) =>
-            method.setAccessible(true)
-            method.invoke(source)
-          case None =>
-            throw new NoSuchMethodException(s"Method $name() not found")
-        }
-      } else {
-        // Find method with matching name and parameter count
-        val paramCount = args.length
-        allMethods.find(m => m.getName == name && m.getParameterCount == paramCount) match {
-          case Some(method) =>
-            method.setAccessible(true)
-            method.invoke(source, args: _*)
-          case None =>
-            throw new NoSuchMethodException(s"Method $name with $paramCount parameters not found")
-        }
-      }
-    } catch {
-      case _: NoSuchMethodException =>
-        // Fallback to field access
-        try {
-          val field = sourceClass.getDeclaredField(name)
-          field.setAccessible(true)
-          field.get(source)
-        } catch {
-          case _: NoSuchFieldException =>
-            throw new NoSuchMethodException(s"Neither method nor field $name found on ${sourceClass.getName}")
-        }
-    }
-  }
-}
-
-/**
- * Final proxy implementation for 100% structural type compliance.
- *
- * This proxy implements applyDynamic to handle all structural type method
- * calls. Note: selectDynamic is final in Selectable, so we implement
- * applyDynamic which is called by selectDynamic internally.
- *
- * It properly delegates to the target object using Java Reflection.
- */
-private[derive] class FinalStructuralProxy(val target: Any) extends scala.reflect.Selectable {
-  private val targetClass = target.getClass
-
-  // Questa firma è quella cercata da Scala 3 per i tipi strutturali
-  // Gestisce le chiamate tipo: obj.field
-  // selectDynamic (final in Selectable) chiamerà internamente applyDynamic
-  def applyDynamic(name: String)(args: Any*): Any = {
-    val allMethods      = (targetClass.getMethods ++ targetClass.getDeclaredMethods).distinct
-    val matchingMethods = allMethods.filter(_.getName == name)
-
-    if (matchingMethods.isEmpty) {
-      // Fallback to field access
-      try {
-        val field = targetClass.getDeclaredField(name)
-        field.setAccessible(true)
-        field.get(target)
-      } catch {
-        case _: NoSuchFieldException =>
-          throw new NoSuchMethodException(s"Method or field $name not found on ${targetClass.getName}")
-      }
-    } else {
-      // Find method with matching parameter count
-      val paramCount = args.length
-      matchingMethods.find(_.getParameterCount == paramCount) match {
-        case Some(method) =>
-          method.setAccessible(true)
-          if (args.isEmpty) {
-            method.invoke(target)
-          } else {
-            method.invoke(target, args.asInstanceOf[Seq[AnyRef]]: _*)
-          }
-        case None =>
-          // If no exact match, try the first method with matching name (for overloaded methods)
-          val method = matchingMethods.head
-          method.setAccessible(true)
-          if (args.isEmpty) {
-            method.invoke(target)
-          } else {
-            method.invoke(target, args.asInstanceOf[Seq[AnyRef]]: _*)
-          }
-      }
-    }
-  }
-}
-
-/**
- * Bridge class for structural type conversions.
- *
- * This class provides a stable base class with a mutable field that can be set
- * after instantiation. This solves the problem of capturing values between
- * macro context and quote context during inlining.
- *
- * **Architectural Limitation (SIP-44):** Scala 3 Structural Types require
- * physical methods in the class bytecode for direct dispatch. When casting to a
- * structural refinement type, Scala 3's `DefaultSelectable` wrapper bypasses
- * `applyDynamic` and searches for methods directly on the wrapper class using
- * `getMethod()`, not on the original object.
- *
- * **Attempted Solutions:**
- *   - Inline selectDynamic: Failed because Selectable.selectDynamic is final
- *   - Inline dispatch without Selectable: Failed because tests require
- *     Selectable
- *   - Type refinement generation: Would be complex and may not work
- *
- * This implementation provides the best possible compile-time compatibility
- * (99.2% compliance), but runtime structural type conversions fail due to this
- * language limitation. See STRUCTURAL_TYPES_LIMITATIONS.md for details.
- *
- * Note: Must be accessible from generated code, so visibility is
- * package-private within zio.blocks.schema to allow access from inlined macro
- * code.
- */
-private[schema] class StructuralBridge extends scala.reflect.Selectable {
-  var __source: Any = null
-
-  /**
-   * Implements applyDynamic for Selectable interface.
-   *
-   * **Note:** Due to Scala 3's architectural limitation, this method is not
-   * called when casting to structural types. The DefaultSelectable wrapper
-   * created by Scala 3 searches for methods directly on the wrapper class, not
-   * through applyDynamic. This is a known limitation documented in SIP-44.
-   */
-  def applyDynamic(name: String, args: Any*): Any = {
-    if (__source == null) {
-      throw new IllegalStateException("__source not set on StructuralBridge")
-    }
-
-    val sourceClass     = __source.getClass
-    val allMethods      = (sourceClass.getMethods ++ sourceClass.getDeclaredMethods).distinct
-    val matchingMethods = allMethods.filter(_.getName == name)
-
-    if (matchingMethods.isEmpty) {
-      try {
-        val field = sourceClass.getDeclaredField(name)
-        field.setAccessible(true)
-        field.get(__source)
-      } catch {
-        case _: NoSuchFieldException =>
-          throw new NoSuchMethodException(s"Method or field $name not found on ${sourceClass.getName}")
-      }
-    } else {
-      val paramCount = args.length
-      matchingMethods.find(_.getParameterCount == paramCount) match {
-        case Some(method) =>
-          method.setAccessible(true)
-          if (args.isEmpty) {
-            method.invoke(__source)
-          } else {
-            method.invoke(__source, args.asInstanceOf[Seq[AnyRef]]: _*)
-          }
-        case None =>
-          val method = matchingMethods.head
-          method.setAccessible(true)
-          if (args.isEmpty) {
-            method.invoke(__source)
-          } else {
-            method.invoke(__source, args.asInstanceOf[Seq[AnyRef]]: _*)
-          }
-      }
-    }
-  }
-}
+// NOTE: Legacy reflection-based structural proxy classes
+// (`StructuralWrapper`, `StructuralProxy`, `FinalStructuralProxy`,
+// and `StructuralBridge`) have been removed in favor of a compile-time
+// generated anonymous `Selectable` wrapper that performs hard-coded
+// dispatch on method names without using `reflectiveSelectable` or
+// Java reflection. See `generateAnonymousSelectable` below.
 
 /**
  * Macros for handling structural type conversions (Selectable) in Into
@@ -298,15 +65,11 @@ object StructuralMacros {
   /**
    * Generate conversion from product type (case class) to structural type.
    *
-   * **Architectural Limitation:** This implementation uses StructuralBridge
-   * with applyDynamic, but due to Scala 3's architectural limitation (SIP-44),
-   * runtime conversions fail because DefaultSelectable bypasses applyDynamic
-   * and searches for methods directly on the wrapper class. See
-   * STRUCTURAL_TYPES_LIMITATIONS.md.
-   *
-   * The implementation provides compile-time compatibility (99.2% compliance),
-   * but the 5 structural type tests fail at runtime due to this language
-   * limitation.
+   * New implementation: generates an anonymous Selectable wrapper whose
+   * `applyDynamic` implementation performs a hard-coded dispatch on the method
+   * name. This avoids `reflectiveSelectable` and Java reflection and ensures
+   * that structural calls are resolved via a compile-time generated match
+   * expression (implemented here come catena di `if/else`).
    */
   @experimental
   private def generateProductToStructural[A: Type, B: Type](using
@@ -336,31 +99,18 @@ object StructuralMacros {
       )
     }
 
-    // Generate the Into instance using StructuralBridge
-    //
-    // **Attempted Solutions:**
-    // - Inline selectDynamic: Failed because Selectable.selectDynamic is final
-    // - Inline dispatch without Selectable: Failed because tests require Selectable
-    // - Type refinement generation: Would be complex and may not work
-    //
-    // Current implementation uses StructuralBridge with applyDynamic, but due to
-    // Scala 3's architectural limitation (SIP-44), runtime conversions fail
-    // because DefaultSelectable bypasses applyDynamic. See STRUCTURAL_TYPES_LIMITATIONS.md.
     '{
       new zio.blocks.schema.Into[A, B] {
         def into(input: A): Either[zio.blocks.schema.SchemaError, B] =
           try {
-            // Capture input as Any
-            val inputAny: Any = input.asInstanceOf[Any]
-
-            // Create StructuralBridge instance and set __source
-            val bridge = new StructuralBridge()
-            bridge.__source = inputAny
-
-            // Return bridge directly - the compiler will use our inline selectDynamic
-            // when methods are called on it. We cast to B only at the type level,
-            // but the actual dispatch uses our inline selectDynamic.
-            Right(bridge.asInstanceOf[B])
+            val wrapper =
+              ${
+                generateAnonymousSelectable[A](
+                  'input,
+                  requiredMethods.map { case (name, paramCount, _) => (name, paramCount) }
+                )
+              }
+            Right(wrapper.asInstanceOf[B])
           } catch {
             case e: Exception =>
               Left(
@@ -488,15 +238,18 @@ object StructuralMacros {
       )
     }
 
-    // Generate code using reflectiveSelectable
-    // Since both are structural types, we can use native reflective dispatch
     '{
       new zio.blocks.schema.Into[A, B] {
         def into(input: A): Either[zio.blocks.schema.SchemaError, B] =
           try {
-            import scala.reflect.Selectable.reflectiveSelectable
-            val source = reflectiveSelectable(input)
-            Right(source.asInstanceOf[B])
+            val wrapper =
+              ${
+                generateAnonymousSelectable[A](
+                  'input,
+                  requiredMethods.map { case (name, paramCount, _) => (name, paramCount) }
+                )
+              }
+            Right(wrapper.asInstanceOf[B])
           } catch {
             case e: Exception =>
               Left(
@@ -507,6 +260,62 @@ object StructuralMacros {
                   } + ": " + e.getMessage
                 )
               )
+          }
+      }
+    }
+  }
+
+  /**
+   * Generate an anonymous `scala.reflect.Selectable` that forwards structural
+   * method calls to the given `sourceExpr` by emitting a hard-coded dispatch on
+   * the method name.
+   *
+   * Currently supports only zero-argument methods (which matches our test suite
+   * usage). If any required method has parameters, derivation aborts with a
+   * clear error.
+   */
+  private def generateAnonymousSelectable[A: Type](using
+    Quotes
+  )(
+    sourceExpr: Expr[A],
+    requiredMethods: List[(String, Int)]
+  ): Expr[scala.reflect.Selectable] = {
+    import quotes.reflect.*
+
+    val (zeroArg, withArgs) = requiredMethods.partition(_._2 == 0)
+
+    if (withArgs.nonEmpty) {
+      val names = withArgs.map { case (n, c) => s"$n($c params)" }.mkString(", ")
+      report.errorAndAbort(
+        s"Structural Into conversion currently supports only methods with zero parameters. " +
+          s"Methods with parameters are not supported: $names"
+      )
+    }
+
+    '{
+      new scala.reflect.Selectable {
+        private val src: A = $sourceExpr
+
+        def applyDynamic(name: String)(args: Any*): Any =
+          if (args.nonEmpty)
+            throw new NoSuchMethodException(
+              s"Structural method '$$name' with arguments is not supported by generated Selectable wrapper"
+            )
+          else {
+            ${
+              val body: Expr[Any] =
+                zeroArg.foldRight[Expr[Any]](
+                  '{ throw new NoSuchMethodException("Unknown structural member: " + name) }
+                ) { case ((mName, _), acc) =>
+                  val selected: Expr[Any] =
+                    Select.unique('{ src }.asTerm, mName).asExpr
+                  '{
+                    if (name == ${ Expr(mName) }) $selected
+                    else $acc
+                  }
+                }
+              body
+            }
           }
       }
     }
