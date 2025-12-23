@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.language.reflectiveCalls
 import zio.test._
 
 object AsSpec extends ZIOSpecDefault {
@@ -65,6 +66,20 @@ object AsSpec extends ZIOSpecDefault {
   // === Set ↔ List (Lossy but Valid) ===
   case class DataSet(values: Set[Int])
   case class DataListInt(values: List[Int])
+
+  // === Triple for Arity Mismatch Tests ===
+  case class Triple(a: Int, b: String, c: Boolean)
+
+  // === Structural Types ===
+  type PointStructural = { def x: Double; def y: Double }
+  type PersonLike = { def name: String; def age: Int }
+  type CoordA = { def x: Int; def y: Int }
+  type CoordB = { def x: Int; def y: Int }
+
+  // Helper implementation classes for structural types
+  class PointImpl(val x: Double, val y: Double)
+  class PersonLikeImpl(val name: String, val age: Int)
+  class CoordImpl(val x: Int, val y: Int)
 
   // Helper to verify round-trip property
   def roundTripTest[A, B](as: As[A, B], original: A): TestResult = {
@@ -300,8 +315,6 @@ object AsSpec extends ZIOSpecDefault {
     ),
     suite("Arity Mismatch - Should handle gracefully")(
       test("case class with 3 fields to tuple with 3 elements") {
-        case class Triple(a: Int, b: String, c: Boolean)
-
         val as       = As.derived[Triple, (Int, String, Boolean)]
         val original = Triple(1, "two", true)
 
@@ -309,7 +322,6 @@ object AsSpec extends ZIOSpecDefault {
         assertTrue(converted == Right((1, "two", true)))
       },
       test("round-trip Triple → (Int, String, Boolean) → Triple") {
-        case class Triple(a: Int, b: String, c: Boolean)
 
         val as       = As.derived[Triple, (Int, String, Boolean)]
         val original = Triple(42, "answer", false)
@@ -319,7 +331,7 @@ object AsSpec extends ZIOSpecDefault {
     ),
     suite("Compilation Failure Tests - Default Values")(
       test("should not compile As[A, B] when B has default values and A is missing fields") {
-        // Default values break round-trip guarantee because we can't distinguish
+        // Defaulvalues break round-trip guarantee because we can't distinguish
         // between explicitly set default value and missing field
         typeCheck {
           """
@@ -375,6 +387,62 @@ object AsSpec extends ZIOSpecDefault {
           )
         )
       }
+    ),
+    suite("Structural Types")(
+      suite("Product ↔ Structural Type")(
+        test("converts case class to structural type") {
+          val as     = As.derived[Point, PointStructural]
+          val point  = Point(5.0, 10.0)
+          val result = as.into(point)
+
+          assertTrue(
+            result.isRight,
+            result.map(c => (c.x, c.y)) == Right((5.0, 10.0))
+          )
+        },
+        test("converts structural type to case class") {
+          val as: As[Point, PointStructural]     = As.derived[Point, PointStructural]
+          val structural: PointStructural        = new PointImpl(5.0, 10.0)
+          val result                             = as.from(structural)
+
+          assertTrue(result == Right(Point(5.0, 10.0)))
+        },
+        test("round-trip case class → structural type → case class") {
+          val as     = As.derived[Point, PointStructural]
+          val original = Point(3.5, 7.5)
+
+          val converted = as.into(original)
+          val roundTripped = converted.flatMap(as.from)
+
+          assertTrue(roundTripped == Right(original))
+        },
+        test("converts Person to PersonLike structural type") {
+          val as     = As.derived[PersonV1, PersonLike]
+          val person = PersonV1("Alice", 30)
+          val result = as.into(person)
+
+          assertTrue(
+            result.isRight,
+            result.map(p => (p.name, p.age)) == Right(("Alice", 30))
+          )
+        },
+        test("converts PersonLike structural type to Person case class") {
+          val as: As[PersonV1, PersonLike]    = As.derived[PersonV1, PersonLike]
+          val personLike: PersonLike          = new PersonLikeImpl("Bob", 25)
+          val result                          = as.from(personLike)
+
+          assertTrue(result == Right(PersonV1("Bob", 25)))
+        },
+        test("round-trip Person → PersonLike → Person") {
+          val as       = As.derived[PersonV1, PersonLike]
+          val original = PersonV1("Charlie", 35)
+
+          val converted    = as.into(original)
+          val roundTripped = converted.flatMap(as.from)
+
+          assertTrue(roundTripped == Right(original))
+        }
+      ),
     )
   )
 }

@@ -840,22 +840,24 @@ private object IntoVersionSpecificImpl {
     }
 
     def getStructuralMembers(tpe: Type): List[(String, Type)] = {
-      tpe.dealias.members.collect {
-        case m: MethodSymbol if m.isPublic && !m.isConstructor && m.paramLists.isEmpty && !isSyntheticMethod(m) =>
-          val name = NameTransformer.decode(m.name.toString)
-          val returnType = m.returnType.dealias
-          (name, returnType)
-      }.toList.reverse
-    }
+      // Extract only the members declared in the refinement, not inherited ones
+      def collectRefinementMembers(t: Type): List[(String, Type)] = t.dealias match {
+        case RefinedType(parents, decls) =>
+          // Get members declared in this refinement
+          val declaredMembers = decls.collect {
+            case m: MethodSymbol if !m.isConstructor && m.paramLists.isEmpty =>
+              val name = NameTransformer.decode(m.name.toString)
+              val returnType = m.returnType.dealias
+              (name, returnType)
+          }.toList
 
-    def isSyntheticMethod(m: MethodSymbol): Boolean = {
-      val name = m.name.toString
-      // Filter out synthetic methods that come from Any, AnyRef, or compiler-generated methods
-      name == "isInstanceOf" || name == "asInstanceOf" || name == "==" || name == "!=" ||
-      name == "##" || name == "hashCode" || name == "equals" || name == "toString" ||
-      name == "getClass" || name == "ne" || name == "eq" || name == "notify" ||
-      name == "notifyAll" || name == "wait" || name == "synchronized" || name == "clone" ||
-      name == "finalize"
+          // Also collect from parent refinements (in case of nested refinements)
+          val parentMembers = parents.flatMap(p => collectRefinementMembers(p))
+
+          parentMembers ++ declaredMembers
+        case _ => Nil
+      }
+      collectRefinementMembers(tpe)
     }
 
     // === Derivation: Structural Type to Product ===
@@ -905,45 +907,35 @@ private object IntoVersionSpecificImpl {
     // === Derivation: Product to Structural Type ===
 
     def deriveProductToStructural(): c.Expr[Into[A, B]] = {
+      // Product -> Structural type conversion is simple: since the product type has all the
+      // required fields/methods that the structural type demands (otherwise we couldn't derive
+      // this conversion), we can simply cast the product instance to the structural type.
+      //
+      // For example: case class Point(x: Int, y: Int) can be cast to { def x: Int; def y: Int }
+      // because Point already has methods x and y that return Int.
+
       val sourceInfo = new ProductInfo(aTpe)
       val structuralMembers = getStructuralMembers(bTpe)
 
-      // For each structural member, find matching source field
-      val fieldMappings = structuralMembers.map { case (memberName, memberTpe) =>
+      // Validate that all structural type members exist in the source product
+      structuralMembers.foreach { case (memberName, memberTpe) =>
         val matchingField = sourceInfo.fields.find { field =>
-          field.name == memberName && field.tpe =:= memberTpe
-        }.orElse {
-          val uniqueTypeMatches = sourceInfo.fields.filter(_.tpe =:= memberTpe)
-          if (uniqueTypeMatches.size == 1) Some(uniqueTypeMatches.head) else None
+          field.name == memberName && (field.tpe =:= memberTpe || field.tpe <:< memberTpe)
         }
-
-        matchingField match {
-          case Some(field) => (memberName, field)
-          case None =>
-            fail(
-              s"Cannot derive Into[$aTpe, $bTpe]: no matching source field found for structural member '$memberName: $memberTpe'"
-            )
+        if (matchingField.isEmpty) {
+          fail(
+            s"Cannot derive Into[$aTpe, $bTpe]: " +
+              s"source type is missing member '$memberName: $memberTpe' required by structural type"
+          )
         }
       }
 
-      // Generate an anonymous class that implements the structural type
-      // We create val definitions for each member
-      val memberDefs = fieldMappings.map { case (memberName, sourceField) =>
-        val methodName = TermName(memberName)
-        val getter = sourceField.getter
-        q"val $methodName = a.$getter"
-      }
-
+      // The product instance already satisfies the structural type contract, just cast it
       c.Expr[Into[A, B]](
         q"""
           new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
-              import scala.language.reflectiveCalls
-              _root_.scala.Right({
-                new {
-                  ..$memberDefs
-                }
-              }.asInstanceOf[$bTpe])
+              _root_.scala.Right(a.asInstanceOf[$bTpe])
             }
           }
         """
