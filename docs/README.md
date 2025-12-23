@@ -67,6 +67,8 @@ See the usage guides for detailed examples:
 
 ## Project Status
 
+📊 **Project Status:** Release Candidate. See [Compliance Report](COMPLIANCE_REPORT.md) for full delivery details.
+
 See [Project Summary](SUMMARY.md) for detailed implementation status.
 
 **Current Completion: ~96%**

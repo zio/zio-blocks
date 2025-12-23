@@ -64,6 +64,11 @@ The ZIO Blocks Schema `Into[A, B]` and `As[A, B]` type classes are **production-
 - [As Usage Guide](AS_USAGE.md)
 - [Migration Guide](MIGRATION_GUIDE.md)
 
+## Project Reports
+
+- [Compliance & Delivery](COMPLIANCE_REPORT.md)
+- [Known Limitations (Structural Types)](STRUCTURAL_TYPES_LIMITATION.md)
+
 ## Next Steps (Optional)
 
 To reach 100%:
