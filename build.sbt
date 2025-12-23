@@ -97,9 +97,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
-    ),
-    // Exclude IntoZIOPreludeSpec from Native tests (uses reflection which is not supported)
-    Test / sources := (Test / sources).value.filterNot(_.getName == "IntoZIOPreludeSpec.scala")
+    )
   )
 
 lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -146,8 +144,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
   .jsSettings(jsSettings)
   .nativeSettings(
-    nativeSettings,
-    Test / sources := (Test / sources).value.filterNot(_.getName == "IntoZIOPreludeSpec.scala")
+    nativeSettings
   )
 
 lazy val benchmarks = project
