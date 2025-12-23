@@ -164,37 +164,38 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def deriveProductToStructural[A: Type, B: Type](
     aTpe: TypeRepr,
     bTpe: TypeRepr
-  ): Expr[Into[A, B]] =
-    // Product → Structural type conversion requires experimental Symbol.newClass API
+  ): Expr[Into[A, B]] = {
+    // Product → Structural type conversion is simple: since the product type has all the
+    // required fields/methods that the structural type demands (otherwise we couldn't derive
+    // this conversion), we can simply cast the product instance to the structural type.
     //
-    // EXPERIMENTAL PROOF OF CONCEPT STATUS:
-    // We attempted to implement this using experimental Scala 3 APIs to generate anonymous
-    // classes with concrete getter methods. The approach is theoretically sound but the
-    // experimental API is complex and unstable:
-    //
-    // 1. Symbol.newClass can create anonymous classes with Object + Selectable parents
-    // 2. DefDef can create method implementations for field getters
-    // 3. The generated class would have concrete methods that Scala's reflection can find
-    //
-    // However, the experimental API has issues:
-    // - Complex parameter handling in DefDef lambdas
-    // - Unstable API signatures that may change between Scala versions
-    // - Limited documentation and examples
-    // - The -experimental flag is required
-    //
-    // ALTERNATIVES:
-    // 1. Wait for Scala 3's macro APIs to stabilize (recommended)
-    // 2. Accept that Structural → Product works but not the reverse
-    //
-    // Note: Structural → Product conversion (reading from structural types) works fine
-    // using reflective access with selectDynamic fallback.
+    // For example: case class Point(x: Int, y: Int) can be cast to { def x: Int; def y: Int }
+    // because Point already has methods x and y that return Int.
 
-    fail(
-      s"Product → Structural type conversion requires experimental compiler features. " +
-        s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]. " +
-        s"Structural → Product conversion IS supported. " +
-        s"Consider using case classes instead of structural types for the target."
-    )
+    val structuralMembers = getStructuralMembers(bTpe)
+    val sourceInfo        = new ProductInfo[A](aTpe)
+
+    // Validate that all structural type members exist in the source product
+    structuralMembers.foreach { case (memberName, memberTpe) =>
+      val matchingField = sourceInfo.fields.find { f =>
+        f.name == memberName && (f.tpe =:= memberTpe || f.tpe <:< memberTpe)
+      }
+      if (matchingField.isEmpty) {
+        fail(
+          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: " +
+            s"source type is missing member '$memberName: ${memberTpe.show}' required by structural type"
+        )
+      }
+    }
+
+    // The product instance already satisfies the structural type contract, just cast it
+    '{
+      new Into[A, B] {
+        def into(a: A): Either[SchemaError, B] =
+          Right(a.asInstanceOf[B])
+      }
+    }
+  }
 
   // === Coproduct to Coproduct ===
 

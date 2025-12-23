@@ -801,6 +801,55 @@ object IntoSpec extends ZIOSpecDefault {
           validResult == Right((10, "success"))
         )
       }
+    ),
+    suite("Structural Types")(
+      suite("Product to Structural Type")(
+        test("converts case class to structural type") {
+          import scala.language.reflectiveCalls
+
+          type CoordStructural = { def x: Int; def y: Int }
+          val point = Point(5, 10)
+          val result = Into.derived[Point, CoordStructural].into(point)
+
+          // The result should be Right and the structural type should have the same values
+          assert(result.map(c => (c.x, c.y)))(isRight(equalTo((5, 10))))
+        },
+        test("converts Person to PersonLike structural type") {
+          import scala.language.reflectiveCalls
+
+          type PersonLike = { def name: String; def age: Int }
+          val person = PersonV1("Alice", 30)
+          val result = Into.derived[PersonV1, PersonLike].into(person)
+
+          assert(result.map(p => (p.name, p.age)))(isRight(equalTo(("Alice", 30))))
+        }
+      ),
+      suite("Structural Type to Product")(
+        test("converts structural type to case class") {
+          import scala.language.reflectiveCalls
+
+          // Create a concrete class that matches the structural type signature
+          class CoordImpl(val x: Int, val y: Int)
+          type CoordStructural = { def x: Int; def y: Int }
+          val coord: CoordStructural = new CoordImpl(5, 10)
+
+          val result = Into.derived[CoordStructural, Point].into(coord)
+
+          assert(result)(isRight(equalTo(Point(5, 10))))
+        },
+        test("converts PersonLike structural type to Person case class") {
+          import scala.language.reflectiveCalls
+
+          // Create a concrete class that matches the structural type signature
+          class PersonLikeImpl(val name: String, val age: Int)
+          type PersonLike = { def name: String; def age: Int }
+          val personLike: PersonLike = new PersonLikeImpl("Bob", 25)
+
+          val result = Into.derived[PersonLike, PersonV1].into(personLike)
+
+          assert(result)(isRight(equalTo(PersonV1("Bob", 25))))
+        }
+      )
     )
   )
 }
