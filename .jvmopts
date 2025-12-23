@@ -1,6 +1,10 @@
--Xmx6g
--Xss2m
+-Xmx8g
+-Xms8g
+-Xss4m
 -XX:+UseG1GC
--XX:InitialCodeCacheSize=512m
--XX:ReservedCodeCacheSize=512m
+-XX:MaxGCPauseMillis=200
+-XX:InitiatingHeapOccupancyPercent=45
+-XX:InitialCodeCacheSize=1g
+-XX:ReservedCodeCacheSize=1g
+-XX:+UseCodeCacheFlushing
 -Dfile.encoding=UTF8

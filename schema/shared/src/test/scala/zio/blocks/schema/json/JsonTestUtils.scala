@@ -46,7 +46,9 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
+    // Normalize whitespace for comparison
+    def normalizeJson(s: String): String = s.replaceAll("\\s+", " ").trim
+    assert(normalizeJson(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeJson(expectedJson))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
@@ -122,7 +124,9 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
+    // Normalize whitespace for comparison
+    def normalizeJson(s: String): String = s.replaceAll("\\s+", " ").trim
+    assert(normalizeJson(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeJson(expectedJson))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4)))

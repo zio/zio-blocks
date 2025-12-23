@@ -48,7 +48,7 @@ lazy val root = project
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
-  .settings(stdSettings("zio-blocks-schema"))
+  .settings(stdSettings("zio-blocks-schema", Seq("3.7.4", BuildHelper.Scala3, BuildHelper.Scala213)))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
   .enablePlugins(BuildInfoPlugin)

@@ -90,11 +90,14 @@ object BuildHelper {
         Seq(
           "-release",
           if (minor < 8) "11" else "17",
+          "-experimental", // Enable experimental features for @experimental APIs
           "-rewrite",
           "-no-indent",
           "-explain",
           "-explain-cyclic",
           "-Xcheck-macros",
+          "-Xmax-inlines",
+          "128",
           "-Wunused:all",
           "-Wconf:msg=(is deprecated)&src=zio/blocks/schema/.*:silent", // workaround for `@deprecated("reasons") case class C() derives Schema`
           "-Wconf:msg=Ignoring .*this.* qualifier:s",
