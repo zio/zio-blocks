@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.annotation.experimental
 import zio.prelude.{Newtype, Subtype}
 import zio.test._
 
@@ -17,6 +18,7 @@ import zio.test._
  * ZIO Prelude). The implementation in NewtypeMacros supports `make`, `wrap`,
  * and reflection-based fallbacks.
  */
+@experimental
 object IntoZIOPreludeSpec extends ZIOSpecDefault {
 
   // Test newtypes

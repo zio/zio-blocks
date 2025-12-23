@@ -1,7 +1,9 @@
 package zio.blocks.schema
 
+import scala.annotation.experimental
 import zio.test._
 
+@experimental
 object AsRoundTripSpec extends ZIOSpecDefault {
 
   // Test types

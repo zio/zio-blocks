@@ -1,7 +1,9 @@
 package zio.blocks.schema
 
+import scala.annotation.experimental
 import zio.test._
 
+@experimental
 object AsSchemaEvolutionSpec extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment, Any] = suite("As - Schema Evolution Safety")(

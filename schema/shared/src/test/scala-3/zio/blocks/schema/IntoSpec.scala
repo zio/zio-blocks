@@ -1,7 +1,9 @@
 package zio.blocks.schema
 
+import scala.annotation.experimental
 import zio.test._
 
+@experimental
 object IntoSpec extends ZIOSpecDefault {
 
   // Shared test types
@@ -1302,7 +1304,7 @@ object IntoSpec extends ZIOSpecDefault {
     suite("Structural types")(
       suite("Product to Structural type")(
         // Ignored due to Scala 3 Selectable architectural limitation (SIP-44). See docs/STRUCTURAL_TYPES_LIMITATION.md
-        test("case class to structural type") @@ TestAspect.ignore {
+        test("case class to structural type") {
           type PointStruct = {
             def x: Int
             def y: Int
@@ -1323,7 +1325,7 @@ object IntoSpec extends ZIOSpecDefault {
           )
         },
         // Ignored due to Scala 3 Selectable architectural limitation (SIP-44). See docs/STRUCTURAL_TYPES_LIMITATION.md
-        test("case class with different field types to structural type") @@ TestAspect.ignore {
+        test("case class with different field types to structural type") {
           type PersonStruct = {
             def name: String
             def age: Int
@@ -1346,7 +1348,7 @@ object IntoSpec extends ZIOSpecDefault {
       ),
       suite("Structural type to Product")(
         // Ignored due to Scala 3 Selectable architectural limitation (SIP-44). See docs/STRUCTURAL_TYPES_LIMITATION.md
-        test("structural type to case class") @@ TestAspect.ignore {
+        test("structural type to case class") {
           type PointStruct = {
             def x: Int
             def y: Int
@@ -1367,7 +1369,7 @@ object IntoSpec extends ZIOSpecDefault {
       ),
       suite("Structural type to Structural type")(
         // Ignored due to Scala 3 Selectable architectural limitation (SIP-44). See docs/STRUCTURAL_TYPES_LIMITATION.md
-        test("structural type to structural type with same methods") @@ TestAspect.ignore {
+        test("structural type to structural type with same methods") {
           type PointStruct1 = {
             def x: Int
             def y: Int
@@ -1393,7 +1395,7 @@ object IntoSpec extends ZIOSpecDefault {
           )
         },
         // Ignored due to Scala 3 Selectable architectural limitation (SIP-44). See docs/STRUCTURAL_TYPES_LIMITATION.md
-        test("structural type to structural type with subset of methods") @@ TestAspect.ignore {
+        test("structural type to structural type with subset of methods") {
           type FullStruct = {
             def name: String
             def age: Int

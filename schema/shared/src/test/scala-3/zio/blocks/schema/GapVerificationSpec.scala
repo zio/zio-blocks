@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.annotation.experimental
 import zio.test._
 
 /**
@@ -9,6 +10,7 @@ import zio.test._
  *   - Scala 3 Enum conversions
  *   - As safety checks (compile-time error verification)
  */
+@experimental
 object GapVerificationSpec extends ZIOSpecDefault {
 
   // ============================================================================
