@@ -32,17 +32,15 @@ ZIO Blocks brings dynamic-language productivity to statically-typed Scala by der
 case class Person(name: String, age: Int)
 
 object Person {
-  // One schema definition
   implicit val schema: Schema[Person] = Schema.derived
 }
 
 // Get everything for free:
-val jsonCodec = JsonCodec.derived[Person]      // JSON serialization
-val avroCodec = AvroCodec.derived[Person]      // Avro serialization
-val protobuf = ProtobufCodec.derived[Person]   // Protobuf serialization
-val validator = Validator.derived[Person]       // Validation
-val diff = Diff.diff(person1, person2)         // Diffing/patching
-val defaultValue = Default.default[Person]      // Default values
+val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON serialization
+val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro serialization
+val protobuf  = Schema[Person].derive(ProtobufFormat.deriver)  // Protobuf serialization (not implemented yet)
+val thrift    = Schema[Person].derive(ThriftFormat.deriver)    // Thrift serialization (not implemented yet)
+// ...
 ```
 
 ## Key Features
@@ -50,9 +48,7 @@ val defaultValue = Default.default[Person]      // Default values
 Here are the key features that make ZIO Blocks stand out:
 
 1. **Zero Dependencies**: ZIO Blocks has no dependencies on the ZIO ecosystem, making it a universal schema library for Scala that works seamlessly with Akka, Typelevel, Kyo, or any other Scala stack.
-
 2. **High Performance**: ZIO Blocks uses a novel register-based design that stores primitives directly in byte arrays and objects in separate arrays, avoiding intermediate heap allocations and object boxing. This architecture enables zero-allocation serialization and deserialization.
-
 3. **Universal Data Formats**: Provides automatic serialization and deserialization across multiple formats:
    - **JSON** – Fast, type-safe JSON handling
    - **Avro** – Apache Avro binary format
@@ -60,9 +56,7 @@ Here are the key features that make ZIO Blocks stand out:
    - **Thrift** – Apache Thrift
    - **BSON** – MongoDB's binary JSON format
    - **MessagePack** – Efficient binary serialization
-
 4. **Reflective Optics**: Combines traditional optics with embedded structural metadata that captures the actual structure of your data types. This enables type-safe introspection, writing DSLs, and dynamic customization of your data models.
-
 5. **Automatic Derivation**: By implementing a few core methods, you can automatically derive type class instances for all your types, eliminating boilerplate code generation.
 
 ## Installation

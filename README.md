@@ -14,54 +14,51 @@ In today's distributed systems, you're constantly serializing, deserializing, va
 
 ## The Problem
 
-Modern cloud-native development presents unique challenges:
+Modern cloud-native development presents unique challenges. Data wrangling involves multiple transformations at both application boundaries and within request/response cycles. On the incoming side, HTTP requests are decoded, JSON is parsed, data is deserialized into type-safe models, validated against business rules, and finally processed by business logic. On the outgoing side, the reverse occurs: business logic produces data that must be serialized, encoded, and transmitted as HTTP responses. This repetitive cycle of data transformation consumes significant effort that could be better spent on actual business logic.
 
-1. Incoming: HTTP Request → Decode HTTP → Parse JSON → Deserialize → Data Model → Validate → Business Logic
-2. Outgoing: Business Logic → Data Model → Serialize → Encode HTTP → HTTP Response
-
-This repetitive data wrangling takes you away from actual business logic. In statically-typed languages, it's even worse when you have to maintain codec implementations for multiple data formats (JSON, Avro, Protobuf, etc.), performing repetitive serialization/deserialization and validation logic while losing generic programming capabilities.
-
-Meanwhile, dynamic languages like JavaScript handle data effortlessly. For example, when you receive an HTTP response, you can directly parse JSON into a dynamic object:
+In statically-typed languages, the problem intensifies. You must maintain codec implementations for multiple data formats (JSON, Avro, Protobuf, etc.), each requiring redundant serialization/deserialization. Meanwhile, dynamic languages like JavaScript handle data effortlessly without this overhead. For example, when you receive an HTTP response in JavaScript, you can parse JSON into a dynamic object immediately:
 
 ```javascript
 // In JavaScript:
 const data = await res.json(); // Done!
 ```
 
+In Scala, you'd typically need to define codecs, handle type conversions separately for each format—a significant productivity gap.
+
 ## The Solution
 
-ZIO Blocks brings dynamic-language productivity to statically-typed Scala:
+ZIO Blocks brings dynamic-language productivity to statically-typed Scala by deriving everything from a single schema definition:
 
 ```scala
 case class Person(name: String, age: Int)
 
 object Person {
-  // One schema definition
   implicit val schema: Schema[Person] = Schema.derived
 }
 
 // Get everything for free:
-val jsonCodec = JsonCodec.derived[Person]      // JSON serialization
-val avroCodec = AvroCodec.derived[Person]      // Avro serialization
-val protobuf = ProtobufCodec.derived[Person]   // Protobuf serialization
-val validator = Validator.derived[Person]       // Validation
-val diff = Diff.diff(person1, person2)         // Diffing/patching
-val defaultValue = Default.default[Person]      // Default values
+val jsonCodec = Schema[Person].derive(JsonFormat.deriver)      // JSON serialization
+val avroCodec = Schema[Person].derive(AvroFormat.deriver)      // Avro serialization
+val protobuf  = Schema[Person].derive(ProtobufFormat.deriver)  // Protobuf serialization (not implemented yet)
+val thrift    = Schema[Person].derive(ThriftFormat.deriver)    // Thrift serialization (not implemented yet)
+// ...
 ```
 
 ## Key Features
 
-1. **Zero Dependencies**: No dependencies on the ZIO ecosystem, so we can use it anywhere, including with Akka, Typelevel, Kyo, or any Scala stack. So it is universal schema library for Scala.
-2. **High Performance** ZIO Blocks uses register-based design inspired by CPU registers for to store primitives directly without boxing and unboxing, resulting in zero-allocation serialization/deserialization.
-3. **Universal Data Formats** It provides serialization/deserialization for free in multiple formats:
-   - **JSON** - Fast, type-safe JSON handling
-   - **Avro** - Apache Avro binary format
-   - **Protobuf** - Protocol Buffers
-   - **Thrift** - Apache Thrift
-   - **BSON** - MongoDB's binary JSON
-   - **MessagePack** - Efficient binary serialization
-4. **Reflective Optics** – These combine the practical power of traditional optics with embedded structural metadata, incorporating the actual structure of your data types within the optics themselves. This enables us to introspect and discover what type an optic is accessing and perform dynamic schema editing and customizations in a type-safe manner.
-5. **Automatic Derivation** Easy type class derivation with just implementing a few methods then get automatic derivation for that type class for all types.
+Here are the key features that make ZIO Blocks stand out:
+
+1. **Zero Dependencies**: ZIO Blocks has no dependencies on the ZIO ecosystem, making it a universal schema library for Scala that works seamlessly with Akka, Typelevel, Kyo, or any other Scala stack.
+2. **High Performance**: ZIO Blocks uses a novel register-based design that stores primitives directly in byte arrays and objects in separate arrays, avoiding intermediate heap allocations and object boxing. This architecture enables zero-allocation serialization and deserialization.
+3. **Universal Data Formats**: Provides automatic serialization and deserialization across multiple formats:
+   - **JSON** – Fast, type-safe JSON handling
+   - **Avro** – Apache Avro binary format
+   - **Protobuf** – Protocol Buffers
+   - **Thrift** – Apache Thrift
+   - **BSON** – MongoDB's binary JSON format
+   - **MessagePack** – Efficient binary serialization
+4. **Reflective Optics**: Combines traditional optics with embedded structural metadata that captures the actual structure of your data types. This enables type-safe introspection, writing DSLs, and dynamic customization of your data models.
+5. **Automatic Derivation**: By implementing a few core methods, you can automatically derive type class instances for all your types, eliminating boilerplate code generation.
 
 ## Installation
 
@@ -71,11 +68,14 @@ Add to your `build.sbt`:
 libraryDependencies += "dev.zio" %% "zio-blocks-schema" % "0.0.1"
 ```
 
-Now you have access to the core ZIO Blocks schema library. You can also add additional modules for specific formats.
+Now you have access to the core ZIO Blocks schema library. You can also add additional modules for specific formats:
 
-## Quick Start
+```scala
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-json" % "0.0.1"
+libraryDependencies += "dev.zio" %% "zio-blocks-schema-avro" % "0.0.1"
+```
 
-### Basic Schema Definition
+## Example
 
 Assume we have the following data models:
 
@@ -87,6 +87,8 @@ case class Person(name: String, age: Int, address: Address)
 We can define schemas for them as follows:
 
 ```scala
+import zio.blocks.schema._
+
 object Person extends CompanionOptics[Person] {
   implicit val schema: Schema[Person] = Schema.derived
 }
