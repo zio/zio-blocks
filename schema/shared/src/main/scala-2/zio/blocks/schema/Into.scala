@@ -432,23 +432,24 @@ private object IntoMacros {
     }
 
     // Try tuple to case class conversion
-    val isSourceTuple = aType <:< typeOf[Product] && aType.typeSymbol.name.toString.startsWith("Tuple")
+    val isSourceTuple             = aType <:< typeOf[Product] && aType.typeSymbol.name.toString.startsWith("Tuple")
     val isTargetCaseClassForTuple = bType.typeSymbol.isClass && bType.typeSymbol.asClass.isCaseClass
 
     if (isSourceTuple && isTargetCaseClassForTuple) {
       // Extract tuple elements and target case class fields
-      val tupleArity = try {
-        // Try to get arity from type name (Tuple2, Tuple3, etc.)
-        val typeName = aType.typeSymbol.name.toString
-        if (typeName.startsWith("Tuple")) {
-          typeName.substring(5).toInt
-        } else {
-          // Fallback: count type arguments
-          aType.typeArgs.length
+      val tupleArity =
+        try {
+          // Try to get arity from type name (Tuple2, Tuple3, etc.)
+          val typeName = aType.typeSymbol.name.toString
+          if (typeName.startsWith("Tuple")) {
+            typeName.substring(5).toInt
+          } else {
+            // Fallback: count type arguments
+            aType.typeArgs.length
+          }
+        } catch {
+          case _: Throwable => aType.typeArgs.length
         }
-      } catch {
-        case _: Throwable => aType.typeArgs.length
-      }
 
       val targetParams = bType.decls.collect {
         case m: MethodSymbol if m.isCaseAccessor => m
@@ -462,11 +463,11 @@ private object IntoMacros {
         }.toList
 
         // Generate field conversions with recursive derivation when types don't match
-        val fieldDefs = scala.collection.mutable.ListBuffer[c.universe.Tree]()
+        val fieldDefs   = scala.collection.mutable.ListBuffer[c.universe.Tree]()
         val fieldValues = targetParams.zipWithIndex.map { case (targetParam, idx) =>
-          val tupleElement = tupleElements(idx)
+          val tupleElement     = tupleElements(idx)
           val tupleElementType = aType.typeArgs(idx)
-          val targetFieldType = targetParam.returnType
+          val targetFieldType  = targetParam.returnType
 
           // If types match, use direct access, otherwise use recursive derivation
           if (tupleElementType =:= targetFieldType || tupleElementType.dealias =:= targetFieldType.dealias) {
@@ -486,7 +487,7 @@ private object IntoMacros {
         }
 
         val targetCompanion = bType.typeSymbol.companion
-        val companionTree = Ident(targetCompanion)
+        val companionTree   = Ident(targetCompanion)
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
             def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
@@ -520,13 +521,13 @@ private object IntoMacros {
 
       if (sourceParams.size >= targetParams.size) {
         // Generate field conversions with recursive derivation when types don't match
-        val fieldDefs = scala.collection.mutable.ListBuffer[c.universe.Tree]()
+        val fieldDefs   = scala.collection.mutable.ListBuffer[c.universe.Tree]()
         val fieldValues = targetParams.zipWithIndex.map { case (targetParam, idx) =>
           if (idx < sourceParams.size) {
-            val sourceParam = sourceParams(idx)
+            val sourceParam     = sourceParams(idx)
             val sourceFieldType = sourceParam.returnType
             val targetFieldType = targetParam.returnType
-            
+
             // If types match, use direct access, otherwise use recursive derivation
             if (sourceFieldType =:= targetFieldType || sourceFieldType.dealias =:= targetFieldType.dealias) {
               q"input.${sourceParam.name.toTermName}"
@@ -548,7 +549,7 @@ private object IntoMacros {
         }
 
         val targetCompanion = bType.typeSymbol.companion
-        val companionTree = Ident(targetCompanion)
+        val companionTree   = Ident(targetCompanion)
         return c.Expr[Into[A, B]](q"""
           new _root_.zio.blocks.schema.Into[$aType, $bType] {
             def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
@@ -808,8 +809,7 @@ private object IntoMacros {
   /**
    * OPTIMIZED: Fast pattern matching for ZIO Prelude Newtype without heavy
    * baseClasses traversal. Pattern: TypeRef(companion, "Type", Nil) where
-   * companion is a module.
-   * Also handles type aliases: type UserId = UserId.Type
+   * companion is a module. Also handles type aliases: type UserId = UserId.Type
    */
   private def isZioPreludeNewtype(c: blackbox.Context)(tpe: c.Type): Boolean = {
     import c.universe._
@@ -833,8 +833,8 @@ private object IntoMacros {
   }
 
   /**
-   * OPTIMIZED: Fast pattern matching for ZIO Prelude Subtype.
-   * Also handles type aliases: type Salary = Salary.Type
+   * OPTIMIZED: Fast pattern matching for ZIO Prelude Subtype. Also handles type
+   * aliases: type Salary = Salary.Type
    */
   private def isZioPreludeSubtype(c: blackbox.Context)(tpe: c.Type): Boolean = {
     import c.universe._
@@ -858,8 +858,8 @@ private object IntoMacros {
   /**
    * OPTIMIZED: Extract underlying type with minimal overhead. Tries to get type
    * parameter directly from companion's type signature first, avoiding
-   * expensive baseType operations when possible.
-   * Also handles type aliases: type UserId = UserId.Type
+   * expensive baseType operations when possible. Also handles type aliases:
+   * type UserId = UserId.Type
    */
   private def getNewtypeUnderlying(c: blackbox.Context)(tpe: c.Type): Option[c.Type] = {
     import c.universe._
@@ -897,8 +897,8 @@ private object IntoMacros {
   }
 
   /**
-   * OPTIMIZED: Get companion with minimal overhead.
-   * Also handles type aliases: type UserId = UserId.Type
+   * OPTIMIZED: Get companion with minimal overhead. Also handles type aliases:
+   * type UserId = UserId.Type
    */
   private def getCompanionModule(c: blackbox.Context)(tpe: c.Type): Option[c.Symbol] = {
     import c.universe._
@@ -1071,11 +1071,11 @@ private object IntoMacros {
                       case _: Throwable => None
                     }
 
-              applyMethodOpt match {
-                case Some(_) =>
-                  // OPTIMIZED: Direct apply call
-                  // apply() might return Validation or direct value
-                  Some(c.Expr[Into[_, _]](q"""
+                  applyMethodOpt match {
+                    case Some(_) =>
+                      // OPTIMIZED: Direct apply call
+                      // apply() might return Validation or direct value
+                      Some(c.Expr[Into[_, _]](q"""
                     new _root_.zio.blocks.schema.Into[$aType, $bType] {
                       def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
                         try {
@@ -1105,15 +1105,15 @@ private object IntoMacros {
                     }
                   """))
 
-                case None =>
-                  // ULTRA-LIGHTWEIGHT: Direct cast fallback (most newtypes support this)
-                  Some(c.Expr[Into[_, _]](q"""
+                    case None =>
+                      // ULTRA-LIGHTWEIGHT: Direct cast fallback (most newtypes support this)
+                      Some(c.Expr[Into[_, _]](q"""
                     new _root_.zio.blocks.schema.Into[$aType, $bType] {
                       def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] =
                         Right(input.asInstanceOf[$bType])
                     }
                   """))
-              }
+                  }
               }
           }
 
