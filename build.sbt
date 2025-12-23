@@ -117,7 +117,7 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
 
 lazy val `schema-avro` = project
-  .settings(stdSettings("zio-blocks-schema-avro"))
+  .settings(stdSettings("zio-blocks-schema-avro", Seq("3.7.4", BuildHelper.Scala3, BuildHelper.Scala213)))
   .dependsOn(schema.jvm)
   .settings(buildInfoSettings("zio.blocks.schema.avro"))
   .enablePlugins(BuildInfoPlugin)
