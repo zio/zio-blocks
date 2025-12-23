@@ -374,7 +374,7 @@ private object IntoMacros {
             def into(input: $aType): Either[_root_.zio.blocks.schema.SchemaError, $bType] = {
               val map = input.asInstanceOf[Map[$sourceKeyType, $sourceValueType]]
               
-              map.foldLeft[Either[_root_.zio.blocks.schema.SchemaError, Map[$targetKeyType, $targetValueType]]](Right(Map.empty)) {
+              map.iterator.foldLeft[Either[_root_.zio.blocks.schema.SchemaError, Map[$targetKeyType, $targetValueType]]](Right(Map.empty)) {
                 case (Right(acc), (k, v)) =>
                   for {
                     convertedKey <- ${
