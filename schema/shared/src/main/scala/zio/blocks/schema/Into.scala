@@ -1,4 +1,4 @@
-package zio.blocks.schema.convert
+package zio.blocks.schema
 
 import zio.blocks.schema.SchemaError
 

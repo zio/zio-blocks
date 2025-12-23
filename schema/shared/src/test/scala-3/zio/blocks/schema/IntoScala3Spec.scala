@@ -1,4 +1,4 @@
-package zio.blocks.schema.convert
+package zio.blocks.schema
 
 import zio.test.*
 import zio.test.Assertion.*

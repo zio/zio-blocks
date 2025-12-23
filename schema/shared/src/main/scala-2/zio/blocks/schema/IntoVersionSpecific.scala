@@ -1,6 +1,5 @@
-package zio.blocks.schema.convert
+package zio.blocks.schema
 
-import zio.blocks.schema.CommonMacroOps
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
@@ -302,8 +301,8 @@ private object IntoVersionSpecificImpl {
           val $sourceValueName = $sourceExpr
           try {
             // Convert the companion path to JVM class name
-            // Input:  "zio.blocks.schema.convert.IntoZIOPreludeNewtypeSpec.Domain.Email"
-            // Output: "zio.blocks.schema.convert.IntoZIOPreludeNewtypeSpec<dollar>Domain<dollar>Email<dollar>"
+            // Input:  "zio.blocks.schema.IntoZIOPreludeNewtypeSpec.Domain.Email"
+            // Output: "zio.blocks.schema.IntoZIOPreludeNewtypeSpec<dollar>Domain<dollar>Email<dollar>"
             val $companionClassNameName = {
               val $basePathName = $companionPathLiteral
               val $partsName = $basePathName.split('.').toList
@@ -526,7 +525,7 @@ private object IntoVersionSpecificImpl {
 
       c.Expr[Into[A, B]](
         q"""
-          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
               $sequencedExpr
             }
@@ -561,7 +560,7 @@ private object IntoVersionSpecificImpl {
       val tupleCompanion = bTpe.typeSymbol.companion
       c.Expr[Into[A, B]](
         q"""
-          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
               _root_.scala.Right($tupleCompanion(..$args))
             }
@@ -596,7 +595,7 @@ private object IntoVersionSpecificImpl {
 
       c.Expr[Into[A, B]](
         q"""
-          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
               _root_.scala.Right(new $bTpe(..$args))
             }
@@ -632,7 +631,7 @@ private object IntoVersionSpecificImpl {
       val tupleCompanion = bTpe.typeSymbol.companion
       c.Expr[Into[A, B]](
         q"""
-          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
               _root_.scala.Right($tupleCompanion(..$args))
             }
@@ -740,7 +739,7 @@ private object IntoVersionSpecificImpl {
 
       c.Expr[Into[A, B]](
         q"""
-          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
               a match { case ..$cases }
             }
@@ -893,7 +892,7 @@ private object IntoVersionSpecificImpl {
 
       c.Expr[Into[A, B]](
         q"""
-          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
               import scala.language.reflectiveCalls
               _root_.scala.Right(new $bTpe(..$args))
@@ -937,7 +936,7 @@ private object IntoVersionSpecificImpl {
 
       c.Expr[Into[A, B]](
         q"""
-          new _root_.zio.blocks.schema.convert.Into[$aTpe, $bTpe] {
+          new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
               import scala.language.reflectiveCalls
               _root_.scala.Right({

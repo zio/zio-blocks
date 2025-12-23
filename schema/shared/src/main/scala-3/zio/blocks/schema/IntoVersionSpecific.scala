@@ -1,7 +1,6 @@
-package zio.blocks.schema.convert
+package zio.blocks.schema
 
 import scala.quoted.*
-import zio.blocks.schema.{MacroUtils, SchemaError}
 
 trait IntoVersionSpecific {
   inline def derived[A, B]: Into[A, B] = ${ IntoVersionSpecificImpl.derived[A, B] }
