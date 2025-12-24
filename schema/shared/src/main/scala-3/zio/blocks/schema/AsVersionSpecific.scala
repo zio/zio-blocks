@@ -7,6 +7,6 @@ package zio.blocks.schema
  * `derivedAs` macro implementation.
  */
 trait AsVersionSpecific {
-  inline def derived[A, B]: As[A, B] = ${ IntoAsVersionSpecificImpl.derivedAsImpl[A, B] }
+  inline def derived[A, B]: As[A, B]   = ${ IntoAsVersionSpecificImpl.derivedAsImpl[A, B] }
   inline def derivedAs[A, B]: As[A, B] = ${ IntoAsVersionSpecificImpl.derivedAsImpl[A, B] }
 }

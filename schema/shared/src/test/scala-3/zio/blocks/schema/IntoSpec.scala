@@ -25,7 +25,7 @@ object IntoSpec extends ZIOSpecDefault {
         assertTrue(true)
       }
     )
-    */
+     */
     suite("Other Tests")(
       test("Placeholder test") {
         assertTrue(true)
@@ -33,4 +33,3 @@ object IntoSpec extends ZIOSpecDefault {
     )
   )
 }
-
