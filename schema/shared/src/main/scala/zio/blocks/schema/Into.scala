@@ -22,6 +22,9 @@ trait Into[-A, +B] {
 }
 
 object Into extends IntoAsVersionSpecific {
+  // derived is defined in version-specific files:
+  // - scala-2: IntoVersionSpecific.scala (macro)
+  // - scala-3: IntoVersionSpecific.scala (inline macro)
 
   /**
    * Derives an `Into[A, B]` instance using macro-based automatic derivation.
@@ -63,8 +66,6 @@ object Into extends IntoAsVersionSpecific {
    *   {{{case class PersonV1(name: String, age: Int) case class PersonV2(name:
    *   String, age: Int) val into = Into.derived[PersonV1, PersonV2]}}}
    */
-  inline def derived[A, B]: Into[A, B] = ${ IntoAsVersionSpecificImpl.derivedIntoImpl[A, B] }
-
   /**
    * Identity conversion: converts a value to itself.
    */

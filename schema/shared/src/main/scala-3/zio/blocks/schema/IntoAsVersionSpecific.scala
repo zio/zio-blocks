@@ -12,6 +12,7 @@ import zio.blocks.schema.CommonMacroOps
  * `Into[A, B]` and `As[A, B]` instances using Scala 3 Quotes & Splices.
  */
 trait IntoAsVersionSpecific {
+  inline def derived[A, B]: Into[A, B] = derivedInto[A, B]
   inline def derivedInto[A, B]: Into[A, B] = ${ IntoAsVersionSpecificImpl.derivedIntoImpl[A, B] }
   inline def derivedAs[A, B]: As[A, B]     = ${ IntoAsVersionSpecificImpl.derivedAsImpl[A, B] }
 }
