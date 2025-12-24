@@ -166,5 +166,3 @@ object DerivedOpticsMacro {
   }
 }
 // Trigger CI check
-
-
