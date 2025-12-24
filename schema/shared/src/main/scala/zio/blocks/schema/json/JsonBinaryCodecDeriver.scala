@@ -611,11 +611,7 @@ class JsonBinaryCodecDeriver private[json] (
                   val case_       = cases(idx)
                   val caseReflect = case_.value
                   infos(idx) = if (caseReflect.isVariant) {
-                    val discr = caseReflect.asVariant.get.variantBinding
-                      .asInstanceOf[BindingInstance[TC, ?, ?]]
-                      .binding
-                      .asInstanceOf[Binding.Variant[A]]
-                      .discriminator
+                    val discr = discriminator(caseReflect)
                     new EnumNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
                   } else {
                     val constructorIdx = allConstructors.length
@@ -668,11 +664,7 @@ class JsonBinaryCodecDeriver private[json] (
                       val case_       = cases(idx)
                       val caseReflect = case_.value
                       infos(idx) = if (caseReflect.isVariant) {
-                        val discr = caseReflect.asVariant.get.variantBinding
-                          .asInstanceOf[BindingInstance[TC, ?, ?]]
-                          .binding
-                          .asInstanceOf[Binding.Variant[A]]
-                          .discriminator
+                        val discr = discriminator(caseReflect)
                         new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
                       } else {
                         val infosIdx     = allCaseLeafInfos.length
@@ -736,11 +728,7 @@ class JsonBinaryCodecDeriver private[json] (
                       val case_       = cases(idx)
                       val caseReflect = case_.value
                       infos(idx) = if (caseReflect.isVariant) {
-                        val discr = caseReflect.asVariant.get.variantBinding
-                          .asInstanceOf[BindingInstance[TC, ?, ?]]
-                          .binding
-                          .asInstanceOf[Binding.Variant[A]]
-                          .discriminator
+                        val discr = discriminator(caseReflect)
                         new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
                       } else {
                         val caseLeafInfo = new CaseLeafInfo("", deriveCodec(caseReflect), null)
@@ -787,11 +775,7 @@ class JsonBinaryCodecDeriver private[json] (
                       val case_       = cases(idx)
                       val caseReflect = case_.value
                       infos(idx) = if (caseReflect.isVariant) {
-                        val discr = caseReflect.asVariant.get.variantBinding
-                          .asInstanceOf[BindingInstance[TC, ?, ?]]
-                          .binding
-                          .asInstanceOf[Binding.Variant[A]]
-                          .discriminator
+                        val discr = discriminator(caseReflect)
                         new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
                       } else {
                         val infosIdx     = allCaseLeafInfos.length
@@ -1593,8 +1577,8 @@ class JsonBinaryCodecDeriver private[json] (
             val defVal       = defaultValue(fieldReflect)
             if (deriveCodecs) {
               val nonTransient = !field.modifiers.exists(_.isInstanceOf[Modifier.transient])
-              val span         = new DynamicOptic.Node.Field(field.name)
               val codec        = deriveCodec(fieldReflect)
+              val span         = new DynamicOptic.Node.Field(field.name)
               infos(idx) = new FieldInfo(name, codec, offset, isOpt, isColl, nonTransient, defVal, span)
               offset += codec.valueOffset
             }
@@ -2024,6 +2008,13 @@ class JsonBinaryCodecDeriver private[json] (
         else if (fieldReflect.isWrapper) fieldReflect.asWrapperUnknown.get.wrapper.wrapperBinding
         else fieldReflect.asDynamic.get.dynamicBinding
       }.asInstanceOf[BindingInstance[TC, ?, A]].binding.defaultValue
+
+  private[this] def discriminator[F[_, _], A](caseReflect: Reflect[F, A]): Discriminator[?] =
+    caseReflect.asVariant.get.variantBinding
+      .asInstanceOf[BindingInstance[TC, ?, ?]]
+      .binding
+      .asInstanceOf[Binding.Variant[A]]
+      .discriminator
 
   private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isRecord && {
     val typeName = reflect.typeName
