@@ -91,28 +91,28 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch.applyOrFail(person1))(isRight(equalTo(parson2)))
     },
     test("Schema.diff calculates patch for Person") {
-      val p1 = Person(1L, "John", "123 St", Nil)
-      val p2 = Person(1L, "Jane", "123 St", Nil)
+      val p1    = Person(1L, "John", "123 St", Nil)
+      val p2    = Person(1L, "Jane", "123 St", Nil)
       val patch = Schema[Person].diff(p1, p2)
       assert(patch(p1))(equalTo(p2))
     },
     test("Schema.diff calculates patch for Sequence (Person paymentMethods)") {
       // 1. Append
-      val p1 = Person(1L, "John", "123", List(PayPal("a")))
-      val p2 = Person(1L, "John", "123", List(PayPal("a"), PayPal("b")))
+      val p1     = Person(1L, "John", "123", List(PayPal("a")))
+      val p2     = Person(1L, "John", "123", List(PayPal("a"), PayPal("b")))
       val patch1 = Schema[Person].diff(p1, p2)
       assert(patch1(p1))(equalTo(p2))
 
       // 2. Delete
-      val p3 = Person(1L, "John", "123", Nil)
+      val p3     = Person(1L, "John", "123", Nil)
       val patch2 = Schema[Person].diff(p1, p3)
       assert(patch2(p1))(equalTo(p3))
-      
+
       // 3. Replace (Delete + Insert)
-      val p4 = Person(1L, "John", "123", List(PayPal("c")))
+      val p4     = Person(1L, "John", "123", List(PayPal("c")))
       val patch3 = Schema[Person].diff(p1, p4)
       assert(patch3(p1))(equalTo(p4))
-      
+
       // 4. Complex: Insert mid
       val p5 = Person(1L, "John", "123", List(PayPal("a"), PayPal("c"), PayPal("b")))
       // p2 -> p5. [a, b] -> [a, c, b]. Insert c at index 1.

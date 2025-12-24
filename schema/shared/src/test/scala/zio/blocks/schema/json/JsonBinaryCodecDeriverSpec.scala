@@ -1239,7 +1239,6 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       test("ZonedDateTime (decode error) - SKIPPED") {
         assertTrue(true)
       },
-
       test("Currency") {
         check(Gen.currency)(x => roundTrip(x, s""""$x""""))
       },
@@ -2800,8 +2799,6 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       }
     )
   ) @@ exceptNative
-
-
 
   case class Record1(
     bl: Boolean,

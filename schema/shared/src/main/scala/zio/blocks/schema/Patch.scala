@@ -23,15 +23,14 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
 
   def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source)
 
-
   def apply(s: S): S = apply(s, PatchMode.Strict)
 
   def apply(s: S, mode: PatchMode): S =
     ops.foldLeft[S](s) { (s, single) =>
       single match {
-        case LensPair(optic, LensOp.Replace(a))           => optic.replace(s, a)
-        case LensPair(optic, LensOp.SequenceUpdate(edits)) => 
-           applySequenceUpdate(s, optic, edits, mode)
+        case LensPair(optic, LensOp.Replace(a))            => optic.replace(s, a)
+        case LensPair(optic, LensOp.SequenceUpdate(edits)) =>
+          applySequenceUpdate(s, optic, edits, mode)
         case PrismPair(optic, PrismOp.Replace(a))         => optic.replace(s, a)
         case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replace(s, a)
         case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modify(s, _ => a)
@@ -49,11 +48,11 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
         case LensPair(optic, LensOp.Replace(a)) =>
           x = optic.replace(x, a)
         case LensPair(optic, LensOp.SequenceUpdate(edits)) =>
-           try {
-             x = applySequenceUpdate(x, optic, edits, mode)
-           } catch {
-             case _: Throwable => return None
-           }
+          try {
+            x = applySequenceUpdate(x, optic, edits, mode)
+          } catch {
+            case _: Throwable => return None
+          }
         case PrismPair(optic, PrismOp.Replace(a)) =>
           optic.replaceOption(x, a) match {
             case Some(r) => x = r
@@ -86,13 +85,13 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
         case LensPair(optic, LensOp.Replace(a)) =>
           x = optic.replace(x, a)
         case LensPair(optic, LensOp.SequenceUpdate(edits)) =>
-           try {
-             x = applySequenceUpdate(x, optic, edits, mode)
-           } catch {
-             case e: Throwable =>
-               val error = new OpticCheck.UnexpectedCase("sequence", e.getMessage, optic.toDynamic, optic.toDynamic, x)
-               return new Left(new OpticCheck(new ::(error, Nil)))
-           }
+          try {
+            x = applySequenceUpdate(x, optic, edits, mode)
+          } catch {
+            case e: Throwable =>
+              val error = new OpticCheck.UnexpectedCase("sequence", e.getMessage, optic.toDynamic, optic.toDynamic, x)
+              return new Left(new OpticCheck(new ::(error, Nil)))
+          }
         case PrismPair(optic, PrismOp.Replace(a)) =>
           optic.replaceOrFail(x, a) match {
             case Right(r) => x = r
@@ -114,48 +113,49 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
     new Right(x)
   }
 
-  private def applySequenceUpdate(s: S, optic: Lens[S, _], edits: Vector[SequenceEdit[_]], mode: PatchMode): S = {
-     optic.focus.asSequenceUnknown match {
-       case Some(seqMeta) =>
-         val col = optic.get(s)
-         val seq = seqMeta.sequence
-          val deconstructor = seq.seqDeconstructor
-          val iter = deconstructor.deconstruct(col.asInstanceOf[seqMeta.CollectionType[Any]]) 
-          var vec = Vector.empty[Any]
-          while(iter.hasNext) vec = vec :+ iter.next()
+  private def applySequenceUpdate(s: S, optic: Lens[S, _], edits: Vector[SequenceEdit[_]], mode: PatchMode): S =
+    optic.focus.asSequenceUnknown match {
+      case Some(seqMeta) =>
+        val col           = optic.get(s)
+        val seq           = seqMeta.sequence
+        val deconstructor = seq.seqDeconstructor
+        val iter          = deconstructor.deconstruct(col.asInstanceOf[seqMeta.CollectionType[Any]])
+        var vec           = Vector.empty[Any]
+        while (iter.hasNext) vec = vec :+ iter.next()
 
-          val resultList: List[Any] = applyEdits[Any](vec.toList, edits.toList.asInstanceOf[List[SequenceEdit[Any]]], mode)
+        val resultList: List[Any] =
+          applyEdits[Any](vec.toList, edits.toList.asInstanceOf[List[SequenceEdit[Any]]], mode)
 
+        type AnyCol[x] = Any
+        val constructor = seq.seqConstructor.asInstanceOf[SeqConstructor[AnyCol]]
+        val builder     = constructor.newObjectBuilder[Any](resultList.size)
+        val resIter     = resultList.iterator
+        while (resIter.hasNext) {
+          constructor.addObject[Any](builder, resIter.next())
+        }
+        val newCol = constructor.resultObject(builder)
 
-          type AnyCol[x] = Any
-          val constructor = seq.seqConstructor.asInstanceOf[SeqConstructor[AnyCol]]
-          val builder = constructor.newObjectBuilder[Any](resultList.size)
-          val resIter = resultList.iterator
-          while (resIter.hasNext) {
-            constructor.addObject[Any](builder, resIter.next())
-          }
-          val newCol = constructor.resultObject(builder)
-         
-         optic.asInstanceOf[Lens[S, Any]].replace(s, newCol)
-         
-       case None => throw new RuntimeException("Cannot apply SequenceUpdate to non-sequence field")
-     }
-  }
+        optic.asInstanceOf[Lens[S, Any]].replace(s, newCol)
+
+      case None => throw new RuntimeException("Cannot apply SequenceUpdate to non-sequence field")
+    }
 
   private def applyEdits[A](in: List[A], edits: List[SequenceEdit[_]], mode: PatchMode): List[A] = {
-      @tailrec
-      def calc(in: List[A], edits: List[SequenceEdit[_]], result: List[A]): List[A] = (in, edits) match {
-        case (_ :: _, Nil)                                     => throw new RuntimeException("Incorrect Patch - no instructions for remaining items") 
-        case (h :: _, SequenceEdit.Delete(s) :: _) if mode == PatchMode.Strict && s != h   => throw new RuntimeException(s"Cannot Delete $s - current item is $h")
-        case (Nil, SequenceEdit.Delete(s) :: _)                => throw new RuntimeException(s"Cannot Delete $s - no items left")
-        case (_ :: t, SequenceEdit.Delete(_) :: tail)          => calc(t, tail, result)
-        case (h :: _, SequenceEdit.Keep(s) :: _) if mode == PatchMode.Strict && s != h     => throw new RuntimeException(s"Cannot Keep $s - current item is $h")
-        case (Nil, SequenceEdit.Keep(s) :: _)                  => throw new RuntimeException(s"Cannot Keep $s - no items left")
-        case (h :: t, SequenceEdit.Keep(_) :: tail)            => calc(t, tail, result :+ h)
-        case (in, SequenceEdit.Insert(s) :: tail)              => calc(in, tail, result :+ s.asInstanceOf[A])
-        case (Nil, Nil)                                        => result
-      }
-      calc(in, edits, Nil)
+    @tailrec
+    def calc(in: List[A], edits: List[SequenceEdit[_]], result: List[A]): List[A] = (in, edits) match {
+      case (_ :: _, Nil)                                                               => throw new RuntimeException("Incorrect Patch - no instructions for remaining items")
+      case (h :: _, SequenceEdit.Delete(s) :: _) if mode == PatchMode.Strict && s != h =>
+        throw new RuntimeException(s"Cannot Delete $s - current item is $h")
+      case (Nil, SequenceEdit.Delete(s) :: _)                                        => throw new RuntimeException(s"Cannot Delete $s - no items left")
+      case (_ :: t, SequenceEdit.Delete(_) :: tail)                                  => calc(t, tail, result)
+      case (h :: _, SequenceEdit.Keep(s) :: _) if mode == PatchMode.Strict && s != h =>
+        throw new RuntimeException(s"Cannot Keep $s - current item is $h")
+      case (Nil, SequenceEdit.Keep(s) :: _)       => throw new RuntimeException(s"Cannot Keep $s - no items left")
+      case (h :: t, SequenceEdit.Keep(_) :: tail) => calc(t, tail, result :+ h)
+      case (in, SequenceEdit.Insert(s) :: tail)   => calc(in, tail, result :+ s.asInstanceOf[A])
+      case (Nil, Nil)                             => result
+    }
+    calc(in, edits, Nil)
   }
 
   def mapLens[T](lens: Lens[T, S])(implicit schema: Schema[T]): Patch[T] =
@@ -167,7 +167,7 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
           case p: PrismPair[S, _] =>
             // A is a subtype of S, so we can treat it as S for the composition
             val newOptic = lens(p.optic.asInstanceOf[Prism[S, S]])
-            val newOp = p.op.asInstanceOf[PrismOp[S]] match {
+            val newOp    = p.op.asInstanceOf[PrismOp[S]] match {
               case PrismOp.Replace(a) => OptionalOp.Replace(a)
             }
             OptionalPair(newOptic, newOp)
@@ -201,7 +201,7 @@ object Patch {
   sealed trait LensOp[+A] extends Op[A]
 
   object LensOp {
-    case class Replace[+A](a: A) extends LensOp[A]
+    case class Replace[+A](a: A)                                  extends LensOp[A]
     case class SequenceUpdate[+A](edits: Vector[SequenceEdit[A]]) extends LensOp[Nothing]
   }
 
@@ -239,15 +239,14 @@ object Patch {
 
   sealed trait SequenceEdit[+A]
   object SequenceEdit {
-    case class Keep[+A](a: A) extends SequenceEdit[A]
+    case class Keep[+A](a: A)   extends SequenceEdit[A]
     case class Insert[+A](a: A) extends SequenceEdit[A]
     case class Delete[+A](a: A) extends SequenceEdit[A]
   }
 
   sealed trait PatchMode
   object PatchMode {
-    case object Strict extends PatchMode
+    case object Strict  extends PatchMode
     case object Lenient extends PatchMode
   }
 }
-
