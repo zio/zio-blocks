@@ -1398,57 +1398,22 @@ class JsonBinaryCodecDeriver private[json] (
     } else if (reflect.isRecord) {
       val record = reflect.asRecord.get
       if (record.recordBinding.isInstanceOf[Binding[?, ?]]) {
-        val binding     = record.recordBinding.asInstanceOf[Binding.Record[A]]
-        val fields      = record.fields
-        val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-        val typeName    = record.typeName
-        var infos       =
-          if (isRecursive) recursiveRecordCache.get.get(typeName)
-          else null
-        val deriveCodecs = infos eq null
-        var offset       = 0
-        val len          = fields.length
-        val map          = new StringToIntMap(len)
-        var req1, req2   = 0L
-        if (deriveCodecs) {
-          infos = new Array[FieldInfo](len)
-          if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
-          discriminatorFields.set(null :: discriminatorFields.get)
-        }
-        var idx = 0
-        while (idx < len) {
-          val field        = fields(idx)
-          var name: String = null
-          field.modifiers.foreach {
-            case m: Modifier.rename => if (name eq null) name = m.name
-            case m: Modifier.alias  => map.put(m.name, idx)
-            case _                  =>
-          }
-          if (name eq null) name = fieldNameMapper(field.name)
-          map.put(name, idx)
-          val fieldReflect = field.value
-          val isOpt        = isOptional(fieldReflect)
-          val isColl       = isCollection(fieldReflect)
-          val defVal       = defaultValue(fieldReflect)
-          if (!(isOpt || isColl || defVal.nonEmpty)) {
-            if (idx < 64) req1 ^= 1L << idx
-            else req2 ^= 1L << (idx - 64)
-          }
-          if (deriveCodecs) {
-            val nonTransient = !field.modifiers.exists(_.isInstanceOf[Modifier.transient])
-            val span         = new DynamicOptic.Node.Field(field.name)
-            val codec        = deriveCodec(fieldReflect)
-            infos(idx) = new FieldInfo(name, codec, offset, isOpt, isColl, nonTransient, defVal, span)
-            offset += codec.valueOffset
-          }
-          idx += 1
-        }
-        if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
+        val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
+        val fields  = record.fields
+        val len     = fields.length
         if (isTuple(reflect)) {
+          val codecs      = new Array[JsonBinaryCodec[?]](len)
+          var offset, idx = 0
+          while (idx < len) {
+            val codec = deriveCodec(fields(idx).value)
+            codecs(idx) = codec
+            offset += codec.valueOffset
+            idx += 1
+          }
           new JsonBinaryCodec[A]() {
             private[this] val deconstructor = binding.deconstructor
             private[this] val constructor   = binding.constructor
-            private[this] val fieldInfos    = infos
+            private[this] val fieldCodecs   = codecs
             private[this] val usedRegisters = offset
 
             override def decodeValue(in: JsonReader, default: A): A =
@@ -1456,14 +1421,12 @@ class JsonBinaryCodecDeriver private[json] (
                 val regs = Registers(usedRegisters)
                 if (!in.isNextToken(']')) {
                   in.rollbackToken()
-                  val len = fieldInfos.length
-                  var idx = 0
+                  val len         = fieldCodecs.length
+                  var offset, idx = 0
                   while (idx < len && (idx == 0 || in.isNextToken(',') || in.commaError())) {
-                    val field = fieldInfos(idx)
+                    val codec = fieldCodecs(idx)
                     try {
-                      val codec  = field.codec
-                      val offset = field.offset
-                      field.valueType match {
+                      codec.valueType match {
                         case JsonBinaryCodec.objectType =>
                           val objCodec = codec.asInstanceOf[JsonBinaryCodec[AnyRef]]
                           regs.setObject(offset, 0, objCodec.decodeValue(in, objCodec.nullValue))
@@ -1536,8 +1499,10 @@ class JsonBinaryCodecDeriver private[json] (
                           unitCodec.decodeValue(in, unitCodec.nullValue)
                       }
                     } catch {
-                      case error if NonFatal(error) => in.decodeError(field.span, error)
+                      case error if NonFatal(error) =>
+                        in.decodeError(new DynamicOptic.Node.Field(fields(idx).name), error)
                     }
+                    offset += codec.valueOffset
                     idx += 1
                   }
                   if (!in.isNextToken(']')) in.arrayEndError()
@@ -1549,13 +1514,11 @@ class JsonBinaryCodecDeriver private[json] (
               out.writeArrayStart()
               val regs = Registers(usedRegisters)
               deconstructor.deconstruct(regs, 0, x)
-              val len = fieldInfos.length
-              var idx = 0
+              val len         = fieldCodecs.length
+              var offset, idx = 0
               while (idx < len) {
-                val field  = fieldInfos(idx)
-                val offset = field.offset
-                val codec  = field.codec
-                field.valueType match {
+                val codec = fieldCodecs(idx)
+                codec.valueType match {
                   case JsonBinaryCodec.objectType =>
                     val value = regs.getObject(offset, 0)
                     codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
@@ -1593,12 +1556,56 @@ class JsonBinaryCodecDeriver private[json] (
                     else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
                   case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue((), out)
                 }
+                offset += codec.valueOffset
                 idx += 1
               }
               out.writeArrayEnd()
             }
           }
         } else {
+          val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+          val typeName    = record.typeName
+          var infos       =
+            if (isRecursive) recursiveRecordCache.get.get(typeName)
+            else null
+          val deriveCodecs = infos eq null
+          val map          = new StringToIntMap(len)
+          var offset       = 0
+          var req1, req2   = 0L
+          if (deriveCodecs) {
+            infos = new Array[FieldInfo](len)
+            if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
+            discriminatorFields.set(null :: discriminatorFields.get)
+          }
+          var idx = 0
+          while (idx < len) {
+            val field        = fields(idx)
+            var name: String = null
+            field.modifiers.foreach {
+              case m: Modifier.rename => if (name eq null) name = m.name
+              case m: Modifier.alias  => map.put(m.name, idx)
+              case _                  =>
+            }
+            if (name eq null) name = fieldNameMapper(field.name)
+            map.put(name, idx)
+            val fieldReflect = field.value
+            val isOpt        = isOptional(fieldReflect)
+            val isColl       = isCollection(fieldReflect)
+            val defVal       = defaultValue(fieldReflect)
+            if (!(isOpt || isColl || defVal.nonEmpty)) {
+              if (idx < 64) req1 ^= 1L << idx
+              else req2 ^= 1L << (idx - 64)
+            }
+            if (deriveCodecs) {
+              val nonTransient = !field.modifiers.exists(_.isInstanceOf[Modifier.transient])
+              val span         = new DynamicOptic.Node.Field(field.name)
+              val codec        = deriveCodec(fieldReflect)
+              infos(idx) = new FieldInfo(name, codec, offset, isOpt, isColl, nonTransient, defVal, span)
+              offset += codec.valueOffset
+            }
+            idx += 1
+          }
+          if (deriveCodecs) discriminatorFields.set(discriminatorFields.get.tail)
           new JsonBinaryCodec[A]() {
             private[this] val deconstructor       = binding.deconstructor
             private[this] val constructor         = binding.constructor
