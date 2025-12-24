@@ -16,32 +16,32 @@ trait DerivedOptics_[T] {
 
 object DerivedOpticsMacro {
 
-  def deriveOptics[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Expr[Any] = {
+  def deriveOptics[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Expr[Any] =
     deriveImpl[T](c)(schema, useUnderscore = false)
-  }
 
-  def deriveOpticsUnderscore[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Expr[Any] = {
+  def deriveOpticsUnderscore[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Expr[Any] =
     deriveImpl[T](c)(schema, useUnderscore = true)
-  }
 
-  private def deriveImpl[T: c.WeakTypeTag](c: whitebox.Context)(schemaExpr: c.Expr[Schema[T]], useUnderscore: Boolean): c.Expr[Any] = {
+  private def deriveImpl[T: c.WeakTypeTag](
+    c: whitebox.Context
+  )(schemaExpr: c.Expr[Schema[T]], useUnderscore: Boolean): c.Expr[Any] = {
     import c.universe._
 
-    val tpe = weakTypeOf[T]
-    val sym = tpe.typeSymbol
+    val tpe    = weakTypeOf[T]
+    val sym    = tpe.typeSymbol
     val prefix = c.prefix
 
-    def mkAccessorName(name: String): TermName = 
+    def mkAccessorName(name: String): TermName =
       TermName(if (useUnderscore) "_" + name else name)
 
-    def decapitalize(s: String): String = 
+    def decapitalize(s: String): String =
       if (s.isEmpty) s else s.head.toLower + s.tail
 
-    val isCaseClass = sym.isClass && sym.asClass.isCaseClass
+    val isCaseClass   = sym.isClass && sym.asClass.isCaseClass
     val isSealedTrait = sym.isClass && sym.asClass.isSealed
 
     val tree: c.Tree = if (isCaseClass && !isSealedTrait) {
-      
+
       val fields = tpe.decls.collect {
         case m: MethodSymbol if m.isCaseAccessor => m
       }.toList
@@ -51,11 +51,11 @@ object DerivedOpticsMacro {
       }
 
       val (methodDefs, methodDecls) = fields.map { field =>
-        val fieldName = field.name.decodedName.toString
+        val fieldName    = field.name.decodedName.toString
         val accessorName = mkAccessorName(fieldName)
-        val fieldType = field.returnType.asSeenFrom(tpe, tpe.typeSymbol)
-        val lensType = appliedType(weakTypeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
-        
+        val fieldType    = field.returnType.asSeenFrom(tpe, tpe.typeSymbol)
+        val lensType     = appliedType(weakTypeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
+
         // Definition (Implementation)
         val defn = q"""
           def $accessorName: $lensType = {
@@ -76,10 +76,10 @@ object DerivedOpticsMacro {
             }
           }
         """
-        
+
         // Declaration (Signature only)
         val decl = q"def $accessorName: $lensType"
-        
+
         (defn, decl)
       }.unzip
 
@@ -99,21 +99,23 @@ object DerivedOpticsMacro {
       """
 
     } else if (isSealedTrait) {
-      
-      val sym = tpe.typeSymbol.asClass
+
+      val sym      = tpe.typeSymbol.asClass
       val children = sym.knownDirectSubclasses.toList.sortBy(_.name.toString)
 
       if (children.isEmpty) {
-        c.abort(c.enclosingPosition, 
-          s"Sealed trait $tpe has no known subclasses. Ensure all subclasses are defined in the same compilation unit.")
+        c.abort(
+          c.enclosingPosition,
+          s"Sealed trait $tpe has no known subclasses. Ensure all subclasses are defined in the same compilation unit."
+        )
       }
 
       val (methodDefs, methodDecls) = children.map { child =>
-        val childName = child.name.decodedName.toString
+        val childName    = child.name.decodedName.toString
         val accessorName = mkAccessorName(decapitalize(childName))
-        val childType = child.asType.toType
-        val prismType = appliedType(weakTypeOf[Prism[_, _]].typeConstructor, List(tpe, childType))
-        
+        val childType    = child.asType.toType
+        val prismType    = appliedType(weakTypeOf[Prism[_, _]].typeConstructor, List(tpe, childType))
+
         // Definition
         val defn = q"""
           def $accessorName: $prismType = {
@@ -134,10 +136,10 @@ object DerivedOpticsMacro {
             }
           }
         """
-        
+
         // Declaration
         val decl = q"def $accessorName: $prismType"
-        
+
         (defn, decl)
       }.unzip
 
@@ -164,3 +166,5 @@ object DerivedOpticsMacro {
   }
 }
 // Trigger CI check
+
+
