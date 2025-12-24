@@ -46,7 +46,7 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
+    assert(normalizeLineEndings(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeLineEndings(expectedJson))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4))) &&
@@ -122,7 +122,7 @@ object JsonTestUtils {
     output.close()
     val encodedBySchema3 = output.toByteArray
     val encodedBySchema4 = codec.encode(value, writerConfig)
-    assert(new String(encodedBySchema1, UTF_8))(equalTo(expectedJson)) &&
+    assert(normalizeLineEndings(new String(encodedBySchema1, UTF_8)))(equalTo(normalizeLineEndings(expectedJson))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema2))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema3))) &&
     assert(ArraySeq.unsafeWrapArray(encodedBySchema1))(equalTo(ArraySeq.unsafeWrapArray(encodedBySchema4)))
@@ -170,6 +170,9 @@ object JsonTestUtils {
 
   private[this] def toDirectByteBuffer(bs: Array[Byte]): ByteBuffer =
     ByteBuffer.allocateDirect(maxBufSize).put(bs).position(0).limit(bs.length)
+
+  private[this] def normalizeLineEndings(s: String): String =
+    s.replace("\r\n", "\n")
 
   private[this] val codecs     = new ConcurrentHashMap[Schema[?], JsonBinaryCodec[?]]()
   private[this] val random     = new Random()
