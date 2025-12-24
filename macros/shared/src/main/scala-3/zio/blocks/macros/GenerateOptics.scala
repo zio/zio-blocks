@@ -84,21 +84,13 @@ class GenerateOptics extends MacroAnnotation {
   def fixOwner(using Quotes)(tree: quotes.reflect.Term, newOwner: quotes.reflect.Symbol): quotes.reflect.Term = {
     import quotes.reflect.*
     
-    val traverser = new TreeMap {
-      override def transformTree(tree: Tree)(owner: Symbol): Tree = {
-        tree match {
-          case tree: Definition =>
-            // If we hit a definition (like a lambda method), it needs to be reparented
-            // But we can't easily set .owner directly in standard API, so we rely on changeOwner for the top level
-            // and trust the recursion for children.
-            // Actually, for TASTy, the simplest "fix" for deep structures is often just `changeOwner`.
-            // If standard changeOwner failed, we use this explicit map.
-             super.transformTree(tree)(owner)
-          case _ =>
-             super.transformTree(tree)(owner)
-        }
-      }
+    // CodeRabbit Fix: Removed unused 'traverser' TreeMap
+    
+    tree match {
+      case Inlined(_, _, body) => body.changeOwner(newOwner)
+      case _ => tree.changeOwner(newOwner)
     }
+  }
     // For standard macros, simple recursive changeOwner is often sufficient if applied correctly.
     // If the previous simple `changeOwner` failed, it's often because `Inlined` wrappers confused it.
     // We unwrap Inlined, fix owner, and re-wrap.
