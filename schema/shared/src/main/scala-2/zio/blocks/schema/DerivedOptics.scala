@@ -1,0 +1,163 @@
+package zio.blocks.schema
+
+import scala.language.experimental.macros
+import scala.reflect.macros.whitebox
+
+/**
+ * A trait that can be extended by companion objects to automatically derive
+ * optics (Lens for case class fields, Prism for sealed trait/enum variants).
+ *
+ * Usage:
+ * {{{
+ * case class Person(name: String, age: Int)
+ * object Person extends DerivedOptics[Person]
+ *
+ * // Access optics via the `optics` member:
+ * val nameLens: Lens[Person, String] = Person.optics.name
+ * val ageLens: Lens[Person, Int] = Person.optics.age
+ * }}}
+ *
+ * For sealed traits:
+ * {{{
+ * sealed trait Shape
+ * case class Circle(radius: Double) extends Shape
+ * case class Rectangle(width: Double, height: Double) extends Shape
+ * object Shape extends DerivedOptics[Shape]
+ *
+ * // Access prisms via the `optics` member:
+ * val circlePrism: Prism[Shape, Circle] = Shape.optics.Circle
+ * }}}
+ *
+ * The optics object is cached to avoid recreation on every access.
+ *
+ * @tparam S
+ *   The type for which to derive optics
+ */
+trait DerivedOptics[S] {
+
+  /**
+   * Provides access to the derived optics for type S. For case classes, returns
+   * an object with Lens accessors for each field. For sealed traits, returns an
+   * object with Prism accessors for each variant.
+   *
+   * The returned object uses structural typing, so you get compile-time type
+   * checking and IDE completion for the accessor names.
+   */
+  def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImpl[S]
+}
+
+object DerivedOpticsMacros {
+  import java.util.concurrent.ConcurrentHashMap
+
+  // Global cache to avoid recreating optics objects at runtime
+  private val cache = new ConcurrentHashMap[Class[_], Any]()
+
+  private[schema] def getOrCreate[T](key: Class[_], create: => T): T = {
+    var result = cache.get(key)
+    if (result == null) {
+      result = create
+      val existing = cache.putIfAbsent(key, result)
+      if (existing != null) result = existing
+    }
+    result.asInstanceOf[T]
+  }
+
+  def opticsImpl[S: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[S]]): c.Tree = {
+    import c.universe._
+
+    val tpe     = weakTypeOf[S].dealias
+    val typeSym = tpe.typeSymbol.asClass
+
+    val isCaseClass = typeSym.isCaseClass
+    val isSealed    = typeSym.isSealed
+
+    if (!isCaseClass && !isSealed) {
+      c.abort(c.enclosingPosition, s"DerivedOptics requires a case class or sealed trait, got: ${typeSym.name}")
+    }
+
+    if (isCaseClass) {
+      buildCaseClassOptics(c)(schema, tpe)
+    } else {
+      buildSealedTraitOptics(c)(schema, tpe)
+    }
+  }
+
+  private def buildCaseClassOptics[S: c.WeakTypeTag](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
+    tpe: c.universe.Type
+  ): c.Tree = {
+    import c.universe._
+
+    // Get case class fields from primary constructor
+    val primaryConstructor = tpe.decls.collectFirst {
+      case m: MethodSymbol if m.isPrimaryConstructor => m
+    }.getOrElse(c.abort(c.enclosingPosition, s"Could not find primary constructor for $tpe"))
+
+    val fields = primaryConstructor.paramLists.flatten
+
+    // Build method definitions for the anonymous class
+    val lensAccessors = fields.zipWithIndex.map { case (field, idx) =>
+      val fieldName = field.name.toTermName
+      val fieldType = field.typeSignatureIn(tpe).dealias
+      val lensType  = appliedType(typeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
+
+      q"""
+        lazy val $fieldName: $lensType = {
+          val record = _schema.reflect.asRecord.getOrElse(
+            throw new RuntimeException("Expected a record schema for " + ${tpe.toString})
+          )
+          record.lensByIndex[$fieldType]($idx).getOrElse(
+            throw new RuntimeException("Cannot find lens for field " + ${fieldName.toString})
+          )
+        }
+      """
+    }
+
+    q"""
+      _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
+        classOf[$tpe],
+        new {
+          private val _schema: _root_.zio.blocks.schema.Schema[$tpe] = $schema
+          ..$lensAccessors
+        }
+      )
+    """
+  }
+
+  private def buildSealedTraitOptics[S: c.WeakTypeTag](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
+    tpe: c.universe.Type
+  ): c.Tree = {
+    import c.universe._
+
+    // Get direct subtypes
+    val subtypes = CommonMacroOps.directSubTypes(c)(tpe)
+
+    // Build method definitions for the anonymous class
+    val prismAccessors = subtypes.zipWithIndex.map { case (subtype, idx) =>
+      val caseName  = TermName(subtype.typeSymbol.name.toString)
+      val prismType = appliedType(typeOf[Prism[_, _]].typeConstructor, List(tpe, subtype))
+
+      q"""
+        lazy val $caseName: $prismType = {
+          val variant = _schema.reflect.asVariant.getOrElse(
+            throw new RuntimeException("Expected a variant schema for " + ${tpe.toString})
+          )
+          variant.prismByIndex[$subtype]($idx).getOrElse(
+            throw new RuntimeException("Cannot find prism for case " + ${caseName.toString})
+          )
+        }
+      """
+    }
+
+    q"""
+      _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
+        classOf[$tpe],
+        new {
+          private val _schema: _root_.zio.blocks.schema.Schema[$tpe] = $schema
+          ..$prismAccessors
+        }
+      )
+    """
+  }
+}
