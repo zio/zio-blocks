@@ -17,11 +17,13 @@ import scala.reflect.macros.blackbox
 trait IntoAsVersionSpecific {
   def derived[A, B]: Into[A, B] = macro IntoAsVersionSpecificMacros.derivedIntoImpl[A, B]
   def derivedInto[A, B]: Into[A, B] = macro IntoAsVersionSpecificMacros.derivedIntoImpl[A, B]
-  def derivedAs[A, B]: As[A, B]     = macro IntoAsVersionSpecificMacros.derivedAsImpl[A, B]
+  def derivedAs[A, B]: As[A, B] = macro IntoAsVersionSpecificMacros.derivedAsImpl[A, B]
 }
 
 object IntoAsVersionSpecificMacros {
-  def derivedIntoImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: blackbox.Context): c.Expr[Into[A, B]] = {
+  def derivedIntoImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](
+    c: blackbox.Context
+  ): c.Expr[Into[A, B]] = {
     // TODO: Implement Scala 2 macro for Into derivation
     // For now, this is a placeholder that will fail at compile-time
     // indicating that Scala 2 support is not yet implemented
@@ -33,7 +35,9 @@ object IntoAsVersionSpecificMacros {
     )
   }
 
-  def derivedAsImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](c: blackbox.Context): c.Expr[As[A, B]] = {
+  def derivedAsImpl[A: c.WeakTypeTag, B: c.WeakTypeTag](
+    c: blackbox.Context
+  ): c.Expr[As[A, B]] = {
     // TODO: Implement Scala 2 macro for As derivation
     // For now, this is a placeholder that will fail at compile-time
     // indicating that Scala 2 support is not yet implemented
@@ -45,4 +49,3 @@ object IntoAsVersionSpecificMacros {
     )
   }
 }
-
