@@ -312,7 +312,11 @@ object PrimitiveOp {
         case DynamicValue.Primitive(PrimitiveValue.Int(n)) =>
           Right(DynamicValue.Primitive(PrimitiveValue.Int(n + delta)))
         case other =>
-          Left(SchemaError.TypeMismatch("Int", other.getClass.getSimpleName))
+          mode match {
+            case PatchMode.Strict => Left(SchemaError.TypeMismatch("Int", other.getClass.getSimpleName))
+            case PatchMode.Lenient => Right(value) // Ignore type mismatch
+            case PatchMode.Clobber => Right(DynamicValue.Primitive(PrimitiveValue.Int(delta))) // Replace with delta
+          }
       }
     }
   }

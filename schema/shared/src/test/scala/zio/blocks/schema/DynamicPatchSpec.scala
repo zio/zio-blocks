@@ -171,7 +171,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val patch = DynamicPatch.single(
           DynamicPatchOp(
             DynamicOptic.root,
-            Operation.SequenceEdit(Vector(SeqOp.Insert(1, DynamicValue.Primitive(PrimitiveValue.Int(2)))))
+            Operation.SequenceEdit(Vector(SeqOp.Insert(1, Vector(DynamicValue.Primitive(PrimitiveValue.Int(2))))))
           )
         )
         assert(patch.apply(value, PatchMode.Strict))(
@@ -191,7 +191,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val patch = DynamicPatch.single(
           DynamicPatchOp(
             DynamicOptic.root,
-            Operation.SequenceEdit(Vector(SeqOp.Delete(1)))
+            Operation.SequenceEdit(Vector(SeqOp.Delete(1, 1)))
           )
         )
         assert(patch.apply(value, PatchMode.Strict))(
@@ -209,8 +209,8 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicPatchOp(
             DynamicOptic.root,
             Operation.SequenceEdit(Vector(
-              SeqOp.Append(DynamicValue.Primitive(PrimitiveValue.Int(2))),
-              SeqOp.Append(DynamicValue.Primitive(PrimitiveValue.Int(3)))
+              SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(2)))),
+              SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(3))))
             ))
           )
         )
@@ -336,7 +336,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val b = Vector(DynamicValue.Primitive(PrimitiveValue.Int(1)))
         val ops = SeqOp.diff(a, b)
         assertTrue(ops.exists {
-          case SeqOp.Delete(_) => true
+          case SeqOp.Delete(_, _) => true
           case _ => false
         })
       }
