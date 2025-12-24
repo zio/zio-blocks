@@ -651,10 +651,11 @@ class JsonBinaryCodecDeriver private[json] (
                 def encodeValue(x: A, out: JsonWriter): Unit = root.discriminate(x).writeVal(out)
               }
             } else {
-              val allCaseLeafInfos = Array.newBuilder[CaseLeafInfo]
-              val map              = new StringToIntMap(variant.cases.length)
               discriminatorKind match {
                 case DiscriminatorKind.Field(fieldName) if hasOnlyRecordAndVariantCases(variant) =>
+                  val allCaseLeafInfos = Array.newBuilder[CaseLeafInfo]
+                  val map              = new StringToIntMap(variant.cases.length)
+
                   def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
                     val cases = variant.cases
                     val len   = cases.length
@@ -678,7 +679,7 @@ class JsonBinaryCodecDeriver private[json] (
                         map.put(name, infosIdx)
                         val span = new DynamicOptic.Node.Case(case_.name)
                         discriminatorFields.set((fieldName, name) :: discriminatorFields.get)
-                        val caseLeafInfo = new CaseLeafInfo(name, deriveCodec(caseReflect), span)
+                        val caseLeafInfo = new CaseLeafInfo("", deriveCodec(caseReflect), span)
                         discriminatorFields.set(discriminatorFields.get.tail)
                         allCaseLeafInfos.addOne(caseLeafInfo)
                         caseLeafInfo
@@ -719,6 +720,8 @@ class JsonBinaryCodecDeriver private[json] (
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
                   }
                 case DiscriminatorKind.None =>
+                  val codecs = Array.newBuilder[JsonBinaryCodec[?]]
+
                   def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
                     val cases = variant.cases
                     val len   = cases.length
@@ -731,9 +734,9 @@ class JsonBinaryCodecDeriver private[json] (
                         val discr = discriminator(caseReflect)
                         new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
                       } else {
-                        val caseLeafInfo = new CaseLeafInfo("", deriveCodec(caseReflect), null)
-                        allCaseLeafInfos.addOne(caseLeafInfo)
-                        caseLeafInfo
+                        val codec = deriveCodec(caseReflect)
+                        codecs.addOne(codec)
+                        new CaseLeafInfo("", codec, null)
                       }
                       idx += 1
                     }
@@ -741,15 +744,14 @@ class JsonBinaryCodecDeriver private[json] (
                   }
 
                   new JsonBinaryCodec[A]() {
-                    private[this] val root          = new CaseNodeInfo(discr, getInfos(variant))
-                    private[this] val caseLeafInfos = allCaseLeafInfos.result()
+                    private[this] val root           = new CaseNodeInfo(discr, getInfos(variant))
+                    private[this] val caseLeafCodecs = codecs.result()
 
                     def decodeValue(in: JsonReader, default: A): A = {
                       var idx = 0
-                      while (idx < caseLeafInfos.length) {
-                        val caseInfo = caseLeafInfos(idx)
+                      while (idx < caseLeafCodecs.length) {
                         in.setMark()
-                        val codec = caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]]
+                        val codec = caseLeafCodecs(idx).asInstanceOf[JsonBinaryCodec[A]]
                         try {
                           val x = codec.decodeValue(in, codec.nullValue)
                           in.resetMark()
@@ -766,6 +768,9 @@ class JsonBinaryCodecDeriver private[json] (
                       root.discriminate(x).codec.asInstanceOf[JsonBinaryCodec[A]].encodeValue(x, out)
                   }
                 case _ =>
+                  val allCaseLeafInfos = Array.newBuilder[CaseLeafInfo]
+                  val map              = new StringToIntMap(variant.cases.length)
+
                   def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
                     val cases = variant.cases
                     val len   = cases.length
