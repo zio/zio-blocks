@@ -1571,7 +1571,6 @@ class JsonBinaryCodecDeriver private[json] (
           val deriveCodecs = infos eq null
           val map          = new StringToIntMap(len)
           var offset       = 0
-          var req1, req2   = 0L
           if (deriveCodecs) {
             infos = new Array[FieldInfo](len)
             if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
@@ -1592,10 +1591,6 @@ class JsonBinaryCodecDeriver private[json] (
             val isOpt        = isOptional(fieldReflect)
             val isColl       = isCollection(fieldReflect)
             val defVal       = defaultValue(fieldReflect)
-            if (!(isOpt || isColl || defVal.nonEmpty)) {
-              if (idx < 64) req1 ^= 1L << idx
-              else req2 ^= 1L << (idx - 64)
-            }
             if (deriveCodecs) {
               val nonTransient = !field.modifiers.exists(_.isInstanceOf[Modifier.transient])
               val span         = new DynamicOptic.Node.Field(field.name)
@@ -1610,15 +1605,13 @@ class JsonBinaryCodecDeriver private[json] (
             private[this] val deconstructor       = binding.deconstructor
             private[this] val constructor         = binding.constructor
             private[this] val fieldInfos          = infos
-            private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
             private[this] val fieldIndexMap       = map
-            private[this] val required1           = req1
-            private[this] val required2           = req2
+            private[this] val discriminatorField  = discriminatorFields.get.headOption.orNull
             private[this] val usedRegisters       = offset
-            private[this] val doReject            = rejectExtraFields
             private[this] val skipNone            = transientNone
             private[this] val skipEmptyCollection = transientEmptyCollection
             private[this] val skipDefaultValue    = transientDefaultValue
+            private[this] val doReject            = rejectExtraFields
 
             require(fieldInfos.length <= 128, "expected up to 128 fields")
 
@@ -1641,8 +1634,8 @@ class JsonBinaryCodecDeriver private[json] (
                         (in.isCharBufEqualsTo(keyLen, field.name) || {
                           val keyIdx = fieldIndexMap.get(in, keyLen)
                           (keyIdx >= 0) && {
+                            field = fieldInfos(keyIdx)
                             idx = keyIdx
-                            field = fieldInfos(idx)
                             true
                           }
                         }) && field.nonTransient
@@ -1739,16 +1732,6 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                   if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
                 }
-                val missingRequired1 = ~seen1 & required1
-                if (missingRequired1 != 0L) {
-                  in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(missingRequired1)).name)
-                }
-                if (len > 64) {
-                  val missingRequired2 = ~seen2 & required2
-                  if (missingRequired2 != 0L) {
-                    in.requiredFieldError(fieldInfos(java.lang.Long.numberOfTrailingZeros(missingRequired2) + 64).name)
-                  }
-                }
                 idx = 0
                 while (idx < len) {
                   if (
@@ -1776,7 +1759,7 @@ class JsonBinaryCodecDeriver private[json] (
                     } else if (field.isOptional) regs.setObject(field.offset, 0, None)
                     else if (field.isCollection) {
                       regs.setObject(field.offset, 0, field.codec.nullValue.asInstanceOf[AnyRef])
-                    }
+                    } else in.requiredFieldError(fieldInfos(idx).name)
                   }
                   idx += 1
                 }
