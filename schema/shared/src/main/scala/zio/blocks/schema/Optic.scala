@@ -221,7 +221,23 @@ object Lens {
     new LensImpl(Array(source), Array(focusTerm))
   }
 
+  private trait IdentityLens
+
+  def identity[S](implicit schema: Schema[S]): Lens[S, S] = new Lens[S, S] with IdentityLens {
+    def source: Reflect.Bound[S] = schema.reflect.asInstanceOf[Reflect.Bound[S]]
+    def focus: Reflect.Bound[S]  = schema.reflect.asInstanceOf[Reflect.Bound[S]]
+    def get(s: S): S             = s
+    def replace(s: S, a: S): S   = a
+    def check(s: S): Option[OpticCheck] = None
+    def modify(s: S, f: S => S): S = f(s)
+    def modifyOption(s: S, f: S => S): Option[S] = Some(f(s))
+    def modifyOrFail(s: S, f: S => S): Either[OpticCheck, S] = Right(f(s))
+    lazy val toDynamic: DynamicOptic = DynamicOptic.root
+  }
+
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
+    if (first.isInstanceOf[IdentityLens]) return second.asInstanceOf[Lens[S, A]]
+    if (second.isInstanceOf[IdentityLens]) return first.asInstanceOf[Lens[S, A]]
     val lens1 = first.asInstanceOf[LensImpl[?, ?]]
     val lens2 = second.asInstanceOf[LensImpl[?, ?]]
     new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)

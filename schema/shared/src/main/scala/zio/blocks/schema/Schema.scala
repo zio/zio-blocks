@@ -94,6 +94,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  def diff(thisValue: A, thatValue: A): Patch[A] = Differ.diff(this, thisValue, thatValue)
 }
 
 object Schema extends SchemaVersionSpecific {
