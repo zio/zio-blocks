@@ -5,7 +5,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 inThisBuild(
   List(
-    name := "ZIO Blocks",
+    name         := "ZIO Blocks",
     organization := "dev.zio",
     homepage     := Some(url("https://zio.dev")),
     licenses     := List(
