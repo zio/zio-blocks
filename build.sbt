@@ -5,6 +5,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 inThisBuild(
   List(
+    name         := "ZIO Blocks",
     organization := "dev.zio",
     homepage     := Some(url("https://zio.dev")),
     licenses     := List(
@@ -43,7 +44,8 @@ lazy val root = project
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
-    benchmarks
+    benchmarks,
+    docs
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -174,3 +176,18 @@ lazy val benchmarks = project
     publish / skip           := true,
     mimaPreviousArtifacts    := Set()
   )
+
+lazy val docs = project
+  .in(file("zio-blocks-docs"))
+  .settings(
+    moduleName := "zio-blocks-docs",
+    scalacOptions -= "-Yno-imports",
+    scalacOptions -= "-Xfatal-warnings",
+    projectName                                := (ThisBuild / name).value,
+    mainModuleName                             := (schema.jvm / moduleName).value,
+    projectStage                               := ProjectStage.Development,
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
+    publish / skip                             := true
+  )
+  .dependsOn(schema.jvm)
+  .enablePlugins(WebsitePlugin)
