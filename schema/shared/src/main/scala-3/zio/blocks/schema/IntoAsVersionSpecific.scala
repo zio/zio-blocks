@@ -526,6 +526,128 @@ private object IntoAsVersionSpecificImpl {
   }
 
   /**
+   * Checks if a type can be converted to another type (at compile-time).
+   * Returns true if there exists an Into[A, B] instance (implicit or derivable).
+   */
+  private def isCoercible(using q: Quotes)(aTpe: q.reflect.TypeRepr, bTpe: q.reflect.TypeRepr): Boolean = {
+    import q.reflect._
+
+    // Identity case
+    if (aTpe =:= bTpe) return true
+
+    // Check if there's an implicit Into[A, B]
+    val intoType = TypeRepr.of[Into[?, ?]].appliedTo(List(aTpe, bTpe))
+    Implicits.search(intoType) match {
+      case _: ImplicitSearchSuccess => true
+      case _ =>
+        // Check if types are primitively coercible (widening/narrowing)
+        val intType    = TypeRepr.of[Int]
+        val longType   = TypeRepr.of[Long]
+        val doubleType = TypeRepr.of[Double]
+        val floatType  = TypeRepr.of[Float]
+
+        val aDealiased = aTpe.dealias
+        val bDealiased = bTpe.dealias
+
+        // Check common primitive coercions
+        (isPrimitiveType(using q)(aDealiased, intType) && isPrimitiveType(using q)(bDealiased, longType)) ||
+        (isPrimitiveType(using q)(aDealiased, intType) && isPrimitiveType(using q)(bDealiased, doubleType)) ||
+        (isPrimitiveType(using q)(aDealiased, intType) && isPrimitiveType(using q)(bDealiased, floatType)) ||
+        (isPrimitiveType(using q)(aDealiased, longType) && isPrimitiveType(using q)(bDealiased, doubleType)) ||
+        (isPrimitiveType(using q)(aDealiased, floatType) && isPrimitiveType(using q)(bDealiased, doubleType)) ||
+        (isPrimitiveType(using q)(aDealiased, longType) && isPrimitiveType(using q)(bDealiased, intType)) ||
+        (isPrimitiveType(using q)(aDealiased, doubleType) && isPrimitiveType(using q)(bDealiased, floatType)) ||
+        (isPrimitiveType(using q)(aDealiased, doubleType) && isPrimitiveType(using q)(bDealiased, intType)) ||
+        (isPrimitiveType(using q)(aDealiased, doubleType) && isPrimitiveType(using q)(bDealiased, longType)) ||
+        (isPrimitiveType(using q)(aDealiased, floatType) && isPrimitiveType(using q)(bDealiased, intType)) ||
+        (isPrimitiveType(using q)(aDealiased, floatType) && isPrimitiveType(using q)(bDealiased, longType)) ||
+        // Check if both are collections (will be handled recursively)
+        (extractCollectionElementType(using q)(aTpe).isDefined && extractCollectionElementType(using q)(bTpe).isDefined) ||
+        // Check if both are case classes (will be handled recursively)
+        (isCaseClass(using q)(aTpe) && isCaseClass(using q)(bTpe))
+    }
+  }
+
+  /**
+   * Finds a matching field in aFields for bField using the complete disambiguation algorithm.
+   * 
+   * PRIORITY 1: Exact match (same name + same type)
+   * PRIORITY 2: Name match with coercion (same name + coercible type)
+   * PRIORITY 3: Unique type match (type appears only once in both)
+   * PRIORITY 4: Position + unique type (positional correspondence with unambiguous type)
+   * PRIORITY 5: Fallback with compile error if ambiguous
+   */
+  private def findMatchingField(using q: Quotes)(
+    aFields: List[FieldInfo],
+    bFields: List[FieldInfo],
+    bField: FieldInfo,
+    bFieldIndex: Int,
+    aTpe: q.reflect.TypeRepr,
+    bTpe: q.reflect.TypeRepr
+  ): Option[FieldInfo] = {
+
+    val bFieldTpe = bField.tpeRepr(using q)
+
+    // PRIORITY 1: Exact match (same name + same type)
+    val exactMatch = aFields.find { aField =>
+      aField.name == bField.name && aField.tpeRepr(using q) =:= bFieldTpe
+    }
+    if (exactMatch.isDefined) return exactMatch
+
+    // PRIORITY 2: Name match with coercion (same name + coercible type)
+    val nameMatchWithCoercion = aFields.find { aField =>
+      aField.name == bField.name && isCoercible(using q)(aField.tpeRepr(using q), bFieldTpe)
+    }
+    if (nameMatchWithCoercion.isDefined) return nameMatchWithCoercion
+
+    // PRIORITY 3: Unique type match (type appears only once in both)
+    // Count how many times bFieldTpe appears in bFields
+    val bFieldTpeCount = bFields.count { f =>
+      f.tpeRepr(using q) =:= bFieldTpe
+    }
+    
+    // If bFieldTpe appears only once in B, find fields in A with the same type
+    if (bFieldTpeCount == 1) {
+      val aFieldsWithSameType = aFields.filter { aField =>
+        aField.tpeRepr(using q) =:= bFieldTpe
+      }
+      
+      // Count how many times this type appears in A
+      val aFieldTpeCount = aFieldsWithSameType.length
+      
+      // If it appears only once in A as well, we have a unique match
+      if (aFieldTpeCount == 1) {
+        return Some(aFieldsWithSameType.head)
+      }
+    }
+
+    // PRIORITY 4: Position + unique type (positional correspondence with unambiguous type)
+    // Check if the field at the same position has a unique type match
+    if (bFieldIndex < aFields.length) {
+      val aFieldAtPosition = aFields(bFieldIndex)
+      val aFieldTpe         = aFieldAtPosition.tpeRepr(using q)
+      
+      // Check if aFieldTpe appears only once in A
+      val aFieldTpeCountInA = aFields.count { f =>
+        f.tpeRepr(using q) =:= aFieldTpe
+      }
+      
+      // Check if bFieldTpe appears only once in B
+      val bFieldTpeCountInB = bFields.count { f =>
+        f.tpeRepr(using q) =:= bFieldTpe
+      }
+      
+      // If both are unique and coercible, use positional match
+      if (aFieldTpeCountInA == 1 && bFieldTpeCountInB == 1 && isCoercible(using q)(aFieldTpe, bFieldTpe)) {
+        return Some(aFieldAtPosition)
+      }
+    }
+
+    // PRIORITY 5: Fallback - no unambiguous match found
+    None
+  }
+
+  /**
    * Generates the Into[A, B] instance expression for case classes.
    */
   private def generateIntoInstance[A: Type, B: Type](using
@@ -537,18 +659,33 @@ private object IntoAsVersionSpecificImpl {
     bFields: List[FieldInfo]
   ): Expr[Into[A, B]] = {
 
-    // Build field conversions: for each field in B, find matching field in A and generate conversion
-    val fieldConversions = bFields.map { bField =>
-      // Find matching field in A by name
-      aFields.find(_.name == bField.name) match {
+    // Build field conversions: for each field in B, find matching field in A using disambiguation algorithm
+    val fieldConversions = bFields.zipWithIndex.map { case (bField, bIndex) =>
+      findMatchingField(using q)(aFields, bFields, bField, bIndex, aTpe, bTpe) match {
         case Some(aField) =>
           // Generate recursive Into[FieldA, FieldB] instance
           val fieldInto = findOrDeriveInto(using q)(aField.tpeRepr(using q), bField.tpeRepr(using q))
           (bField.name, aField.getterSymbol(using q), fieldInto)
         case None =>
-          fail(
-            s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Field '${bField.name}' not found in source type '${aTpe.show}'."
-          )
+          // Build detailed error message
+          val possibleMatches = aFields.map { aField =>
+            val typeMatch = if (aField.tpeRepr(using q) =:= bField.tpeRepr(using q)) " (exact type match)" else ""
+            val nameMatch = if (aField.name == bField.name) " (name match)" else ""
+            val coercible = if (isCoercible(using q)(aField.tpeRepr(using q), bField.tpeRepr(using q))) " (coercible)" else ""
+            s"  - '${aField.name}': ${aField.tpeRepr(using q).show}$typeMatch$nameMatch$coercible"
+          }
+          
+          val errorMsg = if (possibleMatches.nonEmpty) {
+            s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: " +
+              s"Field '${bField.name}': ${bField.tpeRepr(using q).show} not found in source type '${aTpe.show}'. " +
+              s"Available fields:\n${possibleMatches.mkString("\n")}"
+          } else {
+            s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: " +
+              s"Field '${bField.name}': ${bField.tpeRepr(using q).show} not found in source type '${aTpe.show}'. " +
+              s"Source type has no fields."
+          }
+          
+          fail(errorMsg)
       }
     }
 
