@@ -5,10 +5,6 @@ import zio.test.Assertion._
 
 object DerivedOpticsSpec extends ZIOSpecDefault {
 
-  // ============================================
-  // Test Domain Models
-  // ============================================
-
   case class Person(name: String, age: Int, email: Option[String])
   object Person extends DerivedOptics[Person] {
     implicit val schema: Schema[Person] = Schema.derived
@@ -32,16 +28,12 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   case class BankTransfer(iban: String, bic: String)    extends PaymentMethod
   case object Cash                                      extends PaymentMethod
 
-  // Underscore prefix variant
   case class Conflicting(optics: String, name: String, value: Int)
   object Conflicting extends DerivedOptics_[Conflicting] {
     implicit val schema: Schema[Conflicting] = Schema.derived
   }
 
   def spec = suite("DerivedOpticsSpec")(
-    // ============================================
-    // Lens Tests
-    // ============================================
     suite("Lens")(
       test("get field value") {
         val person = Person("Alice", 30, Some("alice@example.com"))
@@ -55,7 +47,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
         assert(updated.name)(equalTo("Bob")) &&
         assert(updated.age)(equalTo(30)) &&
-        assert(person.name)(equalTo("Alice")) // Original unchanged
+        assert(person.name)(equalTo("Alice"))
       },
       test("modify field value") {
         val person = Person("Alice", 30, None)
@@ -63,10 +55,6 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         assert(older.age)(equalTo(31))
       }
     ),
-
-    // ============================================
-    // Prism Tests
-    // ============================================
     suite("Prism")(
       test("getOption success (matching variant)") {
         val payment: PaymentMethod = CreditCard("1234", "12/25")
@@ -85,14 +73,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       },
       test("naming convention (camelCase)") {
         val cash: PaymentMethod = Cash
-        // 'Cash' becomes 'cash'
         assert(PaymentMethod.optics.cash.getOption(cash))(isSome(equalTo(Cash)))
       }
     ),
-
-    // ============================================
-    // Advanced & Edge Cases
-    // ============================================
     suite("Edge Cases")(
       test("Underscore prefix (DerivedOptics_)") {
         val conf = Conflicting("opticsVal", "nameVal", 42)
@@ -106,11 +89,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       },
       test("Lens Composition") {
         val employee = Employee(1L, Person("Alice", 30, None), Address("St", "City", 1))
-
-        val pLens = Employee.optics.person
-        val nLens = Person.optics.name
-
-        val name = nLens.get(pLens.get(employee))
+        val pLens    = Employee.optics.person
+        val nLens    = Person.optics.name
+        val name     = nLens.get(pLens.get(employee))
         assert(name)(equalTo("Alice"))
       }
     )

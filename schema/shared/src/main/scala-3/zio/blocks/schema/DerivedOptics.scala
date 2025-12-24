@@ -17,7 +17,6 @@ trait DerivedOptics_[T] {
     ${ DerivedOpticsMacro.deriveOptics[T]('schema, '_opticsCache, true) }
 }
 
-// Explicitly define Selectable to ensure compiler sees selectDynamic
 trait SelectableOptics extends scala.Selectable {
   def selectDynamic(name: String): Any
 }
@@ -141,8 +140,9 @@ object DerivedOpticsMacro {
             val childName    = child.name.stripSuffix("$")
             val accessorName = mkAccessorName(decapitalize(childName))
 
+            // FIX: Use underscore wildcard to ignore the unused type variable 'c'
             childType.asType match {
-              case '[c] =>
+              case _ =>
                 val prismExpr = '{
                   val variant = $schemaExpr.reflect.asInstanceOf[_root_.zio.blocks.schema.Reflect.Variant.Bound[T]]
                   variant.cases.find(_.name == ${ Expr(childName) }) match {

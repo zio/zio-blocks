@@ -5,56 +5,42 @@ import scala.reflect.macros.whitebox
 import java.util.concurrent.atomic.AtomicReference
 
 trait DerivedOptics[T] {
-  protected val _opticsCache: AtomicReference[Any] = new AtomicReference(null)
+  val _opticsCache: AtomicReference[Any] = new AtomicReference(null)
   def optics(implicit schema: Schema[T]): Any = macro DerivedOpticsMacro.deriveOptics[T]
 }
 
 trait DerivedOptics_[T] {
-  protected val _opticsCache: AtomicReference[Any] = new AtomicReference(null)
+  val _opticsCache: AtomicReference[Any] = new AtomicReference(null)
   def optics(implicit schema: Schema[T]): Any = macro DerivedOpticsMacro.deriveOpticsUnderscore[T]
 }
 
 object DerivedOpticsMacro {
 
-  def deriveOptics[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Tree = {
-    new DerivedOpticsMacroImpl(c).derive[T](schema, useUnderscore = false)
+  def deriveOptics[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Expr[Any] = {
+    deriveImpl[T](c)(schema, useUnderscore = false)
   }
 
-  def deriveOpticsUnderscore[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Tree = {
-    new DerivedOpticsMacroImpl(c).derive[T](schema, useUnderscore = true)
+  def deriveOpticsUnderscore[T: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[T]]): c.Expr[Any] = {
+    deriveImpl[T](c)(schema, useUnderscore = true)
   }
 
-  private class DerivedOpticsMacroImpl(val c: whitebox.Context) {
+  private def deriveImpl[T: c.WeakTypeTag](c: whitebox.Context)(schemaExpr: c.Expr[Schema[T]], useUnderscore: Boolean): c.Expr[Any] = {
     import c.universe._
 
-    def derive[T: c.WeakTypeTag](schemaExpr: c.Expr[Schema[T]], useUnderscore: Boolean): c.Tree = {
-      val tpe = weakTypeOf[T]
-      val sym = tpe.typeSymbol
+    val tpe = weakTypeOf[T]
+    val sym = tpe.typeSymbol
+    val prefix = c.prefix
 
-      def mkAccessorName(name: String): TermName = 
-        TermName(if (useUnderscore) "_" + name else name)
+    def mkAccessorName(name: String): TermName = 
+      TermName(if (useUnderscore) "_" + name else name)
 
-      def decapitalize(s: String): String = 
-        if (s.isEmpty) s else s.head.toLower + s.tail
+    def decapitalize(s: String): String = 
+      if (s.isEmpty) s else s.head.toLower + s.tail
 
-      val isCaseClass = sym.isClass && sym.asClass.isCaseClass
-      val isSealedTrait = sym.isClass && sym.asClass.isSealed
+    val isCaseClass = sym.isClass && sym.asClass.isCaseClass
+    val isSealedTrait = sym.isClass && sym.asClass.isSealed
 
-      if (isCaseClass && !isSealedTrait) {
-        generateRecordOptics[T](schemaExpr, mkAccessorName, tpe)
-      } else if (isSealedTrait) {
-        generateVariantOptics[T](schemaExpr, s => mkAccessorName(decapitalize(s)), tpe)
-      } else {
-        c.abort(c.enclosingPosition, 
-          s"DerivedOptics requires a case class or sealed trait. Got: $tpe")
-      }
-    }
-
-    private def generateRecordOptics[T: c.WeakTypeTag](
-      schemaExpr: c.Expr[Schema[T]], 
-      mkName: String => TermName,
-      tpe: c.Type
-    ): c.Tree = {
+    val tree: c.Tree = if (isCaseClass && !isSealedTrait) {
       
       val fields = tpe.decls.collect {
         case m: MethodSymbol if m.isCaseAccessor => m
@@ -64,66 +50,55 @@ object DerivedOpticsMacro {
         c.abort(c.enclosingPosition, s"Case class $tpe has no fields")
       }
 
-      val methodDefs = fields.map { field =>
+      val (methodDefs, methodDecls) = fields.map { field =>
         val fieldName = field.name.decodedName.toString
-        val accessorName = mkName(fieldName)
+        val accessorName = mkAccessorName(fieldName)
         val fieldType = field.returnType.asSeenFrom(tpe, tpe.typeSymbol)
+        val lensType = appliedType(weakTypeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
         
-        val lensType = appliedType(typeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
-        
-        // Note: Using Record[_, $tpe] to match arity, and .fields/.name logic
-        q"""
+        // Definition (Implementation)
+        val defn = q"""
           def $accessorName: $lensType = {
-            val record = $schemaExpr.reflect match {
-              case r: _root_.zio.blocks.schema.Reflect.Record[_, $tpe] => r
-              case other => sys.error("Expected Record, got: " + other.getClass.getName)
-            }
-            record.fields.find(_.name == ${fieldName}) match {
-              case _root_.scala.Some(term) =>
-                _root_.zio.blocks.schema.Lens[$tpe, $fieldType](
-                  record.asInstanceOf[_root_.zio.blocks.schema.Reflect.Record.Bound[$tpe]], 
-                  term.asInstanceOf[_root_.zio.blocks.schema.Term.Bound[$tpe, $fieldType]]
-                )
-              case _root_.scala.None =>
-                sys.error("Field '" + ${fieldName} + "' not found in schema")
+            val r = $schemaExpr.reflect
+            if (r.isRecord) {
+              val record = r.asInstanceOf[_root_.zio.blocks.schema.Reflect.Record.Bound[$tpe]]
+              record.fields.find(_.name == ${fieldName}) match {
+                case _root_.scala.Some(term) =>
+                  _root_.zio.blocks.schema.Lens[$tpe, $fieldType](
+                    record, 
+                    term.asInstanceOf[_root_.zio.blocks.schema.Term.Bound[$tpe, $fieldType]]
+                  )
+                case _root_.scala.None =>
+                  sys.error("Field '" + ${fieldName} + "' not found in schema")
+              }
+            } else {
+               sys.error("Expected Record schema for " + ${tpe.toString})
             }
           }
         """
-      }
-
-      val refinementParts = fields.map { field =>
-        val fieldName = field.name.decodedName.toString
-        val accessorName = if (mkName(fieldName).toString.startsWith("_")) "_" + fieldName else fieldName
-        val fieldType = field.returnType.asSeenFrom(tpe, tpe.typeSymbol)
-        val lensType = appliedType(typeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
-        s"def $accessorName: $lensType"
-      }
-      
-      val refinedTypeStr = refinementParts.mkString("{ ", "; ", " }")
-      val refinedType = c.typecheck(c.parse(s"null.asInstanceOf[$refinedTypeStr]"), c.TYPEmode).tpe
+        
+        // Declaration (Signature only)
+        val decl = q"def $accessorName: $lensType"
+        
+        (defn, decl)
+      }.unzip
 
       q"""
         {
-          val cached = _opticsCache.get()
+          val cached = $prefix._opticsCache.get()
           if (cached != null) {
-            cached.asInstanceOf[$refinedType]
+            cached.asInstanceOf[{ ..$methodDecls }]
           } else {
             val opticsInstance = new {
               ..$methodDefs
             }
-            val result = opticsInstance.asInstanceOf[$refinedType]
-            _opticsCache.compareAndSet(null, result)
-            _opticsCache.get().asInstanceOf[$refinedType]
+            $prefix._opticsCache.compareAndSet(null, opticsInstance)
+            $prefix._opticsCache.get().asInstanceOf[{ ..$methodDecls }]
           }
         }
       """
-    }
 
-    private def generateVariantOptics[T: c.WeakTypeTag](
-      schemaExpr: c.Expr[Schema[T]], 
-      mkName: String => TermName,
-      tpe: c.Type
-    ): c.Tree = {
+    } else if (isSealedTrait) {
       
       val sym = tpe.typeSymbol.asClass
       val children = sym.knownDirectSubclasses.toList.sortBy(_.name.toString)
@@ -133,59 +108,58 @@ object DerivedOpticsMacro {
           s"Sealed trait $tpe has no known subclasses. Ensure all subclasses are defined in the same compilation unit.")
       }
 
-      val methodDefs = children.map { child =>
+      val (methodDefs, methodDecls) = children.map { child =>
         val childName = child.name.decodedName.toString
-        val accessorName = mkName(childName)
+        val accessorName = mkAccessorName(decapitalize(childName))
         val childType = child.asType.toType
+        val prismType = appliedType(weakTypeOf[Prism[_, _]].typeConstructor, List(tpe, childType))
         
-        val prismType = appliedType(typeOf[Prism[_, _]].typeConstructor, List(tpe, childType))
-        
-        // Note: Using Variant[_, $tpe] and .cases/.name logic
-        q"""
+        // Definition
+        val defn = q"""
           def $accessorName: $prismType = {
-            val variant = $schemaExpr.reflect match {
-              case v: _root_.zio.blocks.schema.Reflect.Variant[_, $tpe] => v
-              case other => sys.error("Expected Variant, got: " + other.getClass.getName)
-            }
-            variant.cases.find(_.name == ${childName}) match {
-              case _root_.scala.Some(term) =>
-                _root_.zio.blocks.schema.Prism[$tpe, $childType](
-                  variant.asInstanceOf[_root_.zio.blocks.schema.Reflect.Variant.Bound[$tpe]], 
-                  term.asInstanceOf[_root_.zio.blocks.schema.Term.Bound[$tpe, $childType]]
-                )
-              case _root_.scala.None =>
-                sys.error("Variant '" + ${childName} + "' not found in schema")
+            val r = $schemaExpr.reflect
+            if (r.isVariant) {
+              val variant = r.asInstanceOf[_root_.zio.blocks.schema.Reflect.Variant.Bound[$tpe]]
+              variant.cases.find(_.name == ${childName}) match {
+                case _root_.scala.Some(term) =>
+                  _root_.zio.blocks.schema.Prism[$tpe, $childType](
+                    variant, 
+                    term.asInstanceOf[_root_.zio.blocks.schema.Term.Bound[$tpe, $childType]]
+                  )
+                case _root_.scala.None =>
+                  sys.error("Variant '" + ${childName} + "' not found in schema")
+              }
+            } else {
+              sys.error("Expected Variant schema for " + ${tpe.toString})
             }
           }
         """
-      }
-
-      val refinementParts = children.map { child =>
-        val childName = child.name.decodedName.toString
-        val accessorNameStr = mkName(childName).toString
-        val childType = child.asType.toType
-        val prismType = appliedType(typeOf[Prism[_, _]].typeConstructor, List(tpe, childType))
-        s"def $accessorNameStr: $prismType"
-      }
-      
-      val refinedTypeStr = refinementParts.mkString("{ ", "; ", " }")
-      val refinedType = c.typecheck(c.parse(s"null.asInstanceOf[$refinedTypeStr]"), c.TYPEmode).tpe
+        
+        // Declaration
+        val decl = q"def $accessorName: $prismType"
+        
+        (defn, decl)
+      }.unzip
 
       q"""
         {
-          val cached = _opticsCache.get()
+          val cached = $prefix._opticsCache.get()
           if (cached != null) {
-            cached.asInstanceOf[$refinedType]
+            cached.asInstanceOf[{ ..$methodDecls }]
           } else {
             val opticsInstance = new {
               ..$methodDefs
             }
-            val result = opticsInstance.asInstanceOf[$refinedType]
-            _opticsCache.compareAndSet(null, result)
-            _opticsCache.get().asInstanceOf[$refinedType]
+            $prefix._opticsCache.compareAndSet(null, opticsInstance)
+            $prefix._opticsCache.get().asInstanceOf[{ ..$methodDecls }]
           }
         }
       """
+
+    } else {
+      c.abort(c.enclosingPosition, s"DerivedOptics requires a case class or sealed trait. Got: $tpe")
     }
+
+    c.Expr[Any](tree)
   }
 }
