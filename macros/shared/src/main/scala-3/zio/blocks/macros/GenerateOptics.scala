@@ -4,13 +4,14 @@ import scala.annotation.{experimental, MacroAnnotation}
 import scala.quoted.*
 
 @experimental
-class GenerateOptics extends MacroAnnotation {
-  def transform(using Quotes)(definition: quotes.reflect.Definition, companion: Option[quotes.reflect.Definition]): List[quotes.reflect.Definition] = {
+class GenerateOptics extends MacroAnnotation:
+  def transform(using Quotes)(definition: quotes.reflect.Definition, companion: Option[quotes.reflect.Definition]): List[quotes.reflect.Definition] =
     import quotes.reflect.*
 
+    // Diagnostic Log
     println(s"!!! MACRO RUNNING: ${definition.name} !!!")
 
-    definition match {
+    definition match
       case cls: ClassDef if cls.symbol.flags.is(Flags.Case) =>
         
         val modSym = companion match {
@@ -33,7 +34,6 @@ class GenerateOptics extends MacroAnnotation {
            val fieldTpe = cls.symbol.typeRef.memberType(field)
            val lensType = TypeRepr.of[zio.optics.Lens].appliedTo(List(cls.symbol.typeRef, fieldTpe))
            
-           // Create Val Symbol
            val lensSym = Symbol.newVal(modSym.moduleClass, lensName, lensType, Flags.EmptyFlags, Symbol.noSymbol)
            
            val rhs = (cls.symbol.typeRef.asType, fieldTpe.asType) match {
@@ -56,7 +56,7 @@ class GenerateOptics extends MacroAnnotation {
                  report.errorAndAbort(s"Cannot derive type for $fieldName", definition.pos)
            }
            
-           // NUCLEAR OPTION: Recursively fix all owners in the tree
+           // Apply recursive owner fix
            val rhsFixed = fixOwner(rhs, lensSym)
 
            ValDef(lensSym, Some(rhsFixed))
@@ -75,28 +75,14 @@ class GenerateOptics extends MacroAnnotation {
 
       case _ =>
         report.errorAndAbort("@GenerateOptics only works on case classes", definition.pos)
-    }
-  }
 
   // --- RECURSIVE OWNER FIXER ---
-  // This manually traverses the tree and ensures every lambda/definition 
-  // points to the correct owner.
+  // Fixes the "unexpected owner" error by properly reparenting the generated tree
   def fixOwner(using Quotes)(tree: quotes.reflect.Term, newOwner: quotes.reflect.Symbol): quotes.reflect.Term = {
     import quotes.reflect.*
     
-    // CodeRabbit Fix: Removed unused 'traverser' TreeMap
-    
     tree match {
       case Inlined(_, _, body) => body.changeOwner(newOwner)
       case _ => tree.changeOwner(newOwner)
     }
   }
-    // For standard macros, simple recursive changeOwner is often sufficient if applied correctly.
-    // If the previous simple `changeOwner` failed, it's often because `Inlined` wrappers confused it.
-    // We unwrap Inlined, fix owner, and re-wrap.
-    
-    tree match {
-      case Inlined(_, _, body) => body.changeOwner(newOwner)
-      case _ => tree.changeOwner(newOwner)
-    }
-  }}
