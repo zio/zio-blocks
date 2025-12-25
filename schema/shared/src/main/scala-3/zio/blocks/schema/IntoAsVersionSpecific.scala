@@ -12,6 +12,11 @@ trait IntoAsVersionSpecific {
 
 object IntoAsVersionSpecificImpl {
 
+  private class DerivationContext {
+    val inProgress = scala.collection.mutable.Map[Any, Any]()
+    val lazyDefs   = scala.collection.mutable.ListBuffer[Any]()
+  }
+
   def derivedAsImpl[A: Type, B: Type](using q: Quotes): Expr[As[A, B]] = {
     val intoAB = derivedIntoImpl[A, B]
     val intoBA = derivedIntoImpl[B, A]
@@ -38,10 +43,21 @@ object IntoAsVersionSpecificImpl {
       }
     }
 
+    // Create derivation context for cycle detection (early, needed for opaque types too)
+    val ctx = DerivationContext()
+
     // 2. Opaque Types Check (BEFORE dealias)
     // Check if B is opaque type (UnderlyingType -> OpaqueType)
     if (isOpaqueType(using q)(bTpe)) {
-      return generateOpaqueValidation[A, B](using q)(aTpe, bTpe)
+      val result = generateOpaqueValidation[A, B](using q)(ctx, aTpe, bTpe)
+      // Wrap in Block if needed
+      if (ctx.lazyDefs.nonEmpty) {
+        import q.reflect.*
+        val lazyDefsTyped = ctx.lazyDefs.toList.map(_.asInstanceOf[ValDef])
+        return Block(lazyDefsTyped, result.asTerm).asExprOf[Into[A, B]]
+      } else {
+        return result
+      }
     }
 
     // Check if A is opaque type (OpaqueType -> UnderlyingType)
@@ -61,11 +77,11 @@ object IntoAsVersionSpecificImpl {
 
     // PRIORITY 0.5: Either and Option (explicit handling to avoid GADT constraint issues)
     if (isEitherType(using q)(aTpeDealiased) && isEitherType(using q)(bTpeDealiased)) {
-      return deriveEitherInto[A, B](using q)(aTpeDealiased, bTpeDealiased)
+      return deriveEitherInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased)
     }
 
     if (isOptionType(using q)(aTpeDealiased) && isOptionType(using q)(bTpeDealiased)) {
-      return deriveOptionInto[A, B](using q)(aTpeDealiased, bTpeDealiased)
+      return deriveOptionInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased)
     }
 
     // PRIORITY 1: Collections
@@ -79,7 +95,7 @@ object IntoAsVersionSpecificImpl {
               case '[be] =>
                 // deriveCollectionInto[A, B] expects A and B to be collection types
                 // So we pass the collection types, not element types
-                val result = deriveCollectionInto[A, B](using q)(aTpeDealiased, bTpeDealiased, aElem, bElem)
+                val result = deriveCollectionInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased, aElem, bElem)
                 return result
             }
         }
@@ -87,7 +103,16 @@ object IntoAsVersionSpecificImpl {
     }
 
     // Fallback to general recursive derivation
-    findOrDeriveInto[A, B](using q)(aTpeDealiased, bTpeDealiased)
+    val result = findOrDeriveInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased)
+
+    // If we have lazy definitions, wrap in Block
+    if (ctx.lazyDefs.nonEmpty) {
+      import q.reflect.*
+      val lazyDefsTyped = ctx.lazyDefs.toList.map(_.asInstanceOf[ValDef])
+      Block(lazyDefsTyped, result.asTerm).asExprOf[Into[A, B]]
+    } else {
+      result
+    }
   }
 
   // -- START OF HELPERS --
@@ -382,6 +407,7 @@ object IntoAsVersionSpecificImpl {
   private def generateOpaqueValidation[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] = {
@@ -409,7 +435,7 @@ object IntoAsVersionSpecificImpl {
                 // FIX: We need to properly cast the result
                 // findOrDeriveInto[a, u] returns Into[a, u], but we need Into[A, Any]
                 // We wrap it in a new Into that does the casting
-                val innerInto = findOrDeriveInto[a, u](using q)(aTpe, underlyingType)
+                val innerInto = findOrDeriveInto[a, u](using q)(ctx, aTpe, underlyingType)
                 '{
                   new Into[A, Any] {
                     def into(x: A): Either[SchemaError, Any] =
@@ -526,6 +552,7 @@ object IntoAsVersionSpecificImpl {
   private def deriveCollectionInto[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr,
     aElem: q.reflect.TypeRepr,
@@ -538,7 +565,10 @@ object IntoAsVersionSpecificImpl {
       case '[ae] =>
         bElem.asType match {
           case '[be] =>
-            val elementInto = findOrDeriveInto[ae, be](using q)(aElem, bElem)
+            // Capture lazy defs count before calling findOrDeriveInto
+            val lazyDefsBefore = ctx.lazyDefs.length
+
+            val elementInto = findOrDeriveInto[ae, be](using q)(ctx, aElem, bElem)
             // FIX: Remove redundant cast - elementInto is already Expr[Into[ae, be]]
             val elemIntoTyped: Expr[Into[ae, be]] = elementInto
 
@@ -571,7 +601,7 @@ object IntoAsVersionSpecificImpl {
                 buildLambda.asExprOf[List[be] => B]
               }
 
-            '{
+            val resultExpr = '{
               new Into[A, B] {
                 def into(a: A): Either[SchemaError, B] = {
                   // Convert A to Iterable[ae]
@@ -588,6 +618,17 @@ object IntoAsVersionSpecificImpl {
                 }
               }
             }
+
+            // FIX: If new lazy defs were added during findOrDeriveInto, wrap result in Block
+            val lazyDefsAfter = ctx.lazyDefs.length
+            if (lazyDefsAfter > lazyDefsBefore) {
+              val newLazyDefs = ctx.lazyDefs.slice(lazyDefsBefore, lazyDefsAfter).map(_.asInstanceOf[ValDef]).toList
+              // Remove the wrapped lazy defs from context to avoid double wrapping
+              ctx.lazyDefs.remove(lazyDefsBefore, lazyDefsAfter - lazyDefsBefore)
+              Block(newLazyDefs, resultExpr.asTerm).asExprOf[Into[A, B]]
+            } else {
+              resultExpr
+            }
         }
     }
   }
@@ -597,6 +638,7 @@ object IntoAsVersionSpecificImpl {
   private def deriveEitherInto[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] =
@@ -611,7 +653,7 @@ object IntoAsVersionSpecificImpl {
             case '[al] =>
               bLeft.asType match {
                 case '[bl] =>
-                  Some(findOrDeriveInto[al, bl](using q)(aLeft, bLeft))
+                  Some(findOrDeriveInto[al, bl](using q)(ctx, aLeft, bLeft))
               }
           }
         }
@@ -621,7 +663,7 @@ object IntoAsVersionSpecificImpl {
           case '[ar] =>
             bRight.asType match {
               case '[br] =>
-                val rightInto = findOrDeriveInto[ar, br](using q)(aRight, bRight)
+                val rightInto = findOrDeriveInto[ar, br](using q)(ctx, aRight, bRight)
 
                 leftIntoOpt match {
                   case Some(leftInto) =>
@@ -673,6 +715,7 @@ object IntoAsVersionSpecificImpl {
   private def deriveOptionInto[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] = {
@@ -702,7 +745,7 @@ object IntoAsVersionSpecificImpl {
                     }
                   case _ =>
                     // Try automatic derivation (fail-fast if not possible)
-                    val elemInto      = findOrDeriveInto[ae, be](using q)(aElem, bElem)
+                    val elemInto      = findOrDeriveInto[ae, be](using q)(ctx, aElem, bElem)
                     val elemIntoTyped = elemInto.asExprOf[Into[ae, be]]
 
                     '{
@@ -737,6 +780,7 @@ object IntoAsVersionSpecificImpl {
   private def deriveTupleInto[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr,
     aFields: List[q.reflect.TypeRepr],
@@ -752,7 +796,7 @@ object IntoAsVersionSpecificImpl {
         case '[af] =>
           bField.asType match {
             case '[bf] =>
-              val intoExpr = findOrDeriveInto[af, bf](using q)(aField, bField)
+              val intoExpr = findOrDeriveInto[af, bf](using q)(ctx, aField, bField)
               '{ ${ intoExpr }.asInstanceOf[Into[Any, Any]] }
           }
       }
@@ -772,6 +816,7 @@ object IntoAsVersionSpecificImpl {
   private def deriveCaseClassToTuple[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] = {
@@ -786,7 +831,7 @@ object IntoAsVersionSpecificImpl {
         case '[af] =>
           bType.asType match {
             case '[bt] =>
-              val intoExpr = findOrDeriveInto[af, bt](using q)(aField.tpeRepr(using q), bType)
+              val intoExpr = findOrDeriveInto[af, bt](using q)(ctx, aField.tpeRepr(using q), bType)
               '{ ${ intoExpr }.asInstanceOf[Into[Any, Any]] }
           }
       }
@@ -798,6 +843,7 @@ object IntoAsVersionSpecificImpl {
   private def deriveTupleToCaseClass[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] = {
@@ -812,7 +858,7 @@ object IntoAsVersionSpecificImpl {
         case '[at] =>
           bField.tpeRepr(using q).asType match {
             case '[bf] =>
-              val intoExpr = findOrDeriveInto[at, bf](using q)(aType, bField.tpeRepr(using q))
+              val intoExpr = findOrDeriveInto[at, bf](using q)(ctx, aType, bField.tpeRepr(using q))
               '{ ${ intoExpr }.asInstanceOf[Into[Any, Any]] }
           }
       }
@@ -1307,11 +1353,28 @@ object IntoAsVersionSpecificImpl {
     }
   }
 
+  private def detectPotentialRecursion(using
+    q: Quotes
+  )(
+    aTpe: q.reflect.TypeRepr,
+    bTpe: q.reflect.TypeRepr
+  ): Boolean =
+    if (isCaseClass(using q)(aTpe) || isCaseClass(using q)(bTpe)) {
+      // Semplificazione sicura: se sono case class complesse, assumiamo potenziale ricorsione
+      // per attivare il meccanismo lazy. L'overhead è minimo (lazy val wrapper).
+      true
+    } else if (isSealedTraitOrEnum(using q)(aTpe) && isSealedTraitOrEnum(using q)(bTpe)) {
+      true
+    } else {
+      false
+    }
+
   // --- Coproduct Derivation ---
 
   private def deriveCoproductInto[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] = {
@@ -1361,7 +1424,7 @@ object IntoAsVersionSpecificImpl {
           (subA.asType, subB.asType) match {
             case ('[sa], '[sb]) =>
               // Deriva la conversione specifica
-              val derived = findOrDeriveInto[sa, sb](using q)(subA, subB)
+              val derived = findOrDeriveInto[sa, sb](using q)(ctx, subA, subB)
 
               // Crea una nuova funzione che wrappa 'nextFn'
               '{ (a: A) =>
@@ -1401,20 +1464,90 @@ object IntoAsVersionSpecificImpl {
     }
   }
 
+  // --- Case Class Derivation ---
+
+  private def deriveCaseClassInto[A: Type, B: Type](using
+    q: Quotes
+  )(
+    ctx: DerivationContext,
+    aTpe: q.reflect.TypeRepr,
+    bTpe: q.reflect.TypeRepr
+  ): Expr[Into[A, B]] = {
+    val aFields = extractCaseClassFields(using q)(aTpe)
+    val bFields = extractCaseClassFields(using q)(bTpe)
+
+    val conversionsWithIndex = bFields.zipWithIndex.map { case (bField, bIdx) =>
+      findMatchingField(using q)(aFields, bField, bIdx, bFields) match {
+        case Some(aField) =>
+          // Normal field mapping
+          val aIdx = aFields.indexOf(aField)
+          val conv = aField.tpeRepr(using q).asType match {
+            case '[af] =>
+              bField.tpeRepr(using q).asType match {
+                case '[bf] =>
+                  val intoExpr =
+                    findOrDeriveInto[af, bf](using q)(ctx, aField.tpeRepr(using q), bField.tpeRepr(using q))
+                  '{ ${ intoExpr }.asInstanceOf[Into[Any, Any]] }
+              }
+          }
+          (conv, aIdx)
+        case None =>
+          // Field not found - check if it's optional
+          if (isOptionType(using q)(bField.tpeRepr(using q))) {
+            // Generate None for optional field
+            extractOptionElementType(using q)(bField.tpeRepr(using q)) match {
+              case Some(elemType) =>
+                elemType.asType match {
+                  case '[et] =>
+                    val noneExpr: Expr[Into[Any, Any]] = '{
+                      new Into[Any, Any] {
+                        def into(a: Any): Either[SchemaError, Any] = Right(None: Option[et])
+                      }
+                    }
+                    (noneExpr, -1) // -1 means "no source field, inject None"
+                }
+              case None =>
+                fail(s"Cannot extract element type from Option: ${bField.tpeRepr(using q).show}")
+            }
+          } else {
+            // Required field missing - fail
+            fail(s"Cannot find unique mapping for field '${bField.name}: ${bField
+                .tpeRepr(using q)
+                .show}'. Available: ${aFields.map(f => s"${f.name}: ${f.tpeRepr(using q).show}").mkString(", ")}")
+          }
+      }
+    }
+
+    // Use Real implementation (simplified above)
+    generateConversionBodyReal[B](using q)(bTpe, conversionsWithIndex).asInstanceOf[Expr[Into[A, B]]]
+  }
+
   // --- Main Dispatcher ---
 
   private def findOrDeriveInto[A: Type, B: Type](using
     q: Quotes
   )(
+    ctx: DerivationContext,
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] = {
     import q.reflect.*
 
+    // Step 1: Cycle Check - Check if we're already deriving this type pair
+    val aTpeDealiased = aTpe.dealias
+    val bTpeDealiased = bTpe.dealias
+    val key           = (aTpeDealiased, bTpeDealiased)
+    ctx.inProgress.get(key) match {
+      case Some(lazySymbol: q.reflect.Symbol @unchecked) =>
+        // Cycle detected - return reference to lazy val
+        return Ref(lazySymbol).asExprOf[Into[A, B]]
+      case None | Some(_) => // Continue with derivation (Some(_) handles non-Symbol values)
+    }
+
     // PRIORITY 0.75: Opaque Types (Must be checked before dealias/primitives to preserve validation logic)
     // Check if B is opaque type (UnderlyingType -> OpaqueType)
     if (isOpaqueType(using q)(bTpe)) {
-      return generateOpaqueValidation[A, B](using q)(aTpe, bTpe)
+      return generateOpaqueValidation[A, B](using q)(ctx, aTpe, bTpe)
     }
 
     // PRIORITY 0.74: Opaque Type to Underlying (OpaqueType -> UnderlyingType)
@@ -1422,10 +1555,6 @@ object IntoAsVersionSpecificImpl {
     if (isOpaqueType(using q)(aTpe)) {
       return generateOpaqueToUnderlying[A, B](using q)(aTpe, bTpe)
     }
-
-    // Dealias for other checks
-    val aTpeDealiased = aTpe.dealias
-    val bTpeDealiased = bTpe.dealias
 
     // 1. Primitives (Check first)
     derivePrimitiveInto[A, B](using q)(aTpeDealiased, bTpeDealiased) match {
@@ -1460,11 +1589,11 @@ object IntoAsVersionSpecificImpl {
 
     // PRIORITY 0.5: Either and Option (explicit handling to avoid GADT constraint issues)
     if (isEitherType(using q)(aTpeDealiased) && isEitherType(using q)(bTpeDealiased)) {
-      return deriveEitherInto[A, B](using q)(aTpeDealiased, bTpeDealiased)
+      return deriveEitherInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased)
     }
 
     if (isOptionType(using q)(aTpeDealiased) && isOptionType(using q)(bTpeDealiased)) {
-      return deriveOptionInto[A, B](using q)(aTpeDealiased, bTpeDealiased)
+      return deriveOptionInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased)
     }
 
     // 4. Collections
@@ -1476,7 +1605,7 @@ object IntoAsVersionSpecificImpl {
             bElem.asType match {
               case '[be] =>
                 // deriveCollectionInto[A, B] expects A and B to be collection types
-                val result = deriveCollectionInto[A, B](using q)(aTpe, bTpe, aElem, bElem)
+                val result = deriveCollectionInto[A, B](using q)(ctx, aTpe, bTpe, aElem, bElem)
                 return result
             }
         }
@@ -1489,7 +1618,7 @@ object IntoAsVersionSpecificImpl {
       !aTpe.isSingleton && !bTpe.isSingleton &&
       isSealedTraitOrEnum(using q)(aTpe) && isSealedTraitOrEnum(using q)(bTpe)
     ) {
-      return deriveCoproductInto[A, B](using q)(aTpe, bTpe)
+      return deriveCoproductInto[A, B](using q)(ctx, aTpe, bTpe)
     }
 
     // 6. Tuples & Products
@@ -1499,59 +1628,41 @@ object IntoAsVersionSpecificImpl {
     if (isATuple && isBTuple) {
       val aFields = extractTupleFields(using q)(aTpe)
       val bFields = extractTupleFields(using q)(bTpe)
-      return deriveTupleInto[A, B](using q)(aTpe, bTpe, aFields, bFields)
+      return deriveTupleInto[A, B](using q)(ctx, aTpe, bTpe, aFields, bFields)
     } else if (!isATuple && isBTuple) {
-      return deriveCaseClassToTuple[A, B](using q)(aTpe, bTpe)
+      return deriveCaseClassToTuple[A, B](using q)(ctx, aTpe, bTpe)
     } else if (isATuple && !isBTuple) {
-      return deriveTupleToCaseClass[A, B](using q)(aTpe, bTpe)
+      return deriveTupleToCaseClass[A, B](using q)(ctx, aTpe, bTpe)
     } else if (isCaseClass(using q)(aTpe) && isCaseClass(using q)(bTpe)) {
-      // Case Class to Case Class
-      val aFields = extractCaseClassFields(using q)(aTpe)
-      val bFields = extractCaseClassFields(using q)(bTpe)
+      // Step 4: Case Classes - Lazy Logic
+      if (detectPotentialRecursion(using q)(aTpe, bTpe)) {
+        // Potentially recursive - use lazy val pattern
+        val lazySymbol = Symbol.newVal(
+          Symbol.spliceOwner,
+          s"into_${aTpe.typeSymbol.name}_${bTpe.typeSymbol.name}",
+          TypeRepr.of[Into[A, B]],
+          Flags.Lazy,
+          Symbol.noSymbol
+        )
 
-      val conversionsWithIndex = bFields.zipWithIndex.map { case (bField, bIdx) =>
-        findMatchingField(using q)(aFields, bField, bIdx, bFields) match {
-          case Some(aField) =>
-            // Normal field mapping
-            val aIdx = aFields.indexOf(aField)
-            val conv = aField.tpeRepr(using q).asType match {
-              case '[af] =>
-                bField.tpeRepr(using q).asType match {
-                  case '[bf] =>
-                    val intoExpr = findOrDeriveInto[af, bf](using q)(aField.tpeRepr(using q), bField.tpeRepr(using q))
-                    '{ ${ intoExpr }.asInstanceOf[Into[Any, Any]] }
-                }
-            }
-            (conv, aIdx)
-          case None =>
-            // Field not found - check if it's optional
-            if (isOptionType(using q)(bField.tpeRepr(using q))) {
-              // Generate None for optional field
-              extractOptionElementType(using q)(bField.tpeRepr(using q)) match {
-                case Some(elemType) =>
-                  elemType.asType match {
-                    case '[et] =>
-                      val noneExpr: Expr[Into[Any, Any]] = '{
-                        new Into[Any, Any] {
-                          def into(a: Any): Either[SchemaError, Any] = Right(None: Option[et])
-                        }
-                      }
-                      (noneExpr, -1) // -1 means "no source field, inject None"
-                  }
-                case None =>
-                  fail(s"Cannot extract element type from Option: ${bField.tpeRepr(using q).show}")
-              }
-            } else {
-              // Required field missing - fail
-              fail(s"Cannot find unique mapping for field '${bField.name}: ${bField
-                  .tpeRepr(using q)
-                  .show}'. Available: ${aFields.map(f => s"${f.name}: ${f.tpeRepr(using q).show}").mkString(", ")}")
-            }
-        }
+        // Add to inProgress BEFORE derivation
+        ctx.inProgress.put(key, lazySymbol)
+
+        // Derive the actual implementation
+        val derivedImpl = deriveCaseClassInto[A, B](using q)(ctx, aTpe, bTpe)
+
+        // Create ValDef and add to lazyDefs
+        // Change owner of the term to match the lazySymbol
+        val derivedTerm = derivedImpl.asTerm.changeOwner(lazySymbol)
+        val lazyValDef  = ValDef(lazySymbol, Some(derivedTerm))
+        ctx.lazyDefs += lazyValDef
+
+        // Return reference to lazy val
+        return Ref(lazySymbol).asExprOf[Into[A, B]]
+      } else {
+        // Not recursive - derive directly
+        return deriveCaseClassInto[A, B](using q)(ctx, aTpe, bTpe)
       }
-
-      // Use Real implementation (simplified above)
-      return generateConversionBodyReal[B](using q)(bTpe, conversionsWithIndex).asInstanceOf[Expr[Into[A, B]]]
     }
 
     fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]")

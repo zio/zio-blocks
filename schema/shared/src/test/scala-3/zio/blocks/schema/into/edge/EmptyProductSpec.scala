@@ -40,6 +40,26 @@ object EmptyProductSpec extends ZIOSpecDefault {
         result.map { container =>
           assertTrue(container.value == Empty2())
         }
+      },
+      test("should convert empty case class to EmptyTuple") {
+        case class Empty()
+
+        val derivation = Into.derived[Empty, EmptyTuple]
+        val input      = Empty()
+        val result     = derivation.into(input)
+
+        assertTrue(result.isRight)
+        assertTrue(result == Right(EmptyTuple))
+      },
+      test("should convert EmptyTuple to empty case class") {
+        case class Empty()
+
+        val derivation = Into.derived[EmptyTuple, Empty]
+        val input      = EmptyTuple
+        val result     = derivation.into(input)
+
+        assertTrue(result.isRight)
+        assertTrue(result == Right(Empty()))
       }
     )
   )

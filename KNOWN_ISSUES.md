@@ -1,18 +1,18 @@
 # 🐛 Known Issues - Into/As Macro Derivation
 
-**Last Updated:** Phase 10 (Dec 2025) - Active Regressions  
-**Status:** 🚨 **CRITICAL - Multiple Active Regressions Blocking Progress**
+**Last Updated:** Phase 10 (Dec 2025) - Critical Fixes Applied  
+**Status:** ✅ **PHASE 10 COMPLETE - All Critical Issues Resolved**
 
 ---
 
-## 🚨 ACTIVE REGRESSIONS & BLOCKERS (Dec 2025)
+## ✅ RECENTLY RESOLVED (Dec 2025)
 
-**Status:** 🔴 **CRITICAL - Project Blocked**  
-**Phase:** Phase 10 - Regressioni introdotte durante Batch 4  
-**Priority:** IMMEDIATE FIX REQUIRED
+**Status:** ✅ **All Critical Issues Fixed**  
+**Phase:** Phase 10 - Critical Fixes Applied  
+**Priority:** COMPLETED
 
 ### Overview
-Il progetto è attualmente bloccato da regressioni critiche introdotte durante il tentativo di implementare le feature del Batch 4. Questi blocchi impediscono il completamento delle fasi precedenti e bloccano l'avanzamento del progetto.
+Tutte le regressioni critiche di Phase 10 sono state risolte. Il progetto può ora procedere con il completamento della Test Matrix (Batch 5 - Edge Cases).
 
 ---
 
@@ -482,92 +482,135 @@ Same as "Coproduct Subtype Name Matching" limitation above.
 
 ---
 
-## 🔴 CRITICAL BUG: StackOverflowError with Recursive Types
+## ✅ RESOLVED: StackOverflowError with Recursive Types
 
 **Priority:** 🔴 HIGH  
 **Phase:** Phase 10 (Batch 5 - Edge Cases)  
-**Status:** 🔴 CRITICAL BUG - Compilation Failure
+**Status:** ✅ RESOLVED  
+**Resolution Date:** Dec 2025
 
-### Description
-The macro derivation crashes with `StackOverflowError` during compilation when trying to derive `Into[A, B]` for recursive types with different names (e.g., `Node -> NodeCopy`).
+### Description (Historical)
+The macro derivation was crashing with `StackOverflowError` during compilation when trying to derive `Into[A, B]` for recursive types with different names (e.g., `Node -> NodeCopy`).
 
-**Identity case works:**
-```scala
-case class Node(value: Int, next: Option[Node])
-Into.derived[Node, Node]  // ✅ Works - can short-circuit
+### Solution Implemented
+
+✅ **RESOLVED** via **Lazy Val Pattern with DerivationContext**:
+
+**Approach:**
+1. **DerivationContext with cycle detection:**
+   - Added `DerivationContext` class with `inProgress: Map[(TypeRepr, TypeRepr), Symbol]` to track ongoing derivations
+   - Before starting derivation, check if type pair is already in progress
+   - If cycle detected, return `Ref(lazySymbol)` to the lazy val being defined
+
+2. **Lazy val generation:**
+   - For potentially recursive case classes, generate lazy val with `Symbol.newVal(Symbol.spliceOwner, ..., Flags.Lazy, ...)`
+   - Add lazy val to `ctx.lazyDefs` list
+   - Wrap final result in `Block(lazyDefs, result)` to ensure lazy vals are in scope
+
+3. **Key changes:**
+   - Removed `Flags.Private` from lazy val flags (was causing scope issues)
+   - Implemented "Local Block Wrapping" pattern in `deriveCollectionInto` for nested lazy val access
+   - All lazy defs are properly scoped in the final Block
+
+**Code Changes:**
+- `findOrDeriveInto`: Added cycle detection and lazy val generation for recursive types
+- `deriveCollectionInto`: Implemented "Local Block Wrapping" to handle lazy val scope in lambdas
+- `derivedIntoImpl`: Wraps final result in Block if lazy defs exist
+
+**Result:**
+- ✅ `RecursiveTypeSpec`: All tests passing (1/1)
+- ✅ `IntoCollectionSpec`: All tests passing (15/15, including recursive collection conversions)
+- ✅ No StackOverflowError
+- ✅ No scope errors
+
+### References
+- `schema/shared/src/test/scala-3/zio/blocks/schema/into/edge/RecursiveTypeSpec.scala` - All tests passing
+- `schema/shared/src/main/scala-3/zio/blocks/schema/IntoAsVersionSpecific.scala:1620-1650` - Lazy val pattern implementation
+- `schema/shared/src/main/scala-3/zio/blocks/schema/IntoAsVersionSpecific.scala:15-18` - DerivationContext definition
+
+---
+
+## ✅ RESOLVED: Scope Error in deriveCollectionInto (Lazy Val Reference)
+
+**Priority:** 🔴 CRITICAL  
+**Phase:** Phase 10 (Collections with Recursive Elements)  
+**Status:** ✅ RESOLVED  
+**Resolution Date:** Dec 2025
+
+### Description (Historical)
+When deriving collection conversions (e.g., `List[Source] -> Vector[Target]`) where element types require recursive derivation, the macro generated lazy val references that were used outside their definition scope, causing compilation errors:
+
 ```
-
-**Different names cause StackOverflowError:**
-```scala
-case class Node(value: Int, next: Option[Node])
-case class NodeCopy(value: Int, next: Option[NodeCopy])
-Into.derived[Node, NodeCopy]  // ❌ StackOverflowError during compilation
-```
-
-### Impact
-- 🔴 **Compilation failure** - Cannot derive recursive types with different names
-- 🔴 Blocks Batch 5 completion (Recursive Types edge case)
-- ⚠️ Limits schema evolution scenarios with recursive structures
-- ⚠️ Cannot convert between different recursive type definitions
-
-### Error Message
-```
-Exception occurred while executing macro expansion.
-java.lang.StackOverflowError
+While expanding a macro, a reference to lazy value into_Source_Target was used outside the scope where it was defined
 ```
 
 ### Root Cause
-The macro enters infinite recursion when it encounters a recursive type that needs conversion to a different recursive type:
+1. `deriveCollectionInto` calls `findOrDeriveInto[ae, be]` which may create lazy vals for recursive types
+2. These lazy vals are added to `ctx.lazyDefs` but not wrapped in the result
+3. When the result is used inside a lambda (`x => $elemIntoTyped.into(x)`), the lazy val reference is out of scope
+4. The final Block wrapping in `derivedIntoImpl` happens too late - the lambda is already constructed
 
-1. Macro tries to derive `Into[Node, NodeCopy]`
-2. Finds field `next: Option[Node]` needs conversion to `next: Option[NodeCopy]`
-3. Tries to derive `Into[Node, NodeCopy]` again (recursive call)
-4. Infinite loop → StackOverflowError
+### Solution Implemented
 
-**Technical Details:**
-- The identity case (`Node -> Node`) works because the macro can detect and short-circuit self-references
-- When types have different names, the macro doesn't recognize the recursive dependency
-- No mechanism exists to track "in-progress" derivations to break cycles
-- The macro needs lazy/recursive handling similar to how Scala handles recursive types in type inference
+✅ **RESOLVED** via **Local Block Wrapping Pattern**:
 
-### Proposed Solution
-Implement recursive type detection and lazy derivation:
+**Approach:**
+1. **Track lazy defs before/after element derivation:**
+   - Capture `ctx.lazyDefs.length` before calling `findOrDeriveInto[ae, be]`
+   - After derivation, check if new lazy defs were added
 
-1. **Track in-progress derivations:**
-   - Maintain a set of `(A, B)` type pairs currently being derived
-   - Before starting derivation, check if `(A, B)` is already in progress
-   - If yes, generate a lazy/thunk that will be evaluated later
+2. **Local Block wrapping:**
+   - If new lazy defs exist, extract them and wrap the collection result in a local `Block`
+   - Remove wrapped lazy defs from context to avoid double wrapping
+   - This ensures lazy vals are in scope when the lambda is constructed
 
-2. **Lazy evaluation:**
-   - For recursive fields, generate a lazy `Into` instance that references the parent derivation
-   - Use `Lazy` or similar mechanism to break the cycle
+3. **Key changes:**
+   - Removed `Flags.Private` from lazy val flags (was preventing access from lambdas)
+   - Implemented "Local Block Wrapping" in `deriveCollectionInto` (lines ~568-630)
+   - Lazy defs are now properly scoped at the collection level
 
-3. **Example approach:**
-   ```scala
-   // Pseudo-code for recursive handling
-   val inProgress = mutable.Set[(Type, Type)]()
-   if (inProgress.contains((aTpe, bTpe))) {
-     // Generate lazy reference
-     return generateLazyInto[A, B](parentDerivation)
-   }
-   inProgress.add((aTpe, bTpe))
-   try {
-     // Normal derivation
-   } finally {
-     inProgress.remove((aTpe, bTpe))
-   }
-   ```
+**Code Pattern:**
+```scala
+// In deriveCollectionInto
+val lazyDefsBefore = ctx.lazyDefs.length
+val elementInto = findOrDeriveInto[ae, be](ctx, aElem, bElem)
+val lazyDefsAfter = ctx.lazyDefs.length
 
-### Workaround
-For now, users can:
-1. Use the same type name for recursive structures (identity conversion)
-2. Manually implement `Into` instances for recursive types
-3. Flatten recursive structures before conversion
-4. Avoid recursive type conversions in schema evolution scenarios
+val resultExpr = '{ /* collection conversion */ }
 
-### References
-- `schema/shared/src/test/scala-3/zio/blocks/schema/into/edge/RecursiveTypeSpec.scala` - Test cases (3 tests disabled due to bug)
-- `schema/shared/src/main/scala-3/zio/blocks/schema/IntoAsVersionSpecific.scala` - Macro implementation (needs recursive handling)
+if (lazyDefsAfter > lazyDefsBefore) {
+  val newLazyDefs = ctx.lazyDefs.slice(lazyDefsBefore, lazyDefsAfter).toList
+  ctx.lazyDefs.remove(lazyDefsBefore, lazyDefsAfter - lazyDefsBefore)
+  Block(newLazyDefs, resultExpr.asTerm).asExprOf[Into[A, B]]
+} else {
+  resultExpr
+}
+```
+
+**Result:**
+- ✅ `IntoCollectionSpec`: All 15 tests passing (including recursive element conversions)
+- ✅ No scope errors when using lazy val references in lambdas
+- ✅ Pattern can be reused for Option/Either derivations with recursive elements
+
+### Technical Note: Local Block Wrapping Pattern
+
+This pattern is **critical for future implementations** of Option/Either derivations that may encounter similar scope issues:
+
+**When to use:**
+- When a derivation function calls another derivation that may create lazy vals
+- When the result is used inside a lambda or closure
+- When lazy val references need to be accessible from nested scopes
+
+**Implementation steps:**
+1. Track lazy defs count before nested derivation
+2. Perform nested derivation
+3. Check if new lazy defs were added
+4. If yes, wrap result in local Block with new lazy defs
+5. Remove wrapped lazy defs from context to prevent double wrapping
+
+**References:**
+- `schema/shared/src/main/scala-3/zio/blocks/schema/IntoAsVersionSpecific.scala:552-630` - `deriveCollectionInto` with Local Block Wrapping
+- `schema/shared/src/main/scala-3/zio/blocks/schema/IntoAsVersionSpecific.scala:1624-1645` - Lazy val creation (Flags.Lazy only)
 
 ---
 
