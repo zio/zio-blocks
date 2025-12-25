@@ -29,8 +29,8 @@ object Into extends IntoAsVersionSpecific {
   /**
    * Derives an `Into[A, B]` instance using macro-based automatic derivation.
    *
-   * The macro maps fields by name, position, or type, with
-   * support for validation, coercion, and schema evolution patterns.
+   * The macro maps fields by name, position, or type, with support for
+   * validation, coercion, and schema evolution patterns.
    *
    * ==Supported Conversions==
    *
