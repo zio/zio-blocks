@@ -269,8 +269,19 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
           } else if (isOptionType(targetField.tpe)) {
             (None, targetField) // Will use None
           } else {
+            val sourceMembers = structuralMembers.map { case (n, t) => s"$n: ${t.show}" }.mkString(", ")
             fail(
-              s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: no matching structural member found for field '${targetField.name}: ${targetField.tpe.show}'"
+              s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Missing structural member
+                 |
+                 |  Source structural type has: { $sourceMembers }
+                 |  Target field required: ${targetField.name}: ${targetField.tpe.show}
+                 |
+                 |No matching member found in structural type for target field '${targetField.name}'.
+                 |
+                 |Consider:
+                 |  - Ensuring the structural type has member '${targetField.name}: ${targetField.tpe.show}'
+                 |  - Making '${targetField.name}' an Option type (defaults to None)
+                 |  - Adding a default value for '${targetField.name}' in the target type""".stripMargin
             )
           }
       }
@@ -356,9 +367,19 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         f.name == memberName && (f.tpe =:= memberTpe || f.tpe <:< memberTpe)
       }
       if (matchingField.isEmpty) {
+        val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
         fail(
-          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: " +
-            s"source type is missing member '$memberName: ${memberTpe.show}' required by structural type"
+          s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Missing required member
+             |
+             |  ${aTpe.typeSymbol.name}($sourceFieldsStr)
+             |  Structural type requires: $memberName: ${memberTpe.show}
+             |
+             |Source type is missing member '$memberName: ${memberTpe.show}' required by the structural type.
+             |
+             |Consider:
+             |  - Adding field '$memberName: ${memberTpe.show}' to ${aTpe.typeSymbol.name}
+             |  - Using a source type that already has this member
+             |  - Providing an explicit Into instance""".stripMargin
         )
       }
     }
@@ -612,9 +633,22 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       } else if (isOptionType(field.tpe)) {
         '{ None }.asTerm
       } else {
+        val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
+        val requiredFields = targetInfo.fields.filterNot(f => f.hasDefault || isOptionType(f.tpe))
+        val requiredFieldsStr = requiredFields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
         fail(
-          s"Cannot derive Into[${TypeRepr.of[A].show}, ${bTpe.show}]: " +
-            s"case object cannot be converted to case class with non-optional, non-default field '${field.name}: ${field.tpe.show}'"
+          s"""Cannot derive Into[${TypeRepr.of[A].show}, ${bTpe.show}]: Case object to case class conversion
+             |
+             |  Source: case object ${TypeRepr.of[A].typeSymbol.name}
+             |  Target: ${bTpe.typeSymbol.name}($targetFieldsStr)
+             |
+             |Case object cannot provide value for required field '${field.name}: ${field.tpe.show}'.
+             |Required fields without defaults: $requiredFieldsStr
+             |
+             |Consider:
+             |  - Making '${field.name}' an Option[${field.tpe.show}] (defaults to None)
+             |  - Adding a default value for '${field.name}' in ${bTpe.typeSymbol.name}
+             |  - Using a case class source instead of case object""".stripMargin
         )
       }
     }
@@ -1012,7 +1046,21 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val targetTypeArgs = getTupleTypeArgs(bTpe)
 
     if (sourceInfo.fields.size != targetTypeArgs.size) {
-      fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: field count mismatch")
+      val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
+      val targetTypesStr = targetTypeArgs.map(_.show).mkString(", ")
+      fail(
+        s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Arity mismatch
+           |
+           |  ${aTpe.typeSymbol.name}($sourceFieldsStr)  — ${sourceInfo.fields.size} fields
+           |  Tuple${targetTypeArgs.size}[$targetTypesStr]  — ${targetTypeArgs.size} elements
+           |
+           |Case class has ${sourceInfo.fields.size} fields but target tuple has ${targetTypeArgs.size} elements.
+           |
+           |Consider:
+           |  - Using a tuple with ${sourceInfo.fields.size} elements
+           |  - Adding/removing fields to match the tuple size
+           |  - Providing an explicit Into instance""".stripMargin
+      )
     }
 
     sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
@@ -1023,7 +1071,18 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         ) && findImplicitInto(field.tpe, targetTpe).isEmpty
       ) {
         fail(
-          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${field.tpe.show}, ${targetTpe.show}] found."
+          s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Type mismatch at position $idx
+             |
+             |  Field: ${field.name} (position $idx)
+             |  Source type: ${field.tpe.show}
+             |  Target type: ${targetTpe.show}
+             |
+             |No implicit Into[${field.tpe.show}, ${targetTpe.show}] found.
+             |
+             |Consider:
+             |  - Providing an implicit Into[${field.tpe.show}, ${targetTpe.show}]
+             |  - Changing the types to be compatible
+             |  - Using numeric coercion (Int → Long) if applicable""".stripMargin
         )
       }
     }
@@ -1051,7 +1110,16 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         args
       ).asExprOf[B]
     } else {
-      fail(s"Tuples with more than 22 elements are not supported")
+      fail(
+        s"""Cannot derive Into: Tuple size limit exceeded
+           |
+           |Scala tuples are limited to 22 elements, but this conversion requires $tupleSize.
+           |
+           |Consider:
+           |  - Using a case class instead of a tuple
+           |  - Splitting into multiple smaller tuples
+           |  - Using a custom data structure""".stripMargin
+      )
     }
   }
 
@@ -1065,7 +1133,21 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val targetInfo     = new ProductInfo[B](bTpe)
 
     if (sourceTypeArgs.size != targetInfo.fields.size) {
-      fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: field count mismatch")
+      val sourceTypesStr = sourceTypeArgs.map(_.show).mkString(", ")
+      val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
+      fail(
+        s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Arity mismatch
+           |
+           |  Tuple${sourceTypeArgs.size}[$sourceTypesStr]  — ${sourceTypeArgs.size} elements
+           |  ${bTpe.typeSymbol.name}($targetFieldsStr)  — ${targetInfo.fields.size} fields
+           |
+           |Source tuple has ${sourceTypeArgs.size} elements but target case class has ${targetInfo.fields.size} fields.
+           |
+           |Consider:
+           |  - Using a case class with ${sourceTypeArgs.size} fields
+           |  - Using a tuple with ${targetInfo.fields.size} elements
+           |  - Providing an explicit Into instance""".stripMargin
+      )
     }
 
     sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
@@ -1076,7 +1158,17 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         ) && findImplicitInto(sourceTpe, field.tpe).isEmpty
       ) {
         fail(
-          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${field.tpe.show}] found."
+          s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Type mismatch at position $idx
+             |
+             |  Tuple element $idx: ${sourceTpe.show}
+             |  Target field: ${field.name}: ${field.tpe.show}
+             |
+             |No implicit Into[${sourceTpe.show}, ${field.tpe.show}] found.
+             |
+             |Consider:
+             |  - Providing an implicit Into[${sourceTpe.show}, ${field.tpe.show}]
+             |  - Changing the types to be compatible
+             |  - Using numeric coercion (Int → Long) if applicable""".stripMargin
         )
       }
     }
@@ -1114,7 +1206,20 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     val targetTypeArgs = getTupleTypeArgs(bTpe)
 
     if (sourceTypeArgs.size != targetTypeArgs.size) {
-      fail(s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: element count mismatch")
+      val sourceTypesStr = sourceTypeArgs.map(_.show).mkString(", ")
+      val targetTypesStr = targetTypeArgs.map(_.show).mkString(", ")
+      fail(
+        s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Arity mismatch
+           |
+           |  Tuple${sourceTypeArgs.size}[$sourceTypesStr]  — ${sourceTypeArgs.size} elements
+           |  Tuple${targetTypeArgs.size}[$targetTypesStr]  — ${targetTypeArgs.size} elements
+           |
+           |Source tuple has ${sourceTypeArgs.size} elements but target tuple has ${targetTypeArgs.size} elements.
+           |
+           |Consider:
+           |  - Using tuples with the same number of elements
+           |  - Providing an explicit Into instance""".stripMargin
+      )
     }
 
     sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
@@ -1125,7 +1230,17 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         ) && findImplicitInto(sourceTpe, targetTpe).isEmpty
       ) {
         fail(
-          s"Cannot derive Into[${aTpe.show}, ${bTpe.show}]: type mismatch at position $idx. No implicit Into[${sourceTpe.show}, ${targetTpe.show}] found."
+          s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Type mismatch at position $idx
+             |
+             |  Source element _${idx + 1}: ${sourceTpe.show}
+             |  Target element _${idx + 1}: ${targetTpe.show}
+             |
+             |No implicit Into[${sourceTpe.show}, ${targetTpe.show}] found.
+             |
+             |Consider:
+             |  - Providing an implicit Into[${sourceTpe.show}, ${targetTpe.show}]
+             |  - Changing the types to be compatible
+             |  - Using numeric coercion (Int → Long) if applicable""".stripMargin
         )
       }
     }
@@ -1161,7 +1276,16 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         args
       ).asExprOf[B]
     } else {
-      fail(s"Tuples with more than 22 elements are not supported")
+      fail(
+        s"""Cannot derive Into: Tuple size limit exceeded
+           |
+           |Scala tuples are limited to 22 elements, but this conversion requires $tupleSize.
+           |
+           |Consider:
+           |  - Using case classes instead of tuples
+           |  - Splitting into multiple smaller tuples
+           |  - Using a custom data structure""".stripMargin
+      )
     }
   }
 
@@ -1617,10 +1741,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     targetInfo: ProductInfo[?],
     targetField: FieldInfo
   ): String = {
-    val sourceFields = sourceInfo.fields.map(f => (f.name, f.tpe.show))
-    val targetFields = targetInfo.fields.map(f => (f.name, f.tpe.show))
-    val sourceFieldsStr = sourceFields.map { case (n, t) => s"$n: $t" }.mkString(", ")
-    val targetFieldsStr = targetFields.map { case (n, t) => s"$n: $t" }.mkString(", ")
+    val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
+    val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
 
     s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Missing required field
        |
@@ -1628,13 +1750,18 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
        |  ${bTpe.typeSymbol.name}($targetFieldsStr)
        |
        |No source field found for target field '${targetField.name}: ${targetField.tpe.show}'.
-       |Fields are matched by: (1) name+type, (2) name+coercible type, (3) unique type, (4) position+unique type.
+       |
+       |Fields are matched by:
+       |  1. Exact name + type match
+       |  2. Name match + coercible type (e.g., Int → Long)
+       |  3. Unique type (when only one field of that type exists)
+       |  4. Position + unique type (tuple-like matching)
        |
        |Consider:
-       |  - Adding a field '${targetField.name}: ${targetField.tpe.show}' to the source type
-       |  - Making '${targetField.tpe.show}' an Option type (will default to None)
-       |  - Adding a default value for '${targetField.name}' in the target type
-       |  - Providing an explicit Into instance""".stripMargin
+       |  - Adding field '${targetField.name}: ${targetField.tpe.show}' to ${aTpe.typeSymbol.name}
+       |  - Making '${targetField.name}' an Option[${targetField.tpe.show}] (defaults to None)
+       |  - Adding a default value for '${targetField.name}' in ${bTpe.typeSymbol.name}
+       |  - Providing an explicit Into[${aTpe.show}, ${bTpe.show}] instance""".stripMargin
   }
 
   private def noMatchingCaseError(
@@ -1644,19 +1771,24 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   ): String = {
     val sourceCases = formatCoproductCases(aTpe)
     val targetCases = formatCoproductCases(bTpe)
+    val sourceCaseName = sourceCase.typeSymbol.name
 
     s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: No matching case
        |
        |  ${aTpe.typeSymbol.name}: $sourceCases
        |  ${bTpe.typeSymbol.name}: $targetCases
        |
-       |Source case '${sourceCase.typeSymbol.name}' has no matching target case.
-       |Cases are matched by: (1) name, (2) field signature.
+       |Source case '$sourceCaseName' has no matching target case.
+       |
+       |Cases are matched by:
+       |  1. Name (case object or case class name)
+       |  2. Field signature (same field types in same order)
        |
        |Consider:
-       |  - Adding a matching case to the target sealed trait
-       |  - Renaming the source case to match an existing target case
-       |  - Ensuring field signatures match if using signature-based matching""".stripMargin
+       |  - Adding case '$sourceCaseName' to ${bTpe.typeSymbol.name}
+       |  - Renaming a target case to '$sourceCaseName'
+       |  - Ensuring field signatures match for signature-based matching
+       |  - Providing an explicit Into[${aTpe.show}, ${bTpe.show}] instance""".stripMargin
   }
 
   private def noImplicitIntoError(
@@ -1666,15 +1798,19 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     targetFieldType: TypeRepr,
     fieldName: String
   ): String =
-    s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: No implicit conversion
+    s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: No implicit conversion for field
        |
-       |Field '$fieldName' requires conversion from '${sourceFieldType.show}' to '${targetFieldType.show}',
-       |but no implicit Into[${sourceFieldType.show}, ${targetFieldType.show}] was found.
+       |  Field: $fieldName
+       |  Source type: ${sourceFieldType.show}
+       |  Target type: ${targetFieldType.show}
+       |
+       |No implicit Into[${sourceFieldType.show}, ${targetFieldType.show}] was found in scope.
        |
        |Consider:
-       |  - Providing an implicit Into[${sourceFieldType.show}, ${targetFieldType.show}] in scope
-       |  - Using Into.derived[${sourceFieldType.show}, ${targetFieldType.show}] to derive one
-       |  - Changing the field types to be directly compatible""".stripMargin
+       |  - Providing an implicit: implicit val ${fieldName}Into: Into[${sourceFieldType.show}, ${targetFieldType.show}] = Into.derived
+       |  - Using Into.derived[${sourceFieldType.show}, ${targetFieldType.show}] inline
+       |  - Changing the field types to be directly compatible
+       |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
 
   private def noPrimitiveConversionError(aTpe: TypeRepr, bTpe: TypeRepr): String =
     s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: No primitive conversion

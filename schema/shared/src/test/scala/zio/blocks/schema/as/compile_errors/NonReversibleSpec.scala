@@ -1,6 +1,5 @@
 package zio.blocks.schema.as.compile_errors
 
-import zio.blocks.schema._
 import zio.test._
 
 /**
@@ -80,14 +79,16 @@ object NonReversibleSpec extends ZIOSpecDefault {
 
           As.derived[DataA, DataB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("not bidirectionally convertible") ||
-              result.swap.getOrElse("").contains("no matching field")
+            // Error should clearly indicate the problem
+            error.contains("Cannot derive As") || error.contains("Field not bidirectionally convertible"),
+            // Should mention the types involved
+            error.contains("String") || error.contains("Boolean") || error.contains("value")
           )
-        )
+        }
       },
       test("fails when collection element types are not bidirectionally convertible") {
         typeCheck {
@@ -99,13 +100,13 @@ object NonReversibleSpec extends ZIOSpecDefault {
 
           As.derived[ContainerA, ContainerB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("no matching field")
+            error.contains("Cannot derive") || error.contains("no matching field") || error.contains("not bidirectionally")
           )
-        )
+        }
       }
     ),
     suite("Coproduct Non-Reversibility")(
@@ -202,10 +203,10 @@ object NonReversibleSpec extends ZIOSpecDefault {
           """
           import zio.blocks.schema.As
 
-          case class ProfileA(name: String, bio: Option[String])
-          case class ProfileB(name: String, bio: Option[String])
+          case class RecordA(id: Long, notes: Option[String])
+          case class RecordB(id: Long, notes: Option[String])
 
-          As.derived[ProfileA, ProfileB]
+          As.derived[RecordA, RecordB]
           """
         }.map(result => assertTrue(result.isRight))
       }

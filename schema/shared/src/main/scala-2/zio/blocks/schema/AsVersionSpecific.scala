@@ -95,11 +95,21 @@ private object AsVersionSpecificImpl {
     def checkNoDefaultValues(info: ProductInfo, direction: String): Unit = {
       val fieldsWithDefaults = info.fields.filter(_.hasDefault)
       if (fieldsWithDefaults.nonEmpty) {
+        val defaultFieldsStr = fieldsWithDefaults.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
         fail(
-          s"Cannot derive As[$aTpe, $bTpe]: $direction type has fields with default values: " +
-            s"${fieldsWithDefaults.map(_.name).mkString(", ")}. " +
-            s"Default values break round-trip guarantee as we cannot distinguish between " +
-            s"explicitly set default values and omitted values in reverse direction."
+          s"""Cannot derive As[$aTpe, $bTpe]: Default values break round-trip guarantee
+             |
+             |$direction type has fields with default values: $defaultFieldsStr
+             |
+             |Default values break the round-trip guarantee because:
+             |  - When converting A → B, we cannot distinguish between explicitly set default values
+             |    and fields that were omitted
+             |  - When converting B → A, we don't know if a value was originally a default or explicit
+             |
+             |Consider:
+             |  - Removing default values from the type definition
+             |  - Using Into[A, B] instead (one-way conversion allows defaults)
+             |  - Making fields Option types instead of using defaults""".stripMargin
         )
       }
     }
@@ -110,10 +120,6 @@ private object AsVersionSpecificImpl {
         dealiased.typeConstructor.typeSymbol == definitions.OptionClass
     }
 
-    def getOptionInnerType(tpe: Type): Type = {
-      val optionTpe = typeArgs(tpe.dealias)
-      if (optionTpe.nonEmpty) optionTpe.head else fail(s"Cannot extract inner type from Option: $tpe")
-    }
 
     def isListType(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
@@ -145,7 +151,7 @@ private object AsVersionSpecificImpl {
     }
 
     /**
-     * Checks if two container types (Option, List, Vector, Set, Seq) have bidirectionally 
+     * Checks if two container types (Option, List, Vector, Set, Seq) have bidirectionally
      * convertible element types (including when elements have implicit As instances available).
      */
     def areBidirectionallyConvertibleContainers(sourceTpe: Type, targetTpe: Type): Boolean = {
@@ -153,7 +159,7 @@ private object AsVersionSpecificImpl {
       val bothOptions = isOptionType(sourceTpe) && isOptionType(targetTpe)
       val bothCollections = (isListType(sourceTpe) || isVectorType(sourceTpe) || isSetType(sourceTpe) || isSeqType(sourceTpe)) &&
                             (isListType(targetTpe) || isVectorType(targetTpe) || isSetType(targetTpe) || isSeqType(targetTpe))
-      
+
       if (bothOptions || bothCollections) {
         (getContainerElementType(sourceTpe), getContainerElementType(targetTpe)) match {
           case (Some(sourceElem), Some(targetElem)) =>
@@ -171,7 +177,7 @@ private object AsVersionSpecificImpl {
                   isImplicitIntoAvailable(sourceElem, targetElem)
                 val canConvertElemsBack = isNumericCoercible(targetElem, sourceElem) ||
                   isImplicitIntoAvailable(targetElem, sourceElem)
-                
+
                 canConvertElems && canConvertElemsBack
               }
             }
@@ -205,7 +211,7 @@ private object AsVersionSpecificImpl {
               } else {
                 // Check for container types (Option, List, etc.) with different element types
                 val containerConvertible = areBidirectionallyConvertibleContainers(sourceField.tpe, targetField.tpe)
-                
+
                 if (containerConvertible) {
                   // Container types with bidirectionally convertible elements - OK
                 } else {
@@ -229,10 +235,28 @@ private object AsVersionSpecificImpl {
                       isImplicitIntoAvailable(targetField.tpe, sourceField.tpe)
 
                     if (!canConvert || !canConvertBack) {
+                      val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+                      val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+                      val direction = if (!canConvert) "A → B" else "B → A"
                       fail(
-                        s"Cannot derive As[$aTpe, $bTpe]: field '$name' has types that are not bidirectionally convertible. " +
-                          s"Source: ${sourceField.tpe}, Target: ${targetField.tpe}. " +
-                          s"Both directions must be convertible."
+                        s"""Cannot derive As[$aTpe, $bTpe]: Field not bidirectionally convertible
+                           |
+                           |  ${aTpe.typeSymbol.name}($sourceFieldsStr)
+                           |  ${bTpe.typeSymbol.name}($targetFieldsStr)
+                           |
+                           |Field '$name' cannot be converted in both directions:
+                           |  Source: ${sourceField.tpe}
+                           |  Target: ${targetField.tpe}
+                           |  Missing: $direction conversion
+                           |
+                           |As[A, B] requires:
+                           |  - Into[A, B] for A → B conversion
+                           |  - Into[B, A] for B → A conversion (round-trip)
+                           |
+                           |Consider:
+                           |  - Using matching types on both sides
+                           |  - Providing implicit As[${sourceField.tpe}, ${targetField.tpe}]
+                           |  - Using Into[A, B] instead if one-way conversion is sufficient""".stripMargin
                       )
                     }
                   }
@@ -241,13 +265,6 @@ private object AsVersionSpecificImpl {
             }
           case None =>
             // Source has field that target doesn't have
-            // This is only allowed if target has the same field as Option
-            val optionalFieldInTarget = targetInfo.fields.find { f =>
-              isOptionType(f.tpe) && {
-                val innerType = getOptionInnerType(f.tpe)
-                innerType =:= sourceField.tpe || isNumericCoercible(sourceField.tpe, innerType)
-              }
-            }
             // It's OK if source has extra fields - they just get dropped when going to target
             // and become None when coming back (if target has them as Option)
         }

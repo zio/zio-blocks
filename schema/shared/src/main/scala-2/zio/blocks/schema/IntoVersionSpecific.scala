@@ -161,10 +161,27 @@ private object IntoVersionSpecificImpl {
               // Use None for Option types
               new FieldMapping(null, targetField, useDefaultValue = false)
             } else {
+              val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+              val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
               fail(
-                s"Cannot derive Into[$aTpe, $bTpe]: " +
-                  s"no matching field found for '${targetField.name}: ${targetField.tpe}' in source type. " +
-                  s"Fields must match by: (1) name+type, (2) name+coercible type, (3) unique type, or (4) position+unique type."
+                s"""Cannot derive Into[$aTpe, $bTpe]: Missing required field
+                   |
+                   |  ${aTpe.typeSymbol.name}($sourceFieldsStr)
+                   |  ${bTpe.typeSymbol.name}($targetFieldsStr)
+                   |
+                   |No source field found for target field '${targetField.name}: ${targetField.tpe}'.
+                   |
+                   |Fields are matched by:
+                   |  1. Exact name + type match
+                   |  2. Name match + coercible type (e.g., Int → Long)
+                   |  3. Unique type (when only one field of that type exists)
+                   |  4. Position + unique type (tuple-like matching)
+                   |
+                   |Consider:
+                   |  - Adding field '${targetField.name}: ${targetField.tpe}' to ${aTpe.typeSymbol.name}
+                   |  - Making '${targetField.name}' an Option[${targetField.tpe}] (defaults to None)
+                   |  - Adding a default value for '${targetField.name}' in ${bTpe.typeSymbol.name}
+                   |  - Providing an explicit Into[$aTpe, $bTpe] instance""".stripMargin
               )
             }
         }
@@ -197,7 +214,7 @@ private object IntoVersionSpecificImpl {
       val nameWithCoercion = sourceInfo.fields.find { sourceField =>
         !usedSourceFields.contains(sourceField.index) &&
           sourceField.name == targetField.name &&
-          (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined || 
+          (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined ||
            requiresNewtypeConversion(sourceField.tpe, targetField.tpe) ||
            requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe))
       }
@@ -223,7 +240,7 @@ private object IntoVersionSpecificImpl {
           if (usedSourceFields.contains(sourceField.index)) false
           else {
             val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceField.tpe.dealias.toString, 0) == 1
-            isSourceTypeUnique && (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined || 
+            isSourceTypeUnique && (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined ||
               requiresNewtypeConversion(sourceField.tpe, targetField.tpe) ||
               requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe))
           }
@@ -250,7 +267,7 @@ private object IntoVersionSpecificImpl {
               return Some(positionalField)
             }
             // Also check coercible for positional (including implicit Into and newtype conversion/unwrapping)
-            if (findImplicitInto(positionalField.tpe, targetField.tpe).isDefined || 
+            if (findImplicitInto(positionalField.tpe, targetField.tpe).isDefined ||
                 requiresNewtypeConversion(positionalField.tpe, targetField.tpe) ||
                 requiresNewtypeUnwrapping(positionalField.tpe, targetField.tpe)) {
               return Some(positionalField)
@@ -354,7 +371,7 @@ private object IntoVersionSpecificImpl {
      * Generates code to convert a value to a ZIO Prelude newtype using runtime reflection
      * Returns code that evaluates to Either[SchemaError, NeType]
      */
-    def convertToNewtypeEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type, fieldName: String): Tree = {
+    def convertToNewtypeEither(sourceExpr: Tree, targetTpe: Type, fieldName: String): Tree = {
       // Dealias the type to get the actual type (e.g., Age.Type)
       val dealiased = targetTpe.dealias
 
@@ -366,10 +383,10 @@ private object IntoVersionSpecificImpl {
           // For example: TypeRef(SingleType(pre, Domain.Age), Type, Nil)
           // We want "Domain.Age"
           pre match {
-            case SingleType(outerPre, companionSym) =>
+            case SingleType(_, companionSym) =>
               // Found it! companionSym is the Age object
               companionSym.fullName
-            case other =>
+            case _ =>
               // Fallback to string manipulation
               val str = dealiased.toString
               if (str.endsWith(".Type")) str.stripSuffix(".Type") else str
@@ -636,10 +653,10 @@ private object IntoVersionSpecificImpl {
             val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
             // Check if it's a newtype unwrapping (newtype -> underlying)
             val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
-            
+
             if (isNewtypeConversion) {
               // Generate runtime reflection code to call the newtype's make method
-              convertToNewtypeEither(q"a.$getter", sourceTpe, targetTpe, sourceField.name)
+              convertToNewtypeEither(q"a.$getter", targetTpe, sourceField.name)
             } else if (isNewtypeUnwrapping) {
               // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
               q"_root_.scala.Right(a.$getter.asInstanceOf[$targetTpe])"
@@ -651,8 +668,19 @@ private object IntoVersionSpecificImpl {
                 case None =>
                   // No coercion available - fail at compile time
                   fail(
-                    s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field '${sourceField.name}'. " +
-                    s"Please provide an implicit Into instance in scope."
+                    s"""Cannot derive Into[$aTpe, $bTpe]: No implicit conversion for field
+                       |
+                       |  Field: ${sourceField.name}
+                       |  Source type: $sourceTpe
+                       |  Target type: $targetTpe
+                       |
+                       |No implicit Into[$sourceTpe, $targetTpe] was found in scope.
+                       |
+                       |Consider:
+                       |  - Providing an implicit: implicit val ${sourceField.name}Into: Into[$sourceTpe, $targetTpe] = Into.derived
+                       |  - Using Into.derived[$sourceTpe, $targetTpe] inline
+                       |  - Changing the field types to be directly compatible
+                       |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
                   )
               }
             }
@@ -705,13 +733,40 @@ private object IntoVersionSpecificImpl {
 
       // Check field count matches
       if (sourceInfo.fields.size != targetTypeArgs.size) {
-        fail(s"Cannot derive Into[$aTpe, $bTpe]: field count mismatch (${sourceInfo.fields.size} vs ${targetTypeArgs.size})")
+        val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+        val targetTypesStr = targetTypeArgs.map(_.toString).mkString(", ")
+        fail(
+          s"""Cannot derive Into[$aTpe, $bTpe]: Arity mismatch
+             |
+             |  ${aTpe.typeSymbol.name}($sourceFieldsStr)  — ${sourceInfo.fields.size} fields
+             |  Tuple${targetTypeArgs.size}[$targetTypesStr]  — ${targetTypeArgs.size} elements
+             |
+             |Case class has ${sourceInfo.fields.size} fields but target tuple has ${targetTypeArgs.size} elements.
+             |
+             |Consider:
+             |  - Using a tuple with ${sourceInfo.fields.size} elements
+             |  - Adding/removing fields to match the tuple size
+             |  - Providing an explicit Into instance""".stripMargin
+        )
       }
 
       // Check types match by position
       sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
         if (!(field.tpe =:= targetTpe) && findImplicitInto(field.tpe, targetTpe).isEmpty) {
-          fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: ${field.tpe} vs $targetTpe")
+          fail(
+            s"""Cannot derive Into[$aTpe, $bTpe]: Type mismatch at position $idx
+               |
+               |  Field: ${field.name} (position $idx)
+               |  Source type: ${field.tpe}
+               |  Target type: $targetTpe
+               |
+               |No implicit Into[${field.tpe}, $targetTpe] found.
+               |
+               |Consider:
+               |  - Providing an implicit Into[${field.tpe}, $targetTpe]
+               |  - Changing the types to be compatible
+               |  - Using numeric coercion (Int → Long) if applicable""".stripMargin
+          )
         }
       }
 
@@ -740,13 +795,39 @@ private object IntoVersionSpecificImpl {
 
       // Check field count matches
       if (sourceTypeArgs.size != targetInfo.fields.size) {
-        fail(s"Cannot derive Into[$aTpe, $bTpe]: field count mismatch (${sourceTypeArgs.size} vs ${targetInfo.fields.size})")
+        val sourceTypesStr = sourceTypeArgs.map(_.toString).mkString(", ")
+        val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+        fail(
+          s"""Cannot derive Into[$aTpe, $bTpe]: Arity mismatch
+             |
+             |  Tuple${sourceTypeArgs.size}[$sourceTypesStr]  — ${sourceTypeArgs.size} elements
+             |  ${bTpe.typeSymbol.name}($targetFieldsStr)  — ${targetInfo.fields.size} fields
+             |
+             |Source tuple has ${sourceTypeArgs.size} elements but target case class has ${targetInfo.fields.size} fields.
+             |
+             |Consider:
+             |  - Using a case class with ${sourceTypeArgs.size} fields
+             |  - Using a tuple with ${targetInfo.fields.size} elements
+             |  - Providing an explicit Into instance""".stripMargin
+        )
       }
 
       // Check types match by position
       sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.foreach { case ((sourceTpe, field), idx) =>
         if (!(sourceTpe =:= field.tpe) && findImplicitInto(sourceTpe, field.tpe).isEmpty) {
-          fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: $sourceTpe vs ${field.tpe}")
+          fail(
+            s"""Cannot derive Into[$aTpe, $bTpe]: Type mismatch at position $idx
+               |
+               |  Tuple element $idx: $sourceTpe
+               |  Target field: ${field.name}: ${field.tpe}
+               |
+               |No implicit Into[$sourceTpe, ${field.tpe}] found.
+               |
+               |Consider:
+               |  - Providing an implicit Into[$sourceTpe, ${field.tpe}]
+               |  - Changing the types to be compatible
+               |  - Using numeric coercion (Int → Long) if applicable""".stripMargin
+          )
         }
       }
 
@@ -775,13 +856,38 @@ private object IntoVersionSpecificImpl {
 
       // Check element count matches
       if (sourceTypeArgs.size != targetTypeArgs.size) {
-        fail(s"Cannot derive Into[$aTpe, $bTpe]: element count mismatch (${sourceTypeArgs.size} vs ${targetTypeArgs.size})")
+        val sourceTypesStr = sourceTypeArgs.map(_.toString).mkString(", ")
+        val targetTypesStr = targetTypeArgs.map(_.toString).mkString(", ")
+        fail(
+          s"""Cannot derive Into[$aTpe, $bTpe]: Arity mismatch
+             |
+             |  Tuple${sourceTypeArgs.size}[$sourceTypesStr]  — ${sourceTypeArgs.size} elements
+             |  Tuple${targetTypeArgs.size}[$targetTypesStr]  — ${targetTypeArgs.size} elements
+             |
+             |Source tuple has ${sourceTypeArgs.size} elements but target tuple has ${targetTypeArgs.size} elements.
+             |
+             |Consider:
+             |  - Using tuples with the same number of elements
+             |  - Providing an explicit Into instance""".stripMargin
+        )
       }
 
       // Check types match by position
       sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.foreach { case ((sourceTpe, targetTpe), idx) =>
         if (!(sourceTpe =:= targetTpe) && findImplicitInto(sourceTpe, targetTpe).isEmpty) {
-          fail(s"Cannot derive Into[$aTpe, $bTpe]: type mismatch at position $idx: $sourceTpe vs $targetTpe")
+          fail(
+            s"""Cannot derive Into[$aTpe, $bTpe]: Type mismatch at position $idx
+               |
+               |  Source element _${idx + 1}: $sourceTpe
+               |  Target element _${idx + 1}: $targetTpe
+               |
+               |No implicit Into[$sourceTpe, $targetTpe] found.
+               |
+               |Consider:
+               |  - Providing an implicit Into[$sourceTpe, $targetTpe]
+               |  - Changing the types to be compatible
+               |  - Using numeric coercion (Int → Long) if applicable""".stripMargin
+          )
         }
       }
 
@@ -888,9 +994,26 @@ private object IntoVersionSpecificImpl {
         findMatchingTargetSubtype(sourceSubtype, targetSubtypes, sourceSubtypes) match {
           case Some(targetSubtype) => (sourceSubtype, targetSubtype)
           case None =>
+            val sourceCases = sourceSubtypes.map(_.typeSymbol.name).mkString(", ")
+            val targetCases = targetSubtypes.map(_.typeSymbol.name).mkString(", ")
+            val sourceCaseName = sourceSubtype.typeSymbol.name
             fail(
-              s"Cannot derive Into[$aTpe, $bTpe]: " +
-                s"no matching target case found for source case '${sourceSubtype.typeSymbol.name}'"
+              s"""Cannot derive Into[$aTpe, $bTpe]: No matching case
+                 |
+                 |  ${aTpe.typeSymbol.name}: $sourceCases
+                 |  ${bTpe.typeSymbol.name}: $targetCases
+                 |
+                 |Source case '$sourceCaseName' has no matching target case.
+                 |
+                 |Cases are matched by:
+                 |  1. Name (case object or case class name)
+                 |  2. Field signature (same field types in same order)
+                 |
+                 |Consider:
+                 |  - Adding case '$sourceCaseName' to ${bTpe.typeSymbol.name}
+                 |  - Renaming a target case to '$sourceCaseName'
+                 |  - Ensuring field signatures match for signature-based matching
+                 |  - Providing an explicit Into[$aTpe, $bTpe] instance""".stripMargin
             )
         }
       }
@@ -912,12 +1035,10 @@ private object IntoVersionSpecificImpl {
     }
 
     def generateCaseClause(sourceSubtype: Type, targetSubtype: Type): CaseDef = {
-      val sourceSym = sourceSubtype.typeSymbol
       val targetSym = targetSubtype.typeSymbol
 
       if (isEnumOrModuleValue(sourceSubtype) && isEnumOrModuleValue(targetSubtype)) {
         // Case object to case object
-        val sourceModule = sourceSym.asClass.module
         val targetModule = targetSym.asClass.module
         cq"_: $sourceSubtype => _root_.scala.Right($targetModule)"
       } else {
@@ -960,10 +1081,10 @@ private object IntoVersionSpecificImpl {
             val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
             // Check if it's a newtype unwrapping (newtype -> underlying)
             val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
-            
+
             if (isNewtypeConversion) {
               // Generate runtime reflection code to call the newtype's make method
-              convertToNewtypeEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
+              convertToNewtypeEither(q"$bindingName.$getter", targetTpe, sourceField.name)
             } else if (isNewtypeUnwrapping) {
               // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
               q"_root_.scala.Right($bindingName.$getter.asInstanceOf[$targetTpe])"
@@ -1189,9 +1310,22 @@ private object IntoVersionSpecificImpl {
         } else if (isOptionType(field.tpe)) {
           q"_root_.scala.None"
         } else {
+          val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+          val requiredFields = targetInfo.fields.filterNot(f => f.hasDefault || isOptionType(f.tpe))
+          val requiredFieldsStr = requiredFields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
           fail(
-            s"Cannot derive Into[$aTpe, $bTpe]: " +
-              s"case object cannot be converted to case class with non-optional, non-default field '${field.name}: ${field.tpe}'"
+            s"""Cannot derive Into[$aTpe, $bTpe]: Case object to case class conversion
+               |
+               |  Source: case object ${aTpe.typeSymbol.name}
+               |  Target: ${bTpe.typeSymbol.name}($targetFieldsStr)
+               |
+               |Case object cannot provide value for required field '${field.name}: ${field.tpe}'.
+               |Required fields without defaults: $requiredFieldsStr
+               |
+               |Consider:
+               |  - Making '${field.name}' an Option[${field.tpe}] (defaults to None)
+               |  - Adding a default value for '${field.name}' in ${bTpe.typeSymbol.name}
+               |  - Using a case class source instead of case object""".stripMargin
           )
         }
       }
@@ -1246,7 +1380,19 @@ private object IntoVersionSpecificImpl {
       if (existingInto != EmptyTree) {
         return c.Expr[Into[A, B]](existingInto)
       } else {
-        fail(s"Cannot derive Into[$aTpe, $bTpe]: no predefined conversion between these primitive types")
+        fail(
+          s"""Cannot derive Into[$aTpe, $bTpe]: No primitive conversion
+             |
+             |No predefined conversion exists between '$aTpe' and '$bTpe'.
+             |
+             |Supported numeric conversions:
+             |  - Widening: Byte → Short → Int → Long, Float → Double
+             |  - Narrowing: Long → Int → Short → Byte (with runtime validation)
+             |
+             |Consider:
+             |  - Using a supported numeric conversion path
+             |  - Providing a custom implicit Into[$aTpe, $bTpe]""".stripMargin
+        )
       }
     }
 
@@ -1321,7 +1467,26 @@ private object IntoVersionSpecificImpl {
         // Product -> Structural (case class source to structural target)
         deriveProductToStructural()
       case _ =>
-        fail(s"Cannot derive Into[$aTpe, $bTpe]: unsupported type combination")
+        val sourceKind = if (aIsProduct) "product" else if (aIsTuple) "tuple" else if (aIsCoproduct) "coproduct" else "other"
+        val targetKind = if (bIsProduct) "product" else if (bIsTuple) "tuple" else if (bIsCoproduct) "coproduct" else "other"
+        fail(
+          s"""Cannot derive Into[$aTpe, $bTpe]: Unsupported type combination
+             |
+             |Source type: $aTpe ($sourceKind)
+             |Target type: $bTpe ($targetKind)
+             |
+             |Into derivation supports:
+             |  - Product → Product (case class to case class)
+             |  - Product ↔ Tuple (case class to/from tuple)
+             |  - Tuple → Tuple
+             |  - Coproduct → Coproduct (sealed trait to sealed trait)
+             |  - Structural ↔ Product
+             |  - Primitive → Primitive (with coercion)
+             |
+             |Consider:
+             |  - Restructuring your types to fit a supported pattern
+             |  - Providing an explicit Into instance""".stripMargin
+        )
     }
   }
 }
