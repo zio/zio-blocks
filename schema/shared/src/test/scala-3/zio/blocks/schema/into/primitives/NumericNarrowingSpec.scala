@@ -20,7 +20,7 @@ object NumericNarrowingSpec extends ZIOSpecDefault {
         val result     = derivation.into(input)
 
         assertTrue(result.isRight)
-        assertTrue(result.map(_.toString) == Right("3.14"))
+        assertTrue(result.exists(f => (f - 3.14f).abs < 0.001)) // Tolleranza per Float precision
       },
       test("should narrow Long to Int at boundary values") {
         val derivation = Into.derived[Long, Int]

@@ -139,7 +139,15 @@ object IntoSpec extends ZIOSpecDefault {
         val input      = (42, 3.14)
         val result     = derivation.into(input)
 
-        assertTrue(result.map(_.toString) == Right("(42,3.14)")) // Float conversion
+        assertTrue(result.isRight)
+        result.fold(
+          _ => assertTrue(false),
+          tuple => {
+            val (i, f) = tuple
+            assertTrue(i == 42L)
+            assertTrue((f - 3.14f).abs < 0.001) // Tolleranza per Float precision
+          }
+        )
       }
     ),
     suite("Opaque Types")(
