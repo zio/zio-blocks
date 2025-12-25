@@ -442,8 +442,17 @@ object StringOp {
     sb.toString
   }
 
-  /** Compute LCS-based string diff operations */
-  def diff(oldStr: String, newStr: String): Vector[StringOp] = {
+  /**
+   * Compute LCS-based string diff operations.
+   *
+   * Algorithm: Wagner-Fischer algorithm for computing edit distance
+   * Time complexity: O(n * m) where n and m are string lengths
+   * Space complexity: O(n * m) for the DP table
+   *
+   * Reference: Wagner, R.A. and Fischer, M.J. (1974). "The String-to-String
+   * Correction Problem". Journal of the ACM, 21(1), pp.168-173.
+   */
+  private[schema] def diff(oldStr: String, newStr: String): Vector[StringOp] = {
     if (oldStr == newStr) return Vector.empty
     if (oldStr.isEmpty) return Vector(Insert(0, newStr))
     if (newStr.isEmpty) return Vector(Delete(0, oldStr.length))
@@ -458,7 +467,14 @@ object StringOp {
     }
   }
 
-  private def longestCommonSubsequence(a: String, b: String): String = {
+  /**
+   * Compute longest common subsequence of two strings.
+   *
+   * Algorithm: Dynamic programming approach
+   * Time complexity: O(n * m)
+   * Space complexity: O(n * m)
+   */
+  private[schema] def longestCommonSubsequence(a: String, b: String): String = {
     val m = a.length
     val n = b.length
     val dp = Array.ofDim[Int](m + 1, n + 1)
@@ -603,8 +619,17 @@ object SeqOp {
     }
   }
 
-  /** Compute LCS-based sequence diff operations */
-  def diff(oldSeq: Vector[DynamicValue], newSeq: Vector[DynamicValue]): Vector[SeqOp] = {
+  /**
+   * Compute LCS-based sequence diff operations.
+   *
+   * Algorithm: Wagner-Fischer variant for sequence edit distance
+   * Time complexity: O(n * m) where n and m are sequence lengths
+   * Space complexity: O(n * m) for the DP table
+   *
+   * Reference: Wagner, R.A. and Fischer, M.J. (1974). "The String-to-String
+   * Correction Problem". Journal of the ACM, 21(1), pp.168-173.
+   */
+  private[schema] def diff(oldSeq: Vector[DynamicValue], newSeq: Vector[DynamicValue]): Vector[SeqOp] = {
     if (oldSeq == newSeq) return Vector.empty
     if (oldSeq.isEmpty) return Vector(Append(newSeq))
     if (newSeq.isEmpty) return Vector(Delete(0, oldSeq.length))
@@ -614,7 +639,13 @@ object SeqOp {
     computeSeqOps(oldSeq, newSeq, lcs)
   }
 
-  private def longestCommonSubsequence(
+  /**
+   * Compute longest common subsequence of two sequences.
+   *
+   * Time complexity: O(n * m)
+   * Space complexity: O(n * m)
+   */
+  private[schema] def longestCommonSubsequence(
     a: Vector[DynamicValue],
     b: Vector[DynamicValue]
   ): Vector[DynamicValue] = {
@@ -767,8 +798,13 @@ object MapOp {
     }
   }
 
-  /** Compute diff operations between two maps */
-  def diff(
+  /**
+   * Compute diff operations between two maps.
+   *
+   * Time complexity: O(n + m) where n and m are the number of entries
+   * Space complexity: O(n + m) for key sets
+   */
+  private[schema] def diff(
     oldMap: Vector[(DynamicValue, DynamicValue)],
     newMap: Vector[(DynamicValue, DynamicValue)]
   ): Vector[MapOp] = {
