@@ -4,59 +4,48 @@ import zio.test._
 import zio._
 import zio.blocks.schema.Into
 
+// Simple Enums (Scala 3) - Moved outside object to avoid compiler bug
+enum Status {
+  case Active
+  case Inactive
+}
+
+enum State {
+  case Active
+  case Inactive
+  case Pending
+}
+
+// Sealed Traits at package level with companion objects (avoids compiler bug)
+sealed trait ColorTypesColor
+object ColorTypesColor {
+  case object Red   extends ColorTypesColor
+  case object Blue  extends ColorTypesColor
+  case object Green extends ColorTypesColor
+}
+
+sealed trait HueTypesHue
+object HueTypesHue {
+  case object Red  extends HueTypesHue
+  case object Blue extends HueTypesHue
+}
+
+// Complex Coproducts (Recursive with case classes)
+sealed trait EventTypesEvent
+object EventTypesEvent {
+  case class Created(id: Int)    extends EventTypesEvent
+  case class Deleted(id: String) extends EventTypesEvent
+  case object Updated            extends EventTypesEvent
+}
+
+sealed trait ActionTypesAction
+object ActionTypesAction {
+  case class Created(id: Long)   extends ActionTypesAction // Int -> Long widening
+  case class Deleted(id: String) extends ActionTypesAction
+  case object Updated            extends ActionTypesAction
+}
+
 object IntoCoproductSpec extends ZIOSpecDefault {
-
-  // Simple Enums (Scala 3)
-  enum Status {
-    case Active
-    case Inactive
-  }
-
-  enum State {
-    case Active
-    case Inactive
-    case Pending
-  }
-
-  // Sealed Traits (Classic) - Using wrapper objects to avoid name conflicts
-  object ColorTypes {
-    sealed trait Color
-    case object Red   extends Color
-    case object Blue  extends Color
-    case object Green extends Color
-  }
-  import ColorTypes._
-
-  object HueTypes {
-    sealed trait Hue
-    case object Red  extends Hue
-    case object Blue extends Hue
-  }
-  import HueTypes._
-
-  // Complex Coproducts (Recursive with case classes) - Using wrapper objects
-  object EventTypes {
-    sealed trait Event
-    case class Created(id: Int)    extends Event
-    case class Deleted(id: String) extends Event
-    case object Updated            extends Event
-  }
-  import EventTypes._
-
-  object ActionTypes {
-    sealed trait Action
-    case class Created(id: Long)   extends Action // Int -> Long widening
-    case class Deleted(id: String) extends Action
-    case object Updated            extends Action
-  }
-  import ActionTypes._
-
-  // Error case: Missing subtype
-  enum StatusWithCancel {
-    case Active
-    case Inactive
-    case Canceled
-  }
 
   def spec = suite("Into Coproduct Support")(
     suite("Simple Enums (Scala 3)")(
@@ -88,22 +77,22 @@ object IntoCoproductSpec extends ZIOSpecDefault {
     ),
     suite("Sealed Traits (Classic)")(
       test("Should convert Color.Red to Hue.Red") {
-        val derivation              = Into.derived[ColorTypes.Color, HueTypes.Hue]
-        val input: ColorTypes.Color = ColorTypes.Red
+        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val input: ColorTypesColor = ColorTypesColor.Red
         val result                  = derivation.into(input)
 
-        assertTrue(result == Right(HueTypes.Red: HueTypes.Hue))
+        assertTrue(result == Right(HueTypesHue.Red: HueTypesHue))
       },
       test("Should convert Color.Blue to Hue.Blue") {
-        val derivation              = Into.derived[ColorTypes.Color, HueTypes.Hue]
-        val input: ColorTypes.Color = ColorTypes.Blue
+        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val input: ColorTypesColor = ColorTypesColor.Blue
         val result                  = derivation.into(input)
 
-        assertTrue(result == Right(HueTypes.Blue: HueTypes.Hue))
+        assertTrue(result == Right(HueTypesHue.Blue: HueTypesHue))
       },
       test("Should fail when converting Color.Green (not in Hue)") {
-        val derivation              = Into.derived[ColorTypes.Color, HueTypes.Hue]
-        val input: ColorTypes.Color = ColorTypes.Green
+        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val input: ColorTypesColor = ColorTypesColor.Green
         val result                  = derivation.into(input)
 
         // Green is not in Hue, so should hit catch-all case
@@ -112,37 +101,37 @@ object IntoCoproductSpec extends ZIOSpecDefault {
     ),
     suite("Complex Coproducts (Recursive)")(
       test("Should convert Event.Created(1) to Action.Created(1L) with Int -> Long widening") {
-        val derivation              = Into.derived[EventTypes.Event, ActionTypes.Action]
-        val input: EventTypes.Event = EventTypes.Created(1)
+        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val input: EventTypesEvent = EventTypesEvent.Created(1)
         val result                  = derivation.into(input)
 
-        assertTrue(result == Right(ActionTypes.Created(1L)))
+        assertTrue(result == Right(ActionTypesAction.Created(1L)))
       },
       test("Should convert Event.Deleted(\"id\") to Action.Deleted(\"id\") (identity)") {
-        val derivation              = Into.derived[EventTypes.Event, ActionTypes.Action]
-        val input: EventTypes.Event = EventTypes.Deleted("id123")
+        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val input: EventTypesEvent = EventTypesEvent.Deleted("id123")
         val result                  = derivation.into(input)
 
-        assertTrue(result == Right(ActionTypes.Deleted("id123")))
+        assertTrue(result == Right(ActionTypesAction.Deleted("id123")))
       },
       test("Should convert Event.Updated to Action.Updated (case object)") {
-        val derivation              = Into.derived[EventTypes.Event, ActionTypes.Action]
-        val input: EventTypes.Event = EventTypes.Updated
+        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val input: EventTypesEvent = EventTypesEvent.Updated
         val result                  = derivation.into(input)
 
-        assertTrue(result == Right(ActionTypes.Updated: ActionTypes.Action))
+        assertTrue(result == Right(ActionTypesAction.Updated: ActionTypesAction))
       },
       test("Should handle all Event cases") {
-        val derivation = Into.derived[EventTypes.Event, ActionTypes.Action]
+        val derivation = Into.derived[EventTypesEvent, ActionTypesAction]
 
-        val createdResult = derivation.into(EventTypes.Created(42): EventTypes.Event)
-        val deletedResult = derivation.into(EventTypes.Deleted("test"): EventTypes.Event)
-        val updatedResult = derivation.into(EventTypes.Updated: EventTypes.Event)
+        val createdResult = derivation.into(EventTypesEvent.Created(42): EventTypesEvent)
+        val deletedResult = derivation.into(EventTypesEvent.Deleted("test"): EventTypesEvent)
+        val updatedResult = derivation.into(EventTypesEvent.Updated: EventTypesEvent)
 
         assertTrue(
-          createdResult == Right(ActionTypes.Created(42L)) &&
-            deletedResult == Right(ActionTypes.Deleted("test")) &&
-            updatedResult == Right(ActionTypes.Updated: ActionTypes.Action)
+          createdResult == Right(ActionTypesAction.Created(42L)) &&
+            deletedResult == Right(ActionTypesAction.Deleted("test")) &&
+            updatedResult == Right(ActionTypesAction.Updated: ActionTypesAction)
         )
       }
     ),

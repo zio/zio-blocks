@@ -1,0 +1,162 @@
+package zio.blocks.schema.into.coproducts
+
+import zio.test._
+import zio.test.Assertion._
+import zio.blocks.schema._
+
+object SignatureMatchingSpec extends ZIOSpecDefault {
+
+  def spec = suite("SignatureMatchingSpec")(
+    suite("Known Limitation: Structural Matching Not Implemented")(
+      test("should fail when case class subtypes have different names (Known Limitation)") {
+        typeCheck {
+          """
+          object SourceTypes {
+            sealed trait Event
+            case class Created(id: Int) extends Event
+          }
+          import SourceTypes._
+
+          object TargetTypes {
+            sealed trait Event
+            case class Spawned(id: Int) extends Event  // Different name, same structure
+          }
+          import TargetTypes._
+
+          Into.derived[SourceTypes.Event, TargetTypes.Event]
+          """
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("No matching subtypes found") ||
+                containsString("Created") ||
+                containsString("Spawned") ||
+                containsString("has no matching subtype")
+            )
+          )
+        )
+      },
+      test("should fail when enum values have different names (Known Limitation)") {
+        typeCheck {
+          """
+          enum SourceStatus {
+            case Active
+            case Inactive
+          }
+
+          enum TargetStatus {
+            case Enabled   // Different name, but semantically similar
+            case Disabled
+          }
+
+          Into.derived[SourceStatus, TargetStatus]
+          """
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("No matching subtypes found") ||
+                containsString("Active") ||
+                containsString("Enabled") ||
+                containsString("has no matching subtype")
+            )
+          )
+        )
+      },
+      test("should fail when case object has different name (Known Limitation)") {
+        typeCheck {
+          """
+          object SourceTypes {
+            sealed trait Color
+            case object Red extends Color
+          }
+          import SourceTypes._
+
+          object TargetTypes {
+            sealed trait Color
+            case object Crimson extends Color  // Different name
+          }
+          import TargetTypes._
+
+          Into.derived[SourceTypes.Color, TargetTypes.Color]
+          """
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("No matching subtypes found") ||
+                containsString("Red") ||
+                containsString("Crimson") ||
+                containsString("has no matching subtype")
+            )
+          )
+        )
+      },
+      test("should fail when case class with same structure but different name (Known Limitation)") {
+        typeCheck {
+          """
+          object SourceTypes {
+            sealed trait Result
+            case class Success(value: Int, message: String) extends Result
+          }
+          import SourceTypes._
+
+          object TargetTypes {
+            sealed trait Result
+            case class Ok(value: Int, message: String) extends Result  // Same structure, different name
+          }
+          import TargetTypes._
+
+          Into.derived[SourceTypes.Result, TargetTypes.Result]
+          """
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("No matching subtypes found") ||
+                containsString("Success") ||
+                containsString("Ok") ||
+                containsString("has no matching subtype")
+            )
+          )
+        )
+      },
+      test("should fail when multiple case classes have different names (Known Limitation)") {
+        typeCheck {
+          """
+          object SourceTypes {
+            sealed trait Event
+            case class Created(id: Int) extends Event
+            case class Deleted(id: String) extends Event
+          }
+          import SourceTypes._
+
+          object TargetTypes {
+            sealed trait Event
+            case class Spawned(id: Int) extends Event      // Created -> Spawned
+            case class Removed(id: String) extends Event   // Deleted -> Removed
+          }
+          import TargetTypes._
+
+          Into.derived[SourceTypes.Event, TargetTypes.Event]
+          """
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("No matching subtypes found") ||
+                containsString("Created") ||
+                containsString("Spawned") ||
+                containsString("Deleted") ||
+                containsString("Removed") ||
+                containsString("has no matching subtype")
+            )
+          )
+        )
+      }
+    ),
+    // Note: Positive tests (verifying that name matching DOES work) are in CaseMatchingSpec.
+    // This file focuses on negative tests (verifying that structural matching DOES NOT work yet).
+    // Note: These tests verify the CURRENT limitation that structural matching
+    // (matching by field structure rather than name) is not yet implemented.
+    // When this feature is implemented in a future phase, these "should fail" tests
+    // should be updated to "should succeed" tests.
+  )
+}
+

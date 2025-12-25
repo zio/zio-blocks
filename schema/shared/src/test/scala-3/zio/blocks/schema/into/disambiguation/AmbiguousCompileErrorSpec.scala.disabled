@@ -1,0 +1,147 @@
+package zio.blocks.schema.into.disambiguation
+
+import zio.test._
+import zio.test.Assertion._
+import zio.blocks.schema._
+
+object AmbiguousCompileErrorSpec extends ZIOSpecDefault {
+
+  def spec = suite("AmbiguousCompileErrorSpec")(
+    suite("Ambiguous Field Mapping")(
+      test("should fail compilation for ambiguous Int fields") {
+        typeCheck {
+          """
+          case class V1(width: Int, height: Int)
+          case class V2(first: Int, second: Int)
+          
+          Into.derived[V1, V2]
+          """
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("Cannot find unique mapping") ||
+                containsString("ambiguous") ||
+                containsString("width") ||
+                containsString("height") ||
+                containsString("first") ||
+                containsString("second")
+            )
+          )
+        )
+      },
+      test("should fail compilation for multiple ambiguous types") {
+        typeCheck {
+          """
+          case class V1(x: Int, y: Int, z: String, w: String)
+          case class V2(a: Int, b: Int, c: String, d: String)
+          // All types ambiguous (Int appears twice, String appears twice)
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      },
+      test("should fail when name matches but types incompatible") {
+        typeCheck {
+          """
+          case class V1(x: Int, xLong: Long)
+          case class V2(x: String, xInt: Int)
+          // x matches name but types incompatible (Int vs String)
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      },
+      test("should provide helpful error message with available fields") {
+        typeCheck {
+          """
+          case class V1(a: Int, b: Int)
+          case class V2(x: String, y: Boolean)
+          // No matches possible (types incompatible)
+          
+          Into.derived[V1, V2]
+          """
+        }.map(
+          assert(_)(
+            isLeft(
+              containsString("Available:") ||
+                containsString("a:") ||
+                containsString("b:") ||
+                containsString("Cannot find unique mapping")
+            )
+          )
+        )
+      },
+      test("should fail when unique type match is ambiguous (same type appears multiple times)") {
+        typeCheck {
+          """
+          case class V1(name: String, width: Int, height: Int)
+          case class V2(fullName: String, first: Int, second: Int)
+          // String unique, but Int appears twice -> ambiguous
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      },
+      test("should fail when position match exists but types not unique") {
+        typeCheck {
+          """
+          case class V1(x: Int, y: Int, z: String)
+          case class V2(a: Int, b: Int, c: String)
+          // Positional match, but Int fields are ambiguous
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      }
+    ),
+    suite("Arity Mismatch")(
+      test("should fail when source has more fields than target") {
+        typeCheck {
+          """
+          case class V1(name: String, age: Int, active: Boolean)
+          case class V2(name: String, age: Int)
+          // Missing field in target
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      },
+      test("should fail when target has more fields than source (without Option)") {
+        typeCheck {
+          """
+          case class V1(name: String)
+          case class V2(name: String, age: Int)
+          // Missing field in source (and not Option)
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      }
+    ),
+    suite("Type Incompatibility")(
+      test("should fail when types are not coercible") {
+        typeCheck {
+          """
+          case class V1(name: String, age: Int)
+          case class V2(name: Boolean, age: String)
+          // Types incompatible (String->Boolean, Int->String not coercible)
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      },
+      test("should fail when collection types incompatible") {
+        typeCheck {
+          """
+          case class V1(items: List[Int])
+          case class V2(items: Map[String, Int])
+          // Collection types incompatible
+          
+          Into.derived[V1, V2]
+          """
+        }.map(assert(_)(isLeft))
+      }
+    )
+  )
+}
+

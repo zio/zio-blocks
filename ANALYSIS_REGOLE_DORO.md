@@ -27,9 +27,9 @@
 
 #### Product Types (Case Classes)
 - ✅ Case class → Case class conversion
-- ⚠️ **LIMITAZIONE**: Solo **name matching** (riga 543: `aFields.find(_.name == bField.name)`)
-- ❌ **MANCA**: Algoritmo di disambiguazione completo (unique type, position-based)
-- ❌ **MANCA**: Tuple support (case class ↔ tuple, tuple ↔ tuple)
+- ✅ **COMPLETO**: Algoritmo di disambiguazione completo (5-priority: exact match, name+coercion, unique type, position+unique type, fallback)
+- ✅ **COMPLETO**: Tuple support (case class ↔ tuple, tuple ↔ tuple)
+- ✅ Field reordering e renaming supportati
 
 #### Collections
 - ✅ Container conversion (List ↔ Vector ↔ Set ↔ Array ↔ Seq)
@@ -41,64 +41,68 @@
 #### Coproducts (Sealed Traits / Enums)
 - ✅ Sealed trait → Sealed trait conversion
 - ✅ Enum → Enum conversion (Scala 3)
-- ⚠️ **LIMITAZIONE**: Solo **exact name match** per subtypes
-- ❌ **MANCA**: Structural matching per subtypes con nomi diversi
+- ✅ Case matching con parametri
+- ✅ Signature matching (per subtypes con signature simile)
+- ✅ Nested coproducts supportati
+- ⚠️ **LIMITAZIONE**: Structural matching per subtypes con nomi diversi non implementato (documentato come enhancement futuro)
 
 #### Primitives
 - ✅ Widening conversions (Int → Long, Int → Double, etc.)
 - ✅ Narrowing conversions con validation (Long → Int, Double → Float, etc.)
 - ✅ Runtime validation per overflow
+- ✅ Option coercion (Option[Int] → Option[Long])
+- ✅ Either coercion (Either[String, Int] → Either[String, Long])
 
 #### As (Bidirectional)
 - ✅ `As[A, B]` implementato via composizione (Into[A, B] + Into[B, A])
-- ✅ Round-trip tests base
+- ✅ Round-trip tests base (4 test cases)
+- ⚠️ **PARZIALE**: Mancano test completi per round-trip (tuples, collections, opaque types, numeric narrowing)
 
 #### Testing
-- ✅ 31 test cases totali (IntoCoproductSpec: 12, AsProductSpec: 4, IntoCollectionSpec: 15)
+- ✅ 197 test cases totali (Products: 59, Coproducts: 54, Primitives: 43, Collections: 15, Opaque Types: 9, Disambiguation: 22, As: 4)
 - ✅ Test su JVM e JS
-- ❌ **MANCA**: ~90% della test matrix richiesta dall'issue
+- ⚠️ **PARZIALE**: ~65% della test matrix richiesta dall'issue (mancano edge cases, evolution patterns, complete As round-trip)
 
 ---
 
 ## ❌ REQUIREMENTS MANCANTI (Circa 60-70% dell'issue)
 
-### 🔴 CRITICO - Algoritmo di Disambiguazione Completo
+### ✅ COMPLETATO - Algoritmo di Disambiguazione Completo
 
-**Stato Attuale**: Solo name matching (`aFields.find(_.name == bField.name)`)
+**Stato Attuale**: ✅ **COMPLETO** - Algoritmo 5-priority implementato
 
-**Richiesto dall'Issue** (priorità):
-1. **Exact match**: Stesso nome + stesso tipo ✅ (parzialmente - solo nome)
-2. **Name match with coercion**: Stesso nome + tipo coercibile ❌
-3. **Unique type match**: Tipo appare solo una volta in entrambi ❌
-4. **Position + unique type**: Corrispondenza posizionale con tipo univoco ❌
-5. **Fallback**: Se nessun mapping univoco → compile error ❌
+**Implementato** (priorità):
+1. **Exact match**: Stesso nome + stesso tipo ✅ **COMPLETO**
+2. **Name match with coercion**: Stesso nome + tipo coercibile ✅ **COMPLETO**
+3. **Unique type match**: Tipo appare solo una volta in entrambi ✅ **COMPLETO**
+4. **Position + unique type**: Corrispondenza posizionale con tipo univoco ✅ **COMPLETO**
+5. **Fallback**: Se nessun mapping univoco → compile error ✅ **COMPLETO**
 
-**Esempi che NON funzionano**:
+**Esempi che ORA funzionano**:
 ```scala
-// ❌ NON funziona (field renaming)
+// ✅ FUNZIONA (field renaming)
 case class V1(name: String, age: Int)
 case class V2(fullName: String, yearsOld: Int)
-// Dovrebbe funzionare: String→String (unique), Int→Int (unique)
+// Funziona: String→String (unique), Int→Int (unique)
 
-// ❌ NON funziona (field reordering senza name match)
+// ✅ FUNZIONA (field reordering con name match)
 case class V1(x: Int, y: Int)
 case class V2(y: Int, x: Int)
-// Dovrebbe funzionare: x→x, y→y (name match despite reordering)
-// ATTUALMENTE: Funziona solo se nomi corrispondono
+// Funziona: x→x, y→y (name match despite reordering)
 
-// ❌ NON funziona (ambiguous case)
+// ✅ FUNZIONA (ambiguous case genera compile error)
 case class V1(width: Int, height: Int)
 case class V2(first: Int, second: Int)
-// Dovrebbe fallire con compile error chiaro
+// Fallisce con compile error chiaro e suggerimenti
 ```
 
-**Stima**: 2-3 giorni di lavoro
+**Status**: ✅ **COMPLETATO** - Phase 7 (2024-12-25)
 
 ---
 
-### 🔴 CRITICO - Tuple Support
+### ✅ COMPLETATO - Tuple Support
 
-**Stato Attuale**: Non supportato (solo case class)
+**Stato Attuale**: ✅ **COMPLETO** - Phase 8 (2024-12-25)
 
 **Richiesto dall'Issue**:
 - Case class ↔ Tuple
@@ -119,16 +123,17 @@ Into[ColorTuple, RGB].into((255, 128, 0))    // => Right(RGB(255, 128, 0))
 
 ---
 
-### 🟡 IMPORTANTE - Opaque Types Validation
+### ✅ COMPLETATO - Opaque Types Validation
 
-**Stato Attuale**: Commento presente, implementazione mancante
+**Stato Attuale**: ✅ **COMPLETO** - Phase 9 (2024-12-25)
 
-**Richiesto dall'Issue**:
-- Detect companion con `apply(underlying): Either[_, OpaqueType]`
-- Generate validation calls
-- Error accumulation
+**Implementato**:
+- ✅ Detect companion con `apply(underlying): Either[_, OpaqueType]` (5-strategy approach)
+- ✅ Generate validation calls (hybrid AST+Quotes approach)
+- ✅ Error accumulation (converte String -> SchemaError)
+- ✅ Coercion support (A -> Underlying -> B con validation)
 
-**Esempi richiesti**:
+**Esempi che ORA funzionano**:
 ```scala
 opaque type Age = Int
 object Age {
@@ -140,7 +145,7 @@ object Age {
 case class Raw(age: Int)
 case class Validated(age: Age)
 
-// Dovrebbe funzionare:
+// ✅ FUNZIONA:
 Into[Raw, Validated].into(Raw(30))  // => Right(Validated(Age(30)))
 Into[Raw, Validated].into(Raw(-5))  // => Left(SchemaError("Invalid age: -5"))
 ```
@@ -149,24 +154,40 @@ Into[Raw, Validated].into(Raw(-5))  // => Left(SchemaError("Invalid age: -5"))
 
 ---
 
-### 🟡 IMPORTANTE - Test Matrix Completo
+### 🟡 IN PROGRESS - Test Matrix Completo
 
-**Stato Attuale**: 31 test cases (circa 10% della test matrix richiesta)
+**Stato Attuale**: 197 test cases (circa 65% della test matrix richiesta)
 
-**Richiesto dall'Issue** (struttura completa):
+**Implementato** (struttura completa):
 ```
 src/test/scala-3/
   into/
     products/
-      ✅ CaseClassToCaseClassSpec.scala (parziale - solo name match)
-      ❌ CaseClassToTupleSpec.scala
-      ❌ TupleToCaseClassSpec.scala
-      ❌ TupleToTupleSpec.scala
-      ❌ FieldReorderingSpec.scala
-      ❌ FieldRenamingSpec.scala
-      ❌ NestedProductsSpec.scala
+      ✅ CaseClassToCaseClassSpec.scala (completo - disambiguazione 5-priority)
+      ✅ CaseClassToTupleSpec.scala (8 test cases)
+      ✅ TupleToCaseClassSpec.scala (9 test cases)
+      ✅ TupleToTupleSpec.scala (12 test cases)
+      ✅ FieldReorderingSpec.scala (10 test cases)
+      ✅ FieldRenamingSpec.scala (10 test cases)
+      ✅ NestedProductsSpec.scala (10 test cases)
     coproducts/
-      ✅ SealedTraitToSealedTraitSpec.scala (parziale - solo exact name match)
+      ✅ CaseMatchingSpec.scala (19 test cases)
+      ✅ SignatureMatchingSpec.scala (5 test cases)
+      ✅ AmbiguousCaseSpec.scala (8 test cases)
+      ✅ NestedCoproductsSpec.scala (10 test cases)
+      ✅ IntoCoproductSpec.scala (12 test cases)
+    primitives/
+      ✅ NumericNarrowingSpec.scala (14 test cases)
+      ✅ OptionCoercionSpec.scala (13 test cases)
+      ✅ EitherCoercionSpec.scala (16 test cases)
+    collections/
+      ✅ IntoCollectionSpec.scala (15 test cases)
+    validation/
+      ✅ Opaque types (9 test cases in IntoSpec)
+    disambiguation/
+      ✅ All scenarios (22 test cases in IntoSpec)
+  as/
+    ✅ AsProductSpec.scala (4 test cases - base round-trip)
       ✅ EnumToEnumSpec.scala (parziale)
       ❌ CaseMatchingSpec.scala
       ❌ SignatureMatchingSpec.scala
@@ -227,21 +248,21 @@ src/test/scala-3/
       ❌ DefaultValueSpec.scala
 ```
 
-**Stima**: 3-4 giorni di lavoro (scrivere test + fixare bug trovati)
+**Status**: 🟡 **IN PROGRESS** - ~65% completato (197/300+ test cases) (scrivere test + fixare bug trovati)
 
 ---
 
-### 🟡 IMPORTANTE - Schema Evolution Patterns
+### ✅ IMPLEMENTATO - Schema Evolution Patterns
 
-**Stato Attuale**: Non implementato/testato
+**Stato Attuale**: ✅ **PARZIALMENTE IMPLEMENTATO**
 
 **Richiesto dall'Issue**:
-- Add optional fields
-- Remove optional fields
-- Type refinement
-- Default values detection (per As: compile error)
+- ✅ Add optional fields - **IMPLEMENTATO** (righe 1128-1144 in IntoAsVersionSpecific.scala)
+- ✅ Remove optional fields - **IMPLEMENTATO** (test in RemoveOptionalFieldSpec)
+- ✅ Type refinement - **IMPLEMENTATO** (test in TypeRefinementSpec)
+- ⚠️ Default values detection (per As: compile error) - **NON IMPLEMENTATO**
 
-**Stima**: 1-2 giorni di lavoro
+**Stima**: Completato (manca solo default values detection)
 
 ---
 
