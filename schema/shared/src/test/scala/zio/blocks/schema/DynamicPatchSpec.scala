@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.test._
 import zio.test.Assertion._
+import DynamicPatch._
 
 object DynamicPatchSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicPatchSpec")(
@@ -39,7 +40,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val expected = DynamicValue.Primitive(PrimitiveValue.String("hello world"))
         val patch    = DynamicPatch(
           Operation.PrimitiveDelta(
-            PrimitiveOp.StringEdit(Vector(StringOp.Insert(5, " world")))
+            PrimitiveOp.StringEditOp(Vector(StringOp.Insert(5, " world")))
           )
         )
         assert(patch(old))(isRight(equalTo(expected)))
@@ -49,7 +50,7 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val expected = DynamicValue.Primitive(PrimitiveValue.String("hello"))
         val patch    = DynamicPatch(
           Operation.PrimitiveDelta(
-            PrimitiveOp.StringEdit(Vector(StringOp.Delete(5, 6)))
+            PrimitiveOp.StringEditOp(Vector(StringOp.Delete(5, 6)))
           )
         )
         assert(patch(old))(isRight(equalTo(expected)))
@@ -192,17 +193,29 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         assert(StringOp.applyAll(old, ops))(isRight(equalTo(new1)))
       },
       test("computes sequence diff") {
-        val old = Vector(
-          DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          DynamicValue.Primitive(PrimitiveValue.Int(2))
+        val old = DynamicValue.Sequence(
+          Vector(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2))
+          )
         )
-        val new1 = Vector(
-          DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          DynamicValue.Primitive(PrimitiveValue.Int(2)),
-          DynamicValue.Primitive(PrimitiveValue.Int(3))
+        val newSeq = DynamicValue.Sequence(
+          Vector(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
         )
-        val ops = LCS.sequenceDiff(old, new1)
-        assert(SeqOp.applyAll(old, ops, PatchMode.Strict))(isRight(equalTo(new1)))
+        val ops = LCS.sequenceDiff(
+          Vector(DynamicValue.Primitive(PrimitiveValue.Int(1)), DynamicValue.Primitive(PrimitiveValue.Int(2))),
+          Vector(
+            DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
+        )
+        val patch = DynamicPatch.sequenceEdit(ops)
+        assert(patch(old))(isRight(equalTo(newSeq)))
       }
     ),
     suite("PatchMode")(

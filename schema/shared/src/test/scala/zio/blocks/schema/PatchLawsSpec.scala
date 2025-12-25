@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.test._
+import DynamicPatch._
 
 /**
  * Property-based tests for Patch & Diffing laws as specified in Issue #516.

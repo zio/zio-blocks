@@ -1,13 +1,35 @@
 package zio.blocks.schema
 
+import DynamicPatch._
+
 /**
  * LCS (Longest Common Subsequence) algorithms for computing minimal diffs.
+ *
+ * Algorithm: Prefix/Suffix matching approach
+ *   - Finds common prefix
+ *   - Finds common suffix (non-overlapping with prefix)
+ *   - Computes edit operations for the differing middle section
+ *
+ * Time Complexity: O(n + m) where n and m are the lengths of the inputs Space
+ * Complexity: O(1) extra space (not counting output)
+ *
+ * Source: This is a simplified O(n+m) approach suitable for most practical
+ * cases. For full LCS, see Wagner-Fischer algorithm with O(n*m) complexity.
  */
-object LCS {
+private[schema] object LCS {
 
   /**
-   * Compute the diff between two strings as a sequence of StringOps. Uses a
-   * simple approach: find common prefix, common suffix, then handle the middle.
+   * Compute the diff between two strings as a sequence of StringOps.
+   *
+   * Time Complexity: O(n + m) where n = oldStr.length, m = newStr.length Space
+   * Complexity: O(1) extra space
+   *
+   * @param oldStr
+   *   the original string
+   * @param newStr
+   *   the target string
+   * @return
+   *   a sequence of StringOp operations to transform oldStr to newStr
    */
   def stringDiff(oldStr: String, newStr: String): Vector[StringOp] = {
     if (oldStr == newStr) return Vector.empty

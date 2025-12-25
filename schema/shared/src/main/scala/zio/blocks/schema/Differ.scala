@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import DynamicPatch._
+
 /**
  * Differ provides smart diffing algorithms for DynamicValue. Uses heuristics to
  * choose between delta/edit vs set operations.
@@ -73,7 +75,7 @@ object Differ {
           // Edit is longer than just setting, use set
           DynamicPatch.set(DynamicValue.Primitive(newPrim))
         } else {
-          DynamicPatch(Operation.PrimitiveDelta(PrimitiveOp.StringEdit(ops)))
+          DynamicPatch(Operation.PrimitiveDelta(PrimitiveOp.StringEditOp(ops)))
         }
 
       case _ =>
