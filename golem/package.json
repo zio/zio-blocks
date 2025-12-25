@@ -1,0 +1,16 @@
+{
+  "name": "zio-golem",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "sbt quickstart/fastLinkJS",
+    "golem:scala": "npm run build && node quickstart/target/scala-3.7.4/zio-golem-quickstart-fastopt/main.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@golem-sdk/golem-js": "^3.9.0"
+  }
+}

@@ -1,0 +1,14 @@
+package cloud.golem.tooling.bridge;
+
+import java.util.List;
+
+/** Single-argument constructor signature (e.g. {@code constructor(input: string)}). */
+public final class ScalarConstructorSpec implements ConstructorSpec {
+  public final String tsType;
+  public final List<String> scalaFactoryArgs;
+
+  public ScalarConstructorSpec(String tsType, List<String> scalaFactoryArgs) {
+    this.tsType = tsType;
+    this.scalaFactoryArgs = scalaFactoryArgs;
+  }
+}

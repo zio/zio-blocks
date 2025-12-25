@@ -9,7 +9,7 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.nativeConfig
 
 object BuildHelper {
   val Scala213: String = "2.13.18"
-  val Scala3: String   = "3.3.7"
+  val Scala3: String   = "3.7.4"
 
   lazy val isRelease: Boolean = {
     val value = sys.env.contains("CI_RELEASE_MODE")
@@ -74,6 +74,10 @@ object BuildHelper {
     name                     := prjName,
     crossScalaVersions       := scalaVersions,
     ThisBuild / scalaVersion := scalaVersions.head,
+    ThisBuild / dependencyOverrides ++= Seq(
+      "org.scala-lang" %% "scala3-library"    % Scala3,
+      "org.scala-lang" %% "scala3-interfaces" % Scala3
+    ),
     ThisBuild / publishTo    := {
       val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
       if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
@@ -90,6 +94,7 @@ object BuildHelper {
         Seq(
           "-release",
           if (minor < 8) "11" else "17",
+          "-experimental",
           "-rewrite",
           "-no-indent",
           "-explain",
@@ -106,6 +111,7 @@ object BuildHelper {
           "-release",
           "11",
           "-language:existentials",
+          "-Ymacro-annotations",
           "-opt:l:method",
           "-Ywarn-unused"
         )
