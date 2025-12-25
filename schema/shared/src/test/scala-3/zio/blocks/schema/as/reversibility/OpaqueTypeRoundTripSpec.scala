@@ -23,7 +23,7 @@ object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
   def spec = suite("OpaqueTypeRoundTripSpec")(
     suite("Round Trip for Opaque Types")(
       test("should round trip String -> TestId -> String") {
-        val as = As.derived[String, TestId]
+        val as    = As.derived[String, TestId]
         val input = "alice123"
 
         val result = as.into(input).flatMap(as.from)
@@ -42,7 +42,7 @@ object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
         }
       },
       test("should fail round trip with invalid String -> TestId") {
-        val as = As.derived[String, TestId]
+        val as           = As.derived[String, TestId]
         val invalidInput = "" // Empty string should fail validation
 
         val result = as.into(invalidInput)
@@ -53,7 +53,7 @@ object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
         case class User(name: String, id: String)
         case class ValidatedUser(name: String, id: TestId)
 
-        val as = As.derived[User, ValidatedUser]
+        val as    = As.derived[User, ValidatedUser]
         val input = User("Alice", "alice123")
 
         val result = as.into(input).flatMap(as.from)
@@ -64,7 +64,7 @@ object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
         case class User(name: String, id: String)
         case class ValidatedUser(name: String, id: TestId)
 
-        val as = As.derived[User, ValidatedUser]
+        val as        = As.derived[User, ValidatedUser]
         val validated = ValidatedUser("Bob", TestId.apply("bob456").toOption.get)
 
         val result = as.from(validated).flatMap(as.into)
@@ -80,7 +80,7 @@ object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
         case class Person(name: String, age: Int, email: String)
         case class ValidatedPerson(name: String, age: TestAge, email: String)
 
-        val as = As.derived[Person, ValidatedPerson]
+        val as    = As.derived[Person, ValidatedPerson]
         val input = Person("Charlie", 30, "charlie@example.com")
 
         val result = as.into(input).flatMap(as.from)
@@ -90,4 +90,3 @@ object OpaqueTypeRoundTripSpec extends ZIOSpecDefault {
     )
   )
 }
-

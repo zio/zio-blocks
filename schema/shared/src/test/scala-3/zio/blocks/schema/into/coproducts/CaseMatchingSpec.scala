@@ -38,16 +38,16 @@ object HueTypesHue {
 // Sealed Traits with Case Classes (ADT with Payload)
 sealed trait ResultTypesResultV1
 object ResultTypesResultV1 {
-  case class Success(value: Int)    extends ResultTypesResultV1
+  case class Success(value: Int)      extends ResultTypesResultV1
   case class Failure(message: String) extends ResultTypesResultV1
-  case object Pending                extends ResultTypesResultV1
+  case object Pending                 extends ResultTypesResultV1
 }
 
 sealed trait ResultTypesResultV2
 object ResultTypesResultV2 {
-  case class Success(value: Long)    extends ResultTypesResultV2 // Int -> Long coercion
+  case class Success(value: Long)     extends ResultTypesResultV2 // Int -> Long coercion
   case class Failure(message: String) extends ResultTypesResultV2
-  case object Pending                extends ResultTypesResultV2
+  case object Pending                 extends ResultTypesResultV2
 }
 
 // Mixed ADT
@@ -67,27 +67,26 @@ object ActionTypesAction {
 
 object CaseMatchingSpec extends ZIOSpecDefault {
 
-
   def spec = suite("CaseMatchingSpec")(
     suite("Sealed Trait to Sealed Trait (Case Objects)")(
       test("should convert Color.Red to Hue.Red") {
-        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val derivation             = Into.derived[ColorTypesColor, HueTypesHue]
         val input: ColorTypesColor = ColorTypesColor.Red
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(HueTypesHue.Red: HueTypesHue))
       },
       test("should convert Color.Blue to Hue.Blue") {
-        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val derivation             = Into.derived[ColorTypesColor, HueTypesHue]
         val input: ColorTypesColor = ColorTypesColor.Blue
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(HueTypesHue.Blue: HueTypesHue))
       },
       test("should fail when converting Color.Green (not in Hue)") {
-        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val derivation             = Into.derived[ColorTypesColor, HueTypesHue]
         val input: ColorTypesColor = ColorTypesColor.Green
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         // Green is not in Hue, so should hit catch-all case
         assertTrue(result.isLeft)
@@ -164,23 +163,23 @@ object CaseMatchingSpec extends ZIOSpecDefault {
     // ),
     suite("ADT with Payload (Case Classes)")(
       test("should convert ResultV1.Success(42) to ResultV2.Success(42L) with coercion") {
-        val derivation              = Into.derived[ResultTypesResultV1, ResultTypesResultV2]
+        val derivation                 = Into.derived[ResultTypesResultV1, ResultTypesResultV2]
         val input: ResultTypesResultV1 = ResultTypesResultV1.Success(42)
-        val result                  = derivation.into(input)
+        val result                     = derivation.into(input)
 
         assertTrue(result == Right(ResultTypesResultV2.Success(42L)))
       },
       test("should convert ResultV1.Failure to ResultV2.Failure (same type)") {
-        val derivation              = Into.derived[ResultTypesResultV1, ResultTypesResultV2]
+        val derivation                 = Into.derived[ResultTypesResultV1, ResultTypesResultV2]
         val input: ResultTypesResultV1 = ResultTypesResultV1.Failure("Error message")
-        val result                  = derivation.into(input)
+        val result                     = derivation.into(input)
 
         assertTrue(result == Right(ResultTypesResultV2.Failure("Error message")))
       },
       test("should convert ResultV1.Pending to ResultV2.Pending (case object)") {
-        val derivation              = Into.derived[ResultTypesResultV1, ResultTypesResultV2]
+        val derivation                 = Into.derived[ResultTypesResultV1, ResultTypesResultV2]
         val input: ResultTypesResultV1 = ResultTypesResultV1.Pending
-        val result                  = derivation.into(input)
+        val result                     = derivation.into(input)
 
         assertTrue(result == Right(ResultTypesResultV2.Pending: ResultTypesResultV2))
       },
@@ -200,23 +199,23 @@ object CaseMatchingSpec extends ZIOSpecDefault {
     ),
     suite("Complex ADT with Multiple Payloads")(
       test("should convert Event.Created(1) to Action.Created(1L) with Int -> Long widening") {
-        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val derivation             = Into.derived[EventTypesEvent, ActionTypesAction]
         val input: EventTypesEvent = EventTypesEvent.Created(1)
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(ActionTypesAction.Created(1L)))
       },
       test("should convert Event.Deleted(\"id\") to Action.Deleted(\"id\") (identity)") {
-        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val derivation             = Into.derived[EventTypesEvent, ActionTypesAction]
         val input: EventTypesEvent = EventTypesEvent.Deleted("id123")
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(ActionTypesAction.Deleted("id123")))
       },
       test("should convert Event.Updated to Action.Updated (case object)") {
-        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val derivation             = Into.derived[EventTypesEvent, ActionTypesAction]
         val input: EventTypesEvent = EventTypesEvent.Updated
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(ActionTypesAction.Updated: ActionTypesAction))
       },
@@ -245,7 +244,7 @@ object CaseMatchingSpec extends ZIOSpecDefault {
           activeResult == Right(State.Active) &&
             inactiveResult == Right(State.Inactive)
         )
-      },
+      }
       // TODO: Temporarily commented out due to Scala 3 compiler bug with enums inside test objects
       // test("should handle enum with fewer cases in target") {
       //   // Priority has 3 cases, Status has 2 - should work for matching cases
@@ -269,4 +268,3 @@ object CaseMatchingSpec extends ZIOSpecDefault {
     )
   )
 }
-

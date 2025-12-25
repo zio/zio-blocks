@@ -24,7 +24,7 @@ object NumericNarrowingSpec extends ZIOSpecDefault {
       },
       test("should narrow Long to Int at boundary values") {
         val derivation = Into.derived[Long, Int]
-        
+
         val minResult = derivation.into(Int.MinValue.toLong)
         val maxResult = derivation.into(Int.MaxValue.toLong)
 
@@ -126,5 +126,3 @@ object NumericNarrowingSpec extends ZIOSpecDefault {
     )
   )
 }
-
-

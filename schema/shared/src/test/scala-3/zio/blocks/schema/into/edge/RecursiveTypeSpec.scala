@@ -21,11 +21,11 @@ object RecursiveTypeSpec extends ZIOSpecDefault {
           assertTrue(node.next.get.value == 2)
           assertTrue(node.next.get.next.isEmpty)
         }
-      },
+      }
       // ⚠️ CRITICAL BUG - StackOverflowError during compilation
       // The macro derivation crashes with StackOverflowError when trying to derive
       // recursive types with different names (Node -> NodeCopy).
-      // 
+      //
       // Root Cause: The macro enters infinite recursion when it encounters a recursive
       // type that needs conversion to a different recursive type. The identity case
       // (Node -> Node) works because it can short-circuit, but Node -> NodeCopy causes
@@ -89,4 +89,3 @@ object RecursiveTypeSpec extends ZIOSpecDefault {
     )
   )
 }
-

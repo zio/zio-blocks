@@ -102,7 +102,7 @@ object RemoveOptionalFieldSpec extends ZIOSpecDefault {
       //     """
       //     case class V1(name: String, age: Int) // age is NOT Option
       //     case class V2(name: String)
-      //     
+      //
       //     Into.derived[V1, V2]
       //     """
       //   }.map(assert(_)(isLeft))
@@ -125,4 +125,3 @@ object RemoveOptionalFieldSpec extends ZIOSpecDefault {
     )
   )
 }
-

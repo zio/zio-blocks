@@ -62,11 +62,11 @@ object NestedProductsSpec extends ZIOSpecDefault {
         case class PersonV2(name: String, address: AddressV2)
 
         val derivation = Into.derived[PersonV1, PersonV2]
-        val input      = PersonV1("David", AddressV1("321 Elm St", "Boston", 02101, 700000))
+        val input      = PersonV1("David", AddressV1("321 Elm St", "Boston", 2101, 700000))
         val result     = derivation.into(input)
 
         assertTrue(result.isRight)
-        assertTrue(result.map(_.address.zip) == Right(02101L))
+        assertTrue(result.map(_.address.zip) == Right(2101L))
         assertTrue(result.map(_.address.population) == Right(700000.0))
       }
     ),
@@ -141,7 +141,7 @@ object NestedProductsSpec extends ZIOSpecDefault {
           AddressV1("999 Park Ave", "Chicago"),
           ContactV1("eve@example.com", "555-1234")
         )
-        val result     = derivation.into(input)
+        val result = derivation.into(input)
 
         assertTrue(result.isRight)
         assertTrue(result.map(_.name) == Right("Eve"))
@@ -162,7 +162,7 @@ object NestedProductsSpec extends ZIOSpecDefault {
           AddressV1("111 First St", 12345),
           ContactV1("frank@example.com", 35)
         )
-        val result     = derivation.into(input)
+        val result = derivation.into(input)
 
         assertTrue(result.isRight)
         assertTrue(result.map(_.address.zip) == Right(12345L))
@@ -189,4 +189,3 @@ object NestedProductsSpec extends ZIOSpecDefault {
     )
   )
 }
-

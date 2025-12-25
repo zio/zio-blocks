@@ -77,23 +77,23 @@ object IntoCoproductSpec extends ZIOSpecDefault {
     ),
     suite("Sealed Traits (Classic)")(
       test("Should convert Color.Red to Hue.Red") {
-        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val derivation             = Into.derived[ColorTypesColor, HueTypesHue]
         val input: ColorTypesColor = ColorTypesColor.Red
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(HueTypesHue.Red: HueTypesHue))
       },
       test("Should convert Color.Blue to Hue.Blue") {
-        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val derivation             = Into.derived[ColorTypesColor, HueTypesHue]
         val input: ColorTypesColor = ColorTypesColor.Blue
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(HueTypesHue.Blue: HueTypesHue))
       },
       test("Should fail when converting Color.Green (not in Hue)") {
-        val derivation              = Into.derived[ColorTypesColor, HueTypesHue]
+        val derivation             = Into.derived[ColorTypesColor, HueTypesHue]
         val input: ColorTypesColor = ColorTypesColor.Green
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         // Green is not in Hue, so should hit catch-all case
         assertTrue(result.isLeft)
@@ -101,23 +101,23 @@ object IntoCoproductSpec extends ZIOSpecDefault {
     ),
     suite("Complex Coproducts (Recursive)")(
       test("Should convert Event.Created(1) to Action.Created(1L) with Int -> Long widening") {
-        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val derivation             = Into.derived[EventTypesEvent, ActionTypesAction]
         val input: EventTypesEvent = EventTypesEvent.Created(1)
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(ActionTypesAction.Created(1L)))
       },
       test("Should convert Event.Deleted(\"id\") to Action.Deleted(\"id\") (identity)") {
-        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val derivation             = Into.derived[EventTypesEvent, ActionTypesAction]
         val input: EventTypesEvent = EventTypesEvent.Deleted("id123")
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(ActionTypesAction.Deleted("id123")))
       },
       test("Should convert Event.Updated to Action.Updated (case object)") {
-        val derivation              = Into.derived[EventTypesEvent, ActionTypesAction]
+        val derivation             = Into.derived[EventTypesEvent, ActionTypesAction]
         val input: EventTypesEvent = EventTypesEvent.Updated
-        val result                  = derivation.into(input)
+        val result                 = derivation.into(input)
 
         assertTrue(result == Right(ActionTypesAction.Updated: ActionTypesAction))
       },
@@ -176,4 +176,3 @@ object IntoCoproductSpec extends ZIOSpecDefault {
     // )
   )
 }
-

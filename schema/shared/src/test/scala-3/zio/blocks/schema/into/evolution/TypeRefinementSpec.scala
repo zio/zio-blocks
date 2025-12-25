@@ -74,7 +74,7 @@ object TypeRefinementSpec extends ZIOSpecDefault {
 
         val derivation = Into.derived[PersonV1, PersonV2]
         val input1     = PersonV1("Alice", 30)
-        val input2     = PersonV1("", 30) // Invalid name
+        val input2     = PersonV1("", 30)     // Invalid name
         val input3     = PersonV1("Bob", 200) // Invalid age
 
         assertTrue(
@@ -131,8 +131,8 @@ object TypeRefinementSpec extends ZIOSpecDefault {
 
         val derivation = Into.derived[V1, V2]
         val input1     = V1("Alice", 30, 95)
-        val input2     = V1("", 30, 95) // Invalid name
-        val input3     = V1("Bob", 200, 95) // Invalid age
+        val input2     = V1("", 30, 95)         // Invalid name
+        val input3     = V1("Bob", 200, 95)     // Invalid age
         val input4     = V1("Charlie", 25, -10) // Invalid score
 
         assertTrue(
@@ -185,4 +185,3 @@ object TypeRefinementSpec extends ZIOSpecDefault {
     )
   )
 }
-

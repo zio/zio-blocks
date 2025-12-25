@@ -62,4 +62,3 @@ object AsProductSpec extends ZIOSpecDefault {
     )
   )
 }
-

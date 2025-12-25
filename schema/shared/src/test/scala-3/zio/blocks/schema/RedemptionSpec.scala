@@ -22,4 +22,3 @@ object RedemptionSpec extends ZIOSpecDefault {
     }
   )
 }
-

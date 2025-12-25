@@ -120,4 +120,3 @@ object FieldRenamingSpec extends ZIOSpecDefault {
     // Those scenarios are tested in disambiguation/AmbiguousCompileErrorSpec.
   )
 }
-

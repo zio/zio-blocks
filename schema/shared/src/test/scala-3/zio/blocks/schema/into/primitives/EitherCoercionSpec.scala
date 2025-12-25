@@ -27,13 +27,16 @@ object EitherCoercionSpec extends ZIOSpecDefault {
         val result     = derivation.into(input)
 
         assertTrue(result.isRight)
-        result.map(_.map(_.toDouble)).fold(
-          _ => assertTrue(false),
-          either => either.fold(
+        result
+          .map(_.map(_.toDouble))
+          .fold(
             _ => assertTrue(false),
-            double => assertTrue((double - 3.14).abs < 0.0001)
+            either =>
+              either.fold(
+                _ => assertTrue(false),
+                double => assertTrue((double - 3.14).abs < 0.0001)
+              )
           )
-        )
       }
     ),
     suite("Left -> Left (Coerced)")(
@@ -57,13 +60,16 @@ object EitherCoercionSpec extends ZIOSpecDefault {
         val result     = derivation.into(input)
 
         assertTrue(result.isRight)
-        result.map(_.left.map(_.toDouble)).fold(
-          _ => assertTrue(false),
-          either => either.fold(
-            double => assertTrue((double - 3.14).abs < 0.0001),
-            _ => assertTrue(false)
+        result
+          .map(_.left.map(_.toDouble))
+          .fold(
+            _ => assertTrue(false),
+            either =>
+              either.fold(
+                double => assertTrue((double - 3.14).abs < 0.0001),
+                _ => assertTrue(false)
+              )
           )
-        )
       }
     ),
     suite("Failure Cases")(
@@ -148,5 +154,3 @@ object EitherCoercionSpec extends ZIOSpecDefault {
     )
   )
 }
-
-

@@ -112,4 +112,3 @@ object TupleToCaseClassSpec extends ZIOSpecDefault {
     // The macro correctly fails with clear error messages when arity doesn't match.
   )
 }
-

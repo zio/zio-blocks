@@ -27,10 +27,12 @@ object OptionCoercionSpec extends ZIOSpecDefault {
         val result     = derivation.into(input)
 
         assertTrue(result.isRight)
-        result.map(_.get).fold(
-          _ => assertTrue(false),
-          double => assertTrue((double - 3.14).abs < 0.0001)
-        )
+        result
+          .map(_.get)
+          .fold(
+            _ => assertTrue(false),
+            double => assertTrue((double - 3.14).abs < 0.0001)
+          )
       }
     ),
     suite("None -> None")(
@@ -118,5 +120,3 @@ object OptionCoercionSpec extends ZIOSpecDefault {
     )
   )
 }
-
-

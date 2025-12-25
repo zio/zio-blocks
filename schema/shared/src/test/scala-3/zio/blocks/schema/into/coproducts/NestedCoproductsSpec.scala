@@ -39,25 +39,25 @@ case class Level2ProductSame(level3: Level3Enum) // Same enum
 sealed trait OuterTypesOuter
 object OuterTypesOuter {
   case class Inner(inner: InnerEnum) extends OuterTypesOuter
-  case object Empty                 extends OuterTypesOuter
+  case object Empty                  extends OuterTypesOuter
 }
 
 sealed trait OuterTypesSameOuter
 object OuterTypesSameOuter {
   case class Inner(inner: InnerEnum) extends OuterTypesSameOuter // Same enum
-  case object Empty                   extends OuterTypesSameOuter
+  case object Empty                  extends OuterTypesSameOuter
 }
 
 sealed trait Level1TypesLevel1
 object Level1TypesLevel1 {
   case class Level1Case(level2: Level2Product) extends Level1TypesLevel1
-  case object Level1Empty                       extends Level1TypesLevel1
+  case object Level1Empty                      extends Level1TypesLevel1
 }
 
 sealed trait Level1TypesSameLevel1
 object Level1TypesSameLevel1 {
   case class Level1Case(level2: Level2ProductSame) extends Level1TypesSameLevel1
-  case object Level1Empty                         extends Level1TypesSameLevel1
+  case object Level1Empty                          extends Level1TypesSameLevel1
 }
 
 object NestedCoproductsSpec extends ZIOSpecDefault {
@@ -137,9 +137,9 @@ object NestedCoproductsSpec extends ZIOSpecDefault {
 
         assertTrue(result == Right(List(InnerEnum.OptionA, InnerEnum.OptionB)))
       }
-      // Note: Collections of different coproduct types (InnerEnum -> InnerEnumV2) 
+      // Note: Collections of different coproduct types (InnerEnum -> InnerEnumV2)
       // require compatible enum case names, which is tested in CaseMatchingSpec
-    ),
+    )
     // TODO: Temporarily commented out due to Scala 3 compiler bug with sealed traits/enums inside test objects
     // suite("Nested Coproducts with Coercion")(
     //   test("should convert nested coproduct with coercion (same coproduct type)") {
@@ -161,7 +161,7 @@ object NestedCoproductsSpec extends ZIOSpecDefault {
     //     assertTrue(result.isRight)
     //     assertTrue(result.map(_.result) == Right(ResultTypes.Success(42)))
     //   }
-    //   // Note: Nested coproducts with different types (ResultTypes -> ResultTypesV2) 
+    //   // Note: Nested coproducts with different types (ResultTypes -> ResultTypesV2)
     //   // require the macro to derive recursively for coproduct fields, which may not be fully supported yet.
     //   // This is tested separately in CaseMatchingSpec for direct coproduct conversions.
     // ),
@@ -198,4 +198,3 @@ object NestedCoproductsSpec extends ZIOSpecDefault {
     // )
   )
 }
-

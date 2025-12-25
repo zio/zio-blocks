@@ -137,4 +137,3 @@ object AddOptionalFieldSpec extends ZIOSpecDefault {
     )
   )
 }
-
