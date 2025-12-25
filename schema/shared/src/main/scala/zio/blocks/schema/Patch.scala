@@ -1,5 +1,7 @@
 package zio.blocks.schema
 
+import DynamicPatch._
+
 /**
  * A Patch is a sequence of operations that can be applied to a value to produce
  * a new value. Because patches are described by reflective optics, finite
