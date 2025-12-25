@@ -45,10 +45,6 @@ object DerivedOpticsMacro {
       """
     }
 
-    // Caching Logic:
-    // We check for a field named '_opticsCache' in the enclosing object (or just use lazy val in the Trait)
-    // Since the trait defines 'lazy val optics', the macro body is executed once and result assigned to the lazy val.
-    // So we don't need manual caching logic here. We just return the anonymous class.
 
     val anon = q"""
       new {
@@ -67,11 +63,6 @@ object DerivedOpticsMacro {
       val childName = child.name.toString
       val lowerName = childName.head.toLower + childName.tail
       val accessorName = TermName(if (underscore) "_" + lowerName else lowerName)
-      
-      // Determine exact child type (handling generics is hard, simplified for standard cases)
-      // We need to construct the type: Child[A] if T is Parent[A]
-      // This is complex in Scala 2 macros without full unification. 
-      // Approximation: Use the type constructor applied to T's args if compatible.
       
       val childTpe = if (child.asClass.typeParams.nonEmpty && tpe.typeArgs.nonEmpty) {
          appliedType(child, tpe.typeArgs)

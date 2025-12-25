@@ -26,55 +26,37 @@ class MacroHelpers[T](using val q: Quotes, val t: Type[T]) {
   }
 
   private def generateImpl(
-      tpe: TypeRepr,
-      parent: Expr[Any],
+      @scala.annotation.unused tpe: TypeRepr,
+      @scala.annotation.unused parent: Expr[Any],
       refinements: List[(String, TypeRepr)],
       valDefsGenerator: Symbol => List[ValDef]
   ): Expr[Any] = {
 
-    val refinedType = refinements.foldLeft(TypeRepr.of[Object]) { case (acc, (name, t)) =>
+    val selectableType = TypeRepr.of[scala.reflect.Selectable]
+    val refinedType = refinements.foldLeft(selectableType) { case (acc, (name, t)) =>
       Refinement(acc, name, t)
     }
 
     val clsSymbol = Symbol.newClass(
       Symbol.spliceOwner,
       "OpticsImpl",
-      List(TypeRepr.of[Object]),
+      List(TypeRepr.of[Object], selectableType),
       cls => refinements.map { case (name, t) =>
-        Symbol.newVal(cls, name, t, Flags.Override, Symbol.noSymbol)
+        Symbol.newVal(cls, name, t, Flags.EmptyFlags, Symbol.noSymbol)
       },
       None 
     )
 
     val valDefs = valDefsGenerator(clsSymbol)
-    val newCls = ClassDef(clsSymbol, List(TypeTree.of[Object]), valDefs)
+    val newCls = ClassDef(clsSymbol, List(TypeTree.of[Object], TypeTree.of[scala.reflect.Selectable]), valDefs)
     val newInstance = Apply(Select(New(TypeIdent(clsSymbol)), clsSymbol.primaryConstructor), Nil)
 
-    // Caching Logic
-    val parentTerm = parent.asTerm
-    
-    val cacheField = parentTerm.tpe.classSymbol.flatMap(_.fieldMember("_opticsCache") match {
-       case s if s == Symbol.noSymbol => None 
-       case s => Some(s)
-    }).getOrElse {
-       report.errorAndAbort(s"Could not find '_opticsCache' in parent object. Ensure it extends DerivedOptics.")
-    }
-
-    val cacheSelect = Select(parentTerm, cacheField)
-
-    val block = '{
-      if (${cacheSelect.asExprOf[Any]} == null) {
-        val impl = ${Block(List(newCls), newInstance).asExpr}
-        ${Assign(cacheSelect, 'impl.asTerm).asExpr}
-      }
-      ${cacheSelect.asExprOf[Any]}
-    }
+    // Return the new instance directly
+    val instanceExpr = Block(List(newCls), newInstance).asExpr
 
     refinedType.asType match {
       case '[rt] =>
-        block.asTerm.tpe.asType match {
-          case '[r] => '{ ${block}.asInstanceOf[r & rt] }
-        }
+        '{ ${instanceExpr}.asInstanceOf[rt] }
     }
   }
 
@@ -109,9 +91,10 @@ class MacroHelpers[T](using val q: Quotes, val t: Type[T]) {
                  })
                )
              }
+          case _ => report.errorAndAbort(s"Unexpected types in lens generation")
         }
         val sym = clsSymbol.declaredField(name)
-        ValDef(sym, Some(rhs.asTerm))
+        ValDef(sym, Some(rhs.asTerm.changeOwner(sym)))
       }
     )
   }
@@ -122,10 +105,26 @@ class MacroHelpers[T](using val q: Quotes, val t: Type[T]) {
     val refinements = children.map { child =>
       val childName = child.name
       val accessorName = (if (underscore) "_" else "") + childName.head.toLower + childName.tail
-      val childTpe = if (child.isClassConstructor) tpe.memberType(child) else child.typeRef
-      val childApplied = childTpe match { case t: TypeRepr => t; case _ => TypeRepr.of[Any] }
-      val prismType = TypeRepr.of[Prism].appliedTo(List(tpe, childApplied))
-      (accessorName, prismType, child, childApplied)
+      
+      // For generic children, we need to apply wildcard type arguments
+      val childTpe: TypeRepr = {
+        val typeParams = child.typeMembers.filter(_.isTypeParam)
+        if (typeParams.isEmpty) {
+          // Non-generic: case object or non-parameterized case class
+          if (child.flags.is(Flags.Module)) {
+            child.typeRef
+          } else {
+            child.typeRef
+          }
+        } else {
+          // Generic: apply wildcards for each type parameter
+          val wildcards = typeParams.map(_ => TypeBounds.empty)
+          child.typeRef.appliedTo(wildcards.map(_ => TypeRepr.of[Any]))
+        }
+      }
+      
+      val prismType = TypeRepr.of[Prism].appliedTo(List(tpe, childTpe))
+      (accessorName, prismType, child, childTpe)
     }
 
     generateImpl(tpe, parent, refinements.map(r => (r._1, r._2)), clsSymbol =>
@@ -140,12 +139,13 @@ class MacroHelpers[T](using val q: Quotes, val t: Type[T]) {
                        else Left(OpticFailure("Not a match"))
                     }.asExprOf[Either[OpticFailure, a]]
                  },
-                 (a: a) => a.asInstanceOf[s]
+                (a: a) => Right(a.asInstanceOf[s])
                )
              }
+          case _ => report.errorAndAbort(s"Unexpected types in prism generation")
         }
         val sym = clsSymbol.declaredField(name)
-        ValDef(sym, Some(rhs.asTerm))
+        ValDef(sym, Some(rhs.asTerm.changeOwner(sym)))
       }
     )
   }
