@@ -139,7 +139,7 @@ class MacroHelpers[T](using val q: Quotes, val t: Type[T]) {
                        else Left(OpticFailure("Not a match"))
                     }.asExprOf[Either[OpticFailure, a]]
                  },
-                (a: a) => scala.util.Right(a.asInstanceOf[s])
+                (a: a) => Right(a.asInstanceOf[s])
                )
              }
           case _ => report.errorAndAbort(s"Unexpected types in prism generation")
