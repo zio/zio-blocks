@@ -1260,20 +1260,22 @@ object IntoAsVersionSpecificImpl {
 
     // 2. Entrambi Primitivi: Check Numerico Separato (Integrals vs Fractionals)
     if (aIsPrim && bIsPrim) {
-      val integrals = Set("Int", "Long", "Short", "Byte", "scala.Int", "scala.Long", "scala.Short", "scala.Byte")
+      val integrals   = Set("Int", "Long", "Short", "Byte", "scala.Int", "scala.Long", "scala.Short", "scala.Byte")
       val fractionals = Set("Double", "Float", "scala.Double", "scala.Float")
-      
+
       val aName = a.typeSymbol.name
       val bName = b.typeSymbol.name
-      
+
       // Se entrambi integrali -> Compatibili (Int->Long, Long->Int, ecc.)
       if (integrals.contains(aName) && integrals.contains(bName)) return true
       // Se entrambi frazionari -> Compatibili (Float->Double, Double->Float, ecc.)
       if (fractionals.contains(aName) && fractionals.contains(bName)) return true
       // Integral vs Fractional -> Non compatibili (per evitare ambiguità in Priority 3)
-      if ((integrals.contains(aName) && fractionals.contains(bName)) ||
-          (fractionals.contains(aName) && integrals.contains(bName))) return false
-      
+      if (
+        (integrals.contains(aName) && fractionals.contains(bName)) ||
+        (fractionals.contains(aName) && integrals.contains(bName))
+      ) return false
+
       // Boolean/Char/String stretti (solo se stesso nome)
       if (aName == bName) return true
       return false
@@ -1327,17 +1329,26 @@ object IntoAsVersionSpecificImpl {
     // 2. Entrambi Primitivi: Tutti i numerici sono compatibili
     if (aIsPrim && bIsPrim) {
       val allNumerics = Set(
-        "Int", "Long", "Double", "Float", "Short", "Byte",
-        "scala.Int", "scala.Long", "scala.Double", "scala.Float",
-        "scala.Short", "scala.Byte"
+        "Int",
+        "Long",
+        "Double",
+        "Float",
+        "Short",
+        "Byte",
+        "scala.Int",
+        "scala.Long",
+        "scala.Double",
+        "scala.Float",
+        "scala.Short",
+        "scala.Byte"
       )
-      
+
       val aName = a.typeSymbol.name
       val bName = b.typeSymbol.name
-      
+
       // Tutti i numerici sono compatibili per Priority 4 (posizione disambigua)
       if (allNumerics.contains(aName) && allNumerics.contains(bName)) return true
-      
+
       // Boolean/Char/String stretti (solo se stesso nome)
       if (aName == bName) return true
       return false
