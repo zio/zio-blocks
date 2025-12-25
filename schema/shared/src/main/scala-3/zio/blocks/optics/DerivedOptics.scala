@@ -13,4 +13,3 @@ trait DerivedOptics_[T] {
 
   transparent inline def optics: Any = ${ DerivedOpticsMacro.impl[T]('this, true) }
 }
-
