@@ -8,13 +8,13 @@ The register system is one of the key innovations in ZIO Blocks (ZIO Schema 2) t
 
 ## The Problem: Boxing/Unboxing Overheads
 
-When building generic abstractions over data types (like serialization libraries), you need to describe all possible constructions and deconstructions uniformly. The traditional approach uses tuples and boxed primitives.
+When building generic abstractions over data types (like serialization libraries), you need to describe all possible constructions and deconstructions uniformly. The traditional approach uses tuples and boxed primitives. For example assume we have a simple record data type:
 
 ```scala mdoc:compile-only
 case class Person(name: String, age: Int)
 ```
 
-When serializing/deserializing record data types like `Person`, a traditional library might represent it as tuple:
+A traditional library might represent it as tuple when serializing/deserializing:
 
 ```scala mdoc:compile-only
 trait Tuple
@@ -23,7 +23,7 @@ case class Tuple3[A, B, C](_1: A, _2: B, _3: C) extends Tuple
 // ...
 ```
 
-So serializing `Person` would involve converting it to/from `Tuple2[String, Int]`. The problem is that `Int` is a primitive type, and in order to fit it into a tuple, it must be **boxed** into `java.lang.Integer`. Why? Because tuples can only hold references to objects, not raw primitive values. They are generic containers that work uniformly for any type.
+Tuple is generic data structure that can hold values of any type. So serializing `Person` would involve converting it to/from `Tuple2[String, Int]`:
 
 ```scala mdoc:compile-only
 case class Person(name: String, age: Int)
@@ -33,7 +33,9 @@ val person = Person("john", 42)
 val tuple: (String, Int) = ("john", 42)  // Tuple2[String, Int]
 ```
 
-The memory layout looks like this:
+The problem is that `Int` is a primitive type, and in order to fit it into a tuple, it must be **boxed** into `java.lang.Integer`. Why? Because tuples can only hold references to objects, not raw primitive values. They are generic containers that work uniformly for any type.
+
+So the actual memory representation of the tuple looks like this:
 
 ```text
 Stack:                          Heap:
@@ -67,8 +69,8 @@ ZIO Blocks introduces a novel register-based design that completely eliminates t
 
 Instead of tuples, ZIO Blocks uses the `Registers` data structure, which contains:
 
-1. A byte array for storing primitives (Int, Long, Double, Float, Boolean, Byte, Char, Short)
-2. An object array for storing references to heap-allocated objects (AnyRef, which is the supertype of all reference types in Scala including String, custom classes, etc.)
+1. A **byte array** for storing primitives (Int, Long, Double, Float, Boolean, Byte, Char, Short)
+2. An **object array** for storing references to heap-allocated objects (AnyRef, which is the supertype of all reference types in Scala including String, custom classes, etc.)
 
 This classification determines where values are stored in the `Registers` data structure. All primitive types use the same `bytes` register to store raw values, and all reference types use the same `objects` register to store references:
 
@@ -80,7 +82,7 @@ class Registers {
 }
 ```
 
-The `Registers` class is a mutable data structure that serves as an intermediate buffer for **construction** and **deconstruction** operations:
+The `Registers` class is a mutable data structure that serves as an intermediate buffer for **construction** and **deconstruction** operations. So it has methods to set and get values for each primitive type and for object references:
 
 ```scala
 class Registers {
