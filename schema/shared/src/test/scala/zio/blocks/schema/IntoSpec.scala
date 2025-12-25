@@ -1,7 +1,8 @@
 package zio.blocks.schema
 
-import zio.test.*
-import zio.test.Assertion.*
+import zio.test._
+import zio.test.Assertion._
+import zio.{Chunk, NonEmptyChunk}
 
 // Define data structures
 case class PersonV1(name: String, age: Int)
