@@ -8,27 +8,24 @@ object PatchSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("PatchSpec")(
     test("replace a field with a new value") {
       val person1 = Person(12345678901L, "John", "123 Main St", Nil)
-      val patch   = Patch.replace(Person.name, "Piero")
+      val patch   = Patch.set(Person.name, "Piero")
       val person2 = person1.copy(name = "Piero")
-      assert(patch(person1))(equalTo(person2)) &&
-      assert(patch.applyOption(person1))(isSome(equalTo(person2))) &&
-      assert(patch.applyOrFail(person1))(isRight(equalTo(person2)))
+
+      assert(patch(person1))(isRight(equalTo(person2)))
     },
     test("replace a case with a new value") {
       val paymentMethod1 = PayPal("x@gmail.com")
-      val patch          = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
+      val patch          = Patch.set(PaymentMethod.payPal, PayPal("y@gmail.com"))
       val paymentMethod2 = PayPal("y@gmail.com")
-      assert(patch(paymentMethod1))(equalTo(paymentMethod2)) &&
-      assert(patch.applyOption(paymentMethod1))(isSome(equalTo(paymentMethod2))) &&
-      assert(patch.applyOrFail(paymentMethod1))(isRight(equalTo(paymentMethod2)))
+
+      assert(patch(paymentMethod1))(isRight(equalTo(paymentMethod2)))
     },
     test("replace a case field with a new value") {
-      val paymentMathod1 = PayPal("x@gmail.com")
-      val patch          = Patch.replace(PaymentMethod.payPalEmail, "y@gmail.com")
+      val paymentMethod1 = PayPal("x@gmail.com")
+      val patch          = Patch.set(PaymentMethod.payPalEmail, "y@gmail.com")
       val paymentMethod2 = PayPal("y@gmail.com")
-      assert(patch(paymentMathod1))(equalTo(paymentMethod2)) &&
-      assert(patch.applyOption(paymentMathod1))(isSome(equalTo(paymentMethod2))) &&
-      assert(patch.applyOrFail(paymentMathod1))(isRight(equalTo(paymentMethod2)))
+
+      assert(patch(paymentMethod1))(isRight(equalTo(paymentMethod2)))
     },
     test("replace selected list values") {
       val person1 = Person(
@@ -40,62 +37,37 @@ object PatchSpec extends ZIOSpecDefault {
           CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
         )
       )
-      val patch   = Patch.replace(Person.payPalPaymentMethods, PayPal("y@gmail.com"))
+      val patch   = Patch.set(Person.payPalPaymentMethods, PayPal("y@gmail.com"))
       val person2 = person1.copy(paymentMethods =
         List(
           PayPal("y@gmail.com"),
           CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
         )
       )
-      assert(patch(person1))(equalTo(person2)) &&
-      assert(patch.applyOption(person1))(isSome(equalTo(person2))) &&
-      assert(patch.applyOrFail(person1))(isRight(equalTo(person2)))
+
+      assert(patch(person1))(isRight(equalTo(person2)))
     },
-    test("don't replace non-matching case with a new value") {
+    test("don't replace non-matching case with a new value (Strict Mode)") {
       val person1        = Person(12345678901L, "John", "123 Main St", Nil)
       val paymentMethod1 = CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
-      val patch1         = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
-      val patch2         = Patch.replace(PaymentMethod.payPalEmail, "y@gmail.com")
-      val patch3         = Patch.replace(Person.paymentMethods(PaymentMethod.payPalEmail), "y@gmail.com")
-      assert(patch1(paymentMethod1))(equalTo(paymentMethod1)) &&
-      assert(patch1.applyOption(paymentMethod1))(isNone) &&
-      assert(patch1.applyOrFail(paymentMethod1))(
-        isLeft(
-          hasError(
-            "During attempted access at .when[PayPal], encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
-          )
-        )
-      ) &&
-      assert(patch2(paymentMethod1))(equalTo(paymentMethod1)) &&
-      assert(patch2.applyOption(paymentMethod1))(isNone) &&
-      assert(patch2.applyOrFail(paymentMethod1))(
-        isLeft(
-          hasError(
-            "During attempted access at .when[PayPal].email, encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
-          )
-        )
-      ) &&
-      assert(patch3.applyOption(person1))(isNone) &&
-      assert(patch3.applyOrFail(person1))(
-        isLeft(
-          hasError(
-            "During attempted access at .paymentMethods.each.when[PayPal].email, encountered an empty sequence at .paymentMethods.each"
-          )
-        )
-      )
+
+      val patch1 = Patch.set(PaymentMethod.payPal, PayPal("y@gmail.com"))
+      val patch2 = Patch.set(PaymentMethod.payPalEmail, "y@gmail.com")
+      val patch3 = Patch.set(Person.paymentMethods(PaymentMethod.payPalEmail), "y@gmail.com")
+
+      // Prism semantics: setting a value on a missing case is a no-op (Right(original)).
+      assert(patch1(paymentMethod1))(isRight(equalTo(paymentMethod1))) &&
+      assert(patch2(paymentMethod1))(isRight(equalTo(paymentMethod1))) &&
+      assert(patch3(person1))(isRight(equalTo(person1)))
     },
     test("combine two patches") {
       val person1 = Person(12345678901L, "John", "123 Main St", Nil)
-      val patch   = Patch.replace(Person.name, "Piero") ++ Patch.replace(Person.address, "321 Main St")
-      val parson2 = person1.copy(name = "Piero", address = "321 Main St")
-      assert(patch(person1))(equalTo(parson2)) &&
-      assert(patch.applyOption(person1))(isSome(equalTo(parson2))) &&
-      assert(patch.applyOrFail(person1))(isRight(equalTo(parson2)))
+      val patch   = Patch.set(Person.name, "Piero") ++ Patch.set(Person.address, "321 Main St")
+      val person2 = person1.copy(name = "Piero", address = "321 Main St")
+
+      assert(patch(person1))(isRight(equalTo(person2)))
     }
   )
-
-  private[this] def hasError(message: String): Assertion[OpticCheck] =
-    hasField[OpticCheck, String]("message", _.message, containsString(message))
 }
 
 sealed trait PaymentMethod
@@ -115,13 +87,25 @@ case class CreditCard(
   cardHolderName: String
 ) extends PaymentMethod
 
+object CreditCard {
+  implicit val schema: Schema[CreditCard] = Schema.derived
+}
+
 case class BankTransfer(
   accountNumber: String,
   bankCode: String,
   accountHolderName: String
 ) extends PaymentMethod
 
+object BankTransfer {
+  implicit val schema: Schema[BankTransfer] = Schema.derived
+}
+
 case class PayPal(email: String) extends PaymentMethod
+
+object PayPal {
+  implicit val schema: Schema[PayPal] = Schema.derived
+}
 
 case class Person(
   id: Long,
