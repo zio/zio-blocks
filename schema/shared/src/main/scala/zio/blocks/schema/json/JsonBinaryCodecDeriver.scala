@@ -656,7 +656,7 @@ class JsonBinaryCodecDeriver private[json] (
                   val allCaseLeafInfos = Array.newBuilder[CaseLeafInfo]
                   val map              = new StringToIntMap(variant.cases.length)
 
-                  def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
+                  def getInfos(variant: Reflect.Variant[F, A], spans: List[DynamicOptic.Node.Case]): Array[CaseInfo] = {
                     val cases = variant.cases
                     val len   = cases.length
                     val infos = new Array[CaseInfo](len)
@@ -664,9 +664,10 @@ class JsonBinaryCodecDeriver private[json] (
                     while (idx < len) {
                       val case_       = cases(idx)
                       val caseReflect = case_.value
+                      val span        = new DynamicOptic.Node.Case(case_.name)
                       infos(idx) = if (caseReflect.isVariant) {
-                        val discr = discriminator(caseReflect)
-                        new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
+                        val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                        new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant, span :: spans))
                       } else {
                         val infosIdx     = allCaseLeafInfos.length
                         var name: String = null
@@ -677,9 +678,8 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                         if (name eq null) name = caseNameMapper(case_.name)
                         map.put(name, infosIdx)
-                        val span = new DynamicOptic.Node.Case(case_.name)
                         discriminatorFields.set((fieldName, name) :: discriminatorFields.get)
-                        val caseLeafInfo = new CaseLeafInfo("", deriveCodec(caseReflect), span)
+                        val caseLeafInfo = new CaseLeafInfo("", deriveCodec(caseReflect), span :: spans)
                         discriminatorFields.set(discriminatorFields.get.tail)
                         allCaseLeafInfos.addOne(caseLeafInfo)
                         caseLeafInfo
@@ -690,7 +690,7 @@ class JsonBinaryCodecDeriver private[json] (
                   }
 
                   new JsonBinaryCodec[A]() {
-                    private[this] val root                   = new CaseNodeInfo(discr, getInfos(variant))
+                    private[this] val root                   = new CaseNodeInfo(discr, getInfos(variant, Nil))
                     private[this] val caseLeafInfos          = allCaseLeafInfos.result()
                     private[this] val caseMap                = map
                     private[this] val discriminatorFieldName = fieldName
@@ -706,7 +706,7 @@ class JsonBinaryCodecDeriver private[json] (
                             val codec    = caseInfo.codec.asInstanceOf[JsonBinaryCodec[A]]
                             try codec.decodeValue(in, codec.nullValue)
                             catch {
-                              case error if NonFatal(error) => in.decodeError(caseInfo.span, error)
+                              case error if NonFatal(error) => in.decodeError(caseInfo.spans, error)
                             }
                           } else in.discriminatorValueError(discriminatorFieldName)
                         } else in.requiredFieldError(discriminatorFieldName)
@@ -731,8 +731,8 @@ class JsonBinaryCodecDeriver private[json] (
                       val case_       = cases(idx)
                       val caseReflect = case_.value
                       infos(idx) = if (caseReflect.isVariant) {
-                        val discr = discriminator(caseReflect)
-                        new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
+                        val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                        new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant))
                       } else {
                         val codec = deriveCodec(caseReflect)
                         codecs.addOne(codec)
@@ -771,7 +771,7 @@ class JsonBinaryCodecDeriver private[json] (
                   val allCaseLeafInfos = Array.newBuilder[CaseLeafInfo]
                   val map              = new StringToIntMap(variant.cases.length)
 
-                  def getInfos(variant: Reflect.Variant[F, A]): Array[CaseInfo] = {
+                  def getInfos(variant: Reflect.Variant[F, A], spans: List[DynamicOptic.Node.Case]): Array[CaseInfo] = {
                     val cases = variant.cases
                     val len   = cases.length
                     val infos = new Array[CaseInfo](len)
@@ -779,9 +779,10 @@ class JsonBinaryCodecDeriver private[json] (
                     while (idx < len) {
                       val case_       = cases(idx)
                       val caseReflect = case_.value
+                      val span        = new DynamicOptic.Node.Case(case_.name)
                       infos(idx) = if (caseReflect.isVariant) {
-                        val discr = discriminator(caseReflect)
-                        new CaseNodeInfo(discr, getInfos(caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]))
+                        val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
+                        new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant, span :: spans))
                       } else {
                         val infosIdx     = allCaseLeafInfos.length
                         var name: String = null
@@ -792,8 +793,7 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                         if (name eq null) name = caseNameMapper(case_.name)
                         map.put(name, infosIdx)
-                        val span         = new DynamicOptic.Node.Case(case_.name)
-                        val caseLeafInfo = new CaseLeafInfo(name, deriveCodec(caseReflect), span)
+                        val caseLeafInfo = new CaseLeafInfo(name, deriveCodec(caseReflect), span :: spans)
                         allCaseLeafInfos.addOne(caseLeafInfo)
                         caseLeafInfo
                       }
@@ -803,7 +803,7 @@ class JsonBinaryCodecDeriver private[json] (
                   }
 
                   new JsonBinaryCodec[A]() {
-                    private[this] val root          = new CaseNodeInfo(discr, getInfos(variant))
+                    private[this] val root          = new CaseNodeInfo(discr, getInfos(variant, Nil))
                     private[this] val caseLeafInfos = allCaseLeafInfos.result()
                     private[this] val caseMap       = map
 
@@ -818,7 +818,7 @@ class JsonBinaryCodecDeriver private[json] (
                             val x        =
                               try codec.decodeValue(in, codec.nullValue)
                               catch {
-                                case error if NonFatal(error) => in.decodeError(caseInfo.span, error)
+                                case error if NonFatal(error) => in.decodeError(caseInfo.spans, error)
                               }
                             if (!in.isNextToken('}')) in.objectEndOrCommaError()
                             return x
@@ -2218,7 +2218,7 @@ private case class FieldInfo(
 
 trait CaseInfo extends Info
 
-private case class CaseLeafInfo(name: String, codec: JsonBinaryCodec[?], span: DynamicOptic.Node.Case)
+private case class CaseLeafInfo(name: String, codec: JsonBinaryCodec[?], spans: List[DynamicOptic.Node.Case])
     extends CaseInfo {
   private[this] val isNonEscapedAsciiName = isNonEscapedAscii(name)
 
