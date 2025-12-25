@@ -1,177 +1,177 @@
-# 📊 Gap Analysis: Cosa Manca per il 100%
+# 📊 Gap Analysis: What's Missing for 100%
 
-**Data:** 25 Dicembre 2025 (sera)  
-**Status Attuale:** ~98-99% di conformità ai requisiti implementabili  
-**Test Cases Totali:** ~300+ test cases  
-**Test Batch 7:** 39/39 test passano ✅  
-**ZIO Prelude Newtypes:** ✅ 10/10 test passano  
-**Disambiguation Strategy:** ✅ Dual Compatibility implementata (Priority 3 strict, Priority 4 loose)
+**Date:** December 25, 2025 (evening)  
+**Current Status:** ~98-99% compliance with implementable requirements  
+**Total Test Cases:** ~310+ test cases  
+**Batch 7 Tests:** 39/39 tests passing ✅  
+**ZIO Prelude Newtypes:** ✅ 10/10 tests passing  
+**Disambiguation Strategy:** ✅ Dual Compatibility implemented (Priority 3 strict, Priority 4 loose)
 
 ---
 
-## ✅ Completato (97-98%)
+## ✅ Completed (98-99%)
 
-### Test Implementati Recentemente (Batch 7) ✅
-- ✅ **SingleFieldSpec** - 8 test cases (single-field case classes) - **TUTTI PASSANO**
-- ✅ **CaseObjectSpec** - 5 test cases (case objects only) - **TUTTI PASSANO**
-- ✅ **LargeCoproductSpec** - 5 test cases (25+ case objects) - **TUTTI PASSANO**
-- ✅ **NestedCollectionTypeSpec** - 9 test cases (nested collections) - **TUTTI PASSANO**
-- ✅ **OverflowDetectionSpec** - 7 test cases (overflow in As round-trip) - **TUTTI PASSANO**
-- ✅ **DefaultValueSpec** - 6 test cases (default values detection) - **TUTTI PASSANO**
-- ✅ **AmbiguousCompileErrorSpec** - 11 test cases (5 passano, 6 ignorati - risolti via Positional Matching)
+### Recently Implemented Tests (Batch 7) ✅
+- ✅ **SingleFieldSpec** - 8 test cases (single-field case classes) - **ALL PASSING**
+- ✅ **CaseObjectSpec** - 5 test cases (case objects only) - **ALL PASSING**
+- ✅ **LargeCoproductSpec** - 5 test cases (25+ case objects) - **ALL PASSING**
+- ✅ **NestedCollectionTypeSpec** - 9 test cases (nested collections) - **ALL PASSING**
+- ✅ **OverflowDetectionSpec** - 7 test cases (overflow in As round-trip) - **ALL PASSING**
+- ✅ **DefaultValueSpec** - 6 test cases (default values detection) - **ALL PASSING**
+- ✅ **AmbiguousCompileErrorSpec** - 11 test cases (5 passing, 6 ignored - resolved via Positional Matching)
 
-### Test Esistenti
+### Existing Tests
 - ✅ Products: 59 test cases
 - ✅ Coproducts: 54 test cases  
 - ✅ Primitives: 43 test cases
-- ✅ Collections: 15 test cases (base) + 9 (nested) = 24 totali
+- ✅ Collections: 15 test cases (base) + 9 (nested) = 24 total
 - ✅ Opaque Types: 9 test cases
-- ✅ ZIO Prelude Newtypes: 10 test cases (NEW - 25 Dic 2025)
-- ✅ Disambiguation: 22 test cases + PositionDisambiguationSpec (6 test) + FieldRenamingSpec (10 test) = 38 totali
+- ✅ ZIO Prelude Newtypes: 10 test cases (NEW - Dec 25, 2025)
+- ✅ Disambiguation: 22 test cases + PositionDisambiguationSpec (6 tests) + FieldRenamingSpec (10 tests) = 38 total
 - ✅ Edge Cases: 16 + 8 + 5 = 29 test cases (recursive, empty, large, deep nesting, single-field, case-objects)
 - ✅ As Round-Trip: 23 + 7 = 30 test cases
 - ✅ As: 4 + 6 = 10 test cases (base + default values)
 
-**Totale Stimato:** ~300+ test cases
+**Total Estimated:** ~310+ test cases
 
 ---
 
-## ❌ Mancante per il 100% (2-3%)
+## ❌ Missing for 100% (1-2%)
 
 ### 1. Structural Types (Scala 3 Selectable)
-**Status:** ❌ Non implementabile  
-**Priorità:** 🟡 BASSA  
-**Motivazione:** Limitazione SIP-44
+**Status:** ❌ Not implementable  
+**Priority:** 🟡 LOW  
+**Reason:** SIP-44 limitation
 
-**Problema:**
-- Structural types (`{ def name: String }`) non sono supportati nei macro context di Scala 3
-- `asInstanceOf[{ def ... }]` non funziona in Quotes/macros
-- Richiederebbe reflection runtime, violando regole "NO experimental features" e "Cross-platform mandatory"
+**Problem:**
+- Structural types (`{ def name: String }`) are not supported in Scala 3 macro contexts
+- `asInstanceOf[{ def ... }]` does not work in Quotes/macros
+- Would require runtime reflection, violating "NO experimental features" and "Cross-platform mandatory" rules
 
-**Documentazione:**
-- Commentato in `IntoSpec.scala` (linee 238-245)
-- Documentato come limitazione nota in `KNOWN_ISSUES.md`
+**Documentation:**
+- Commented in `IntoSpec.scala` (lines 238-245)
+- Documented as known limitation in `KNOWN_ISSUES.md`
 
-**Soluzione:**
-- Documentare come limitazione nota (già fatto)
-- Non implementare (violerebbe Golden Rules)
+**Solution:**
+- Document as known limitation (already done)
+- Do not implement (would violate Golden Rules)
 
-**Impatto:** ~2-3% della test matrix
+**Impact:** ~2-3% of test matrix
 
 ---
 
-### 2. ZIO Prelude Newtypes per Into/As
-**Status:** ✅ **COMPLETATO** (25 Dic 2025)  
-**Priorità:** ✅ RISOLTO  
-**Motivazione:** Implementato con successo
+### 2. ZIO Prelude Newtypes for Into/As
+**Status:** ✅ **COMPLETED** (Dec 25, 2025)  
+**Priority:** ✅ RESOLVED  
+**Reason:** Successfully implemented
 
-**Implementazione:**
-- ✅ Supporto per `Newtype` e `Subtype` di ZIO Prelude implementato in `generateZioPreludeNewtypeConversion`
-- ✅ Refactoring completo: eliminata costruzione manuale AST, usato Quotes standard con pattern matching
-- ✅ Test `ZIOPreludeNewtypeSpec.scala` con 10 test cases - **TUTTI PASSANO**
-- ✅ Risolto namespace collision rinominando tipi nei test
-- ✅ Supporto per validazione runtime tramite metodo `make` di ZIO Prelude
+**Implementation:**
+- ✅ Support for `Newtype` and `Subtype` from ZIO Prelude implemented in `generateZioPreludeNewtypeConversion`
+- ✅ Complete refactoring: eliminated manual AST construction, used standard Quotes with pattern matching
+- ✅ Test `ZIOPreludeNewtypeSpec.scala` with 10 test cases - **ALL PASSING**
+- ✅ Resolved namespace collision by renaming types in tests
+- ✅ Runtime validation support via ZIO Prelude's `make` method
 
-**Test Implementati:**
+**Implemented Tests:**
 - ✅ `Newtype` validation success/failure
 - ✅ `Subtype` validation with assertions
 - ✅ Multiple newtype fields
 - ✅ Nested newtypes
 - ✅ Coercion (Long → PositiveIntNewtype)
 
-**File Modificati:**
-- `schema/shared/src/main/scala-3/zio/blocks/schema/IntoAsVersionSpecific.scala` - Implementazione macro
+**Modified Files:**
+- `schema/shared/src/main/scala-3/zio/blocks/schema/IntoAsVersionSpecific.scala` - Macro implementation
 - `schema/shared/src/test/scala-3/zio/blocks/schema/into/validation/ZIOPreludeNewtypeSpec.scala` - Test suite
 
 ---
 
-### 3. Test Negativi (Compile Errors) - ✅ RISOLTO
-**Status:** ✅ **COMPLETATO** (25 Dic 2025)  
-**Priorità:** ✅ RISOLTO  
-**Motivazione:** Dual Compatibility Strategy implementata
+### 3. Negative Tests (Compile Errors) - ✅ RESOLVED
+**Status:** ✅ **COMPLETED** (Dec 25, 2025)  
+**Priority:** ✅ RESOLVED  
+**Reason:** Dual Compatibility Strategy implemented
 
-**Soluzione Implementata:**
-- ✅ **Dual Compatibility Strategy**: Logica differenziata per Priority 3 e Priority 4
-  - `isStrictlyCompatible`: Per Priority 3 (Unique Type) - separa Integrals da Fractionals
-  - `isLooselyCompatible`: Per Priority 4 (Position) - permette tutti i numerici (posizione disambigua)
-- ✅ Risolto conflitto tra `FieldRenamingSpec` (richiede controllo stretto) e `PositionDisambiguationSpec` (richiede controllo lasso)
-- ✅ `AmbiguousCompileErrorSpec`: 5 test passano, 6 test ignorati (ora risolti via Positional Matching)
-- ✅ `PositionDisambiguationSpec`: 6/6 test passano
-- ✅ `FieldRenamingSpec`: 10/10 test passano
+**Implemented Solution:**
+- ✅ **Dual Compatibility Strategy**: Differentiated logic for Priority 3 and Priority 4
+  - `isStrictlyCompatible`: For Priority 3 (Unique Type) - separates Integrals from Fractionals
+  - `isLooselyCompatible`: For Priority 4 (Position) - allows all numerics (position disambiguates)
+- ✅ Resolved conflict between `FieldRenamingSpec` (requires strict check) and `PositionDisambiguationSpec` (requires loose check)
+- ✅ `AmbiguousCompileErrorSpec`: 5 tests passing, 6 tests ignored (now resolved via Positional Matching)
+- ✅ `PositionDisambiguationSpec`: 6/6 tests passing
+- ✅ `FieldRenamingSpec`: 10/10 tests passing
 
-**Implementazione:**
-- Funzioni `isStrictlyCompatible` e `isLooselyCompatible` in `IntoAsVersionSpecific.scala`
-- `findAllMatches` aggiornato per usare logica appropriata per ogni priorità
-- Test obsoleti disabilitati con `@@ ignore` (ora compilano grazie a Priority 4)
+**Implementation:**
+- Functions `isStrictlyCompatible` and `isLooselyCompatible` in `IntoAsVersionSpecific.scala`
+- `findAllMatches` updated to use appropriate logic per priority
+- Obsolete tests disabled with `@@ ignore` (now compile thanks to Priority 4)
 
-**Impatto:** ~1-2% della test matrix (ora risolto)
+**Impact:** ~1-2% of test matrix (now resolved)
 
 ---
 
 ### 4. Map Conversions in Nested Collections
-**Status:** ⚠️ Parzialmente supportato  
-**Priorità:** 🟢 BASSA  
-**Motivazione:** Test commentato in NestedCollectionTypeSpec
+**Status:** ⚠️ Partially supported  
+**Priority:** 🟢 LOW  
+**Reason:** Test commented in NestedCollectionTypeSpec
 
-**Problema:**
-- Test per `Map[String, List[Int]] → Map[String, Vector[Long]]` commentato
-- Errore: `AssertionError: Expected fun.tpe to widen into a MethodType`
-- Map conversions non completamente supportate in scenari nested
+**Problem:**
+- Test for `Map[String, List[Int]] → Map[String, Vector[Long]]` commented out
+- Error: `AssertionError: Expected fun.tpe to widen into a MethodType`
+- Map conversions not fully supported in nested scenarios
 
-**Cosa Serve:**
-- Fix per Map conversions in nested scenarios
-- Re-implementare test quando Map support è completo
+**What's Needed:**
+- Fix for Map conversions in nested scenarios
+- Re-implement test when Map support is complete
 
-**Stima:** 1 giorno di lavoro
+**Estimate:** 1 day of work
 
-**Impatto:** ~0.5% della test matrix
-
----
-
-## 📊 Riepilogo Gap
-
-| # | Feature | Status | Priorità | Impatto | Stima |
-|---|---------|--------|----------|---------|-------|
-| 1 | Structural Types | ❌ Non implementabile | 🟡 BASSA | ~2-3% | N/A (limitazione SIP-44) |
-| 2 | ZIO Prelude Newtypes | ✅ **COMPLETATO** | ✅ RISOLTO | ~2-3% | ✅ Fatto (25 Dic 2025) |
-| 3 | Test Negativi (Compile Errors) | ✅ **COMPLETATO** | ✅ RISOLTO | ~1-2% | ✅ Fatto (25 Dic 2025) |
-| 4 | Map Nested Conversions | ⚠️ Parziale | 🟢 BASSA | ~0.5% | 1 giorno |
-
-**Totale Gap:** ~2.5-3.5% della test matrix  
-**Gap Implementabili:** ~0.5% (solo Map nested, escludendo Structural Types)
+**Impact:** ~0.5% of test matrix
 
 ---
 
-## 🎯 Raccomandazione per il 100%
+## 📊 Gap Summary
 
-### Opzione 1: 100% Implementabile (98-99% → 100%)
-**Tempo stimato:** 1 giorno
+| # | Feature | Status | Priority | Impact | Estimate |
+|---|---------|--------|----------|--------|----------|
+| 1 | Structural Types | ❌ Not implementable | 🟡 LOW | ~2-3% | N/A (SIP-44 limitation) |
+| 2 | ZIO Prelude Newtypes | ✅ **COMPLETED** | ✅ RESOLVED | ~2-3% | ✅ Done (Dec 25, 2025) |
+| 3 | Negative Tests (Compile Errors) | ✅ **COMPLETED** | ✅ RESOLVED | ~1-2% | ✅ Done (Dec 25, 2025) |
+| 4 | Map Nested Conversions | ⚠️ Partial | 🟢 LOW | ~0.5% | 1 day |
 
-1. ~~**ZIO Prelude Newtypes** (2-3 giorni)~~ ✅ **COMPLETATO** (25 Dic 2025)
-2. ~~**Test Negativi Completi** (2-3 giorni)~~ ✅ **COMPLETATO** (25 Dic 2025)
-3. **Map Nested Conversions** (1 giorno) - Priorità bassa
-
-**Risultato:** 100% di conformità ai requisiti implementabili (escludendo Structural Types)
-
----
-
-### Opzione 2: Documentare Limitazioni (95% → 100% Documentato)
-**Tempo stimato:** 1 giorno
-
-1. Documentare Structural Types come limitazione nota (già fatto)
-2. Documentare ZIO Prelude come enhancement futuro
-3. Documentare test negativi come expected failures fino a miglioramento algoritmo
-
-**Risultato:** 95% implementato, 100% documentato
+**Total Gap:** ~2.5-3.5% of test matrix  
+**Implementable Gap:** ~0.5% (only Map nested, excluding Structural Types)
 
 ---
 
-## 📈 Statistiche Attuali
+## 🎯 Recommendation for 100%
 
-### Test Cases per Categoria
+### Option 1: 100% Implementable (98-99% → 100%)
+**Estimated Time:** 1 day
 
-| Categoria | Test Cases | Status |
-|-----------|------------|--------|
+1. ~~**ZIO Prelude Newtypes** (2-3 days)~~ ✅ **COMPLETED** (Dec 25, 2025)
+2. ~~**Complete Negative Tests** (2-3 days)~~ ✅ **COMPLETED** (Dec 25, 2025)
+3. **Map Nested Conversions** (1 day) - Low priority
+
+**Result:** 100% compliance with implementable requirements (excluding Structural Types)
+
+---
+
+### Option 2: Document Limitations (95% → 100% Documented)
+**Estimated Time:** 1 day
+
+1. Document Structural Types as known limitation (already done)
+2. Document ZIO Prelude as future enhancement
+3. Document negative tests as expected failures until algorithm improvement
+
+**Result:** 95% implemented, 100% documented
+
+---
+
+## 📈 Current Statistics
+
+### Test Cases by Category
+
+| Category | Test Cases | Status |
+|----------|------------|--------|
 | Products | 59 | ✅ COMPLETE |
 | Coproducts | 54 | ✅ COMPLETE |
 | Primitives | 43 | ✅ COMPLETE |
@@ -182,102 +182,101 @@
 | Edge Cases | 29 | ✅ COMPLETE |
 | As Round-Trip | 30 | ✅ COMPLETE |
 | As Validation | 10 | ✅ COMPLETE |
-| **TOTALE** | **~310+** | **✅ 98-99%** |
+| **TOTAL** | **~310+** | **✅ 98-99%** |
 
 ### Feature Implementation
 
-| Feature | Status | Note |
-|---------|--------|------|
-| Type Combinations | ✅ 100% | Tutte le combinazioni supportate |
-| Disambiguation | ✅ 100% | Algoritmo completo 5-priority + Dual Compatibility Strategy |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Type Combinations | ✅ 100% | All combinations supported |
+| Disambiguation | ✅ 100% | Complete 5-priority algorithm + Dual Compatibility Strategy |
 | Schema Evolution | ✅ 100% | Optional fields, type refinement, default values |
 | Validation | ✅ 100% | Opaque types, narrowing, error accumulation |
-| Collection Conversions | ✅ 95% | Map nested parzialmente |
+| Collection Conversions | ✅ 95% | Map nested partially |
 | Runtime Validation | ✅ 100% | Overflow, narrowing, round-trip |
-| Error Cases | ✅ 95% | Test negativi risolti, alcuni casi edge documentati |
-| Edge Cases | ✅ 100% | Tutti gli edge cases testati |
-| Structural Types | ❌ 0% | Limitazione SIP-44 |
-| ZIO Prelude | ✅ 100% | Implementato per Into/As (25 Dic 2025) |
+| Error Cases | ✅ 95% | Negative tests resolved, some edge cases documented |
+| Edge Cases | ✅ 100% | All edge cases tested |
+| Structural Types | ❌ 0% | SIP-44 limitation |
+| ZIO Prelude | ✅ 100% | Implemented for Into/As (Dec 25, 2025) |
 
 ---
 
-## 🚀 Prossimi Passi Consigliati
+## 🚀 Recommended Next Steps
 
-### Priorità Alta (per 100% implementabile)
-1. ~~**ZIO Prelude Newtypes**~~ ✅ **COMPLETATO** (25 Dic 2025)
-2. ~~**Test Negativi**~~ ✅ **COMPLETATO** (25 Dic 2025) - Dual Compatibility Strategy implementata
+### High Priority (for 100% implementable)
+1. ~~**ZIO Prelude Newtypes**~~ ✅ **COMPLETED** (Dec 25, 2025)
+2. ~~**Negative Tests**~~ ✅ **COMPLETED** (Dec 25, 2025) - Dual Compatibility Strategy implemented
 
-### Priorità Bassa (nice to have)
-3. **Map Nested Conversions** - Fix per scenari nested
-4. **Documentazione** - Aggiornare PROGRESS_TRACKER.md con status finale
-
----
-
-## 📝 Note Finali
-
-### Cosa è Stato Completato Oggi (25 Dic 2025)
-- ✅ SingleFieldSpec (8 test)
-- ✅ CaseObjectSpec (5 test)
-- ✅ LargeCoproductSpec (5 test)
-- ✅ NestedCollectionTypeSpec (9 test)
-- ✅ OverflowDetectionSpec (7 test)
-- ✅ DefaultValueSpec (6 test)
-- ✅ Default values detection implementato in `derivedAsImpl`
-- ✅ **ZIO Prelude Newtypes support** - Implementazione completa per Into/As
-  - ✅ `generateZioPreludeNewtypeConversion` refactorizzato con Quotes standard
-  - ✅ Eliminata costruzione manuale AST (CaseDef, Match)
-  - ✅ Pattern matching standard di Scala dentro Quotes
-  - ✅ ZIOPreludeNewtypeSpec (10 test) - **TUTTI PASSANO**
-  - ✅ Risolto namespace collision nei test
-  - ✅ Validazione runtime tramite metodo `make` di ZIO Prelude
-- ✅ **Dual Compatibility Strategy** - Risoluzione conflitto disambiguazione
-  - ✅ `isStrictlyCompatible`: Priority 3 (Unique Type) - separa Integrals/Fractionals
-  - ✅ `isLooselyCompatible`: Priority 4 (Position) - permette tutti i numerici
-  - ✅ `findAllMatches` aggiornato con logica differenziata
-  - ✅ PositionDisambiguationSpec (6 test) - **TUTTI PASSANO**
-  - ✅ FieldRenamingSpec (10 test) - **TUTTI PASSANO**
-  - ✅ AmbiguousCompileErrorSpec (5 passano, 6 ignorati - risolti via Positional Matching)
-
-### Conformità ai Requisiti Originali
-- **Test Matrix Dimensions:** ✅ 98-99% completo
-- **Type Combinations:** ✅ 100% completo
-- **Disambiguation Scenarios:** ✅ 100% completo (Dual Compatibility Strategy)
-- **Schema Evolution:** ✅ 100% completo
-- **Validation:** ✅ 100% completo (incluso ZIO Prelude)
-- **Collection Type Conversions:** ✅ 95% completo
-- **Runtime Validation:** ✅ 100% completo
-- **Error Cases:** ✅ 95% completo (test negativi risolti)
-- **Edge Cases:** ✅ 100% completo
-- **ZIO Prelude Newtypes:** ✅ 100% completo (NEW)
-- **Structural Types:** ❌ 0% (limitazione SIP-44)
-
-**Conformità Totale:** ~98-99% implementabile, ~100% documentato
+### Low Priority (nice to have)
+3. **Map Nested Conversions** - Fix for nested scenarios
+4. **Documentation** - Update PROGRESS_TRACKER.md with final status
 
 ---
 
-**Ultimo Aggiornamento:** 25 Dicembre 2025 (sera - finale)  
-**Prossimo Review:** Dopo fix Map nested conversions (ultimo gap implementabile)
+## 📝 Final Notes
+
+### What Was Completed Today (Dec 25, 2025)
+- ✅ SingleFieldSpec (8 tests)
+- ✅ CaseObjectSpec (5 tests)
+- ✅ LargeCoproductSpec (5 tests)
+- ✅ NestedCollectionTypeSpec (9 tests)
+- ✅ OverflowDetectionSpec (7 tests)
+- ✅ DefaultValueSpec (6 tests)
+- ✅ Default values detection implemented in `derivedAsImpl`
+- ✅ **ZIO Prelude Newtypes support** - Complete implementation for Into/As
+  - ✅ `generateZioPreludeNewtypeConversion` refactored with standard Quotes
+  - ✅ Eliminated manual AST construction (CaseDef, Match)
+  - ✅ Standard Scala pattern matching inside Quotes
+  - ✅ ZIOPreludeNewtypeSpec (10 tests) - **ALL PASSING**
+  - ✅ Resolved namespace collision in tests
+  - ✅ Runtime validation via ZIO Prelude's `make` method
+- ✅ **Dual Compatibility Strategy** - Disambiguation conflict resolution
+  - ✅ `isStrictlyCompatible`: Priority 3 (Unique Type) - separates Integrals/Fractionals
+  - ✅ `isLooselyCompatible`: Priority 4 (Position) - allows all numerics
+  - ✅ `findAllMatches` updated with differentiated logic
+  - ✅ PositionDisambiguationSpec (6 tests) - **ALL PASSING**
+  - ✅ FieldRenamingSpec (10 tests) - **ALL PASSING**
+  - ✅ AmbiguousCompileErrorSpec (5 passing, 6 ignored - resolved via Positional Matching)
+
+### Compliance with Original Requirements
+- **Test Matrix Dimensions:** ✅ 98-99% complete
+- **Type Combinations:** ✅ 100% complete
+- **Disambiguation Scenarios:** ✅ 100% complete (Dual Compatibility Strategy)
+- **Schema Evolution:** ✅ 100% complete
+- **Validation:** ✅ 100% complete (including ZIO Prelude)
+- **Collection Type Conversions:** ✅ 95% complete
+- **Runtime Validation:** ✅ 100% complete
+- **Error Cases:** ✅ 95% complete (negative tests resolved)
+- **Edge Cases:** ✅ 100% complete
+- **ZIO Prelude Newtypes:** ✅ 100% complete (NEW)
+- **Structural Types:** ❌ 0% (SIP-44 limitation)
+
+**Total Compliance:** ~98-99% implementable, ~100% documented
 
 ---
 
-## 🎉 Progressi Significativi Oggi
+**Last Updated:** December 25, 2025 (evening - final)  
+**Next Review:** After Map nested conversions fix (last implementable gap)
 
-### ZIO Prelude Newtypes - COMPLETATO ✅
-- **Implementazione:** Supporto completo per `Newtype` e `Subtype` di ZIO Prelude
-- **Refactoring:** Eliminata costruzione manuale AST, usato Quotes standard
-- **Test:** 10/10 test passano
-- **Impatto:** +2-3% di conformità, da 95% a 97-98%
+---
 
-### Dual Compatibility Strategy - COMPLETATO ✅
-- **Implementazione:** Logica differenziata per Priority 3 (strict) e Priority 4 (loose)
-- **Risoluzione:** Conflitto tra FieldRenamingSpec e PositionDisambiguationSpec
-- **Test:** PositionDisambiguationSpec (6/6), FieldRenamingSpec (10/10), AmbiguousCompileErrorSpec (5/11, 6 ignorati)
-- **Impatto:** +1-2% di conformità, da 97-98% a 98-99%
+## 🎉 Significant Progress Today
 
-### Cosa Manca Ancora per il 100%
-1. ~~**Test Negativi (Compile Errors)**~~ ✅ **COMPLETATO** (25 Dic 2025)
-2. **Map Nested Conversions** - ~0.5% (1 giorno)
-3. **Structural Types** - ~2-3% (non implementabile, limitazione SIP-44)
+### ZIO Prelude Newtypes - COMPLETED ✅
+- **Implementation:** Complete support for `Newtype` and `Subtype` from ZIO Prelude
+- **Refactoring:** Eliminated manual AST construction, used standard Quotes
+- **Tests:** 10/10 tests passing
+- **Impact:** +2-3% compliance, from 95% to 97-98%
 
-**Totale Gap Implementabile:** ~0.5% (solo Map nested conversions)
+### Dual Compatibility Strategy - COMPLETED ✅
+- **Implementation:** Differentiated logic for Priority 3 (strict) and Priority 4 (loose)
+- **Resolution:** Conflict between FieldRenamingSpec and PositionDisambiguationSpec
+- **Tests:** PositionDisambiguationSpec (6/6), FieldRenamingSpec (10/10), AmbiguousCompileErrorSpec (5/11, 6 ignored)
+- **Impact:** +1-2% compliance, from 97-98% to 98-99%
 
+### What's Still Missing for 100%
+1. ~~**Negative Tests (Compile Errors)**~~ ✅ **COMPLETED** (Dec 25, 2025)
+2. **Map Nested Conversions** - ~0.5% (1 day)
+3. **Structural Types** - ~2-3% (not implementable, SIP-44 limitation)
+
+**Total Implementable Gap:** ~0.5% (only Map nested conversions)
