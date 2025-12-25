@@ -1,6 +1,5 @@
 package zio.blocks.schema.as.compile_errors
 
-import zio.blocks.schema._
 import zio.test._
 
 /**
@@ -26,15 +25,16 @@ object DefaultValueSpec extends ZIOSpecDefault {
           
           As.derived[ProductA, ProductB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
+          // Error should mention the types and the problem
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("default value") ||
-              result.swap.getOrElse("").contains("taxable") ||
-              result.swap.getOrElse("").contains("no matching field")
+            error.contains("Cannot derive As") || error.contains("no matching field"),
+            // Should mention the missing/default field
+            error.contains("taxable") || error.contains("Boolean")
           )
-        )
+        }
       },
       test("fails when target has multiple fields with default values") {
         typeCheck {
@@ -46,14 +46,15 @@ object DefaultValueSpec extends ZIOSpecDefault {
           
           As.derived[SettingsA, SettingsB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("default") ||
-              result.swap.getOrElse("").contains("no matching field")
+            error.contains("Cannot derive") || error.contains("no matching field"),
+            // Should mention at least one of the missing fields
+            error.contains("port") || error.contains("ssl") || error.contains("Int") || error.contains("Boolean")
           )
-        )
+        }
       }
     ),
     suite("Source Has Default Values")(
@@ -67,15 +68,15 @@ object DefaultValueSpec extends ZIOSpecDefault {
           
           As.derived[ConfigA, ConfigB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("default") ||
-              result.swap.getOrElse("").contains("debug") ||
-              result.swap.getOrElse("").contains("no matching field")
+            error.contains("Cannot derive") || error.contains("default values") || error.contains("round-trip"),
+            // Should mention the problematic field
+            error.contains("debug") || error.contains("Boolean") || error.contains("Default values break")
           )
-        )
+        }
       },
       test("fails when source has multiple fields with default values not in target") {
         typeCheck {
@@ -87,14 +88,13 @@ object DefaultValueSpec extends ZIOSpecDefault {
           
           As.derived[ConnectionA, ConnectionB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("default") ||
-              result.swap.getOrElse("").contains("no matching field")
+            error.contains("Cannot derive") || error.contains("default values") || error.contains("round-trip")
           )
-        )
+        }
       }
     ),
     suite("Both Have Default Values")(
@@ -108,14 +108,13 @@ object DefaultValueSpec extends ZIOSpecDefault {
           
           As.derived[EntryA, EntryB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("default") ||
-              result.swap.getOrElse("").contains("no matching field")
+            error.contains("Cannot derive") || error.contains("default") || error.contains("no matching field")
           )
-        )
+        }
       },
       test("fails when matching fields both have default values") {
         // Even when fields match by name, defaults break round-trip guarantee
@@ -128,13 +127,14 @@ object DefaultValueSpec extends ZIOSpecDefault {
           
           As.derived[CounterA, CounterB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("default values")
+            // Error should explain that default values break round-trip
+            error.contains("Cannot derive") || error.contains("default values") || error.contains("round-trip")
           )
-        )
+        }
       }
     ),
     suite("Nested Types with Default Values")(
@@ -151,14 +151,13 @@ object DefaultValueSpec extends ZIOSpecDefault {
           implicit val addressAs: As[AddressA, AddressB] = As.derived[AddressA, AddressB]
           As.derived[PersonA, PersonB]
           """
-        }.map(result =>
+        }.map { result =>
+          val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            result.swap.getOrElse("").contains("Cannot derive") ||
-              result.swap.getOrElse("").contains("default") ||
-              result.swap.getOrElse("").contains("no matching field")
+            error.contains("Cannot derive") || error.contains("default") || error.contains("no matching field")
           )
-        )
+        }
       }
     ),
     suite("Valid Cases Without Default Value Issues")(

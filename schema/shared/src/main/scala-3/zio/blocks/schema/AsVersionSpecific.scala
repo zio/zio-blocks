@@ -139,11 +139,21 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
   ): Unit = {
     val fieldsWithDefaults = info.fields.filter(_.hasDefault)
     if (fieldsWithDefaults.nonEmpty) {
+      val defaultFieldsStr = fieldsWithDefaults.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
       fail(
-        s"Cannot derive As[${aTpe.show}, ${bTpe.show}]: $direction type has fields with default values: " +
-          s"${fieldsWithDefaults.map(_.name).mkString(", ")}. " +
-          s"Default values break round-trip guarantee as we cannot distinguish between " +
-          s"explicitly set default values and omitted values in reverse direction."
+        s"""Cannot derive As[${aTpe.show}, ${bTpe.show}]: Default values break round-trip guarantee
+           |
+           |$direction type has fields with default values: $defaultFieldsStr
+           |
+           |Default values break the round-trip guarantee because:
+           |  - When converting A → B, we cannot distinguish between explicitly set default values
+           |    and fields that were omitted
+           |  - When converting B → A, we don't know if a value was originally a default or explicit
+           |
+           |Consider:
+           |  - Removing default values from the type definition
+           |  - Using Into[A, B] instead (one-way conversion allows defaults)
+           |  - Making fields Option types instead of using defaults""".stripMargin
       )
     }
   }
@@ -249,10 +259,28 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
                   isImplicitIntoAvailable(targetField.tpe, sourceField.tpe)
 
                 if (!canConvert || !canConvertBack) {
+                  val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
+                  val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
+                  val direction = if (!canConvert) "A → B" else "B → A"
                   fail(
-                    s"Cannot derive As[${aTpe.show}, ${bTpe.show}]: field '$name' has types that are not bidirectionally convertible. " +
-                      s"Source: ${sourceField.tpe.show}, Target: ${targetField.tpe.show}. " +
-                      s"Both directions must be convertible."
+                    s"""Cannot derive As[${aTpe.show}, ${bTpe.show}]: Field not bidirectionally convertible
+                       |
+                       |  ${aTpe.typeSymbol.name}($sourceFieldsStr)
+                       |  ${bTpe.typeSymbol.name}($targetFieldsStr)
+                       |
+                       |Field '$name' cannot be converted in both directions:
+                       |  Source: ${sourceField.tpe.show}
+                       |  Target: ${targetField.tpe.show}
+                       |  Missing: $direction conversion
+                       |
+                       |As[A, B] requires:
+                       |  - Into[A, B] for A → B conversion
+                       |  - Into[B, A] for B → A conversion (round-trip)
+                       |
+                       |Consider:
+                       |  - Using matching types on both sides
+                       |  - Providing implicit As[${sourceField.tpe.show}, ${targetField.tpe.show}]
+                       |  - Using Into[A, B] instead if one-way conversion is sufficient""".stripMargin
                   )
                 }
               }
