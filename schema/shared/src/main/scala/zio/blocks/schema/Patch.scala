@@ -55,7 +55,7 @@ final case class Patch[S](
     dynamicPatch match {
       case Some(dp) =>
         val dv = source.toDynamicValue(afterTyped)
-        dp.apply(dv, PatchMode.Lenient) match {
+        dp.apply(dv, DynamicPatch.PatchMode.Lenient) match {
           case Right(newDv) => source.fromDynamicValue(newDv).getOrElse(afterTyped)
           case Left(_)      => afterTyped
         }
@@ -93,7 +93,7 @@ final case class Patch[S](
     dynamicPatch match {
       case Some(dp) =>
         val dv = source.toDynamicValue(x)
-        dp.apply(dv, PatchMode.Strict) match {
+        dp.apply(dv, DynamicPatch.PatchMode.Strict) match {
           case Right(newDv) => source.fromDynamicValue(newDv).toOption
           case Left(_)      => None
         }
@@ -134,7 +134,7 @@ final case class Patch[S](
    * Apply this patch with explicit control over the patch mode.
    * Returns Left(SchemaError) on failure, Right(result) on success.
    */
-  def applyWithMode(s: S, mode: PatchMode): Either[SchemaError, S] = {
+  def applyWithMode(s: S, mode: DynamicPatch.PatchMode): Either[SchemaError, S] = {
     // First apply typed ops
     var x   = s
     val len = ops.length

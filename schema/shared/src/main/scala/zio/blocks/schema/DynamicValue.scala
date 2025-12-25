@@ -206,18 +206,18 @@ object DynamicValue {
           diffInternal(optic.caseOf(oldCase), oldInner, newInner)
         } else {
           // Different case - replace entirely
-          DynamicPatch.single(DynamicPatchOp(optic, Operation.Set(newValue)))
+          DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.Set(newValue)))
         }
 
       case (Sequence(oldElems), Sequence(newElems)) =>
-        DynamicPatch.single(DynamicPatchOp(optic, Operation.SequenceEdit(SeqOp.diff(oldElems, newElems))))
+        DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.SequenceEdit(DynamicPatch.SeqOp.diff(oldElems, newElems))))
 
       case (Map(oldEntries), Map(newEntries)) =>
-        DynamicPatch.single(DynamicPatchOp(optic, Operation.MapEdit(MapOp.diff(oldEntries, newEntries))))
+        DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.MapEdit(DynamicPatch.MapOp.diff(oldEntries, newEntries))))
 
       // Different structural types - replace entirely
       case _ =>
-        DynamicPatch.single(DynamicPatchOp(optic, Operation.Set(newValue)))
+        DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.Set(newValue)))
     }
   }
 
@@ -226,48 +226,48 @@ object DynamicValue {
       // Numeric deltas
       case (PrimitiveValue.Int(old), PrimitiveValue.Int(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(n - old))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(n - old))))
 
       case (PrimitiveValue.Long(old), PrimitiveValue.Long(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.LongDelta(n - old))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(n - old))))
 
       case (PrimitiveValue.Double(old), PrimitiveValue.Double(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(n - old))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(n - old))))
 
       case (PrimitiveValue.Float(old), PrimitiveValue.Float(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.FloatDelta(n - old))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(n - old))))
 
       case (PrimitiveValue.Short(old), PrimitiveValue.Short(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.ShortDelta((n - old).toShort))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta((n - old).toShort))))
 
       case (PrimitiveValue.Byte(old), PrimitiveValue.Byte(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.ByteDelta((n - old).toByte))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta((n - old).toByte))))
 
       case (PrimitiveValue.BigInt(old), PrimitiveValue.BigInt(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.BigIntDelta(n - old))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(n - old))))
 
       case (PrimitiveValue.BigDecimal(old), PrimitiveValue.BigDecimal(n)) =>
         if (old == n) DynamicPatch.empty
-        else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.BigDecimalDelta(n - old))))
+        else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(n - old))))
 
       // String diff
       case (PrimitiveValue.String(old), PrimitiveValue.String(n)) =>
         if (old == n) DynamicPatch.empty
         else {
-          val ops = StringOp.diff(old, n)
+          val ops = DynamicPatch.StringOp.diff(old, n)
           if (ops.isEmpty) DynamicPatch.empty
-          else DynamicPatch.single(DynamicPatchOp(optic, Operation.PrimitiveDelta(PrimitiveOp.StringEdit(ops))))
+          else DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.StringEdit(ops))))
         }
 
       // Different primitive types or non-diffable - replace
       case _ =>
-        DynamicPatch.single(DynamicPatchOp(optic, Operation.Set(Primitive(newPrim))))
+        DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.Set(Primitive(newPrim))))
     }
   }
 
@@ -276,7 +276,7 @@ object DynamicValue {
     oldFields: Vector[(String, DynamicValue)],
     newFields: Vector[(String, DynamicValue)]
   ): DynamicPatch = {
-    var ops = Vector.empty[DynamicPatchOp]
+    var ops = Vector.empty[DynamicPatch.Op]
     val oldMap = oldFields.toMap
     val newMap = newFields.toMap
     val allKeys = (oldMap.keySet ++ newMap.keySet).toVector
@@ -288,7 +288,7 @@ object DynamicValue {
           val fieldPatch = diffInternal(fieldOptic, oldVal, newVal)
           ops = ops ++ fieldPatch.ops
         case (None, Some(newVal)) =>
-          ops = ops :+ DynamicPatchOp(fieldOptic, Operation.Set(newVal))
+          ops = ops :+ DynamicPatch.Op(fieldOptic, DynamicPatch.Operation.Set(newVal))
         case (Some(_), None) =>
           // Field removed - this is structural, use Set with empty record marker
           // Note: In practice, record fields don't "disappear" in typed schemas

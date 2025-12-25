@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.test._
 import zio.test.Assertion._
+import DynamicPatch._
 
 object DynamicPatchSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("DynamicPatchSpec")(
@@ -15,14 +16,14 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val oldValue = DynamicValue.Primitive(PrimitiveValue.Int(42))
         val newValue = DynamicValue.Primitive(PrimitiveValue.Int(100))
         val patch = DynamicPatch.set(newValue)
-        assert(patch.apply(oldValue, PatchMode.Strict))(isRight(equalTo(newValue)))
+        assert(patch.apply(oldValue, DynamicPatch.PatchMode.Strict))(isRight(equalTo(newValue)))
       },
       test("patches compose via ++") {
         val patch1 = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root.field("a"), Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1))))
+          DynamicPatch.Op(DynamicOptic.root.field("a"), DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1))))
         )
         val patch2 = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root.field("b"), Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(2))))
+          DynamicPatch.Op(DynamicOptic.root.field("b"), DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(2))))
         )
         val combined = patch1 ++ patch2
         assertTrue(combined.ops.length == 2)
@@ -32,27 +33,27 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("IntDelta adds to int") {
         val value = DynamicValue.Primitive(PrimitiveValue.Int(10))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5)))
+          DynamicPatch.Op(DynamicOptic.root, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(15))))
         )
       },
       test("LongDelta adds to long") {
         val value = DynamicValue.Primitive(PrimitiveValue.Long(100L))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root, Operation.PrimitiveDelta(PrimitiveOp.LongDelta(-50L)))
+          DynamicPatch.Op(DynamicOptic.root, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(-50L)))
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.Long(50L))))
         )
       },
       test("DoubleDelta adds to double") {
         val value = DynamicValue.Primitive(PrimitiveValue.Double(3.14))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root, Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(0.86)))
+          DynamicPatch.Op(DynamicOptic.root, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(0.86)))
         )
-        val result = patch.apply(value, PatchMode.Strict)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Strict)
         assertTrue(result.isRight && {
           val DynamicValue.Primitive(PrimitiveValue.Double(d)) = result.toOption.get: @unchecked
           math.abs(d - 4.0) < 0.001
@@ -61,13 +62,13 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("StringEdit applies insert/delete operations") {
         val value = DynamicValue.Primitive(PrimitiveValue.String("hello"))
         val ops = Vector(
-          StringOp.Delete(0, 5),      // Delete "hello"
-          StringOp.Insert(0, "world") // Insert "world"
+          DynamicPatch.StringOp.Delete(0, 5),      // Delete "hello"
+          DynamicPatch.StringOp.Insert(0, "world") // Insert "world"
         )
         val patch = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root, Operation.PrimitiveDelta(PrimitiveOp.StringEdit(ops)))
+          DynamicPatch.Op(DynamicOptic.root, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.StringEdit(ops)))
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.String("world"))))
         )
       }
@@ -79,12 +80,12 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root.field("name"),
-            Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Bob")))
+            DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("Bob")))
           )
         )
-        val result = patch.apply(value, PatchMode.Strict)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Strict)
         assert(result)(isRight(equalTo(
           DynamicValue.Record(Vector(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
@@ -97,12 +98,12 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root.field("missing"),
-            Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1)))
           )
         )
-        val result = patch.apply(value, PatchMode.Strict)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Strict)
         assertTrue(result.isLeft)
       },
       test("lenient mode ignores missing field") {
@@ -110,12 +111,12 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root.field("missing"),
-            Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1)))
+            DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1)))
           )
         )
-        val result = patch.apply(value, PatchMode.Lenient)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Lenient)
         assert(result)(isRight(equalTo(value)))
       },
       test("clobber mode adds missing field") {
@@ -123,12 +124,12 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root.field("age"),
-            Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(25)))
+            DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(25)))
           )
         )
-        val result = patch.apply(value, PatchMode.Clobber)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Clobber)
         assertTrue(result.isRight && {
           val DynamicValue.Record(fields) = result.toOption.get: @unchecked
           fields.length == 2 && fields.exists(_._1 == "age")
@@ -141,24 +142,24 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.Int(42))
         )
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root.caseOf("Some"),
-            Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100)))
+            DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100)))
           )
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Variant("Some", DynamicValue.Primitive(PrimitiveValue.Int(100)))))
         )
       },
       test("strict mode fails on wrong case") {
         val value = DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root.caseOf("Some"),
-            Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100)))
+            DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(100)))
           )
         )
-        val result = patch.apply(value, PatchMode.Strict)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Strict)
         assertTrue(result.isLeft)
       }
     ),
@@ -169,12 +170,12 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.Int(3))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root,
-            Operation.SequenceEdit(Vector(SeqOp.Insert(1, Vector(DynamicValue.Primitive(PrimitiveValue.Int(2))))))
+            DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Insert(1, Vector(DynamicValue.Primitive(PrimitiveValue.Int(2))))))
           )
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Sequence(Vector(
             DynamicValue.Primitive(PrimitiveValue.Int(1)),
             DynamicValue.Primitive(PrimitiveValue.Int(2)),
@@ -189,12 +190,12 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.Int(3))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root,
-            Operation.SequenceEdit(Vector(SeqOp.Delete(1, 1)))
+            DynamicPatch.Operation.SequenceEdit(Vector(DynamicPatch.SeqOp.Delete(1, 1)))
           )
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Sequence(Vector(
             DynamicValue.Primitive(PrimitiveValue.Int(1)),
             DynamicValue.Primitive(PrimitiveValue.Int(3))
@@ -206,15 +207,15 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.Int(1))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root,
-            Operation.SequenceEdit(Vector(
-              SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(2)))),
-              SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(3))))
+            DynamicPatch.Operation.SequenceEdit(Vector(
+              DynamicPatch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(2)))),
+              DynamicPatch.SeqOp.Append(Vector(DynamicValue.Primitive(PrimitiveValue.Int(3))))
             ))
           )
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Sequence(Vector(
             DynamicValue.Primitive(PrimitiveValue.Int(1)),
             DynamicValue.Primitive(PrimitiveValue.Int(2)),
@@ -229,17 +230,17 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root,
-            Operation.MapEdit(Vector(
-              MapOp.Add(
+            DynamicPatch.Operation.MapEdit(Vector(
+              DynamicPatch.MapOp.Add(
                 DynamicValue.Primitive(PrimitiveValue.String("b")),
                 DynamicValue.Primitive(PrimitiveValue.Int(2))
               )
             ))
           )
         )
-        val result = patch.apply(value, PatchMode.Strict)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Strict)
         assertTrue(result.isRight && {
           val DynamicValue.Map(entries) = result.toOption.get: @unchecked
           entries.length == 2
@@ -251,14 +252,14 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.String("b")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
         ))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(
+          DynamicPatch.Op(
             DynamicOptic.root,
-            Operation.MapEdit(Vector(
-              MapOp.Remove(DynamicValue.Primitive(PrimitiveValue.String("a")))
+            DynamicPatch.Operation.MapEdit(Vector(
+              DynamicPatch.MapOp.Remove(DynamicValue.Primitive(PrimitiveValue.String("a")))
             ))
           )
         )
-        assert(patch.apply(value, PatchMode.Strict))(
+        assert(patch.apply(value, DynamicPatch.PatchMode.Strict))(
           isRight(equalTo(DynamicValue.Map(Vector(
             DynamicValue.Primitive(PrimitiveValue.String("b")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
           ))))
@@ -269,50 +270,50 @@ object DynamicPatchSpec extends ZIOSpecDefault {
       test("strict mode fails on type mismatch") {
         val value = DynamicValue.Primitive(PrimitiveValue.String("hello"))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5)))
+          DynamicPatch.Op(DynamicOptic.root, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
         )
-        assertTrue(patch.apply(value, PatchMode.Strict).isLeft)
+        assertTrue(patch.apply(value, DynamicPatch.PatchMode.Strict).isLeft)
       },
       test("lenient mode ignores type mismatch") {
         val value = DynamicValue.Primitive(PrimitiveValue.String("hello"))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5)))
+          DynamicPatch.Op(DynamicOptic.root, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
         )
-        assert(patch.apply(value, PatchMode.Lenient))(isRight(equalTo(value)))
+        assert(patch.apply(value, DynamicPatch.PatchMode.Lenient))(isRight(equalTo(value)))
       },
       test("clobber mode replaces on type mismatch") {
         val value = DynamicValue.Primitive(PrimitiveValue.String("hello"))
         val patch = DynamicPatch.single(
-          DynamicPatchOp(DynamicOptic.root, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(5)))
+          DynamicPatch.Op(DynamicOptic.root, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(5)))
         )
         // Clobber treats delta as set to target value - this should replace
-        val result = patch.apply(value, PatchMode.Clobber)
+        val result = patch.apply(value, DynamicPatch.PatchMode.Clobber)
         assertTrue(result.isRight)
       }
     ),
-    suite("StringOp.diff")(
+    suite("DynamicPatch.StringOp.diff")(
       test("diff identical strings produces empty ops") {
-        val ops = StringOp.diff("hello", "hello")
+        val ops = DynamicPatch.StringOp.diff("hello", "hello")
         assertTrue(ops.isEmpty)
       },
       test("diff computes insert operations") {
-        val ops = StringOp.diff("abc", "aXbc")
+        val ops = DynamicPatch.StringOp.diff("abc", "aXbc")
         assertTrue(ops.nonEmpty)
       },
       test("diff computes delete operations") {
-        val ops = StringOp.diff("hello", "hlo")
+        val ops = DynamicPatch.StringOp.diff("hello", "hlo")
         assertTrue(ops.nonEmpty)
       }
     ),
-    suite("SeqOp.diff")(
+    suite("DynamicPatch.SeqOp.diff")(
       test("diff identical sequences produces empty ops") {
         val a = Vector(
           DynamicValue.Primitive(PrimitiveValue.Int(1)),
           DynamicValue.Primitive(PrimitiveValue.Int(2))
         )
-        val ops = SeqOp.diff(a, a)
+        val ops = DynamicPatch.SeqOp.diff(a, a)
         assertTrue(ops.isEmpty || ops.forall {
-          case SeqOp.Modify(_, _) => true
+          case DynamicPatch.SeqOp.Modify(_, _) => true
           case _ => false
         })
       },
@@ -322,9 +323,9 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.Int(1)),
           DynamicValue.Primitive(PrimitiveValue.Int(2))
         )
-        val ops = SeqOp.diff(a, b)
+        val ops = DynamicPatch.SeqOp.diff(a, b)
         assertTrue(ops.exists {
-          case SeqOp.Insert(_, _) | SeqOp.Append(_) => true
+          case DynamicPatch.SeqOp.Insert(_, _) | DynamicPatch.SeqOp.Append(_) => true
           case _ => false
         })
       },
@@ -334,19 +335,19 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.Int(2))
         )
         val b = Vector(DynamicValue.Primitive(PrimitiveValue.Int(1)))
-        val ops = SeqOp.diff(a, b)
+        val ops = DynamicPatch.SeqOp.diff(a, b)
         assertTrue(ops.exists {
-          case SeqOp.Delete(_, _) => true
+          case DynamicPatch.SeqOp.Delete(_, _) => true
           case _ => false
         })
       }
     ),
-    suite("MapOp.diff")(
+    suite("DynamicPatch.MapOp.diff")(
       test("diff identical maps produces empty ops") {
         val entries = Vector(
           DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1))
         )
-        val ops = MapOp.diff(entries, entries)
+        val ops = DynamicPatch.MapOp.diff(entries, entries)
         assertTrue(ops.isEmpty)
       },
       test("diff computes add for new keys") {
@@ -357,9 +358,9 @@ object DynamicPatchSpec extends ZIOSpecDefault {
           DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
           DynamicValue.Primitive(PrimitiveValue.String("b")) -> DynamicValue.Primitive(PrimitiveValue.Int(2))
         )
-        val ops = MapOp.diff(a, b)
+        val ops = DynamicPatch.MapOp.diff(a, b)
         assertTrue(ops.exists {
-          case MapOp.Add(_, _) => true
+          case DynamicPatch.MapOp.Add(_, _) => true
           case _ => false
         })
       },
@@ -371,9 +372,9 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         val b = Vector(
           DynamicValue.Primitive(PrimitiveValue.String("a")) -> DynamicValue.Primitive(PrimitiveValue.Int(1))
         )
-        val ops = MapOp.diff(a, b)
+        val ops = DynamicPatch.MapOp.diff(a, b)
         assertTrue(ops.exists {
-          case MapOp.Remove(_) => true
+          case DynamicPatch.MapOp.Remove(_) => true
           case _ => false
         })
       }
@@ -388,9 +389,9 @@ object DynamicPatchSpec extends ZIOSpecDefault {
         assertTrue((patch ++ DynamicPatch.empty) == patch)
       },
       test("(p1 ++ p2) ++ p3 == p1 ++ (p2 ++ p3)") {
-        val p1 = DynamicPatch.single(DynamicPatchOp(DynamicOptic.root.field("a"), Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1)))))
-        val p2 = DynamicPatch.single(DynamicPatchOp(DynamicOptic.root.field("b"), Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(2)))))
-        val p3 = DynamicPatch.single(DynamicPatchOp(DynamicOptic.root.field("c"), Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(3)))))
+        val p1 = DynamicPatch.single(DynamicPatch.Op(DynamicOptic.root.field("a"), DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(1)))))
+        val p2 = DynamicPatch.single(DynamicPatch.Op(DynamicOptic.root.field("b"), DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(2)))))
+        val p3 = DynamicPatch.single(DynamicPatch.Op(DynamicOptic.root.field("c"), DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.Int(3)))))
         assertTrue(((p1 ++ p2) ++ p3) == (p1 ++ (p2 ++ p3)))
       }
     )
