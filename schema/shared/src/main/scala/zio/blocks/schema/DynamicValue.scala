@@ -279,23 +279,22 @@ object DynamicValue {
     var ops = Vector.empty[DynamicPatch.Op]
     val oldMap = oldFields.toMap
     val newMap = newFields.toMap
-    val allKeys = (oldMap.keySet ++ newMap.keySet).toVector
 
-    for (key <- allKeys) {
+    // First, handle fields in the order they appear in newFields (preserves target order)
+    for ((key, newVal) <- newFields) {
       val fieldOptic = optic.field(key)
-      (oldMap.get(key), newMap.get(key)) match {
-        case (Some(oldVal), Some(newVal)) =>
+      oldMap.get(key) match {
+        case Some(oldVal) =>
           val fieldPatch = diffInternal(fieldOptic, oldVal, newVal)
           ops = ops ++ fieldPatch.ops
-        case (None, Some(newVal)) =>
+        case None =>
           ops = ops :+ DynamicPatch.Op(fieldOptic, DynamicPatch.Operation.Set(newVal))
-        case (Some(_), None) =>
-          // Field removed - this is structural, use Set with empty record marker
-          // Note: In practice, record fields don't "disappear" in typed schemas
-          ()
-        case (None, None) =>
-          ()
       }
+    }
+
+    // Then, handle removed fields (fields in old but not in new)
+    for ((key, _) <- oldFields if !newMap.contains(key)) {
+      ops = ops :+ DynamicPatch.Op(optic, DynamicPatch.Operation.DeleteField(key))
     }
 
     DynamicPatch(ops)

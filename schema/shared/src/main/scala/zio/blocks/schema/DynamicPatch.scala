@@ -120,6 +120,14 @@ object DynamicPatch {
   def mapRemoveAt(path: DynamicOptic, key: DynamicValue): DynamicPatch =
     single(Op(path, Operation.MapEdit(Vector(MapOp.Remove(key)))))
 
+  /** Delete a field from a record at the root */
+  def deleteField(fieldName: String): DynamicPatch =
+    single(Op(DynamicOptic.root, Operation.DeleteField(fieldName)))
+
+  /** Delete a field from a record at a specific path */
+  def deleteFieldAt(path: DynamicOptic, fieldName: String): DynamicPatch =
+    single(Op(path, Operation.DeleteField(fieldName)))
+
   /**
    * A single patch operation targeting a specific location via an optic.
    */
@@ -134,6 +142,12 @@ object DynamicPatch {
         // Navigate to target and apply
         navigateAndApply(value, optic.nodes.toList, mode)
       }
+    }
+
+    /** Build optic representing the current position (visited nodes) */
+    private def currentOptic(remainingPath: List[DynamicOptic.Node]): DynamicOptic = {
+      val visitedCount = optic.nodes.length - remainingPath.length
+      new DynamicOptic(optic.nodes.take(visitedCount))
     }
 
     private def navigateAndApply(
@@ -152,7 +166,7 @@ object DynamicPatch {
               if (idx < 0) {
                 mode match {
                   case PatchMode.Strict =>
-                    Left(SchemaError.FieldNotFound(name, fields.map(_._1).toList))
+                    Left(SchemaError.FieldNotFound(currentOptic(path), name, fields.map(_._1).toList))
                   case PatchMode.Lenient =>
                     Right(value)
                   case PatchMode.Clobber =>
@@ -168,7 +182,7 @@ object DynamicPatch {
                 }
               }
             case other =>
-              Left(SchemaError.TypeMismatch("Record", other.getClass.getSimpleName))
+              Left(SchemaError.TypeMismatch(currentOptic(path), "Record", other.getClass.getSimpleName))
           }
 
         case DynamicOptic.Node.Case(name) :: rest =>
@@ -181,7 +195,7 @@ object DynamicPatch {
               } else {
                 mode match {
                   case PatchMode.Strict =>
-                    Left(SchemaError.CaseMismatch(name, caseName))
+                    Left(SchemaError.CaseMismatch(currentOptic(path), name, caseName))
                   case PatchMode.Lenient =>
                     Right(value)
                   case PatchMode.Clobber =>
@@ -191,7 +205,7 @@ object DynamicPatch {
                 }
               }
             case other =>
-              Left(SchemaError.TypeMismatch("Variant", other.getClass.getSimpleName))
+              Left(SchemaError.TypeMismatch(currentOptic(path), "Variant", other.getClass.getSimpleName))
           }
 
         case DynamicOptic.Node.AtIndex(index) :: rest =>
@@ -204,7 +218,7 @@ object DynamicPatch {
               } else {
                 mode match {
                   case PatchMode.Strict =>
-                    Left(SchemaError.IndexOutOfBounds(index, elements.length))
+                    Left(SchemaError.IndexOutOfBounds(currentOptic(path), index, elements.length))
                   case PatchMode.Lenient =>
                     Right(value)
                   case PatchMode.Clobber =>
@@ -220,7 +234,7 @@ object DynamicPatch {
                 }
               }
             case other =>
-              Left(SchemaError.TypeMismatch("Sequence", other.getClass.getSimpleName))
+              Left(SchemaError.TypeMismatch(currentOptic(path), "Sequence", other.getClass.getSimpleName))
           }
 
         case DynamicOptic.Node.AtMapKey(key) :: rest =>
@@ -235,7 +249,7 @@ object DynamicPatch {
               } else {
                 mode match {
                   case PatchMode.Strict =>
-                    Left(SchemaError.KeyNotFound(keyDv.toString))
+                    Left(SchemaError.KeyNotFound(currentOptic(path), keyDv.toString))
                   case PatchMode.Lenient =>
                     Right(value)
                   case PatchMode.Clobber =>
@@ -245,7 +259,7 @@ object DynamicPatch {
                 }
               }
             case other =>
-              Left(SchemaError.TypeMismatch("Map", other.getClass.getSimpleName))
+              Left(SchemaError.TypeMismatch(currentOptic(path), "Map", other.getClass.getSimpleName))
           }
 
         case DynamicOptic.Node.Elements :: rest =>
@@ -258,17 +272,25 @@ object DynamicPatch {
                   case Right(newElement) =>
                     result = result :+ newElement
                   case Left(err) =>
-                    mode match {
-                      case PatchMode.Strict => return Left(err)
-                      case PatchMode.Lenient => result = result :+ elements(idx)
-                      case PatchMode.Clobber => result = result :+ elements(idx)
+                    // In traversal context, case mismatches should skip the element, not fail
+                    // This is the semantic of "for each element matching the case"
+                    val isCaseMismatch = err.errors.exists(_.isInstanceOf[SchemaError.CaseMismatchError])
+                    if (isCaseMismatch) {
+                      // Skip non-matching elements in traversal (keep original)
+                      result = result :+ elements(idx)
+                    } else {
+                      mode match {
+                        case PatchMode.Strict => return Left(err)
+                        case PatchMode.Lenient => result = result :+ elements(idx)
+                        case PatchMode.Clobber => result = result :+ elements(idx)
+                      }
                     }
                 }
                 idx += 1
               }
               Right(DynamicValue.Sequence(result))
             case other =>
-              Left(SchemaError.TypeMismatch("Sequence", other.getClass.getSimpleName))
+              Left(SchemaError.TypeMismatch(currentOptic(path), "Sequence", other.getClass.getSimpleName))
           }
 
         case DynamicOptic.Node.MapValues :: rest =>
@@ -292,7 +314,7 @@ object DynamicPatch {
               }
               Right(DynamicValue.Map(result))
             case other =>
-              Left(SchemaError.TypeMismatch("Map", other.getClass.getSimpleName))
+              Left(SchemaError.TypeMismatch(currentOptic(path), "Map", other.getClass.getSimpleName))
           }
 
         case DynamicOptic.Node.Wrapped :: rest =>
@@ -364,6 +386,28 @@ object DynamicPatch {
             Right(DynamicValue.Map(current))
           case other =>
             Left(SchemaError.TypeMismatch("Map", other.getClass.getSimpleName))
+        }
+      }
+    }
+
+    /** Delete a field from a record */
+    final case class DeleteField(fieldName: String) extends Operation {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+        value match {
+          case DynamicValue.Record(fields) =>
+            val idx = fields.indexWhere(_._1 == fieldName)
+            if (idx >= 0) {
+              Right(DynamicValue.Record(fields.take(idx) ++ fields.drop(idx + 1)))
+            } else {
+              mode match {
+                case PatchMode.Strict =>
+                  Left(SchemaError.FieldNotFound(fieldName, fields.map(_._1).toList))
+                case PatchMode.Lenient | PatchMode.Clobber =>
+                  Right(value)
+              }
+            }
+          case other =>
+            Left(SchemaError.TypeMismatch("Record", other.getClass.getSimpleName))
         }
       }
     }

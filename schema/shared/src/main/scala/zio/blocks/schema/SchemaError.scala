@@ -98,22 +98,41 @@ object SchemaError {
     override def message: String = s"Key '$key' already exists at: $source"
   }
 
-  // Factory methods for patch operations (use root optic by default)
+  // Factory methods for patch operations with full optic paths
+  def FieldNotFound(optic: DynamicOptic, fieldName: String, availableFields: List[String]): SchemaError =
+    new SchemaError(new ::(FieldNotFoundError(optic, fieldName, availableFields), Nil))
+
+  def TypeMismatch(optic: DynamicOptic, expected: String, actual: String): SchemaError =
+    new SchemaError(new ::(TypeMismatchError(optic, expected, actual), Nil))
+
+  def CaseMismatch(optic: DynamicOptic, expected: String, actual: String): SchemaError =
+    new SchemaError(new ::(CaseMismatchError(optic, expected, actual), Nil))
+
+  def IndexOutOfBounds(optic: DynamicOptic, index: Int, size: Int): SchemaError =
+    new SchemaError(new ::(IndexOutOfBoundsError(optic, index, size), Nil))
+
+  def KeyNotFound(optic: DynamicOptic, key: String): SchemaError =
+    new SchemaError(new ::(KeyNotFoundError(optic, key), Nil))
+
+  def KeyAlreadyExists(optic: DynamicOptic, key: String): SchemaError =
+    new SchemaError(new ::(KeyAlreadyExistsError(optic, key), Nil))
+
+  // Convenience overloads defaulting to root optic (backward compatible)
   def FieldNotFound(fieldName: String, availableFields: List[String]): SchemaError =
-    new SchemaError(new ::(FieldNotFoundError(DynamicOptic.root, fieldName, availableFields), Nil))
+    FieldNotFound(DynamicOptic.root, fieldName, availableFields)
 
   def TypeMismatch(expected: String, actual: String): SchemaError =
-    new SchemaError(new ::(TypeMismatchError(DynamicOptic.root, expected, actual), Nil))
+    TypeMismatch(DynamicOptic.root, expected, actual)
 
   def CaseMismatch(expected: String, actual: String): SchemaError =
-    new SchemaError(new ::(CaseMismatchError(DynamicOptic.root, expected, actual), Nil))
+    CaseMismatch(DynamicOptic.root, expected, actual)
 
   def IndexOutOfBounds(index: Int, size: Int): SchemaError =
-    new SchemaError(new ::(IndexOutOfBoundsError(DynamicOptic.root, index, size), Nil))
+    IndexOutOfBounds(DynamicOptic.root, index, size)
 
   def KeyNotFound(key: String): SchemaError =
-    new SchemaError(new ::(KeyNotFoundError(DynamicOptic.root, key), Nil))
+    KeyNotFound(DynamicOptic.root, key)
 
   def KeyAlreadyExists(key: String): SchemaError =
-    new SchemaError(new ::(KeyAlreadyExistsError(DynamicOptic.root, key), Nil))
+    KeyAlreadyExists(DynamicOptic.root, key)
 }
