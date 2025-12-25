@@ -193,6 +193,43 @@ if (targetTypeName == "scala.collection.immutable.List") {
 
 ---
 
+## ✅ Map Support Implementation
+
+**Problem:** Map types (`Map[K, V]`) have two type parameters, unlike single-element collections (`List[T]`, `Vector[T]`). The existing `extractCollectionElementType` only handles single-parameter collections, so Map conversions (especially nested ones like `Map[String, List[Int]] → Map[String, Vector[Long]]`) were not supported.
+
+**Solution:** Implement dedicated Map detection and conversion logic before collection detection:
+
+**Implementation:**
+1. **Map Type Detection** (`extractMapTypes`):
+   - Detects `Map[K, V]` types by checking for `scala.collection.immutable.Map` or `scala.collection.Map` base class
+   - Extracts both key and value types separately
+   - Handles type aliases via `dealias`
+
+2. **Map Conversion** (`deriveMapInto`):
+   - Derives key conversion if keys differ (`Map[Int, String] → Map[Long, String]`)
+   - Always derives value conversion (supports nested collections recursively)
+   - Uses `sequenceEither` to accumulate conversion errors
+   - Handles lazy defs for cycle detection
+
+3. **Priority Integration**:
+   - Map detection added with Priority 0.75 (before Collections at Priority 1)
+   - Ensures Map types are detected before falling through to generic collection handling
+
+**Rationale:**
+- Map has 2 type parameters, requiring separate detection logic
+- Recursive value conversion enables nested collections (e.g., `List[Int] → Vector[Long]` inside Map values)
+- Key conversion is optional (only when keys differ), reducing overhead
+- Uses same error accumulation pattern as collections (`sequenceEither`)
+
+**Code Location:**
+- `extractMapTypes` in `IntoAsVersionSpecific.scala:575-587`
+- `deriveMapInto` in `IntoAsVersionSpecific.scala:589-702`
+- Map detection in `derivedIntoImpl` at Priority 0.75 (before Collections)
+
+**Status:** ✅ **COMPLETED** (Dec 25, 2025) - All Map conversion tests passing
+
+---
+
 ## 🐛 Known Issues
 
 ### ✅ Issue 1: Primitive Instance Resolution (RESOLVED)

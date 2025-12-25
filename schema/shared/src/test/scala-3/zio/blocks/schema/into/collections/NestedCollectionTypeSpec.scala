@@ -86,9 +86,20 @@ object NestedCollectionTypeSpec extends ZIOSpecDefault {
         val rightResult = derivation.into(rightInput)
         assertTrue(rightResult == Right(Right(List("a", "b"))))
       },
-      // NOTE: Map conversions are not yet fully supported in nested scenarios
-      // This test is skipped until Map support is complete
-      // test("should convert Map[String, List[Int]] to Map[String, Vector[Long]]") { ... },
+      test("should convert Map[String, List[Int]] to Map[String, Vector[Long]]") {
+        val derivation = Into.derived[Map[String, List[Int]], Map[String, Vector[Long]]]
+        val input      = Map("a" -> List(1, 2), "b" -> List(3, 4))
+        val result     = derivation.into(input)
+
+        assertTrue(result.isRight)
+        result.map { map =>
+          assertTrue(
+            map.size == 2 &&
+              map("a").toList == Vector(1L, 2L).toList &&
+              map("b").toList == Vector(3L, 4L).toList
+          )
+        }
+      },
       test("should handle empty nested collections") {
         val derivation = Into.derived[List[Vector[Int]], Vector[List[Long]]]
         val input      = List.empty[Vector[Int]]

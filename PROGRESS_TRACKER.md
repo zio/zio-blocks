@@ -47,8 +47,14 @@
 - [x] Container conversion (List -> Vector, Seq -> List, Set, etc.).
 - [x] Element-wise conversion with primitives (✅ RESOLVED: Hardcoded Primitives pattern).
 - [x] Recursion check with primitive fields (✅ VERIFIED: All test cases pass).
+- [x] ✅ **COMPLETED** (Dec 25, 2025): Map nested conversions support
+  - [x] `extractMapTypes` helper for Map type detection
+  - [x] `deriveMapInto` with key and value conversion support
+  - [x] Recursive value conversion (nested collections in Map values)
+  - [x] Integration in `derivedIntoImpl` with Priority 0.75
+  - [x] Test `Map[String, List[Int]] → Map[String, Vector[Long]]` passing
 
-✅ **Milestone Reached:** Collections support fully functional with primitive conversions, container conversions, and complex recursion. All 15 test cases pass.
+✅ **Milestone Reached:** Collections support fully functional with primitive conversions, container conversions, complex recursion, and Map nested conversions. All test cases pass (including Map conversions).
 
 ---
 

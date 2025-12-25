@@ -112,6 +112,27 @@ object IntoAsVersionSpecificImpl {
       return deriveOptionInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased)
     }
 
+    // PRIORITY 0.75: Maps (before Collections, since Map has 2 type parameters)
+    (extractMapTypes(using q)(aTpeDealiased), extractMapTypes(using q)(bTpeDealiased)) match {
+      case (Some((aKey, aValue)), Some((bKey, bValue))) =>
+        aKey.asType match {
+          case '[ak] =>
+            bKey.asType match {
+              case '[bk] =>
+                aValue.asType match {
+                  case '[av] =>
+                    bValue.asType match {
+                      case '[bv] =>
+                        val result =
+                          deriveMapInto[A, B](using q)(ctx, aTpeDealiased, bTpeDealiased, aKey, aValue, bKey, bValue)
+                        return result
+                    }
+                }
+            }
+        }
+      case _ => // continue
+    }
+
     // PRIORITY 1: Collections
     (extractCollectionElementType(using q)(aTpeDealiased), extractCollectionElementType(using q)(bTpeDealiased)) match {
       case (Some(aElem), Some(bElem)) =>
@@ -547,6 +568,143 @@ object IntoAsVersionSpecificImpl {
           // Cast through Any to avoid type mismatch issues
           Right(a.asInstanceOf[Any].asInstanceOf[B])
       }
+    }
+  }
+
+  // --- Maps ---
+
+  private def extractMapTypes(using
+    q: Quotes
+  )(tpe: q.reflect.TypeRepr): Option[(q.reflect.TypeRepr, q.reflect.TypeRepr)] = {
+    import q.reflect.*
+    tpe.dealias match {
+      case AppliedType(mapType, List(keyType, valueType)) =>
+        // Check if it's a Map type (immutable.Map or any Map subtype)
+        val mapSymbolFullName = mapType.typeSymbol.fullName
+        if (
+          mapSymbolFullName == "scala.collection.immutable.Map" ||
+          mapType.baseClasses.exists(_.fullName == "scala.collection.Map")
+        ) {
+          Some((keyType, valueType))
+        } else None
+      case _ => None
+    }
+  }
+
+  private def deriveMapInto[A: Type, B: Type](using
+    q: Quotes
+  )(
+    ctx: DerivationContext,
+    aTpe: q.reflect.TypeRepr,
+    bTpe: q.reflect.TypeRepr,
+    aKey: q.reflect.TypeRepr,
+    aValue: q.reflect.TypeRepr,
+    bKey: q.reflect.TypeRepr,
+    bValue: q.reflect.TypeRepr
+  ): Expr[Into[A, B]] = {
+    import q.reflect.*
+
+    // Capture lazy defs count before calling findOrDeriveInto
+    val lazyDefsBefore = ctx.lazyDefs.length
+
+    // Derive key conversion (if needed)
+    val keyIntoOpt = if (aKey =:= bKey) {
+      None // Keys are same type, no conversion needed
+    } else {
+      aKey.asType match {
+        case '[ak] =>
+          bKey.asType match {
+            case '[bk] =>
+              Some(findOrDeriveInto[ak, bk](using q)(ctx, aKey, bKey))
+          }
+      }
+    }
+
+    // Derive value conversion (supports nested collections!)
+    aValue.asType match {
+      case '[av] =>
+        bValue.asType match {
+          case '[bv] =>
+            val valueInto      = findOrDeriveInto[av, bv](using q)(ctx, aValue, bValue)
+            val valueIntoTyped = valueInto.asExprOf[Into[av, bv]]
+
+            keyIntoOpt match {
+              case Some(keyInto) =>
+                // Both key and value need conversion
+                aKey.asType match {
+                  case '[ak] =>
+                    bKey.asType match {
+                      case '[bk] =>
+                        val keyIntoTyped = keyInto.asExprOf[Into[ak, bk]]
+
+                        val resultExpr = '{
+                          new Into[A, B] {
+                            def into(a: A): Either[SchemaError, B] = {
+                              val sourceMap = a.asInstanceOf[Map[ak, av]]
+                              val builder   = Map.newBuilder[bk, bv]
+
+                              val results = sourceMap.map { case (k, v) =>
+                                for {
+                                  convertedKey   <- ${ keyIntoTyped }.into(k)
+                                  convertedValue <- ${ valueIntoTyped }.into(v)
+                                } yield (convertedKey, convertedValue)
+                              }
+
+                              IntoAsVersionSpecificImpl.sequenceEither(results.toList).map { pairs =>
+                                builder.addAll(pairs)
+                                builder.result().asInstanceOf[B]
+                              }
+                            }
+                          }
+                        }
+
+                        // Handle lazy defs if needed
+                        val lazyDefsAfter = ctx.lazyDefs.length
+                        if (lazyDefsAfter > lazyDefsBefore) {
+                          val newLazyDefs =
+                            ctx.lazyDefs.slice(lazyDefsBefore, lazyDefsAfter).map(_.asInstanceOf[ValDef]).toList
+                          ctx.lazyDefs.remove(lazyDefsBefore, lazyDefsAfter - lazyDefsBefore)
+                          Block(newLazyDefs, resultExpr.asTerm).asExprOf[Into[A, B]]
+                        } else {
+                          resultExpr
+                        }
+                    }
+                }
+              case None =>
+                // Only value needs conversion (keys are same type)
+                aKey.asType match {
+                  case '[ak] =>
+                    val resultExpr = '{
+                      new Into[A, B] {
+                        def into(a: A): Either[SchemaError, B] = {
+                          val sourceMap = a.asInstanceOf[Map[ak, av]]
+                          val builder   = Map.newBuilder[ak, bv]
+
+                          val results = sourceMap.map { case (k, v) =>
+                            ${ valueIntoTyped }.into(v).map(v => (k, v))
+                          }
+
+                          IntoAsVersionSpecificImpl.sequenceEither(results.toList).map { pairs =>
+                            builder.addAll(pairs)
+                            builder.result().asInstanceOf[B]
+                          }
+                        }
+                      }
+                    }
+
+                    // Handle lazy defs if needed
+                    val lazyDefsAfter = ctx.lazyDefs.length
+                    if (lazyDefsAfter > lazyDefsBefore) {
+                      val newLazyDefs =
+                        ctx.lazyDefs.slice(lazyDefsBefore, lazyDefsAfter).map(_.asInstanceOf[ValDef]).toList
+                      ctx.lazyDefs.remove(lazyDefsBefore, lazyDefsAfter - lazyDefsBefore)
+                      Block(newLazyDefs, resultExpr.asTerm).asExprOf[Into[A, B]]
+                    } else {
+                      resultExpr
+                    }
+                }
+            }
+        }
     }
   }
 
