@@ -1063,6 +1063,11 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       )
     }
 
+    // Check if any conversion needs an implicit Into instance
+    val needsImplicitConversions = sourceInfo.fields.zip(targetTypeArgs).exists { case (field, targetTpe) =>
+      !(field.tpe =:= targetTpe) && findImplicitInto(field.tpe, targetTpe).isDefined
+    }
+
     sourceInfo.fields.zip(targetTypeArgs).zipWithIndex.foreach { case ((field, targetTpe), idx) =>
       if (
         !(field.tpe =:= targetTpe) && !requiresOpaqueConversion(field.tpe, targetTpe) && !requiresNewtypeConversion(
@@ -1087,18 +1092,110 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-    val buildTuple = constructTupleFromCaseClass[A, B](sourceInfo)
+    if (needsImplicitConversions && targetTypeArgs.size > 22) {
+      // For large tuples with implicit conversions, we need to sequence the Either results
+      buildLargeTupleWithConversions[A, B](sourceInfo, targetTypeArgs)
+    } else {
+      val buildTuple = constructTupleFromCaseClass[A, B](sourceInfo, targetTypeArgs)
+      '{
+        new Into[A, B] {
+          def into(a: A): Either[SchemaError, B] =
+            Right(${ buildTuple('a) })
+        }
+      }
+    }
+  }
 
-    '{
-      new Into[A, B] {
-        def into(a: A): Either[SchemaError, B] =
-          Right(${ buildTuple('a) })
+  private def buildLargeTupleWithConversions[A: Type, B: Type](
+    sourceInfo: ProductInfo[A],
+    targetTypeArgs: List[TypeRepr]
+  ): Expr[Into[A, B]] = {
+    // Generate conversion expressions for each field
+    // All implicit lookups happen at compile time
+    val fieldConversionInfo: List[(FieldInfo, TypeRepr, Option[Expr[Into[?, ?]]])] =
+      sourceInfo.fields.zip(targetTypeArgs).map { case (field, targetTpe) =>
+        val implicitInto = if (field.tpe =:= targetTpe) None else findImplicitInto(field.tpe, targetTpe)
+        (field, targetTpe, implicitInto)
+      }
+
+    // Check if any field needs a failable conversion
+    val hasFailableConversion = fieldConversionInfo.exists { case (field, targetTpe, implicitInto) =>
+      !(field.tpe =:= targetTpe) && implicitInto.isDefined
+    }
+
+    if (!hasFailableConversion) {
+      // All conversions are safe (same type or widening) - use simple approach
+      val buildTuple = constructTupleFromCaseClass[A, B](sourceInfo, targetTypeArgs)
+      '{
+        new Into[A, B] {
+          def into(a: A): Either[SchemaError, B] =
+            Right(${ buildTuple('a) })
+        }
+      }
+    } else {
+      // Generate all field extractions at once, then sequence them
+      '{
+        new Into[A, B] {
+          def into(a: A): Either[SchemaError, B] = {
+            ${
+              // Generate a list of conversion expressions
+              val conversions: List[Expr[Either[SchemaError, Any]]] = fieldConversionInfo.map {
+                case (field, targetTpe, implicitIntoOpt) =>
+                  val fieldValue = sourceInfo.fieldGetter('a.asTerm, field)
+                  implicitIntoOpt match {
+                    case Some(intoInstance) =>
+                      field.tpe.asType match {
+                        case '[st] =>
+                          targetTpe.asType match {
+                            case '[tt] =>
+                              val typedInto = intoInstance.asExprOf[Into[st, tt]]
+                              '{ $typedInto.into(${ fieldValue.asExprOf[st] }).map(_.asInstanceOf[Any]) }
+                          }
+                      }
+                    case None =>
+                      // Same type or safe widening
+                      targetTpe.asType match {
+                        case '[t] =>
+                          field.tpe.asType match {
+                            case '[s] =>
+                              '{ Right(${ fieldValue.asExprOf[s] }.asInstanceOf[t].asInstanceOf[Any]) }
+                          }
+                      }
+                  }
+              }
+
+              // Now generate the sequencing code at compile time using foldRight
+              val initial: Expr[Either[SchemaError, List[Any]]] = '{ Right(Nil) }
+              val sequenced = conversions.foldRight(initial) { (convExpr, accExpr) =>
+                '{
+                  $accExpr match {
+                    case Right(list) =>
+                      $convExpr match {
+                        case Right(value) => Right(value :: list)
+                        case Left(err) => Left(err)
+                      }
+                    case Left(err) => Left(err)
+                  }
+                }
+              }
+
+              '{
+                $sequenced match {
+                  case Right(values) =>
+                    Right(scala.runtime.Tuples.fromArray(values.toArray.asInstanceOf[Array[Object]]).asInstanceOf[B])
+                  case Left(err) => Left(err)
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
 
   private def constructTupleFromCaseClass[A: Type, B: Type](
-    sourceInfo: ProductInfo[A]
+    sourceInfo: ProductInfo[A],
+    targetTypeArgs: List[TypeRepr]
   ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val args      = sourceInfo.fields.map(field => sourceInfo.fieldGetter(aExpr.asTerm, field))
     val tupleSize = args.size
@@ -1106,20 +1203,29 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       val tupleCompanion = Symbol.requiredModule(s"scala.Tuple$tupleSize")
       val applyMethod    = tupleCompanion.methodMember("apply").head
       Apply(
-        Select(Ref(tupleCompanion), applyMethod).appliedToTypes(sourceInfo.fields.map(_.tpe)),
+        Select(Ref(tupleCompanion), applyMethod).appliedToTypes(targetTypeArgs),
         args
       ).asExprOf[B]
     } else {
-      fail(
-        s"""Cannot derive Into: Tuple size limit exceeded
-           |
-           |Scala tuples are limited to 22 elements, but this conversion requires $tupleSize.
-           |
-           |Consider:
-           |  - Using a case class instead of a tuple
-           |  - Splitting into multiple smaller tuples
-           |  - Using a custom data structure""".stripMargin
-      )
+      // For tuples > 22 elements, use Tuples.fromArray with type coercion
+      // Apply type coercion for each element
+      val coercedArgs = sourceInfo.fields.zip(targetTypeArgs).map { case (field, targetTpe) =>
+        val sourceValue = sourceInfo.fieldGetter(aExpr.asTerm, field)
+        if (field.tpe =:= targetTpe) {
+          sourceValue.asExprOf[Any]
+        } else {
+          // Apply numeric widening via cast
+          targetTpe.asType match {
+            case '[t] =>
+              field.tpe.asType match {
+                case '[s] =>
+                  '{ ${ sourceValue.asExprOf[s] }.asInstanceOf[t].asInstanceOf[Any] }
+              }
+          }
+        }
+      }
+      val arrayAnyExpr = '{ Array[Any](${ Varargs(coercedArgs) }: _*) }
+      '{ scala.runtime.Tuples.fromArray($arrayAnyExpr.asInstanceOf[Array[Object]]).asInstanceOf[B] }
     }
   }
 
@@ -1173,12 +1279,108 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-    val buildCaseClass = constructCaseClassFromTuple[A, B](aTpe, targetInfo)
+    // Check if any conversion needs an implicit Into instance
+    val needsImplicitConversions = sourceTypeArgs.zip(targetInfo.fields).exists { case (sourceTpe, field) =>
+      !(sourceTpe =:= field.tpe) && findImplicitInto(sourceTpe, field.tpe).isDefined
+    }
+
+    if (needsImplicitConversions && sourceTypeArgs.size > 22) {
+      // For large tuples with implicit conversions, we need to sequence the Either results
+      buildLargeTupleToCaseClassWithConversions[A, B](sourceTypeArgs, targetInfo)
+    } else {
+      val buildCaseClass = constructCaseClassFromTuple[A, B](aTpe, targetInfo)
+      '{
+        new Into[A, B] {
+          def into(a: A): Either[SchemaError, B] =
+            Right(${ buildCaseClass('a) })
+        }
+      }
+    }
+  }
+
+  private def buildLargeTupleToCaseClassWithConversions[A: Type, B: Type](
+    sourceTypeArgs: List[TypeRepr],
+    targetInfo: ProductInfo[B]
+  ): Expr[Into[A, B]] = {
+    val productElementSym = TypeRepr.of[Product].typeSymbol.methodMember("productElement").head
+
+    // Pre-compute all implicit lookups at compile time
+    val conversionInfo: List[(TypeRepr, FieldInfo, Int, Option[Expr[Into[?, ?]]])] =
+      sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.map { case ((sourceTpe, field), idx) =>
+        val implicitInto = if (sourceTpe =:= field.tpe) None else findImplicitInto(sourceTpe, field.tpe)
+        (sourceTpe, field, idx, implicitInto)
+      }
 
     '{
       new Into[A, B] {
-        def into(a: A): Either[SchemaError, B] =
-          Right(${ buildCaseClass('a) })
+        def into(a: A): Either[SchemaError, B] = {
+          ${
+            val conversions: List[Expr[Either[SchemaError, Any]]] = conversionInfo.map {
+              case (sourceTpe, field, idx, implicitIntoOpt) =>
+                val callProductElement = Apply(
+                  Select('a.asTerm, productElementSym),
+                  List(Literal(IntConstant(idx)))
+                )
+                val targetTpe = field.tpe
+
+                implicitIntoOpt match {
+                  case Some(intoInstance) =>
+                    sourceTpe.asType match {
+                      case '[st] =>
+                        targetTpe.asType match {
+                          case '[tt] =>
+                            val typedInto = intoInstance.asExprOf[Into[st, tt]]
+                            '{ $typedInto.into(${ callProductElement.asExprOf[Any] }.asInstanceOf[st]).map(_.asInstanceOf[Any]) }
+                        }
+                    }
+                  case None if sourceTpe =:= targetTpe =>
+                    '{ Right(${ callProductElement.asExprOf[Any] }) }
+                  case None =>
+                    // Safe conversion (widening)
+                    targetTpe.asType match {
+                      case '[t] =>
+                        sourceTpe.asType match {
+                          case '[s] =>
+                            '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[s].asInstanceOf[t].asInstanceOf[Any]) }
+                        }
+                    }
+                }
+            }
+
+            // Generate sequencing code using foldRight
+            val initial: Expr[Either[SchemaError, List[Any]]] = '{ Right(Nil) }
+            val sequenced = conversions.foldRight(initial) { (convExpr, accExpr) =>
+              '{
+                $accExpr match {
+                  case Right(list) =>
+                    $convExpr match {
+                      case Right(value) => Right(value :: list)
+                      case Left(err) => Left(err)
+                    }
+                  case Left(err) => Left(err)
+                }
+              }
+            }
+
+            // Build case class construction expression at compile time
+            val constructExpr = '{
+              $sequenced match {
+                case Right(values) =>
+                  val arr = values.toArray
+                  Right(${
+                    val argExprs = targetInfo.fields.zipWithIndex.map { case (field, idx) =>
+                      field.tpe.asType match {
+                        case '[t] => '{ arr(${ Expr(idx) }).asInstanceOf[t] }.asTerm
+                      }
+                    }
+                    targetInfo.construct(argExprs).asExprOf[B]
+                  })
+                case Left(err) => Left(err)
+              }
+            }
+            constructExpr
+          }
+        }
       }
     }
   }
@@ -1188,10 +1390,62 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     targetInfo: ProductInfo[B]
   ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val sourceTypeArgs = getTupleTypeArgs(aTpe)
-    val args           = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
-      val accessorName = s"_${idx + 1}"
-      val accessor     = aTpe.typeSymbol.methodMember(accessorName).head
-      Select(aExpr.asTerm, accessor)
+    val tupleSize = sourceTypeArgs.size
+
+    val args = if (tupleSize <= 22) {
+      sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
+        val accessorName = s"_${idx + 1}"
+        val accessor     = aTpe.typeSymbol.methodMember(accessorName).head
+        Select(aExpr.asTerm, accessor)
+      }
+    } else {
+      // For tuples > 22 elements, use productElement and convert to target field types
+      val productElementSym = TypeRepr.of[Product].typeSymbol.methodMember("productElement").head
+      sourceTypeArgs.zip(targetInfo.fields).zipWithIndex.map { case ((sourceTpe, targetField), idx) =>
+        val callProductElement = Apply(
+          Select(aExpr.asTerm, productElementSym),
+          List(Literal(IntConstant(idx)))
+        )
+
+        if (sourceTpe =:= targetField.tpe) {
+          // Same type, just cast
+          TypeApply(
+            Select(callProductElement, TypeRepr.of[Any].typeSymbol.methodMember("asInstanceOf").head),
+            List(Inferred(targetField.tpe))
+          )
+        } else {
+          // Different types - need actual conversion
+          // First cast to source type, then convert to target type
+          (sourceTpe.asType, targetField.tpe.asType) match {
+            case ('[Int], '[Long]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Int].toLong }.asTerm
+            case ('[Int], '[Double]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Int].toDouble }.asTerm
+            case ('[Int], '[Float]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Int].toFloat }.asTerm
+            case ('[Short], '[Int]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Short].toInt }.asTerm
+            case ('[Short], '[Long]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Short].toLong }.asTerm
+            case ('[Byte], '[Short]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Byte].toShort }.asTerm
+            case ('[Byte], '[Int]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Byte].toInt }.asTerm
+            case ('[Byte], '[Long]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Byte].toLong }.asTerm
+            case ('[Float], '[Double]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Float].toDouble }.asTerm
+            case ('[Long], '[Double]) =>
+              '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[Long].toDouble }.asTerm
+            case _ =>
+              // Fallback: just cast (works for reference types and same types)
+              TypeApply(
+                Select(callProductElement, TypeRepr.of[Any].typeSymbol.methodMember("asInstanceOf").head),
+                List(Inferred(targetField.tpe))
+              )
+          }
+        }
+      }
     }
     targetInfo.construct(args).asExprOf[B]
   }
@@ -1245,12 +1499,97 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-    val buildTuple = constructTupleFromTuple[A, B](aTpe, bTpe)
+    // Check if any conversion needs an implicit Into instance
+    val needsImplicitConversions = sourceTypeArgs.zip(targetTypeArgs).exists { case (sourceTpe, targetTpe) =>
+      !(sourceTpe =:= targetTpe) && findImplicitInto(sourceTpe, targetTpe).isDefined
+    }
+
+    if (needsImplicitConversions && sourceTypeArgs.size > 22) {
+      // For large tuples with implicit conversions, we need to sequence the Either results
+      buildLargeTupleToTupleWithConversions[A, B](sourceTypeArgs, targetTypeArgs)
+    } else {
+      val buildTuple = constructTupleFromTuple[A, B](aTpe, bTpe)
+      '{
+        new Into[A, B] {
+          def into(a: A): Either[SchemaError, B] =
+            Right(${ buildTuple('a) })
+        }
+      }
+    }
+  }
+
+  private def buildLargeTupleToTupleWithConversions[A: Type, B: Type](
+    sourceTypeArgs: List[TypeRepr],
+    targetTypeArgs: List[TypeRepr]
+  ): Expr[Into[A, B]] = {
+    val productElementSym = TypeRepr.of[Product].typeSymbol.methodMember("productElement").head
+
+    // Pre-compute all implicit lookups at compile time
+    val conversionInfo: List[(TypeRepr, TypeRepr, Int, Option[Expr[Into[?, ?]]])] =
+      sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.map { case ((sourceTpe, targetTpe), idx) =>
+        val implicitInto = if (sourceTpe =:= targetTpe) None else findImplicitInto(sourceTpe, targetTpe)
+        (sourceTpe, targetTpe, idx, implicitInto)
+      }
 
     '{
       new Into[A, B] {
-        def into(a: A): Either[SchemaError, B] =
-          Right(${ buildTuple('a) })
+        def into(a: A): Either[SchemaError, B] = {
+          ${
+            val conversions: List[Expr[Either[SchemaError, Any]]] = conversionInfo.map {
+              case (sourceTpe, targetTpe, idx, implicitIntoOpt) =>
+                val callProductElement = Apply(
+                  Select('a.asTerm, productElementSym),
+                  List(Literal(IntConstant(idx)))
+                )
+
+                implicitIntoOpt match {
+                  case Some(intoInstance) =>
+                    sourceTpe.asType match {
+                      case '[st] =>
+                        targetTpe.asType match {
+                          case '[tt] =>
+                            val typedInto = intoInstance.asExprOf[Into[st, tt]]
+                            '{ $typedInto.into(${ callProductElement.asExprOf[Any] }.asInstanceOf[st]).map(_.asInstanceOf[Any]) }
+                        }
+                    }
+                  case None if sourceTpe =:= targetTpe =>
+                    '{ Right(${ callProductElement.asExprOf[Any] }) }
+                  case None =>
+                    // Safe conversion (widening)
+                    targetTpe.asType match {
+                      case '[t] =>
+                        sourceTpe.asType match {
+                          case '[s] =>
+                            '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[s].asInstanceOf[t].asInstanceOf[Any]) }
+                        }
+                    }
+                }
+            }
+
+            // Generate sequencing code using foldRight
+            val initial: Expr[Either[SchemaError, List[Any]]] = '{ Right(Nil) }
+            val sequenced = conversions.foldRight(initial) { (convExpr, accExpr) =>
+              '{
+                $accExpr match {
+                  case Right(list) =>
+                    $convExpr match {
+                      case Right(value) => Right(value :: list)
+                      case Left(err) => Left(err)
+                    }
+                  case Left(err) => Left(err)
+                }
+              }
+            }
+
+            '{
+              $sequenced match {
+                case Right(values) =>
+                  Right(scala.runtime.Tuples.fromArray(values.toArray.asInstanceOf[Array[Object]]).asInstanceOf[B])
+                case Left(err) => Left(err)
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -1260,32 +1599,72 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     bTpe: TypeRepr
   ): Expr[A] => Expr[B] = (aExpr: Expr[A]) => {
     val sourceTypeArgs = getTupleTypeArgs(aTpe)
-    val args           = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
-      val accessorName = s"_${idx + 1}"
-      val accessor     = aTpe.typeSymbol.methodMember(accessorName).head
-      Select(aExpr.asTerm, accessor)
-    }
+    val targetTypeArgs = getTupleTypeArgs(bTpe)
+    val tupleSize = sourceTypeArgs.size
 
-    val tupleSize = args.size
     if (tupleSize <= 22) {
+      val args = sourceTypeArgs.zipWithIndex.map { case (_, idx) =>
+        val accessorName = s"_${idx + 1}"
+        val accessor     = aTpe.typeSymbol.methodMember(accessorName).head
+        Select(aExpr.asTerm, accessor)
+      }
       val tupleCompanion = Symbol.requiredModule(s"scala.Tuple$tupleSize")
       val applyMethod    = tupleCompanion.methodMember("apply").head
-      val targetTypeArgs = getTupleTypeArgs(bTpe)
       Apply(
         Select(Ref(tupleCompanion), applyMethod).appliedToTypes(targetTypeArgs),
         args
       ).asExprOf[B]
     } else {
-      fail(
-        s"""Cannot derive Into: Tuple size limit exceeded
-           |
-           |Scala tuples are limited to 22 elements, but this conversion requires $tupleSize.
-           |
-           |Consider:
-           |  - Using case classes instead of tuples
-           |  - Splitting into multiple smaller tuples
-           |  - Using a custom data structure""".stripMargin
-      )
+      // For tuples > 22 elements with type coercion
+      // Check if any type coercion is needed
+      val needsCoercion = sourceTypeArgs.zip(targetTypeArgs).exists { case (s, t) => !(s =:= t) }
+
+      if (!needsCoercion) {
+        // No coercion needed, just copy via array
+        val tuplesModule = Symbol.requiredModule("scala.runtime.Tuples")
+        val toArrayMethod = tuplesModule.methodMember("toArray").head
+        val fromArrayMethod = tuplesModule.methodMember("fromArray").head
+
+        val toArrayCall = Apply(
+          Select(Ref(tuplesModule), toArrayMethod),
+          List(aExpr.asTerm)
+        )
+
+        val fromArrayCall = Apply(
+          Select(Ref(tuplesModule), fromArrayMethod),
+          List(toArrayCall)
+        )
+
+        TypeApply(
+          Select(fromArrayCall, TypeRepr.of[Any].typeSymbol.methodMember("asInstanceOf").head),
+          List(Inferred(bTpe))
+        ).asExprOf[B]
+      } else {
+        // Need coercion - access each element via productElement, coerce, and build new array
+        val productElementSym = TypeRepr.of[Product].typeSymbol.methodMember("productElement").head
+        val coercedArgs = sourceTypeArgs.zip(targetTypeArgs).zipWithIndex.map { case ((sourceTpe, targetTpe), idx) =>
+          val callProductElement = Apply(
+            Select(aExpr.asTerm, productElementSym),
+            List(Literal(IntConstant(idx)))
+          )
+
+          if (sourceTpe =:= targetTpe) {
+            callProductElement.asExprOf[Any]
+          } else {
+            // Apply type coercion via cast
+            targetTpe.asType match {
+              case '[t] =>
+                sourceTpe.asType match {
+                  case '[s] =>
+                    '{ ${ callProductElement.asExprOf[Any] }.asInstanceOf[s].asInstanceOf[t].asInstanceOf[Any] }
+                }
+            }
+          }
+        }
+
+        val arrayAnyExpr = '{ Array[Any](${ Varargs(coercedArgs) }: _*) }
+        '{ scala.runtime.Tuples.fromArray($arrayAnyExpr.asInstanceOf[Array[Object]]).asInstanceOf[B] }
+      }
     }
   }
 

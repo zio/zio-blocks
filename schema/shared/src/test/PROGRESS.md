@@ -241,7 +241,7 @@ Tests are written to accept both behaviors using `assertTrue(result.isRight || r
 
 ---
 
-### ✅ Phase 15: Macro Cleanup & Error Message Improvements - COMPLETE
+s ### ✅ Phase 15: Macro Cleanup & Error Message Improvements - COMPLETE
 **Status**: Fixed warnings and improved compile error tests
 
 **Macro Fixes (Scala 2)**:
@@ -258,11 +258,43 @@ Tests are written to accept both behaviors using `assertTrue(result.isRight || r
 
 ---
 
+### ✅ Phase 16: Large Tuple Support (Scala 3 Only) - COMPLETE
+**Status**: Added support for tuples with >22 elements in Scala 3, including implicit Into usage
+
+| File | Tests | Status |
+|------|-------|--------|
+| `scala-3/into/product/LargeTupleSpec.scala` | 17 | ✅ |
+
+**Macro Enhancement (Scala 3)**:
+1. **Case Class to Large Tuple**: Uses `Tuples.fromArray` with foldRight-based sequencing for implicit Into support
+2. **Large Tuple to Case Class**: Uses `productElement` with compile-time conversion sequencing  
+3. **Large Tuple to Large Tuple**: Uses `Tuples.toArray/fromArray` with proper type coercion
+
+**Key Implementation Details**:
+- For tuples ≤22 elements: Uses standard `TupleN.apply` methods
+- For tuples >22 elements: Uses `scala.runtime.Tuples.fromArray` and `scala.runtime.Tuples.toArray`
+- Implicit Into instances are properly used for field type conversions
+- Conversion failures propagate correctly through Either chaining
+- All implicit lookups happen at compile time to avoid splice context issues
+
+**Test Coverage**:
+- 25-field and 30-field case classes to large tuples
+- Large tuples to case classes
+- Large tuple to large tuple identity conversions
+- Round-trip conversions (case class → tuple → case class)
+- Type coercion (Int → Long widening)
+- Mixed types (Byte, Short, Int to Int, Long widening)
+- Implicit Into instance usage for element conversion
+- Implicit Into failure propagation
+- Edge cases: 23-field (just over limit), all zeros, negative values
+
+---
+
 ## Statistics
 
-- **Phases Completed**: 15/15 ✅ ALL COMPLETE
-- **Files Created**: 68
-- **Tests Passing**: ~1022 (106 + 66 + 154 + 149 + 58 + 65 + 106 + 22 + 90 + 62 + 40 + 56 + 23 + 25)
+- **Phases Completed**: 16/16 ✅ ALL COMPLETE
+- **Files Created**: 69
+- **Tests Passing**: ~1039 (106 + 66 + 154 + 149 + 58 + 65 + 106 + 22 + 90 + 62 + 40 + 56 + 23 + 25 + 17)
 - **Scala 2.13**: ✅ All passing
 - **Scala 3**: ✅ All passing
 
