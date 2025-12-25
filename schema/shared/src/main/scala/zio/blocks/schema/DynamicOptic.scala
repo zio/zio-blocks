@@ -62,6 +62,8 @@ object DynamicOptic {
 
   val wrapped: DynamicOptic = new DynamicOptic(Vector(Node.Wrapped))
 
+  val empty: DynamicOptic = new DynamicOptic(Vector.empty)
+
   sealed trait Node
 
   object Node {

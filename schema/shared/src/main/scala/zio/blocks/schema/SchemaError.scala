@@ -72,4 +72,33 @@ object SchemaError {
   case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
     override def message: String = s"Unknown case '$caseName' at: $source"
   }
+
+  // Patch-related errors
+  case class TypeMismatch(expected: String, actual: String) extends Single {
+    override def source: DynamicOptic = DynamicOptic.empty
+    override def message: String = s"Type mismatch: expected $expected, got $actual"
+  }
+
+  case class IndexOutOfBounds(index: Int, size: Int) extends Single {
+    override def source: DynamicOptic = DynamicOptic.empty
+    override def message: String = s"Index $index out of bounds for size $size"
+  }
+
+  case class KeyNotFound(key: String) extends Single {
+    override def source: DynamicOptic = DynamicOptic.empty
+    override def message: String = s"Key not found: $key"
+  }
+
+  case class KeyAlreadyExists(key: String) extends Single {
+    override def source: DynamicOptic = DynamicOptic.empty
+    override def message: String = s"Key already exists: $key"
+  }
+
+  case class FieldNotFound(fieldName: String) extends Single {
+    override def source: DynamicOptic = DynamicOptic.empty
+    override def message: String = s"Field not found: $fieldName"
+  }
+
+  // Convenience constructors
+  def apply(single: Single): SchemaError = new SchemaError(new ::(single, Nil))
 }
