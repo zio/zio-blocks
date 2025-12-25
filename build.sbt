@@ -30,10 +30,11 @@ addCommandAlias("mimaChecks", "all schemaJVM/mimaReportBinaryIssues")
 
 lazy val root = project
   .in(file("."))
-  .settings(
-    publish / skip := true
-  )
+  .settings(publish / skip := true)
   .aggregate(
+    macros.jvm,
+    macros.js,
+    macros.native,
     schema.jvm,
     schema.js,
     schema.native,
@@ -48,8 +49,24 @@ lazy val root = project
     docs
   )
 
+// --- MACRO PROJECT (Now Cross-Project) ---
+lazy val macros = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .in(file("macros"))
+  .settings(
+    stdSettings("zio-blocks-macros"),
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-optics" % "0.2.2"
+    ),
+    Compile / scalacOptions ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, 13)) => Seq("-Ymacro-annotations")
+        case Some((3, _))  => Seq("-experimental")
+        case _             => Seq()
+      }
+    }
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
-  .crossType(CrossType.Full)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
@@ -57,29 +74,42 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+  .dependsOn(macros) // <--- Now compatible!
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
+
+    // Flags for usage
+    Compile / scalacOptions ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, 13)) => Seq("-Ymacro-annotations")
+        case Some((3, _))  => Seq("-experimental")
+        case _             => Seq()
+      }
+    },
+    Test / scalacOptions ++= {
+      CrossVersion.partialVersion(scalaVersion.value) match {
+        case Some((2, 13)) => Seq("-Ymacro-annotations")
+        case Some((3, _))  => Seq("-experimental")
+        case _             => Seq()
+      }
+    },
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.23"     % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23"     % Test
+      "dev.zio" %%% "zio-test-sbt" % "2.1.23"     % Test,
+      "dev.zio" %%% "zio-optics"   % "0.2.2"
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
-        Seq(
-          "org.scala-lang" % "scala-reflect" % scalaVersion.value
-        )
+        Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value)
       case _ =>
         Seq()
     })
   )
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, _)) =>
-        Seq()
-      case _ =>
-        Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
-        )
+      case Some((2, _)) => Seq()
+      case _            =>
+        Seq("io.github.kitlangton" %%% "neotype" % "0.3.37" % Test)
     })
   )
   .jsSettings(
@@ -87,12 +117,9 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "io.github.cquiroz" %%% "scala-java-locales"         % "1.5.4" % Test,
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
-      case Some((2, _)) =>
-        Seq()
-      case _ =>
-        Seq(
-          "io.github.kitlangton" %%% "neotype" % "0.3.37" % Test
-        )
+      case Some((2, _)) => Seq()
+      case _            =>
+        Seq("io.github.kitlangton" %%% "neotype" % "0.3.37" % Test)
     })
   )
   .nativeSettings(
@@ -141,6 +168,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test"     % "2.1.23" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.23" % Test
     ),
+    Test / scalacOptions ++= Seq("-experimental"),
     publish / skip        := true,
     mimaPreviousArtifacts := Set()
   )
