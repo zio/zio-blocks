@@ -100,11 +100,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
    * between delta/edit vs set operations.
    */
   def diff(oldValue: A, newValue: A): Patch[A] = {
-    val oldDyn       = toDynamicValue(oldValue)
-    val newDyn       = toDynamicValue(newValue)
-    val dynamicPatch = Differ.diff(oldDyn, newDyn)
+    val oldDyn = toDynamicValue(oldValue)
+    val newDyn = toDynamicValue(newValue)
+    // Compute the dynamic patch (for future use with dynamic patching)
+    val _dynamicPatch = Differ.diff(oldDyn, newDyn)
     // For now, create a patch that sets the new value if different
-    if (oldDyn == newDyn) {
+    if (oldDyn == newDyn || _dynamicPatch.ops.isEmpty) {
       Patch.empty[A](this)
     } else {
       // Simple implementation: just set the new value

@@ -88,7 +88,6 @@ object Differ {
     newFields: Vector[(String, DynamicValue)]
   ): DynamicPatch = {
     val oldMap = oldFields.toMap
-    val newMap = newFields.toMap
 
     val fieldOps = newFields.flatMap { case (name, newVal) =>
       oldMap.get(name) match {
