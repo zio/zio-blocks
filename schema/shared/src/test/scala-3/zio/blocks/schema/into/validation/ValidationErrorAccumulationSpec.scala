@@ -3,10 +3,10 @@ package zio.blocks.schema.into.validation
 import zio.test._
 import zio.blocks.schema._
 
-// Opaque types with validation
-opaque type PositiveInt = Int
-object PositiveInt {
-  def apply(value: Int): Either[String, PositiveInt] =
+// Opaque types with validation - renamed to avoid collision with PositiveInt from zio.blocks.schema package
+opaque type PositiveIntOpaque = Int
+object PositiveIntOpaque {
+  def apply(value: Int): Either[String, PositiveIntOpaque] =
     if (value > 0) Right(value) else Left(s"Must be positive: $value")
 }
 
@@ -21,7 +21,7 @@ object ValidationErrorAccumulationSpec extends ZIOSpecDefault {
   def spec = suite("ValidationErrorAccumulationSpec")(
     suite("Error Accumulation")(
       test("should accumulate validation errors for multiple invalid fields") {
-        case class Person(age: PositiveInt, name: NonEmptyString)
+        case class Person(age: PositiveIntOpaque, name: NonEmptyString)
         case class RawPerson(age: Int, name: String)
 
         val derivation = Into.derived[RawPerson, Person]
@@ -43,7 +43,7 @@ object ValidationErrorAccumulationSpec extends ZIOSpecDefault {
         )
       },
       test("should succeed when all fields are valid") {
-        case class Person(age: PositiveInt, name: NonEmptyString)
+        case class Person(age: PositiveIntOpaque, name: NonEmptyString)
         case class RawPerson(age: Int, name: String)
 
         val derivation = Into.derived[RawPerson, Person]
@@ -57,7 +57,7 @@ object ValidationErrorAccumulationSpec extends ZIOSpecDefault {
         }
       },
       test("should fail on first invalid field (current behavior)") {
-        case class Person(age: PositiveInt, name: NonEmptyString)
+        case class Person(age: PositiveIntOpaque, name: NonEmptyString)
         case class RawPerson(age: Int, name: String)
 
         val derivation = Into.derived[RawPerson, Person]

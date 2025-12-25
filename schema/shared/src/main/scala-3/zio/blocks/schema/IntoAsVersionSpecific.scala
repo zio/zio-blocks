@@ -18,6 +18,28 @@ object IntoAsVersionSpecificImpl {
   }
 
   def derivedAsImpl[A: Type, B: Type](using q: Quotes): Expr[As[A, B]] = {
+    import q.reflect.*
+
+    val aTpe = TypeRepr.of[A]
+    val bTpe = TypeRepr.of[B]
+
+    // Check for default values (breaks round-trip guarantee)
+    val aDefaults = getFieldsWithDefaultValues(using q)(aTpe)
+    val bDefaults = getFieldsWithDefaultValues(using q)(bTpe)
+
+    if (aDefaults.nonEmpty || bDefaults.nonEmpty) {
+      val msgParts = List(
+        if (aDefaults.nonEmpty) Some(s"${aTpe.show} has default values: ${aDefaults.mkString(", ")}")
+        else None,
+        if (bDefaults.nonEmpty) Some(s"${bTpe.show} has default values: ${bDefaults.mkString(", ")}")
+        else None
+      ).flatten
+
+      val msg =
+        s"Cannot derive As[${aTpe.show}, ${bTpe.show}]: Default values break round-trip guarantee. Fields with defaults: ${msgParts.mkString("; ")}"
+      report.errorAndAbort(msg)
+    }
+
     val intoAB = derivedIntoImpl[A, B]
     val intoBA = derivedIntoImpl[B, A]
     '{
@@ -63,6 +85,12 @@ object IntoAsVersionSpecificImpl {
     // Check if A is opaque type (OpaqueType -> UnderlyingType)
     if (isOpaqueType(using q)(aTpe)) {
       return generateOpaqueToUnderlying[A, B](using q)(aTpe, bTpe)
+    }
+
+    // PRIORITY 0.73: ZIO Prelude Newtypes (BEFORE dealias to preserve type structure)
+    generateZioPreludeNewtypeConversion[A, B](using q)(ctx, aTpe, bTpe) match {
+      case Some(impl) => return impl
+      case None       => // continue
     }
 
     // Dealias for other checks
@@ -881,6 +909,547 @@ object IntoAsVersionSpecificImpl {
     }
   }
 
+  // Helper to detect fields with default values (for As round-trip safety)
+  private def getFieldsWithDefaultValues(using q: Quotes)(tpe: q.reflect.TypeRepr): List[String] = {
+    import q.reflect.*
+
+    // Only check case classes (tuples and other types don't have default values in the same way)
+    if (!isCaseClass(using q)(tpe)) return Nil
+
+    val sym = tpe.typeSymbol
+    sym.primaryConstructor.paramSymss.flatten
+      .filter(_.flags.is(Flags.HasDefault))
+      .map(_.name)
+  }
+
+  // --- ZIO Prelude Newtypes Support ---
+
+  private def isZioPreludeNewtype(using q: Quotes)(tpe: q.reflect.TypeRepr): Boolean = {
+    import q.reflect.*
+    tpe match {
+      case TypeRef(compTpe, "Type") =>
+        compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype") ||
+        compTpe.baseClasses.exists(_.fullName == "zio.prelude.Subtype")
+      case _ => false
+    }
+  }
+
+  private def zioPreludeNewtypeDealias(using q: Quotes)(tpe: q.reflect.TypeRepr): q.reflect.TypeRepr = {
+    import q.reflect.*
+    tpe match {
+      case TypeRef(compTpe, _) =>
+        compTpe.baseClasses.find(cls =>
+          cls.fullName == "zio.prelude.Newtype" || cls.fullName == "zio.prelude.Subtype"
+        ) match {
+          case Some(cls) => compTpe.baseType(cls).typeArgs.head.dealias
+          case _         => fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}")
+        }
+      case _ => fail(s"Cannot dealias zio-prelude newtype: ${tpe.show}")
+    }
+  }
+
+  private def findZioPreludeCompanion(using q: Quotes)(tpe: q.reflect.TypeRepr): q.reflect.Symbol = {
+    import q.reflect.*
+    tpe match {
+      case TypeRef(compTpe, "Type") =>
+        // compTpe is the companion object type, get its term symbol
+        compTpe.termSymbol match {
+          case sym if sym.exists => sym
+          case _                 => fail(s"Cannot find companion for zio-prelude newtype: ${tpe.show}")
+        }
+      case _ => fail(s"Cannot find companion for zio-prelude newtype: ${tpe.show}")
+    }
+  }
+
+  private def extractMethodReturnType(using
+    q: Quotes
+  )(
+    companion: q.reflect.Symbol,
+    method: q.reflect.Symbol
+  ): q.reflect.TypeRepr = {
+    import q.reflect.*
+
+    // Strategia 1: Usa memberType sul companion per ottenere il tipo del metodo
+    val companionType = companion.termRef
+    val methodType    = companionType.memberType(method)
+
+    methodType match {
+      case mt: MethodType =>
+        // Il tipo di ritorno è resType della MethodType
+        mt.resType
+      case pt: PolyType =>
+        // Se è un PolyType, ritorna resType (gestisce metodi generici)
+        pt.resType
+      case other =>
+        // Fallback: prova a ottenere il tipo dal tree del metodo
+        method.tree match {
+          case Some(DefDef(_, _, _, body)) =>
+            // Estrai il tipo dal body se presente
+            body match {
+              case Some(b) => b.tpe
+              case None    => methodType
+            }
+          case _ =>
+            // Ultimo fallback: usa il tipo del metodo direttamente
+            methodType
+        }
+    }
+  }
+
+  private def generateZioPreludeNewtypeConversion[A: Type, B: Type](using
+    q: Quotes
+  )(
+    ctx: DerivationContext,
+    aTpe: q.reflect.TypeRepr,
+    bTpe: q.reflect.TypeRepr
+  ): Option[Expr[Into[A, B]]] = {
+    import q.reflect.*
+
+    // Check if B is a ZIO Prelude newtype
+    if (isZioPreludeNewtype(using q)(bTpe)) {
+      val underlyingType = zioPreludeNewtypeDealias(using q)(bTpe)
+      val companion      = findZioPreludeCompanion(using q)(bTpe)
+
+      // Check if companion has 'make' method
+      val hasMakeMethod =
+        try {
+          companion.memberMethod("make").exists(s => s.paramSymss.flatten.size == 1)
+        } catch {
+          case _: Exception => false
+        }
+
+      // Convert A -> Underlying -> B with validation
+      if (aTpe =:= underlyingType) {
+        // Direct conversion: A is already the underlying type
+        bTpe.asType match {
+          case '[b] =>
+            underlyingType.asType match {
+              case '[u] =>
+                val companionRef = Ref(companion)
+
+                if (hasMakeMethod) {
+                  // CASO A: Use make method (preferred) - Quotes-based with standard pattern matching
+                  import q.reflect.*
+                  val makeMethod = companion.memberMethod("make").find(s => s.paramSymss.flatten.size == 1).get
+
+                  // Estrai il tipo di ritorno di make
+                  val makeReturnType = extractMethodReturnType(using q)(companion, makeMethod)
+
+                  Some('{
+                    new Into[A, B] {
+                      def into(x: A): Either[SchemaError, B] = {
+                        val uVal = x.asInstanceOf[u]
+                        ${
+                          val uTerm         = 'uVal.asTerm
+                          val makeSelect    = Select(companionRef, makeMethod)
+                          val makeCall      = Apply(makeSelect, List(uTerm))
+                          val typedMakeCall = Typed(makeCall, Inferred(makeReturnType))
+                          val toEitherCall  = Select.unique(typedMakeCall, "toEither").asExprOf[Either[Any, B]]
+
+                          // Pattern matching standard di Scala - nessuna costruzione AST manuale!
+                          '{
+                            $toEitherCall match {
+                              case Right(v) => Right(v.asInstanceOf[B])
+                              case Left(e)  =>
+                                Left(
+                                  SchemaError.expectationMismatch(
+                                    IntoAsVersionSpecificImpl.emptyNodeList,
+                                    e.toString
+                                  )
+                                )
+                            }
+                          }
+                        }
+                      }
+                    }
+                  })
+                } else {
+                  // CASO B: Fallback to apply - Lambda Injection via AST
+                  import q.reflect.*
+                  val applyMethod = companion
+                    .memberMethod("apply")
+                    .find(s => s.paramSymss.flatten.size == 1)
+                    .getOrElse(report.errorAndAbort(s"No apply/1 method found in companion of ${bTpe.show}"))
+
+                  val applyLambdaType = MethodType(List("v"))(_ => List(underlyingType), _ => bTpe)
+                  val applyLambda     = Lambda(
+                    Symbol.spliceOwner,
+                    applyLambdaType,
+                    (owner, params) => {
+                      val arg         = params.head.asInstanceOf[Term]
+                      val applySelect = Select(companionRef, applyMethod)
+                      Apply(applySelect, List(arg)).changeOwner(owner)
+                    }
+                  ).asExprOf[u => b]
+
+                  Some('{
+                    new Into[A, B] {
+                      def into(x: A): Either[SchemaError, B] =
+                        try {
+                          val uVal = x.asInstanceOf[u]
+                          Right($applyLambda(uVal).asInstanceOf[B])
+                        } catch {
+                          case e: Throwable =>
+                            Left(
+                              SchemaError.expectationMismatch(
+                                IntoAsVersionSpecificImpl.emptyNodeList,
+                                e.getMessage
+                              )
+                            )
+                        }
+                    }
+                  })
+                }
+            }
+        }
+      } else {
+        // Coercion needed: A -> Underlying -> B with validation
+        aTpe.asType match {
+          case '[a] =>
+            underlyingType.asType match {
+              case '[u] =>
+                bTpe.asType match {
+                  case '[b] =>
+                    val innerInto      = findOrDeriveInto[a, u](using q)(ctx, aTpe, underlyingType)
+                    val innerIntoTyped = innerInto.asExprOf[Into[a, u]]
+                    val companionRef   = Ref(companion)
+
+                    if (hasMakeMethod) {
+                      // CASO A: Use make method (preferred) - Quotes-based with standard pattern matching
+                      import q.reflect.*
+                      val makeMethod = companion.memberMethod("make").find(s => s.paramSymss.flatten.size == 1).get
+
+                      // Estrai il tipo di ritorno di make
+                      val makeReturnType = extractMethodReturnType(using q)(companion, makeMethod)
+
+                      Some('{
+                        new Into[A, B] {
+                          def into(x: A): Either[SchemaError, B] =
+                            ${ innerIntoTyped }.into(x.asInstanceOf[a]).flatMap { (u: u) =>
+                              ${
+                                val uTerm         = 'u.asTerm
+                                val makeSelect    = Select(companionRef, makeMethod)
+                                val makeCall      = Apply(makeSelect, List(uTerm))
+                                val typedMakeCall = Typed(makeCall, Inferred(makeReturnType))
+                                val toEitherCall  = Select.unique(typedMakeCall, "toEither").asExprOf[Either[Any, B]]
+
+                                // Pattern matching standard di Scala - nessuna costruzione AST manuale!
+                                '{
+                                  $toEitherCall match {
+                                    case Right(v) => Right(v.asInstanceOf[B])
+                                    case Left(e)  =>
+                                      Left(
+                                        SchemaError.expectationMismatch(
+                                          IntoAsVersionSpecificImpl.emptyNodeList,
+                                          e.toString
+                                        )
+                                      )
+                                  }
+                                }
+                              }
+                            }
+                        }
+                      })
+                    } else {
+                      // CASO B: Fallback to apply - Lambda Injection via AST (Coercion Path)
+                      import q.reflect.*
+                      val applyMethod = companion
+                        .memberMethod("apply")
+                        .find(s => s.paramSymss.flatten.size == 1)
+                        .getOrElse(report.errorAndAbort(s"No apply/1 method found in companion of ${bTpe.show}"))
+
+                      val applyLambdaType = MethodType(List("v"))(_ => List(underlyingType), _ => bTpe)
+                      val applyLambda     = Lambda(
+                        Symbol.spliceOwner,
+                        applyLambdaType,
+                        (owner, params) => {
+                          val arg         = params.head.asInstanceOf[Term]
+                          val applySelect = Select(companionRef, applyMethod)
+                          Apply(applySelect, List(arg)).changeOwner(owner)
+                        }
+                      ).asExprOf[u => b]
+
+                      Some('{
+                        new Into[A, B] {
+                          def into(x: A): Either[SchemaError, B] =
+                            ${ innerIntoTyped }.into(x.asInstanceOf[a]).flatMap { (uVal: u) =>
+                              try {
+                                Right($applyLambda(uVal).asInstanceOf[B])
+                              } catch {
+                                case e: Throwable =>
+                                  Left(
+                                    SchemaError.expectationMismatch(
+                                      IntoAsVersionSpecificImpl.emptyNodeList,
+                                      e.getMessage
+                                    )
+                                  )
+                              }
+                            }
+                        }
+                      })
+                    }
+                }
+            }
+        }
+      }
+    } else if (isZioPreludeNewtype(using q)(aTpe)) {
+      // A is newtype, B is underlying or coercible
+      val underlyingType = zioPreludeNewtypeDealias(using q)(aTpe)
+
+      // Convert A (newtype) -> Underlying -> B
+      // ZIO Prelude newtypes are type aliases at runtime, unwrap directly
+      if (underlyingType =:= bTpe) {
+        // Direct unwrap: Underlying -> B
+        Some('{
+          new Into[A, B] {
+            def into(x: A): Either[SchemaError, B] = Right(x.asInstanceOf[B])
+          }
+        })
+      } else {
+        // Coercion needed: A -> Underlying -> B
+        underlyingType.asType match {
+          case '[u] =>
+            bTpe.asType match {
+              case '[b] =>
+                val innerInto      = findOrDeriveInto[u, b](using q)(ctx, underlyingType, bTpe)
+                val innerIntoTyped = innerInto.asExprOf[Into[u, b]]
+                // Unwrap newtype and convert
+                Some('{
+                  new Into[A, B] {
+                    def into(x: A): Either[SchemaError, B] = {
+                      val unwrapped: u = x.asInstanceOf[u]
+                      ${ innerIntoTyped }.into(unwrapped).map(_.asInstanceOf[B])
+                    }
+                  }
+                })
+            }
+        }
+      }
+    } else {
+      None
+    }
+  }
+
+  // Priority levels for field matching
+  private enum PriorityLevel {
+    case P1_ExactNameType      // Priority 1: Exact name + type match
+    case P2_NameCoercible      // Priority 2: Exact name + coercible type
+    case P3_UniqueType         // Priority 3: Unique type match
+    case P4_PositionCompatible // Priority 4: Position + compatible type
+  }
+
+  // Match result with priority
+  private case class MatchWithPriority(field: FieldInfo, priority: PriorityLevel)
+
+  // Optimistic compatibility check for complex types (Products, Collections, etc.)
+  // This allows recursive derivation to be attempted even if types aren't exactly equal
+  // Strategy: Be permissive for numeric primitives and complex types, strict for mismatched kinds
+  private def isPotentiallyCompatible(using
+    q: Quotes
+  )(
+    tpeA: q.reflect.TypeRepr,
+    tpeB: q.reflect.TypeRepr
+  ): Boolean = {
+    val a = tpeA.dealias
+    val b = tpeB.dealias
+
+    // 1. Identici
+    if (a =:= b) return true
+
+    val aIsPrim = isPrimitive(using q)(a)
+    val bIsPrim = isPrimitive(using q)(b)
+
+    // 2. Entrambi Primitivi: Check Numerico Permissivo
+    if (aIsPrim && bIsPrim) {
+      val numerics = Set(
+        "Int",
+        "Long",
+        "Double",
+        "Float",
+        "Short",
+        "Byte",
+        "scala.Int",
+        "scala.Long",
+        "scala.Double",
+        "scala.Float",
+        "scala.Short",
+        "scala.Byte"
+      )
+      val aName = a.typeSymbol.name
+      val bName = b.typeSymbol.name
+      // Se entrambi numerici -> Compatibili (Int->Long, Long->Int, ecc.)
+      if (numerics.contains(aName) && numerics.contains(bName)) return true
+      // Boolean/Char/String stretti (solo se stesso nome)
+      if (aName == bName) return true
+      return false
+    }
+
+    // 3. Mismatched Kinds (Primitive vs Complex) -> False
+    if (aIsPrim != bIsPrim) return false
+
+    // 4. Option wrapping (A -> Option[A])
+    if (isOptionType(using q)(b)) {
+      extractOptionElementType(using q)(b) match {
+        case Some(optElemType) =>
+          return isPotentiallyCompatible(using q)(a, optElemType.dealias)
+        case None => // continue
+      }
+    }
+
+    // 5. Collections - Check element types recursively
+    val aCollection = extractCollectionElementType(using q)(a)
+    val bCollection = extractCollectionElementType(using q)(b)
+    if (aCollection.isDefined && bCollection.isDefined) {
+      val aElem = aCollection.get.dealias
+      val bElem = bCollection.get.dealias
+      return isPotentiallyCompatible(using q)(aElem, bElem)
+    }
+
+    // 6. Complex Types (Case Class, Products, Tuples) -> Ottimistico
+    // Assumiamo che la macro possa derivare la conversione ricorsivamente.
+    // Blocchiamo solo ambiguità, non validità.
+    true
+  }
+
+  // Find all possible matches for a field with their priorities
+  private def findAllMatches(using
+    q: Quotes
+  )(
+    aFields: List[FieldInfo],
+    bField: FieldInfo,
+    bFieldIndex: Int,
+    allBFields: List[FieldInfo],
+    aTpe: q.reflect.TypeRepr,
+    bTpe: q.reflect.TypeRepr
+  ): List[MatchWithPriority] = {
+    val matches = scala.collection.mutable.ListBuffer[MatchWithPriority]()
+
+    // Priority 1: Exact Name + Type Match
+    val nameMatches = aFields.filter(_.name == bField.name)
+    nameMatches.find(_.tpeRepr(using q) =:= bField.tpeRepr(using q)) match {
+      case Some(exact) =>
+        matches += MatchWithPriority(exact, PriorityLevel.P1_ExactNameType)
+        return matches.toList // Priority 1 is highest, return immediately
+      case None => // continue
+    }
+
+    // Priority 2: Name Match with Coercion (allow any type if name matches)
+    if (nameMatches.size == 1) {
+      matches += MatchWithPriority(nameMatches.head, PriorityLevel.P2_NameCoercible)
+      return matches.toList // Priority 2 is high, return immediately
+    }
+
+    // Priority 3: Unique Type Match (relaxed: unique in A OR in B)
+    // Use optimistic compatibility check for complex types
+    val bTpeDealiased    = bField.tpeRepr(using q).dealias
+    val exactTypeMatches = aFields.filter(_.tpeRepr(using q) =:= bField.tpeRepr(using q))
+
+    // Count fields in B with potentially compatible types (for uniqueness check)
+    // Use optimistic compatibility for all types
+    val isUniqueInB = {
+      val bFieldTpe = bField.tpeRepr(using q)
+      allBFields.count { bF =>
+        isPotentiallyCompatible(using q)(bF.tpeRepr(using q), bFieldTpe)
+      } == 1
+    }
+
+    if (exactTypeMatches.size == 1) {
+      // Single exact match in A: works if unique in A OR in B
+      val isUniqueInA = true // exactTypeMatches.size == 1 implies unique in A
+      if (isUniqueInA || isUniqueInB) {
+        matches += MatchWithPriority(exactTypeMatches.head, PriorityLevel.P3_UniqueType)
+        return matches.toList
+      }
+    } else if (exactTypeMatches.size > 1 && isUniqueInB) {
+      // Multiple exact matches in A, but unique in B: use positional match
+      if (bFieldIndex >= 0 && bFieldIndex < aFields.size) {
+        val candidate    = aFields(bFieldIndex)
+        val candidateTpe = candidate.tpeRepr(using q).dealias
+        if (candidateTpe =:= bTpeDealiased) {
+          matches += MatchWithPriority(candidate, PriorityLevel.P3_UniqueType)
+          return matches.toList
+        }
+      }
+    }
+
+    // Check for potentially compatible types (using optimistic compatibility)
+    // This allows Int -> Long, AddressV1 -> AddressV2, etc.
+    val potentiallyCompatibleMatches = aFields.filter { aField =>
+      isPotentiallyCompatible(using q)(aField.tpeRepr(using q), bField.tpeRepr(using q))
+    }
+
+    // If we have potentially compatible matches and the type is unique in B, consider them
+    if (potentiallyCompatibleMatches.size == 1 && isUniqueInB) {
+      matches += MatchWithPriority(potentiallyCompatibleMatches.head, PriorityLevel.P3_UniqueType)
+      return matches.toList
+    }
+
+    // PRIORITY 4: Position + Compatible Type Match
+    // RESTRICTION: Only apply if:
+    // 1. Source OR Target is a Tuple, OR
+    // 2. Both have only 1 field (trivial disambiguation)
+    val isATuple        = isTuple(using q)(aTpe)
+    val isBTuple        = isTuple(using q)(bTpe)
+    val allowPositional = isATuple || isBTuple || (aFields.size == 1 && allBFields.size == 1)
+
+    if (allowPositional && bFieldIndex >= 0 && bFieldIndex < aFields.size) {
+      val candidate = aFields(bFieldIndex)
+
+      // Use optimistic compatibility check
+      if (isPotentiallyCompatible(using q)(candidate.tpeRepr(using q), bField.tpeRepr(using q))) {
+        matches += MatchWithPriority(candidate, PriorityLevel.P4_PositionCompatible)
+      }
+    }
+
+    matches.toList
+  }
+
+  // Validate field mappings for uniqueness and detect ambiguities
+  private def validateMappings(using
+    q: Quotes
+  )(
+    aFields: List[FieldInfo],
+    bFields: List[FieldInfo],
+    aTpe: q.reflect.TypeRepr,
+    bTpe: q.reflect.TypeRepr
+  ): Either[String, Map[Int, Int]] = { // Map[bFieldIndex -> aFieldIndex]
+    val mappings    = scala.collection.mutable.Map[Int, Int]()
+    val ambiguities = scala.collection.mutable.ListBuffer[String]()
+
+    bFields.zipWithIndex.foreach { case (bField, bIdx) =>
+      val allMatches = findAllMatches(using q)(aFields, bField, bIdx, bFields, aTpe, bTpe)
+
+      if (allMatches.isEmpty) {
+        // No match found - check if optional
+        if (!isOptionType(using q)(bField.tpeRepr(using q))) {
+          ambiguities += s"Field '${bField.name}: ${bField.tpeRepr(using q).show}' has no compatible match in source. Available fields: ${aFields
+              .map(f => s"${f.name}: ${f.tpeRepr(using q).show}")
+              .mkString(", ")}"
+        }
+      } else {
+        // Filter matches by highest priority
+        val highestPriority = allMatches.map(_.priority).minBy(_.ordinal)
+        val topMatches      = allMatches.filter(_.priority == highestPriority)
+
+        if (topMatches.size == 1) {
+          // Unique match - OK
+          val aIdx = aFields.indexOf(topMatches.head.field)
+          mappings(bIdx) = aIdx
+        } else if (topMatches.size > 1) {
+          // Ambiguity detected
+          val candidateNames = topMatches.map(m => s"${m.field.name}: ${m.field.tpeRepr(using q).show}").mkString(", ")
+          ambiguities += s"Field '${bField.name}: ${bField.tpeRepr(using q).show}' can map to multiple source fields with the same priority (${highestPriority}): $candidateNames. Please rename fields to disambiguate."
+        }
+      }
+    }
+
+    if (ambiguities.nonEmpty) {
+      Left(ambiguities.mkString("\n"))
+    } else {
+      Right(mappings.toMap)
+    }
+  }
+
   // Disambiguation Logic (Phase 7 + Priority 4)
   private def findMatchingField(using
     q: Quotes
@@ -1473,53 +2042,60 @@ object IntoAsVersionSpecificImpl {
     aTpe: q.reflect.TypeRepr,
     bTpe: q.reflect.TypeRepr
   ): Expr[Into[A, B]] = {
+    import q.reflect.*
+
     val aFields = extractCaseClassFields(using q)(aTpe)
     val bFields = extractCaseClassFields(using q)(bTpe)
 
-    val conversionsWithIndex = bFields.zipWithIndex.map { case (bField, bIdx) =>
-      findMatchingField(using q)(aFields, bField, bIdx, bFields) match {
-        case Some(aField) =>
-          // Normal field mapping
-          val aIdx = aFields.indexOf(aField)
-          val conv = aField.tpeRepr(using q).asType match {
-            case '[af] =>
-              bField.tpeRepr(using q).asType match {
-                case '[bf] =>
-                  val intoExpr =
-                    findOrDeriveInto[af, bf](using q)(ctx, aField.tpeRepr(using q), bField.tpeRepr(using q))
-                  '{ ${ intoExpr }.asInstanceOf[Into[Any, Any]] }
+    // NEW: Validate mappings first to detect ambiguities
+    validateMappings(using q)(aFields, bFields, aTpe, bTpe) match {
+      case Left(errorMsg) =>
+        report.errorAndAbort(errorMsg)
+      case Right(validatedMappings) =>
+        // Build conversions using validated mappings
+        val conversionsWithIndex = bFields.zipWithIndex.map { case (bField, bIdx) =>
+          validatedMappings.get(bIdx) match {
+            case Some(aIdx) =>
+              // Normal field mapping (validated)
+              val aField = aFields(aIdx)
+              val conv   = aField.tpeRepr(using q).asType match {
+                case '[af] =>
+                  bField.tpeRepr(using q).asType match {
+                    case '[bf] =>
+                      val intoExpr =
+                        findOrDeriveInto[af, bf](using q)(ctx, aField.tpeRepr(using q), bField.tpeRepr(using q))
+                      '{ ${ intoExpr }.asInstanceOf[Into[Any, Any]] }
+                  }
+              }
+              (conv, aIdx)
+            case None =>
+              // Field not in mapping - must be optional
+              if (isOptionType(using q)(bField.tpeRepr(using q))) {
+                // Generate None for optional field
+                extractOptionElementType(using q)(bField.tpeRepr(using q)) match {
+                  case Some(elemType) =>
+                    elemType.asType match {
+                      case '[et] =>
+                        val noneExpr: Expr[Into[Any, Any]] = '{
+                          new Into[Any, Any] {
+                            def into(a: Any): Either[SchemaError, Any] = Right(None: Option[et])
+                          }
+                        }
+                        (noneExpr, -1) // -1 means "no source field, inject None"
+                    }
+                  case None =>
+                    fail(s"Cannot extract element type from Option: ${bField.tpeRepr(using q).show}")
+                }
+              } else {
+                // This should not happen if validation worked correctly
+                fail(s"Field '${bField.name}: ${bField.tpeRepr(using q).show}' has no mapping (validation error)")
               }
           }
-          (conv, aIdx)
-        case None =>
-          // Field not found - check if it's optional
-          if (isOptionType(using q)(bField.tpeRepr(using q))) {
-            // Generate None for optional field
-            extractOptionElementType(using q)(bField.tpeRepr(using q)) match {
-              case Some(elemType) =>
-                elemType.asType match {
-                  case '[et] =>
-                    val noneExpr: Expr[Into[Any, Any]] = '{
-                      new Into[Any, Any] {
-                        def into(a: Any): Either[SchemaError, Any] = Right(None: Option[et])
-                      }
-                    }
-                    (noneExpr, -1) // -1 means "no source field, inject None"
-                }
-              case None =>
-                fail(s"Cannot extract element type from Option: ${bField.tpeRepr(using q).show}")
-            }
-          } else {
-            // Required field missing - fail
-            fail(s"Cannot find unique mapping for field '${bField.name}: ${bField
-                .tpeRepr(using q)
-                .show}'. Available: ${aFields.map(f => s"${f.name}: ${f.tpeRepr(using q).show}").mkString(", ")}")
-          }
-      }
-    }
+        }
 
-    // Use Real implementation (simplified above)
-    generateConversionBodyReal[B](using q)(bTpe, conversionsWithIndex).asInstanceOf[Expr[Into[A, B]]]
+        // Use Real implementation (simplified above)
+        generateConversionBodyReal[B](using q)(bTpe, conversionsWithIndex).asInstanceOf[Expr[Into[A, B]]]
+    }
   }
 
   // --- Main Dispatcher ---
@@ -1554,6 +2130,12 @@ object IntoAsVersionSpecificImpl {
     // Check if A is opaque type (OpaqueType -> UnderlyingType)
     if (isOpaqueType(using q)(aTpe)) {
       return generateOpaqueToUnderlying[A, B](using q)(aTpe, bTpe)
+    }
+
+    // PRIORITY 0.73: ZIO Prelude Newtypes (BEFORE dealias to preserve type structure)
+    generateZioPreludeNewtypeConversion[A, B](using q)(ctx, aTpe, bTpe) match {
+      case Some(impl) => return impl
+      case None       => // continue
     }
 
     // 1. Primitives (Check first)
