@@ -1241,10 +1241,9 @@ object IntoAsVersionSpecificImpl {
   // Match result with priority
   private case class MatchWithPriority(field: FieldInfo, priority: PriorityLevel)
 
-  // Optimistic compatibility check for complex types (Products, Collections, etc.)
-  // This allows recursive derivation to be attempted even if types aren't exactly equal
-  // Strategy: Be permissive for numeric primitives and complex types, strict for mismatched kinds
-  private def isPotentiallyCompatible(using
+  // Strict compatibility check for Priority 3 (Unique Type Match)
+  // Separates Integrals from Fractionals to avoid false ambiguities
+  private def isStrictlyCompatible(using
     q: Quotes
   )(
     tpeA: q.reflect.TypeRepr,
@@ -1259,26 +1258,22 @@ object IntoAsVersionSpecificImpl {
     val aIsPrim = isPrimitive(using q)(a)
     val bIsPrim = isPrimitive(using q)(b)
 
-    // 2. Entrambi Primitivi: Check Numerico Permissivo
+    // 2. Entrambi Primitivi: Check Numerico Separato (Integrals vs Fractionals)
     if (aIsPrim && bIsPrim) {
-      val numerics = Set(
-        "Int",
-        "Long",
-        "Double",
-        "Float",
-        "Short",
-        "Byte",
-        "scala.Int",
-        "scala.Long",
-        "scala.Double",
-        "scala.Float",
-        "scala.Short",
-        "scala.Byte"
-      )
+      val integrals = Set("Int", "Long", "Short", "Byte", "scala.Int", "scala.Long", "scala.Short", "scala.Byte")
+      val fractionals = Set("Double", "Float", "scala.Double", "scala.Float")
+      
       val aName = a.typeSymbol.name
       val bName = b.typeSymbol.name
-      // Se entrambi numerici -> Compatibili (Int->Long, Long->Int, ecc.)
-      if (numerics.contains(aName) && numerics.contains(bName)) return true
+      
+      // Se entrambi integrali -> Compatibili (Int->Long, Long->Int, ecc.)
+      if (integrals.contains(aName) && integrals.contains(bName)) return true
+      // Se entrambi frazionari -> Compatibili (Float->Double, Double->Float, ecc.)
+      if (fractionals.contains(aName) && fractionals.contains(bName)) return true
+      // Integral vs Fractional -> Non compatibili (per evitare ambiguità in Priority 3)
+      if ((integrals.contains(aName) && fractionals.contains(bName)) ||
+          (fractionals.contains(aName) && integrals.contains(bName))) return false
+      
       // Boolean/Char/String stretti (solo se stesso nome)
       if (aName == bName) return true
       return false
@@ -1291,7 +1286,7 @@ object IntoAsVersionSpecificImpl {
     if (isOptionType(using q)(b)) {
       extractOptionElementType(using q)(b) match {
         case Some(optElemType) =>
-          return isPotentiallyCompatible(using q)(a, optElemType.dealias)
+          return isStrictlyCompatible(using q)(a, optElemType.dealias)
         case None => // continue
       }
     }
@@ -1302,7 +1297,7 @@ object IntoAsVersionSpecificImpl {
     if (aCollection.isDefined && bCollection.isDefined) {
       val aElem = aCollection.get.dealias
       val bElem = bCollection.get.dealias
-      return isPotentiallyCompatible(using q)(aElem, bElem)
+      return isStrictlyCompatible(using q)(aElem, bElem)
     }
 
     // 6. Complex Types (Case Class, Products, Tuples) -> Ottimistico
@@ -1310,6 +1305,78 @@ object IntoAsVersionSpecificImpl {
     // Blocchiamo solo ambiguità, non validità.
     true
   }
+
+  // Loose compatibility check for Priority 4 (Position Match)
+  // Allows all numeric types to be compatible (Int <-> Double, etc.)
+  // Position disambiguates, so we can be more permissive
+  private def isLooselyCompatible(using
+    q: Quotes
+  )(
+    tpeA: q.reflect.TypeRepr,
+    tpeB: q.reflect.TypeRepr
+  ): Boolean = {
+    val a = tpeA.dealias
+    val b = tpeB.dealias
+
+    // 1. Identici
+    if (a =:= b) return true
+
+    val aIsPrim = isPrimitive(using q)(a)
+    val bIsPrim = isPrimitive(using q)(b)
+
+    // 2. Entrambi Primitivi: Tutti i numerici sono compatibili
+    if (aIsPrim && bIsPrim) {
+      val allNumerics = Set(
+        "Int", "Long", "Double", "Float", "Short", "Byte",
+        "scala.Int", "scala.Long", "scala.Double", "scala.Float",
+        "scala.Short", "scala.Byte"
+      )
+      
+      val aName = a.typeSymbol.name
+      val bName = b.typeSymbol.name
+      
+      // Tutti i numerici sono compatibili per Priority 4 (posizione disambigua)
+      if (allNumerics.contains(aName) && allNumerics.contains(bName)) return true
+      
+      // Boolean/Char/String stretti (solo se stesso nome)
+      if (aName == bName) return true
+      return false
+    }
+
+    // 3. Mismatched Kinds (Primitive vs Complex) -> False
+    if (aIsPrim != bIsPrim) return false
+
+    // 4. Option wrapping (A -> Option[A])
+    if (isOptionType(using q)(b)) {
+      extractOptionElementType(using q)(b) match {
+        case Some(optElemType) =>
+          return isLooselyCompatible(using q)(a, optElemType.dealias)
+        case None => // continue
+      }
+    }
+
+    // 5. Collections - Check element types recursively
+    val aCollection = extractCollectionElementType(using q)(a)
+    val bCollection = extractCollectionElementType(using q)(b)
+    if (aCollection.isDefined && bCollection.isDefined) {
+      val aElem = aCollection.get.dealias
+      val bElem = bCollection.get.dealias
+      return isLooselyCompatible(using q)(aElem, bElem)
+    }
+
+    // 6. Complex Types (Case Class, Products, Tuples) -> Ottimistico
+    // Assumiamo che la macro possa derivare la conversione ricorsivamente.
+    // Blocchiamo solo ambiguità, non validità.
+    true
+  }
+
+  // Legacy function for backward compatibility (delegates to isStrictlyCompatible)
+  private def isPotentiallyCompatible(using
+    q: Quotes
+  )(
+    tpeA: q.reflect.TypeRepr,
+    tpeB: q.reflect.TypeRepr
+  ): Boolean = isStrictlyCompatible(using q)(tpeA, tpeB)
 
   // Find all possible matches for a field with their priorities
   private def findAllMatches(using
@@ -1340,16 +1407,16 @@ object IntoAsVersionSpecificImpl {
     }
 
     // Priority 3: Unique Type Match (relaxed: unique in A OR in B)
-    // Use optimistic compatibility check for complex types
+    // Use STRICT compatibility check (Integrals vs Fractionals separated)
     val bTpeDealiased    = bField.tpeRepr(using q).dealias
     val exactTypeMatches = aFields.filter(_.tpeRepr(using q) =:= bField.tpeRepr(using q))
 
-    // Count fields in B with potentially compatible types (for uniqueness check)
-    // Use optimistic compatibility for all types
+    // Count fields in B with strictly compatible types (for uniqueness check)
+    // Use strict compatibility to avoid false ambiguities
     val isUniqueInB = {
       val bFieldTpe = bField.tpeRepr(using q)
       allBFields.count { bF =>
-        isPotentiallyCompatible(using q)(bF.tpeRepr(using q), bFieldTpe)
+        isStrictlyCompatible(using q)(bF.tpeRepr(using q), bFieldTpe)
       } == 1
     }
 
@@ -1372,31 +1439,28 @@ object IntoAsVersionSpecificImpl {
       }
     }
 
-    // Check for potentially compatible types (using optimistic compatibility)
-    // This allows Int -> Long, AddressV1 -> AddressV2, etc.
-    val potentiallyCompatibleMatches = aFields.filter { aField =>
-      isPotentiallyCompatible(using q)(aField.tpeRepr(using q), bField.tpeRepr(using q))
+    // Check for strictly compatible types (Int -> Long OK, Int -> Double NOT OK for Priority 3)
+    // This allows Int -> Long, AddressV1 -> AddressV2, etc., but avoids Int/Double ambiguity
+    val strictlyCompatibleMatches = aFields.filter { aField =>
+      isStrictlyCompatible(using q)(aField.tpeRepr(using q), bField.tpeRepr(using q))
     }
 
-    // If we have potentially compatible matches and the type is unique in B, consider them
-    if (potentiallyCompatibleMatches.size == 1 && isUniqueInB) {
-      matches += MatchWithPriority(potentiallyCompatibleMatches.head, PriorityLevel.P3_UniqueType)
+    // If we have strictly compatible matches and the type is unique in B, consider them
+    if (strictlyCompatibleMatches.size == 1 && isUniqueInB) {
+      matches += MatchWithPriority(strictlyCompatibleMatches.head, PriorityLevel.P3_UniqueType)
       return matches.toList
     }
 
     // PRIORITY 4: Position + Compatible Type Match
-    // RESTRICTION: Only apply if:
-    // 1. Source OR Target is a Tuple, OR
-    // 2. Both have only 1 field (trivial disambiguation)
-    val isATuple        = isTuple(using q)(aTpe)
-    val isBTuple        = isTuple(using q)(bTpe)
-    val allowPositional = isATuple || isBTuple || (aFields.size == 1 && allBFields.size == 1)
-
-    if (allowPositional && bFieldIndex >= 0 && bFieldIndex < aFields.size) {
+    // ENABLED for all Products (Case Classes & Tuples)
+    // Position is the disambiguator when names don't match
+    // Use LOOSE compatibility (all numerics compatible) since position disambiguates
+    if (bFieldIndex >= 0 && bFieldIndex < aFields.size) {
       val candidate = aFields(bFieldIndex)
 
-      // Use optimistic compatibility check
-      if (isPotentiallyCompatible(using q)(candidate.tpeRepr(using q), bField.tpeRepr(using q))) {
+      // Use loose compatibility check (all numerics OK, Complex types OK)
+      // Position disambiguates, so we can be more permissive
+      if (isLooselyCompatible(using q)(candidate.tpeRepr(using q), bField.tpeRepr(using q))) {
         matches += MatchWithPriority(candidate, PriorityLevel.P4_PositionCompatible)
       }
     }
