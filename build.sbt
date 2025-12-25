@@ -77,7 +77,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .dependsOn(macros) // <--- Now compatible!
   .settings(
     compileOrder := CompileOrder.JavaThenScala,
-    
+
     // Flags for usage
     Compile / scalacOptions ++= {
       CrossVersion.partialVersion(scalaVersion.value) match {
@@ -93,7 +93,6 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         case _             => Seq()
       }
     },
-
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
       "dev.zio" %%% "zio-test"     % "2.1.23"     % Test,
@@ -109,7 +108,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .jvmSettings(
     libraryDependencies ++= (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) => Seq()
-      case _ =>
+      case _            =>
         Seq("io.github.kitlangton" %%% "neotype" % "0.3.37" % Test)
     })
   )
@@ -119,7 +118,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "io.github.cquiroz" %%% "locales-full-currencies-db" % "1.5.4" % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) => Seq()
-      case _ =>
+      case _            =>
         Seq("io.github.kitlangton" %%% "neotype" % "0.3.37" % Test)
     })
   )
@@ -211,11 +210,11 @@ lazy val docs = project
     moduleName := "zio-blocks-docs",
     scalacOptions -= "-Yno-imports",
     scalacOptions -= "-Xfatal-warnings",
-    projectName                                    := (ThisBuild / name).value,
-    mainModuleName                                 := (schema.jvm / moduleName).value,
-    projectStage                                   := ProjectStage.Development,
+    projectName                                := (ThisBuild / name).value,
+    mainModuleName                             := (schema.jvm / moduleName).value,
+    projectStage                               := ProjectStage.Development,
     ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
-    publish / skip                                 := true
+    publish / skip                             := true
   )
   .dependsOn(schema.jvm)
   .enablePlugins(WebsitePlugin)
