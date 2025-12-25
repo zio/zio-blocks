@@ -1,24 +1,26 @@
 package zio.blocks.macros
 
 import scala.reflect.macros.whitebox
-import zio.optics._
 
 object DerivedOpticsMacro {
-  def impl[T: c.WeakTypeTag](c: whitebox.Context)(underscore: c.Expr[Boolean]): c.Expr[Any] = {
+  def impl[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Any] = {
+    generateOptics(c)(underscore = false)
+  }
+
+  def implUnderscore[T: c.WeakTypeTag](c: whitebox.Context): c.Expr[Any] = {
+    generateOptics(c)(underscore = true)
+  }
+
+  private def generateOptics[T: c.WeakTypeTag](c: whitebox.Context)(underscore: Boolean): c.Expr[Any] = {
     import c.universe._
 
     val tpe = weakTypeOf[T]
-    val underscoreValue = underscore.tree match {
-      case Literal(Constant(b: Boolean)) => b
-      case _ => false
-    }
-
     val symbol = tpe.typeSymbol
 
     if (symbol.isClass && symbol.asClass.isCaseClass) {
-      generateCaseClassOptics(c)(tpe, underscoreValue)
+      generateCaseClassOptics(c)(tpe, underscore)
     } else if (symbol.isClass && symbol.asClass.isSealed) {
-      generateSealedTraitOptics(c)(tpe, underscoreValue)
+      generateSealedTraitOptics(c)(tpe, underscore)
     } else {
       c.abort(c.enclosingPosition, s"DerivedOptics only supports Case Classes or Sealed Traits. Found: $symbol")
     }
@@ -77,7 +79,7 @@ object DerivedOpticsMacro {
               case x: $childTpe => scala.util.Right(x)
               case _ => scala.util.Left(zio.optics.OpticFailure("Not a match"))
             },
-            (x: $childTpe) => x
+            (x: $childTpe) => scala.util.Right(x)
           )
       """
     }
