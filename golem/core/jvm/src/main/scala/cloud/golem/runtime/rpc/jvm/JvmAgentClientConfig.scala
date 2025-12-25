@@ -18,7 +18,7 @@ object JvmAgentClientConfig {
   ): JvmAgentClientConfig = {
     val component = sys.env.getOrElse("GOLEM_COMPONENT", defaultComponent)
     val golemCli  = sys.env.getOrElse("GOLEM_CLI", "golem-cli")
-    val flags =
+    val flags     =
       sys.env
         .get("GOLEM_CLI_FLAGS")
         .map(_.trim)
@@ -29,5 +29,3 @@ object JvmAgentClientConfig {
     JvmAgentClientConfig(component = component, golemCli = golemCli, golemCliFlags = flags)
   }
 }
-
-

@@ -67,10 +67,10 @@ object GolemPlugin extends AutoPlugin {
      * TypeScript type expression used by the deterministic TS bridge generator.
      *
      * Examples:
-     * - `"string"`, `"number"`, `"boolean"`, `"void"`
-     * - `"Name"` (custom declared type)
-     * - `"number | null"` (union)
-     * - `"string[]"` (array)
+     *   - `"string"`, `"number"`, `"boolean"`, `"void"`
+     *   - `"Name"` (custom declared type)
+     *   - `"number | null"` (union)
+     *   - `"string[]"` (array)
      */
     object GolemTsType {
       val string: String  = "string"
@@ -116,23 +116,31 @@ object GolemPlugin extends AutoPlugin {
       implMethodName: String = ""
     )
 
-    /** Scala-only export configuration; when non-empty, tooling generates a BridgeSpec manifest automatically. */
+    /**
+     * Scala-only export configuration; when non-empty, tooling generates a
+     * BridgeSpec manifest automatically.
+     */
     val golemExports =
       settingKey[Seq[GolemExport]](
         "List of exported agents (Scala-only); used to auto-generate a hidden BridgeSpec manifest."
       )
 
     /**
-     * When `golemExports` is empty, attempt to auto-detect exports from compiled classes annotated with
-     * `@agentDefinition` / `@agentImplementation`.
+     * When `golemExports` is empty, attempt to auto-detect exports from
+     * compiled classes annotated with `@agentDefinition` /
+     * `@agentImplementation`.
      *
-     * Currently this auto mode supports only "primitive-only" agents (String/Boolean/numbers, Option[T], List[T]).
-     * More complex shapes still require explicit `golemExports`.
+     * Currently this auto mode supports only "primitive-only" agents
+     * (String/Boolean/numbers, Option[T], List[T]). More complex shapes still
+     * require explicit `golemExports`.
      */
     val golemAutoExports =
       settingKey[Boolean]("Enable auto-detection of exports when golemExports is empty (primitive-only for now).")
 
-    /** Ensures the BridgeSpec manifest exists (generating it from golemExports when configured). */
+    /**
+     * Ensures the BridgeSpec manifest exists (generating it from golemExports
+     * when configured).
+     */
     val golemEnsureBridgeSpecManifest =
       taskKey[File]("Ensure BridgeSpec manifest exists (auto-generated from golemExports when configured).")
 
@@ -145,15 +153,15 @@ object GolemPlugin extends AutoPlugin {
     val golemGenerateScalaShim =
       taskKey[Seq[File]]("Generate an internal Scala.js shim from BridgeSpec manifest into managed sources")
 
-    val golemScaffold = taskKey[File]("Ensures the golem app/component scaffold exists; returns component dir")
-    val golemWire     = taskKey[File]("Copies Scala.js bundle and writes src/main.ts; returns component dir")
-    val golemBuild    = taskKey[Unit]("Runs golem-cli app build for the configured component")
-    val golemDeploy   = taskKey[Unit]("Runs golem-cli app deploy for the configured component")
+    val golemScaffold     = taskKey[File]("Ensures the golem app/component scaffold exists; returns component dir")
+    val golemWire         = taskKey[File]("Copies Scala.js bundle and writes src/main.ts; returns component dir")
+    val golemBuild        = taskKey[Unit]("Runs golem-cli app build for the configured component")
+    val golemDeploy       = taskKey[Unit]("Runs golem-cli app deploy for the configured component")
     val golemDeployUpdate =
       inputKey[Unit](
         "Deploy, then update agent instances to the latest component version: golemDeployUpdate [agentId ...] [--all] [--mode auto|manual] [--no-await] [--target <version>]"
       )
-    val golemInvoke   =
+    val golemInvoke =
       inputKey[Unit](
         "Invoke an agent method: golemInvoke <agentId> <fullyQualifiedMethod> [arg1] [arg2] ..."
       )
@@ -162,11 +170,17 @@ object GolemPlugin extends AutoPlugin {
     // App run conveniences (deploy + invoke / deploy + repl script)
     // ---------------------------------------------------------------------------
 
-    /** Default agentId used by `golemAppRun`. Must be a golem-cli agent id string. */
+    /**
+     * Default agentId used by `golemAppRun`. Must be a golem-cli agent id
+     * string.
+     */
     val golemRunAgentId =
       settingKey[String]("Agent id for golemAppRun (golem-cli agent id string).")
 
-    /** Default fully-qualified method used by `golemAppRun` (e.g. org:comp/agent-type.{method}). */
+    /**
+     * Default fully-qualified method used by `golemAppRun` (e.g.
+     * org:comp/agent-type.{method}).
+     */
     val golemRunFunction =
       settingKey[String]("Fully-qualified method for golemAppRun (golem-cli function string).")
 
@@ -174,14 +188,18 @@ object GolemPlugin extends AutoPlugin {
     val golemRunArgs =
       settingKey[Seq[String]]("Default invocation args (WAVE literals) for golemAppRun.")
 
-    /** When true, golemAppRun/golemAppRunScript will run golemDeploy first (default: true). */
+    /**
+     * When true, golemAppRun/golemAppRunScript will run golemDeploy first
+     * (default: true).
+     */
     val golemRunDeployFirst =
       settingKey[Boolean]("Deploy before running (default: true).")
 
     /**
      * Optional publish step to run before deploy+run.
      *
-     * Default is a no-op. In monorepo / snapshot workflows, you can set this to e.g. `publishLocal` or a custom task.
+     * Default is a no-op. In monorepo / snapshot workflows, you can set this to
+     * e.g. `publishLocal` or a custom task.
      */
     val golemRunPublish =
       taskKey[Unit]("Optional publish step to run before golemAppRun/golemAppRunScript (default: no-op).")
@@ -190,7 +208,10 @@ object GolemPlugin extends AutoPlugin {
     val golemRunPublishFirst =
       settingKey[Boolean]("Run golemRunPublish before deploy+run (default: false).")
 
-    /** Timeout (seconds) for golem-cli repl used by golemAppRunScript (default: 60). */
+    /**
+     * Timeout (seconds) for golem-cli repl used by golemAppRunScript (default:
+     * 60).
+     */
     val golemReplTimeoutSec =
       settingKey[Int]("Timeout (seconds) for golem-cli repl in golemAppRunScript (default: 60).")
 
@@ -198,11 +219,16 @@ object GolemPlugin extends AutoPlugin {
     val golemReplDisableStream =
       settingKey[Boolean]("Pass --disable-stream to golem-cli repl (default: true).")
 
-    /** Deploy (optional) then invoke a configured agent method using golem-cli. */
+    /**
+     * Deploy (optional) then invoke a configured agent method using golem-cli.
+     */
     val golemAppRun =
       taskKey[Unit]("Deploy (optional) then invoke a configured method via golem-cli (developer convenience).")
 
-    /** Deploy (optional) then run a golem-cli repl script: golemAppRunScript <path-to.rib>. */
+    /**
+     * Deploy (optional) then run a golem-cli repl script: golemAppRunScript
+     * <path-to.rib>.
+     */
     val golemAppRunScript =
       inputKey[Unit]("Deploy (optional) then run a golem-cli repl script: golemAppRunScript <path-to.rib>.")
 
@@ -214,7 +240,9 @@ object GolemPlugin extends AutoPlugin {
     val golemUpdateAwait =
       settingKey[Boolean]("Await agent updates in golemDeployUpdate (default: true).")
 
-    /** Optional explicit target version for golemDeployUpdate (default: latest). */
+    /**
+     * Optional explicit target version for golemDeployUpdate (default: latest).
+     */
     val golemUpdateTargetVersion =
       settingKey[Option[String]]("Optional explicit target version for golemDeployUpdate (default: latest).")
 
@@ -222,16 +250,28 @@ object GolemPlugin extends AutoPlugin {
     // Local runtime management (developer convenience)
     // ---------------------------------------------------------------------------
 
-    /** Hostname to use when checking whether the local router is reachable (default: 127.0.0.1). */
+    /**
+     * Hostname to use when checking whether the local router is reachable
+     * (default: 127.0.0.1).
+     */
     val golemRouterHost = settingKey[String]("Golem router host for local management (default: 127.0.0.1).")
 
-    /** Port to use when checking whether the local router is reachable (default: 9881). */
+    /**
+     * Port to use when checking whether the local router is reachable (default:
+     * 9881).
+     */
     val golemRouterPort = settingKey[Int]("Golem router port for local management (default: 9881).")
 
-    /** Data directory used when starting a local `golem server run` (default: <buildRoot>/.golem-local). */
+    /**
+     * Data directory used when starting a local `golem server run` (default:
+     * <buildRoot>/.golem-local).
+     */
     val golemLocalDataDir = settingKey[File]("Local golem server data dir (default: <buildRoot>/.golem-local).")
 
-    /** When true (default), `golemBuild`/`golemDeploy`/`golemInvoke` will auto-start local server when using `--local`. */
+    /**
+     * When true (default), `golemBuild`/`golemDeploy`/`golemInvoke` will
+     * auto-start local server when using `--local`.
+     */
     val golemStartLocalServer =
       settingKey[Boolean]("Auto-start a local golem server when using GOLEM_CLI_FLAGS=--local (default: true).")
 
@@ -241,10 +281,15 @@ object GolemPlugin extends AutoPlugin {
     /** File used to capture logs for the managed local server. */
     val golemLocalServerLogFile = settingKey[File]("Log file for managed local server.")
 
-    /** Starts a local golem server/router if needed (no-op if already reachable or not in `--local` mode). */
+    /**
+     * Starts a local golem server/router if needed (no-op if already reachable
+     * or not in `--local` mode).
+     */
     val golemLocalUp = taskKey[Unit]("Start local golem server/router if needed (developer convenience).")
 
-    /** Stops the managed local golem server/router (no-op if none is running). */
+    /**
+     * Stops the managed local golem server/router (no-op if none is running).
+     */
     val golemLocalDown = taskKey[Unit]("Stop managed local golem server/router (developer convenience).")
 
     // This plugin intentionally exposes only the generic primitives above.
@@ -306,10 +351,10 @@ object GolemPlugin extends AutoPlugin {
         .iterator()
         .asScala
         .filter(p => p.toString.endsWith(".class"))
-        .filterNot(p => {
+        .filterNot { p =>
           val n = p.getFileName.toString
           n == "module-info.class" || n == "package-info.class"
-        })
+        }
         .map { p =>
           val rel = base.relativize(p).toString
           rel.stripSuffix(".class").replace(java.io.File.separatorChar, '.').replace('/', '.')
@@ -318,7 +363,7 @@ object GolemPlugin extends AutoPlugin {
     }
 
     def tsTypeOf(tpe: java.lang.reflect.Type): Either[String, String] = {
-      def mapClass(c: Class[_]): Option[String] = {
+      def mapClass(c: Class[_]): Option[String] =
         if (c == classOf[String]) Some("string")
         else if (c == java.lang.Boolean.TYPE || c == classOf[java.lang.Boolean]) Some("boolean")
         else if (
@@ -331,7 +376,6 @@ object GolemPlugin extends AutoPlugin {
         ) Some("number")
         else if (c.getName == "scala.runtime.BoxedUnit" || c == java.lang.Void.TYPE) Some("void")
         else None
-      }
 
       def isLikelyScalaRecordClass(c: Class[_]): Boolean = {
         // IMPORTANT: sbt runs on Scala 2.12, but the scanned classes are typically Scala 2.13/Scala 3
@@ -349,7 +393,7 @@ object GolemPlugin extends AutoPlugin {
         !c.getName.startsWith("java.")
       }
 
-      def recordTsTypeOf(c: Class[_], depth: Int): Either[String, String] = {
+      def recordTsTypeOf(c: Class[_], depth: Int): Either[String, String] =
         if (depth <= 0) Left(s"Auto exports record mapping hit max depth for ${c.getName}")
         else {
           // Scala.js (and some Scala 3 encodings) may not expose case class params as Java fields reliably.
@@ -383,14 +427,13 @@ object GolemPlugin extends AutoPlugin {
             else Right("{ " + partsE.collect { case Right(v) => v }.mkString("; ") + " }")
           }
         }
-      }
 
-      def tsTypeOfWithDepth(tpe0: java.lang.reflect.Type, depth: Int): Either[String, String] = {
+      def tsTypeOfWithDepth(tpe0: java.lang.reflect.Type, depth: Int): Either[String, String] =
         tpe0 match {
           case c: Class[_] =>
             mapClass(c) match {
               case Some(ts) => Right(ts)
-              case None =>
+              case None     =>
                 if (isLikelyScalaRecordClass(c)) recordTsTypeOf(c, depth)
                 else Left(s"Unsupported type for auto exports: ${c.getName}")
             }
@@ -427,7 +470,6 @@ object GolemPlugin extends AutoPlugin {
           case other =>
             Left(s"Unsupported type for auto exports: ${other.getTypeName}")
         }
-      }
 
       tpe match {
         case other => tsTypeOfWithDepth(other, depth = 4)
@@ -442,7 +484,7 @@ object GolemPlugin extends AutoPlugin {
         c.getInterfaces.exists(_.getName == "scala.Product") ||
           c.getMethods.exists(m => m.getName == "productArity" && m.getParameterCount == 0)
 
-      def mapClass(c: Class[_]): String = {
+      def mapClass(c: Class[_]): String =
         if (c == classOf[String]) "String"
         else if (c == java.lang.Boolean.TYPE || c == classOf[java.lang.Boolean]) "Boolean"
         else if (c == java.lang.Integer.TYPE || c == classOf[java.lang.Integer]) "Int"
@@ -458,7 +500,6 @@ object GolemPlugin extends AutoPlugin {
           !c.getName.startsWith("java.")
         ) c.getName
         else "js.Any"
-      }
 
       tpe match {
         case c: Class[_] =>
@@ -486,7 +527,7 @@ object GolemPlugin extends AutoPlugin {
 
     def readAgentDefinitionAnn(cls: Class[_]): Option[(String, String)] =
       cls.getAnnotations.find(a => isAnnByName(a, "cloud.golem.runtime.annotations.agentDefinition")).map { ann =>
-        val tn = Option(ann.annotationType().getMethod("typeName").invoke(ann)).map(_.toString).getOrElse("")
+        val tn       = Option(ann.annotationType().getMethod("typeName").invoke(ann)).map(_.toString).getOrElse("")
         val typeName =
           if (tn.trim.nonEmpty) tn.trim
           else defaultAgentNameFromTrait(cls.getName)
@@ -542,7 +583,7 @@ object GolemPlugin extends AutoPlugin {
       implementedTraits match {
         case Vector(traitName) =>
           val agentName = traits(traitName)
-          val ctor = impl.getConstructors.toVector.sortBy(_.getParameterCount).headOption.orNull
+          val ctor      = impl.getConstructors.toVector.sortBy(_.getParameterCount).headOption.orNull
           if (ctor == null) None
           else {
             val ctorParams =
@@ -581,8 +622,8 @@ object GolemPlugin extends AutoPlugin {
                 final case class CpNameAndType(nameIndex: Int, descIndex: Int)
                 final case class CpMethodRef(classIndex: Int, nameAndTypeIndex: Int)
 
-                def u1(in: DataInputStream): Int = in.readUnsignedByte()
-                def u2(in: DataInputStream): Int = in.readUnsignedShort()
+                def u1(in: DataInputStream): Int  = in.readUnsignedByte()
+                def u2(in: DataInputStream): Int  = in.readUnsignedShort()
                 def u4(in: DataInputStream): Long = in.readInt().toLong & 0xffffffffL
 
                 def countDescriptorParams(desc: String): Int = {
@@ -628,7 +669,7 @@ object GolemPlugin extends AutoPlugin {
                 val in    = new DataInputStream(new ByteArrayInputStream(bytes))
 
                 val magic = in.readInt()
-                if (magic != 0xCAFEBABE) return None
+                if (magic != 0xcafebabe) return None
                 u2(in) // minor
                 u2(in) // major
 
@@ -666,7 +707,7 @@ object GolemPlugin extends AutoPlugin {
                   idx += 1
                 }
 
-                def utf(i: Int): Option[String] = cp.lift(i).collect { case CpUtf8(v) => v }
+                def utf(i: Int): Option[String]                     = cp.lift(i).collect { case CpUtf8(v) => v }
                 def classNameFromClassIndex(i: Int): Option[String] =
                   cp.lift(i).collect { case CpClass(ni) => ni }.flatMap(utf).map(_.replace('/', '.'))
                 def nameAndType(i: Int): Option[(String, String)] =
@@ -678,7 +719,7 @@ object GolemPlugin extends AutoPlugin {
                 u2(in); u2(in); u2(in)
                 // interfaces
                 val ifaces = u2(in)
-                var k       = 0
+                var k      = 0
                 while (k < ifaces) { u2(in); k += 1 }
                 // fields
                 val fields = u2(in)
@@ -740,7 +781,8 @@ object GolemPlugin extends AutoPlugin {
                               // Heuristic for case classes: Scala often compiles `Foo(...)` to `Foo$.apply(...)`
                               // (with the `new Foo` living inside apply). If we see that call, infer Foo.
                               nat.map(_._1) match {
-                                case Some("apply") if cn.endsWith("$") && !cn.startsWith("scala.") && !cn.startsWith("java.") =>
+                                case Some("apply")
+                                    if cn.endsWith("$") && !cn.startsWith("scala.") && !cn.startsWith("java.") =>
                                   val candidate = cn.stripSuffix("$")
                                   try {
                                     val c0 = Class.forName(candidate, false, cl)
@@ -750,8 +792,10 @@ object GolemPlugin extends AutoPlugin {
                               }
                               if (cn == "scala.runtime.BoxesRunTime") {
                                 nat.map(_._1) match {
-                                  case Some("boxToInteger" | "boxToLong" | "boxToDouble" | "boxToFloat" | "boxToShort" |
-                                      "boxToByte") =>
+                                  case Some(
+                                        "boxToInteger" | "boxToLong" | "boxToDouble" | "boxToFloat" | "boxToShort" |
+                                        "boxToByte"
+                                      ) =>
                                     return Some("number")
                                   case Some("boxToBoolean") =>
                                     return Some("boolean")
@@ -794,53 +838,53 @@ object GolemPlugin extends AutoPlugin {
                     )
                   val out: Either[String, (String, Boolean, String, Vector[(String, String, String)])] =
                     m.getGenericReturnType match {
-                    case p: java.lang.reflect.ParameterizedType
-                        if p.getRawType.asInstanceOf[Class[_]].getName == "scala.concurrent.Future" =>
-                      val outTpe = p.getActualTypeArguments.headOption.getOrElse(classOf[Object])
-                      val outTsE = tsTypeOf(outTpe) match {
-                        case Right("any") | Left(_) if outTpe == classOf[Object] =>
-                          inferFutureReturnTsFromImplBytecode(impl.getName, m.getName, m.getParameterTypes.length)
-                            .toRight(
-                              s"Unsupported type for auto exports: ${outTpe.getTypeName} on $traitName.${m.getName} (Scala 3 erased type; please configure explicit golemExports)"
-                            )
-                        case other => other
-                      }
-                      val paramsTs: Vector[Either[String, (String, String, String)]] =
-                        m.getGenericParameterTypes.toVector.zipWithIndex.map { case (pt0, i) =>
-                          val pn = s"arg$i"
-                          // If Scala 3 erased the param type to Object, try the impl method signature.
-                          val pt =
-                            pt0 match {
-                              case c: Class[_] if c == classOf[Object] =>
-                                implMethodOpt.map(_.getGenericParameterTypes.apply(i)).getOrElse(pt0)
-                              case other => other
-                            }
-                          tsTypeOf(pt).map(ts => (pn, ts, scalaParamTypeOf(pt)))
+                      case p: java.lang.reflect.ParameterizedType
+                          if p.getRawType.asInstanceOf[Class[_]].getName == "scala.concurrent.Future" =>
+                        val outTpe = p.getActualTypeArguments.headOption.getOrElse(classOf[Object])
+                        val outTsE = tsTypeOf(outTpe) match {
+                          case Right("any") | Left(_) if outTpe == classOf[Object] =>
+                            inferFutureReturnTsFromImplBytecode(impl.getName, m.getName, m.getParameterTypes.length)
+                              .toRight(
+                                s"Unsupported type for auto exports: ${outTpe.getTypeName} on $traitName.${m.getName} (Scala 3 erased type; please configure explicit golemExports)"
+                              )
+                          case other => other
                         }
-                      if (outTsE.isLeft) Left(outTsE.left.get)
-                      else if (paramsTs.exists(_.isLeft)) paramsTs.collectFirst { case Left(e) => Left(e) }.get
-                      else Right((m.getName, true, outTsE.toOption.get, paramsTs.collect { case Right(v) => v }))
+                        val paramsTs: Vector[Either[String, (String, String, String)]] =
+                          m.getGenericParameterTypes.toVector.zipWithIndex.map { case (pt0, i) =>
+                            val pn = s"arg$i"
+                            // If Scala 3 erased the param type to Object, try the impl method signature.
+                            val pt =
+                              pt0 match {
+                                case c: Class[_] if c == classOf[Object] =>
+                                  implMethodOpt.map(_.getGenericParameterTypes.apply(i)).getOrElse(pt0)
+                                case other => other
+                              }
+                            tsTypeOf(pt).map(ts => (pn, ts, scalaParamTypeOf(pt)))
+                          }
+                        if (outTsE.isLeft) Left(outTsE.left.get)
+                        else if (paramsTs.exists(_.isLeft)) paramsTs.collectFirst { case Left(e) => Left(e) }.get
+                        else Right((m.getName, true, outTsE.toOption.get, paramsTs.collect { case Right(v) => v }))
 
-                    case c: Class[_] if c.getName == "scala.runtime.BoxedUnit" || c == java.lang.Void.TYPE =>
-                      val paramsTs: Vector[Either[String, (String, String, String)]] =
-                        m.getGenericParameterTypes.toVector.zipWithIndex.map { case (pt0, i) =>
-                          val pn = s"arg$i"
-                          val pt =
-                            pt0 match {
-                              case c: Class[_] if c == classOf[Object] =>
-                                implMethodOpt.map(_.getGenericParameterTypes.apply(i)).getOrElse(pt0)
-                              case other => other
-                            }
-                          tsTypeOf(pt).map(ts => (pn, ts, scalaParamTypeOf(pt)))
-                        }
-                      if (paramsTs.exists(_.isLeft)) paramsTs.collectFirst { case Left(e) => Left(e) }.get
-                      else Right((m.getName, false, "void", paramsTs.collect { case Right(v) => v }))
+                      case c: Class[_] if c.getName == "scala.runtime.BoxedUnit" || c == java.lang.Void.TYPE =>
+                        val paramsTs: Vector[Either[String, (String, String, String)]] =
+                          m.getGenericParameterTypes.toVector.zipWithIndex.map { case (pt0, i) =>
+                            val pn = s"arg$i"
+                            val pt =
+                              pt0 match {
+                                case c: Class[_] if c == classOf[Object] =>
+                                  implMethodOpt.map(_.getGenericParameterTypes.apply(i)).getOrElse(pt0)
+                                case other => other
+                              }
+                            tsTypeOf(pt).map(ts => (pn, ts, scalaParamTypeOf(pt)))
+                          }
+                        if (paramsTs.exists(_.isLeft)) paramsTs.collectFirst { case Left(e) => Left(e) }.get
+                        else Right((m.getName, false, "void", paramsTs.collect { case Right(v) => v }))
 
-                    case other =>
-                      Left(
-                        s"Auto exports only supports Future[...] or Unit return types; found ${other.getTypeName} on $traitName.${m.getName}"
-                      )
-                  }
+                      case other =>
+                        Left(
+                          s"Auto exports only supports Future[...] or Unit return types; found ${other.getTypeName} on $traitName.${m.getName}"
+                        )
+                    }
                   out
                 }
 
@@ -1311,7 +1355,7 @@ object GolemPlugin extends AutoPlugin {
       .filter(_.nonEmpty)
       .map(_.split("\\s+").toSeq)
       .getOrElse(Seq("--local")),
-    golemTimeoutSec              := 180,
+    golemTimeoutSec := 180,
     // Default to `<golemAppName>.js` so most projects don't need to set this explicitly.
     // (Override if you need backwards-compatibility with existing scaffolds that expect e.g. `scala.js`.)
     golemBundleFileName          := s"${golemAppName.value}.js",
@@ -1319,9 +1363,9 @@ object GolemPlugin extends AutoPlugin {
     golemBridgeSpec              := BridgeSpecUnset,
     golemBridgeSpecProviderClass := "",
     // Default to a managed target location; when golemExports is set, we auto-generate this file.
-    golemBridgeSpecManifestPath  := (Compile / resourceManaged).value / "golem" / "bridge-spec.properties",
-    golemExports                 := Nil,
-    golemAutoExports             := true,
+    golemBridgeSpecManifestPath   := (Compile / resourceManaged).value / "golem" / "bridge-spec.properties",
+    golemExports                  := Nil,
+    golemAutoExports              := true,
     golemEnsureBridgeSpecManifest := Def.taskDyn {
       val log      = streams.value.log
       val exports  = golemExports.value
@@ -1331,12 +1375,14 @@ object GolemPlugin extends AutoPlugin {
         IO.createDirectory(manifest.getParentFile)
 
         val scalaBundleImport = s"./${golemBundleFileName.value}"
-        val sb = new StringBuilder()
+        val sb                = new StringBuilder()
         sb.append("scalaBundleImport=").append(scalaBundleImport).append("\n")
-        sb.append("scalaAgentsExpr=").append(scalaAgentsExprForExportTopLevel(golemScalaShimExportTopLevel.value)).append("\n\n")
+        sb.append("scalaAgentsExpr=")
+          .append(scalaAgentsExprForExportTopLevel(golemScalaShimExportTopLevel.value))
+          .append("\n\n")
 
         exports.zipWithIndex.foreach { case (e, idx) =>
-          val p = s"agents.$idx."
+          val p         = s"agents.$idx."
           val className =
             if (e.className.trim.nonEmpty) e.className.trim
             else defaultTsClassNameFromTrait(e.traitClass)
@@ -1407,8 +1453,8 @@ object GolemPlugin extends AutoPlugin {
         manifest
       }
 
-      if (exports.nonEmpty) Def.task { writeManifestFromExports(exports) }
-      else if (!golemAutoExports.value) Def.task { manifest }
+      if (exports.nonEmpty) Def.task(writeManifestFromExports(exports))
+      else if (!golemAutoExports.value) Def.task(manifest)
       else
         Def.task {
           // IMPORTANT: do NOT use `Compile / fullClasspath` here.
@@ -1416,7 +1462,7 @@ object GolemPlugin extends AutoPlugin {
           // and `fullClasspath` depends on `Compile / products` which depends on `Compile / compile`,
           // creating a self-dependency and an apparent "hang" in sbt's execution engine.
           val classDir = (Compile / classDirectory).value
-          val cp =
+          val cp       =
             (Compile / dependencyClasspath).value.map(_.data) ++ scalaInstance.value.allJars
 
           autoDetectExportsFromClassfiles(classDir, cp, s => log.info(s)) match {
@@ -1428,12 +1474,14 @@ object GolemPlugin extends AutoPlugin {
             case Right(detected) =>
               IO.createDirectory(manifest.getParentFile)
               val scalaBundleImport = s"./${golemBundleFileName.value}"
-              val sb = new StringBuilder()
+              val sb                = new StringBuilder()
               sb.append("scalaBundleImport=").append(scalaBundleImport).append("\n")
-              sb.append("scalaAgentsExpr=").append(scalaAgentsExprForExportTopLevel(golemScalaShimExportTopLevel.value)).append("\n\n")
+              sb.append("scalaAgentsExpr=")
+                .append(scalaAgentsExprForExportTopLevel(golemScalaShimExportTopLevel.value))
+                .append("\n\n")
 
               detected.zipWithIndex.foreach { case (e, idx) =>
-                val p = s"agents.$idx."
+                val p            = s"agents.$idx."
                 val className    = defaultTsClassNameFromTrait(e.traitClass)
                 val scalaFactory = defaultScalaFactoryFromTrait(e.traitClass)
 
@@ -1445,31 +1493,31 @@ object GolemPlugin extends AutoPlugin {
                 e.ctorParams match {
                   case Vector() =>
                     sb.append(p).append("constructor.kind=noarg\n")
-                case Vector((argName, tsType, scalaType)) =>
+                  case Vector((argName, tsType, scalaType)) =>
                     sb.append(p).append("constructor.kind=scalar\n")
                     sb.append(p).append("constructor.argName=").append(argName).append("\n")
                     sb.append(p).append("constructor.tsType=").append(tsType).append("\n")
-                  sb.append(p).append("constructor.scalaType=").append(scalaType).append("\n")
+                    sb.append(p).append("constructor.scalaType=").append(scalaType).append("\n")
                   case params =>
                     sb.append(p).append("constructor.kind=positional\n")
-                  params.zipWithIndex.foreach { case ((n, t, st), pi) =>
+                    params.zipWithIndex.foreach { case ((n, t, st), pi) =>
                       sb.append(p).append(s"constructor.param.$pi.name=").append(n).append("\n")
                       sb.append(p).append(s"constructor.param.$pi.tsType=").append(t).append("\n")
-                    sb.append(p).append(s"constructor.param.$pi.scalaType=").append(st).append("\n")
+                      sb.append(p).append(s"constructor.param.$pi.scalaType=").append(st).append("\n")
                     }
                 }
 
-              e.methods.zipWithIndex.foreach { case ((mName, isAsync, tsRet, params), mi) =>
+                e.methods.zipWithIndex.foreach { case ((mName, isAsync, tsRet, params), mi) =>
                   val mp = p + s"method.$mi."
                   sb.append(mp).append("name=").append(mName).append("\n")
                   sb.append(mp).append("isAsync=").append(if (isAsync) "true" else "false").append("\n")
                   sb.append(mp).append("tsReturnType=").append(tsRet).append("\n")
                   sb.append(mp).append("implMethodName=").append(mName).append("\n")
-                params.zipWithIndex.foreach { case ((pn, pt, pst), pi) =>
+                  params.zipWithIndex.foreach { case ((pn, pt, pst), pi) =>
                     val pp = mp + s"param.$pi."
                     sb.append(pp).append("name=").append(pn).append("\n")
                     sb.append(pp).append("tsType=").append(pt).append("\n")
-                  sb.append(pp).append("scalaType=").append(pst).append("\n")
+                    sb.append(pp).append("scalaType=").append(pst).append("\n")
                     sb.append(pp).append("implArgExpr=").append("").append("\n")
                   }
                 }
@@ -1488,19 +1536,21 @@ object GolemPlugin extends AutoPlugin {
     golemScalaShimPackage        := "cloud.golem.internal",
 
     // App run defaults (opt-in: users must set agentId/function, otherwise golemAppRun errors)
-    golemRunAgentId := "",
-    golemRunFunction := "",
-    golemRunArgs := Nil,
-    golemRunDeployFirst := true,
+    golemRunAgentId      := "",
+    golemRunFunction     := "",
+    golemRunArgs         := Nil,
+    golemRunDeployFirst  := true,
     golemRunPublishFirst := false,
-    golemRunPublish := {},
-    golemReplTimeoutSec := sys.env.get("GOLEM_REPL_TIMEOUT_SEC").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(60),
-    golemReplDisableStream := true,
-    golemUpdateMode := "auto",
-    golemUpdateAwait := true,
+    golemRunPublish      := {},
+    golemReplTimeoutSec  := sys.env
+      .get("GOLEM_REPL_TIMEOUT_SEC")
+      .flatMap(s => scala.util.Try(s.toInt).toOption)
+      .getOrElse(60),
+    golemReplDisableStream   := true,
+    golemUpdateMode          := "auto",
+    golemUpdateAwait         := true,
     golemUpdateTargetVersion := None,
-
-    golemAppRun := Def.taskDyn {
+    golemAppRun              := Def.taskDyn {
       Def.task {
         val log = streams.value.log
 
@@ -1518,11 +1568,11 @@ object GolemPlugin extends AutoPlugin {
           )
         }
 
-        val flags      = golemCliFlags.value
-        val args       = golemRunArgs.value
-        val appDir     = golemAppRoot.value / golemAppName.value
+        val flags       = golemCliFlags.value
+        val args        = golemRunArgs.value
+        val appDir      = golemAppRoot.value / golemAppName.value
         val golemCliCmd = golemCli.value
-        val cliBase    = Seq("env", "-u", "ARGV0", golemCliCmd)
+        val cliBase     = Seq("env", "-u", "ARGV0", golemCliCmd)
 
         val cmd = cliBase ++ (flags ++ (Seq("--yes", "agent", "invoke", agentId, fn) ++ args))
         log.info(s"[golem] golemAppRun: invoking $agentId $fn")
@@ -1532,20 +1582,19 @@ object GolemPlugin extends AutoPlugin {
     }.dependsOn(
       Def.taskDyn {
         val publish =
-          if (golemRunPublishFirst.value) Def.task { golemRunPublish.value } else Def.task {}
+          if (golemRunPublishFirst.value) Def.task(golemRunPublish.value) else Def.task {}
         val deploy =
           if (golemRunDeployFirst.value) golemDeployUpdate.toTask("") else Def.task {}
         Def.task {}.dependsOn(publish, deploy)
       }
     ).value,
-
     golemAppRunScript := Def.inputTaskDyn {
-      val log = streams.value.log
+      val log           = streams.value.log
       val scriptPathStr = spaceDelimited("<script-file>").parsed.headOption.getOrElse("")
       if (scriptPathStr.trim.isEmpty) sys.error("Usage: golemAppRunScript <path-to.rib>")
 
       val scriptFile0 = file(scriptPathStr)
-      val scriptFile =
+      val scriptFile  =
         if (scriptFile0.isAbsolute) scriptFile0
         else (ThisBuild / baseDirectory).value / scriptFile0.getPath
 
@@ -1556,11 +1605,11 @@ object GolemPlugin extends AutoPlugin {
         if (!scriptFile.exists())
           sys.error(s"Script file not found: ${scriptFile.getAbsolutePath}")
 
-        val flags      = golemCliFlags.value
-        val appDir     = golemAppRoot.value / golemAppName.value
-        val component  = golemComponent.value
+        val flags       = golemCliFlags.value
+        val appDir      = golemAppRoot.value / golemAppName.value
+        val component   = golemComponent.value
         val golemCliCmd = golemCli.value
-        val cliBase    = Seq("env", "-u", "ARGV0", golemCliCmd)
+        val cliBase     = Seq("env", "-u", "ARGV0", golemCliCmd)
 
         val replArgs =
           Seq("--yes", "repl", component, "--script-file", scriptFile.getAbsolutePath) ++
@@ -1574,7 +1623,7 @@ object GolemPlugin extends AutoPlugin {
     }.dependsOn(
       Def.taskDyn {
         val publish =
-          if (golemRunPublishFirst.value) Def.task { golemRunPublish.value } else Def.task {}
+          if (golemRunPublishFirst.value) Def.task(golemRunPublish.value) else Def.task {}
         val deploy =
           if (golemRunDeployFirst.value) golemDeployUpdate.toTask("") else Def.task {}
         Def.task {}.dependsOn(publish, deploy)
@@ -1582,14 +1631,13 @@ object GolemPlugin extends AutoPlugin {
     ).evaluated,
 
     // Local runtime management defaults
-    golemRouterHost := sys.env.getOrElse("GOLEM_ROUTER_HOST", "127.0.0.1"),
-    golemRouterPort := sys.env.get("GOLEM_ROUTER_PORT").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(9881),
-    golemLocalDataDir := (ThisBuild / baseDirectory).value / ".golem-local",
-    golemStartLocalServer := true,
+    golemRouterHost         := sys.env.getOrElse("GOLEM_ROUTER_HOST", "127.0.0.1"),
+    golemRouterPort         := sys.env.get("GOLEM_ROUTER_PORT").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(9881),
+    golemLocalDataDir       := (ThisBuild / baseDirectory).value / ".golem-local",
+    golemStartLocalServer   := true,
     golemLocalServerPidFile := golemLocalDataDir.value / "server.pid",
     golemLocalServerLogFile := golemLocalDataDir.value / "server.log",
-
-    golemLocalDown := {
+    golemLocalDown          := {
       val log     = streams.value.log
       val pidFile = golemLocalServerPidFile.value
       if (!pidFile.exists()) {
@@ -1598,17 +1646,18 @@ object GolemPlugin extends AutoPlugin {
         val pid = IO.read(pidFile).trim
         if (pid.nonEmpty) {
           log.info(s"[golem] Stopping managed local server (pid=$pid)")
-          try scala.sys.process.Process(Seq("kill", "-TERM", pid)).! catch { case _: Throwable => () }
+          try scala.sys.process.Process(Seq("kill", "-TERM", pid)).!
+          catch { case _: Throwable => () }
           Thread.sleep(500)
-          try scala.sys.process.Process(Seq("kill", "-KILL", pid)).! catch { case _: Throwable => () }
+          try scala.sys.process.Process(Seq("kill", "-KILL", pid)).!
+          catch { case _: Throwable => () }
         }
         IO.delete(pidFile)
       }
     },
-
     golemLocalUp := {
-      val log   = streams.value.log
-      val flags = golemCliFlags.value
+      val log     = streams.value.log
+      val flags   = golemCliFlags.value
       val isLocal = flags.contains("--local") && !flags.contains("--cloud")
 
       if (!isLocal) {
@@ -1616,11 +1665,11 @@ object GolemPlugin extends AutoPlugin {
       } else if (!golemStartLocalServer.value) {
         log.info("[golem] golemLocalUp: golemStartLocalServer=false; skipping local server management.")
       } else {
-        val host    = golemRouterHost.value
-        val port    = golemRouterPort.value
-        val dataDir = golemLocalDataDir.value
-        val pidFile = golemLocalServerPidFile.value
-        val logFile = golemLocalServerLogFile.value
+        val host     = golemRouterHost.value
+        val port     = golemRouterPort.value
+        val dataDir  = golemLocalDataDir.value
+        val pidFile  = golemLocalServerPidFile.value
+        val logFile  = golemLocalServerLogFile.value
         val golemBin = sys.env.getOrElse("GOLEM_BIN", "golem")
 
         def routerReachable(): Boolean =
@@ -1639,9 +1688,11 @@ object GolemPlugin extends AutoPlugin {
             val stale = IO.read(pidFile).trim
             if (stale.nonEmpty) {
               log.warn(s"[golem] golemLocalUp: found stale pid file (pid=$stale); attempting to stop")
-              try scala.sys.process.Process(Seq("kill", "-TERM", stale)).! catch { case _: Throwable => () }
+              try scala.sys.process.Process(Seq("kill", "-TERM", stale)).!
+              catch { case _: Throwable => () }
               Thread.sleep(500)
-              try scala.sys.process.Process(Seq("kill", "-KILL", stale)).! catch { case _: Throwable => () }
+              try scala.sys.process.Process(Seq("kill", "-KILL", stale)).!
+              catch { case _: Throwable => () }
             }
             IO.delete(pidFile)
           }
@@ -1681,7 +1732,7 @@ object GolemPlugin extends AutoPlugin {
     },
     Compile / sourceGenerators += golemGenerateScalaShim.taskValue,
     golemGenerateScalaShim := {
-      val log      = streams.value.log
+      val log = streams.value.log
       // IMPORTANT: do NOT call `golemEnsureBridgeSpecManifest` from a source generator.
       //
       // During a clean build, sourceGenerators run before classfiles exist, so auto-detection cannot succeed.
@@ -1710,10 +1761,10 @@ object GolemPlugin extends AutoPlugin {
         }
       }
     },
-    golemGenerateBridgeMainTs    := {
+    golemGenerateBridgeMainTs := {
       val log = streams.value.log
       // Keep `.value` dependencies outside conditionals.
-      val cp = (Compile / fullClasspath).value.map(_.data)
+      val cp           = (Compile / fullClasspath).value.map(_.data)
       val manifestFile = golemEnsureBridgeSpecManifest.value
 
       val spec = golemBridgeSpec.value
@@ -1772,50 +1823,56 @@ object GolemPlugin extends AutoPlugin {
           Def.taskDyn {
             val _managed = (Compile / managedSources).value
             Def.task {
-            val bundleName  = golemBundleFileName.value
-            val specSetting = golemBridgeSpec.value
-            val provider    = golemBridgeSpecProviderClass.value.trim
+              val bundleName  = golemBundleFileName.value
+              val specSetting = golemBridgeSpec.value
+              val provider    = golemBridgeSpecProviderClass.value.trim
 
-            // Keep `.value` dependencies outside conditionals.
-            val cp = (Compile / fullClasspath).value.map(_.data)
-            // Precompute so sbt's task linter doesn't treat it as a conditional dependency.
-            val generatedMainTsFromManifest = golemGenerateBridgeMainTs.value.trim
+              // Keep `.value` dependencies outside conditionals.
+              val cp = (Compile / fullClasspath).value.map(_.data)
+              // Precompute so sbt's task linter doesn't treat it as a conditional dependency.
+              val generatedMainTsFromManifest = golemGenerateBridgeMainTs.value.trim
 
-            // We just created the manifest file, but the initial compilation (done to produce classfiles for auto-detection)
-            // ran before the manifest existed, so the shim source generator returned Nil.
-            // Force a recompilation so the shim gets generated and included in the linked bundle.
-            IO.delete((Compile / classDirectory).value)
+              // We just created the manifest file, but the initial compilation (done to produce classfiles for auto-detection)
+              // ran before the manifest existed, so the shim source generator returned Nil.
+              // Force a recompilation so the shim gets generated and included in the linked bundle.
+              IO.delete((Compile / classDirectory).value)
 
-            val bundle = golemFastLink.value
+              val bundle = golemFastLink.value
 
-            val (mainTsContent, usedSpecOpt): (String, Option[AnyRef]) =
-              Option(golemBridgeMainTs.value).map(_.trim).filter(_.nonEmpty) match {
-                case Some(ts) => (ts, None)
-                case None     =>
-                  if (!(specSetting eq BridgeSpecUnset)) {
-                    val s = specSetting.asInstanceOf[AnyRef]
-                    (BridgeGen.generate(s), Some(s))
-                  } else if (provider.nonEmpty) {
-                    val (ts, specObj) = generateBridgeFromProvider(provider, cp, log)
-                    (ts, Some(specObj))
-                  } else {
-                    // Fall back to the manifest-driven generator (golemExports / autoExports).
-                    // This is the minimal-config path: users set golemComponent (and optionally golemExports),
-                    // and the plugin generates the bridge deterministically.
-                    if (generatedMainTsFromManifest.nonEmpty) (generatedMainTsFromManifest, None) else ("", None)
-                  }
+              val (mainTsContent, usedSpecOpt): (String, Option[AnyRef]) =
+                Option(golemBridgeMainTs.value).map(_.trim).filter(_.nonEmpty) match {
+                  case Some(ts) => (ts, None)
+                  case None     =>
+                    if (!(specSetting eq BridgeSpecUnset)) {
+                      val s = specSetting.asInstanceOf[AnyRef]
+                      (BridgeGen.generate(s), Some(s))
+                    } else if (provider.nonEmpty) {
+                      val (ts, specObj) = generateBridgeFromProvider(provider, cp, log)
+                      (ts, Some(specObj))
+                    } else {
+                      // Fall back to the manifest-driven generator (golemExports / autoExports).
+                      // This is the minimal-config path: users set golemComponent (and optionally golemExports),
+                      // and the plugin generates the bridge deterministically.
+                      if (generatedMainTsFromManifest.nonEmpty) (generatedMainTsFromManifest, None) else ("", None)
+                    }
+                }
+
+              if (mainTsContent.trim.isEmpty) {
+                sys.error(
+                  "No bridge configured. Set golemBridgeMainTs or golemBridgeSpec before running golemWire."
+                )
               }
 
-            if (mainTsContent.trim.isEmpty) {
-              sys.error(
-                "No bridge configured. Set golemBridgeMainTs or golemBridgeSpec before running golemWire."
+              val srcDir = componentDir / "src"
+              IO.createDirectory(srcDir)
+              Tooling.wireTsComponent(
+                componentDir.toPath,
+                bundle.toPath,
+                bundleName,
+                mainTsContent,
+                msg => log.info(msg)
               )
-            }
-
-            val srcDir = componentDir / "src"
-            IO.createDirectory(srcDir)
-            Tooling.wireTsComponent(componentDir.toPath, bundle.toPath, bundleName, mainTsContent, msg => log.info(msg))
-            componentDir
+              componentDir
             }
           }
         }
@@ -1923,7 +1980,7 @@ object GolemPlugin extends AutoPlugin {
       def listAgentsForComponent(): Vector[String] = {
         // golem-cli agent list --format json returns:
         // { "workers": [ { "componentName": "...", "workerName": "agent-type(...)" }, ... ] }
-        val cmd = cliBase ++ (flags ++ Seq("--yes", "--format", "json", "agent", "list", component))
+        val cmd         = cliBase ++ (flags ++ Seq("--yes", "--format", "json", "agent", "list", component))
         val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent list", timeoutSec, log)
         if (exit != 0) sys.error(s"golem-cli agent list failed with exit code $exit\n$out")
 
@@ -1940,11 +1997,11 @@ object GolemPlugin extends AutoPlugin {
             else if (i + 1 >= s.length) { sb.append('\\'); i += 1 }
             else {
               s.charAt(i + 1) match {
-                case '"'  => sb.append('"'); i += 2
-                case '\\' => sb.append('\\'); i += 2
-                case 'n'  => sb.append('\n'); i += 2
-                case 'r'  => sb.append('\r'); i += 2
-                case 't'  => sb.append('\t'); i += 2
+                case '"'                     => sb.append('"'); i += 2
+                case '\\'                    => sb.append('\\'); i += 2
+                case 'n'                     => sb.append('\n'); i += 2
+                case 'r'                     => sb.append('\r'); i += 2
+                case 't'                     => sb.append('\t'); i += 2
                 case 'u' if i + 5 < s.length =>
                   val hex = s.substring(i + 2, i + 6)
                   try sb.append(Integer.parseInt(hex, 16).toChar)
@@ -1978,7 +2035,7 @@ object GolemPlugin extends AutoPlugin {
         // Updates can legitimately take several minutes (even locally), especially when many agents exist.
         // Use a larger timeout than the generic CLI timeout to avoid spurious failures.
         val updateTimeoutSec = math.max(timeoutSec, 600)
-        val cmd =
+        val cmd              =
           cliBase ++ (flags ++ (Seq("--yes", "agent", "update") ++ awaitFlag ++ Seq(agentId) ++ modeArg ++ targetArg))
         val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent update", updateTimeoutSec, log)
         if (exit != 0) {
@@ -1995,7 +2052,7 @@ object GolemPlugin extends AutoPlugin {
       }
     },
     golemInvoke := {
-      val _ = golemLocalUp.value
+      val _    = golemLocalUp.value
       val log  = streams.value.log
       val args = spaceDelimited("<arg>").parsed
       if (args.lengthCompare(2) < 0)

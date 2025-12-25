@@ -10,11 +10,12 @@ import scala.util.control.NonFatal
 /**
  * Internal shim implementation used by the plugin-generated Scala agents shim.
  *
- * The TS bridge calls this via the generated shim object; we keep all JS-facing decoding localized here.
+ * The TS bridge calls this via the generated shim object; we keep all JS-facing
+ * decoding localized here.
  */
 final class HostTestsHarnessShimImpl() {
   def runtests(input: js.Dynamic): Future[String] = {
-    val selection = selectionFromInput(input)
+    val selection            = selectionFromInput(input)
     val (reportJson, failed) = render(selection)
     if (failed) FutureInterop.failed(reportJson)
     else Future.successful(reportJson)
@@ -59,6 +60,3 @@ final class HostTestsHarnessShimImpl() {
       }
     }
 }
-
-
-

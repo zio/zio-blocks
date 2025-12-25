@@ -28,7 +28,9 @@ object AgentDefinitionMacro {
 
     val hasAgentDefinition =
       typeSymbol.annotations.exists {
-        case Apply(Select(New(tpt), _), _) if tpt.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" => true
+        case Apply(Select(New(tpt), _), _)
+            if tpt.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
+          true
         case _ => false
       }
 
@@ -78,8 +80,8 @@ object AgentDefinitionMacro {
       case Apply(Select(New(tpt), _), args)
           if tpt.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
         args.collectFirst {
-          case Literal(StringConstant(value))                        => value
-          case NamedArg("typeName", Literal(StringConstant(value)))  => value
+          case Literal(StringConstant(value))                       => value
+          case NamedArg("typeName", Literal(StringConstant(value))) => value
         }
     }.flatten.map(_.trim).filter(_.nonEmpty)
   }
@@ -280,14 +282,14 @@ object AgentDefinitionMacro {
     def loop(t: Term): String =
       t match {
         case Inlined(_, _, inner: Term) => loop(inner)
-        case _ =>
+        case _                          =>
           t.symbol.name match {
             // Scala may represent default annotation args via synthetic default-getter methods.
             // For `agentDefinition(mode: DurabilityMode = DurabilityMode.Durable)`, this is the default.
             case "$lessinit$greater$default$2" => "durable"
-            case "Durable"   => "durable"
-            case "Ephemeral" => "ephemeral"
-            case other =>
+            case "Durable"                     => "durable"
+            case "Ephemeral"                   => "ephemeral"
+            case other                         =>
               report.errorAndAbort(
                 s"Unsupported DurabilityMode annotation value: ${t.show} (symbol=$other). Use DurabilityMode.Durable or DurabilityMode.Ephemeral."
               )

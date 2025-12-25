@@ -52,9 +52,9 @@ private[golem] object WitValueCodec {
               vec        <- acc
               childValue <- decodeNode(IntType, nodes, childIdx)
               byte       <- childValue match {
-                             case IntValue(v) => Right(v.toByte)
-                             case other       => Left(s"Expected byte value, found $other")
-                           }
+                        case IntValue(v) => Right(v.toByte)
+                        case other       => Left(s"Expected byte value, found $other")
+                      }
             } yield vec :+ byte
           }
           bytesEither.map(vector => BytesValue(vector.toArray))
@@ -161,5 +161,3 @@ private[golem] object WitValueCodec {
     }
   }
 }
-
-

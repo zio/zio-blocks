@@ -1,6 +1,16 @@
 package cloud.golem.examples
 
-import cloud.golem.data.{DataInterop, DataType, DataValue, ElementSchema, ElementValue, GolemSchema, NamedElementValue, StructuredSchema, StructuredValue}
+import cloud.golem.data.{
+  DataInterop,
+  DataType,
+  DataValue,
+  ElementSchema,
+  ElementValue,
+  GolemSchema,
+  NamedElementValue,
+  StructuredSchema,
+  StructuredValue
+}
 import org.scalatest.funsuite.AnyFunSuite
 import zio.blocks.schema.Schema
 
@@ -8,7 +18,7 @@ import java.util.UUID
 
 private sealed trait Status
 private object Status {
-  case object Ok extends Status
+  case object Ok                        extends Status
   final case class Missing(key: String) extends Status
   implicit val schema: Schema[Status] = Schema.derived
 }
@@ -16,9 +26,10 @@ private object Status {
 /**
  * Parity-style tests focused on schema-driven interop.
  *
- * Goal: cover “complex data types that require conversions to/from WIT values” by validating:
- * - Schema -> DataType shape (what we use as the WIT-like model)
- * - GolemSchema encode/decode round-trips for representative complex types
+ * Goal: cover “complex data types that require conversions to/from WIT values”
+ * by validating:
+ *   - Schema -> DataType shape (what we use as the WIT-like model)
+ *   - GolemSchema encode/decode round-trips for representative complex types
  *
  * These are pure unit tests (no live Golem server required).
  */
@@ -67,7 +78,9 @@ final class SchemaInteropRoundtripSpec extends AnyFunSuite {
 
       override def decode(value: StructuredValue): Either[String, Array[Byte]] =
         value match {
-          case StructuredValue.Tuple(NamedElementValue(_, ElementValue.Component(DataValue.BytesValue(bytes))) :: Nil) =>
+          case StructuredValue.Tuple(
+                NamedElementValue(_, ElementValue.Component(DataValue.BytesValue(bytes))) :: Nil
+              ) =>
             Right(bytes)
           case other =>
             Left(s"Expected component bytes payload, found: $other")
@@ -94,5 +107,3 @@ final class SchemaInteropRoundtripSpec extends AnyFunSuite {
     }
   }
 }
-
-

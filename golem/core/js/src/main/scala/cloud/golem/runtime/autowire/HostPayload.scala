@@ -20,5 +20,3 @@ object HostPayload {
       value      <- codec.decode(structured)
     } yield value
 }
-
-

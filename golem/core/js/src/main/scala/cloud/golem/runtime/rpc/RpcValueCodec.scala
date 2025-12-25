@@ -1,7 +1,11 @@
 package cloud.golem.runtime.rpc
 
 import cloud.golem.data.ElementSchema.{Component, UnstructuredBinary, UnstructuredText}
-import cloud.golem.data.ElementValue.{Component => ComponentValue, UnstructuredBinary => UnstructuredBinaryValueElt, UnstructuredText => UnstructuredTextValueElt}
+import cloud.golem.data.ElementValue.{
+  Component => ComponentValue,
+  UnstructuredBinary => UnstructuredBinaryValueElt,
+  UnstructuredText => UnstructuredTextValueElt
+}
 import cloud.golem.data.StructuredSchema.{Multimodal, Tuple}
 import cloud.golem.data._
 import cloud.golem.runtime.autowire.{WitValueBuilder, WitValueCodec}
@@ -60,7 +64,10 @@ private[rpc] object RpcValueCodec {
   def decodeValue[A](witValue: js.Dynamic)(implicit codec: GolemSchema[A]): Either[String, A] =
     structuredFromWit(codec.schema, witValue).flatMap(codec.decode)
 
-  private def structuredToParams(schema: StructuredSchema, value: StructuredValue): Either[String, js.Array[js.Dynamic]] =
+  private def structuredToParams(
+    schema: StructuredSchema,
+    value: StructuredValue
+  ): Either[String, js.Array[js.Dynamic]] =
     schema match {
       case Tuple(elements) =>
         value match {
@@ -114,24 +121,26 @@ private[rpc] object RpcValueCodec {
   ): Either[String, js.Array[js.Dynamic]] = {
     val valueMap = values.map(elem => elem.name -> elem.value).toMap
     val array    = new js.Array[js.Dynamic]()
-    schemaElements.foldLeft[Either[String, Unit]](Right(())) { case (acc, element) =>
-      acc.flatMap { _ =>
-        valueMap
-          .get(element.name)
-          .toRight(s"Missing value for element '${element.name}'")
-          .flatMap { elementValue =>
-            encodeElement(element.schema, elementValue).map(array.push(_))
-          }
+    schemaElements
+      .foldLeft[Either[String, Unit]](Right(())) { case (acc, element) =>
+        acc.flatMap { _ =>
+          valueMap
+            .get(element.name)
+            .toRight(s"Missing value for element '${element.name}'")
+            .flatMap { elementValue =>
+              encodeElement(element.schema, elementValue).map(array.push(_))
+            }
+        }
       }
-    }.map(_ => array)
+      .map(_ => array)
   }
 
   private def encodeTupleAggregate(
     schemaElements: List[NamedElementSchema],
     values: List[NamedElementValue]
   ): Either[String, js.Dynamic] = {
-    val valueMap  = values.map(elem => elem.name -> elem.value).toMap
-    val dataTypes = schemaElements.map(elem => elementDataType(elem.schema))
+    val valueMap         = values.map(elem => elem.name -> elem.value).toMap
+    val dataTypes        = schemaElements.map(elem => elementDataType(elem.schema))
     val dataValuesEither = schemaElements.foldLeft[Either[String, List[DataValue]]](Right(Nil)) { case (acc, element) =>
       acc.flatMap { list =>
         valueMap
@@ -146,7 +155,10 @@ private[rpc] object RpcValueCodec {
     }
   }
 
-  private def encodeMultimodal(schemaElements: List[NamedElementSchema], values: List[NamedElementValue]): Either[String, js.Dynamic] = {
+  private def encodeMultimodal(
+    schemaElements: List[NamedElementSchema],
+    values: List[NamedElementValue]
+  ): Either[String, js.Dynamic] = {
     val schemaByName  = schemaElements.map(elem => elem.name -> elem.schema).toMap
     val variantType   = multimodalVariantType(schemaElements)
     val entriesEither = values.foldLeft[Either[String, List[DataValue]]](Right(Nil)) { case (acc, namedValue) =>
@@ -163,7 +175,10 @@ private[rpc] object RpcValueCodec {
     }
   }
 
-  private def decodeTuple(schemaElements: List[NamedElementSchema], witValue: js.Dynamic): Either[String, List[NamedElementValue]] = {
+  private def decodeTuple(
+    schemaElements: List[NamedElementSchema],
+    witValue: js.Dynamic
+  ): Either[String, List[NamedElementValue]] = {
     val dataType = DataType.TupleType(schemaElements.map(elem => elementDataType(elem.schema)))
 
     def decodeAsTuple: Either[String, List[NamedElementValue]] =
@@ -199,7 +214,10 @@ private[rpc] object RpcValueCodec {
     }
   }
 
-  private def decodeMultimodal(schemaElements: List[NamedElementSchema], witValue: js.Dynamic): Either[String, List[NamedElementValue]] = {
+  private def decodeMultimodal(
+    schemaElements: List[NamedElementSchema],
+    witValue: js.Dynamic
+  ): Either[String, List[NamedElementValue]] = {
     val variantType  = multimodalVariantType(schemaElements)
     val schemaByName = schemaElements.map(elem => elem.name -> elem.schema).toMap
     WitValueCodec.decode(DataType.ListType(variantType), witValue).flatMap {
@@ -251,9 +269,9 @@ private[rpc] object RpcValueCodec {
 
   private def elementDataType(schema: ElementSchema): DataType =
     schema match {
-      case Component(dataType)      => dataType
-      case UnstructuredText(_)      => textReferenceType
-      case UnstructuredBinary(_)    => binaryReferenceType
+      case Component(dataType)   => dataType
+      case UnstructuredText(_)   => textReferenceType
+      case UnstructuredBinary(_) => binaryReferenceType
     }
 
   private def multimodalVariantType(elements: List[NamedElementSchema]): DataType.EnumType =
@@ -280,7 +298,7 @@ private[rpc] object RpcValueCodec {
       case DataValue.EnumValue("url", Some(DataValue.StringValue(url))) =>
         Right(UnstructuredTextValue.Url(url))
       case DataValue.EnumValue("inline", Some(DataValue.StructValue(fields))) =>
-        val dataField = fields.get("data").collect { case DataValue.StringValue(text) => text }
+        val dataField                         = fields.get("data").collect { case DataValue.StringValue(text) => text }
         val langField: Option[Option[String]] = fields.get("text-type") match {
           case Some(DataValue.OptionalValue(Some(DataValue.StructValue(langFields)))) =>
             Some(langFields.get("language-code").collect { case DataValue.StringValue(code) => code })
@@ -305,7 +323,7 @@ private[rpc] object RpcValueCodec {
   private def binaryValueToDataValue(value: UnstructuredBinaryValue): DataValue =
     value match {
       case UnstructuredBinaryValue.Inline(data, mimeType) =>
-        val descriptor = DataValue.StructValue(Map("mime-type" -> DataValue.StringValue(mimeType)))
+        val descriptor  = DataValue.StructValue(Map("mime-type" -> DataValue.StringValue(mimeType)))
         val sourceValue = DataValue.StructValue(
           Map(
             "data"        -> DataValue.BytesValue(data),
@@ -340,5 +358,3 @@ private[rpc] object RpcValueCodec {
         Left(s"Invalid binary reference payload: $other")
     }
 }
-
-

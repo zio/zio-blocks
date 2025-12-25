@@ -8,7 +8,8 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 /**
  * Minimal implementations for [[MinimalAgentToAgentExample]].
  *
- * These are discovered by the build tooling via annotations and wired into the generated bridge/shim.
+ * These are discovered by the build tooling via annotations and wired into the
+ * generated bridge/shim.
  */
 @agentImplementation()
 final class WorkerImpl(private val shardName: String, private val shardIndex: Int) extends Worker {
@@ -51,5 +52,3 @@ final class CoordinatorImpl() extends Coordinator {
         )
       }
 }
-
-

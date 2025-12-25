@@ -8,11 +8,14 @@ import scala.annotation.unused
 import scala.concurrent.Future
 
 /**
- * JVM version of `AgentCompanion`, used for **repo-local quickstart smoke tests**.
+ * JVM version of `AgentCompanion`, used for **repo-local quickstart smoke
+ * tests**.
  *
- * This is not meant to be a long-term public client story; it shells out to `golem-cli`.
+ * This is not meant to be a long-term public client story; it shells out to
+ * `golem-cli`.
  */
 trait AgentCompanion[Trait <: AnyRef] extends AgentCompanionBase[Trait] {
+
   /** Golem agent type name, from `@agentDefinition("...")`. */
   transparent inline def typeName: String =
     AgentNameMacro.typeName[Trait]
@@ -52,5 +55,3 @@ trait AgentCompanion[Trait <: AnyRef] extends AgentCompanionBase[Trait] {
   ): Future[Trait] =
     Future.failed(new UnsupportedOperationException("JvmAgentClient does not support phantom agents yet"))
 }
-
-

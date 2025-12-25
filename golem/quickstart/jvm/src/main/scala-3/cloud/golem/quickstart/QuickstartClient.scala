@@ -11,8 +11,9 @@ import scala.concurrent.Await
  * Repo-local JVM smoke test for the quickstart agents.
  *
  * Expected flow:
- * - Deploy the quickstart JS component (e.g. `zioGolemQuickstartJS/golemDeploy`)
- * - Run this main (uses golem-cli to invoke the deployed agents)
+ *   - Deploy the quickstart JS component (e.g.
+ *     `zioGolemQuickstartJS/golemDeploy`)
+ *   - Run this main (uses golem-cli to invoke the deployed agents)
  */
 object QuickstartClient {
   def main(args: Array[String]): Unit = {
@@ -32,5 +33,3 @@ object QuickstartClient {
     println(s"[quickstart-jvm] ShardAgent.get(k) => $got")
   }
 }
-
-

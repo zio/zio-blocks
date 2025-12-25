@@ -4,7 +4,7 @@ import scala.sys.process.Process
 
 private[rpc] object GolemCliProcess {
   def run(cwd: java.io.File, cmd: Seq[String]): Either[String, String] = {
-    val out = new StringBuilder
+    val out  = new StringBuilder
     val exit =
       Process(cmd, cwd).!(
         scala.sys.process.ProcessLogger(

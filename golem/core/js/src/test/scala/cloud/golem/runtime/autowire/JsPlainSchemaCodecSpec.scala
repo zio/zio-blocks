@@ -12,7 +12,7 @@ final class JsPlainSchemaCodecSpec extends AnyFunSuite {
   object Nested {
     implicit val schema: Schema[Nested] = Schema.derived
   }
-  
+
   final case class Payload(
     name: String,
     count: Int,
@@ -38,7 +38,7 @@ final class JsPlainSchemaCodecSpec extends AnyFunSuite {
     val jsObj =
       js.Dynamic.literal(
         "name"   -> "abc",
-        "count"  -> 7, // JS number (double)
+        "count"  -> 7,    // JS number (double)
         "note"   -> null, // None
         "flags"  -> js.Array("x", "y"),
         "nested" -> js.Dynamic.literal("x" -> 1.5, "tags" -> js.Array("a", "b"))
@@ -59,5 +59,3 @@ final class JsPlainSchemaCodecSpec extends AnyFunSuite {
     )
   }
 }
-
-

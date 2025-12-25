@@ -22,7 +22,7 @@ object AgentNameMacro {
 
     def extractAgentDefinitionTypeName(args: List[Term]): Option[String] =
       args.collectFirst {
-        case Literal(StringConstant(value)) => value
+        case Literal(StringConstant(value))                       => value
         case NamedArg("typeName", Literal(StringConstant(value))) => value
       }
 
@@ -34,16 +34,17 @@ object AgentNameMacro {
 
     maybe match {
       case Some(value) if value.trim.nonEmpty => Expr(value)
-      case _ =>
+      case _                                  =>
         // If @agentDefinition is present but typeName was omitted/empty, derive a stable default.
         // This keeps user code minimal while still requiring an explicit marker annotation.
         val hasAnn =
           sym.annotations.exists {
-            case Apply(Select(New(tpt), _), _) if tpt.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" => true
+            case Apply(Select(New(tpt), _), _)
+                if tpt.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
+              true
             case _ => false
           }
-        if !hasAnn then
-          report.errorAndAbort(s"Missing @agentDefinition(...) on agent trait: ${sym.fullName}")
+        if !hasAnn then report.errorAndAbort(s"Missing @agentDefinition(...) on agent trait: ${sym.fullName}")
         Expr(defaultTypeNameFromTrait(sym))
     }
   }

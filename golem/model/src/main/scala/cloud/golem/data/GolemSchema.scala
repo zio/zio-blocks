@@ -72,7 +72,7 @@ object GolemSchema {
   // inputs can be encoded without extra user boilerplate.
   // ---------------------------------------------------------------------------
 
-  implicit def tuple2GolemSchema[A: Schema, B: Schema]: GolemSchema[(A, B)] = {
+  implicit def tuple2GolemSchema[A: Schema, B: Schema]: GolemSchema[(A, B)] =
     // IMPORTANT: do not use `Schema.derived` for tuples here.
     // In Scala.js this has been observed to trigger `ArrayIndexOutOfBoundsException` during `toDynamicValue`.
     //
@@ -116,8 +116,10 @@ object GolemSchema {
                 .toRight(s"Tuple2 payload missing field '$name'")
                 .flatMap {
                   case NamedElementValue(_, ElementValue.Component(dv)) => Right(dv)
-                  case other =>
-                    Left(s"Tuple2 payload field '$name' must be component-model, found: ${other.value.getClass.getSimpleName}")
+                  case other                                            =>
+                    Left(
+                      s"Tuple2 payload field '$name' must be component-model, found: ${other.value.getClass.getSimpleName}"
+                    )
                 }
 
             for {
@@ -131,9 +133,8 @@ object GolemSchema {
             Left("Multimodal payload cannot be decoded as component-model value")
         }
     }
-  }
 
-  implicit def tuple3GolemSchema[A: Schema, B: Schema, C: Schema]: GolemSchema[(A, B, C)] = {
+  implicit def tuple3GolemSchema[A: Schema, B: Schema, C: Schema]: GolemSchema[(A, B, C)] =
     // See tuple2GolemSchema above for rationale.
     new GolemSchema[(A, B, C)] {
       private val aSchema = implicitly[Schema[A]]
@@ -178,8 +179,10 @@ object GolemSchema {
                 .toRight(s"Tuple3 payload missing field '$name'")
                 .flatMap {
                   case NamedElementValue(_, ElementValue.Component(dv)) => Right(dv)
-                  case other =>
-                    Left(s"Tuple3 payload field '$name' must be component-model, found: ${other.value.getClass.getSimpleName}")
+                  case other                                            =>
+                    Left(
+                      s"Tuple3 payload field '$name' must be component-model, found: ${other.value.getClass.getSimpleName}"
+                    )
                 }
 
             for {
@@ -195,7 +198,6 @@ object GolemSchema {
             Left("Multimodal payload cannot be decoded as component-model value")
         }
     }
-  }
 
   /**
    * Derives a GolemSchema from ZIO Blocks Schema.

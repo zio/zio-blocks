@@ -11,13 +11,13 @@ private[rpc] object WaveTextCodec {
 
   def encodeArg(value: Any): Either[String, String] =
     value match {
-      case null        => Right("null")
-      case s: String   => Right(renderString(s))
-      case i: Int      => Right(i.toString)
-      case l: Long     => Right(l.toString)
-      case d: Double   => Right(d.toString)
-      case b: Boolean  => Right(if (b) "true" else "false")
-      case _: Unit     => Right("()")
+      case null           => Right("null")
+      case s: String      => Right(renderString(s))
+      case i: Int         => Right(i.toString)
+      case l: Long        => Right(l.toString)
+      case d: Double      => Right(d.toString)
+      case b: Boolean     => Right(if (b) "true" else "false")
+      case _: Unit        => Right("()")
       case opt: Option[?] =>
         opt match {
           case None        => Right("none")
@@ -85,8 +85,9 @@ private[rpc] object WaveTextCodec {
   /**
    * Best-effort decoding for the CLI-backed JVM testing client.
    *
-   * This deliberately avoids depending on JVM generic return types (which can be erased to `Object`),
-   * and instead decodes based on the WAVE literal itself.
+   * This deliberately avoids depending on JVM generic return types (which can
+   * be erased to `Object`), and instead decodes based on the WAVE literal
+   * itself.
    */
   def decodeWaveAny(wave: String): Either[String, Any] = {
     val t = wave.trim
@@ -101,7 +102,7 @@ private[rpc] object WaveTextCodec {
       // Try string
       decodeString(t) match {
         case Right(s) => Right(s)
-        case Left(_) =>
+        case Left(_)  =>
           // Try number
           Try(t.toDouble).toEither.left.map(_ => s"Unsupported WAVE result: $wave").map { d =>
             if (d.isWhole && d >= Int.MinValue && d <= Int.MaxValue) d.toInt
@@ -119,5 +120,3 @@ private[rpc] object WaveTextCodec {
     "\"" + escaped + "\""
   }
 }
-
-

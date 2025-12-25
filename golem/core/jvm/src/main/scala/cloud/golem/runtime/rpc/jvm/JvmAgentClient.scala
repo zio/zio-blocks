@@ -10,7 +10,8 @@ import scala.concurrent.{ExecutionContext, Future}
 /**
  * Repo-local JVM testing client backed by `golem-cli`.
  *
- * This is intentionally minimal and expected to be replaced by a real external client in the future.
+ * This is intentionally minimal and expected to be replaced by a real external
+ * client in the future.
  */
 object JvmAgentClient {
   @volatile private var cfg: Option[JvmAgentClientConfig] = None
@@ -40,7 +41,7 @@ object JvmAgentClient {
     val agentType    = plan.traitName
     val ctorRendered =
       ctorArgs match {
-        case () => ""
+        case ()    => ""
         case other =>
           WaveTextCodec.encodeArg(other) match {
             case Left(err)  => throw new IllegalArgumentException(err)
@@ -82,8 +83,7 @@ object JvmAgentClient {
       // Convert scala method name to WIT function id:
       // full id: "<component>/<agent-type>.{<kebab-method>}"
       val methodPlanFn =
-        plan.methods
-          .collectFirst { case p if p.metadata.name == name => p.functionName }
+        plan.methods.collectFirst { case p if p.metadata.name == name => p.functionName }
           .getOrElse(s"${plan.traitName}.{${kebab(name)}}")
       val fn = s"${cfg.component}/$methodPlanFn"
 
@@ -100,7 +100,9 @@ object JvmAgentClient {
       val returnType = method.getGenericReturnType
       val rtName     = returnType.getTypeName
       if (!rtName.startsWith("scala.concurrent.Future")) {
-        throw new UnsupportedOperationException(s"JVM client only supports Future[...] methods (found: $rtName on $name)")
+        throw new UnsupportedOperationException(
+          s"JVM client only supports Future[...] methods (found: $rtName on $name)"
+        )
       }
 
       val fut: Future[Any] =

@@ -3,11 +3,13 @@ package cloud.golem.runtime.host
 import cloud.golem.sdk.HostApi
 
 /**
- * Utility guards that mirror the ergonomics of the TypeScript SDK's guard helpers.
+ * Utility guards that mirror the ergonomics of the TypeScript SDK's guard
+ * helpers.
  *
- * Each `use*` method applies a configuration change on the host and returns a guard
- * that will automatically restore the previous value when `drop()` (or `close()`) is invoked.
- * The `with*` variants execute the supplied block with the new setting and guarantee restoration.
+ * Each `use*` method applies a configuration change on the host and returns a
+ * guard that will automatically restore the previous value when `drop()` (or
+ * `close()`) is invoked. The `with*` variants execute the supplied block with
+ * the new setting and guarantee restoration.
  */
 object HostGuards {
   def withPersistenceLevel[A](level: HostApi.PersistenceLevel)(block: => A): A =
@@ -71,5 +73,3 @@ object HostGuards {
 
   final class AtomicOperationGuard private[host] (release: () => Unit) extends Guard(release)
 }
-
-

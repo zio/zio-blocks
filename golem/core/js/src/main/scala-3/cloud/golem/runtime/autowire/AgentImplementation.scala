@@ -44,10 +44,15 @@ object AgentImplementation {
   /**
    * Internal implementation hook used by inline expansions/macros.
    *
-   * Keeping this indirection means call-site expansions only reference the public `AgentImplementation`,
-   * allowing the underlying runtime (`AgentImplementationRuntime`) to remain package-private.
+   * Keeping this indirection means call-site expansions only reference the
+   * public `AgentImplementation`, allowing the underlying runtime
+   * (`AgentImplementationRuntime`) to remain package-private.
    */
-  def registerPlan[Trait](typeName: String, mode: AgentMode, plan: cloud.golem.runtime.plan.AgentImplementationPlan[Trait]): AgentDefinition[Trait] =
+  def registerPlan[Trait](
+    typeName: String,
+    mode: AgentMode,
+    plan: cloud.golem.runtime.plan.AgentImplementationPlan[Trait]
+  ): AgentDefinition[Trait] =
     AgentImplementationRuntime.register(typeName, mode, plan)
 
   def registerWithCtorPlan[Trait, Ctor](

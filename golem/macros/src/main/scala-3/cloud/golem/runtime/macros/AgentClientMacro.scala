@@ -82,7 +82,7 @@ object AgentClientMacro {
 
     def extractTypeName(args: List[Term]): Option[String] =
       args.collectFirst {
-        case Literal(StringConstant(value))                  => value
+        case Literal(StringConstant(value))                   => value
         case NamedArg("typeName", Literal(StringConstant(v))) => v
       }
 

@@ -1,10 +1,19 @@
 package cloud.golem.runtime.autowire
 
 import cloud.golem.data.GolemSchema
-import cloud.golem.runtime.plan.{AgentImplementationPlan, AgentImplementationPlanWithCtor, AsyncMethodPlan, SyncMethodPlan}
+import cloud.golem.runtime.plan.{
+  AgentImplementationPlan,
+  AgentImplementationPlanWithCtor,
+  AsyncMethodPlan,
+  SyncMethodPlan
+}
 
 private[autowire] object AgentImplementationRuntime {
-  def register[Trait](typeName: String, mode: AgentMode, plan: AgentImplementationPlan[Trait]): AgentDefinition[Trait] = {
+  def register[Trait](
+    typeName: String,
+    mode: AgentMode,
+    plan: AgentImplementationPlan[Trait]
+  ): AgentDefinition[Trait] = {
     val constructor =
       AgentConstructor.noArgs[Trait](
         description = plan.metadata.description.getOrElse(typeName),
@@ -83,5 +92,3 @@ private[autowire] object AgentImplementationRuntime {
     }
   }
 }
-
-

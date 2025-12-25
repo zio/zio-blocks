@@ -6,7 +6,8 @@ import cloud.golem.sdk.{AgentCompanion, BaseAgent}
 /**
  * Minimal, Scala-only example matching the intended SDK user experience.
  *
- * Any packaging/deploy plumbing remains repo-local and is not part of the user story.
+ * Any packaging/deploy plumbing remains repo-local and is not part of the user
+ * story.
  */
 @agentDefinition(mode = DurabilityMode.Durable)
 trait Shard extends BaseAgent {
@@ -29,5 +30,3 @@ final class ShardImpl(private val tableName: String, private val shardId: Int) e
 
   override def set(key: String, value: String): Unit = ()
 }
-
-

@@ -8,9 +8,10 @@ import scala.concurrent.Future
 
 /**
  * Minimal “in-Golem” story:
- * - Two agents (Worker + Coordinator)
- * - Coordinator calls Worker via agent RPC (inside Golem)
- * - Only Scala agent traits are defined here (no JS/TS main required; build tooling generates the bridge)
+ *   - Two agents (Worker + Coordinator)
+ *   - Coordinator calls Worker via agent RPC (inside Golem)
+ *   - Only Scala agent traits are defined here (no JS/TS main required; build
+ *     tooling generates the bridge)
  */
 final case class TypedNested(x: Double, tags: List[String])
 object TypedNested {
@@ -50,5 +51,3 @@ trait Coordinator extends BaseAgent {
   def routeTyped(shardName: String, shardIndex: Int, payload: TypedPayload): Future[TypedReply]
 }
 object Coordinator extends AgentCompanion[Coordinator]
-
-

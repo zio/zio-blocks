@@ -6,13 +6,13 @@ import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
 
 /**
- * Encode/decode between **plain JS values** (as produced/consumed by the generated TS bridge) and Scala values
- * using `zio.blocks.schema.Schema`.
+ * Encode/decode between **plain JS values** (as produced/consumed by the
+ * generated TS bridge) and Scala values using `zio.blocks.schema.Schema`.
  *
  * JS representation conventions:
- * - **records**: JS objects with fields
- * - **sequences**: JS arrays
- * - **options**: `null` for None, inner value for Some
+ *   - **records**: JS objects with fields
+ *   - **sequences**: JS arrays
+ *   - **options**: `null` for None, inner value for Some
  */
 // Used by plugin-generated Scala shims (in package `cloud.golem.internal`), so it must be visible
 // outside `cloud.golem.runtime.autowire` but still not part of the public API surface.
@@ -38,7 +38,7 @@ private[golem] object JsPlainSchemaCodec {
           // Option(None): payload is ignored by our detection; use empty record.
           return DynamicValue.Variant("None", DynamicValue.Record(Vector.empty))
         } else {
-          val inner = fromJs(innerRef, value0)
+          val inner   = fromJs(innerRef, value0)
           val payload =
             if (usesRecordWrapper) DynamicValue.Record(Vector("value" -> inner))
             else inner
@@ -49,7 +49,7 @@ private[golem] object JsPlainSchemaCodec {
 
     reflect0.asPrimitive match {
       case Some(p) =>
-        val tn = p.primitiveType.typeName
+        val tn                 = p.primitiveType.typeName
         val pv: PrimitiveValue =
           if (tn == TypeName.unit) PrimitiveValue.Unit
           else if (tn == TypeName.string) PrimitiveValue.String(value0.asInstanceOf[String])
@@ -66,7 +66,7 @@ private[golem] object JsPlainSchemaCodec {
       case None =>
         reflect0.asRecord match {
           case Some(rec) =>
-            val dyn = value0.asInstanceOf[js.Dynamic]
+            val dyn    = value0.asInstanceOf[js.Dynamic]
             val fields =
               rec.fields.map { f =>
                 val fv = dyn.selectDynamic(f.name).asInstanceOf[js.Any]
@@ -77,7 +77,7 @@ private[golem] object JsPlainSchemaCodec {
           case None =>
             reflect0.asSequenceUnknown match {
               case Some(seq) =>
-                val arr = value0.asInstanceOf[js.Array[js.Any]]
+                val arr   = value0.asInstanceOf[js.Array[js.Any]]
                 val elems =
                   arr.toVector.map(v => fromJs(seq.sequence.element.asInstanceOf[Reflect.Bound[Any]], v)).toVector
                 DynamicValue.Sequence(elems)
@@ -85,10 +85,10 @@ private[golem] object JsPlainSchemaCodec {
               case None =>
                 reflect0.asMapUnknown match {
                   case Some(map) =>
-                    val obj = value0.asInstanceOf[js.Dictionary[js.Any]]
+                    val obj      = value0.asInstanceOf[js.Dictionary[js.Any]]
                     val keyRef   = map.map.key.asInstanceOf[Reflect.Bound[Any]]
                     val valueRef = map.map.value.asInstanceOf[Reflect.Bound[Any]]
-                    val entries =
+                    val entries  =
                       obj.toVector.map { case (k, v) =>
                         val kd = fromJs(keyRef, k.asInstanceOf[js.Any])
                         val vd = fromJs(valueRef, v)
@@ -116,7 +116,7 @@ private[golem] object JsPlainSchemaCodec {
     optionInfo(reflect0) match {
       case Some((innerRef, usesRecordWrapper)) =>
         value match {
-          case DynamicValue.Variant("None", _) => null
+          case DynamicValue.Variant("None", _)       => null
           case DynamicValue.Variant("Some", payload) =>
             val inner =
               if (usesRecordWrapper)
@@ -139,20 +139,20 @@ private[golem] object JsPlainSchemaCodec {
         value match {
           case DynamicValue.Primitive(pv) =>
             pv match {
-              case PrimitiveValue.Unit         => null
-              case PrimitiveValue.String(v)    => v
-              case PrimitiveValue.Boolean(v)   => v
-              case PrimitiveValue.Byte(v)      => v.toDouble
-              case PrimitiveValue.Short(v)     => v.toDouble
-              case PrimitiveValue.Int(v)       => v.toDouble
-              case PrimitiveValue.Long(v)      => v.toDouble
-              case PrimitiveValue.Float(v)     => v.toDouble
-              case PrimitiveValue.Double(v)    => v
-              case PrimitiveValue.BigInt(v)    => v.toString
-              case PrimitiveValue.BigDecimal(v)=> v.toString
-              case PrimitiveValue.Char(v)      => v.toString
-              case PrimitiveValue.UUID(v)      => v.toString
-              case other                       => other.toString
+              case PrimitiveValue.Unit          => null
+              case PrimitiveValue.String(v)     => v
+              case PrimitiveValue.Boolean(v)    => v
+              case PrimitiveValue.Byte(v)       => v.toDouble
+              case PrimitiveValue.Short(v)      => v.toDouble
+              case PrimitiveValue.Int(v)        => v.toDouble
+              case PrimitiveValue.Long(v)       => v.toDouble
+              case PrimitiveValue.Float(v)      => v.toDouble
+              case PrimitiveValue.Double(v)     => v
+              case PrimitiveValue.BigInt(v)     => v.toString
+              case PrimitiveValue.BigDecimal(v) => v.toString
+              case PrimitiveValue.Char(v)       => v.toString
+              case PrimitiveValue.UUID(v)       => v.toString
+              case other                        => other.toString
             }
           case _ => null
         }
@@ -184,7 +184,7 @@ private[golem] object JsPlainSchemaCodec {
           case DynamicValue.Map(entries) =>
             val dict = js.Dictionary.empty[js.Any]
             entries.foreach { case (k, v) =>
-              val keyJs = toJs(map.map.key.asInstanceOf[Reflect.Bound[Any]], k)
+              val keyJs  = toJs(map.map.key.asInstanceOf[Reflect.Bound[Any]], k)
               val keyStr = keyJs.asInstanceOf[String]
               dict.update(keyStr, toJs(map.map.value.asInstanceOf[Reflect.Bound[Any]], v))
             }
@@ -226,5 +226,3 @@ private[golem] object JsPlainSchemaCodec {
       }
     }
 }
-
-

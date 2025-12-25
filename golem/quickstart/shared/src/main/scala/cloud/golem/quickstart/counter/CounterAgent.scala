@@ -15,5 +15,3 @@ trait CounterAgent extends BaseAgent {
 }
 
 object CounterAgent extends AgentCompanion[CounterAgent]
-
-

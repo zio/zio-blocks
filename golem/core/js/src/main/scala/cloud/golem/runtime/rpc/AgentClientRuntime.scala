@@ -11,7 +11,7 @@ import scala.scalajs.js
 
 object AgentClientRuntime {
   @volatile private var remoteResolverOverride: Option[(String, js.Dynamic) => Either[String, RemoteAgentClient]] = None
-  @volatile private var clientBinderOverride: Option[Any => Any] = None
+  @volatile private var clientBinderOverride: Option[Any => Any]                                                  = None
 
   def resolve[Trait, Constructor](
     plan: AgentClientPlan[Trait, Constructor],
@@ -48,7 +48,7 @@ object AgentClientRuntime {
           }
         }
       }
-      remote  <- resolveRemote(plan.traitName, payload, phantom)
+      remote <- resolveRemote(plan.traitName, payload, phantom)
     } yield ResolvedAgent(plan.asInstanceOf[AgentClientPlan[Trait, Any]], remote)
   }
 
@@ -70,7 +70,9 @@ object AgentClientRuntime {
         case ClientInvocation.Awaitable =>
           runAwaitable(method, input)
         case ClientInvocation.FireAndForget =>
-          runFireAndForget(method, input).map(_ => throw new IllegalStateException("Fire-and-forget methods return Unit"))
+          runFireAndForget(method, input).map(_ =>
+            throw new IllegalStateException("Fire-and-forget methods return Unit")
+          )
       }
 
     def trigger[In](method: ClientMethodPlan.Aux[Trait, In, Unit], input: In): Future[Unit] =
@@ -82,14 +84,14 @@ object AgentClientRuntime {
     def schedule[In](method: ClientMethodPlan.Aux[Trait, In, Unit], datetime: js.Dynamic, input: In): Future[Unit] =
       method.invocation match {
         case ClientInvocation.FireAndForget => runScheduled(method, datetime, input)
-        case ClientInvocation.Awaitable =>
+        case ClientInvocation.Awaitable     =>
           FutureInterop.failed("Method is awaitable; scheduling is only supported for fire-and-forget methods")
       }
 
     private def runAwaitable[In, Out](method: ClientMethodPlan.Aux[Trait, In, Out], input: In): Future[Out] = {
       implicit val inSchema: GolemSchema[In] = method.inputSchema
 
-      val encoded = RpcValueCodec.encodeArgs(input)
+      val encoded                     = RpcValueCodec.encodeArgs(input)
       val result: Either[String, Out] = for {
         params <- encoded
         raw    <- client.rpc.invokeAndAwait(method.functionName, params)
@@ -139,7 +141,8 @@ object AgentClientRuntime {
 
     def withClientBinder[Trait, A](binder: AgentClientRuntime.ResolvedAgent[Trait] => Trait)(thunk: => A): A = {
       val previous = clientBinderOverride
-      clientBinderOverride = Some((resolved: Any) => binder(resolved.asInstanceOf[AgentClientRuntime.ResolvedAgent[Trait]]))
+      clientBinderOverride =
+        Some((resolved: Any) => binder(resolved.asInstanceOf[AgentClientRuntime.ResolvedAgent[Trait]]))
       try thunk
       finally clientBinderOverride = previous
     }
@@ -148,5 +151,3 @@ object AgentClientRuntime {
       clientBinderOverride.map(_.asInstanceOf[AgentClientRuntime.ResolvedAgent[Trait] => Trait](resolved))
   }
 }
-
-

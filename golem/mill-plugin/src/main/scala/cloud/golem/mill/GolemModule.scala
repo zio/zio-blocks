@@ -18,9 +18,9 @@ object GolemExports {
 
   sealed trait Constructor
   object Constructor {
-    case object NoArg extends Constructor
+    case object NoArg                                                                             extends Constructor
     final case class Scalar(argName: String, tsType: String, scalaFactoryArgs: Seq[String] = Nil) extends Constructor
-    final case class Positional(params: Seq[Field], scalaFactoryArgs: Seq[String] = Nil) extends Constructor
+    final case class Positional(params: Seq[Field], scalaFactoryArgs: Seq[String] = Nil)          extends Constructor
     final case class Record(inputTypeName: String, fields: Seq[Field], scalaFactoryArgs: Seq[String] = Nil)
         extends Constructor
   }
@@ -122,33 +122,44 @@ trait GolemModule extends ScalaJSModule {
   /** Agent id used by golemAppRun (golem-cli agent id string). */
   def golemRunAgentId: String = ""
 
-  /** Fully-qualified function used by golemAppRun (golem-cli function string). */
+  /**
+   * Fully-qualified function used by golemAppRun (golem-cli function string).
+   */
   def golemRunFunction: String = ""
 
   /** Default args (WAVE literals) passed to golemAppRun. */
   def golemRunArgs: Seq[String] = Seq.empty
 
-  /** When true, golemAppRun/golemAppRunScript will run golemDeploy first (default: true). */
+  /**
+   * When true, golemAppRun/golemAppRunScript will run golemDeploy first
+   * (default: true).
+   */
   def golemRunDeployFirst: Boolean = true
 
   /**
    * Optional publish step to run before deploy+run.
    *
-   * Default is a no-op. In monorepo / snapshot workflows, override this to publishLocal or a custom task.
+   * Default is a no-op. In monorepo / snapshot workflows, override this to
+   * publishLocal or a custom task.
    */
   def golemRunPublish: T[Unit] = Task {}
 
   /** When true, run golemRunPublish before deploy+run (default: false). */
   def golemRunPublishFirst: Boolean = false
 
-  /** Timeout (seconds) for golem-cli repl used by golemAppRunScript (default: 60). */
+  /**
+   * Timeout (seconds) for golem-cli repl used by golemAppRunScript (default:
+   * 60).
+   */
   def golemReplTimeoutSec: Int =
     sys.env.get("GOLEM_REPL_TIMEOUT_SEC").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(60)
 
   /** When true, pass --disable-stream to golem-cli repl (default: true). */
   def golemReplDisableStream: Boolean = true
 
-  /** Script file path for golemAppRunScript (default: from GOLEM_REPL_SCRIPT). */
+  /**
+   * Script file path for golemAppRunScript (default: from GOLEM_REPL_SCRIPT).
+   */
   def golemRunScriptFile: String = sys.env.getOrElse("GOLEM_REPL_SCRIPT", "")
 
   // ---------------------------------------------------------------------------
@@ -165,7 +176,10 @@ trait GolemModule extends ScalaJSModule {
   /** Data dir used when starting a local `golem server run`. */
   def golemLocalDataDir: Path = os.pwd / ".golem-local"
 
-  /** When true (default), golemBuild/golemDeploy/golemInvoke will auto-start local server when using `--local`. */
+  /**
+   * When true (default), golemBuild/golemDeploy/golemInvoke will auto-start
+   * local server when using `--local`.
+   */
   def golemStartLocalServer: Boolean = true
 
   /** PID file for managed local server. */
@@ -174,20 +188,23 @@ trait GolemModule extends ScalaJSModule {
   /** Log file for managed local server. */
   def golemLocalServerLogFile: Path = golemLocalDataDir / "server.log"
 
-  /** Start local golem server/router if needed (no-op if already reachable or not in `--local` mode). */
+  /**
+   * Start local golem server/router if needed (no-op if already reachable or
+   * not in `--local` mode).
+   */
   def golemLocalUp: T[Unit] = Task {
-    val log   = Task.log
-    val flags = golemCliFlags
+    val log     = Task.log
+    val flags   = golemCliFlags
     val isLocal = flags.contains("--local") && !flags.contains("--cloud")
 
     if (!isLocal) log.info("[golem] golemLocalUp: GOLEM_CLI_FLAGS is not local; skipping local server management.")
     else if (!golemStartLocalServer) log.info("[golem] golemLocalUp: golemStartLocalServer=false; skipping.")
     else {
-      val host    = golemRouterHost
-      val port    = golemRouterPort
-      val dataDir = golemLocalDataDir
-      val pidFile = golemLocalServerPidFile
-      val logFile = golemLocalServerLogFile
+      val host     = golemRouterHost
+      val port     = golemRouterPort
+      val dataDir  = golemLocalDataDir
+      val pidFile  = golemLocalServerPidFile
+      val logFile  = golemLocalServerLogFile
       val golemBin = sys.env.getOrElse("GOLEM_BIN", "golem")
 
       def routerReachable(): Boolean =
@@ -263,7 +280,10 @@ trait GolemModule extends ScalaJSModule {
     }
   }
 
-  /** Deploy (optional) then invoke a configured method via golem-cli (developer convenience). */
+  /**
+   * Deploy (optional) then invoke a configured method via golem-cli (developer
+   * convenience).
+   */
   def golemAppRun: T[Unit] = Task {
     val log = Task.log
     golemLocalUp()
@@ -294,8 +314,7 @@ trait GolemModule extends ScalaJSModule {
   /**
    * Deploy (optional) then run a golem-cli repl script.
    *
-   * Usage:
-   *   mill -i <module>.golemAppRunScript <path-to.rib>
+   * Usage: mill -i <module>.golemAppRunScript <path-to.rib>
    */
   def golemAppRunScript: T[Unit] = Task {
     val log = Task.log
@@ -307,12 +326,12 @@ trait GolemModule extends ScalaJSModule {
     if (scriptFile.isEmpty)
       throw new RuntimeException("golemAppRunScript requires golemRunScriptFile (or env GOLEM_REPL_SCRIPT) to be set.")
 
-    val f0  = os.Path(scriptFile, os.pwd)
-    val f   = if (os.exists(f0)) f0 else throw new RuntimeException(s"Script file not found: $f0")
+    val f0     = os.Path(scriptFile, os.pwd)
+    val f      = if (os.exists(f0)) f0 else throw new RuntimeException(s"Script file not found: $f0")
     val appDir = golemWire() / os.up / os.up
     val cli    = golemCli
     val flags  = golemCliFlags
-    val base =
+    val base   =
       Seq("env", "-u", "ARGV0", cli) ++ (flags ++ Seq("--yes", "repl", golemComponent, "--script-file", f.toString))
     val cmd = base ++ (if (golemReplDisableStream) Seq("--disable-stream") else Nil)
     log.info(s"[golem] golemAppRunScript: running repl script $f")
@@ -363,21 +382,25 @@ trait GolemModule extends ScalaJSModule {
   def golemBridgeSpecManifestPath: String = ""
 
   /**
-   * Scala-only export configuration; when non-empty, tooling generates a BridgeSpec manifest automatically
-   * (written under the module's Task.dest).
+   * Scala-only export configuration; when non-empty, tooling generates a
+   * BridgeSpec manifest automatically (written under the module's Task.dest).
    */
   def golemExports: Seq[GolemExports.Export] = Seq.empty
 
   /**
-   * When `golemExports` is empty, attempt to auto-detect exports from compiled classes annotated with
-   * `@agentDefinition` / `@agentImplementation`.
+   * When `golemExports` is empty, attempt to auto-detect exports from compiled
+   * classes annotated with `@agentDefinition` / `@agentImplementation`.
    *
-   * Currently this auto mode supports only "primitive-only" agents (String/Boolean/numbers, Option[T], List[T]).
-   * More complex shapes still require explicit `golemExports`.
+   * Currently this auto mode supports only "primitive-only" agents
+   * (String/Boolean/numbers, Option[T], List[T]). More complex shapes still
+   * require explicit `golemExports`.
    */
   def golemAutoExports: Boolean = true
 
-  /** JS export name for the generated Scala shim object (default: __golemInternalScalaAgents). */
+  /**
+   * JS export name for the generated Scala shim object (default:
+   * __golemInternalScalaAgents).
+   */
   def golemScalaShimExportTopLevel: String = "__golemInternalScalaAgents"
 
   /** Scala object name for the generated Scala shim. */
@@ -388,10 +411,10 @@ trait GolemModule extends ScalaJSModule {
 
   /** Generates the internal Scala shim into managed sources (compile-time). */
   def golemGenerateScalaShim: T[Seq[PathRef]] = Task {
-    val log          = Task.log
+    val log        = Task.log
     val compileRes = compile()
-    val compileCp = compileClasspath().map(_.path).toSeq
-    val manifest = ensureBridgeSpecManifest(Task.dest, log, compileRes.classes.path, compileCp)
+    val compileCp  = compileClasspath().map(_.path).toSeq
+    val manifest   = ensureBridgeSpecManifest(Task.dest, log, compileRes.classes.path, compileCp)
     if (manifest.isEmpty) Seq.empty
     else {
       val src =
@@ -527,7 +550,7 @@ trait GolemModule extends ScalaJSModule {
       // Auto-detect exports from compiled classes (primitive-only).
       val cpUrls =
         (compileCp.map(_.toNIO) :+ classesDir.toNIO).distinct.map(_.toUri.toURL).toArray
-      val cl     = new java.net.URLClassLoader(cpUrls, null)
+      val cl = new java.net.URLClassLoader(cpUrls, null)
 
       def isAnnByName(a: java.lang.annotation.Annotation, fqcn: String): Boolean =
         a.annotationType().getName == fqcn
@@ -542,7 +565,7 @@ trait GolemModule extends ScalaJSModule {
       }
 
       def tsTypeOf(tpe: java.lang.reflect.Type): Either[String, String] = {
-        def mapClass(c: Class[?]): Option[String] = {
+        def mapClass(c: Class[?]): Option[String] =
           if (c == classOf[String]) Some("string")
           else if (c == java.lang.Boolean.TYPE || c == classOf[java.lang.Boolean]) Some("boolean")
           else if (
@@ -555,7 +578,6 @@ trait GolemModule extends ScalaJSModule {
           ) Some("number")
           else if (c.getName == "scala.runtime.BoxedUnit" || c == java.lang.Void.TYPE) Some("void")
           else None
-        }
 
         tpe match {
           case c: Class[_] =>
@@ -581,7 +603,7 @@ trait GolemModule extends ScalaJSModule {
       }
 
       def scalaParamTypeOf(tpe: java.lang.reflect.Type): String = {
-        def mapClass(c: Class[?]): String = {
+        def mapClass(c: Class[?]): String =
           if (c == classOf[String]) "String"
           else if (c == java.lang.Boolean.TYPE || c == classOf[java.lang.Boolean]) "Boolean"
           else if (c == java.lang.Integer.TYPE || c == classOf[java.lang.Integer]) "Int"
@@ -592,7 +614,6 @@ trait GolemModule extends ScalaJSModule {
           else if (c == java.lang.Byte.TYPE || c == classOf[java.lang.Byte]) "Byte"
           else if (c.getName == "scala.runtime.BoxedUnit" || c == java.lang.Void.TYPE) "Unit"
           else "js.Any"
-        }
 
         tpe match {
           case c: Class[_] =>
@@ -620,7 +641,7 @@ trait GolemModule extends ScalaJSModule {
         methods: Vector[(String, Boolean, String, Vector[(String, String, String)])]
       )
 
-      val classDir = classesDir
+      val classDir   = classesDir
       val classNames =
         os.walk(classDir)
           .filter(p => p.ext == "class" && p.last != "module-info.class" && p.last != "package-info.class")
@@ -655,7 +676,9 @@ trait GolemModule extends ScalaJSModule {
         }.toMap
 
       val impls =
-        loaded.filter(c => !c.isInterface && baseAgentCls.isAssignableFrom(c) && !java.lang.reflect.Modifier.isAbstract(c.getModifiers))
+        loaded.filter(c =>
+          !c.isInterface && baseAgentCls.isAssignableFrom(c) && !java.lang.reflect.Modifier.isAbstract(c.getModifiers)
+        )
 
       val detected: Vector[Detected] =
         impls.flatMap { impl =>
@@ -663,7 +686,7 @@ trait GolemModule extends ScalaJSModule {
           implementedTraits match {
             case Vector(traitName) =>
               val agentName = traits(traitName)
-              val ctor = impl.getConstructors.toVector.sortBy(_.getParameterCount).headOption.orNull
+              val ctor      = impl.getConstructors.toVector.sortBy(_.getParameterCount).headOption.orNull
               if (ctor == null) None
               else {
                 val ctorParamsE =
@@ -686,8 +709,8 @@ trait GolemModule extends ScalaJSModule {
                       m.getGenericReturnType match {
                         case p: java.lang.reflect.ParameterizedType
                             if p.getRawType.asInstanceOf[Class[?]].getName == "scala.concurrent.Future" =>
-                          val outTpe = p.getActualTypeArguments.headOption.getOrElse(classOf[Object])
-                          val outTsE = tsTypeOf(outTpe)
+                          val outTpe  = p.getActualTypeArguments.headOption.getOrElse(classOf[Object])
+                          val outTsE  = tsTypeOf(outTpe)
                           val paramsE =
                             m.getGenericParameterTypes.toVector.zipWithIndex.map { case (pt, i) =>
                               tsTypeOf(pt).map(ts => (s"arg$i", ts, scalaParamTypeOf(pt)))
@@ -705,12 +728,17 @@ trait GolemModule extends ScalaJSModule {
                           else Right((m.getName, false, "void", paramsE.collect { case Right(v) => v }))
 
                         case other =>
-                          Left(s"Auto exports only supports Future[...] or Unit return types; found ${other.getTypeName} on $traitName.${m.getName}")
+                          Left(
+                            s"Auto exports only supports Future[...] or Unit return types; found ${other.getTypeName} on $traitName.${m.getName}"
+                          )
                       }
                     }
 
                   if (methodsE.exists(_.isLeft)) None
-                  else Some(Detected(agentName, traitName, impl.getName, ctorParams, methodsE.collect { case Right(v) => v }))
+                  else
+                    Some(
+                      Detected(agentName, traitName, impl.getName, ctorParams, methodsE.collect { case Right(v) => v })
+                    )
                 }
               }
             case _ => None
@@ -720,12 +748,16 @@ trait GolemModule extends ScalaJSModule {
       if (detected.isEmpty) None
       else {
         val scalaBundleImport = s"./${golemBundleFileName}"
-        val sb = new StringBuilder()
+        val sb                = new StringBuilder()
         sb.append("scalaBundleImport=").append(scalaBundleImport).append("\n")
-        sb.append("scalaAgentsExpr=").append(s"(scalaExports as any).${golemScalaShimExportTopLevel.trim} ?? (globalThis as any).${golemScalaShimExportTopLevel.trim}").append("\n\n")
+        sb.append("scalaAgentsExpr=")
+          .append(
+            s"(scalaExports as any).${golemScalaShimExportTopLevel.trim} ?? (globalThis as any).${golemScalaShimExportTopLevel.trim}"
+          )
+          .append("\n\n")
 
         detected.zipWithIndex.foreach { case (e, idx) =>
-          val p = s"agents.$idx."
+          val p            = s"agents.$idx."
           val className    = "Scala" + e.traitClass.split('.').lastOption.getOrElse("Agent").stripSuffix("$")
           val scalaFactory = "new" + e.traitClass.split('.').lastOption.getOrElse("Agent").stripSuffix("$")
 
@@ -802,7 +834,7 @@ trait GolemModule extends ScalaJSModule {
     sb.append("scalaAgentsExpr=").append(scalaAgentsExprForExportTopLevel(scalaShimExportTopLevel)).append("\n\n")
 
     exports.zipWithIndex.foreach { case (e, idx) =>
-      val p = s"agents.$idx."
+      val p         = s"agents.$idx."
       val className =
         if (e.className.trim.nonEmpty) e.className.trim
         else defaultTsClassNameFromTrait(e.traitClass)
@@ -872,7 +904,7 @@ trait GolemModule extends ScalaJSModule {
   }
 
   def golemBuild: T[Unit] = Task {
-    val log          = Task.log
+    val log = Task.log
     golemLocalUp()
     val componentDir = golemWire()
     val appDir       = componentDir / os.up / os.up
@@ -899,11 +931,13 @@ trait GolemModule extends ScalaJSModule {
   /** When true, pass --await to golem-cli agent update (default: true). */
   def golemUpdateAwait: Boolean = true
 
-  /** Optional explicit target version for golemDeployUpdate (default: latest). */
+  /**
+   * Optional explicit target version for golemDeployUpdate (default: latest).
+   */
   def golemUpdateTargetVersion: Option[String] = None
 
   def golemDeploy: T[Unit] = Task {
-    val log          = Task.log
+    val log = Task.log
     golemLocalUp()
     val componentDir = golemWire()
     val appDir       = componentDir / os.up / os.up
@@ -925,38 +959,41 @@ trait GolemModule extends ScalaJSModule {
   }
 
   /**
-   * Deploy, then update an existing agent instance to the latest component version.
+   * Deploy, then update an existing agent instance to the latest component
+   * version.
    *
    * Usage (Mill):
-   * - `mill <module>.golemDeployUpdate scala:comp/agent-type("demo",42)`
-   * - `mill <module>.golemDeployUpdate scala:comp/agent-type("demo",42) manual 2`
+   *   - `mill <module>.golemDeployUpdate scala:comp/agent-type("demo",42)`
+   *   - `mill <module>.golemDeployUpdate scala:comp/agent-type("demo",42) manual 2`
    */
-  def golemDeployUpdate(agentId: String = "", mode: String = golemUpdateMode, targetVersion: String = "") = Task.Command {
-    val log          = Task.log
-    golemLocalUp()
+  def golemDeployUpdate(agentId: String = "", mode: String = golemUpdateMode, targetVersion: String = "") =
+    Task.Command {
+      val log = Task.log
+      golemLocalUp()
 
-    // Deploy first
-    golemDeploy()
+      // Deploy first
+      golemDeploy()
 
-    val componentDir = golemScaffold()
-    val appDir       = componentDir / os.up / os.up
-    runAgentUpdatesResolved(
-      appDir = appDir,
-      cli = golemCli,
-      flags = golemCliFlags,
-      component = golemComponent,
-      await = golemUpdateAwait,
-      mode = mode,
-      targetArg = if (targetVersion.trim.nonEmpty) Seq(targetVersion.trim) else golemUpdateTargetVersion.toSeq,
-      timeout0 = golemTimeoutSec,
-      agentId = agentId,
-      log = log
-    )
-  }
+      val componentDir = golemScaffold()
+      val appDir       = componentDir / os.up / os.up
+      runAgentUpdatesResolved(
+        appDir = appDir,
+        cli = golemCli,
+        flags = golemCliFlags,
+        component = golemComponent,
+        await = golemUpdateAwait,
+        mode = mode,
+        targetArg = if (targetVersion.trim.nonEmpty) Seq(targetVersion.trim) else golemUpdateTargetVersion.toSeq,
+        timeout0 = golemTimeoutSec,
+        agentId = agentId,
+        log = log
+      )
+    }
 
   /**
-   * Internal task used by golemAppRun/golemAppRunScript to avoid stale-agent method-missing errors after deploy.
-   * Equivalent to `golemDeployUpdate()` (no args -> update all agents), but available as a Task.
+   * Internal task used by golemAppRun/golemAppRunScript to avoid stale-agent
+   * method-missing errors after deploy. Equivalent to `golemDeployUpdate()` (no
+   * args -> update all agents), but available as a Task.
    */
   def golemDeployUpdateAll: T[Unit] = Task {
     val log = Task.log
@@ -997,7 +1034,8 @@ trait GolemModule extends ScalaJSModule {
     val awaitFlag = if (await) Seq("--await") else Nil
 
     def listAgents(): Vector[String] = {
-      val cmd       = Seq("env", "-u", "ARGV0", cli) ++ (flags ++ Seq("--yes", "--format", "json", "agent", "list", component))
+      val cmd =
+        Seq("env", "-u", "ARGV0", cli) ++ (flags ++ Seq("--yes", "--format", "json", "agent", "list", component))
       val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent list", timeout0, log)
       if (exit != 0) throw new RuntimeException(s"golem-cli agent list failed with exit code $exit\n$out")
       val workerNamePattern = "\"workerName\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"".r
@@ -1011,11 +1049,11 @@ trait GolemModule extends ScalaJSModule {
           else if (i + 1 >= s.length) { sb.append('\\'); i += 1 }
           else {
             s.charAt(i + 1) match {
-              case '"'  => sb.append('"'); i += 2
-              case '\\' => sb.append('\\'); i += 2
-              case 'n'  => sb.append('\n'); i += 2
-              case 'r'  => sb.append('\r'); i += 2
-              case 't'  => sb.append('\t'); i += 2
+              case '"'                     => sb.append('"'); i += 2
+              case '\\'                    => sb.append('\\'); i += 2
+              case 'n'                     => sb.append('\n'); i += 2
+              case 'r'                     => sb.append('\r'); i += 2
+              case 't'                     => sb.append('\t'); i += 2
               case 'u' if i + 5 < s.length =>
                 val hex = s.substring(i + 2, i + 6)
                 try sb.append(Integer.parseInt(hex, 16).toChar)
@@ -1045,12 +1083,17 @@ trait GolemModule extends ScalaJSModule {
     agentIds.foreach { id =>
       log.info(s"[golem] Updating agent $id (mode=$mode, target=${targetArg.headOption.getOrElse("latest")})")
       val cmd =
-        Seq("env", "-u", "ARGV0", cli) ++ (flags ++ (Seq("--yes", "agent", "update") ++ awaitFlag ++ Seq(id, mode) ++ targetArg))
+        Seq("env", "-u", "ARGV0", cli) ++ (flags ++ (Seq("--yes", "agent", "update") ++ awaitFlag ++ Seq(
+          id,
+          mode
+        ) ++ targetArg))
 
       val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent update", timeout, log)
       if (exit != 0) {
         if (await && out.contains("update is not pending anymore, but no outcome has been found")) {
-          log.info(s"[golem] agent update returned a transient status for $id; continuing (CLI reported no outcome yet)")
+          log.info(
+            s"[golem] agent update returned a transient status for $id; continuing (CLI reported no outcome yet)"
+          )
         } else {
           throw new RuntimeException(s"golem-cli agent update failed with exit code $exit for agentId=$id\n$out")
         }
@@ -1059,7 +1102,7 @@ trait GolemModule extends ScalaJSModule {
   }
 
   def golemInvoke: T[Unit] = Task {
-    val log          = Task.log
+    val log = Task.log
     golemLocalUp()
     val agentId      = golemInvokeAgentId
     val function     = golemInvokeFunction

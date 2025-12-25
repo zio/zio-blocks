@@ -35,14 +35,15 @@ object AgentSdkMacro {
 
     val hasAnn =
       traitSym.annotations.exists {
-        case Apply(Select(New(tpt), _), _) if tpt.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" => true
+        case Apply(Select(New(tpt), _), _)
+            if tpt.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
+          true
         case _ => false
       }
 
     val typeName =
       extractTypeNameFromAgentDefinition(traitSym).getOrElse {
-        if !hasAnn then
-          report.errorAndAbort(s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
+        if !hasAnn then report.errorAndAbort(s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
         defaultTypeNameFromTrait(traitSym)
       }
     val typeNameExpr = Expr(typeName)
