@@ -23,7 +23,12 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
   def apply(s: S): S =
     ops.foldLeft[S](s) { (s, single) =>
       single match {
-        case LensPair(optic, LensOp.Replace(a))           => optic.replace(s, a)
+        case LensPair(optic, LensOp.Replace(a))             => optic.replace(s, a)
+        case LensPair(optic, LensOp.Increment(delta))       => optic.modify(s, (v: Int) => v + delta)
+        case LensPair(optic, LensOp.IncrementLong(delta))   => optic.modify(s, (v: Long) => v + delta)
+        case LensPair(optic, LensOp.IncrementDouble(delta)) => optic.modify(s, (v: Double) => v + delta)
+        case LensPair(optic, LensOp.EditString(ops))        =>
+          optic.modify(s, (v: String) => StringOp.applyAll(v, ops).getOrElse(v))
         case PrismPair(optic, PrismOp.Replace(a))         => optic.replace(s, a)
         case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replace(s, a)
         case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modify(s, _ => a)
@@ -38,6 +43,14 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
       ops(idx) match {
         case LensPair(optic, LensOp.Replace(a)) =>
           x = optic.replace(x, a)
+        case LensPair(optic, LensOp.Increment(delta)) =>
+          x = optic.modify(x, (v: Int) => v + delta)
+        case LensPair(optic, LensOp.IncrementLong(delta)) =>
+          x = optic.modify(x, (v: Long) => v + delta)
+        case LensPair(optic, LensOp.IncrementDouble(delta)) =>
+          x = optic.modify(x, (v: Double) => v + delta)
+        case LensPair(optic, LensOp.EditString(ops)) =>
+          x = optic.modify(x, (v: String) => StringOp.applyAll(v, ops).getOrElse(v))
         case PrismPair(optic, PrismOp.Replace(a)) =>
           optic.replaceOption(x, a) match {
             case Some(r) => x = r
@@ -67,6 +80,14 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
       ops(idx) match {
         case LensPair(optic, LensOp.Replace(a)) =>
           x = optic.replace(x, a)
+        case LensPair(optic, LensOp.Increment(delta)) =>
+          x = optic.modify(x, (v: Int) => v + delta)
+        case LensPair(optic, LensOp.IncrementLong(delta)) =>
+          x = optic.modify(x, (v: Long) => v + delta)
+        case LensPair(optic, LensOp.IncrementDouble(delta)) =>
+          x = optic.modify(x, (v: Double) => v + delta)
+        case LensPair(optic, LensOp.EditString(ops)) =>
+          x = optic.modify(x, (v: String) => StringOp.applyAll(v, ops).getOrElse(v))
         case PrismPair(optic, PrismOp.Replace(a)) =>
           optic.replaceOrFail(x, a) match {
             case Right(r) => x = r
@@ -102,12 +123,39 @@ object Patch {
   def replace[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
     Patch(Vector(PrismPair(prism, PrismOp.Replace(a))), source)
 
+  /** Empty patch (monoid identity) */
+  def empty[S](implicit source: Schema[S]): Patch[S] = Patch(Vector.empty, source)
+
+  /** Set a field to a value (alias for replace) */
+  def set[S, A](lens: Lens[S, A], value: A)(implicit source: Schema[S]): Patch[S] =
+    replace(lens, value)
+
+  /** Increment an Int field by delta */
+  def increment[S](lens: Lens[S, Int], delta: Int)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(LensPair(lens, LensOp.Increment(delta))), source)
+
+  /** Increment a Long field by delta */
+  def incrementLong[S](lens: Lens[S, Long], delta: Long)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(LensPair(lens, LensOp.IncrementLong(delta))), source)
+
+  /** Increment a Double field by delta */
+  def incrementDouble[S](lens: Lens[S, Double], delta: Double)(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(LensPair(lens, LensOp.IncrementDouble(delta))), source)
+
+  /** Edit a String field with operations */
+  def editString[S](lens: Lens[S, String], edits: Vector[StringOp])(implicit source: Schema[S]): Patch[S] =
+    Patch(Vector(LensPair(lens, LensOp.EditString(edits))), source)
+
   sealed trait Op[A]
 
   sealed trait LensOp[A] extends Op[A]
 
   object LensOp {
-    case class Replace[A](a: A) extends LensOp[A]
+    case class Replace[A](a: A)                  extends LensOp[A]
+    case class Increment(delta: Int)             extends LensOp[Int]
+    case class IncrementLong(delta: Long)        extends LensOp[Long]
+    case class IncrementDouble(delta: Double)    extends LensOp[Double]
+    case class EditString(ops: Vector[StringOp]) extends LensOp[String]
   }
 
   sealed trait PrismOp[A] extends Op[A]

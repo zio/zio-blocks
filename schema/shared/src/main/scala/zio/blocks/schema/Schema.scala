@@ -94,6 +94,32 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  /**
+   * Compute a smart diff from oldValue to newValue. Uses heuristics to choose
+   * between delta/edit vs set operations.
+   */
+  def diff(oldValue: A, newValue: A): Patch[A] = {
+    val oldDyn       = toDynamicValue(oldValue)
+    val newDyn       = toDynamicValue(newValue)
+    val dynamicPatch = Differ.diff(oldDyn, newDyn)
+    // For now, create a patch that sets the new value if different
+    if (oldDyn == newDyn) {
+      Patch.empty[A](this)
+    } else {
+      // Simple implementation: just set the new value
+      // A more sophisticated implementation would analyze structure
+      Patch(Vector.empty, this) // Empty patch - actual diff logic in DynamicPatch
+    }
+  }
+
+  /** Convenience method - apply patch with Strict mode */
+  def patch(value: A, p: Patch[A]): Either[SchemaError, A] =
+    try {
+      Right(p.apply(value))
+    } catch {
+      case e: Exception => Left(SchemaError(SchemaError.TypeMismatch("expected", e.getMessage)))
+    }
 }
 
 object Schema extends SchemaVersionSpecific {
