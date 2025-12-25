@@ -78,7 +78,7 @@ object BuildHelper {
       "org.scala-lang" %% "scala3-library"    % Scala3,
       "org.scala-lang" %% "scala3-interfaces" % Scala3
     ),
-    ThisBuild / publishTo    := {
+    ThisBuild / publishTo := {
       val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"
       if (isSnapshot.value) Some("central-snapshots" at centralSnapshots)
       else localStaging.value

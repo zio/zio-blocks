@@ -301,7 +301,7 @@ lazy val zioGolemTools = project
       "com.lihaoyi"   %% "ujson"                 % "3.1.0",
       "org.scalatest" %% "scalatest"             % "3.2.19" % Test,
       "dev.zio"       %% "zio-schema"            % "1.1.1"  % Test,
-      "dev.zio"       %% "zio-schema-derivation" % "1.1.1" % Test
+      "dev.zio"       %% "zio-schema-derivation" % "1.1.1"  % Test
     )
   )
   .dependsOn(zioGolemModel.jvm, zioGolemMacros)
@@ -309,15 +309,15 @@ lazy val zioGolemTools = project
 lazy val zioGolemToolingCore = project
   .in(file("golem/tooling-core"))
   .settings(
-    name := "zio-golem-tooling-core",
+    name             := "zio-golem-tooling-core",
     autoScalaLibrary := false,
-    crossPaths := false,
-    scalaVersion := "2.12.19",
+    crossPaths       := false,
+    scalaVersion     := "2.12.19",
     Compile / javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
-    Compile / doc / javacOptions := Nil,
+    Compile / doc / javacOptions           := Nil,
     Compile / packageDoc / publishArtifact := false,
-    libraryDependencies += "junit" % "junit" % "4.13.2" % Test,
-    publish / skip := true
+    libraryDependencies += "junit"          % "junit" % "4.13.2" % Test,
+    publish / skip                         := true
   )
 
 lazy val zioGolemExamples = crossProject(JSPlatform, JVMPlatform)
@@ -335,7 +335,7 @@ lazy val zioGolemExamples = crossProject(JSPlatform, JVMPlatform)
 
 lazy val zioGolemExamplesJS = zioGolemExamples.js
   .settings(
-    name := "zio-golem-examples-js",
+    name                            := "zio-golem-examples-js",
     scalaJSUseMainModuleInitializer := false,
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
     Test / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.CommonJSModule)),
@@ -344,12 +344,12 @@ lazy val zioGolemExamplesJS = zioGolemExamples.js
         "Skipping zioGolemExamplesJS tests (requires golem runtime). Run `golem/examples/agent2agent-local.sh` instead."
       )
     },
-    Test / testOnly := (Test / test).value,
-    Test / testQuick := (Test / test).value,
+    Test / testOnly       := (Test / test).value,
+    Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil,
     // Minimal example app: rely on annotation-based auto detection of exports.
     // This keeps the “hello world” story minimal (agent trait + impl only).
-    cloud.golem.sbt.GolemPlugin.autoImport.golemAppName := "scala-examples",
+    cloud.golem.sbt.GolemPlugin.autoImport.golemAppName   := "scala-examples",
     cloud.golem.sbt.GolemPlugin.autoImport.golemComponent := "scala:examples"
   )
   .enablePlugins(cloud.golem.sbt.GolemPlugin)
@@ -357,7 +357,7 @@ lazy val zioGolemExamplesJS = zioGolemExamples.js
 
 lazy val zioGolemExamplesJVM = zioGolemExamples.jvm
   .settings(
-    name := "zio-golem-examples",
+    name                                   := "zio-golem-examples",
     libraryDependencies += "org.scalatest" %% "scalatest" % "3.2.19" % Test
   )
 
@@ -371,13 +371,14 @@ lazy val zioGolemHostTests = project
       if (sys.env.get("GOLEM_HOST_TESTS").contains("1")) golemHostTests.value
       else Keys.streams.value.log.info("Skipping host-tests; set GOLEM_HOST_TESTS=1 to enable.")
     },
-    Test / testOnly := (Test / test).value,
-    Test / testQuick := (Test / test).value,
-    Test / testFrameworks := Nil,
-    cloud.golem.sbt.GolemPlugin.autoImport.golemAppName := "scala-host-tests",
-    cloud.golem.sbt.GolemPlugin.autoImport.golemComponent := sys.env.getOrElse("GOLEM_COMPONENT_QUALIFIED", "scala:host-tests"),
+    Test / testOnly                                       := (Test / test).value,
+    Test / testQuick                                      := (Test / test).value,
+    Test / testFrameworks                                 := Nil,
+    cloud.golem.sbt.GolemPlugin.autoImport.golemAppName   := "scala-host-tests",
+    cloud.golem.sbt.GolemPlugin.autoImport.golemComponent := sys.env
+      .getOrElse("GOLEM_COMPONENT_QUALIFIED", "scala:host-tests"),
     cloud.golem.sbt.GolemPlugin.autoImport.golemBridgeSpecProviderClass := "",
-    cloud.golem.sbt.GolemPlugin.autoImport.golemExports := {
+    cloud.golem.sbt.GolemPlugin.autoImport.golemExports                 := {
       import cloud.golem.sbt.GolemPlugin.autoImport._
       import GolemConstructor._
 
@@ -406,7 +407,7 @@ lazy val zioGolemHostTests = project
       import cloud.golem.sbt.GolemPlugin.autoImport._
 
       val enabled = sys.env.get("GOLEM_HOST_TESTS").contains("1")
-      if (!enabled) Def.task { Keys.streams.value.log.info("[host-tests] Skipping (set GOLEM_HOST_TESTS=1 to enable).") }
+      if (!enabled) Def.task(Keys.streams.value.log.info("[host-tests] Skipping (set GOLEM_HOST_TESTS=1 to enable)."))
       else
         Def.task {
           val log     = Keys.streams.value.log
@@ -417,7 +418,7 @@ lazy val zioGolemHostTests = project
           val method    = "runtests"
           // Payload is parsed by golem-cli as WAVE. The method input is a record with an optional `tests` field,
           // so the smallest valid default is to provide the record with `tests: none`.
-          val payload   = sys.env.getOrElse("GOLEM_HOST_PAYLOAD", "{ tests: none }")
+          val payload     = sys.env.getOrElse("GOLEM_HOST_PAYLOAD", "{ tests: none }")
           val invokeFlags =
             sys.env
               .get("GOLEM_HOST_INVOKE_FLAGS")
@@ -432,15 +433,18 @@ lazy val zioGolemHostTests = project
               .forall(v => v == "1" || v.equalsIgnoreCase("true"))
           val dataDir    = baseDir / sys.env.getOrElse("GOLEM_HOST_DATA_DIR", ".golem-local")
           val routerHost = sys.env.getOrElse("GOLEM_ROUTER_HOST", "127.0.0.1")
-          val routerPort = sys.env.get("GOLEM_ROUTER_PORT").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(9881)
-          val golemBin   = sys.env.getOrElse("GOLEM_BIN", "golem")
-          val pidFile    = dataDir / "server.pid"
-          val serverLog  = dataDir / "server.log"
+          val routerPort =
+            sys.env.get("GOLEM_ROUTER_PORT").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(9881)
+          val golemBin  = sys.env.getOrElse("GOLEM_BIN", "golem")
+          val pidFile   = dataDir / "server.pid"
+          val serverLog = dataDir / "server.log"
 
           def requireCommandOnPath(cmd: String, friendly: String): Unit = {
-            val exit = scala.sys.process.Process(Seq("bash", "-lc", s"command -v ${cmd}")).!(
-              scala.sys.process.ProcessLogger(_ => ())
-            )
+            val exit = scala.sys.process
+              .Process(Seq("bash", "-lc", s"command -v ${cmd}"))
+              .!(
+                scala.sys.process.ProcessLogger(_ => ())
+              )
             if (exit != 0) sys.error(s"$friendly not found on PATH (looked for '$cmd').")
           }
 
@@ -455,7 +459,10 @@ lazy val zioGolemHostTests = project
                 sys.error(
                   s"Port $host:$port is already in use; stop the existing process or set GOLEM_ROUTER_PORT to a free port.\n${t.getMessage}"
                 )
-            } finally if (socket != null) try socket.close() catch { case _: Throwable => () }
+            } finally
+              if (socket != null)
+                try socket.close()
+                catch { case _: Throwable => () }
           }
 
           def waitForRouter(host: String, port: Int, attempts: Int): Unit = {
@@ -470,7 +477,9 @@ lazy val zioGolemHostTests = project
                 case _: Throwable =>
                   Thread.sleep(1000)
                   remaining -= 1
-              } finally try s.close() catch { case _: Throwable => () }
+              } finally
+                try s.close()
+                catch { case _: Throwable => () }
             }
             if (!ok) sys.error(s"Timed out waiting for Golem router at $host:$port")
           }
@@ -480,9 +489,11 @@ lazy val zioGolemHostTests = project
               val pidText = IO.read(pidFile).trim
               if (pidText.nonEmpty) {
                 log.warn(s"[host-tests] $reason (pid=$pidText)")
-                try scala.sys.process.Process(Seq("kill", "-TERM", pidText)).! catch { case _: Throwable => () }
+                try scala.sys.process.Process(Seq("kill", "-TERM", pidText)).!
+                catch { case _: Throwable => () }
                 Thread.sleep(500)
-                try scala.sys.process.Process(Seq("kill", "-KILL", pidText)).! catch { case _: Throwable => () }
+                try scala.sys.process.Process(Seq("kill", "-KILL", pidText)).!
+                catch { case _: Throwable => () }
               }
               IO.delete(pidFile)
             }
@@ -500,12 +511,14 @@ lazy val zioGolemHostTests = project
               log.info(s"[host-tests] Running: ${cmd.mkString(" ")}")
               val out  = new StringBuilder
               val exit =
-                scala.sys.process.Process(cmd, appDir).!(
-                  scala.sys.process.ProcessLogger(
-                    line => { log.info(line); out.append(line).append('\n') },
-                    line => { log.error(line); out.append(line).append('\n') }
+                scala.sys.process
+                  .Process(cmd, appDir)
+                  .!(
+                    scala.sys.process.ProcessLogger(
+                      line => { log.info(line); out.append(line).append('\n') },
+                      line => { log.error(line); out.append(line).append('\n') }
+                    )
                   )
-                )
               if (exit != 0) sys.error(s"$label failed with exit code $exit\n$out")
             }
 
@@ -527,8 +540,8 @@ lazy val zioGolemHostTests = project
             // Deploy via golem-cli directly (avoid sbt task ordering; ensures server is up first).
             run(cliBase ++ (golemCliFlags.value ++ Seq("--yes", "app", "deploy", component)), "golem-cli app deploy")
 
-            val agentId      = s"$component/$agentType()"
-            val fn           = s"$component/$agentType.{$method}"
+            val agentId = s"$component/$agentType()"
+            val fn      = s"$component/$agentType.{$method}"
 
             val cmd =
               cliBase ++
@@ -555,19 +568,19 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
   .in(file("golem/quickstart"))
   .settings(stdSettings("zio-golem-quickstart"))
   .settings(
-    publish / skip := true,
+    publish / skip := true
     // stdSettings already controls compiler flags across the repo; avoid duplicating -experimental here.
   )
   .jsSettings(jsSettings)
   .jsSettings(
     scalaJSUseMainModuleInitializer := false,
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
-    cloud.golem.sbt.GolemPlugin.autoImport.golemAppName := "scala-quickstart",
+    cloud.golem.sbt.GolemPlugin.autoImport.golemAppName   := "scala-quickstart",
     cloud.golem.sbt.GolemPlugin.autoImport.golemComponent := "scala:quickstart-counter",
-    Test / test := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
-    Test / testOnly := (Test / test).value,
-    Test / testQuick := (Test / test).value,
-    Test / testFrameworks := Nil
+    Test / test                                           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
+    Test / testOnly                                       := (Test / test).value,
+    Test / testQuick                                      := (Test / test).value,
+    Test / testFrameworks                                 := Nil
   )
   .jsConfigure(_.enablePlugins(ScalaJSPlugin, cloud.golem.sbt.GolemPlugin))
   .jsConfigure(_.dependsOn(zioGolemCoreJS, zioGolemMacros))
@@ -580,7 +593,7 @@ lazy val zioGolemMillPlugin = project
   .in(file("golem/mill-plugin"))
   .settings(stdSettings("zio-golem-mill-plugin"))
   .settings(
-    scalaVersion := Scala3,
+    scalaVersion       := Scala3,
     crossScalaVersions := Seq(Scala3),
     scalacOptions -= "-Xcheck-macros",
     scalacOptions -= "-experimental",
@@ -588,9 +601,9 @@ lazy val zioGolemMillPlugin = project
       ("com.lihaoyi" %% "mill-libs-scalajslib" % golemMillLibsVersion % Provided)
         .exclude("org.scala-lang.modules", "scala-xml_3")
         .exclude("org.scala-lang.modules", "scala-collection-compat_3"),
-      "org.scala-lang.modules" % "scala-xml_2.13"              % "2.4.0"  % Provided,
+      "org.scala-lang.modules" % "scala-xml_2.13"               % "2.4.0"  % Provided,
       "org.scala-lang.modules" % "scala-collection-compat_2.13" % "2.13.0" % Provided,
-      "com.lihaoyi" %% "os-lib"          % "0.11.6"
+      "com.lihaoyi"           %% "os-lib"                       % "0.11.6"
     ),
     publish / skip := true
   )
@@ -599,9 +612,9 @@ lazy val zioGolemMillPlugin = project
 lazy val zioGolemSbtPlugin = project
   .in(file("golem/sbt-plugin"))
   .settings(
-    name := "zio-golem-sbt-plugin",
-    sbtPlugin := true,
-    scalaVersion := "2.12.19",
+    name               := "zio-golem-sbt-plugin",
+    sbtPlugin          := true,
+    scalaVersion       := "2.12.19",
     crossScalaVersions := Seq("2.12.19"),
     libraryDependencies += Defaults.sbtPluginExtra(
       "org.scala-js" % "sbt-scalajs" % "1.20.1",
