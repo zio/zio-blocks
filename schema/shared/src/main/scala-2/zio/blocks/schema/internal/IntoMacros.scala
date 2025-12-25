@@ -10,12 +10,10 @@ class IntoMacros(val c: blackbox.Context) {
     val tpeA = weakTypeOf[A]
     val tpeB = weakTypeOf[B]
 
-    // Fast path for identity
     if (tpeA =:= tpeB) {
       return c.Expr[zio.blocks.schema.Into[A, B]](q"zio.blocks.schema.Into.identity")
     }
 
-    // Ensure we are working with case classes (Products)
     if (!isProduct(tpeA) || !isProduct(tpeB)) {
       c.abort(c.enclosingPosition, s"Derivation only supported for case classes. Cannot derive ${tpeA} => ${tpeB}")
     }
@@ -102,11 +100,10 @@ class IntoMacros(val c: blackbox.Context) {
     c.Expr[zio.blocks.schema.Into[A, B]](result)
   }
 
-  private def convertField(access: Tree, from: Type, to: Type): Tree = {
+  private def convertField(access: Tree, from: Type, to: Type): Tree =
     if (from =:= to) {
       q"Right($access)"
     } else {
-      // Explicitly handle primitives to avoid macro implicit search issues
       val primitiveConversion = (from.toString, to.toString) match {
         case ("Int", "Long")     => Some(q"Right($access.toLong)")
         case ("Int", "Double")   => Some(q"Right($access.toDouble)")
@@ -123,14 +120,12 @@ class IntoMacros(val c: blackbox.Context) {
         if (implicitInstance != EmptyTree) {
           q"$implicitInstance.into($access)"
         } else if (isProduct(from) && isProduct(to)) {
-           // Recursive derivation for nested case classes
-           q"zio.blocks.schema.Into.derive[$from, $to].into($access)"
+          q"zio.blocks.schema.Into.derive[$from, $to].into($access)"
         } else {
           c.abort(c.enclosingPosition, s"No Into instance found for $from => $to")
         }
       }
     }
-  }
 
   private def getFields(tpe: Type): List[TermSymbol] =
     tpe.decls.collect {

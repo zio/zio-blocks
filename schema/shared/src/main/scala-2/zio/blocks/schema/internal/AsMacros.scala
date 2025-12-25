@@ -11,7 +11,6 @@ class AsMacros(val c: blackbox.Context) {
 
     val result = q"""
       new zio.blocks.schema.As[$tpeA, $tpeB] {
-        // Use implicit search to find the Into instances (which might be macro-derived)
         private val forward = implicitly[zio.blocks.schema.Into[$tpeA, $tpeB]]
         private val backward = implicitly[zio.blocks.schema.Into[$tpeB, $tpeA]]
 
