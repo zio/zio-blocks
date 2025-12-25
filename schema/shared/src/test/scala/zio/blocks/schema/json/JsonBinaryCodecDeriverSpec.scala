@@ -2490,12 +2490,22 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.Field("type"))
         )
         val codec2 = Schema[GeoJSON].derive(
-          JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None)
+          JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None).withRequireCollectionFields(true)
         )
         val value = Feature(geometry = Point((1.0, 2.0)))
         roundTrip(value, """{"type":"Feature","geometry":{"type":"Point","coordinates":[1.0,2.0]}}""", codec1) &&
         roundTrip(value, """{"geometry":{"coordinates":[1.0,2.0]}}""", codec2) &&
-        roundTrip[GeoJSON](value, """{"Feature":{"geometry":{"Point":{"coordinates":[1.0,2.0]}}}}""")
+        roundTrip[GeoJSON](value, """{"Feature":{"geometry":{"Point":{"coordinates":[1.0,2.0]}}}}""") &&
+        decodeError(
+          """{"type":"Feature","geometry":{"type":"Point","coordinates":[01,02]}}""",
+          "illegal number with leading zero at: .when[SimpleGeoJSON].when[Feature].geometry.when[SimpleGeometry].when[Point].coordinates._1",
+          codec1
+        ) &&
+        decodeError("""{"geometry":{"coordinates":[01,02]}}""", "expected a variant value at: .", codec2) &&
+        decodeError[GeoJSON](
+          """{"Feature":{"geometry":{"Point":{"coordinates":[01,02]}}}}""",
+          "illegal number with leading zero at: .when[SimpleGeoJSON].when[Feature].geometry.when[SimpleGeometry].when[Point].coordinates._1"
+        )
       },
       test("ADT with case key renaming using case name mapper") {
         roundTrip[RGBColor](

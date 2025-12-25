@@ -1566,20 +1566,60 @@ final class JsonReader private[json] (
    */
   def decodeError(msg: String): Nothing = decodeError(appendString(msg, 0))
 
+  /**
+   * Throws a [[JsonBinaryCodecError]] wrapping the given error and adding a
+   * span.
+   *
+   * @param span
+   *   the span to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws JsonBinaryCodecError
+   *   always
+   */
   def decodeError(span: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: JsonBinaryCodecError =>
       e.spans = new ::(span, e.spans)
       throw e
-    case _ =>
-      throw new JsonBinaryCodecError(new ::(span, Nil), error.getMessage)
+    case _ => throw new JsonBinaryCodecError(new ::(span, Nil), error.getMessage)
   }
 
+  /**
+   * Throws a [[JsonBinaryCodecError]] wrapping the given error and adding two
+   * spans.
+   *
+   * @param span1
+   *   the first span to add to the error
+   * @param span2
+   *   the second span to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws JsonBinaryCodecError
+   *   always
+   */
   def decodeError(span1: DynamicOptic.Node, span2: DynamicOptic.Node, error: Throwable): Nothing = error match {
     case e: JsonBinaryCodecError =>
       e.spans = new ::(span1, new ::(span2, e.spans))
       throw e
-    case _ =>
-      throw new JsonBinaryCodecError(new ::(span1, new ::(span2, Nil)), error.getMessage)
+    case _ => throw new JsonBinaryCodecError(new ::(span1, new ::(span2, Nil)), error.getMessage)
+  }
+
+  /**
+   * Throws a [[JsonBinaryCodecError]] wrapping the given error and adding a
+   * list of spans.
+   *
+   * @param spans
+   *   the list of spans to add to the error
+   * @param error
+   *   the error to wrap
+   * @throws JsonBinaryCodecError
+   *   always
+   */
+  def decodeError(spans: List[DynamicOptic.Node], error: Throwable): Nothing = error match {
+    case e: JsonBinaryCodecError =>
+      e.spans = spans.foldLeft(e.spans)((ss, s) => s :: ss)
+      throw e
+    case _ => throw new JsonBinaryCodecError(spans, error.getMessage)
   }
 
   /**
