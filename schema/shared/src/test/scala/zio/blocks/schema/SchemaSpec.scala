@@ -120,7 +120,13 @@ object SchemaSpec extends ZIOSpecDefault {
               )
             )
           )
-        )(isLeft(hasError("Expected Int at: .i\nDuplicated field 'i' at: .\nMissing field 'b' at: .")))
+        )(
+          isLeft(
+            hasError(
+              "Expected Int at: .i\nDuplicated field 'i' at: .\nMissing required field 'b' (type: unknown) at: ."
+            )
+          )
+        )
       },
       test("has consistent gets for typed and dynamic optics") {
         assert(Record.schema.get(Record.b.toDynamic))(equalTo(Record.schema.get(Record.b))) &&
