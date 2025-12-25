@@ -168,6 +168,7 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "dev.zio" %%% "zio-test"     % "2.1.23" % Test,
       "dev.zio" %%% "zio-test-sbt" % "2.1.23" % Test
     ),
+    Test / scalacOptions ++= Seq("-experimental"),
     publish / skip        := true,
     mimaPreviousArtifacts := Set()
   )

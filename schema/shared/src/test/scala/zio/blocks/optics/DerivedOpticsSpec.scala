@@ -8,10 +8,7 @@ import zio.optics._
 final case class Person(name: String, age: Int)
 object Person extends DerivedOptics[Person]
 
-<<<<<<< HEAD
-  =======
 // Non-generic sealed trait for simpler testing
-  >>>>>>> ed52d95be7cc3dfb047242f0180ce3219f9672b1
 sealed trait Status
 object Status extends DerivedOptics[Status] {
   case object Active                       extends Status
