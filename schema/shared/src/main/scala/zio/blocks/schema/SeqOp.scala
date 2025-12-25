@@ -6,22 +6,23 @@ package zio.blocks.schema
 sealed trait SeqOp
 
 object SeqOp {
+
   /**
-   * Insert values at the given index.
-   * In Strict mode, fails if index is occupied.
+   * Insert values at the given index. In Strict mode, fails if index is
+   * occupied.
    */
   final case class Insert(index: Int, values: Vector[DynamicValue]) extends SeqOp
-  
+
   /**
    * Append values to the end of the sequence.
    */
   final case class Append(values: Vector[DynamicValue]) extends SeqOp
-  
+
   /**
    * Delete count elements starting at index.
    */
   final case class Delete(index: Int, count: Int) extends SeqOp
-  
+
   /**
    * Modify element at index with a nested operation.
    */
@@ -30,7 +31,7 @@ object SeqOp {
   /**
    * Apply a single sequence operation to a sequence.
    */
-  def apply(elements: Vector[DynamicValue], op: SeqOp, mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] = 
+  def apply(elements: Vector[DynamicValue], op: SeqOp, mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] =
     op match {
       case Insert(index, values) =>
         if (index < 0 || index > elements.length)
@@ -39,10 +40,10 @@ object SeqOp {
           val (prefix, suffix) = elements.splitAt(index)
           Right(prefix ++ values ++ suffix)
         }
-      
+
       case Append(values) =>
         Right(elements ++ values)
-      
+
       case Delete(index, count) =>
         if (index < 0 || index >= elements.length)
           if (mode == PatchMode.Lenient) Right(elements)
@@ -52,7 +53,7 @@ object SeqOp {
           else Left(SchemaError(SchemaError.IndexOutOfBounds(index + count, elements.length)))
         else
           Right(elements.take(index) ++ elements.drop(index + count))
-      
+
       case Modify(index, nestedOp) =>
         if (index < 0 || index >= elements.length)
           if (mode == PatchMode.Lenient) Right(elements)
@@ -66,13 +67,17 @@ object SeqOp {
   /**
    * Apply a sequence of operations to a sequence.
    */
-  def applyAll(elements: Vector[DynamicValue], ops: Vector[SeqOp], mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] = {
+  def applyAll(
+    elements: Vector[DynamicValue],
+    ops: Vector[SeqOp],
+    mode: PatchMode
+  ): Either[SchemaError, Vector[DynamicValue]] = {
     var result = elements
-    var i = 0
+    var i      = 0
     while (i < ops.length) {
       apply(result, ops(i), mode) match {
         case Right(r) => result = r
-        case left => 
+        case left     =>
           if (mode == PatchMode.Lenient) () // skip failed operation
           else return left
       }
