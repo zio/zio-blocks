@@ -6,7 +6,7 @@ import zio.blocks.schema.binding.{Binding, BindingType}
 /**
  * A `DerivationBuilder` is capable of deriving a type class instance for any
  * data type that has a schema. Though instances for all substructures can be
- * derived automatically, you can also specify instances for specific
+ * derived, you can also specify instances for specific
  * substructures using the `withOverride` method.
  *
  * {{{
