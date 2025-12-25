@@ -936,269 +936,22 @@ object IntoAsVersionSpecificImpl {
     bFieldTypes: List[q.reflect.TypeRepr]
   ): Expr[Into[Any, B]] = {
 
-    // Strategia F: Costruzione inline della lambda nel quote per evitare scope issues
-    // La lambda viene definita come Expr[List[Any] => B] e usata direttamente nel quote principale
     val arity = bFieldTypes.length
 
-    // Definisci la lambda constructor basata su arity
-    val constructorLambda: Expr[List[Any] => B] = arity match {
-      case 1 => '{ (list: List[Any]) => Tuple1(list(0)).asInstanceOf[B] }
-      case 2 => '{ (list: List[Any]) => (list(0), list(1)).asInstanceOf[B] }
-      case 3 => '{ (list: List[Any]) => (list(0), list(1), list(2)).asInstanceOf[B] }
-      case 4 => '{ (list: List[Any]) => (list(0), list(1), list(2), list(3)).asInstanceOf[B] }
-      case 5 => '{ (list: List[Any]) => (list(0), list(1), list(2), list(3), list(4)).asInstanceOf[B] }
-      case 6 => '{ (list: List[Any]) => (list(0), list(1), list(2), list(3), list(4), list(5)).asInstanceOf[B] }
-      case 7 =>
-        '{ (list: List[Any]) => (list(0), list(1), list(2), list(3), list(4), list(5), list(6)).asInstanceOf[B] }
-      case 8 =>
-        '{ (list: List[Any]) =>
-          (list(0), list(1), list(2), list(3), list(4), list(5), list(6), list(7)).asInstanceOf[B]
-        }
-      case 9 =>
-        '{ (list: List[Any]) =>
-          (list(0), list(1), list(2), list(3), list(4), list(5), list(6), list(7), list(8)).asInstanceOf[B]
-        }
-      case 10 =>
-        '{ (list: List[Any]) =>
-          (list(0), list(1), list(2), list(3), list(4), list(5), list(6), list(7), list(8), list(9)).asInstanceOf[B]
-        }
-      case 11 =>
-        '{ (list: List[Any]) =>
-          (list(0), list(1), list(2), list(3), list(4), list(5), list(6), list(7), list(8), list(9), list(10))
-            .asInstanceOf[B]
-        }
-      case 12 =>
-        '{ (list: List[Any]) =>
-          (list(0), list(1), list(2), list(3), list(4), list(5), list(6), list(7), list(8), list(9), list(10), list(11))
-            .asInstanceOf[B]
-        }
-      case 13 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12)
-          ).asInstanceOf[B]
-        }
-      case 14 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13)
-          ).asInstanceOf[B]
-        }
-      case 15 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14)
-          ).asInstanceOf[B]
-        }
-      case 16 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14),
-            list(15)
-          ).asInstanceOf[B]
-        }
-      case 17 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14),
-            list(15),
-            list(16)
-          ).asInstanceOf[B]
-        }
-      case 18 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14),
-            list(15),
-            list(16),
-            list(17)
-          ).asInstanceOf[B]
-        }
-      case 19 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14),
-            list(15),
-            list(16),
-            list(17),
-            list(18)
-          ).asInstanceOf[B]
-        }
-      case 20 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14),
-            list(15),
-            list(16),
-            list(17),
-            list(18),
-            list(19)
-          ).asInstanceOf[B]
-        }
-      case 21 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14),
-            list(15),
-            list(16),
-            list(17),
-            list(18),
-            list(19),
-            list(20)
-          ).asInstanceOf[B]
-        }
-      case 22 =>
-        '{ (list: List[Any]) =>
-          (
-            list(0),
-            list(1),
-            list(2),
-            list(3),
-            list(4),
-            list(5),
-            list(6),
-            list(7),
-            list(8),
-            list(9),
-            list(10),
-            list(11),
-            list(12),
-            list(13),
-            list(14),
-            list(15),
-            list(16),
-            list(17),
-            list(18),
-            list(19),
-            list(20),
-            list(21)
-          ).asInstanceOf[B]
-        }
-      case n => fail(s"Tuple arity $n not supported (max 22)")
-    }
+    // Strategy: Use Quotes for type-safe construction (works for 1-22)
+    // For > 22, fall back to TupleXXL (like ZIO Schema)
+    val constructorLambda: Expr[List[Any] => B] =
+      if (arity == 0) {
+        // Empty tuple
+        '{ (_: List[Any]) => EmptyTuple.asInstanceOf[B] }
+      } else if (arity <= 22) {
+        // Standard tuples (1-22): Build using Quotes with type-safe pattern
+        // This is generic - we generate the code dynamically using Quotes
+        buildTupleLambdaGeneric[B](using q)(bTpe, bFieldTypes, arity)
+      } else {
+        // Large tuples (> 22): Use TupleXXL.fromIArray (like ZIO Schema)
+        buildTupleXXLLambda[B](using q)(bTpe, bFieldTypes, arity)
+      }
 
     '{
       new Into[Any, B] {
@@ -1216,6 +969,136 @@ object IntoAsVersionSpecificImpl {
         }
       }
     }
+  }
+
+  // Helper: Build tuple lambda generically using Quotes (for 1-22)
+  private def buildTupleLambdaGeneric[B: Type](using
+    q: Quotes
+  )(
+    bTpe: q.reflect.TypeRepr,
+    bFieldTypes: List[q.reflect.TypeRepr],
+    _arity: Int
+  ): Expr[List[Any] => B] = {
+    import q.reflect.*
+
+    val tupleSymbol     = bTpe.typeSymbol
+    val companionModule = tupleSymbol.companionModule
+
+    // STRATEGIA 1: Companion Apply (Standard per Tuple 1-22)
+    if (companionModule.exists) {
+      val listAnyType     = TypeRepr.of[List[Any]]
+      val constructLambda = Lambda(
+        Symbol.spliceOwner,
+        MethodType(List("list"))(_ => List(listAnyType), _ => bTpe),
+        (sym, params) => {
+          val listParam = params.head.asInstanceOf[Term]
+
+          // Argomenti con cast type-safe
+          val constructorArgs = bFieldTypes.zipWithIndex.map { case (fieldType, idx) =>
+            val listAccess  = Select.unique(listParam, "apply")
+            val indexExpr   = Expr(idx)
+            val indexedTerm = Apply(listAccess, List(indexExpr.asTerm))
+            val indexedExpr = indexedTerm.asExprOf[Any]
+            fieldType.asType match {
+              case '[ft] =>
+                '{ $indexedExpr.asInstanceOf[ft] }.asTerm.changeOwner(sym)
+            }
+          }
+
+          // TupleN.apply[T1, ...](args)
+          val companionRef = Ref(companionModule)
+          val applySelect  = Select.unique(companionRef, "apply")
+          val typeApply    = TypeApply(applySelect, bFieldTypes.map(Inferred(_)))
+          Apply(typeApply, constructorArgs).changeOwner(sym)
+        }
+      )
+      return constructLambda.asExprOf[List[Any] => B]
+    }
+
+    // STRATEGIA 2: Fallback Primary Constructor (per casi rari/custom)
+    val constructor = tupleSymbol.primaryConstructor
+    if (!constructor.exists) {
+      fail(s"Cannot find companion or constructor for tuple ${bTpe.show}")
+    }
+
+    val listAnyType     = TypeRepr.of[List[Any]]
+    val constructLambda = Lambda(
+      Symbol.spliceOwner,
+      MethodType(List("list"))(_ => List(listAnyType), _ => bTpe),
+      (sym, params) => {
+        val listParam       = params.head.asInstanceOf[Term]
+        val constructorArgs = bFieldTypes.zipWithIndex.map { case (fieldType, idx) =>
+          val listAccess  = Select.unique(listParam, "apply")
+          val indexExpr   = Expr(idx)
+          val indexedTerm = Apply(listAccess, List(indexExpr.asTerm))
+          val indexedExpr = indexedTerm.asExprOf[Any]
+          fieldType.asType match {
+            case '[ft] => '{ $indexedExpr.asInstanceOf[ft] }.asTerm.changeOwner(sym)
+          }
+        }
+        val newInstance = Select(New(Inferred(bTpe)), constructor)
+        Apply(newInstance, constructorArgs).changeOwner(sym)
+      }
+    )
+    constructLambda.asExprOf[List[Any] => B]
+  }
+
+  // Helper: Build tuple lambda for large tuples (> 22) using TupleXXL
+  private def buildTupleXXLLambda[B: Type](using
+    q: Quotes
+  )(
+    bTpe: q.reflect.TypeRepr,
+    bFieldTypes: List[q.reflect.TypeRepr],
+    arity: Int
+  ): Expr[List[Any] => B] = {
+    import q.reflect.*
+
+    // Use TupleXXL.fromIArray pattern (like ZIO Schema)
+    val tupleXXLModule     = Symbol.requiredModule("scala.runtime.TupleXXL")
+    val fromIArrayMethod   = Select.unique(Ref(tupleXXLModule), "fromIArray")
+    val iArrayOfAnyRefTpe  = TypeRepr.of[IArray[AnyRef]]
+    val anyTpe             = defn.AnyClass.typeRef
+    val arrayClass         = defn.ArrayClass
+    val arrayOfAnyTpe      = arrayClass.typeRef.appliedTo(anyTpe)
+    val newArrayOfAny      = Select(New(TypeIdent(arrayClass)), arrayClass.primaryConstructor).appliedToType(anyTpe)
+    val asInstanceOfMethod = anyTpe.typeSymbol.declaredMethod("asInstanceOf").head
+
+    val listAnyType     = TypeRepr.of[List[Any]]
+    val constructLambda = Lambda(
+      Symbol.spliceOwner,
+      MethodType(List("list"))(_ => List(listAnyType), _ => bTpe),
+      (sym, params) => {
+        val listParam = params.head.asInstanceOf[Term]
+
+        // Create array symbol and reference
+        val arraySymbol = Symbol.newVal(sym, "arr", arrayOfAnyTpe, Flags.EmptyFlags, Symbol.noSymbol)
+        val arrayRef    = Ref(arraySymbol)
+
+        // Initialize array: new Array[Any](arity)
+        val arrayInit   = Apply(newArrayOfAny, List(Literal(IntConstant(arity))))
+        val arrayValDef = ValDef(arraySymbol, Some(arrayInit))
+
+        // Fill array: arr(i) = list(i).asInstanceOf[AnyRef]
+        val update      = Select(arrayRef, defn.Array_update)
+        val assignments = bFieldTypes.zipWithIndex.map { case (_, idx) =>
+          val listAccess  = Select.unique(listParam, "apply")
+          val indexTerm   = Literal(IntConstant(idx))
+          val indexedTerm = Apply(listAccess, List(indexTerm))
+          val asAnyRef    = Select(indexedTerm, asInstanceOfMethod)
+            .appliedToType(TypeRepr.of[AnyRef])
+          Apply(update, List(Literal(IntConstant(idx)), asAnyRef))
+        }
+
+        // Build: TupleXXL.fromIArray(arr.asInstanceOf[IArray[AnyRef]]).asInstanceOf[B]
+        val block          = Block(arrayValDef :: assignments, arrayRef)
+        val iArrayCast     = Select(block, asInstanceOfMethod).appliedToType(iArrayOfAnyRefTpe)
+        val fromIArrayCall = Apply(fromIArrayMethod, List(iArrayCast))
+        val finalCast      = Select(fromIArrayCall, asInstanceOfMethod).appliedToType(bTpe)
+        finalCast.changeOwner(sym)
+      }
+    )
+
+    constructLambda.asExprOf[List[Any] => B]
   }
 
   // Generic Accumulator for Products and Tuples
