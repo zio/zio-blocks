@@ -10,10 +10,12 @@ class IntoMacros(val c: blackbox.Context) {
     val tpeA = weakTypeOf[A]
     val tpeB = weakTypeOf[B]
 
+    // Fast path for identity
     if (tpeA =:= tpeB) {
       return c.Expr[zio.blocks.schema.Into[A, B]](q"zio.blocks.schema.Into.identity")
     }
 
+    // Ensure we are working with case classes (Products)
     if (!isProduct(tpeA) || !isProduct(tpeB)) {
       c.abort(c.enclosingPosition, s"Derivation only supported for case classes. Cannot derive ${tpeA} => ${tpeB}")
     }
@@ -28,7 +30,7 @@ class IntoMacros(val c: blackbox.Context) {
       // 1. Exact Match
       val exact = fieldsA.find(f => f.name == nameB && f.typeSignature =:= typeB)
 
-      // 2. Name Match (Coercion/Recursive)
+      // 2. Name Match
       lazy val nameMatch = fieldsA.find(f => f.name == nameB)
 
       // 3. Unique Type
@@ -89,7 +91,7 @@ class IntoMacros(val c: blackbox.Context) {
           val errors = List(..$errorCollection).flatten
           
           if (errors.nonEmpty) {
-             Left(zio.blocks.schema.SchemaError.accumulateErrors(Nil).left.getOrElse(errors.head).asInstanceOf[zio.blocks.schema.SchemaError]) // Hacky reuse of helper or just create Multiple
+             Left(zio.blocks.schema.SchemaError.accumulateErrors(Nil).left.getOrElse(errors.head).asInstanceOf[zio.blocks.schema.SchemaError])
           } else {
              Right($constructor)
           }
@@ -100,23 +102,35 @@ class IntoMacros(val c: blackbox.Context) {
     c.Expr[zio.blocks.schema.Into[A, B]](result)
   }
 
-  private def convertField(access: Tree, from: Type, to: Type): Tree =
+  private def convertField(access: Tree, from: Type, to: Type): Tree = {
     if (from =:= to) {
       q"Right($access)"
     } else {
-      // Look for implicit Into[From, To]
-      val intoType         = appliedType(typeOf[zio.blocks.schema.Into[_, _]], from, to)
-      val implicitInstance = c.inferImplicitValue(intoType)
+      // Explicitly handle primitives to avoid macro implicit search issues
+      val primitiveConversion = (from.toString, to.toString) match {
+        case ("Int", "Long")     => Some(q"Right($access.toLong)")
+        case ("Int", "Double")   => Some(q"Right($access.toDouble)")
+        case ("Float", "Double") => Some(q"Right($access.toDouble)")
+        case ("Byte", "Short")   => Some(q"Right($access.toShort)")
+        case ("Short", "Int")    => Some(q"Right($access.toInt)")
+        case _                   => None
+      }
 
-      if (implicitInstance != EmptyTree) {
-        q"$implicitInstance.into($access)"
-      } else if (isProduct(from) && isProduct(to)) {
-        // Recursive derivation
-        q"zio.blocks.schema.Into.derive[$from, $to].into($access)"
-      } else {
-        c.abort(c.enclosingPosition, s"No Into instance found for $from => $to")
+      primitiveConversion.getOrElse {
+        val intoType         = appliedType(typeOf[zio.blocks.schema.Into[_, _]], from, to)
+        val implicitInstance = c.inferImplicitValue(intoType)
+
+        if (implicitInstance != EmptyTree) {
+          q"$implicitInstance.into($access)"
+        } else if (isProduct(from) && isProduct(to)) {
+           // Recursive derivation for nested case classes
+           q"zio.blocks.schema.Into.derive[$from, $to].into($access)"
+        } else {
+          c.abort(c.enclosingPosition, s"No Into instance found for $from => $to")
+        }
       }
     }
+  }
 
   private def getFields(tpe: Type): List[TermSymbol] =
     tpe.decls.collect {
