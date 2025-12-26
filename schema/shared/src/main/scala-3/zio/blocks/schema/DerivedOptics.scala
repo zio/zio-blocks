@@ -96,14 +96,14 @@ private object DerivedOpticsMacros {
     val isSealed    = caseClassSym.flags.is(Flags.Sealed)
     val isEnum      = caseClassSym.flags.is(Flags.Enum)
 
-    if (!isCaseClass && !isSealed && !isEnum) {
-      report.errorAndAbort(s"DerivedOptics requires a case class, sealed trait, or enum, got: ${caseClassSym.name}")
-    }
-
     if (isCaseClass) {
       buildCaseClassOptics[S](schema, caseClassSym, caseClassType)
-    } else {
+    } else if (isSealed || isEnum) {
       buildSealedTraitOptics[S](schema, caseClassSym, caseClassType)
+    } else {
+      // For opaque types or other types, return an empty OpticsHolder
+      val cacheKey: Expr[String] = Expr(caseClassType.show)
+      '{ getOrCreate($cacheKey, new OpticsHolder(Map.empty)) }
     }
   }
 

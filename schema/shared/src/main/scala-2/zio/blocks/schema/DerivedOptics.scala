@@ -72,14 +72,18 @@ object DerivedOpticsMacros {
     val isCaseClass = typeSym.isCaseClass
     val isSealed    = typeSym.isSealed
 
-    if (!isCaseClass && !isSealed) {
-      c.abort(c.enclosingPosition, s"DerivedOptics requires a case class or sealed trait, got: ${typeSym.name}")
-    }
-
     if (isCaseClass) {
       buildCaseClassOptics(c)(schema, tpe)
-    } else {
+    } else if (isSealed) {
       buildSealedTraitOptics(c)(schema, tpe)
+    } else {
+      val cacheKey = tpe.toString
+      q"""
+        _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
+          $cacheKey,
+          new {}
+        )
+      """
     }
   }
 

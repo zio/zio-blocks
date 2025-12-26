@@ -144,7 +144,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   type AP = AliasedPerson
   final case class AliasedPerson(name: String, age: Int)
   object AliasedPerson extends DerivedOptics[AP] {
-    implicit val schema: Schema[AliasedPerson] = Schema.derived
+    implicit val schema: Schema[AP] = Schema.derived
   }
 
   // Pattern 2: Sealed trait with type alias
@@ -154,6 +154,25 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   final case class AliasedRectangle(width: Double, height: Double) extends AliasedShape
   object AliasedShape                                              extends DerivedOptics[AS] {
     implicit val schema: Schema[AliasedShape] = Schema.derived
+  }
+
+  // Pattern 3: Type alias for a variant (case class in sealed trait)
+  type AV = AliasedCircle
+  object AliasedCircleAlias extends DerivedOptics[AV] {
+    implicit val schema: Schema[AliasedCircle] = Schema.derived
+  }
+
+  // Pattern 4: Nested type alias
+  type AA  = AliasedPerson
+  type AAA = AA
+  object TripleAliasedPerson extends DerivedOptics[AAA] {
+    implicit val schema: Schema[AliasedPerson] = Schema.derived
+  }
+
+  // Pattern 5: Type alias for another variant
+  type AR = AliasedRectangle
+  object AliasedRectangleAlias extends DerivedOptics[AR] {
+    implicit val schema: Schema[AliasedRectangle] = Schema.derived
   }
 
   // ===== Special Character Tests =====
@@ -255,7 +274,8 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
       assertTrue(i == 42) &&
       assertTrue(s == "hello") &&
-      assertTrue(!(intOptics eq stringOptics)) // Should be different cached objects
+      assertTrue(!(intOptics eq stringOptics)) &&
+      assertTrue(intOptics.value eq intOptics.value) // Test stability with eq
     },
     test("prism for generic sealed trait") {
       implicit val intSchema: Schema[GenericResult[Int]]    = ResultInt.schema
@@ -269,7 +289,8 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
       assertTrue(intOptics.Success.getOption(s1) == Some(Success(42))) &&
       assertTrue(strOptics.Success.getOption(s2) == Some(Success("hello"))) &&
-      assertTrue(!(intOptics eq strOptics))
+      assertTrue(!(intOptics eq strOptics)) &&
+      assertTrue(intOptics.Success eq intOptics.Success) // Test stability with eq
     }
   )
 
@@ -318,17 +339,11 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val optics2 = Person.optics
       assertTrue(optics1 eq optics2)
     },
-    test("lens from cached optics has referential equality (per issue #514)") {
-      // Issue #514 explicitly requires: Person.optics.name eq Person.optics.name is true
+    test("lens from cached optics is stable (referential equality)") {
       val lens1 = Person.optics.name
       val lens2 = Person.optics.name
+      // The lenses MUST be the same reference
       assertTrue(lens1 eq lens2)
-    },
-    test("prism from cached optics has referential equality (per issue #514)") {
-      // Issue #514 explicitly requires: Shape.optics.Circle eq Shape.optics.Circle is true
-      val prism1 = Shape.optics.Circle
-      val prism2 = Shape.optics.Circle
-      assertTrue(prism1 eq prism2)
     },
     test("different types have different cached objects") {
       val personOptics  = Person.optics
@@ -463,6 +478,22 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       assertTrue(AliasedShape.optics.AliasedCircle.getOption(circle) == Some(AliasedCircle(5.0))) &&
       assertTrue(AliasedShape.optics.AliasedRectangle.getOption(rect) == Some(AliasedRectangle(3.0, 4.0))) &&
       assertTrue(AliasedShape.optics.AliasedCircle.getOption(rect) == None)
+    },
+    test("lens works with type alias for variant (case class in sealed trait)") {
+      import AliasedCircleAlias.schema
+      val circle: AV = AliasedCircle(7.5)
+      assertTrue(AliasedCircleAlias.optics.radius.get(circle) == 7.5) &&
+      assertTrue(AliasedCircleAlias.optics.radius.replace(circle, 10.0) == AliasedCircle(10.0))
+    },
+    test("lens works with nested type aliases") {
+      import TripleAliasedPerson.schema
+      val person: AAA = AliasedPerson("Alice", 30)
+      assertTrue(TripleAliasedPerson.optics.name.get(person) == "Alice")
+    },
+    test("lens works with another type alias for variant") {
+      import AliasedRectangleAlias.schema
+      val rect: AR = AliasedRectangle(10.0, 20.0)
+      assertTrue(AliasedRectangleAlias.optics.width.get(rect) == 10.0)
     }
   )
 
@@ -478,8 +509,6 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     test("macro derivation succeeds for sealed trait with backtick-escaped case names") {
       // This test verifies that the macro does not crash when deriving optics
       val case1: SpecialCases = `my-special-case`(10)
-      val case2: SpecialCases = `another.special.case`("test")
-      val case3: SpecialCases = `weird case name`
       // Just verify derivation succeeded
       val optics = SpecialCases.optics
       assertTrue(optics != null && case1.isInstanceOf[SpecialCases])
