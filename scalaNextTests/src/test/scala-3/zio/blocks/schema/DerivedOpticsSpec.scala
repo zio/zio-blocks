@@ -99,6 +99,8 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   }
 
   // Empty case class
+
+  // Empty case class
   final case class Empty()
   object Empty extends DerivedOptics[Empty] {
     given schema: Schema[Empty] = Schema.derived
@@ -470,6 +472,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     }
   )
 
+  // ===== Perfection Tests (Edge Cases) =====
   // ===== DerivedOptics_ (underscore prefix) Tests =====
   val underscorePrefixTestSuite: Spec[Any, Nothing] = suite("DerivedOptics_ (underscore prefix)")(
     test("lens accessors are prefixed with underscore") {

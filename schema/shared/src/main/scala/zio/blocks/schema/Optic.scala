@@ -199,6 +199,8 @@ sealed trait Lens[S, A] extends Optic[S, A] {
 
   def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
 
+  def andThen[B](that: Lens[A, B]): Lens[S, B] = apply(that)
+
   def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
 
   def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
