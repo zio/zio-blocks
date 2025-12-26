@@ -8,7 +8,26 @@ import java.nio.ByteBuffer
 import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
+/**
+ * Abstract class for encoding and decoding values of type `A` to and from JSON
+ * formats. Encapsulates logic to map JSON representations into native type
+ * structures and vice versa, handling serialization and deserialization as per
+ * JSON encoding standards using UTF-8 character set.
+ *
+ * @param valueType
+ *   Integer representing the type of the value for encoding/decoding. Default
+ *   is set to `JsonBinaryCodec.objectType`.
+ *
+ * This class requires an implementation for two core operations: decoding a
+ * value of type `A` from a JSON representation and encoding a value of type `A`
+ * into a JSON representation.
+ */
 abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectType) extends BinaryCodec[A] {
+
+  /**
+   * Computes the appropriate `RegisterOffset` based on the value type defined
+   * in `JsonBinaryCodec`.
+   */
   val valueOffset: RegisterOffset.RegisterOffset = valueType match {
     case JsonBinaryCodec.objectType  => RegisterOffset(objects = 1)
     case JsonBinaryCodec.booleanType => RegisterOffset(booleans = 1)
@@ -79,42 +98,174 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    */
   def encodeKey(x: A, out: JsonWriter): Unit = out.encodeError("encoding as JSON key is not supported")
 
+  /**
+   * Decodes a value of type `A` from the given `ByteBuffer`. This method uses
+   * the default `ReaderConfig` to configure the decoding process. If decoding
+   * fails, a `SchemaError` is returned.
+   *
+   * @param input
+   *   the `ByteBuffer` containing the binary data to be decoded
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
   override def decode(input: ByteBuffer): Either[SchemaError, A] = decode(input, ReaderConfig)
 
+  /**
+   * Encodes the specified value of type `A` into binary format and writes it to
+   * the provided `ByteBuffer`. This method uses the default `WriterConfig` for
+   * encoding configuration.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into binary format
+   * @param output
+   *   the `ByteBuffer` where the encoded binary data is written
+   */
   override def encode(value: A, output: ByteBuffer): Unit = encode(value, output, WriterConfig)
 
+  /**
+   * Decodes a value of type `A` from the given `ByteBuffer` using the specified
+   * `ReaderConfig`. If decoding fails, a `SchemaError` is returned.
+   *
+   * @param input
+   *   the `ByteBuffer` containing the binary data to be decoded
+   * @param config
+   *   the `ReaderConfig` instance used to configure the decoding process
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
   def decode(input: ByteBuffer, config: ReaderConfig): Either[SchemaError, A] =
     try new Right(JsonBinaryCodec.readerPool.get.read(this, input, config))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /**
+   * Encodes the specified value of type `A` into binary format and writes it to
+   * the provided `ByteBuffer` using the specified `WriterConfig` for encoding
+   * configuration.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into binary format
+   * @param output
+   *   the `ByteBuffer` where the encoded binary data is written
+   * @param config
+   *   the `WriterConfig` instance used to configure the encoding process
+   */
   def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit =
     JsonBinaryCodec.writerPool.get.write(this, value, output, config)
 
+  /**
+   * Decodes a value of type `A` from the given byte array using the default
+   * `ReaderConfig`. If decoding fails, a `SchemaError` is returned.
+   *
+   * @param input
+   *   the byte array containing the binary data to be decoded
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
   def decode(input: Array[Byte]): Either[SchemaError, A] = decode(input, ReaderConfig)
 
+  /**
+   * Encodes the specified value of type `A` into a binary format using the
+   * default `WriterConfig`.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into binary format
+   * @return
+   *   an array of bytes representing the binary-encoded data
+   */
   def encode(value: A): Array[Byte] = encode(value, WriterConfig)
 
+  /**
+   * Decodes a value of type `A` from the provided byte array using the
+   * specified `ReaderConfig`. If decoding fails, an error of type `SchemaError`
+   * is returned.
+   *
+   * @param input
+   *   the byte array containing the binary data to be decoded
+   * @param config
+   *   the `ReaderConfig` instance used to configure the decoding process
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
   def decode(input: Array[Byte], config: ReaderConfig): Either[SchemaError, A] =
     try new Right(JsonBinaryCodec.readerPool.get.read(this, input, 0, input.length, config))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /**
+   * Encodes the specified value of type `A` into a binary format using the
+   * provided `WriterConfig`.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into binary format
+   * @param config
+   *   the `WriterConfig` instance used to configure the encoding process
+   * @return
+   *   an array of bytes representing the binary-encoded data
+   */
   def encode(value: A, config: WriterConfig): Array[Byte] =
     JsonBinaryCodec.writerPool.get.write(this, value, config)
 
+  /**
+   * Decodes a value of type `A` from the provided `InputStream` using the
+   * default `ReaderConfig`. If decoding fails, a `SchemaError` is returned.
+   *
+   * @param input
+   *   the `InputStream` containing the binary data to be decoded
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
   def decode(input: java.io.InputStream): Either[SchemaError, A] = decode(input, ReaderConfig)
 
+  /**
+   * Encodes the specified value of type `A` into a binary format and writes it
+   * to the provided `OutputStream`. This method uses the default `WriterConfig`
+   * for encoding configuration.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into binary format
+   * @param output
+   *   the `OutputStream` where the encoded binary data is written
+   */
   def encode(value: A, output: java.io.OutputStream): Unit = encode(value, output, WriterConfig)
 
+  /**
+   * Decodes a value of type `A` from the provided `InputStream` using the
+   * specified `ReaderConfig`. If decoding fails, a `SchemaError` is returned.
+   *
+   * @param input
+   *   the `InputStream` containing the binary data to be decoded
+   * @param config
+   *   the `ReaderConfig` instance used to configure the decoding process
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
   def decode(input: java.io.InputStream, config: ReaderConfig): Either[SchemaError, A] =
     try new Right(JsonBinaryCodec.readerPool.get.read(this, input, config))
     catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
+  /**
+   * Encodes the specified value of type `A` into a binary format and writes it
+   * to the given `OutputStream` using the provided `WriterConfig` for encoding
+   * configuration.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into binary format
+   * @param output
+   *   the `OutputStream` where the encoded binary data is written
+   * @param config
+   *   the `WriterConfig` instance used to configure the encoding process
+   */
   def encode(value: A, output: java.io.OutputStream, config: WriterConfig): Unit =
     JsonBinaryCodec.writerPool.get.write(this, value, output, config)
 
@@ -141,6 +292,17 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
   )
 }
 
+/**
+ * A utility object that provides constants and thread-local pools for encoding
+ * and decoding JSON structures. The object defines various type constants that
+ * represent different data types and maintains `ThreadLocal` pools for
+ * `JsonReader` and `JsonWriter` instances to ensure their efficient reuse.
+ *
+ * The `JsonBinaryCodec` is designed for use with methods from its associated
+ * companion type, providing a lower-level abstraction to interact with
+ * JSON-encoded binary data. These utility pools help manage reading and writing
+ * operations in a thread-safe manner while also improving performance.
+ */
 object JsonBinaryCodec {
   val objectType  = 0
   val booleanType = 1

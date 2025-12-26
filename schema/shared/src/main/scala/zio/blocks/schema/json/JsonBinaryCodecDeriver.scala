@@ -11,8 +11,50 @@ import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import scala.collection.immutable.VectorBuilder
 import scala.util.control.NonFatal
 
+/**
+ * An object that represents the JSON format used for serialization and
+ * deserialization.
+ *
+ * It extends the `BinaryFormat` class, specifying "application/json" as the
+ * MIME type and utilizing the `JsonBinaryCodecDeriver` for deriving the
+ * necessary codecs.
+ */
 object JsonFormat extends BinaryFormat("application/json", JsonBinaryCodecDeriver)
 
+/**
+ * Provides a default implementation of `JsonBinaryCodecDeriver` with
+ * customizable settings for JSON and binary codec derivation. This object
+ * allows the derivation of codecs for various data types, including primitives,
+ * records, variants, sequences, maps, and dynamic values.
+ *
+ * The derivation process can be customized through pre-configured parameters,
+ * including:
+ *   - `fieldNameMapper`: Controls how field names are transformed during
+ *     serialization and deserialization.
+ *   - `caseNameMapper`: Controls how case names in variants are transformed.
+ *   - `discriminatorKind`: Determines the strategy for handling type
+ *     discriminators in variants.
+ *   - `rejectExtraFields`: Specifies if unrecognized fields should cause
+ *     validation errors.
+ *   - `enumValuesAsStrings`: Specifies whether enumeration values are
+ *     represented as strings.
+ *   - `transientNone`: Excludes fields with a value of `None` during
+ *     serialization.
+ *   - `requireOptionFields`: Enforces the inclusion of optional fields in
+ *     deserialization.
+ *   - `transientEmptyCollection`: Excludes empty collections during
+ *     serialization.
+ *   - `requireCollectionFields`: Enforces the inclusion of collection fields in
+ *     deserialization.
+ *   - `transientDefaultValue`: Excludes fields with default values during
+ *     serialization.
+ *   - `requireDefaultValueFields`: Enforces the inclusion of fields with
+ *     default values in deserialization.
+ *
+ * This predefined object uses the `NameMapper.Identity` strategy, which applies
+ * no transformation to field or case names, and `DiscriminatorKind.Key`, which
+ * embeds type information as a key in serialized data.
+ */
 object JsonBinaryCodecDeriver
     extends JsonBinaryCodecDeriver(
       fieldNameMapper = NameMapper.Identity,
@@ -41,33 +83,155 @@ class JsonBinaryCodecDeriver private[json] (
   transientDefaultValue: Boolean,
   requireDefaultValueFields: Boolean
 ) extends Deriver[JsonBinaryCodec] {
+
+  /**
+   * Updates the `JsonBinaryCodecDeriver` instance with the specified field name
+   * mapper. The field name mapper defines how field names should be transformed
+   * during encoding and decoding.
+   *
+   * @param fieldNameMapper
+   *   The `NameMapper` to apply for transforming field names.
+   * @return
+   *   A new instance of `JsonBinaryCodecDeriver` with the updated field name
+   *   mapper.
+   */
   def withFieldNameMapper(fieldNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(fieldNameMapper = fieldNameMapper)
 
+  /**
+   * Updates the `JsonBinaryCodecDeriver` instance with the specified case name
+   * mapper. The case name mapper defines how case names should be transformed
+   * during encoding and decoding.
+   *
+   * @param caseNameMapper
+   *   The `NameMapper` to apply for transforming case names.
+   * @return
+   *   A new instance of `JsonBinaryCodecDeriver` with the updated case name
+   *   mapper.
+   */
   def withCaseNameMapper(caseNameMapper: NameMapper): JsonBinaryCodecDeriver = copy(caseNameMapper = caseNameMapper)
 
+  /**
+   * Updates the `JsonBinaryCodecDeriver` instance with the specified
+   * discriminator kind. The discriminator kind defines how the subtype
+   * discriminator is represented in the serialized JSON.
+   *
+   * @param discriminatorKind
+   *   The `DiscriminatorKind` to apply for specifying how the discriminator is
+   *   handled in the JSON schema for sealed hierarchies.
+   * @return
+   *   A new instance of `JsonBinaryCodecDeriver` with the updated discriminator
+   *   kind.
+   */
   def withDiscriminatorKind(discriminatorKind: DiscriminatorKind): JsonBinaryCodecDeriver =
     copy(discriminatorKind = discriminatorKind)
 
+  /**
+   * Updates the `JsonBinaryCodecDeriver` instance to specify whether additional
+   * fields in the JSON input that are not part of the schema should be rejected
+   * during decoding.
+   *
+   * @param rejectExtraFields
+   *   A boolean flag indicating whether to reject extra fields that are not
+   *   defined in the schema. If `true`, decoding will fail when extra fields
+   *   are encountered; if `false`, extra fields will be ignored.
+   * @return
+   *   A new instance of `JsonBinaryCodecDeriver` with the updated
+   *   `rejectExtraFields` setting.
+   */
   def withRejectExtraFields(rejectExtraFields: Boolean): JsonBinaryCodecDeriver =
     copy(rejectExtraFields = rejectExtraFields)
 
+  /**
+   * Updates the `JsonBinaryCodecDeriver` instance to specify whether
+   * enumeration values should be serialized and deserialized as strings.
+   *
+   * @param enumValuesAsStrings
+   *   A boolean flag indicating whether to treat enumeration values as strings.
+   *   If `true`, enumeration values are serialized and deserialized as their
+   *   string representations; if `false`, they are encoded with default
+   *   `DiscriminatorKind.Key` encoding.
+   * @return
+   *   A new instance of `JsonBinaryCodecDeriver` with the updated
+   *   `enumValuesAsStrings` setting.
+   */
   def withEnumValuesAsStrings(enumValuesAsStrings: Boolean): JsonBinaryCodecDeriver =
     copy(enumValuesAsStrings = enumValuesAsStrings)
 
+  /**
+   * Updates the `JsonBinaryCodecDeriver` instance to specify whether fields of
+   * type `Option` with a value of `None` should be excluded during encoding.
+   *
+   * @param transientNone
+   *   A boolean flag indicating whether to exclude fields of type `Option` with
+   *   a value of `None` during encoding. If `true`, such fields are omitted; if
+   *   `false`, they are included.
+   * @return
+   *   A new instance of `JsonBinaryCodecDeriver` with the updated
+   *   `transientNone` setting.
+   */
   def withTransientNone(transientNone: Boolean): JsonBinaryCodecDeriver = copy(transientNone = transientNone)
 
+  /**
+   * Sets the requirement for optional fields.
+   *
+   * @param requireOptionFields
+   *   A boolean flag indicating whether optional fields are required. If true,
+   *   optional fields must be present and will not be treated as optional
+   *   during codec derivation.
+   * @return
+   *   A new instance of JsonBinaryCodecDeriver with the updated setting for
+   *   requiring optional fields.
+   */
   def withRequireOptionFields(requireOptionFields: Boolean): JsonBinaryCodecDeriver =
     copy(requireOptionFields = requireOptionFields)
 
+  /**
+   * Configures whether the derived codec should handle empty collections as
+   * transient.
+   *
+   * @param transientEmptyCollection
+   *   Indicates if empty collections should be treated as transient.
+   * @return
+   *   A new instance of JsonBinaryCodecDeriver with the updated
+   *   transientEmptyCollection setting.
+   */
   def withTransientEmptyCollection(transientEmptyCollection: Boolean): JsonBinaryCodecDeriver =
     copy(transientEmptyCollection = transientEmptyCollection)
 
+  /**
+   * Sets the flag indicating whether collection fields are required.
+   *
+   * @param requireCollectionFields
+   *   A boolean value specifying if collection fields should be required.
+   * @return
+   *   A new instance of JsonBinaryCodecDeriver with the updated configuration.
+   */
   def withRequireCollectionFields(requireCollectionFields: Boolean): JsonBinaryCodecDeriver =
     copy(requireCollectionFields = requireCollectionFields)
 
+  /**
+   * Sets the transient behavior for fields with defined default values.
+   *
+   * @param transientDefaultValue
+   *   A boolean indicating whether the transient behavior for fields with
+   *   defined default values should be applied or not.
+   * @return
+   *   A new instance of JsonBinaryCodecDeriver with the specified transient
+   *   default value setting.
+   */
   def withTransientDefaultValue(transientDefaultValue: Boolean): JsonBinaryCodecDeriver =
     copy(transientDefaultValue = transientDefaultValue)
 
+  /**
+   * Sets the flag indicating whether fields with default values are required.
+   *
+   * @param requireDefaultValueFields
+   *   A boolean flag indicating whether fields with default values should be
+   *   required.
+   * @return
+   *   A new instance of `JsonBinaryCodecDeriver` with the updated
+   *   configuration.
+   */
   def withRequireDefaultValueFields(requireDefaultValueFields: Boolean): JsonBinaryCodecDeriver =
     copy(requireDefaultValueFields = requireDefaultValueFields)
 
