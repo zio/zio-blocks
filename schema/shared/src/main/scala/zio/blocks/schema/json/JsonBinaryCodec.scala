@@ -4,7 +4,9 @@ import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
+
 import java.nio.ByteBuffer
+import scala.annotation.switch
 import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
@@ -28,17 +30,17 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    * Computes the appropriate `RegisterOffset` based on the value type defined
    * in `JsonBinaryCodec`.
    */
-  val valueOffset: RegisterOffset.RegisterOffset = valueType match {
-    case JsonBinaryCodec.objectType  => RegisterOffset(objects = 1)
-    case JsonBinaryCodec.booleanType => RegisterOffset(booleans = 1)
-    case JsonBinaryCodec.byteType    => RegisterOffset(bytes = 1)
-    case JsonBinaryCodec.charType    => RegisterOffset(chars = 1)
-    case JsonBinaryCodec.shortType   => RegisterOffset(shorts = 1)
-    case JsonBinaryCodec.floatType   => RegisterOffset(floats = 1)
-    case JsonBinaryCodec.intType     => RegisterOffset(ints = 1)
-    case JsonBinaryCodec.doubleType  => RegisterOffset(doubles = 1)
-    case JsonBinaryCodec.longType    => RegisterOffset(longs = 1)
-    case _                           => RegisterOffset.Zero
+  val valueOffset: RegisterOffset.RegisterOffset = (valueType: @switch) match {
+    case 0 => RegisterOffset(objects = 1)
+    case 1 => RegisterOffset(ints = 1)
+    case 2 => RegisterOffset(longs = 1)
+    case 3 => RegisterOffset(floats = 1)
+    case 4 => RegisterOffset(doubles = 1)
+    case 5 => RegisterOffset(booleans = 1)
+    case 6 => RegisterOffset(bytes = 1)
+    case 7 => RegisterOffset(chars = 1)
+    case 8 => RegisterOffset(shorts = 1)
+    case _ => RegisterOffset.Zero
   }
 
   /**
@@ -305,14 +307,14 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
  */
 object JsonBinaryCodec {
   val objectType  = 0
-  val booleanType = 1
-  val byteType    = 2
-  val charType    = 3
-  val shortType   = 4
-  val floatType   = 5
-  val intType     = 6
-  val doubleType  = 7
-  val longType    = 8
+  val intType     = 1
+  val longType    = 2
+  val floatType   = 3
+  val doubleType  = 4
+  val booleanType = 5
+  val byteType    = 6
+  val charType    = 7
+  val shortType   = 8
   val unitType    = 9
 
   private final val readerPool: ThreadLocal[JsonReader] = new ThreadLocal[JsonReader] {
