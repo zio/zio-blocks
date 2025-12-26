@@ -1919,6 +1919,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             new JsonBinaryCodec[Currency]() { // decode null values as the default one ("USD")
               def decodeValue(in: JsonReader, default: Currency): Currency =
                 if (in.isNextToken('n')) {
+                  in.rollbackToken()
                   in.readNullOrError(default, "expected null")
                   default
                 } else {
@@ -1967,8 +1968,10 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             Record4.optKey,
             new JsonBinaryCodec[Option[String]]() { // more efficient decoding than with derived by default
               override def decodeValue(in: JsonReader, default: Option[String]): Option[String] =
-                if (in.isNextToken('n')) in.readNullOrError(default, "expected null")
-                else {
+                if (in.isNextToken('n')) {
+                  in.rollbackToken()
+                  in.readNullOrError(default, "expected null")
+                } else {
                   in.rollbackToken()
                   new Some(in.readString(null))
                 }
