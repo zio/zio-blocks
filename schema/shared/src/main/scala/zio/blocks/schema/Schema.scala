@@ -76,28 +76,28 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
-  def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(wrap, unwrap)
-    )
-  )
-
-  def wrapTotal[B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
-    new Reflect.Wrapper[Binding, A, B](
-      Schema[B].reflect,
-      reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(reflect),
-      new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
-    )
-  )
 }
 
 object Schema extends SchemaCompanionVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
+  def wrap[A, B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
+    new Reflect.Wrapper[Binding, A, B](
+      Schema[B].reflect,
+      Schema[B].reflect.typeName,
+      Reflect.unwrapToPrimitiveTypeOption(Schema[B].reflect),
+      new Binding.Wrapper(wrap, unwrap)
+    )
+  )
+
+  def wrapTotal[A, B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
+    new Reflect.Wrapper[Binding, A, B](
+      Schema[B].reflect,
+      Schema[B].reflect.typeName,
+      Reflect.unwrapToPrimitiveTypeOption(Schema[B].reflect),
+      new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
+    )
+  )
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
 
   implicit val unit: Schema[Unit] = new Schema(Reflect.unit[Binding])
