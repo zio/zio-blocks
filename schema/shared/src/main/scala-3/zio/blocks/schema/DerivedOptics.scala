@@ -56,7 +56,31 @@ trait DerivedOptics[S] {
    * The returned object uses structural typing, so you get compile-time type
    * checking and IDE completion for the accessor names.
    */
-  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema) }
+  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, false) }
+}
+
+/**
+ * A variant of DerivedOptics that prefixes all accessor names with underscore.
+ * This is useful when you want to avoid name collisions with existing methods
+ * in the companion object.
+ *
+ * Usage:
+ * {{{
+ * case class Person(name: String, age: Int)
+ * object Person extends DerivedOptics_[Person]
+ *
+ * // Access optics with underscore prefix:
+ * val nameLens: Lens[Person, String] = Person.optics._name
+ * val ageLens: Lens[Person, Int] = Person.optics._age
+ * }}}
+ */
+trait DerivedOptics_[S] {
+
+  /**
+   * Provides access to the derived optics for type S with underscore-prefixed
+   * accessor names.
+   */
+  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, true) }
 }
 
 /**
@@ -89,7 +113,7 @@ private object DerivedOpticsMacros {
     result
   }
 
-  def opticsImpl[S: Type](schema: Expr[Schema[S]])(using q: Quotes): Expr[Any] = {
+  def opticsImpl[S: Type](schema: Expr[Schema[S]], prefixUnderscore: Boolean)(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
     val tpe = TypeRepr.of[S]
@@ -103,12 +127,12 @@ private object DerivedOpticsMacros {
     val isEnum      = caseClassSym.flags.is(Flags.Enum)
 
     if (isCaseClass) {
-      buildCaseClassOptics[S](schema, caseClassSym, caseClassType)
+      buildCaseClassOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
     } else if (isSealed || isEnum) {
-      buildSealedTraitOptics[S](schema, caseClassSym, caseClassType)
+      buildSealedTraitOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
     } else {
       // For opaque types, primitives, or other types, return an empty OpticsHolder
-      val cacheKey: Expr[String] = Expr(caseClassType.show)
+      val cacheKey: Expr[String] = Expr(caseClassType.show + (if (prefixUnderscore) "_" else ""))
       '{ getOrCreate($cacheKey, new OpticsHolder(Map.empty)) }
     }
   }
@@ -116,7 +140,8 @@ private object DerivedOpticsMacros {
   private def buildCaseClassOptics[S: Type](
     schema: Expr[Schema[S]],
     sym: Quotes#reflectModule#Symbol,
-    tpe: Quotes#reflectModule#TypeRepr
+    tpe: Quotes#reflectModule#TypeRepr,
+    prefixUnderscore: Boolean
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
@@ -131,14 +156,16 @@ private object DerivedOpticsMacros {
 
     // Add a refinement for each field: def fieldName: Lens[S, FieldType]
     for (field <- fields) {
-      val fieldType = tpeCast.memberType(field).dealias
-      val lensType  = TypeRepr.of[Lens].appliedTo(List(tpeCast, fieldType))
-      refinedType = Refinement(refinedType, field.name, lensType)
+      val fieldType    = tpeCast.memberType(field).dealias
+      val lensType     = TypeRepr.of[Lens].appliedTo(List(tpeCast, fieldType))
+      val accessorName = if (prefixUnderscore) "_" + field.name else field.name
+      refinedType = Refinement(refinedType, accessorName, lensType)
     }
 
     // Get unique type string at compile time for the cache key
     // We use show to ensure generic types like Box[Int] and Box[String] have different keys
-    val cacheKey: Expr[String] = Expr(tpeCast.show)
+    val cacheKey: Expr[String]              = Expr(tpeCast.show + (if (prefixUnderscore) "_" else ""))
+    val prefixUnderscoreExpr: Expr[Boolean] = Expr(prefixUnderscore)
 
     // Match the refined type and create the implementation
     refinedType.asType match {
@@ -155,7 +182,8 @@ private object DerivedOpticsMacros {
                   .getOrElse(
                     throw new RuntimeException(s"Cannot find lens for field ${term.name}")
                   )
-                term.name -> lens
+                val name = if ($prefixUnderscoreExpr) "_" + term.name else term.name
+                name -> lens
               }.toMap
               new OpticsHolder(members)
             }
@@ -167,7 +195,8 @@ private object DerivedOpticsMacros {
   private def buildSealedTraitOptics[S: Type](
     schema: Expr[Schema[S]],
     sym: Quotes#reflectModule#Symbol,
-    tpe: Quotes#reflectModule#TypeRepr
+    tpe: Quotes#reflectModule#TypeRepr,
+    prefixUnderscore: Boolean
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
@@ -179,7 +208,7 @@ private object DerivedOpticsMacros {
     // Build the structural refinement type
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
 
-    // Add a refinement for each child: def ChildName: Prism[S, ChildType]
+    // Add a refinement for each child: def childName: Prism[S, ChildType]
     for (child <- children) {
       val childType = if (child.isType) {
         // If the child has type parameters, try to apply the parent's type arguments
@@ -196,12 +225,14 @@ private object DerivedOpticsMacros {
         child.termRef.widen
       }
       val prismType    = TypeRepr.of[Prism].appliedTo(List(tpeCast, childType))
-      val accessorName = lowerFirst(child.name)
+      val baseName     = lowerFirst(child.name)
+      val accessorName = if (prefixUnderscore) "_" + baseName else baseName
       refinedType = Refinement(refinedType, accessorName, prismType)
     }
 
     // Get unique type string at compile time for the cache key
-    val cacheKey: Expr[String] = Expr(tpeCast.show)
+    val cacheKey: Expr[String]              = Expr(tpeCast.show + (if (prefixUnderscore) "_" else ""))
+    val prefixUnderscoreExpr: Expr[Boolean] = Expr(prefixUnderscore)
 
     // Match the refined type and create the implementation
     refinedType.asType match {
@@ -212,13 +243,16 @@ private object DerivedOpticsMacros {
               val variant = $schema.reflect.asVariant.getOrElse(
                 throw new RuntimeException(s"Expected a variant schema for ${$cacheKey}")
               )
-              val members = variant.cases.zipWithIndex.map { case (term, idx) =>
+              val prefixUs = $prefixUnderscoreExpr
+              val members  = variant.cases.zipWithIndex.map { case (term, idx) =>
                 val prism = variant
                   .prismByIndex(idx)
                   .getOrElse(
                     throw new RuntimeException(s"Cannot find prism for case ${term.name}")
                   )
-                lowerFirst(term.name) -> prism
+                val baseName = lowerFirst(term.name)
+                val name     = if (prefixUs) "_" + baseName else baseName
+                name -> prism
               }.toMap
               new OpticsHolder(members)
             }
