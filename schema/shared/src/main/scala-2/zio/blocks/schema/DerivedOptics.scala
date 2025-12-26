@@ -25,7 +25,7 @@ import scala.reflect.macros.whitebox
  * object Shape extends DerivedOptics[Shape]
  *
  * // Access prisms via the `optics` member:
- * val circlePrism: Prism[Shape, Circle] = Shape.optics.Circle
+ * val circlePrism: Prism[Shape, Circle] = Shape.optics.circle
  * }}}
  *
  * The optics object is cached to avoid recreation on every access.
@@ -48,6 +48,10 @@ trait DerivedOptics[S] {
 
 object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
+
+  // Helper to lower-case the first letter of a name (per issue #514 requirement)
+  private def lowerFirst(s: String): String =
+    if (s.isEmpty) s else s.head.toLower.toString + s.tail
 
   // Global cache to avoid recreating optics objects at runtime
   // Key is the type string to handle generics correctly (e.g. Box[Int] vs Box[String])
@@ -142,7 +146,7 @@ object DerivedOpticsMacros {
 
     // Build method definitions for the anonymous class
     val prismAccessors = subtypes.zipWithIndex.map { case (subtype, idx) =>
-      val caseName  = TermName(subtype.typeSymbol.name.toString)
+      val caseName  = TermName(lowerFirst(subtype.typeSymbol.name.toString))
       val prismType = appliedType(typeOf[Prism[_, _]].typeConstructor, List(tpe, subtype))
 
       q"""

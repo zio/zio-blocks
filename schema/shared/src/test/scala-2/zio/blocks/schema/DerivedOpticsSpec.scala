@@ -287,10 +287,10 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val s1: GenericResult[Int]    = Success(42)
       val s2: GenericResult[String] = Success("hello")
 
-      assertTrue(intOptics.Success.getOption(s1) == Some(Success(42))) &&
-      assertTrue(strOptics.Success.getOption(s2) == Some(Success("hello"))) &&
+      assertTrue(intOptics.success.getOption(s1) == Some(Success(42))) &&
+      assertTrue(strOptics.success.getOption(s2) == Some(Success("hello"))) &&
       assertTrue(!(intOptics eq strOptics)) &&
-      assertTrue(intOptics.Success eq intOptics.Success) // Test stability with eq
+      assertTrue(intOptics.success eq intOptics.success) // Test stability with eq
     }
   )
 
@@ -298,37 +298,37 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   val prismTestSuite: Spec[Any, Nothing] = suite("Prism generation for sealed traits")(
     test("getOption returns Some for matching variant") {
       val circle: Shape = Circle(5.0)
-      assertTrue(Shape.optics.Circle.getOption(circle) == Some(Circle(5.0)))
+      assertTrue(Shape.optics.circle.getOption(circle) == Some(Circle(5.0)))
     },
     test("getOption returns None for non-matching variant") {
       val circle: Shape = Circle(5.0)
-      assertTrue(Shape.optics.Rectangle.getOption(circle) == None) &&
-      assertTrue(Shape.optics.Point.getOption(circle) == None)
+      assertTrue(Shape.optics.rectangle.getOption(circle) == None) &&
+      assertTrue(Shape.optics.point.getOption(circle) == None)
     },
     test("reverseGet constructs the variant") {
-      val circle = Shape.optics.Circle.reverseGet(Circle(3.0))
+      val circle = Shape.optics.circle.reverseGet(Circle(3.0))
       assertTrue(circle == Circle(3.0))
     },
     test("prism for case object") {
       val point: Shape = Point
-      assertTrue(Shape.optics.Point.getOption(point) == Some(Point))
+      assertTrue(Shape.optics.point.getOption(point) == Some(Point))
     },
     test("prism replace when matching") {
       val circle: Shape = Circle(5.0)
-      assertTrue(Shape.optics.Circle.replace(circle, Circle(10.0)) == Circle(10.0))
+      assertTrue(Shape.optics.circle.replace(circle, Circle(10.0)) == Circle(10.0))
     },
     test("prism replace when not matching returns original") {
       val rect: Shape = Rectangle(3.0, 4.0)
-      assertTrue(Shape.optics.Circle.replace(rect, Circle(10.0)) == rect)
+      assertTrue(Shape.optics.circle.replace(rect, Circle(10.0)) == rect)
     },
     test("prism modify when matching") {
       val circle: Shape = Circle(5.0)
-      assertTrue(Shape.optics.Circle.modify(circle, c => Circle(c.radius * 2)) == Circle(10.0))
+      assertTrue(Shape.optics.circle.modify(circle, c => Circle(c.radius * 2)) == Circle(10.0))
     },
     test("prism for nested sealed traits") {
       val outer: Outer = OuterA(InnerX(42), 10)
-      assertTrue(Outer.optics.OuterA.getOption(outer).isDefined) &&
-      assertTrue(Outer.optics.OuterB.getOption(outer).isEmpty)
+      assertTrue(Outer.optics.outerA.getOption(outer).isDefined) &&
+      assertTrue(Outer.optics.outerB.getOption(outer).isEmpty)
     }
   )
 
@@ -364,8 +364,8 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       assertTrue(nameLens.get(person) == "Test" && ageLens.get(person) == 25)
     },
     test("prism has correct types (compile-time check)") {
-      val circlePrism: Prism[Shape, Circle]       = Shape.optics.Circle
-      val rectanglePrism: Prism[Shape, Rectangle] = Shape.optics.Rectangle
+      val circlePrism: Prism[Shape, Circle]       = Shape.optics.circle
+      val rectanglePrism: Prism[Shape, Rectangle] = Shape.optics.rectangle
       // Verify we can use the prism
       val s1: Shape = Circle(1.0)
       val s2: Shape = Rectangle(2.0, 3.0)
@@ -426,9 +426,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     test("prism works with all sealed trait variants") {
       val shapes: List[Shape] = List(Circle(1.0), Rectangle(2.0, 3.0), Point)
 
-      val circles    = shapes.flatMap(Shape.optics.Circle.getOption)
-      val rectangles = shapes.flatMap(Shape.optics.Rectangle.getOption)
-      val points     = shapes.flatMap(Shape.optics.Point.getOption)
+      val circles    = shapes.flatMap(Shape.optics.circle.getOption)
+      val rectangles = shapes.flatMap(Shape.optics.rectangle.getOption)
+      val points     = shapes.flatMap(Shape.optics.point.getOption)
 
       assertTrue(circles == List(Circle(1.0))) &&
       assertTrue(rectangles == List(Rectangle(2.0, 3.0))) &&
@@ -475,9 +475,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       // Tests: type AS = AliasedShape; object AliasedShape extends DerivedOptics[AS]
       val circle: AS = AliasedCircle(5.0)
       val rect: AS   = AliasedRectangle(3.0, 4.0)
-      assertTrue(AliasedShape.optics.AliasedCircle.getOption(circle) == Some(AliasedCircle(5.0))) &&
-      assertTrue(AliasedShape.optics.AliasedRectangle.getOption(rect) == Some(AliasedRectangle(3.0, 4.0))) &&
-      assertTrue(AliasedShape.optics.AliasedCircle.getOption(rect) == None)
+      assertTrue(AliasedShape.optics.aliasedCircle.getOption(circle) == Some(AliasedCircle(5.0))) &&
+      assertTrue(AliasedShape.optics.aliasedRectangle.getOption(rect) == Some(AliasedRectangle(3.0, 4.0))) &&
+      assertTrue(AliasedShape.optics.aliasedCircle.getOption(rect) == None)
     },
     test("lens works with type alias for variant (case class in sealed trait)") {
       import AliasedCircleAlias.schema
