@@ -38,7 +38,7 @@ import scala.language.dynamics
  * object Shape extends DerivedOptics[Shape]
  *
  * // Access prisms via the `optics` member:
- * val circlePrism: Prism[Shape, Circle] = Shape.optics.Circle
+ * val circlePrism: Prism[Shape, Circle] = Shape.optics.circle
  * }}}
  *
  * The optics object is cached to avoid recreation on every access.
@@ -70,6 +70,10 @@ private[schema] final class OpticsHolder(members: Map[String, Any]) extends scal
 
 private object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
+
+  // Helper to lower-case the first letter of a name (per issue #514 requirement)
+  private def lowerFirst(s: String): String =
+    if (s.isEmpty) s else s.head.toLower.toString + s.tail
 
   // Global cache to avoid recreating optics objects at runtime
   // Key is the type's full name as a string
@@ -191,8 +195,9 @@ private object DerivedOpticsMacros {
         // For case objects, get the type
         child.termRef.widen
       }
-      val prismType = TypeRepr.of[Prism].appliedTo(List(tpeCast, childType))
-      refinedType = Refinement(refinedType, child.name, prismType)
+      val prismType    = TypeRepr.of[Prism].appliedTo(List(tpeCast, childType))
+      val accessorName = lowerFirst(child.name)
+      refinedType = Refinement(refinedType, accessorName, prismType)
     }
 
     // Get unique type string at compile time for the cache key
@@ -213,7 +218,7 @@ private object DerivedOpticsMacros {
                   .getOrElse(
                     throw new RuntimeException(s"Cannot find prism for case ${term.name}")
                   )
-                term.name -> prism
+                lowerFirst(term.name) -> prism
               }.toMap
               new OpticsHolder(members)
             }
