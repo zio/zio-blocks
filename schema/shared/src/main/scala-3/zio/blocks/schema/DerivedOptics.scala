@@ -136,21 +136,19 @@ object DerivedOpticsMacros {
         underlyingType.asType match {
           case '[u] =>
             '{
-              '{
-                DerivedOpticsMacros
-                  .getOrCreate(
-                    $cacheKey,
-                    new OpticsHolder({
-                      val unknownWrapper = $schema.reflect.asWrapperUnknown.getOrElse(
-                        throw new RuntimeException(s"Expected a wrapper schema for ${$cacheKey}")
-                      )
-                      val wrapper = unknownWrapper.wrapper.asInstanceOf[zio.blocks.schema.Reflect.Wrapper.Bound[S, u]]
-                      val lens    = zio.blocks.schema.Lens.wrapped(wrapper)
-                      Map("value" -> lens)
-                    })
-                  )
-                  .asInstanceOf[t]
-              }
+              DerivedOpticsMacros
+                .getOrCreate(
+                  ${ cacheKey },
+                  new OpticsHolder({
+                    val unknownWrapper = ${ schema }.reflect.asWrapperUnknown.getOrElse(
+                      throw new RuntimeException(s"Expected a wrapper schema for ${${ cacheKey }}")
+                    )
+                    val wrapper = unknownWrapper.wrapper.asInstanceOf[zio.blocks.schema.Reflect.Wrapper.Bound[S, u]]
+                    val lens    = zio.blocks.schema.Lens.wrapped(wrapper)
+                    Map("value" -> lens)
+                  })
+                )
+                .asInstanceOf[t]
             }
         }
     }
@@ -185,27 +183,25 @@ object DerivedOpticsMacros {
     refinedType.asType match {
       case '[t] =>
         '{
-          '{
-            DerivedOpticsMacros
-              .getOrCreate(
-                $cacheKey,
-                new OpticsHolder({
-                  val record = $schema.reflect.asRecord.getOrElse(
-                    throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
-                  )
-                  val members = record.fields.zipWithIndex.map { case (term, idx) =>
-                    val lens = record
-                      .lensByIndex(idx)
-                      .getOrElse(
-                        throw new RuntimeException(s"Cannot find lens for field ${term.name}")
-                      )
-                    term.name -> lens
-                  }.toMap
-                  members
-                })
-              )
-              .asInstanceOf[t]
-          }
+          DerivedOpticsMacros
+            .getOrCreate(
+              ${ cacheKey },
+              new OpticsHolder({
+                val record = ${ schema }.reflect.asRecord.getOrElse(
+                  throw new RuntimeException(s"Expected a record schema for ${${ cacheKey }}")
+                )
+                val members = record.fields.zipWithIndex.map { case (term, idx) =>
+                  val lens = record
+                    .lensByIndex(idx)
+                    .getOrElse(
+                      throw new RuntimeException(s"Cannot find lens for field ${term.name}")
+                    )
+                  term.name -> lens
+                }.toMap
+                members
+              })
+            )
+            .asInstanceOf[t]
         }
     }
   }
@@ -253,10 +249,10 @@ object DerivedOpticsMacros {
         '{
           DerivedOpticsMacros
             .getOrCreate(
-              $cacheKey,
+              ${ cacheKey },
               new OpticsHolder({
-                val variant = $schema.reflect.asVariant.getOrElse(
-                  throw new RuntimeException(s"Expected a variant schema for ${$cacheKey}")
+                val variant = ${ schema }.reflect.asVariant.getOrElse(
+                  throw new RuntimeException(s"Expected a variant schema for ${${ cacheKey }}")
                 )
                 val members = variant.cases.zipWithIndex.map { case (term, idx) =>
                   val prism = variant
@@ -269,7 +265,6 @@ object DerivedOpticsMacros {
                 members
               })
             )
-            .asInstanceOf[t]
             .asInstanceOf[t]
         }
     }
