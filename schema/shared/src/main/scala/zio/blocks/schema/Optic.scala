@@ -212,13 +212,15 @@ object Lens {
     new LensImpl(Array(source), Array(focusTerm))
   }
 
-  def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] =
+  def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
+    require((first ne null) && (second ne null))
     (first, second) match {
       case (lens1: LensImpl[S, T], lens2: LensImpl[T, A]) =>
         new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
       case _ =>
         new ComposedLens(first, second)
     }
+  }
 
   def wrapped[S, A](wrapper: Reflect.Wrapper.Bound[S, A]): Lens[S, A] =
     new WrapperLensImpl(wrapper)
