@@ -218,26 +218,7 @@ object Lens {
       case (lens1: LensImpl[S, T], lens2: LensImpl[T, A]) =>
         new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
       case _ =>
-        new Lens[S, A] {
-          def source: Reflect.Bound[S] = first.source
-
-          def focus: Reflect.Bound[A] = second.focus
-
-          def get(s: S): A = second.get(first.get(s))
-
-          def replace(s: S, a: A): S = first.replace(s, second.replace(first.get(s), a))
-
-          def check(s: S): Option[OpticCheck] = first.check(s).orElse(second.check(first.get(s)))
-
-          def modify(s: S, f: A => A): S = first.modify(s, t => second.modify(t, f))
-
-          def modifyOption(s: S, f: A => A): Option[S] = Some(modify(s, f))
-
-          def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
-
-          lazy val toDynamic: DynamicOptic =
-            new DynamicOptic(first.toDynamic.nodes ++ second.toDynamic.nodes)
-        }
+        new ComposedLensImpl(first, second)
     }
   }
 
@@ -383,6 +364,27 @@ object Lens {
     def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
 
     lazy val toDynamic: DynamicOptic = new DynamicOptic(ArraySeq(DynamicOptic.Node.Wrapped))
+  }
+
+  private final case class ComposedLensImpl[S, T, A](first: Lens[S, T], second: Lens[T, A]) extends Lens[S, A] {
+    def source: Reflect.Bound[S] = first.source
+
+    def focus: Reflect.Bound[A] = second.focus
+
+    def get(s: S): A = second.get(first.get(s))
+
+    def replace(s: S, a: A): S = first.replace(s, second.replace(first.get(s), a))
+
+    def check(s: S): Option[OpticCheck] = first.check(s).orElse(second.check(first.get(s)))
+
+    def modify(s: S, f: A => A): S = first.modify(s, t => second.modify(t, f))
+
+    def modifyOption(s: S, f: A => A): Option[S] = Some(modify(s, f))
+
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
+
+    lazy val toDynamic: DynamicOptic =
+      new DynamicOptic(first.toDynamic.nodes ++ second.toDynamic.nodes)
   }
 }
 
