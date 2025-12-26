@@ -145,12 +145,8 @@ private object DerivedOpticsMacros {
       buildCaseClassOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
     } else if (isSealed || isEnum) {
       buildSealedTraitOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
-    } else if (tpe != caseClassType) {
-      buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
     } else {
-      // For primitives or other types that are not wrappers, return an empty OpticsHolder
-      val cacheKey: Expr[String] = Expr(caseClassType.show + (if (prefixUnderscore) "_" else ""))
-      '{ getOrCreate($cacheKey, new OpticsHolder(Map.empty)) }
+      buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
     }
   }
 

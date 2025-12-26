@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import scala.language.experimental.macros
+import scala.language.dynamics
 import scala.reflect.macros.whitebox
 
 /**
@@ -70,6 +71,13 @@ trait DerivedOptics_[S] {
   def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImplUnderscore[S]
 }
 
+object DerivedOptics {
+  private[schema] class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic {
+    def selectDynamic(name: String): Any =
+      members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
+  }
+}
+
 object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
 
@@ -114,16 +122,8 @@ object DerivedOpticsMacros {
       buildCaseClassOptics(c)(schema, tpe, prefixUnderscore)
     } else if (isSealed) {
       buildSealedTraitOptics(c)(schema, tpe, prefixUnderscore)
-    } else if (originalType != tpe) {
-      buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
     } else {
-      val cacheKey = tpe.toString + (if (prefixUnderscore) "_" else "")
-      q"""
-        _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
-          $cacheKey,
-          new {}
-        )
-      """
+      buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
     }
   }
 
