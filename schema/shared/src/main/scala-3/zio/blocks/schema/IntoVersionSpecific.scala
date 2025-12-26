@@ -122,13 +122,15 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         deriveCoproductToCoproduct[A, B](aTpe, bTpe)
       case (_, _, _, true, _, _, _, _, true, _) =>
         // Structural type -> Product (structural source to case class target)
-        if (!Platform.supportsReflection) {
+        // Allow Selectable types on all platforms, but non-Selectable structural types only on JVM
+        if (!Platform.supportsReflection && !isSelectableType(aTpe)) {
           fail(
             s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Structural type conversions are not supported on ${Platform.name}.
                |
                |Structural types require reflection APIs (getClass.getMethod) which are only available on JVM.
                |
                |Consider:
+               |  - Implementing Selectable trait to enable cross-platform support
                |  - Using a case class instead of a structural type
                |  - Using a tuple instead of a structural type
                |  - Only using structural type conversions in JVM-only code""".stripMargin
@@ -237,6 +239,9 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
+  private def isSelectableType(tpe: TypeRepr): Boolean =
+    tpe <:< TypeRepr.of[scala.Selectable]
+
   private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
     def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = t match {
       case Refinement(parent, name, info) =>
@@ -259,6 +264,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   ): Expr[Into[A, B]] = {
     val structuralMembers = getStructuralMembers(aTpe)
     val targetInfo        = new ProductInfo[B](bTpe)
+    val sourceIsSelectable = isSelectableType(aTpe)
 
     // For each target field, find matching structural member (by name or unique type)
     // or use default value/None for optional fields
@@ -311,7 +317,84 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-    // Generate conversion using reflection to access structural type members
+    if (sourceIsSelectable) {
+      // For Selectable types, use selectDynamic which works on all platforms
+      deriveSelectableToProduct[A, B](fieldMappings, targetInfo)
+    } else {
+      // For non-Selectable structural types, use reflection (JVM only)
+      deriveReflectiveStructuralToProduct[A, B](fieldMappings, targetInfo)
+    }
+  }
+
+  // Selectable-based structural type conversion - works on all platforms
+  // For Selectable types, we call selectDynamic which is implemented by the class
+  private def deriveSelectableToProduct[A: Type, B: Type](
+    fieldMappings: List[(Option[(String, TypeRepr)], FieldInfo)],
+    targetInfo: ProductInfo[B]
+  ): Expr[Into[A, B]] = {
+    '{
+      new Into[A, B] {
+        def into(a: A): Either[SchemaError, B] =
+          Right(${
+            val aExpr = 'a
+            val args: List[Term] = fieldMappings.map { case (memberOpt, targetField) =>
+              memberOpt match {
+                case Some((memberName, memberTpe)) =>
+                  // Call selectDynamic on the Selectable instance
+                  // The actual type A extends Selectable and has selectDynamic
+                  targetField.tpe.asType match {
+                    case '[t] =>
+                      memberTpe.asType match {
+                        case '[mt] =>
+                          val memberNameExpr = Expr(memberName)
+                          // Find the selectDynamic method on the type
+                          val selectDynamicSym = TypeRepr.of[A].typeSymbol.methodMember("selectDynamic").headOption
+                            .getOrElse(report.errorAndAbort(s"Type ${TypeRepr.of[A].show} extends Selectable but has no selectDynamic method"))
+                          val selectCall = Apply(
+                            Select(aExpr.asTerm, selectDynamicSym),
+                            List(memberNameExpr.asTerm)
+                          )
+                          if (memberTpe =:= targetField.tpe) {
+                            '{ ${ selectCall.asExprOf[Any] }.asInstanceOf[t] }.asTerm
+                          } else {
+                            // Need conversion
+                            findImplicitInto(memberTpe, targetField.tpe) match {
+                              case Some(intoInstance) =>
+                                val typedInto = intoInstance.asExprOf[Into[mt, t]]
+                                '{
+                                  val value = ${ selectCall.asExprOf[Any] }.asInstanceOf[mt]
+                                  $typedInto.into(value) match {
+                                    case Right(v) => v
+                                    case Left(_)  => throw new RuntimeException("Conversion failed")
+                                  }
+                                }.asTerm
+                              case None =>
+                                '{ ${ selectCall.asExprOf[Any] }.asInstanceOf[t] }.asTerm
+                            }
+                          }
+                      }
+                  }
+                case None =>
+                  // Use default value or None
+                  if (targetField.hasDefault && targetField.defaultValue.isDefined) {
+                    targetField.defaultValue.get
+                  } else {
+                    '{ None }.asTerm
+                  }
+              }
+            }
+            val resultExpr: Expr[B] = targetInfo.construct(args).asExprOf[B]
+            (resultExpr)
+          })
+      }
+    }
+  }
+
+  // Reflection-based structural type conversion - JVM only
+  private def deriveReflectiveStructuralToProduct[A: Type, B: Type](
+    fieldMappings: List[(Option[(String, TypeRepr)], FieldInfo)],
+    targetInfo: ProductInfo[B]
+  ): Expr[Into[A, B]] = {
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] =
@@ -319,14 +402,15 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
             val args: List[Term] = fieldMappings.map { case (memberOpt, targetField) =>
               memberOpt match {
                 case Some((memberName, memberTpe)) =>
-                  // Get value from structural member
+                  // Get value from structural member using reflection
                   targetField.tpe.asType match {
                     case '[t] =>
                       memberTpe.asType match {
                         case '[mt] =>
+                          val memberNameExpr = Expr(memberName)
                           if (memberTpe =:= targetField.tpe) {
                             '{
-                              val method = a.getClass.getMethod(${ Expr(memberName) })
+                              val method = a.getClass.getMethod($memberNameExpr)
                               method.invoke(a).asInstanceOf[t]
                             }.asTerm
                           } else {
@@ -335,8 +419,8 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                               case Some(intoInstance) =>
                                 val typedInto = intoInstance.asExprOf[Into[mt, t]]
                                 '{
-                                  val method = a.getClass.getMethod(${ Expr(memberName) })
-                                  val value  = method.invoke(a).asInstanceOf[mt]
+                                  val method = a.getClass.getMethod($memberNameExpr)
+                                  val value = method.invoke(a).asInstanceOf[mt]
                                   $typedInto.into(value) match {
                                     case Right(v) => v
                                     case Left(_)  => throw new RuntimeException("Conversion failed")
@@ -345,7 +429,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                               case None =>
                                 // Should not happen since we checked earlier
                                 '{
-                                  val method = a.getClass.getMethod(${ Expr(memberName) })
+                                  val method = a.getClass.getMethod($memberNameExpr)
                                   method.invoke(a).asInstanceOf[t]
                                 }.asTerm
                             }
@@ -2007,7 +2091,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   ): Expr[Either[SchemaError, Any]] = {
     // First, try to find an implicit Into instance for this conversion
     val implicitInto = findImplicitInto(sourceValue.tpe, targetTpe)
-    
+
     targetTpe.asType match {
       case '[tt] =>
         sourceValue.asExpr match {
@@ -2023,7 +2107,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                 // - targetTpe is something like `Age.Type`
                 // - The TypeRef has a prefix that points to the Age object
                 // - We need to extract that prefix to get the companion object
-                
+
                 val companionOpt: Option[Symbol] = targetTpe match {
                   case TypeRef(prefix, _) =>
                     // The prefix is the path to the companion object (e.g., Age)
@@ -2049,12 +2133,12 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                   case _ =>
                     None
                 }
-                
+
                 companionOpt match {
                   case Some(companionSym) if companionSym.flags.is(Flags.Module) =>
                     // Find the `make` method on the companion
                     val makeMethods = companionSym.methodMembers.filter(_.name == "make")
-                    
+
                     makeMethods.find { m =>
                       m.paramSymss match {
                         case List(List(_)) => true  // Single parameter
@@ -2066,17 +2150,17 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                         val companionRef = Ref(companionSym)
                         val makeCall = Apply(Select(companionRef, makeMethod), List(sourceValue))
                         val fieldNameExpr = Expr(fieldName)
-                        
+
                         // The result is Validation[String, tt], we need to convert to Either[SchemaError, tt]
                         // Find the toEither method on the Validation result
                         val validationTpe = makeCall.tpe
                         val toEitherMethod = validationTpe.typeSymbol.methodMembers.find(_.name == "toEither")
-                        
+
                         toEitherMethod match {
                           case Some(toEitherSym) =>
                             // Generate: makeCall.toEither.left.map(err => SchemaError.conversionFailed(...))
                             val toEitherCall = Select(makeCall, toEitherSym)
-                            
+
                             toEitherCall.tpe.asType match {
                               case '[Either[err, result]] =>
                                 val toEitherExpr = toEitherCall.asExprOf[Either[err, result]]
@@ -2089,17 +2173,17 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                                 // Fallback if we can't match the Either type
                                 '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
                             }
-                            
+
                           case None =>
                             // No toEither method - fall back to asInstanceOf
                             '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
                         }
-                        
+
                       case None =>
                         // No make method found - fall back to asInstanceOf (unsafe, no validation)
                         '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
                     }
-                    
+
                   case _ =>
                     // Companion not found - fall back to asInstanceOf
                     '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
