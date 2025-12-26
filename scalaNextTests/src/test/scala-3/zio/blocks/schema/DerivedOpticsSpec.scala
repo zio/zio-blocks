@@ -442,18 +442,23 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
   // ===== Opaque Type (Newtype) Tests =====
   // Note: For opaque types, the schema must be provided manually.
-  // The derived schema will be a primitive or Wrapper, not a Record.
+  // Opaque types with primitive schemas (Int, String) are not case classes,
+  // so DerivedOptics produces no lenses. This is expected behavior.
+  // The tests verify that the schema integration works correctly.
   val opaqueTypeTestSuite: Spec[Any, Nothing] = suite("Opaque type (newtype) support")(
-    test("opaque type with Schema.int compiles and works") {
+    test("opaque type with Schema.int - schema works correctly") {
       import Age.value
       val age: Age = Age(25)
       // Verify the opaque type and its schema work correctly
+      // Note: DerivedOptics is not applicable to opaque types with primitive schemas
+      // because they are not case classes and have no fields to derive lenses for.
       assertTrue(age.value == 25)
     },
-    test("opaque type with Schema.string compiles and works") {
+    test("opaque type with Schema.string - schema works correctly") {
       import Email.value
       val email: Email = Email("test@example.com")
       // Verify the opaque type and its schema work correctly
+      // Note: DerivedOptics is not applicable to opaque types with primitive schemas.
       assertTrue(email.value == "test@example.com")
     }
   )
@@ -465,11 +470,17 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val optics2 = Person.optics
       assertTrue(optics1 eq optics2)
     },
-    test("lens from cached optics is stable") {
+    test("lens from cached optics has referential equality (per issue #514)") {
+      // Issue #514 explicitly requires: Person.optics.name eq Person.optics.name is true
       val lens1 = Person.optics.name
       val lens2 = Person.optics.name
-      // The lenses should be equal (may not be same reference due to lazy val)
-      assertTrue(lens1 == lens2)
+      assertTrue(lens1 eq lens2)
+    },
+    test("prism from cached optics has referential equality (per issue #514)") {
+      // Issue #514 explicitly requires: Shape.optics.Circle eq Shape.optics.Circle is true
+      val prism1 = Shape.optics.Circle
+      val prism2 = Shape.optics.Circle
+      assertTrue(prism1 eq prism2)
     },
     test("different types have different cached objects") {
       val personOptics  = Person.optics

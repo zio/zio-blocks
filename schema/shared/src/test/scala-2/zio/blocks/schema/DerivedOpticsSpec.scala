@@ -318,11 +318,17 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val optics2 = Person.optics
       assertTrue(optics1 eq optics2)
     },
-    test("lens from cached optics is stable") {
+    test("lens from cached optics has referential equality (per issue #514)") {
+      // Issue #514 explicitly requires: Person.optics.name eq Person.optics.name is true
       val lens1 = Person.optics.name
       val lens2 = Person.optics.name
-      // The lenses should be equal (may not be same reference due to lazy val)
-      assertTrue(lens1 == lens2)
+      assertTrue(lens1 eq lens2)
+    },
+    test("prism from cached optics has referential equality (per issue #514)") {
+      // Issue #514 explicitly requires: Shape.optics.Circle eq Shape.optics.Circle is true
+      val prism1 = Shape.optics.Circle
+      val prism2 = Shape.optics.Circle
+      assertTrue(prism1 eq prism2)
     },
     test("different types have different cached objects") {
       val personOptics  = Person.optics
