@@ -233,6 +233,81 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     implicit val schema: Schema[ExternalPerson] = Schema.derived
   }
 
+  // ===== Lazy Val + Var Test Type =====
+  final case class MixedMembers(constructorParam: String) {
+    lazy val computed: Int   = constructorParam.length
+    var mutableField: Double = 0.0
+  }
+  object MixedMembers extends DerivedOptics[MixedMembers] {
+    implicit val schema: Schema[MixedMembers] = Schema.derived
+  }
+
+  // ===== Mutually Recursive Types =====
+  final case class NodeA(value: String, next: Option[NodeB])
+  final case class NodeB(value: Int, next: Option[NodeA])
+  object NodeA extends DerivedOptics[NodeA] {
+    implicit val schemaB: Schema[NodeB] = Schema.derived
+    implicit val schema: Schema[NodeA]  = Schema.derived
+  }
+  object NodeB extends DerivedOptics[NodeB] {
+    implicit val schemaA: Schema[NodeA] = Schema.derived
+    implicit val schema: Schema[NodeB]  = Schema.derived
+  }
+
+  // ===== Deeply Nested (5+ levels) =====
+  final case class Level5(value: String)
+  final case class Level4(l5: Level5)
+  final case class Level3(l4: Level4)
+  final case class Level2(l3: Level3)
+  final case class Level1(l2: Level2)
+  object Level5 extends DerivedOptics[Level5] { implicit val schema: Schema[Level5] = Schema.derived }
+  object Level4 extends DerivedOptics[Level4] { implicit val schema: Schema[Level4] = Schema.derived }
+  object Level3 extends DerivedOptics[Level3] { implicit val schema: Schema[Level3] = Schema.derived }
+  object Level2 extends DerivedOptics[Level2] { implicit val schema: Schema[Level2] = Schema.derived }
+  object Level1 extends DerivedOptics[Level1] { implicit val schema: Schema[Level1] = Schema.derived }
+
+  // ===== Nested Collections Traversal =====
+  final case class NestedCollections(data: List[Option[Int]])
+  object NestedCollections extends DerivedOptics[NestedCollections] {
+    implicit val schema: Schema[NestedCollections] = Schema.derived
+  }
+
+  // ===== Composition Test Types =====
+  sealed trait CompContainer
+  final case class CompBox(inner: CompInnerBox) extends CompContainer
+  final case class CompEmpty()                  extends CompContainer
+  object CompContainer                          extends DerivedOptics[CompContainer] {
+    implicit val compBoxSchema: Schema[CompBox]     = Schema.derived
+    implicit val compEmptySchema: Schema[CompEmpty] = Schema.derived
+    implicit val schema: Schema[CompContainer]      = Schema.derived
+  }
+  object CompBox extends DerivedOptics[CompBox] {
+    implicit val innerSchema: Schema[CompInnerBox] = Schema.derived
+    implicit val schema: Schema[CompBox]           = Schema.derived
+  }
+
+  final case class CompInnerBox(value: Int)
+  object CompInnerBox extends DerivedOptics[CompInnerBox] {
+    implicit val schema: Schema[CompInnerBox] = Schema.derived
+  }
+
+  // Sealed trait within a field (for lens+prism composition)
+  final case class Holder(content: HeldContent)
+  sealed trait HeldContent
+  final case class TextContent(text: String)  extends HeldContent
+  final case class NumberContent(number: Int) extends HeldContent
+  object Holder                               extends DerivedOptics[Holder] {
+    implicit val textSchema: Schema[TextContent]     = Schema.derived
+    implicit val numberSchema: Schema[NumberContent] = Schema.derived
+    implicit val contentSchema: Schema[HeldContent]  = Schema.derived
+    implicit val schema: Schema[Holder]              = Schema.derived
+  }
+  object HeldContent extends DerivedOptics[HeldContent] {
+    implicit val textSchema: Schema[TextContent]     = Schema.derived
+    implicit val numberSchema: Schema[NumberContent] = Schema.derived
+    implicit val schema: Schema[HeldContent]         = Schema.derived
+  }
+
   // ===== Test Suites =====
 
   def spec: Spec[TestEnvironment, Any] = suite("DerivedOpticsSpec")(
@@ -247,7 +322,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     edgeCasesTestSuite,
     traversalTestSuite,
     compositionTestSuite,
-    definitionOfDoneTestSuite
+    definitionOfDoneTestSuite,
+    extendedTraversalTestSuite,
+    extendedCompositionTestSuite
   )
 
   // ===== Lens Tests =====
@@ -627,6 +704,57 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val oc = OpticsCollision("field value", 42)
       assertTrue(OpticsCollision.optics.optics.get(oc) == "field value") &&
       assertTrue(OpticsCollision.optics.other.get(oc) == 42)
+    },
+    test("case class with lazy val and var - only constructor params become lenses") {
+      val mm = MixedMembers("test")
+      assertTrue(MixedMembers.optics.constructorParam.get(mm) == "test") &&
+      assertTrue(MixedMembers.optics.constructorParam.replace(mm, "changed").constructorParam == "changed")
+    },
+    test("mutually recursive types derive optics") {
+      val a = NodeA("start", Some(NodeB(42, None)))
+      assertTrue(NodeA.optics.value.get(a) == "start") &&
+      assertTrue(NodeA.optics.next.get(a).map(_.value) == Some(42))
+    },
+    test("deeply nested structures (5+ levels)") {
+      val deep     = Level1(Level2(Level3(Level4(Level5("bottom")))))
+      val deepLens = Level1.optics.l2
+        .andThen(Level2.optics.l3)
+        .andThen(Level3.optics.l4)
+        .andThen(Level4.optics.l5)
+        .andThen(Level5.optics.value)
+      assertTrue(deepLens.get(deep) == "bottom") &&
+      assertTrue(deepLens.replace(deep, "top").l2.l3.l4.l5.value == "top")
+    }
+  )
+
+  // ===== Extended Traversal Tests =====
+  val extendedTraversalTestSuite: Spec[Any, Nothing] = suite("Extended traversal")(
+    test("traverse nested collections List[Option[A]]") {
+      val nc = NestedCollections(List(Some(1), None, Some(3)))
+      assertTrue(NestedCollections.optics.data.get(nc) == List(Some(1), None, Some(3))) &&
+      assertTrue(NestedCollections.optics.data.replace(nc, List(Some(10))) == NestedCollections(List(Some(10))))
+    }
+  )
+
+  // ===== Extended Composition Tests =====
+  val extendedCompositionTestSuite: Spec[Any, Nothing] = suite("Extended composition")(
+    test("prism andThen lens (access field inside variant)") {
+      val container: CompContainer = CompBox(CompInnerBox(42))
+      val boxPrism                 = CompContainer.optics.compBox
+      val innerLens                = boxPrism.apply(CompBox.optics.inner)
+      assertTrue(innerLens.getOption(container) == Some(CompInnerBox(42)))
+    },
+    test("lens andThen prism (access variant inside field)") {
+      val holder      = Holder(TextContent("hello"))
+      val contentLens = Holder.optics.content
+      val textPrism   = HeldContent.optics.textContent
+      val composed    = contentLens.apply(textPrism)
+      assertTrue(composed.getOption(holder) == Some(TextContent("hello")))
+    },
+    test("prism andThen prism (nested variant access)") {
+      val container: CompContainer = CompBox(CompInnerBox(10))
+      val boxPrism                 = CompContainer.optics.compBox
+      assertTrue(boxPrism.getOption(container).map(_.inner.value) == Some(10))
     }
   )
 }
