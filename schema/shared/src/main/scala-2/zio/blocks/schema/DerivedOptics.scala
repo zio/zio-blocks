@@ -46,6 +46,30 @@ trait DerivedOptics[S] {
   def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImpl[S]
 }
 
+/**
+ * A variant of DerivedOptics that prefixes all accessor names with underscore.
+ * This is useful when you want to avoid name collisions with existing methods
+ * in the companion object.
+ *
+ * Usage:
+ * {{{
+ * case class Person(name: String, age: Int)
+ * object Person extends DerivedOptics_[Person]
+ *
+ * // Access optics with underscore prefix:
+ * val nameLens: Lens[Person, String] = Person.optics._name
+ * val ageLens: Lens[Person, Int] = Person.optics._age
+ * }}}
+ */
+trait DerivedOptics_[S] {
+
+  /**
+   * Provides access to the derived optics for type S with underscore-prefixed
+   * accessor names.
+   */
+  def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImplUnderscore[S]
+}
+
 object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
 
@@ -67,7 +91,16 @@ object DerivedOpticsMacros {
     result.asInstanceOf[T]
   }
 
-  def opticsImpl[S: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[S]]): c.Tree = {
+  def opticsImpl[S: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[S]]): c.Tree =
+    opticsImplWithPrefix[S](c)(schema, prefixUnderscore = false)
+
+  def opticsImplUnderscore[S: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[S]]): c.Tree =
+    opticsImplWithPrefix[S](c)(schema, prefixUnderscore = true)
+
+  private def opticsImplWithPrefix[S: c.WeakTypeTag](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
+    prefixUnderscore: Boolean
+  ): c.Tree = {
     import c.universe._
 
     val tpe     = weakTypeOf[S].dealias
@@ -77,11 +110,11 @@ object DerivedOpticsMacros {
     val isSealed    = typeSym.isSealed
 
     if (isCaseClass) {
-      buildCaseClassOptics(c)(schema, tpe)
+      buildCaseClassOptics(c)(schema, tpe, prefixUnderscore)
     } else if (isSealed) {
-      buildSealedTraitOptics(c)(schema, tpe)
+      buildSealedTraitOptics(c)(schema, tpe, prefixUnderscore)
     } else {
-      val cacheKey = tpe.toString
+      val cacheKey = tpe.toString + (if (prefixUnderscore) "_" else "")
       q"""
         _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
           $cacheKey,
@@ -93,7 +126,8 @@ object DerivedOpticsMacros {
 
   private def buildCaseClassOptics[S: c.WeakTypeTag](c: whitebox.Context)(
     schema: c.Expr[Schema[S]],
-    tpe: c.universe.Type
+    tpe: c.universe.Type,
+    prefixUnderscore: Boolean
   ): c.Tree = {
     import c.universe._
 
@@ -106,23 +140,24 @@ object DerivedOpticsMacros {
 
     // Build method definitions for the anonymous class
     val lensAccessors = fields.zipWithIndex.map { case (field, idx) =>
-      val fieldName = field.name.toTermName
-      val fieldType = field.typeSignatureIn(tpe).dealias
-      val lensType  = appliedType(typeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
+      val baseName     = field.name.toString
+      val accessorName = TermName(if (prefixUnderscore) "_" + baseName else baseName)
+      val fieldType    = field.typeSignatureIn(tpe).dealias
+      val lensType     = appliedType(typeOf[Lens[_, _]].typeConstructor, List(tpe, fieldType))
 
       q"""
-        lazy val $fieldName: $lensType = {
+        lazy val $accessorName: $lensType = {
           val record = _schema.reflect.asRecord.getOrElse(
             throw new RuntimeException("Expected a record schema for " + ${tpe.toString})
           )
           record.lensByIndex[$fieldType]($idx).getOrElse(
-            throw new RuntimeException("Cannot find lens for field " + ${fieldName.toString})
+            throw new RuntimeException("Cannot find lens for field " + ${baseName})
           )
         }
       """
     }
 
-    val cacheKey = tpe.toString
+    val cacheKey = tpe.toString + (if (prefixUnderscore) "_" else "")
 
     q"""
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
@@ -137,7 +172,8 @@ object DerivedOpticsMacros {
 
   private def buildSealedTraitOptics[S: c.WeakTypeTag](c: whitebox.Context)(
     schema: c.Expr[Schema[S]],
-    tpe: c.universe.Type
+    tpe: c.universe.Type,
+    prefixUnderscore: Boolean
   ): c.Tree = {
     import c.universe._
 
@@ -146,22 +182,23 @@ object DerivedOpticsMacros {
 
     // Build method definitions for the anonymous class
     val prismAccessors = subtypes.zipWithIndex.map { case (subtype, idx) =>
-      val caseName  = TermName(lowerFirst(subtype.typeSymbol.name.toString))
-      val prismType = appliedType(typeOf[Prism[_, _]].typeConstructor, List(tpe, subtype))
+      val baseName     = lowerFirst(subtype.typeSymbol.name.toString)
+      val accessorName = TermName(if (prefixUnderscore) "_" + baseName else baseName)
+      val prismType    = appliedType(typeOf[Prism[_, _]].typeConstructor, List(tpe, subtype))
 
       q"""
-        lazy val $caseName: $prismType = {
+        lazy val $accessorName: $prismType = {
           val variant = _schema.reflect.asVariant.getOrElse(
             throw new RuntimeException("Expected a variant schema for " + ${tpe.toString})
           )
           variant.prismByIndex[$subtype]($idx).getOrElse(
-            throw new RuntimeException("Cannot find prism for case " + ${caseName.toString})
+            throw new RuntimeException("Cannot find prism for case " + ${baseName})
           )
         }
       """
     }
 
-    val cacheKey = tpe.toString
+    val cacheKey = tpe.toString + (if (prefixUnderscore) "_" else "")
 
     q"""
       _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(

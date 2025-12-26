@@ -222,6 +222,12 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     given schema: Schema[Email] = Schema.string.asInstanceOf[Schema[Email]]
   }
 
+  // ===== DerivedOptics_ (underscore prefix) Test Type =====
+  case class PersonUnderscore(name: String, age: Int)
+  object PersonUnderscore extends DerivedOptics_[PersonUnderscore] {
+    implicit val schema: Schema[PersonUnderscore] = Schema.derived
+  }
+
   // ===== Test Suites =====
 
   def spec: Spec[TestEnvironment, Any] = suite("DerivedOpticsSpec")(
@@ -231,6 +237,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     typeAliasTestSuite,
     specialCharacterTestSuite,
     opaqueTypeTestSuite,
+    underscorePrefixTestSuite,
     cachingTestSuite,
     typeSafetyTestSuite,
     schemaTestSuite,
@@ -458,6 +465,25 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       // Verify the opaque type and its schema work correctly
       assertTrue(email.value == "test@example.com") &&
       assertTrue(Email.optics != null)
+    }
+  )
+
+  // ===== DerivedOptics_ (underscore prefix) Tests =====
+  val underscorePrefixTestSuite: Spec[Any, Nothing] = suite("DerivedOptics_ (underscore prefix)")(
+    test("lens accessors are prefixed with underscore") {
+      val person = PersonUnderscore("Alice", 30)
+      // Accessors should have underscore prefix
+      assertTrue(PersonUnderscore.optics._name.get(person) == "Alice") &&
+      assertTrue(PersonUnderscore.optics._age.get(person) == 30)
+    },
+    test("underscore-prefixed lens replace works") {
+      val person = PersonUnderscore("Alice", 30)
+      assertTrue(PersonUnderscore.optics._name.replace(person, "Bob") == PersonUnderscore("Bob", 30))
+    },
+    test("underscore-prefixed optics are cached separately") {
+      val optics1 = PersonUnderscore.optics
+      val optics2 = PersonUnderscore.optics
+      assertTrue(optics1 eq optics2)
     }
   )
 
