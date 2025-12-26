@@ -122,9 +122,33 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         deriveCoproductToCoproduct[A, B](aTpe, bTpe)
       case (_, _, _, true, _, _, _, _, true, _) =>
         // Structural type -> Product (structural source to case class target)
+        if (!Platform.supportsReflection) {
+          fail(
+            s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Structural type conversions are not supported on ${Platform.name}.
+               |
+               |Structural types require reflection APIs (getClass.getMethod) which are only available on JVM.
+               |
+               |Consider:
+               |  - Using a case class instead of a structural type
+               |  - Using a tuple instead of a structural type
+               |  - Only using structural type conversions in JVM-only code""".stripMargin
+          )
+        }
         deriveStructuralToProduct[A, B](aTpe, bTpe)
       case (_, _, true, _, _, _, _, _, _, true) =>
         // Product -> Structural (case class source to structural target)
+        if (!Platform.supportsReflection) {
+          fail(
+            s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Structural type conversions are not supported on ${Platform.name}.
+               |
+               |Structural types require reflection APIs which are only available on JVM.
+               |
+               |Consider:
+               |  - Using a case class instead of a structural type
+               |  - Using a tuple instead of a structural type
+               |  - Only using structural type conversions in JVM-only code""".stripMargin
+          )
+        }
         deriveProductToStructural[A, B](aTpe, bTpe)
       case _ =>
         // Check for opaque type conversions
@@ -1965,122 +1989,121 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
 
   /**
-   * Converts a value to a ZIO Prelude newtype, applying validation if available
+   * Converts a value to a ZIO Prelude newtype, applying validation via the companion's `make` method.
    * Returns an Expr[Either[SchemaError, NewtypeType]]
    *
-   * This uses runtime reflection to avoid loading ZIO Prelude's TASTy files at
-   * compile time, which can cause "Bad symbolic reference" errors with version
-   * mismatches.
+   * This uses compile-time code generation (quotes/splices) to generate direct calls
+   * to the companion object's `make` method, avoiding runtime reflection entirely.
+   * This allows the code to work on all platforms (JVM, JS, Native).
+   *
+   * For ZIO Prelude newtypes:
+   * - `object Age extends Subtype[Int]` has `make(value: Int): Validation[String, Age]`
+   * - We generate: `Age.make(value).toEither.left.map(err => SchemaError.conversionFailed(...))`
    */
   private def convertToNewtypeEither(
     sourceValue: Term,
     targetTpe: TypeRepr,
     fieldName: String
   ): Expr[Either[SchemaError, Any]] = {
-    // Get the companion object path for runtime reflection
-    // For ZIO Prelude newtypes like Domain.PositiveInt.Type, we need to extract Domain.PositiveInt
-    val fullTypeName  = targetTpe.show
-    val companionPath = if (fullTypeName.endsWith(".Type")) {
-      // Remove the .Type suffix to get the companion object path
-      fullTypeName.stripSuffix(".Type")
-    } else {
-      fullTypeName
-    }
-
+    // First, try to find an implicit Into instance for this conversion
+    val implicitInto = findImplicitInto(sourceValue.tpe, targetTpe)
+    
     targetTpe.asType match {
       case '[tt] =>
         sourceValue.asExpr match {
           case '{ $src: s } =>
-            '{
-              // Runtime reflection to call the make method on ZIO Prelude newtypes
-              // This avoids compile-time TASTy loading issues
-              try {
-                // Convert the companion path to JVM class name
-                // For nested objects like Domain.Age, the JVM class is Domain$Age$
-                val companionClassName = {
-                  val basePath = ${ Expr(companionPath) }
-                  // Split by dot and check each segment to see if it's an object
-                  // For now, assume all segments except the package are objects (common pattern)
-                  // We need to replace dots with $ for object nesting
-
-                  // Simple heuristic: if path contains uppercase letters after a dot,
-                  // those are likely objects/classes, not packages
-                  val parts      = basePath.split('.')
-                  val packageEnd = parts.indexWhere(part => part.nonEmpty && part.head.isUpper)
-
-                  if (packageEnd >= 0) {
-                    val packagePart = parts.take(packageEnd).mkString(".")
-                    val objectPart  = parts.drop(packageEnd).mkString("$")
-                    if (packagePart.isEmpty) objectPart + "$" else packagePart + "." + objectPart + "$"
-                  } else {
-                    basePath + "$"
-                  }
-                }
-
-                val companionClass  = Class.forName(companionClassName)
-                val companionModule = companionClass.getField("MODULE$").get(null)
-
-                // ZIO Prelude newtypes always have:
-                // - make(value: Object): Validation[String, Type] - with validation
-                // - wrap(value: Object): Type - without validation (unsafe)
-                //
-                // We use Object as parameter type because of type erasure.
-                // The 'apply' method is inline and won't be available at runtime.
-                val paramClass = classOf[Object]
-
-                // Try to find and call the 'make' method (returns Validation with validation)
-                val makeMethodOpt =
-                  try {
-                    Some(companionClass.getMethod("make", paramClass))
-                  } catch {
-                    case _: NoSuchMethodException => None
-                  }
-
-                makeMethodOpt match {
-                  case Some(makeMethod) =>
-                    val validation = makeMethod.invoke(companionModule, $src.asInstanceOf[Object])
-
-                    // Call toEither on the Validation result to get Either[NonEmptyChunk[String], Type]
-                    val toEitherMethod = validation.getClass.getMethod("toEither")
-                    val either         = toEitherMethod.invoke(validation).asInstanceOf[Either[Any, tt]]
-
-                    either.left.map { err =>
-                      SchemaError.conversionFailed(Nil, s"Validation failed for field '${${ Expr(fieldName) }}': $err")
+            implicitInto match {
+              case Some(intoExpr) =>
+                // Use the implicit Into instance (which may include validation)
+                val typedInto = intoExpr.asExprOf[Into[s, tt]]
+                '{ $typedInto.into($src).asInstanceOf[Either[SchemaError, Any]] }
+              case None =>
+                // No implicit Into found - generate direct call to companion.make(value)
+                // For ZIO Prelude newtypes like Age.Type where `object Age extends Subtype[Int]`:
+                // - targetTpe is something like `Age.Type`
+                // - The TypeRef has a prefix that points to the Age object
+                // - We need to extract that prefix to get the companion object
+                
+                val companionOpt: Option[Symbol] = targetTpe match {
+                  case TypeRef(prefix, _) =>
+                    // The prefix is the path to the companion object (e.g., Age)
+                    prefix match {
+                      case TermRef(_, name) =>
+                        // Try to find the module symbol
+                        try {
+                          val prefixSym = prefix.termSymbol
+                          if (prefixSym.flags.is(Flags.Module)) Some(prefixSym)
+                          else None
+                        } catch {
+                          case _: Exception => None
+                        }
+                      case ThisType(typeRef) =>
+                        // For types defined in the same scope
+                        val typeSym = targetTpe.typeSymbol
+                        val owner = typeSym.owner
+                        if (owner.flags.is(Flags.Module)) Some(owner)
+                        else None
+                      case _ =>
+                        None
                     }
-
-                  case None =>
-                    // Fall back to wrap if make not found (shouldn't happen for ZIO Prelude newtypes)
-                    val wrapMethodOpt =
-                      try {
-                        Some(companionClass.getMethod("wrap", paramClass))
-                      } catch {
-                        case _: NoSuchMethodException => None
+                  case _ =>
+                    None
+                }
+                
+                companionOpt match {
+                  case Some(companionSym) if companionSym.flags.is(Flags.Module) =>
+                    // Find the `make` method on the companion
+                    val makeMethods = companionSym.methodMembers.filter(_.name == "make")
+                    
+                    makeMethods.find { m =>
+                      m.paramSymss match {
+                        case List(List(_)) => true  // Single parameter
+                        case _ => false
                       }
-
-                    wrapMethodOpt match {
-                      case Some(wrapMethod) =>
-                        val result = wrapMethod.invoke(companionModule, $src.asInstanceOf[Object]).asInstanceOf[tt]
-                        Right(result)
+                    } match {
+                      case Some(makeMethod) =>
+                        // Generate: companion.make(value).toEither.left.map(...)
+                        val companionRef = Ref(companionSym)
+                        val makeCall = Apply(Select(companionRef, makeMethod), List(sourceValue))
+                        val fieldNameExpr = Expr(fieldName)
+                        
+                        // The result is Validation[String, tt], we need to convert to Either[SchemaError, tt]
+                        // Find the toEither method on the Validation result
+                        val validationTpe = makeCall.tpe
+                        val toEitherMethod = validationTpe.typeSymbol.methodMembers.find(_.name == "toEither")
+                        
+                        toEitherMethod match {
+                          case Some(toEitherSym) =>
+                            // Generate: makeCall.toEither.left.map(err => SchemaError.conversionFailed(...))
+                            val toEitherCall = Select(makeCall, toEitherSym)
+                            
+                            toEitherCall.tpe.asType match {
+                              case '[Either[err, result]] =>
+                                val toEitherExpr = toEitherCall.asExprOf[Either[err, result]]
+                                '{
+                                  $toEitherExpr.left.map { err =>
+                                    SchemaError.conversionFailed(Nil, s"Validation failed for field '${$fieldNameExpr}': $err")
+                                  }.asInstanceOf[Either[SchemaError, Any]]
+                                }
+                              case _ =>
+                                // Fallback if we can't match the Either type
+                                '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
+                            }
+                            
+                          case None =>
+                            // No toEither method - fall back to asInstanceOf
+                            '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
+                        }
+                        
                       case None =>
-                        Left(
-                          SchemaError.conversionFailed(
-                            Nil,
-                            s"No 'make' or 'wrap' method found for newtype at $companionClassName"
-                          )
-                        )
+                        // No make method found - fall back to asInstanceOf (unsafe, no validation)
+                        '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
                     }
+                    
+                  case _ =>
+                    // Companion not found - fall back to asInstanceOf
+                    '{ Right($src.asInstanceOf[tt].asInstanceOf[Any]) }
                 }
-              } catch {
-                case e: ClassNotFoundException =>
-                  Left(
-                    SchemaError.conversionFailed(
-                      Nil,
-                      s"Companion object not found for newtype: ${${ Expr(companionPath) }}: ${e.getMessage}"
-                    )
-                  )
-                case e: Exception =>
-                  Left(SchemaError.conversionFailed(Nil, s"Error converting to newtype: ${e.getMessage}"))
-              }
             }
         }
     }
