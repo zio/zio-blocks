@@ -122,14 +122,17 @@ object DerivedOpticsMacros {
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val underlyingType = tpe.dealias
+    val symCast = sym.asInstanceOf[Symbol]
+    val tpeCast = tpe.asInstanceOf[TypeRepr]
+
+    val underlyingType = tpeCast.dealias
     val valueName      = "value"
 
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
-    val lensType              = TypeRepr.of[Lens].appliedTo(List(tpe, underlyingType))
+    val lensType              = TypeRepr.of[Lens].appliedTo(List(tpeCast, underlyingType))
     refinedType = Refinement(refinedType, valueName, lensType)
 
-    val cacheKey: Expr[String] = Expr(tpe.show)
+    val cacheKey: Expr[String] = Expr(tpeCast.show)
 
     refinedType.asType match {
       case '[t] =>
