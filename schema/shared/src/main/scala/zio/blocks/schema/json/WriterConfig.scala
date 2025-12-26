@@ -7,11 +7,12 @@ package zio.blocks.schema.json
  * for serialization of messages using any type of output except heap byte
  * buffers supplied as arguments. <br/> All configuration params already
  * initialized to default values, but in some cases they should be altered: <ul>
- * <li>turn on pretty printing by specifying of indention step that is greater
- * than 0</li> <li>turn on escaping of Unicode characters to serialize with only
- * ASCII characters</li> <li>increase preferred size of an internal byte buffer
- * to reduce allocation rate of grown and then reduced internal buffers when
- * serialized output size is greater than 32Kb</li> </ul>
+ * <li>turn on pretty printing by specifying of an indention step that is
+ * greater than 0</li> <li>turn on escaping of Unicode characters to serialize
+ * with only ASCII characters</li> <li>increase the preferred size of an
+ * internal byte buffer to reduce the allocation rate of grown and then reduced
+ * internal buffers when the serialized output size is greater than 32Kb</li>
+ * </ul>
  * @param indentionStep
  *   a size of indention for pretty-printed formatting or 0 for compact output
  * @param escapeUnicode
