@@ -84,8 +84,8 @@ object Schema extends SchemaCompanionVersionSpecific {
   def wrap[A, B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      Schema[B].reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(Schema[B].reflect),
+      Schema[B].reflect.typeName.asInstanceOf[TypeName[A]],
+      Reflect.unwrapToPrimitiveTypeOption(Schema[B].reflect).asInstanceOf[Option[PrimitiveType[A]]],
       new Binding.Wrapper(wrap, unwrap)
     )
   )
@@ -93,8 +93,8 @@ object Schema extends SchemaCompanionVersionSpecific {
   def wrapTotal[A, B: Schema](wrap: B => A, unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
-      Schema[B].reflect.typeName,
-      Reflect.unwrapToPrimitiveTypeOption(Schema[B].reflect),
+      Schema[B].reflect.typeName.asInstanceOf[TypeName[A]],
+      Reflect.unwrapToPrimitiveTypeOption(Schema[B].reflect).asInstanceOf[Option[PrimitiveType[A]]],
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
