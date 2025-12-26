@@ -98,7 +98,7 @@ object DerivedOpticsMacros {
     val isCaseClass = caseClassSym.flags.is(Flags.Case)
     val isSealed    = caseClassSym.flags.is(Flags.Sealed)
     val isEnum      = caseClassSym.flags.is(Flags.Enum)
-    val isOpaque    = sym.flags.is(Flags.Opaque)
+    val isOpaque    = caseClassSym.flags.is(Flags.Opaque)
 
     if (isCaseClass) {
       buildCaseClassOptics[S](schema)
@@ -118,8 +118,7 @@ object DerivedOpticsMacros {
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val tpe            = TypeRepr.of[S]
-    val sym            = tpe.typeSymbol
+    val tpe            = TypeRepr.of[S].dealias
     val underlyingType = tpe.dealias
     val valueName      = "value"
 
@@ -157,7 +156,7 @@ object DerivedOpticsMacros {
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val tpe = TypeRepr.of[S]
+    val tpe = TypeRepr.of[S].dealias
     val sym = tpe.typeSymbol
 
     val fields = sym.caseFields
@@ -209,7 +208,7 @@ object DerivedOpticsMacros {
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val tpe = TypeRepr.of[S]
+    val tpe = TypeRepr.of[S].dealias
     val sym = tpe.typeSymbol
 
     val children = sym.children
