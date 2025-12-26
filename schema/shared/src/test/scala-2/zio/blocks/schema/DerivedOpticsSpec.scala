@@ -114,7 +114,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
   // Generic sealed trait
   sealed trait GenericResult[T]
-  final case class Success[T](value: T) extends GenericResult[T]
+  final case class Success[T](value: T)    extends GenericResult[T]
   final case class Failure[T](msg: String) extends GenericResult[T]
 
   object ResultInt extends DerivedOptics[GenericResult[Int]] {
@@ -246,7 +246,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val intOptics    = BoxInt.optics
       val stringOptics = BoxString.optics
 
-      val boxInt = Box(42)
+      val boxInt    = Box(42)
       val boxString = Box("hello")
 
       // Verify optics work and don't collide
