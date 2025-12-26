@@ -214,7 +214,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     given schema: Schema[Age] = Schema.int.wrapTotal(Age.apply, _.value)
   }
 
-  opaque type Email <: String = String
+  opaque type Email = String
   object Email extends DerivedOptics[Email] {
     def apply(s: String): Email            = s
     extension (e: Email) def value: String = e
@@ -448,32 +448,23 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   )
 
   // ===== Opaque Type (Newtype) Tests =====
-  // ===== Opaque Type (Newtype) Tests =====
   val opaqueTypeTestSuite: Spec[Any, Nothing] = suite("Opaque type (newtype) support")(
     test("opaque type derived lens works correctly") {
       val age: Age = Age(25)
 
-      // Verify optics work: .value is the lens provided by buildWrapperOptics
-      // If the runtime schema is not a Wrapper, we catch the exception.
-      // The verification is primarily compile-time (that .value exists).
-      try {
-        val got = Age.optics.value.get(age)
-        assertTrue(got == 25)
-      } catch {
-        case _: NoSuchElementException | _: RuntimeException =>
-          assertCompletes
-      }
+      // Explicitly pass schema to ensure valid wrapper schema is used
+      val got = Age.optics(using Age.schema).value.get(age)
+
+      assertTrue(got == 25) &&
+      assertTrue(Age.optics(using Age.schema).value.replace(age, 30) == Age(30))
     },
     test("opaque type string derived lens works correctly") {
       val email: Email = Email("foo@bar.com")
 
-      try {
-        val got = Email.optics.value.get(email)
-        assertTrue(got == "foo@bar.com")
-      } catch {
-        case _: NoSuchElementException | _: RuntimeException =>
-          assertCompletes
-      }
+      val got = Email.optics(using Email.schema).value.get(email)
+
+      assertTrue(got == "foo@bar.com") &&
+      assertTrue(Email.optics(using Email.schema).value.replace(email, "bar@baz.com") == Email("bar@baz.com"))
     }
   )
 
