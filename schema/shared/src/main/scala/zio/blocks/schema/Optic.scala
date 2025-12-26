@@ -212,10 +212,16 @@ object Lens {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
-    val lens1 = first.asInstanceOf[LensImpl[?, ?]]
-    val lens2 = second.asInstanceOf[LensImpl[?, ?]]
-    new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
+    (first, second) match {
+      case (lens1: LensImpl[S, T], lens2: LensImpl[T, A]) =>
+        new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
+      case _ =>
+        new ComposedLens(first, second)
+    }
   }
+
+  def wrapped[S, A](wrapper: Reflect.Wrapper.Bound[S, A]): Lens[S, A] =
+    new WrapperLensImpl(wrapper)
 
   private[schema] case class LensImpl[S, A](
     sources: Array[Reflect.Record.Bound[?]],
@@ -331,6 +337,52 @@ object Lens {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
     }
+  }
+
+  private[schema] case class ComposedLens[S, T, A](first: Lens[S, T], second: Lens[T, A]) extends Lens[S, A] {
+    def source: Reflect.Bound[S] = first.source
+
+    def focus: Reflect.Bound[A] = second.focus
+
+    def get(s: S): A = second.get(first.get(s))
+
+    def replace(s: S, a: A): S = first.replace(s, second.replace(first.get(s), a))
+
+    def check(s: S): Option[OpticCheck] = first.check(s).orElse(second.check(first.get(s)))
+
+    def modify(s: S, f: A => A): S = first.modify(s, t => second.modify(t, f))
+
+    def modifyOption(s: S, f: A => A): Option[S] = Some(modify(s, f))
+
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
+
+    lazy val toDynamic: DynamicOptic =
+      new DynamicOptic(first.toDynamic.nodes ++ second.toDynamic.nodes)
+  }
+
+  private[schema] case class WrapperLensImpl[S, A](
+    wrapper: Reflect.Wrapper.Bound[S, A]
+  ) extends Lens[S, A] {
+    def source: Reflect.Bound[S] = wrapper
+
+    def focus: Reflect.Bound[A] = wrapper.wrapped.asInstanceOf[Reflect.Bound[A]]
+
+    def get(s: S): A = wrapper.binding.unwrap(s)
+
+    def replace(s: S, a: A): S = wrapper.binding.wrap(a) match {
+      case Right(s)    => s
+      case Left(error) => throw new RuntimeException(s"Wrapper validation failed in Lens: $error")
+    }
+
+    def check(s: S): Option[OpticCheck] = None
+
+    def modify(s: S, f: A => A): S = replace(s, f(get(s)))
+
+    def modifyOption(s: S, f: A => A): Option[S] = Some(modify(s, f))
+
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
+
+    lazy val toDynamic: DynamicOptic = new DynamicOptic(ArraySeq(DynamicOptic.Node.Wrapped))
   }
 }
 
