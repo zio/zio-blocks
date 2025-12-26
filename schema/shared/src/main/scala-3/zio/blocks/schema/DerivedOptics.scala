@@ -225,19 +225,27 @@ private object DerivedOpticsMacros {
     // Match the refined type and create the implementation
     refinedType.asType match {
       case '[t] =>
+        // Calculate encoded keys at compile time to ensure selectDynamic compatibility
+        val encodedKeysList = fields.map { f =>
+          val rawName = if (prefixUnderscore) "_" + f.name else f.name
+          Expr(scala.reflect.NameTransformer.encode(rawName))
+        }
+        val encodedKeysExpr = Expr.ofList(encodedKeysList)
+
         '{
           getOrCreate(
             $cacheKey, {
               val record = $schema.reflect.asRecord.getOrElse(
                 throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
               )
+              val keys = $encodedKeysExpr
               val members = record.fields.zipWithIndex.map { case (term, idx) =>
                 val lens = record
                   .lensByIndex(idx)
                   .getOrElse(
                     throw new RuntimeException(s"Cannot find lens for field ${term.name}")
                   )
-                val name = if ($prefixUnderscoreExpr) "_" + term.name else term.name
+                val name = keys(idx)
                 name -> lens
               }.toMap
               new OpticsHolder(members)
@@ -292,21 +300,28 @@ private object DerivedOpticsMacros {
     // Match the refined type and create the implementation
     refinedType.asType match {
       case '[t] =>
+        // Calculate encoded keys at compile time
+        val encodedKeysList = children.map { child =>
+           val baseName = lowerFirst(child.name)
+           val rawName  = if (prefixUnderscore) "_" + baseName else baseName
+           Expr(scala.reflect.NameTransformer.encode(rawName)) 
+        }
+        val encodedKeysExpr = Expr.ofList(encodedKeysList)
+
         '{
           getOrCreate(
             $cacheKey, {
               val variant = $schema.reflect.asVariant.getOrElse(
                 throw new RuntimeException(s"Expected a variant schema for ${$cacheKey}")
               )
-              val prefixUs = $prefixUnderscoreExpr
+              val keys = $encodedKeysExpr
               val members  = variant.cases.zipWithIndex.map { case (term, idx) =>
                 val prism = variant
                   .prismByIndex(idx)
                   .getOrElse(
                     throw new RuntimeException(s"Cannot find prism for case ${term.name}")
                   )
-                val baseName = lowerFirst(term.name)
-                val name     = if (prefixUs) "_" + baseName else baseName
+                val name = keys(idx)
                 name -> prism
               }.toMap
               new OpticsHolder(members)
