@@ -96,6 +96,12 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Empty] = Schema.derived
   }
 
+  // ===== Field Named 'optics' Collision Test =====
+  final case class OpticsCollision(optics: String, other: Int)
+  object OpticsCollision extends DerivedOptics[OpticsCollision] {
+    implicit val schema: Schema[OpticsCollision] = Schema.derived
+  }
+
   // Case class with private constructor
   final case class Private private (value: Int)
   object Private extends DerivedOptics[Private] {
@@ -592,7 +598,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   // ===== Composition Tests =====
   val compositionTestSuite: Spec[Any, Nothing] = suite("Optic composition")(
     test("lens andThen lens (explicit andThen syntax)") {
-      val emp = Employee("Bob", Address("Oak St", "LA"))
+      val emp        = Employee("Bob", Address("Oak St", "LA"))
       val streetLens = Employee.optics.address.andThen(Address.optics.street)
       assertTrue(streetLens.get(emp) == "Oak St") &&
       assertTrue(streetLens.replace(emp, "Elm St").address.street == "Elm St")
@@ -612,10 +618,15 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       assertTrue(WithDefaults.optics.optional.get(wd) == 42)
     },
     test("external type alias pattern: type P = Person; object Person extends DerivedOptics[P]") {
-      val ep = ExternalPerson("Alice", 25)
+      val ep                                 = ExternalPerson("Alice", 25)
       val lens: Lens[ExternalPerson, String] = ExternalPerson.optics.name
       assertTrue(lens.get(ep) == "Alice") &&
       assertTrue(lens.replace(ep, "Bob") == ExternalPerson("Bob", 25))
+    },
+    test("field named 'optics' does not collide with optics accessor") {
+      val oc = OpticsCollision("field value", 42)
+      assertTrue(OpticsCollision.optics.optics.get(oc) == "field value") &&
+      assertTrue(OpticsCollision.optics.other.get(oc) == 42)
     }
   )
 }
