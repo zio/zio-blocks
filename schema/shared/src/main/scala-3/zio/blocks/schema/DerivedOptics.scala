@@ -56,22 +56,20 @@ trait DerivedOptics[S] {
    * The returned object uses structural typing, so you get compile-time type
    * checking and IDE completion for the accessor names.
    */
-  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema) }
+  transparent inline def optics(using schema: Schema[S]) = ${ DerivedOpticsMacros.opticsImpl[S]('schema) }
 }
 
 /**
  * An optics holder that stores lenses/prisms in a map and provides dynamic
  * access. This is an implementation detail and should not be used directly.
  */
-final class OpticsHolder(members: Map[String, Any]) extends Selectable {
+class OpticsHolder(members: Map[String, Any]) extends Selectable {
   def selectDynamic(name: String): Any =
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }
 
 object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
-  import zio.blocks.schema.Reflect
-  import zio.blocks.schema.binding.Binding
 
   // Global cache to avoid recreating optics objects at runtime
   // Key is the type's full name as a string
