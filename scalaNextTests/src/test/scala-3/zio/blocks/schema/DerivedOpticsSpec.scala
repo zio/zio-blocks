@@ -434,16 +434,18 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   // ===== Special Character (Backtick-Escaped) Tests =====
   val specialCharacterTestSuite: Spec[Any, Nothing] = suite("Special character (backtick-escaped) names")(
     test("macro derivation succeeds for case class with backtick-escaped field names") {
-      // The key test is that this compiles and the optics object is created without error
       val sf     = SpecialFields("hello", 42, true)
-      val optics = SpecialFields.optics
-      assertTrue(optics != null && sf.`my funny name` == "hello")
+      
+      // Strict check: access lens
+      val got = SpecialFields.optics.`my funny name`.get(sf)
+      assertTrue(got == "hello")
     },
     test("macro derivation succeeds for sealed trait with backtick-escaped case names") {
-      // The key test is that this compiles and the optics object is created without error
       val case1: SpecialCases = `my-special-case`(10)
-      val optics              = SpecialCases.optics
-      assertTrue(optics != null && case1 == `my-special-case`(10))
+      
+      // Strict check: access prism
+      val got = SpecialCases.optics.`my-special-case`.getOption(case1)
+      assertTrue(got == Some(case1))
     }
   )
 
