@@ -41,6 +41,21 @@ import scala.language.dynamics
  * val circlePrism: Prism[Shape, Circle] = Shape.optics.circle
  * }}}
  *
+ * For opaque types / value classes:
+ * {{{
+ * opaque type Age = Int
+ * object Age extends DerivedOptics[Age] {
+ *   // Ensure a Wrapper schema is available (e.g. using wrapTotal)
+ *   given schema: Schema[Age] = Schema.int.wrapTotal(Age.apply, _.value)
+ *
+ *   def apply(i: Int): Age = i
+ *   extension (a: Age) def value: Int = a
+ * }
+ *
+ * // Access the wrapper lens via `.value`:
+ * val valueLens: Lens[Age, Int] = Age.optics.value
+ * }}}
+ *
  * The optics object is cached to avoid recreation on every access.
  *
  * @tparam S
@@ -130,10 +145,54 @@ private object DerivedOpticsMacros {
       buildCaseClassOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
     } else if (isSealed || isEnum) {
       buildSealedTraitOptics[S](schema, caseClassSym, caseClassType, prefixUnderscore)
+    } else if (tpe != caseClassType) {
+      buildWrapperOptics[S](schema, tpe, caseClassType, prefixUnderscore)
     } else {
-      // For opaque types, primitives, or other types, return an empty OpticsHolder
+      // For primitives or other types that are not wrappers, return an empty OpticsHolder
       val cacheKey: Expr[String] = Expr(caseClassType.show + (if (prefixUnderscore) "_" else ""))
       '{ getOrCreate($cacheKey, new OpticsHolder(Map.empty)) }
+    }
+  }
+
+  private def buildWrapperOptics[S: Type](
+    schema: Expr[Schema[S]],
+    originalType: Quotes#reflectModule#TypeRepr,
+    underlyingType: Quotes#reflectModule#TypeRepr,
+    prefixUnderscore: Boolean
+  )(using q: Quotes): Expr[Any] = {
+    import q.reflect.*
+
+    val tpe           = originalType.asInstanceOf[TypeRepr]
+    val underlyingTpe = underlyingType.asInstanceOf[TypeRepr]
+    underlyingTpe.asType match {
+      case '[u] =>
+        val fieldName = if (prefixUnderscore) "_value" else "value"
+
+        // Create the refinement type: OpticsHolder { val value: Lens[S, u] }
+        val lensType    = TypeRepr.of[Lens[S, u]]
+        val refinedType = Refinement(TypeRepr.of[OpticsHolder], fieldName, lensType)
+
+        refinedType.asType match {
+          case '[rt] =>
+            val cacheKey = Expr(tpe.show + (if (prefixUnderscore) "_" else ""))
+
+            '{
+              getOrCreate(
+                $cacheKey, {
+                  // Runtime check: try to treat the schema as a wrapper
+                  val reflect   = $schema.reflect
+                  val opticsMap = if (reflect.isWrapper) {
+                    val w    = reflect.asInstanceOf[_root_.zio.blocks.schema.Reflect.Wrapper.Bound[S, u]]
+                    val lens = Lens.wrapped(w)
+                    Map(${ Expr(fieldName) } -> lens)
+                  } else {
+                    Map.empty
+                  }
+                  new OpticsHolder(opticsMap)
+                }
+              ).asInstanceOf[rt]
+            }
+        }
     }
   }
 

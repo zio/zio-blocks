@@ -103,8 +103,9 @@ object DerivedOpticsMacros {
   ): c.Tree = {
     import c.universe._
 
-    val tpe     = weakTypeOf[S].dealias
-    val typeSym = tpe.typeSymbol.asClass
+    val originalType = weakTypeOf[S]
+    val tpe          = originalType.dealias
+    val typeSym      = tpe.typeSymbol.asClass
 
     val isCaseClass = typeSym.isCaseClass
     val isSealed    = typeSym.isSealed
@@ -113,6 +114,8 @@ object DerivedOpticsMacros {
       buildCaseClassOptics(c)(schema, tpe, prefixUnderscore)
     } else if (isSealed) {
       buildSealedTraitOptics(c)(schema, tpe, prefixUnderscore)
+    } else if (originalType != tpe) {
+      buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
     } else {
       val cacheKey = tpe.toString + (if (prefixUnderscore) "_" else "")
       q"""
@@ -206,6 +209,41 @@ object DerivedOpticsMacros {
         new {
           private val _schema: _root_.zio.blocks.schema.Schema[$tpe] = $schema
           ..$prismAccessors
+        }
+      )
+    """
+  }
+
+  private def buildWrapperOptics[S: c.WeakTypeTag](c: whitebox.Context)(
+    schema: c.Expr[Schema[S]],
+    originalType: c.Type,
+    underlyingType: c.Type,
+    prefixUnderscore: Boolean
+  ): c.Tree = {
+    import c.universe._
+
+    val fieldNameStr = if (prefixUnderscore) "_value" else "value"
+    val fieldName    = TermName(fieldNameStr)
+    val sType        = weakTypeOf[S]
+    val cacheKey     = originalType.toString + (if (prefixUnderscore) "_" else "")
+
+    q"""
+      _root_.zio.blocks.schema.DerivedOpticsMacros.getOrCreate(
+        $cacheKey, {
+           val mapOpt = $schema.reflect match {
+             case w: _root_.zio.blocks.schema.Reflect.Wrapper => 
+               val lens = _root_.zio.blocks.schema.Lens.wrapped(w.asInstanceOf[_root_.zio.blocks.schema.Reflect.Wrapper.Bound[$sType, $underlyingType]])
+               Some(Map($fieldNameStr -> lens))
+             case _ => 
+               None
+           }
+           
+           val map = mapOpt.getOrElse(Map.empty)
+           
+           new _root_.zio.blocks.schema.DerivedOptics.OpticsHolder(map) {
+             lazy val $fieldName: _root_.zio.blocks.schema.Lens[$sType, $underlyingType] = 
+               map.getOrElse($fieldNameStr, throw new NoSuchElementException("Optic " + $fieldNameStr + " not found (schema is not a wrapper)")).asInstanceOf[_root_.zio.blocks.schema.Lens[$sType, $underlyingType]]
+           }
         }
       )
     """
