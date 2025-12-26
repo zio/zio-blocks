@@ -56,22 +56,19 @@ trait DerivedOptics[S] {
    * The returned object uses structural typing, so you get compile-time type
    * checking and IDE completion for the accessor names.
    */
-  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, 'this) }
-
-  protected def getOrCreateOptics(key: String, create: => Map[String, Any]): Any =
-    DerivedOpticsMacros.getOrCreate(key, new OpticsHolder(create))
+  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema) }
 }
 
 /**
  * An optics holder that stores lenses/prisms in a map and provides dynamic
  * access. This is an implementation detail and should not be used directly.
  */
-private[schema] final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with Selectable {
+final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with Selectable {
   def selectDynamic(name: String): Any =
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }
 
-private object DerivedOpticsMacros {
+object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
   import zio.blocks.schema.Reflect
   import zio.blocks.schema.binding.Binding
@@ -90,7 +87,7 @@ private object DerivedOpticsMacros {
     result
   }
 
-  def opticsImpl[S: Type](schema: Expr[Schema[S]], self: Expr[DerivedOptics[S]])(using q: Quotes): Expr[Any] = {
+  def opticsImpl[S: Type](schema: Expr[Schema[S]])(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
     val tpe = TypeRepr.of[S]
@@ -106,21 +103,20 @@ private object DerivedOpticsMacros {
     val isOpaque    = sym.flags.is(Flags.Opaque)
 
     if (isCaseClass) {
-      buildCaseClassOptics[S](schema, self, caseClassSym, caseClassType)
+      buildCaseClassOptics[S](schema, caseClassSym, caseClassType)
     } else if (isSealed || isEnum) {
-      buildSealedTraitOptics[S](schema, self, caseClassSym, caseClassType)
+      buildSealedTraitOptics[S](schema, caseClassSym, caseClassType)
     } else if (isOpaque) {
-      buildOpaqueTypeOptics[S](schema, self, sym, tpe)
+      buildOpaqueTypeOptics[S](schema, sym, tpe)
     } else {
       // For other types, return an empty OpticsHolder
       val cacheKey: Expr[String] = Expr(caseClassType.show)
-      '{ $self.getOrCreateOptics($cacheKey, Map.empty) }
+      '{ DerivedOpticsMacros.getOrCreate($cacheKey, new OpticsHolder(Map.empty)) }
     }
   }
 
   private def buildOpaqueTypeOptics[S: Type](
     schema: Expr[Schema[S]],
-    self: Expr[DerivedOptics[S]],
     sym: Quotes#reflectModule#Symbol,
     tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
@@ -140,16 +136,21 @@ private object DerivedOpticsMacros {
         underlyingType.asType match {
           case '[u] =>
             '{
-              $self.getOrCreateOptics(
-                $cacheKey, {
-                  val unknownWrapper = $schema.reflect.asWrapperUnknown.getOrElse(
-                    throw new RuntimeException(s"Expected a wrapper schema for ${$cacheKey}")
+              '{
+                DerivedOpticsMacros
+                  .getOrCreate(
+                    $cacheKey,
+                    new OpticsHolder({
+                      val unknownWrapper = $schema.reflect.asWrapperUnknown.getOrElse(
+                        throw new RuntimeException(s"Expected a wrapper schema for ${$cacheKey}")
+                      )
+                      val wrapper = unknownWrapper.wrapper.asInstanceOf[zio.blocks.schema.Reflect.Wrapper.Bound[S, u]]
+                      val lens    = zio.blocks.schema.Lens.wrapped(wrapper)
+                      Map("value" -> lens)
+                    })
                   )
-                  val wrapper = unknownWrapper.wrapper.asInstanceOf[zio.blocks.schema.Reflect.Wrapper.Bound[S, u]]
-                  val lens    = zio.blocks.schema.Lens.wrapped(wrapper)
-                  Map("value" -> lens)
-                }
-              ).asInstanceOf[t]
+                  .asInstanceOf[t]
+              }
             }
         }
     }
@@ -157,7 +158,6 @@ private object DerivedOpticsMacros {
 
   private def buildCaseClassOptics[S: Type](
     schema: Expr[Schema[S]],
-    self: Expr[DerivedOptics[S]],
     sym: Quotes#reflectModule#Symbol,
     tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
@@ -187,29 +187,33 @@ private object DerivedOpticsMacros {
     refinedType.asType match {
       case '[t] =>
         '{
-          $self.getOrCreateOptics(
-            $cacheKey, {
-              val record = $schema.reflect.asRecord.getOrElse(
-                throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
-              )
-              val members = record.fields.zipWithIndex.map { case (term, idx) =>
-                val lens = record
-                  .lensByIndex(idx)
-                  .getOrElse(
-                    throw new RuntimeException(s"Cannot find lens for field ${term.name}")
+          '{
+            DerivedOpticsMacros
+              .getOrCreate(
+                $cacheKey,
+                new OpticsHolder({
+                  val record = $schema.reflect.asRecord.getOrElse(
+                    throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
                   )
-                term.name -> lens
-              }.toMap
-              members
-            }
-          ).asInstanceOf[t]
+                  val members = record.fields.zipWithIndex.map { case (term, idx) =>
+                    val lens = record
+                      .lensByIndex(idx)
+                      .getOrElse(
+                        throw new RuntimeException(s"Cannot find lens for field ${term.name}")
+                      )
+                    term.name -> lens
+                  }.toMap
+                  members
+                })
+              )
+              .asInstanceOf[t]
+          }
         }
     }
   }
 
   private def buildSealedTraitOptics[S: Type](
     schema: Expr[Schema[S]],
-    self: Expr[DerivedOptics[S]],
     sym: Quotes#reflectModule#Symbol,
     tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
@@ -221,6 +225,7 @@ private object DerivedOpticsMacros {
     val children = symCast.children
 
     // Build the structural refinement type
+    // Start with OpticsHolder as the base type
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
 
     // Add a refinement for each child: def ChildName: Prism[S, ChildType]
@@ -250,22 +255,26 @@ private object DerivedOpticsMacros {
     refinedType.asType match {
       case '[t] =>
         '{
-          $self.getOrCreateOptics(
-            $cacheKey, {
-              val variant = $schema.reflect.asVariant.getOrElse(
-                throw new RuntimeException(s"Expected a variant schema for ${$cacheKey}")
-              )
-              val members = variant.cases.zipWithIndex.map { case (term, idx) =>
-                val prism = variant
-                  .prismByIndex(idx)
-                  .getOrElse(
-                    throw new RuntimeException(s"Cannot find prism for case ${term.name}")
-                  )
-                term.name -> prism
-              }.toMap
-              members
-            }
-          ).asInstanceOf[t]
+          DerivedOpticsMacros
+            .getOrCreate(
+              $cacheKey,
+              new OpticsHolder({
+                val variant = $schema.reflect.asVariant.getOrElse(
+                  throw new RuntimeException(s"Expected a variant schema for ${$cacheKey}")
+                )
+                val members = variant.cases.zipWithIndex.map { case (term, idx) =>
+                  val prism = variant
+                    .prismByIndex(idx)
+                    .getOrElse(
+                      throw new RuntimeException(s"Cannot find prism for case ${term.name}")
+                    )
+                  term.name -> prism
+                }.toMap
+                members
+              })
+            )
+            .asInstanceOf[t]
+            .asInstanceOf[t]
         }
     }
   }
