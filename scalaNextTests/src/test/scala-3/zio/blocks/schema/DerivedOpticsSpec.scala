@@ -209,16 +209,16 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   object Age extends DerivedOptics[Age] {
     def apply(i: Int): Age            = i
     extension (a: Age) def value: Int = a
-    // For opaque types, provide schema manually using Schema.int
-    given schema: Schema[Age] = Schema.int
+    // For opaque types, use wrapTotal to enable Lens derivation
+    given schema: Schema[Age] = Schema.wrapTotal(Age.apply, _.value)
   }
 
   opaque type Email <: String = String
   object Email extends DerivedOptics[Email] {
     def apply(s: String): Email            = s
     extension (e: Email) def value: String = e
-    // For opaque types with subtype bound, the primitive schema works
-    given schema: Schema[Email] = Schema.string
+    // For opaque types with subtype bound, use wrapTotal
+    given schema: Schema[Email] = Schema.wrapTotal(Email.apply, _.value)
   }
 
   // ===== Test Suites =====
@@ -443,20 +443,17 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   // Note: For opaque types, the schema must be provided manually.
   // The derived schema will be a primitive or Wrapper, not a Record.
   val opaqueTypeTestSuite: Spec[Any, Nothing] = suite("Opaque type (newtype) support")(
-    test("opaque type with Schema.int compiles and works") {
-      import Age.value
-      val age: Age = Age(25)
-      // Verify the opaque type and its schema work correctly
-      assertTrue(age.value == 25) &&
-      // Verify DerivedOptics succeeds (it should produce empty optics/identity-like holder for primitive schema)
-      assertTrue(Age.optics != null)
+    test("opaque type with Lens works") {
+      val age = Age(25)
+      // Verify that 'value' lens exists and works
+      assertTrue(Age.optics.value.get(age) == 25) &&
+      assertTrue(Age.optics.value.replace(age, 30) == 30)
     },
-    test("opaque type with Schema.string compiles and works") {
-      import Email.value
-      val email: Email = Email("test@example.com")
-      // Verify the opaque type and its schema work correctly
-      assertTrue(email.value == "test@example.com") &&
-      assertTrue(Email.optics != null)
+    test("opaque type with subtype bound and Lens works") {
+      val email = Email("test@example.com")
+      // Verify that 'value' lens exists and works
+      assertTrue(Email.optics.value.get(email) == "test@example.com") &&
+      assertTrue(Email.optics.value.replace(email, "changed@example.com") == "changed@example.com")
     }
   )
 
