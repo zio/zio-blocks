@@ -223,8 +223,10 @@ class JsonBinaryCodecDeriver private[json] (
   }
   private[this] val unitCodec = new JsonBinaryCodec[Unit](JsonBinaryCodec.unitType) {
     def decodeValue(in: JsonReader, default: Unit): Unit =
-      if (in.isNextToken('n')) in.readNullOrError((), "expected null")
-      else in.decodeError("expected null")
+      if (in.isNextToken('n')) {
+        in.rollbackToken()
+        in.readNullOrError((), "expected null")
+      } else in.decodeError("expected null")
 
     def encodeValue(x: Unit, out: JsonWriter): Unit = out.writeNull()
   }
@@ -576,7 +578,8 @@ class JsonBinaryCodecDeriver private[json] (
               private[this] val codec = valueCodec
 
               override def decodeValue(in: JsonReader, default: Option[Any]): Option[Any] =
-                if (in.nextToken() == 'n') {
+                if (in.isNextToken('n')) {
+                  in.rollbackToken()
                   try in.readNullOrError(default, "expected null")
                   catch {
                     case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.Case("None"), error)
@@ -736,7 +739,7 @@ class JsonBinaryCodecDeriver private[json] (
                       } else {
                         val codec = deriveCodec(caseReflect)
                         codecs.addOne(codec)
-                        new CaseLeafInfo("", codec, null)
+                        new CaseLeafInfo("", codec, Nil)
                       }
                       idx += 1
                     }
@@ -825,7 +828,10 @@ class JsonBinaryCodecDeriver private[json] (
                           }
                         }
                         in.discriminatorError()
-                      } else in.readNullOrTokenError(default, '{')
+                      } else {
+                        in.rollbackToken()
+                        in.readNullOrTokenError(default, '{')
+                      }
 
                     def encodeValue(x: A, out: JsonWriter): Unit = {
                       out.writeObjectStart()
@@ -879,7 +885,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultInt(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Int], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -935,7 +944,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultLong(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Long], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -991,7 +1003,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultFloat(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Float], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -1047,7 +1062,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultDouble(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Double], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -1103,7 +1121,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultBoolean(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Boolean], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -1159,7 +1180,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultByte(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Byte], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -1215,7 +1239,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultChar(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Char], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -1271,7 +1298,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultShort(builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Short], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -1318,7 +1348,10 @@ class JsonBinaryCodecDeriver private[json] (
                     if (in.isCurrentToken(']')) constructor.resultObject[Elem](builder)
                     else in.arrayEndOrCommaError()
                   }
-                } else in.readNullOrTokenError(default, '[')
+                } else {
+                  in.rollbackToken()
+                  in.readNullOrTokenError(default, '[')
+                }
 
               def encodeValue(x: Col[Elem], out: JsonWriter): Unit = {
                 out.writeArrayStart()
@@ -1368,7 +1401,10 @@ class JsonBinaryCodecDeriver private[json] (
                 if (in.isCurrentToken('}')) constructor.resultObject[Key, Value](builder)
                 else in.objectEndOrCommaError()
               }
-            } else in.readNullOrTokenError(default, '[')
+            } else {
+              in.rollbackToken()
+              in.readNullOrTokenError(default, '[')
+            }
 
           def encodeValue(x: Map[Key, Value], out: JsonWriter): Unit = {
             out.writeObjectStart()
@@ -1497,7 +1533,10 @@ class JsonBinaryCodecDeriver private[json] (
                   if (!in.isNextToken(']')) in.arrayEndError()
                 }
                 constructor.construct(regs, 0)
-              } else in.readNullOrTokenError(default, '[')
+              } else {
+                in.rollbackToken()
+                in.readNullOrTokenError(default, '[')
+              }
 
             override def encodeValue(x: A, out: JsonWriter): Unit = {
               out.writeArrayStart()
@@ -1753,7 +1792,10 @@ class JsonBinaryCodecDeriver private[json] (
                   idx += 1
                 }
                 constructor.construct(regs, 0)
-              } else in.readNullOrTokenError(default, '{')
+              } else {
+                in.rollbackToken()
+                in.readNullOrTokenError(default, '{')
+              }
 
             override def encodeValue(x: A, out: JsonWriter): Unit = {
               out.writeObjectStart()
@@ -2077,7 +2119,10 @@ class JsonBinaryCodecDeriver private[json] (
           if (in.isCurrentToken('}')) new DynamicValue.Record(builder.result())
           else in.objectEndOrCommaError()
         }
-      } else in.readNullOrError(unitValue, "expected JSON value")
+      } else {
+        in.rollbackToken()
+        in.readNullOrError(unitValue, "expected JSON value")
+      }
     }
 
     def encodeValue(x: DynamicValue, out: JsonWriter): Unit = x match {
