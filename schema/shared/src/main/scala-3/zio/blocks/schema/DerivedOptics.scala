@@ -119,8 +119,11 @@ object DerivedOpticsMacros {
     import q.reflect.*
 
     val tpe            = TypeRepr.of[S].dealias
-    val underlyingType = tpe.dealias
-    val valueName      = "value"
+    val underlyingType = tpe match {
+      case ref: TypeRef if ref.isOpaqueAlias => ref.translucentSuperType
+      case _                                 => tpe.dealias
+    }
+    val valueName = "value"
 
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
     val lensType              = TypeRepr.of[Lens].appliedTo(List(tpe, underlyingType))
