@@ -370,7 +370,7 @@ private object IntoVersionSpecificImpl {
     /**
      * Generates code to convert a value to a ZIO Prelude newtype, applying validation
      * via the companion's `make` method.
-     *
+     * 
      * Uses compile-time code generation (quasiquotes) to generate direct calls
      * to the companion object's `make` method, avoiding runtime reflection entirely.
      * This allows the code to work on all platforms (JVM, JS, Native).
@@ -378,28 +378,28 @@ private object IntoVersionSpecificImpl {
      * For ZIO Prelude newtypes:
      * - `object Age extends Subtype[Int]` has `make(value: Int): Validation[String, Age]`
      * - We generate: `Age.make(value).toEither.left.map(err => SchemaError.conversionFailed(...))`
-     *
+     * 
      * Returns code that evaluates to Either[SchemaError, NewtypeType]
      */
     def convertToNewtypeEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type, fieldName: String): Tree = {
       // First, try to find an implicit Into instance for this conversion
       val implicitInto = findImplicitInto(sourceTpe, targetTpe)
-
+      
       val targetTypeTree = TypeTree(targetTpe)
       val fieldNameLit = Literal(Constant(fieldName))
-
+      
       implicitInto match {
         case Some(intoInstance) =>
           // Use the implicit Into instance (which may include validation)
           q"""$intoInstance.into($sourceExpr)"""
-
+          
         case None =>
           // No implicit Into found - generate direct call to companion.make(value)
           // For ZIO Prelude newtypes, the type is like "SomeObject.Type"
           // We need to find the companion object (SomeObject) and call its make method
-
+          
           val dealiased = targetTpe.dealias
-
+          
           // Extract companion symbol from the type
           val companionOpt: Option[Symbol] = dealiased match {
             case TypeRef(pre, sym, _) if sym.name.toString == "Type" =>
@@ -415,16 +415,16 @@ private object IntoVersionSpecificImpl {
             case _ =>
               None
           }
-
+          
           companionOpt match {
             case Some(companionSym) =>
               // Check if the companion has a `make` method
               val makeMethod = companionSym.typeSignature.member(TermName("make"))
-
+              
               if (makeMethod != NoSymbol && makeMethod.isMethod) {
                 // Generate: companion.make(value).toEither.left.map(err => SchemaError.conversionFailed(...))
                 val companionRef = Ident(companionSym)
-
+                
                 q"""
                   {
                     val validation = $companionRef.make($sourceExpr)
@@ -443,7 +443,7 @@ private object IntoVersionSpecificImpl {
                   _root_.scala.Right($sourceExpr.asInstanceOf[$targetTypeTree]): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $targetTypeTree]
                 """
               }
-
+              
             case None =>
               // Companion not found - fall back to asInstanceOf (no validation)
               q"""
