@@ -56,7 +56,7 @@ trait DerivedOptics[S] {
    * The returned object uses structural typing, so you get compile-time type
    * checking and IDE completion for the accessor names.
    */
-  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema) }
+  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, 'this) }
 
   protected def getOrCreateOptics(key: String, create: => Map[String, Any]): Any =
     DerivedOpticsMacros.getOrCreate(key, new OpticsHolder(create))
@@ -90,7 +90,7 @@ private object DerivedOpticsMacros {
     result
   }
 
-  def opticsImpl[S: Type](schema: Expr[Schema[S]])(using q: Quotes): Expr[Any] = {
+  def opticsImpl[S: Type](schema: Expr[Schema[S]], self: Expr[DerivedOptics[S]])(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
     val tpe = TypeRepr.of[S]
@@ -106,26 +106,27 @@ private object DerivedOpticsMacros {
     val isOpaque    = sym.flags.is(Flags.Opaque)
 
     if (isCaseClass) {
-      buildCaseClassOptics[S](schema, caseClassSym, caseClassType)
+      buildCaseClassOptics[S](schema, self, caseClassSym, caseClassType)
     } else if (isSealed || isEnum) {
-      buildSealedTraitOptics[S](schema, caseClassSym, caseClassType)
+      buildSealedTraitOptics[S](schema, self, caseClassSym, caseClassType)
     } else if (isOpaque) {
-      buildOpaqueTypeOptics[S](schema, sym, tpe)
+      buildOpaqueTypeOptics[S](schema, self, sym, tpe)
     } else {
       // For other types, return an empty OpticsHolder
       val cacheKey: Expr[String] = Expr(caseClassType.show)
-      '{ getOrCreateOptics($cacheKey, Map.empty) }
+      '{ $self.getOrCreateOptics($cacheKey, Map.empty) }
     }
   }
 
   private def buildOpaqueTypeOptics[S: Type](
     schema: Expr[Schema[S]],
+    self: Expr[DerivedOptics[S]],
     sym: Quotes#reflectModule#Symbol,
     tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val underlyingType = tpe.dealias
+    val underlyingType = tpe.translucentSuperType
     val valueName      = "value"
 
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
@@ -139,7 +140,7 @@ private object DerivedOpticsMacros {
         underlyingType.asType match {
           case '[u] =>
             '{
-              getOrCreateOptics(
+              $self.getOrCreateOptics(
                 $cacheKey, {
                   val unknownWrapper = $schema.reflect.asWrapperUnknown.getOrElse(
                     throw new RuntimeException(s"Expected a wrapper schema for ${$cacheKey}")
@@ -156,6 +157,7 @@ private object DerivedOpticsMacros {
 
   private def buildCaseClassOptics[S: Type](
     schema: Expr[Schema[S]],
+    self: Expr[DerivedOptics[S]],
     sym: Quotes#reflectModule#Symbol,
     tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
@@ -185,7 +187,7 @@ private object DerivedOpticsMacros {
     refinedType.asType match {
       case '[t] =>
         '{
-          getOrCreateOptics(
+          $self.getOrCreateOptics(
             $cacheKey, {
               val record = $schema.reflect.asRecord.getOrElse(
                 throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
@@ -207,6 +209,7 @@ private object DerivedOpticsMacros {
 
   private def buildSealedTraitOptics[S: Type](
     schema: Expr[Schema[S]],
+    self: Expr[DerivedOptics[S]],
     sym: Quotes#reflectModule#Symbol,
     tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
@@ -247,7 +250,7 @@ private object DerivedOpticsMacros {
     refinedType.asType match {
       case '[t] =>
         '{
-          getOrCreateOptics(
+          $self.getOrCreateOptics(
             $cacheKey, {
               val variant = $schema.reflect.asVariant.getOrElse(
                 throw new RuntimeException(s"Expected a variant schema for ${$cacheKey}")
