@@ -122,7 +122,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
   // Generic sealed trait
   sealed trait GenericResult[T]
-  final case class Success[T](value: T) extends GenericResult[T]
+  final case class Success[T](value: T)    extends GenericResult[T]
   final case class Failure[T](msg: String) extends GenericResult[T]
 
   object ResultInt extends DerivedOptics[GenericResult[Int]] {

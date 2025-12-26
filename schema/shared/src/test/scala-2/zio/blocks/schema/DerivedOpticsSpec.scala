@@ -258,14 +258,14 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       assertTrue(!(intOptics eq stringOptics)) // Should be different cached objects
     },
     test("prism for generic sealed trait") {
-      import ResultInt.schema
-      import ResultString.schema
+      implicit val intSchema: Schema[GenericResult[Int]]    = ResultInt.schema
+      implicit val strSchema: Schema[GenericResult[String]] = ResultString.schema
 
       val intOptics = ResultInt.optics
       val strOptics = ResultString.optics
 
-      val s1 = Success(42)
-      val s2 = Success("hello")
+      val s1: GenericResult[Int]    = Success(42)
+      val s2: GenericResult[String] = Success("hello")
 
       assertTrue(intOptics.Success.getOption(s1) == Some(Success(42))) &&
       assertTrue(strOptics.Success.getOption(s2) == Some(Success("hello"))) &&
