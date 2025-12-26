@@ -20,7 +20,7 @@ object ProductToStructuralSpec extends ZIOSpecDefault {
   case class NameOnly(name: String)
   case class PersonWithExtra(name: String, age: Int, email: String, phone: String)
 
-  // === Structural type aliases for readability ===
+  // === Structural type aliases ===
   type HasName        = { def name: String }
   type HasNameAge     = { def name: String; def age: Int }
   type HasNameAgeDept = { def name: String; def age: Int; def department: String }
