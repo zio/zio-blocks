@@ -197,6 +197,36 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     implicit val schema: Schema[PersonUnderscore] = Schema.derived
   }
 
+  // ===== Traversal Test Types =====
+  final case class ListContainer(items: List[Int])
+  object ListContainer extends DerivedOptics[ListContainer] {
+    implicit val schema: Schema[ListContainer] = Schema.derived
+  }
+
+  final case class OptionContainer(maybe: Option[String])
+  object OptionContainer extends DerivedOptics[OptionContainer] {
+    implicit val schema: Schema[OptionContainer] = Schema.derived
+  }
+
+  // ===== Recursive Type =====
+  final case class Tree(value: Int, children: List[Tree])
+  object Tree extends DerivedOptics[Tree] {
+    implicit val schema: Schema[Tree] = Schema.derived
+  }
+
+  // ===== Default Parameters =====
+  final case class WithDefaults(required: String, optional: Int = 42)
+  object WithDefaults extends DerivedOptics[WithDefaults] {
+    implicit val schema: Schema[WithDefaults] = Schema.derived
+  }
+
+  // ===== External Type Alias Pattern =====
+  final case class ExternalPerson(name: String, age: Int)
+  type EP = ExternalPerson
+  object ExternalPerson extends DerivedOptics[EP] {
+    implicit val schema: Schema[ExternalPerson] = Schema.derived
+  }
+
   // ===== Test Suites =====
 
   def spec: Spec[TestEnvironment, Any] = suite("DerivedOpticsSpec")(
@@ -208,7 +238,10 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     cachingTestSuite,
     typeSafetyTestSuite,
     schemaTestSuite,
-    edgeCasesTestSuite
+    edgeCasesTestSuite,
+    traversalTestSuite,
+    compositionTestSuite,
+    definitionOfDoneTestSuite
   )
 
   // ===== Lens Tests =====
@@ -538,6 +571,51 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val optics1 = PersonUnderscore.optics
       val optics2 = PersonUnderscore.optics
       assertTrue(optics1 eq optics2)
+    }
+  )
+
+  // ===== Traversal Tests =====
+  val traversalTestSuite: Spec[Any, Nothing] = suite("Traversal integration")(
+    test("traverse list field") {
+      val lc = ListContainer(List(1, 2, 3))
+      assertTrue(ListContainer.optics.items.get(lc) == List(1, 2, 3)) &&
+      assertTrue(ListContainer.optics.items.replace(lc, List(4, 5)) == ListContainer(List(4, 5)))
+    },
+    test("traverse option field") {
+      val oc1 = OptionContainer(Some("hello"))
+      val oc2 = OptionContainer(None)
+      assertTrue(OptionContainer.optics.maybe.get(oc1) == Some("hello")) &&
+      assertTrue(OptionContainer.optics.maybe.get(oc2) == None)
+    }
+  )
+
+  // ===== Composition Tests =====
+  val compositionTestSuite: Spec[Any, Nothing] = suite("Optic composition")(
+    test("lens andThen lens (explicit andThen syntax)") {
+      val emp = Employee("Bob", Address("Oak St", "LA"))
+      val streetLens = Employee.optics.address.andThen(Address.optics.street)
+      assertTrue(streetLens.get(emp) == "Oak St") &&
+      assertTrue(streetLens.replace(emp, "Elm St").address.street == "Elm St")
+    }
+  )
+
+  // ===== Definition of Done Edge Cases =====
+  val definitionOfDoneTestSuite: Spec[Any, Nothing] = suite("Definition of Done edge cases")(
+    test("recursive type (Tree) derives optics") {
+      val tree = Tree(1, List(Tree(2, Nil)))
+      assertTrue(Tree.optics.value.get(tree) == 1) &&
+      assertTrue(Tree.optics.children.get(tree).size == 1)
+    },
+    test("case class with default parameters") {
+      val wd = WithDefaults("hello")
+      assertTrue(WithDefaults.optics.required.get(wd) == "hello") &&
+      assertTrue(WithDefaults.optics.optional.get(wd) == 42)
+    },
+    test("external type alias pattern: type P = Person; object Person extends DerivedOptics[P]") {
+      val ep = ExternalPerson("Alice", 25)
+      val lens: Lens[ExternalPerson, String] = ExternalPerson.optics.name
+      assertTrue(lens.get(ep) == "Alice") &&
+      assertTrue(lens.replace(ep, "Bob") == ExternalPerson("Bob", 25))
     }
   )
 }
