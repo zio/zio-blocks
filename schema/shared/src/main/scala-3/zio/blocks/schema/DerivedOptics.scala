@@ -122,7 +122,7 @@ object DerivedOpticsMacros {
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val underlyingType = tpe.translucentSuperType
+    val underlyingType = tpe.dealias
     val valueName      = "value"
 
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
