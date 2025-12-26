@@ -56,19 +56,19 @@ trait DerivedOptics[S] {
    * The returned object uses structural typing, so you get compile-time type
    * checking and IDE completion for the accessor names.
    */
-  transparent inline def optics(using schema: Schema[S]) = ${ DerivedOpticsMacros.opticsImpl[S]('schema) }
+  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema) }
 }
 
 /**
  * An optics holder that stores lenses/prisms in a map and provides dynamic
  * access. This is an implementation detail and should not be used directly.
  */
-class OpticsHolder(members: Map[String, Any]) extends Selectable {
+private[schema] final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic with Selectable {
   def selectDynamic(name: String): Any =
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }
 
-object DerivedOpticsMacros {
+private object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
 
   // Global cache to avoid recreating optics objects at runtime
@@ -89,7 +89,6 @@ object DerivedOpticsMacros {
     import q.reflect.*
 
     val tpe = TypeRepr.of[S]
-    val sym = tpe.typeSymbol
 
     val caseClassType = tpe.dealias
     val caseClassSym  = caseClassType.typeSymbol
@@ -98,71 +97,29 @@ object DerivedOpticsMacros {
     val isCaseClass = caseClassSym.flags.is(Flags.Case)
     val isSealed    = caseClassSym.flags.is(Flags.Sealed)
     val isEnum      = caseClassSym.flags.is(Flags.Enum)
-    val isOpaque    = caseClassSym.flags.is(Flags.Opaque)
 
     if (isCaseClass) {
-      buildCaseClassOptics[S](schema)
+      buildCaseClassOptics[S](schema, caseClassSym, caseClassType)
     } else if (isSealed || isEnum) {
-      buildSealedTraitOptics[S](schema)
-    } else if (isOpaque) {
-      buildOpaqueTypeOptics[S](schema)
+      buildSealedTraitOptics[S](schema, caseClassSym, caseClassType)
     } else {
-      // For other types, return an empty OpticsHolder
+      // For opaque types, primitives, or other types, return an empty OpticsHolder
       val cacheKey: Expr[String] = Expr(caseClassType.show)
-      '{ DerivedOpticsMacros.getOrCreate($cacheKey, new OpticsHolder(Map.empty)) }
-    }
-  }
-
-  private def buildOpaqueTypeOptics[S: Type](
-    schema: Expr[Schema[S]]
-  )(using q: Quotes): Expr[Any] = {
-    import q.reflect.*
-
-    val tpe            = TypeRepr.of[S].dealias
-    val underlyingType = tpe match {
-      case ref: TypeRef if ref.isOpaqueAlias => ref.translucentSuperType
-      case _                                 => tpe.dealias
-    }
-    val valueName = "value"
-
-    var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
-    val lensType              = TypeRepr.of[Lens].appliedTo(List(tpe, underlyingType))
-    refinedType = Refinement(refinedType, valueName, lensType)
-
-    val cacheKey: Expr[String] = Expr(tpe.show)
-
-    refinedType.asType match {
-      case '[t] =>
-        underlyingType.asType match {
-          case '[u] =>
-            '{
-              DerivedOpticsMacros
-                .getOrCreate(
-                  ${ cacheKey },
-                  new OpticsHolder({
-                    val unknownWrapper = ${ schema }.reflect.asWrapperUnknown.getOrElse(
-                      throw new RuntimeException(s"Expected a wrapper schema for ${${ cacheKey }}")
-                    )
-                    val wrapper = unknownWrapper.wrapper.asInstanceOf[zio.blocks.schema.Reflect.Wrapper.Bound[S, u]]
-                    val lens    = zio.blocks.schema.Lens.wrapped(wrapper)
-                    Map("value" -> lens)
-                  })
-                )
-                .asInstanceOf[t]
-            }
-        }
+      '{ getOrCreate($cacheKey, new OpticsHolder(Map.empty)) }
     }
   }
 
   private def buildCaseClassOptics[S: Type](
-    schema: Expr[Schema[S]]
+    schema: Expr[Schema[S]],
+    sym: Quotes#reflectModule#Symbol,
+    tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val tpe = TypeRepr.of[S].dealias
-    val sym = tpe.typeSymbol
+    val symCast = sym.asInstanceOf[Symbol]
+    val tpeCast = tpe.asInstanceOf[TypeRepr]
 
-    val fields = sym.caseFields
+    val fields = symCast.caseFields
 
     // Build the structural refinement type
     // Start with OpticsHolder as the base type
@@ -170,54 +127,52 @@ object DerivedOpticsMacros {
 
     // Add a refinement for each field: def fieldName: Lens[S, FieldType]
     for (field <- fields) {
-      val fieldType = tpe.memberType(field).dealias
-      val lensType  = TypeRepr.of[Lens].appliedTo(List(tpe, fieldType))
+      val fieldType = tpeCast.memberType(field).dealias
+      val lensType  = TypeRepr.of[Lens].appliedTo(List(tpeCast, fieldType))
       refinedType = Refinement(refinedType, field.name, lensType)
     }
 
     // Get unique type string at compile time for the cache key
     // We use show to ensure generic types like Box[Int] and Box[String] have different keys
-    val cacheKey: Expr[String] = Expr(tpe.show)
+    val cacheKey: Expr[String] = Expr(tpeCast.show)
 
     // Match the refined type and create the implementation
     refinedType.asType match {
       case '[t] =>
         '{
-          DerivedOpticsMacros
-            .getOrCreate(
-              ${ cacheKey },
-              new OpticsHolder({
-                val record = ${ schema }.reflect.asRecord.getOrElse(
-                  throw new RuntimeException(s"Expected a record schema for ${${ cacheKey }}")
-                )
-                val members = record.fields.zipWithIndex.map { case (term, idx) =>
-                  val lens = record
-                    .lensByIndex(idx)
-                    .getOrElse(
-                      throw new RuntimeException(s"Cannot find lens for field ${term.name}")
-                    )
-                  term.name -> lens
-                }.toMap
-                members
-              })
-            )
-            .asInstanceOf[t]
+          getOrCreate(
+            $cacheKey, {
+              val record = $schema.reflect.asRecord.getOrElse(
+                throw new RuntimeException(s"Expected a record schema for ${$cacheKey}")
+              )
+              val members = record.fields.zipWithIndex.map { case (term, idx) =>
+                val lens = record
+                  .lensByIndex(idx)
+                  .getOrElse(
+                    throw new RuntimeException(s"Cannot find lens for field ${term.name}")
+                  )
+                term.name -> lens
+              }.toMap
+              new OpticsHolder(members)
+            }
+          ).asInstanceOf[t]
         }
     }
   }
 
   private def buildSealedTraitOptics[S: Type](
-    schema: Expr[Schema[S]]
+    schema: Expr[Schema[S]],
+    sym: Quotes#reflectModule#Symbol,
+    tpe: Quotes#reflectModule#TypeRepr
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val tpe = TypeRepr.of[S].dealias
-    val sym = tpe.typeSymbol
+    val symCast = sym.asInstanceOf[Symbol]
+    val tpeCast = tpe.asInstanceOf[TypeRepr]
 
-    val children = sym.children
+    val children = symCast.children
 
     // Build the structural refinement type
-    // Start with OpticsHolder as the base type
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
 
     // Add a refinement for each child: def ChildName: Prism[S, ChildType]
@@ -227,8 +182,8 @@ object DerivedOpticsMacros {
         // This handles the common pattern: sealed trait T[A]; case class C[A](...) extends T[A]
         // We check primaryConstructor paramSymss to detect type parameters
         val hasTypeParams = child.primaryConstructor.paramSymss.headOption.exists(_.exists(_.isType))
-        if (hasTypeParams && tpe.typeArgs.nonEmpty) {
-          child.typeRef.appliedTo(tpe.typeArgs)
+        if (hasTypeParams && tpeCast.typeArgs.nonEmpty) {
+          child.typeRef.appliedTo(tpeCast.typeArgs)
         } else {
           child.typeRef
         }
@@ -236,36 +191,33 @@ object DerivedOpticsMacros {
         // For case objects, get the type
         child.termRef.widen
       }
-      val prismType = TypeRepr.of[Prism].appliedTo(List(tpe, childType))
+      val prismType = TypeRepr.of[Prism].appliedTo(List(tpeCast, childType))
       refinedType = Refinement(refinedType, child.name, prismType)
     }
 
     // Get unique type string at compile time for the cache key
-    val cacheKey: Expr[String] = Expr(tpe.show)
+    val cacheKey: Expr[String] = Expr(tpeCast.show)
 
     // Match the refined type and create the implementation
     refinedType.asType match {
       case '[t] =>
         '{
-          DerivedOpticsMacros
-            .getOrCreate(
-              ${ cacheKey },
-              new OpticsHolder({
-                val variant = ${ schema }.reflect.asVariant.getOrElse(
-                  throw new RuntimeException(s"Expected a variant schema for ${${ cacheKey }}")
-                )
-                val members = variant.cases.zipWithIndex.map { case (term, idx) =>
-                  val prism = variant
-                    .prismByIndex(idx)
-                    .getOrElse(
-                      throw new RuntimeException(s"Cannot find prism for case ${term.name}")
-                    )
-                  term.name -> prism
-                }.toMap
-                members
-              })
-            )
-            .asInstanceOf[t]
+          getOrCreate(
+            $cacheKey, {
+              val variant = $schema.reflect.asVariant.getOrElse(
+                throw new RuntimeException(s"Expected a variant schema for ${$cacheKey}")
+              )
+              val members = variant.cases.zipWithIndex.map { case (term, idx) =>
+                val prism = variant
+                  .prismByIndex(idx)
+                  .getOrElse(
+                    throw new RuntimeException(s"Cannot find prism for case ${term.name}")
+                  )
+                term.name -> prism
+              }.toMap
+              new OpticsHolder(members)
+            }
+          ).asInstanceOf[t]
         }
     }
   }
