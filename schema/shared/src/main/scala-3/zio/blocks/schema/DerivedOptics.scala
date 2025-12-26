@@ -103,11 +103,11 @@ object DerivedOpticsMacros {
     val isOpaque    = sym.flags.is(Flags.Opaque)
 
     if (isCaseClass) {
-      buildCaseClassOptics[S](schema, caseClassSym, caseClassType)
+      buildCaseClassOptics[S](schema)
     } else if (isSealed || isEnum) {
-      buildSealedTraitOptics[S](schema, caseClassSym, caseClassType)
+      buildSealedTraitOptics[S](schema)
     } else if (isOpaque) {
-      buildOpaqueTypeOptics[S](schema, sym, tpe)
+      buildOpaqueTypeOptics[S](schema)
     } else {
       // For other types, return an empty OpticsHolder
       val cacheKey: Expr[String] = Expr(caseClassType.show)
@@ -116,23 +116,20 @@ object DerivedOpticsMacros {
   }
 
   private def buildOpaqueTypeOptics[S: Type](
-    schema: Expr[Schema[S]],
-    sym: Quotes#reflectModule#Symbol,
-    tpe: Quotes#reflectModule#TypeRepr
+    schema: Expr[Schema[S]]
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val symCast = sym.asInstanceOf[Symbol]
-    val tpeCast = tpe.asInstanceOf[TypeRepr]
-
-    val underlyingType = tpeCast.dealias
+    val tpe            = TypeRepr.of[S]
+    val sym            = tpe.typeSymbol
+    val underlyingType = tpe.dealias
     val valueName      = "value"
 
     var refinedType: TypeRepr = TypeRepr.of[OpticsHolder]
-    val lensType              = TypeRepr.of[Lens].appliedTo(List(tpeCast, underlyingType))
+    val lensType              = TypeRepr.of[Lens].appliedTo(List(tpe, underlyingType))
     refinedType = Refinement(refinedType, valueName, lensType)
 
-    val cacheKey: Expr[String] = Expr(tpeCast.show)
+    val cacheKey: Expr[String] = Expr(tpe.show)
 
     refinedType.asType match {
       case '[t] =>
@@ -160,16 +157,14 @@ object DerivedOpticsMacros {
   }
 
   private def buildCaseClassOptics[S: Type](
-    schema: Expr[Schema[S]],
-    sym: Quotes#reflectModule#Symbol,
-    tpe: Quotes#reflectModule#TypeRepr
+    schema: Expr[Schema[S]]
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val symCast = sym.asInstanceOf[Symbol]
-    val tpeCast = tpe.asInstanceOf[TypeRepr]
+    val tpe = TypeRepr.of[S]
+    val sym = tpe.typeSymbol
 
-    val fields = symCast.caseFields
+    val fields = sym.caseFields
 
     // Build the structural refinement type
     // Start with OpticsHolder as the base type
@@ -177,14 +172,14 @@ object DerivedOpticsMacros {
 
     // Add a refinement for each field: def fieldName: Lens[S, FieldType]
     for (field <- fields) {
-      val fieldType = tpeCast.memberType(field).dealias
-      val lensType  = TypeRepr.of[Lens].appliedTo(List(tpeCast, fieldType))
+      val fieldType = tpe.memberType(field).dealias
+      val lensType  = TypeRepr.of[Lens].appliedTo(List(tpe, fieldType))
       refinedType = Refinement(refinedType, field.name, lensType)
     }
 
     // Get unique type string at compile time for the cache key
     // We use show to ensure generic types like Box[Int] and Box[String] have different keys
-    val cacheKey: Expr[String] = Expr(tpeCast.show)
+    val cacheKey: Expr[String] = Expr(tpe.show)
 
     // Match the refined type and create the implementation
     refinedType.asType match {
@@ -216,16 +211,14 @@ object DerivedOpticsMacros {
   }
 
   private def buildSealedTraitOptics[S: Type](
-    schema: Expr[Schema[S]],
-    sym: Quotes#reflectModule#Symbol,
-    tpe: Quotes#reflectModule#TypeRepr
+    schema: Expr[Schema[S]]
   )(using q: Quotes): Expr[Any] = {
     import q.reflect.*
 
-    val symCast = sym.asInstanceOf[Symbol]
-    val tpeCast = tpe.asInstanceOf[TypeRepr]
+    val tpe = TypeRepr.of[S]
+    val sym = tpe.typeSymbol
 
-    val children = symCast.children
+    val children = sym.children
 
     // Build the structural refinement type
     // Start with OpticsHolder as the base type
@@ -238,8 +231,8 @@ object DerivedOpticsMacros {
         // This handles the common pattern: sealed trait T[A]; case class C[A](...) extends T[A]
         // We check primaryConstructor paramSymss to detect type parameters
         val hasTypeParams = child.primaryConstructor.paramSymss.headOption.exists(_.exists(_.isType))
-        if (hasTypeParams && tpeCast.typeArgs.nonEmpty) {
-          child.typeRef.appliedTo(tpeCast.typeArgs)
+        if (hasTypeParams && tpe.typeArgs.nonEmpty) {
+          child.typeRef.appliedTo(tpe.typeArgs)
         } else {
           child.typeRef
         }
@@ -247,12 +240,12 @@ object DerivedOpticsMacros {
         // For case objects, get the type
         child.termRef.widen
       }
-      val prismType = TypeRepr.of[Prism].appliedTo(List(tpeCast, childType))
+      val prismType = TypeRepr.of[Prism].appliedTo(List(tpe, childType))
       refinedType = Refinement(refinedType, child.name, prismType)
     }
 
     // Get unique type string at compile time for the cache key
-    val cacheKey: Expr[String] = Expr(tpeCast.show)
+    val cacheKey: Expr[String] = Expr(tpe.show)
 
     // Match the refined type and create the implementation
     refinedType.asType match {
