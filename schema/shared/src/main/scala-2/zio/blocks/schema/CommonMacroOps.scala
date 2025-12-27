@@ -47,9 +47,9 @@ private[schema] object CommonMacroOps {
           if (typeParams.nonEmpty) {
             // Get the child's base type of the parent sealed trait
             // e.g., for VarStress[B] extends Stress[B], baseType(Stress) = Stress[B]
-            val childBaseType = classType.baseType(tpeClass)
+            val childBaseType     = classType.baseType(tpeClass)
             val childBaseTypeArgs = typeArgs(c)(childBaseType)
-            
+
             // Build mapping from child's type params to parent's type args
             // by matching child's base type args with parent's type args
             var childParamsToArgs = Map.empty[String, Type]
@@ -58,20 +58,20 @@ private[schema] object CommonMacroOps {
                 case TypeRef(_, sym, Nil) if sym.isType =>
                   childParamsToArgs = childParamsToArgs.updated(sym.name.toString, parentArg)
                 case _ =>
-                  // baseArg is a concrete type, not a type param - no mapping needed
+                // baseArg is a concrete type, not a type param - no mapping needed
               }
             }
-            
+
             classType = classType.substituteTypes(
               typeParams,
               typeParams.map { typeParam =>
                 childParamsToArgs.get(typeParam.name.toString) match {
                   case Some(typeArg) => typeArg
-                  case _ =>
+                  case _             =>
                     // Fall back to parent's mapping for shared type params
                     tpeParamsAndArgs.get(typeParam.toString) match {
                       case Some(typeArg) => typeArg
-                      case _ =>
+                      case _             =>
                         fail(c)(
                           s"Type parameter '${typeParam.name}' of '$symbol' can't be deduced from type arguments of '$tpe'."
                         )
