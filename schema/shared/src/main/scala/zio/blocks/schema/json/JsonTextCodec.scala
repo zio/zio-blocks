@@ -22,7 +22,7 @@ final case class JsonTextCodec[A](schema: zio.blocks.schema.Schema[A]) extends T
     output.flip()
   }
 
-  override def decode(input: CharBuffer): Either[SchemaError, A] = {
+  override def decode(input: CharBuffer): Either[SchemaError, A] =
     try {
       // Convert CharBuffer to string
       val jsonString = input.toString
@@ -34,5 +34,4 @@ final case class JsonTextCodec[A](schema: zio.blocks.schema.Schema[A]) extends T
     } catch {
       case error if NonFatal(error) => Left(SchemaError.expectationMismatch(Nil, error.getMessage))
     }
-  }
 }
