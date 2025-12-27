@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
-import zio.blocks.schema.Reflect
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
 import scala.util.control.NoStackTrace
@@ -199,8 +198,6 @@ sealed trait Lens[S, A] extends Optic[S, A] {
 
   def apply[B](that: Lens[A, B]): Lens[S, B] = Lens(this, that)
 
-  def andThen[B](that: Lens[A, B]): Lens[S, B] = apply(that)
-
   def apply[B <: A](that: Prism[A, B]): Optional[S, B] = Optional(this, that)
 
   def apply[B](that: Optional[A, B]): Optional[S, B] = Optional(this, that)
@@ -215,17 +212,10 @@ object Lens {
   }
 
   def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
-    require((first ne null) && (second ne null))
-    (first, second) match {
-      case (lens1: LensImpl[S, T], lens2: LensImpl[T, A]) =>
-        new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
-      case _ =>
-        new ComposedLensImpl(first, second)
-    }
+    val lens1 = first.asInstanceOf[LensImpl[?, ?]]
+    val lens2 = second.asInstanceOf[LensImpl[?, ?]]
+    new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
   }
-
-  def wrapped[S, A](wrapper: Reflect.Wrapper.Bound[S, A]): Lens[S, A] =
-    new WrapperLensImpl(wrapper)
 
   private[schema] case class LensImpl[S, A](
     sources: Array[Reflect.Record.Bound[?]],
@@ -341,52 +331,6 @@ object Lens {
         java.util.Arrays.equals(other.focusTerms.asInstanceOf[Array[AnyRef]], focusTerms.asInstanceOf[Array[AnyRef]])
       case _ => false
     }
-  }
-
-  private[schema] case class WrapperLensImpl[S, A](
-    wrapper: Reflect.Wrapper.Bound[S, A]
-  ) extends Lens[S, A] {
-    def source: Reflect.Bound[S] = wrapper
-
-    def focus: Reflect.Bound[A] = wrapper.wrapped.asInstanceOf[Reflect.Bound[A]]
-
-    def get(s: S): A = wrapper.binding.unwrap(s)
-
-    def replace(s: S, a: A): S = wrapper.binding.wrap(a) match {
-      case Right(s)    => s
-      case Left(error) => throw new RuntimeException(s"Wrapper validation failed in Lens: $error")
-    }
-
-    def check(s: S): Option[OpticCheck] = None
-
-    def modify(s: S, f: A => A): S = replace(s, f(get(s)))
-
-    def modifyOption(s: S, f: A => A): Option[S] = Some(modify(s, f))
-
-    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
-
-    lazy val toDynamic: DynamicOptic = new DynamicOptic(ArraySeq(DynamicOptic.Node.Wrapped))
-  }
-
-  private final case class ComposedLensImpl[S, T, A](first: Lens[S, T], second: Lens[T, A]) extends Lens[S, A] {
-    def source: Reflect.Bound[S] = first.source
-
-    def focus: Reflect.Bound[A] = second.focus
-
-    def get(s: S): A = second.get(first.get(s))
-
-    def replace(s: S, a: A): S = first.replace(s, second.replace(first.get(s), a))
-
-    def check(s: S): Option[OpticCheck] = first.check(s).orElse(second.check(first.get(s)))
-
-    def modify(s: S, f: A => A): S = first.modify(s, t => second.modify(t, f))
-
-    def modifyOption(s: S, f: A => A): Option[S] = Some(modify(s, f))
-
-    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
-
-    lazy val toDynamic: DynamicOptic =
-      new DynamicOptic(first.toDynamic.nodes ++ second.toDynamic.nodes)
   }
 }
 

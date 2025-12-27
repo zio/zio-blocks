@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.test.*
+import zio.blocks.schema.binding.Binding
 
 object DerivedOpticsSpec extends ZIOSpecDefault {
 
@@ -28,6 +29,29 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   object Wrapper extends DerivedOptics[Wrapper] {
     given schema: Schema[Wrapper] = Schema.derived
   }
+
+  // Verify usage pattern: object X extends DerivedOptics[X] with DerivedSchema[X]
+  final case class CompactPerson(name: String, age: Int)
+  object CompactPerson extends DerivedOptics[CompactPerson] with DerivedSchema[CompactPerson]
+
+  // Custom wrapper for robustness tests
+  final case class CustomWrapper(value: String)
+  object CustomWrapper extends DerivedOptics[CustomWrapper] {
+    // Explicitly using Refect.Wrapper to FORCE Reflect.Wrapper structure (simulating newtype)
+    given schema: Schema[CustomWrapper] = new Schema(
+      new Reflect.Wrapper[Binding, CustomWrapper, String](
+        Schema[String].reflect,
+        TypeName(Namespace(List("zio", "blocks", "schema")), "DerivedOpticsSpec.CustomWrapper"),
+        None,
+        new Binding.Wrapper(
+          (s: String) => Right(CustomWrapper(s)),
+          (w: CustomWrapper) => w.value
+        )
+      )
+    )
+  }
+
+
 
   // Optional fields
   final case class OptionalFields(required: String, optional: Option[Int])
@@ -149,6 +173,18 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     given schema: Schema[GenericResult[String]] = Schema.derived
   }
 
+  // Stress Test: Sealed trait with complex type parameter mapping
+  // Case class extends trait with FIXED type argument (A = Int)
+  sealed trait Stress[A]
+  final case class FixedStress(value: Int) extends Stress[Int]
+  final case class VarStress[B](value: B) extends Stress[B]
+  
+  object StressInt extends DerivedOptics[Stress[Int]] {
+    given fixedSchema: Schema[FixedStress] = Schema.derived
+    given varSchema: Schema[VarStress[Int]] = Schema.derived
+    given schema: Schema[Stress[Int]] = Schema.derived
+  }
+
   // Schema derivation test helper
   final case class User(id: Int, email: String)
   object User {
@@ -266,6 +302,13 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
   // ===== Lens Tests =====
   val lensTestSuite: Spec[Any, Nothing] = suite("Lens generation for case classes")(
+    test("derived schema usage pattern (extends DerivedOptics with DerivedSchema)") {
+      val p = CompactPerson("Alice", 30)
+      assertTrue(
+        CompactPerson.optics.name.get(p) == "Alice",
+        CompactPerson.optics.age.get(p) == 30
+      )
+    },
     test("get field value") {
       val person = Person("Alice", 30)
       assertTrue(Person.optics.name.get(person) == "Alice") &&
@@ -351,6 +394,16 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
   // ===== Prism Tests =====
   val prismTestSuite: Spec[Any, Nothing] = suite("Prism generation for sealed traits")(
+    test("stress test: fixed type arguments") {
+       import StressInt.given
+       val fixed: Stress[Int] = FixedStress(100)
+       val variant: Stress[Int] = VarStress(200)
+       assertTrue(
+         StressInt.optics.fixedStress.getOption(fixed) == Some(FixedStress(100)),
+         StressInt.optics.fixedStress.getOption(variant) == None,
+         StressInt.optics.varStress.getOption(variant) == Some(VarStress(200))
+       )
+    },
     test("getOption returns Some for matching variant") {
       val circle: Shape = Circle(5.0)
       assertTrue(Shape.optics.circle.getOption(circle) == Some(Circle(5.0)))
@@ -786,7 +839,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   val compositionTestSuite: Spec[Any, Nothing] = suite("Optic composition")(
     test("lens andThen lens (explicit andThen syntax)") {
       val emp        = Employee("Bob", Address("Oak St", "LA"))
-      val streetLens = Employee.optics.address.andThen(Address.optics.street)
+      val streetLens = Employee.optics.address(Address.optics.street)
       assertTrue(streetLens.get(emp) == "Oak St") &&
       assertTrue(streetLens.replace(emp, "Elm St").address.street == "Elm St")
     },
@@ -845,11 +898,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     },
     test("deeply nested structures (5+ levels)") {
       val deep     = Level1(Level2(Level3(Level4(Level5("bottom")))))
-      val deepLens = Level1.optics.l2
-        .andThen(Level2.optics.l3)
-        .andThen(Level3.optics.l4)
-        .andThen(Level4.optics.l5)
-        .andThen(Level5.optics.value)
+      val deepLens = Level1.optics.l2(Level2.optics.l3)(Level3.optics.l4)(Level4.optics.l5)(Level5.optics.value)
       assertTrue(deepLens.get(deep) == "bottom") &&
       assertTrue(deepLens.replace(deep, "top").l2.l3.l4.l5.value == "top")
     },
@@ -881,6 +930,14 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       assertTrue(ExportPerson.optics.name.get(person) == "Alice") &&
       assertTrue(ExportPerson.optics.age.get(person) == 30) &&
       assertTrue(ExportPerson.optics.name.replace(person, "Bob") == ExportPerson("Bob", 30))
+    },
+    test("robustness: wrapperAsRecord strategy works for custom wrapper types") {
+      val wrapped = CustomWrapper("wrapped value")
+      // Access 'value' lens derived via wrapperAsRecord
+      val lens = CustomWrapper.optics.value
+      
+      assertTrue(lens.get(wrapped) == "wrapped value") &&
+      assertTrue(lens.replace(wrapped, "new value") == CustomWrapper("new value"))
     }
   )
 }
