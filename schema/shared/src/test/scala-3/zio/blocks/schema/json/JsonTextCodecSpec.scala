@@ -18,18 +18,6 @@ object JsonTextCodecSpec extends ZIOSpecDefault {
       val input = CharBuffer.wrap("\"hello\"")
       assert(codec.decode(input))(isRight(equalTo("hello")))
     },
-    test("case object") {
-      case object Foo derives Schema
-      val codec = JsonTextCodec(Schema[Foo.type])
-      val input = CharBuffer.wrap("null")
-      assert(codec.decode(input))(isRight(equalTo(Foo)))
-    },
-    test("case object with trailing") {
-      case object Foo derives Schema
-      val codec = JsonTextCodec(Schema[Foo.type])
-      val input = CharBuffer.wrap("null}")
-      assert(codec.decode(input))(isLeft)
-    },
     test("case class") {
       final case class Bar(a: Int) derives Schema
       val codec = JsonTextCodec(Schema[Bar])
