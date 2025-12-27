@@ -86,44 +86,96 @@ object DerivedOptics {
 
     // Determine primitive type components
     val (usedRegs, reader, writer) = Reflect.unwrapToPrimitiveTypeOption(wrapper.wrapped) match {
-        case Some(pt) => pt match {
-            case _: PrimitiveType.Boolean => (RegisterOffset(booleans = 1), (r: Registers, o: Int) => r.getBoolean(o, 0), (r: Registers, o: Int, v: Any) => r.setBoolean(o, 0, v.asInstanceOf[Boolean]))
-            case _: PrimitiveType.Byte => (RegisterOffset(bytes = 1), (r: Registers, o: Int) => r.getByte(o, 0), (r: Registers, o: Int, v: Any) => r.setByte(o, 0, v.asInstanceOf[Byte]))
-            case _: PrimitiveType.Short => (RegisterOffset(shorts = 1), (r: Registers, o: Int) => r.getShort(o, 0), (r: Registers, o: Int, v: Any) => r.setShort(o, 0, v.asInstanceOf[Short]))
-            case _: PrimitiveType.Int => (RegisterOffset(ints = 1), (r: Registers, o: Int) => r.getInt(o, 0), (r: Registers, o: Int, v: Any) => r.setInt(o, 0, v.asInstanceOf[Int]))
-            case _: PrimitiveType.Long => (RegisterOffset(longs = 1), (r: Registers, o: Int) => r.getLong(o, 0), (r: Registers, o: Int, v: Any) => r.setLong(o, 0, v.asInstanceOf[Long]))
-            case _: PrimitiveType.Float => (RegisterOffset(floats = 1), (r: Registers, o: Int) => r.getFloat(o, 0), (r: Registers, o: Int, v: Any) => r.setFloat(o, 0, v.asInstanceOf[Float]))
-            case _: PrimitiveType.Double => (RegisterOffset(doubles = 1), (r: Registers, o: Int) => r.getDouble(o, 0), (r: Registers, o: Int, v: Any) => r.setDouble(o, 0, v.asInstanceOf[Double]))
-            case _: PrimitiveType.Char => (RegisterOffset(chars = 1), (r: Registers, o: Int) => r.getChar(o, 0), (r: Registers, o: Int, v: Any) => r.setChar(o, 0, v.asInstanceOf[Char]))
-            case PrimitiveType.Unit => (RegisterOffset(0), (_: Registers, _: Int) => (), (_: Registers, _: Int, _: Any) => ())
-            case _ => (RegisterOffset(objects = 1), (r: Registers, o: Int) => r.getObject(o, 0).asInstanceOf[B], (r: Registers, o: Int, v: Any) => r.setObject(o, 0, v.asInstanceOf[AnyRef]))
+      case Some(pt) =>
+        pt match {
+          case _: PrimitiveType.Boolean =>
+            (
+              RegisterOffset(booleans = 1),
+              (r: Registers, o: Int) => r.getBoolean(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setBoolean(o, 0, v.asInstanceOf[Boolean])
+            )
+          case _: PrimitiveType.Byte =>
+            (
+              RegisterOffset(bytes = 1),
+              (r: Registers, o: Int) => r.getByte(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setByte(o, 0, v.asInstanceOf[Byte])
+            )
+          case _: PrimitiveType.Short =>
+            (
+              RegisterOffset(shorts = 1),
+              (r: Registers, o: Int) => r.getShort(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setShort(o, 0, v.asInstanceOf[Short])
+            )
+          case _: PrimitiveType.Int =>
+            (
+              RegisterOffset(ints = 1),
+              (r: Registers, o: Int) => r.getInt(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setInt(o, 0, v.asInstanceOf[Int])
+            )
+          case _: PrimitiveType.Long =>
+            (
+              RegisterOffset(longs = 1),
+              (r: Registers, o: Int) => r.getLong(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setLong(o, 0, v.asInstanceOf[Long])
+            )
+          case _: PrimitiveType.Float =>
+            (
+              RegisterOffset(floats = 1),
+              (r: Registers, o: Int) => r.getFloat(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setFloat(o, 0, v.asInstanceOf[Float])
+            )
+          case _: PrimitiveType.Double =>
+            (
+              RegisterOffset(doubles = 1),
+              (r: Registers, o: Int) => r.getDouble(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setDouble(o, 0, v.asInstanceOf[Double])
+            )
+          case _: PrimitiveType.Char =>
+            (
+              RegisterOffset(chars = 1),
+              (r: Registers, o: Int) => r.getChar(o, 0),
+              (r: Registers, o: Int, v: Any) => r.setChar(o, 0, v.asInstanceOf[Char])
+            )
+          case PrimitiveType.Unit =>
+            (RegisterOffset(0), (_: Registers, _: Int) => (), (_: Registers, _: Int, _: Any) => ())
+          case _ =>
+            (
+              RegisterOffset(objects = 1),
+              (r: Registers, o: Int) => r.getObject(o, 0).asInstanceOf[B],
+              (r: Registers, o: Int, v: Any) => r.setObject(o, 0, v.asInstanceOf[AnyRef])
+            )
         }
-        case None => (RegisterOffset(objects = 1), (r: Registers, o: Int) => r.getObject(o, 0).asInstanceOf[B], (r: Registers, o: Int, v: Any) => r.setObject(o, 0, v.asInstanceOf[AnyRef]))
+      case None =>
+        (
+          RegisterOffset(objects = 1),
+          (r: Registers, o: Int) => r.getObject(o, 0).asInstanceOf[B],
+          (r: Registers, o: Int, v: Any) => r.setObject(o, 0, v.asInstanceOf[AnyRef])
+        )
     }
 
     val syntheticBinding = new Binding.Record(
       constructor = new Constructor[A] {
         override def usedRegisters: Int = usedRegs
-        
+
         override def construct(registers: Registers, offset: Int): A = {
           val b = reader(registers, offset).asInstanceOf[B]
           wrapper.binding.wrap(b) match {
-            case Right(a) => a
+            case Right(a)  => a
             case Left(err) => throw new RuntimeException(s"Wrapper validation failed: $err")
           }
         }
       },
-
       deconstructor = new Deconstructor[A] {
         override def usedRegisters: Int = usedRegs
-        
+
         override def deconstruct(registers: Registers, offset: Int, value: A): Unit = {
           val b = wrapper.binding.unwrap(value)
           writer(registers, offset, b)
         }
       },
-
-      defaultValue = wrapper.wrapped.binding.defaultValue.map(b => () => wrapper.binding.wrap(b()).getOrElse(throw new RuntimeException("Default value invalid"))),
+      defaultValue = wrapper.wrapped.binding.defaultValue.map(b =>
+        () => wrapper.binding.wrap(b()).getOrElse(throw new RuntimeException("Default value invalid"))
+      ),
       examples = Nil
     )
 
@@ -174,12 +226,12 @@ private[schema] object DerivedOpticsMacros {
 
     val isCaseClass = typeSym.isCaseClass
     val isSealed    = typeSym.isSealed
-    
+
     // Check for ZIO Prelude Newtype/Subtype by name to avoid dependency
     val baseClasses = originalType.baseClasses
-    val isPrelude = baseClasses.exists { sym =>
-       val fullName = sym.fullName
-       fullName == "zio.prelude.Newtype" || fullName == "zio.prelude.Subtype"
+    val isPrelude   = baseClasses.exists { sym =>
+      val fullName = sym.fullName
+      fullName == "zio.prelude.Newtype" || fullName == "zio.prelude.Subtype"
     }
 
     if (isCaseClass) {
@@ -187,11 +239,11 @@ private[schema] object DerivedOpticsMacros {
     } else if (isSealed) {
       buildSealedTraitOptics(c)(schema, tpe, prefixUnderscore)
     } else if (isPrelude) {
-       // Treat ZIO Prelude newtypes as wrappers
-       // We need to find the underlying type. Usually it's the first type argument of the Newtype/Subtype trait
-       // But extracting that reflectively in the macro might be hard without TypeTag for the newtype instance.
-       // Fortunately, buildWrapperOptics mostly relies on the Schema structure at runtime.
-       buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
+      // Treat ZIO Prelude newtypes as wrappers
+      // We need to find the underlying type. Usually it's the first type argument of the Newtype/Subtype trait
+      // But extracting that reflectively in the macro might be hard without TypeTag for the newtype instance.
+      // Fortunately, buildWrapperOptics mostly relies on the Schema structure at runtime.
+      buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
     } else {
       buildWrapperOptics(c)(schema, originalType, tpe, prefixUnderscore)
     }
