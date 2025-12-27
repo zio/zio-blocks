@@ -51,8 +51,6 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     )
   }
 
-
-
   // Optional fields
   final case class OptionalFields(required: String, optional: Option[Int])
   object OptionalFields extends DerivedOptics[OptionalFields] {
@@ -177,12 +175,12 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   // Case class extends trait with FIXED type argument (A = Int)
   sealed trait Stress[A]
   final case class FixedStress(value: Int) extends Stress[Int]
-  final case class VarStress[B](value: B) extends Stress[B]
-  
+  final case class VarStress[B](value: B)  extends Stress[B]
+
   object StressInt extends DerivedOptics[Stress[Int]] {
-    given fixedSchema: Schema[FixedStress] = Schema.derived
+    given fixedSchema: Schema[FixedStress]  = Schema.derived
     given varSchema: Schema[VarStress[Int]] = Schema.derived
-    given schema: Schema[Stress[Int]] = Schema.derived
+    given schema: Schema[Stress[Int]]       = Schema.derived
   }
 
   // Schema derivation test helper
@@ -395,14 +393,14 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   // ===== Prism Tests =====
   val prismTestSuite: Spec[Any, Nothing] = suite("Prism generation for sealed traits")(
     test("stress test: fixed type arguments") {
-       import StressInt.given
-       val fixed: Stress[Int] = FixedStress(100)
-       val variant: Stress[Int] = VarStress(200)
-       assertTrue(
-         StressInt.optics.fixedStress.getOption(fixed) == Some(FixedStress(100)),
-         StressInt.optics.fixedStress.getOption(variant) == None,
-         StressInt.optics.varStress.getOption(variant) == Some(VarStress(200))
-       )
+      import StressInt.given
+      val fixed: Stress[Int]   = FixedStress(100)
+      val variant: Stress[Int] = VarStress(200)
+      assertTrue(
+        StressInt.optics.fixedStress.getOption(fixed) == Some(FixedStress(100)),
+        StressInt.optics.fixedStress.getOption(variant) == None,
+        StressInt.optics.varStress.getOption(variant) == Some(VarStress(200))
+      )
     },
     test("getOption returns Some for matching variant") {
       val circle: Shape = Circle(5.0)
@@ -935,7 +933,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
       val wrapped = CustomWrapper("wrapped value")
       // Access 'value' lens derived via wrapperAsRecord
       val lens = CustomWrapper.optics.value
-      
+
       assertTrue(lens.get(wrapped) == "wrapped value") &&
       assertTrue(lens.replace(wrapped, "new value") == CustomWrapper("new value"))
     }
