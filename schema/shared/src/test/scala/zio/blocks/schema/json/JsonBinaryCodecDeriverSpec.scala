@@ -2313,13 +2313,37 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           )
           .derive
         roundTrip(Array[Boolean](true, false, true), """["true","false","true"]""", codec1) &&
+        decodeError("true", "expected '[' or null at: .", codec1) &&
+        decodeError("""["true","false","true","false"}""", "expected ']' or ',' at: .", codec1) &&
+        decodeError("""["true","false","true","false""", "unexpected end of input at: .at(3)", codec1) &&
         roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte), """["1","2","3"]""", codec2) &&
+        decodeError("true", "expected '[' or null at: .", codec2) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec2) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec2) &&
         roundTrip(Array[Char]('1', '2', '3'), """[49,50,51]""", codec3) &&
+        decodeError("true", "expected '[' or null at: .", codec3) &&
+        decodeError("""[49,50,51,52}""", "expected ']' or ',' at: .", codec3) &&
+        decodeError("""[49,50,51,52""", "unexpected end of input at: .at(3)", codec3) &&
         roundTrip(Array[Short](1: Short, 2: Short, 3: Short), """["1","2","3"]""", codec4) &&
+        decodeError("true", "expected '[' or null at: .", codec4) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec4) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec4) &&
         roundTrip(Array[Int](1, 2, 3), """["1","2","3"]""", codec5) &&
+        decodeError("true", "expected '[' or null at: .", codec5) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec5) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec5) &&
         roundTrip(Array[Float](1.0f, 2.0f, 3.0f), """["1.0","2.0","3.0"]""", codec6) &&
+        decodeError("true", "expected '[' or null at: .", codec6) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec6) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec6) &&
         roundTrip(Array[Long](1L, 2L, 3L), """["1","2","3"]""", codec7) &&
-        roundTrip(Array[Double](1.0, 2.0, 3.0), """["1.0","2.0","3.0"]""", codec8)
+        decodeError("true", "expected '[' or null at: .", codec7) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec7) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec7) &&
+        roundTrip(Array[Double](1.0, 2.0, 3.0), """["1.0","2.0","3.0"]""", codec8) &&
+        decodeError("true", "expected '[' or null at: .", codec8) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec8) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec8)
       },
       test("complex values") {
         roundTrip(
