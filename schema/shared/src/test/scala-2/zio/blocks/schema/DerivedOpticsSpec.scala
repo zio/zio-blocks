@@ -178,9 +178,9 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
   final case class PartialChild[Z](z: Z)        extends MultiParam[Z, String] // Partial fix
 
   object MultiParamIntString extends DerivedOptics[MultiParam[Int, String]] {
-    implicit val multiChildSchema: Schema[MultiChild[Int, String]]  = Schema.derived
-    implicit val partialChildSchema: Schema[PartialChild[Int]]      = Schema.derived
-    implicit val schema: Schema[MultiParam[Int, String]]            = Schema.derived
+    implicit val multiChildSchema: Schema[MultiChild[Int, String]] = Schema.derived
+    implicit val partialChildSchema: Schema[PartialChild[Int]]     = Schema.derived
+    implicit val schema: Schema[MultiParam[Int, String]]           = Schema.derived
   }
 
   // Stress Test 3: Shadowed type parameter names (child uses different names)
@@ -189,7 +189,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
 
   object ParentString extends DerivedOptics[Parent[String]] {
     implicit val childSchema: Schema[ChildWithDifferentName[String]] = Schema.derived
-    implicit val schema: Schema[Parent[String]]                       = Schema.derived
+    implicit val schema: Schema[Parent[String]]                      = Schema.derived
   }
 
   // Stress Test 4: Triple type parameters with partial application
@@ -524,7 +524,7 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     },
     test("stress test: triple type parameters with partial application") {
       import TripleTest._
-      val triple: Triple[Int, String, Boolean]     = TripleChild(1, "two", true)
+      val triple: Triple[Int, String, Boolean]      = TripleChild(1, "two", true)
       val doubleFixed: Triple[Int, String, Boolean] = DoubleFixed("middle")
       assertTrue(
         TripleTest.optics.tripleChild.getOption(triple) == Some(TripleChild(1, "two", true)),
