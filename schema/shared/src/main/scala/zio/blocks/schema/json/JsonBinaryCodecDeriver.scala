@@ -8,7 +8,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.SeqDeconstructor.SpecializedIndexed
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
-import scala.annotation.switch
+import scala.annotation.{switch, tailrec}
 import scala.collection.immutable.VectorBuilder
 import scala.util.control.NonFatal
 
@@ -2215,7 +2215,7 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               } else if (field.isOptional) regs.setObject(offset, 0, None)
               else if (field.isCollection) regs.setObject(offset, 0, field.codec.nullValue.asInstanceOf[AnyRef])
-              else in.requiredFieldError(fieldInfos(idx).name)
+              else in.requiredFieldError(field.name)
             }
 
             private[this] def writeDefaultValue(out: JsonWriter, field: FieldInfo, regs: Registers): Unit = {
@@ -2660,8 +2660,11 @@ private case class FieldInfo(
 
 trait CaseInfo extends Info
 
-private case class CaseLeafInfo(name: String, codec: JsonBinaryCodec[?], spans: List[DynamicOptic.Node.Case])
-    extends CaseInfo {
+private class CaseLeafInfo(
+  private[this] val name: String,
+  val codec: JsonBinaryCodec[?],
+  val spans: List[DynamicOptic.Node.Case]
+) extends CaseInfo {
   private[this] val isNonEscapedAsciiName = isNonEscapedAscii(name)
 
   def writeKey(out: JsonWriter): Unit =
@@ -2669,8 +2672,12 @@ private case class CaseLeafInfo(name: String, codec: JsonBinaryCodec[?], spans: 
     else out.writeKey(name)
 }
 
-private case class CaseNodeInfo[A](discriminator: Discriminator[A], caseInfos: Array[CaseInfo]) extends CaseInfo {
-  def discriminate(x: A): CaseLeafInfo = caseInfos(discriminator.discriminate(x)) match {
+private class CaseNodeInfo[A](
+  private[this] val discriminator: Discriminator[A],
+  private[this] val caseInfos: Array[CaseInfo]
+) extends CaseInfo {
+  @tailrec
+  final def discriminate(x: A): CaseLeafInfo = caseInfos(discriminator.discriminate(x)) match {
     case eli: CaseLeafInfo => eli
     case eni               => eni.asInstanceOf[CaseNodeInfo[A]].discriminate(x)
   }
@@ -2678,7 +2685,7 @@ private case class CaseNodeInfo[A](discriminator: Discriminator[A], caseInfos: A
 
 trait EnumInfo extends Info
 
-private case class EnumLeafInfo(name: String, constructor: Constructor[?]) extends EnumInfo {
+private class EnumLeafInfo(private[this] val name: String, val constructor: Constructor[?]) extends EnumInfo {
   private[this] val isNonEscapedAsciiName = isNonEscapedAscii(name)
 
   def writeVal(out: JsonWriter): Unit =
@@ -2686,8 +2693,12 @@ private case class EnumLeafInfo(name: String, constructor: Constructor[?]) exten
     else out.writeVal(name)
 }
 
-private case class EnumNodeInfo[A](discriminator: Discriminator[A], enumInfos: Array[EnumInfo]) extends EnumInfo {
-  def discriminate(x: A): EnumLeafInfo = enumInfos(discriminator.discriminate(x)) match {
+private class EnumNodeInfo[A](
+  private[this] val discriminator: Discriminator[A],
+  private[this] val enumInfos: Array[EnumInfo]
+) extends EnumInfo {
+  @tailrec
+  final def discriminate(x: A): EnumLeafInfo = enumInfos(discriminator.discriminate(x)) match {
     case eli: EnumLeafInfo => eli
     case eni               => eni.asInstanceOf[EnumNodeInfo[A]].discriminate(x)
   }
@@ -2720,14 +2731,14 @@ private class StringToIntMap(initCapacity: Int) {
   }
 
   def get(in: JsonReader, len: Int): Int = {
-    var idx             = in.charBufToHashCode(len) & mask
-    var currKey: String = null
-    while ({
-      currKey = keys(idx)
-      (currKey ne null) && !in.isCharBufEqualsTo(len, currKey)
-    }) idx = (idx + 1) & mask
-    if (currKey eq null) -1
-    else values(idx)
+    var idx = in.charBufToHashCode(len) & mask
+    while (true) {
+      val currKey = keys(idx)
+      if (currKey eq null) return -1
+      if (in.isCharBufEqualsTo(len, currKey)) return values(idx)
+      idx = (idx + 1) & mask
+    }
+    -1 // unreachable
   }
 
   private[this] def grow(): Unit = {
