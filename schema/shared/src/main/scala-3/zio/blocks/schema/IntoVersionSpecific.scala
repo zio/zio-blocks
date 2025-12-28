@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.annotation.tailrec
 import scala.quoted.*
 
 trait IntoVersionSpecific {
@@ -105,21 +106,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       case (_, true, true, _, _, _, _, _, _, _) =>
         // Case class to case object
         deriveProductToCaseObject[A, B](bTpe)
-      case (_, _, true, true, _, _, _, _, _, _) =>
-        // Case class to case class
-        deriveProductToProduct[A, B](aTpe, bTpe)
-      case (_, _, true, _, _, true, _, _, _, _) =>
-        // Case class to tuple
-        deriveCaseClassToTuple[A, B](aTpe, bTpe)
-      case (_, _, _, true, true, _, _, _, _, _) =>
-        // Tuple to case class
-        deriveTupleToCaseClass[A, B](aTpe, bTpe)
-      case (_, _, _, _, true, true, _, _, _, _) =>
-        // Tuple to tuple
-        deriveTupleToTuple[A, B](aTpe, bTpe)
-      case (_, _, _, _, _, _, true, true, _, _) =>
-        // Coproduct to coproduct (sealed trait/enum to sealed trait/enum)
-        deriveCoproductToCoproduct[A, B](aTpe, bTpe)
+      // Handle structural types BEFORE product-to-product to handle refined types like `Record { def x: Int }`
       case (_, _, _, true, _, _, _, _, true, _) =>
         // Structural type -> Product (structural source to case class target)
         // Allow Selectable types on all platforms, but non-Selectable structural types only on JVM
@@ -139,19 +126,37 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         deriveStructuralToProduct[A, B](aTpe, bTpe)
       case (_, _, true, _, _, _, _, _, _, true) =>
         // Product -> Structural (case class source to structural target)
-        if (!Platform.supportsReflection) {
+        // Check if the target is a Selectable type - if so, we can handle it on all platforms
+        // as long as it has a Map constructor
+        if (!Platform.supportsReflection && !isSelectableType(bTpe)) {
           fail(
             s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Structural type conversions are not supported on ${Platform.name}.
                |
                |Structural types require reflection APIs which are only available on JVM.
                |
                |Consider:
+               |  - Using a Selectable type with a Map[String, Any] constructor for cross-platform support
                |  - Using a case class instead of a structural type
                |  - Using a tuple instead of a structural type
                |  - Only using structural type conversions in JVM-only code""".stripMargin
           )
         }
         deriveProductToStructural[A, B](aTpe, bTpe)
+      case (_, _, true, true, _, _, _, _, _, _) =>
+        // Case class to case class (no structural refinements)
+        deriveProductToProduct[A, B](aTpe, bTpe)
+      case (_, _, true, _, _, true, _, _, _, _) =>
+        // Case class to tuple
+        deriveCaseClassToTuple[A, B](aTpe, bTpe)
+      case (_, _, _, true, true, _, _, _, _, _) =>
+        // Tuple to case class
+        deriveTupleToCaseClass[A, B](aTpe, bTpe)
+      case (_, _, _, _, true, true, _, _, _, _) =>
+        // Tuple to tuple
+        deriveTupleToTuple[A, B](aTpe, bTpe)
+      case (_, _, _, _, _, _, true, true, _, _) =>
+        // Coproduct to coproduct (sealed trait/enum to sealed trait/enum)
+        deriveCoproductToCoproduct[A, B](aTpe, bTpe)
       case _ =>
         // Check for opaque type conversions
         if (requiresOpaqueConversion(aTpe, bTpe)) {
@@ -459,13 +464,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     aTpe: TypeRepr,
     bTpe: TypeRepr
   ): Expr[Into[A, B]] = {
-    // Product → Structural type conversion is simple: since the product type has all the
-    // required fields/methods that the structural type demands (otherwise we couldn't derive
-    // this conversion), we can simply cast the product instance to the structural type.
-    //
-    // For example: case class Point(x: Int, y: Int) can be cast to { def x: Int; def y: Int }
-    // because Point already has methods x and y that return Int.
-
     val structuralMembers = getStructuralMembers(bTpe)
     val sourceInfo        = new ProductInfo[A](aTpe)
 
@@ -492,14 +490,284 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-    // The product instance already satisfies the structural type contract, just cast it
-    '{
-      new Into[A, B] {
-        def into(a: A): Either[SchemaError, B] =
-          Right(a.asInstanceOf[B])
+    // Check if target type extends Selectable - if so, we can create it properly on all platforms
+    if (isSelectableType(bTpe)) {
+      deriveProductToSelectable[A, B](aTpe, bTpe, structuralMembers, sourceInfo)
+    } else {
+      // For non-Selectable structural types, we can only use a simple cast (JVM only, checked earlier)
+      '{
+        new Into[A, B] {
+          def into(a: A): Either[SchemaError, B] =
+            Right(a.asInstanceOf[B])
+        }
       }
     }
   }
+
+  // Helper to get the base class of a refinement type (e.g., Record from Record { def x: Int })
+  private def getSelectableBaseClass(tpe: TypeRepr): Option[TypeRepr] = {
+    @tailrec
+    def findBase(t: TypeRepr): Option[TypeRepr] = t.dealias match {
+      case Refinement(parent, _, _) => findBase(parent)
+      case base if base <:< TypeRepr.of[Selectable] => Some(base)
+      case _ => None
+    }
+    findBase(tpe)
+  }
+
+  // Get parameter types from a constructor by looking at its method type
+  private def getConstructorParamTypes(ctor: Symbol): List[TypeRepr] = {
+    // Get the method type of the constructor
+    val methodType = ctor.typeRef.dealias match {
+      case mt: MethodType => mt.paramTypes
+      case PolyType(_, _, mt: MethodType) => mt.paramTypes
+      case _ => Nil
+    }
+    methodType
+  }
+
+
+  // Derive conversion from Product to Selectable using Map constructor only
+  // This works on all platforms because we generate the Map construction at compile time
+  private def deriveProductToSelectable[A: Type, B: Type](
+    aTpe: TypeRepr,
+    bTpe: TypeRepr,
+    structuralMembers: List[(String, TypeRepr)],
+    sourceInfo: ProductInfo[A]
+  ): Expr[Into[A, B]] = {
+    // Get the base Selectable class
+    val baseClassOpt = getSelectableBaseClass(bTpe)
+
+    baseClassOpt match {
+      case Some(baseClass) =>
+        // Try to find a Map constructor or apply method
+        findMapConstructorOrApply(baseClass) match {
+          case Some((_, method, _)) =>
+            // Use Map constructor/apply - this works on all platforms
+            deriveProductToSelectableViaMap[A, B](baseClass, method, structuralMembers, sourceInfo)
+          case None =>
+            // No Map constructor found - fail with helpful error
+            fail(
+              s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Selectable target requires Map constructor.
+                 |
+                 |The target Selectable type '${baseClass.typeSymbol.name}' does not have:
+                 |  - A constructor taking Map[String, Any]
+                 |  - An apply method taking Map[String, Any]
+                 |
+                 |To enable cross-platform Into derivation to Selectable types, add a Map constructor:
+                 |
+                 |  class MyRecord(map: Map[String, Any]) extends Selectable {
+                 |    def selectDynamic(name: String): Any = map(name)
+                 |  }
+                 |
+                 |Or if you prefer varargs, add a secondary Map constructor:
+                 |
+                 |  class MyRecord(elems: (String, Any)*) extends Selectable {
+                 |    private val fields = elems.toMap
+                 |    def this(map: Map[String, Any]) = this(map.toSeq*)
+                 |    def selectDynamic(name: String): Any = fields(name)
+                 |  }""".stripMargin
+            )
+        }
+      case None =>
+        // No base Selectable class found - this shouldn't happen
+        fail(
+          s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Cannot find Selectable base class.
+             |
+             |The target type appears to be a structural type but no Selectable base class was found.""".stripMargin
+        )
+    }
+  }
+
+  // Find a Map[String, Any] constructor or companion apply method
+  // Prefers companion apply method over constructor (as constructor may be private)
+  private def findMapConstructorOrApply(baseTpe: TypeRepr): Option[(Term, Symbol, Boolean)] = {
+    val baseClass = baseTpe.typeSymbol
+
+
+    // First try to find companion object with apply(Map[String, Any])
+    // For inner classes, companionModule may return NoSymbol, so we also check owner declarations
+    val stdCompanion = baseClass.companionModule
+
+    val companion = if (stdCompanion != Symbol.noSymbol) {
+      stdCompanion
+    } else {
+      // For inner classes, look in owner's declarations for a module with the same name
+      val owner = baseClass.owner
+      val className = baseClass.name
+
+      val found = owner.declarations.find { s =>
+        val isMatch = s.name == className && s.flags.is(Flags.Module)
+        isMatch
+      }
+      found.getOrElse(Symbol.noSymbol)
+    }
+
+
+    if (companion != Symbol.noSymbol) {
+      val companionRef = Ref(companion)
+      // Get the module class - for objects, methodMembers are on the module class
+      val moduleClass = companion.moduleClass
+
+      // Look for apply methods - try multiple approaches
+      val applyMethodsFromModuleClassDecl = if (moduleClass != Symbol.noSymbol) {
+        val methods = moduleClass.declaredMethods.filter(_.name == "apply")
+        methods
+      } else Nil
+
+      val applyMethodsFromCompanion = companion.methodMembers.filter(_.name == "apply")
+
+      val applyMethodsFromModuleClass = if (moduleClass != Symbol.noSymbol) {
+        val methods = moduleClass.methodMembers.filter(_.name == "apply")
+        methods
+      } else Nil
+
+      val applyMethods = (applyMethodsFromModuleClassDecl ++ applyMethodsFromCompanion ++ applyMethodsFromModuleClass).distinct
+
+      val mapApply = applyMethods.find { m =>
+        // Get parameter types using the companion's type ref
+        val memberType = companion.typeRef.memberType(m)
+        val paramTypes = memberType match {
+          case mt: MethodType =>
+            mt.paramTypes
+          case PolyType(_, _, mt: MethodType) =>
+            mt.paramTypes
+          case _ =>
+            // Fallback: try to get from the method symbol directly
+            val fromSymss = m.paramSymss.flatten.headOption.map(_.typeRef).toList
+            fromSymss
+        }
+        val result = paramTypes.size == 1 && {
+          val paramTpe = paramTypes.head
+          val isMap = paramTpe <:< TypeRepr.of[Map[String, Any]] ||
+                      paramTpe <:< TypeRepr.of[collection.Map[String, Any]]
+          isMap
+        }
+        result
+      }
+
+      if (mapApply.isDefined) {
+        return Some((companionRef, mapApply.get, true))
+      }
+    }
+
+    // Fall back to looking for a public constructor taking Map[String, Any]
+    val allConstructors = baseClass.declarations.filter { s =>
+      (s.isClassConstructor || s.name == "<init>") && !s.flags.is(Flags.Private) && !s.flags.is(Flags.Protected)
+    }.toList
+
+    val constructors = if (baseClass.primaryConstructor != Symbol.noSymbol &&
+                          !baseClass.primaryConstructor.flags.is(Flags.Private) &&
+                          !baseClass.primaryConstructor.flags.is(Flags.Protected)) {
+      baseClass.primaryConstructor :: allConstructors.filterNot(_ == baseClass.primaryConstructor)
+    } else {
+      allConstructors
+    }
+
+    val mapCtor = constructors.find { ctor =>
+      val paramTypes = getConstructorParamTypesRobust(ctor, baseTpe)
+      paramTypes.size == 1 && {
+        val paramTpe = paramTypes.head
+        val isMap = paramTpe <:< TypeRepr.of[Map[String, Any]] ||
+                    paramTpe <:< TypeRepr.of[collection.Map[String, Any]]
+        isMap
+      }
+    }
+
+    if (mapCtor.isDefined) {
+      return Some((New(Inferred(baseTpe)), mapCtor.get, false))
+    }
+
+    None
+  }
+
+
+  // Get constructor parameter types - robust version that handles secondary constructors
+  private def getConstructorParamTypesRobust(ctor: Symbol, classTpe: TypeRepr): List[TypeRepr] = {
+    // First try: use the symbol's tree if available
+    try {
+      // Get the method type from the class type's member
+      val ctorType = classTpe.memberType(ctor)
+      ctorType match {
+        case mt: MethodType => mt.paramTypes
+        case PolyType(_, _, mt: MethodType) => mt.paramTypes
+        case _ =>
+          // Fallback to typeRef approach
+          getConstructorParamTypes(ctor)
+      }
+    } catch {
+      case _: Exception => getConstructorParamTypes(ctor)
+    }
+  }
+
+
+  // Derive using Map constructor or apply method - compile-time code generation
+  private def deriveProductToSelectableViaMap[A: Type, B: Type](
+    baseClass: TypeRepr,
+    method: Symbol,
+    structuralMembers: List[(String, TypeRepr)],
+    sourceInfo: ProductInfo[A]
+  ): Expr[Into[A, B]] = {
+
+    baseClass.asType match {
+      case '[bc] =>
+        // We need to generate code in a way that doesn't mix compile-time and runtime references
+        // The approach: generate a list of field name -> getter pairs at compile time,
+        // then at runtime build the map and call apply
+
+        // Build the list of field extractors at compile time
+        val fieldExtractors: List[Expr[A => (String, Any)]] = structuralMembers.map { case (memberName, _) =>
+          val sourceField = sourceInfo.fields.find(_.name == memberName).get
+          sourceField.tpe.asType match {
+            case '[t] =>
+              val nameExpr = Expr(memberName)
+              val getter = sourceField.getter
+              '{ (a: A) => ($nameExpr, ${ Select('{ a }.asTerm, getter).asExprOf[t] }: Any) }
+          }
+        }
+
+        val extractorsListExpr: Expr[List[A => (String, Any)]] = Expr.ofList(fieldExtractors)
+
+        // Create the constructor/apply function
+        val companionSym = method.owner.companionModule
+
+        // Try to get the companion module type properly
+        // The companion is a module (object), so its type is a singleton type
+        val companionType = companionSym.typeRef
+
+        val applyToMap: Expr[Map[String, Any] => bc] = companionType.asType match {
+          case '[ct] =>
+            '{ (m: Map[String, Any]) => ${
+              // Use the properly typed companion reference
+              val companionRef = Ref(companionSym)
+              val mTerm = 'm.asTerm
+
+
+              // Try using Apply with a specific method symbol rather than Select.overloaded
+              // First select the specific method symbol
+              val selectMethod = companionRef.select(method)
+
+              // Then apply it
+              val call = Apply(selectMethod, List(mTerm))
+
+              call.asExprOf[bc]
+            }}
+        }
+
+        '{
+          new Into[A, B] {
+            private val extractors = $extractorsListExpr
+            private val applyFn = $applyToMap
+
+            def into(a: A): Either[SchemaError, B] = {
+              val fieldMap: Map[String, Any] = extractors.map(_(a)).toMap
+              Right(applyFn(fieldMap).asInstanceOf[B])
+            }
+          }
+        }
+    }
+  }
+
 
   // === Coproduct to Coproduct ===
 
@@ -1073,21 +1341,21 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                       sourceField.name
                     )
                   )
-              }
-            } else {
-              // Types match exactly - wrap in Right
-              '{ Right(${ sourceValue.asExprOf[Any] }) }
             }
-          case None =>
-            // No source field - use default value or None for Option types
-            if (mapping.useDefaultValue && targetFieldInfo.defaultValue.isDefined) {
-              // Use the actual default value
-              val defaultTerm = targetFieldInfo.defaultValue.get
-              '{ Right(${ defaultTerm.asExprOf[Any] }) }
-            } else {
-              // Use None for Option types
-              '{ Right(None) }
-            }
+          } else {
+            // Types match exactly - wrap in Right
+            '{ Right(${ sourceValue.asExprOf[Any] }) }
+          }
+        case None =>
+          // No source field - use default value or None for Option types
+          if (mapping.useDefaultValue && targetFieldInfo.defaultValue.isDefined) {
+            // Use the actual default value
+            val defaultTerm = targetFieldInfo.defaultValue.get
+            '{ Right(${ defaultTerm.asExprOf[Any] }) }
+          } else {
+            // Use None for Option types
+            '{ Right(None) }
+          }
         }
         (idx, eitherExpr)
     }
@@ -1261,7 +1529,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                           }
                       }
                     case None =>
-                      // Same type or safe widening
+                      // Same type or safe widening - wrap in Right
                       targetTpe.asType match {
                         case '[t] =>
                           field.tpe.asType match {
@@ -1317,7 +1585,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     } else {
       // For tuples > 22 elements, use Tuples.fromArray with type coercion
       // Apply type coercion for each element
-      val coercedArgs = sourceInfo.fields.zip(targetTypeArgs).map { case (field, targetTpe) =>
+      val coercedArgs: List[Expr[Any]] = sourceInfo.fields.zip(targetTypeArgs).map { case (field, targetTpe) =>
         val sourceValue = sourceInfo.fieldGetter(aExpr.asTerm, field)
         if (field.tpe =:= targetTpe) {
           sourceValue.asExprOf[Any]
@@ -1419,19 +1687,24 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         (sourceTpe, field, idx, implicitInto)
       }
 
+    // Build the field conversion expressions
+    val fieldConversions: List[(FieldInfo, TypeRepr, Int, Option[Expr[Into[?, ?]]])] = 
+      conversionInfo.map { case (sourceTpe, field, idx, implicitIntoOpt) => (field, sourceTpe, idx, implicitIntoOpt) }
+
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] = {
           ${
-            val conversions: List[Expr[Either[SchemaError, Any]]] = conversionInfo.map {
-              case (sourceTpe, field, idx, implicitIntoOpt) =>
+            // Build conversions that yield Either[SchemaError, (fieldType)] for each field
+            val conversions: List[(FieldInfo, Expr[Either[SchemaError, Any]])] = fieldConversions.map {
+              case (field, sourceTpe, idx, implicitIntoOpt) =>
                 val callProductElement = Apply(
                   Select('a.asTerm, productElementSym),
                   List(Literal(IntConstant(idx)))
                 )
                 val targetTpe = field.tpe
 
-                implicitIntoOpt match {
+                val conversion = implicitIntoOpt match {
                   case Some(intoInstance) =>
                     sourceTpe.asType match {
                       case '[st] =>
@@ -1444,20 +1717,45 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                   case None if sourceTpe =:= targetTpe =>
                     '{ Right(${ callProductElement.asExprOf[Any] }) }
                   case None =>
-                    // Safe conversion (widening)
-                    targetTpe.asType match {
-                      case '[t] =>
-                        sourceTpe.asType match {
-                          case '[s] =>
-                            '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[s].asInstanceOf[t].asInstanceOf[Any]) }
+                    // Safe conversion (widening) - use proper numeric conversion
+                    (sourceTpe.asType, targetTpe.asType) match {
+                      case ('[Int], '[Long]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Int].toLong.asInstanceOf[Any]) }
+                      case ('[Int], '[Double]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Int].toDouble.asInstanceOf[Any]) }
+                      case ('[Int], '[Float]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Int].toFloat.asInstanceOf[Any]) }
+                      case ('[Short], '[Int]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Short].toInt.asInstanceOf[Any]) }
+                      case ('[Short], '[Long]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Short].toLong.asInstanceOf[Any]) }
+                      case ('[Byte], '[Short]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Byte].toShort.asInstanceOf[Any]) }
+                      case ('[Byte], '[Int]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Byte].toInt.asInstanceOf[Any]) }
+                      case ('[Byte], '[Long]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Byte].toLong.asInstanceOf[Any]) }
+                      case ('[Float], '[Double]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Float].toDouble.asInstanceOf[Any]) }
+                      case ('[Long], '[Double]) =>
+                        '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[Long].toDouble.asInstanceOf[Any]) }
+                      case _ =>
+                        // Fallback: just cast (works for reference types and same types)
+                        targetTpe.asType match {
+                          case '[t] =>
+                            sourceTpe.asType match {
+                              case '[s] =>
+                                '{ Right(${ callProductElement.asExprOf[Any] }.asInstanceOf[s].asInstanceOf[t].asInstanceOf[Any]) }
+                            }
                         }
                     }
                 }
+                (field, conversion)
             }
 
             // Generate sequencing code using foldRight
             val initial: Expr[Either[SchemaError, List[Any]]] = '{ Right(Nil) }
-            val sequenced = conversions.foldRight(initial) { (convExpr, accExpr) =>
+            val sequenced = conversions.map(_._2).foldRight(initial) { (convExpr, accExpr) =>
               '{
                 $accExpr match {
                   case Right(list) =>
@@ -1470,23 +1768,24 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
               }
             }
 
-            // Build case class construction expression at compile time
-            val constructExpr = '{
+            // Construct the case class from the list of values
+            '{
               $sequenced match {
                 case Right(values) =>
                   val arr = values.toArray
                   Right(${
-                    val argExprs = targetInfo.fields.zipWithIndex.map { case (field, idx) =>
+                    // Construct case class using compile-time generated code
+                    val args = targetInfo.fields.zipWithIndex.map { case (field, idx) =>
                       field.tpe.asType match {
-                        case '[t] => '{ arr(${ Expr(idx) }).asInstanceOf[t] }.asTerm
+                        case '[t] =>
+                          '{ arr(${ Expr(idx) }).asInstanceOf[t] }.asTerm
                       }
                     }
-                    targetInfo.construct(argExprs).asExprOf[B]
+                    targetInfo.construct(args).asExprOf[B]
                   })
                 case Left(err) => Left(err)
               }
             }
-            constructExpr
           }
         }
       }
@@ -2112,7 +2411,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                   case TypeRef(prefix, _) =>
                     // The prefix is the path to the companion object (e.g., Age)
                     prefix match {
-                      case TermRef(_, name) =>
+                      case TermRef(_, _) =>
                         // Try to find the module symbol
                         try {
                           val prefixSym = prefix.termSymbol
@@ -2121,7 +2420,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
                         } catch {
                           case _: Exception => None
                         }
-                      case ThisType(typeRef) =>
+                      case ThisType(_) =>
                         // For types defined in the same scope
                         val typeSym = targetTpe.typeSymbol
                         val owner = typeSym.owner

@@ -155,7 +155,6 @@ object MutuallyRecursiveTypeSpec extends ZIOSpecDefault {
     suite("Identity on Mutually Recursive Types")(
       test("converts mutually recursive type to itself") {
         implicit lazy val personInto: Into[PersonA, PersonA]    = Into.derived[PersonA, PersonA]
-        implicit lazy val companyInto: Into[CompanyA, CompanyA] = Into.derived[CompanyA, CompanyA]
 
         val company = CompanyA("SameCorp", List(PersonA("Same", None)))
         val source  = PersonA("Person", Some(company))
