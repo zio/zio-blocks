@@ -61,8 +61,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
-      "dev.zio" %%% "zio-test"     % "2.1.23"     % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23"     % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -113,8 +113,8 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.23" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     )
   )
 
@@ -126,8 +126,8 @@ lazy val `schema-avro` = project
   .settings(
     libraryDependencies ++= Seq(
       "org.apache.avro" % "avro"         % "1.12.1",
-      "dev.zio"        %% "zio-test"     % "2.1.23" % Test,
-      "dev.zio"        %% "zio-test-sbt" % "2.1.23" % Test
+      "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
     )
   )
 
@@ -138,8 +138,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(crossProjectSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.23" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     publish / skip        := true,
     mimaPreviousArtifacts := Set()
@@ -163,8 +163,8 @@ lazy val benchmarks = project
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
-      "dev.zio"                               %% "zio-test"              % "2.1.23",
-      "dev.zio"                               %% "zio-test-sbt"          % "2.1.23" % Test
+      "dev.zio"                               %% "zio-test"              % "2.1.24",
+      "dev.zio"                               %% "zio-test-sbt"          % "2.1.24" % Test
     ),
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
