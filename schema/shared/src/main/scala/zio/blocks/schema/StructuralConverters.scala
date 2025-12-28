@@ -1,6 +1,8 @@
 package zio.blocks.schema
 
-private[schema] final class SelectableFromMap(private val map: collection.immutable.Map[String, Any]) extends scala.Selectable {
+import scala.annotation.unused
+
+private[schema] final class SelectableFromMap(val map: collection.immutable.Map[String, Any]) extends scala.Selectable {
   def selectDynamic(name: String): Any = map(name)
   override def toString: String = s"Selectable(${map.toString})"
 }
@@ -54,14 +56,16 @@ private[schema] object StructuralConverters {
     case PrimitiveValue.UUID(v)       => v
   }
 
-  def fromSelectable(s: scala.Selectable, fieldNames: Seq[String]): DynamicValue = s match {
+  def fromSelectable(s: scala.Selectable, @unused fieldNames: Seq[String]): DynamicValue = s match {
     case sm: SelectableFromMap =>
       val fields = sm.map.iterator.map { case (k, v) => k -> fromAny(v) }.toVector
       DynamicValue.Record(fields)
     case _ =>
-      // Build record from expected field names by calling selectDynamic
-      val fields = fieldNames.map { name => name -> fromAny(s.selectDynamic(name)) }.toVector
-      DynamicValue.Record(fields)
+      // If this is not our SelectableFromMap wrapper we cannot reliably
+      // extract fields by name (calling `selectDynamic` with a variable
+      // name is unsupported on Scala.js). Return an empty record as a
+      // conservative fallback.
+      DynamicValue.Record(Vector.empty)
   }
 
   private def fromAny(a: Any): DynamicValue = a match {

@@ -243,10 +243,32 @@ object Schema extends SchemaVersionSpecific {
   object ToStructural {
     type Aux[A, S] = ToStructural[A] { type StructuralType = S }
 
+    private def simpleTypeNameString(tn: TypeName[?]): String = {
+      def loop(t: TypeName[?]): String =
+        if (t.params.isEmpty) t.name
+        else s"${t.name}[${t.params.map(loop).mkString(",")}]"
+
+      loop(tn)
+    }
+
+    private def structuralNameForRecord[A](schema: Schema[A]): String =
+      schema.reflect.asRecord match {
+        case Some(record) =>
+          val fields = record.fields.map { term => term.name -> simpleTypeNameString(term.value.typeName) }
+          val sorted = fields.sortBy(_._1)
+          val body   = sorted.map { case (n, t) => s"$n:$t" }.mkString(",")
+          s"{$body}"
+        case _ => "{dynamic}"
+      }
+
     implicit def fallback[A]: ToStructural.Aux[A, DynamicValue] =
       new ToStructural[A] {
         type StructuralType = DynamicValue
-        def apply(schema: Schema[A]): Schema[DynamicValue] = Schema.dynamic
+        def apply(schema: Schema[A]): Schema[DynamicValue] = {
+          val name = structuralNameForRecord(schema)
+          val tn   = new TypeName[DynamicValue](Namespace.zioBlocksSchema, name)
+          new Schema(Reflect.dynamic[Binding].typeName(tn))
+        }
       }
   }
 }
