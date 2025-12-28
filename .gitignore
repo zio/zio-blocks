@@ -25,3 +25,6 @@ TAGS
 .metals
 .vscode/settings.json
 project/metals.sbt
+
+# Compilation log files
+*.log
