@@ -172,6 +172,37 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Stress[Int]]       = Schema.derived
   }
 
+  // Stress Test 2: Multiple type parameters
+  sealed trait MultiParam[A, B]
+  final case class MultiChild[X, Y](x: X, y: Y) extends MultiParam[X, Y]
+  final case class PartialChild[Z](z: Z)        extends MultiParam[Z, String] // Partial fix
+
+  object MultiParamIntString extends DerivedOptics[MultiParam[Int, String]] {
+    implicit val multiChildSchema: Schema[MultiChild[Int, String]]  = Schema.derived
+    implicit val partialChildSchema: Schema[PartialChild[Int]]      = Schema.derived
+    implicit val schema: Schema[MultiParam[Int, String]]            = Schema.derived
+  }
+
+  // Stress Test 3: Shadowed type parameter names (child uses different names)
+  sealed trait Parent[A]
+  final case class ChildWithDifferentName[X](value: X) extends Parent[X]
+
+  object ParentString extends DerivedOptics[Parent[String]] {
+    implicit val childSchema: Schema[ChildWithDifferentName[String]] = Schema.derived
+    implicit val schema: Schema[Parent[String]]                       = Schema.derived
+  }
+
+  // Stress Test 4: Triple type parameters with partial application
+  sealed trait Triple[A, B, C]
+  final case class TripleChild[P, Q, R](p: P, q: Q, r: R) extends Triple[P, Q, R]
+  final case class DoubleFixed[T](t: T)                   extends Triple[Int, T, Boolean]
+
+  object TripleTest extends DerivedOptics[Triple[Int, String, Boolean]] {
+    implicit val tripleChildSchema: Schema[TripleChild[Int, String, Boolean]] = Schema.derived
+    implicit val doubleFixedSchema: Schema[DoubleFixed[String]]               = Schema.derived
+    implicit val schema: Schema[Triple[Int, String, Boolean]]                 = Schema.derived
+  }
+
   // Schema derivation test helper
   final case class User(id: Int, email: String)
   object User {
@@ -472,6 +503,33 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
         StressInt.optics.fixedStress.getOption(fixed) == Some(FixedStress(100)),
         StressInt.optics.fixedStress.getOption(variant) == None,
         StressInt.optics.varStress.getOption(variant) == Some(VarStress(200))
+      )
+    },
+    test("stress test: multiple type parameters") {
+      import MultiParamIntString._
+      val multi: MultiParam[Int, String]   = MultiChild(42, "hello")
+      val partial: MultiParam[Int, String] = PartialChild(99)
+      assertTrue(
+        MultiParamIntString.optics.multiChild.getOption(multi) == Some(MultiChild(42, "hello")),
+        MultiParamIntString.optics.partialChild.getOption(partial) == Some(PartialChild(99)),
+        MultiParamIntString.optics.multiChild.getOption(partial) == None
+      )
+    },
+    test("stress test: shadowed type parameter names") {
+      import ParentString._
+      val child: Parent[String] = ChildWithDifferentName("test")
+      assertTrue(
+        ParentString.optics.childWithDifferentName.getOption(child) == Some(ChildWithDifferentName("test"))
+      )
+    },
+    test("stress test: triple type parameters with partial application") {
+      import TripleTest._
+      val triple: Triple[Int, String, Boolean]     = TripleChild(1, "two", true)
+      val doubleFixed: Triple[Int, String, Boolean] = DoubleFixed("middle")
+      assertTrue(
+        TripleTest.optics.tripleChild.getOption(triple) == Some(TripleChild(1, "two", true)),
+        TripleTest.optics.doubleFixed.getOption(doubleFixed) == Some(DoubleFixed("middle")),
+        TripleTest.optics.tripleChild.getOption(doubleFixed) == None
       )
     },
     test("getOption returns Some for matching variant") {
