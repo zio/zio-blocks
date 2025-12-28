@@ -218,7 +218,7 @@ private[schema] final class OpticsHolder(members: Map[String, Any]) extends scal
     members.getOrElse(name, throw new RuntimeException(s"No optic found for: $name"))
 }
 
-private object DerivedOpticsMacros {
+private[schema] object DerivedOpticsMacros {
   import java.util.concurrent.ConcurrentHashMap
 
   // Helper to lower-case the first letter of a name (per issue #514 requirement)
@@ -229,7 +229,7 @@ private object DerivedOpticsMacros {
   // Key is the type's full name as a string
   private val cache = new ConcurrentHashMap[String, OpticsHolder]()
 
-  def getOrCreate(key: String, create: => OpticsHolder): OpticsHolder = {
+  private[schema] def getOrCreate(key: String, create: => OpticsHolder): OpticsHolder = {
     var result = cache.get(key)
     if (result == null) {
       result = create
