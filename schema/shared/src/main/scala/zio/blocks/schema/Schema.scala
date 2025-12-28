@@ -94,6 +94,17 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  /**
+   * Convert this schema to a structural schema representation.
+   *
+   * A proper implementation for structural types is a large feature (see
+   * issue #517). Provide a minimal, safe fallback that maps any type to
+   * `DynamicValue` so `.structural` is available and code depending on it
+   * compiles.
+   */
+  def structural(implicit toStructural: Schema.ToStructural[A]): Schema[toStructural.StructuralType] =
+    toStructural.apply(this).asInstanceOf[Schema[toStructural.StructuralType]]
 }
 
 object Schema extends SchemaVersionSpecific {
@@ -198,4 +209,44 @@ object Schema extends SchemaVersionSpecific {
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
     new Schema(Reflect.map(key.reflect, value.reflect))
+
+  /**
+   * Convert a nominal value to a runtime `Selectable` structural value.
+   * This uses `toDynamicValue` internally and converts the `DynamicValue`
+   * into a lightweight `Selectable` representation that exposes fields via
+   * `selectDynamic`.
+   */
+  def toStructuralValue[A](schema: Schema[A], value: A): scala.Selectable =
+    StructuralConverters.toSelectable(schema.toDynamicValue(value))
+
+  /**
+   * Convert a runtime `Selectable` structural value back to the nominal
+   * type `A` using the provided `schema`. This is implemented by first
+   * converting the `Selectable` to a `DynamicValue` and then using
+   * `schema.fromDynamicValue`.
+   */
+  def fromStructuralValue[A](schema: Schema[A], s: scala.Selectable): Either[SchemaError, A] =
+    schema.fromDynamicValue(StructuralConverters.fromSelectable(s, schema.reflect.asRecord.map(_.fields.map(_.name)).getOrElse(IndexedSeq.empty)))
+
+  /**
+   * Type class for converting nominal schemas to structural schemas.
+   *
+   * Full macro-based conversion is out-of-scope for this small fix; the
+   * provided default instance maps everything to `DynamicValue` so callers
+   * can opt-in to a later, more precise implementation.
+   */
+  trait ToStructural[A] {
+    type StructuralType
+    def apply(schema: Schema[A]): Schema[StructuralType]
+  }
+
+  object ToStructural {
+    type Aux[A, S] = ToStructural[A] { type StructuralType = S }
+
+    implicit def fallback[A]: ToStructural.Aux[A, DynamicValue] =
+      new ToStructural[A] {
+        type StructuralType = DynamicValue
+        def apply(schema: Schema[A]): Schema[DynamicValue] = Schema.dynamic
+      }
+  }
 }
