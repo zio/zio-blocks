@@ -1995,23 +1995,29 @@ class JsonBinaryCodecDeriver private[json] (
           var idx = 0
           while (idx < len) {
             val field        = fields(idx)
+            var nonTransient = true
             var name: String = null
             field.modifiers.foreach {
-              case m: Modifier.rename => if (name eq null) name = m.name
-              case m: Modifier.alias  => map.put(m.name, idx)
-              case _                  =>
+              case m: Modifier.rename    => if (name eq null) name = m.name
+              case m: Modifier.alias     => map.put(m.name, idx)
+              case _: Modifier.transient => nonTransient = false
+              case _                     =>
             }
             if (name eq null) name = fieldNameMapper(field.name)
             map.put(name, idx)
-            val fieldReflect = field.value
-            val isOpt        = isOptional(fieldReflect)
-            val isColl       = isCollection(fieldReflect)
-            val defVal       = defaultValue(fieldReflect)
             if (deriveCodecs) {
-              val nonTransient = !field.modifiers.exists(_.isInstanceOf[Modifier.transient])
+              val fieldReflect = field.value
               val codec        = deriveCodec(fieldReflect)
-              val span         = new DynamicOptic.Node.Field(field.name)
-              infos(idx) = new FieldInfo(name, codec, offset, isOpt, isColl, nonTransient, defVal, span)
+              infos(idx) = new FieldInfo(
+                name,
+                codec,
+                offset,
+                isOptional(fieldReflect),
+                isCollection(fieldReflect),
+                nonTransient,
+                defaultValue(fieldReflect),
+                new DynamicOptic.Node.Field(field.name)
+              )
               offset += codec.valueOffset
             }
             idx += 1
@@ -2034,8 +2040,8 @@ class JsonBinaryCodecDeriver private[json] (
             override def decodeValue(in: JsonReader, default: A): A =
               if (in.isNextToken('{')) {
                 val regs             = Registers(usedRegisters)
-                var field: FieldInfo = null
                 val len              = fieldInfos.length
+                var field: FieldInfo = null
                 var seen1, seen2     = 0L
                 var idx, keyLen      = -1
                 if (!in.isNextToken('}')) {
