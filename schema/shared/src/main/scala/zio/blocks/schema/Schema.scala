@@ -10,14 +10,15 @@ import java.util.concurrent.ConcurrentHashMap
  * values of that type.
  */
 final case class Schema[A](reflect: Reflect.Bound[A]) {
+
   /**
    * Convert this schema to a structural schema using a `ToStructural` instance.
    * By default (fallback) this will map structural types to `DynamicValue`.
-   * Proper macro-based `ToStructural` instances for Scala 2/3 can be added
-   * to provide richer, statically-typed structural schemas.
+   * Proper macro-based `ToStructural` instances for Scala 2/3 can be added to
+   * provide richer, statically-typed structural schemas.
    */
   def structural[S](implicit toStructural: ToStructural.Aux[A, S]): Schema[S] = toStructural(this)
-  private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
+  private[this] val cache: ConcurrentHashMap[codec.Format, ?]                 = new ConcurrentHashMap
 
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
     cache
