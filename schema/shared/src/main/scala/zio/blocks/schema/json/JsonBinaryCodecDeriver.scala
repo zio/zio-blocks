@@ -738,9 +738,8 @@ class JsonBinaryCodecDeriver private[json] (
       if (variant.variantBinding.isInstanceOf[Binding[?, ?]]) {
         option(variant) match {
           case Some(value) =>
-            val valueCodec = deriveCodec(value).asInstanceOf[JsonBinaryCodec[Any]]
             new JsonBinaryCodec[Option[Any]]() {
-              private[this] val codec = valueCodec
+              private[this] val codec = deriveCodec(value).asInstanceOf[JsonBinaryCodec[Any]]
 
               override def decodeValue(in: JsonReader, default: Option[Any]): Option[Any] =
                 if (in.isNextToken('n')) {
@@ -896,8 +895,7 @@ class JsonBinaryCodecDeriver private[json] (
                     val infos = new Array[CaseInfo](len)
                     var idx   = 0
                     while (idx < len) {
-                      val case_       = cases(idx)
-                      val caseReflect = case_.value
+                      val caseReflect = cases(idx).value
                       infos(idx) = if (caseReflect.isVariant) {
                         val caseVariant = caseReflect.asVariant.get.asInstanceOf[Reflect.Variant[F, A]]
                         new CaseNodeInfo(discriminator(caseReflect), getInfos(caseVariant))
@@ -2064,18 +2062,18 @@ class JsonBinaryCodecDeriver private[json] (
                         }) && field.nonTransient
                       }
                     ) {
+                      var mask = 1L << idx
                       if (idx < 64) {
-                        val mask = 1L << idx
-                        if ((missing1 & mask) == 0L) in.duplicatedKeyError(keyLen)
+                        mask &= missing1
                         missing1 ^= mask
                       } else {
-                        val mask = 1L << (idx - 64)
-                        if ((missing2 & mask) == 0L) in.duplicatedKeyError(keyLen)
+                        mask &= missing2
                         missing2 ^= mask
                       }
+                      if (mask == 0L) in.duplicatedKeyError(keyLen)
+                      val codec  = field.codec
+                      val offset = field.offset
                       try {
-                        val codec  = field.codec
-                        val offset = field.offset
                         (field.valueType: @switch) match {
                           case 0 =>
                             val objCodec = codec.asInstanceOf[JsonBinaryCodec[AnyRef]]
