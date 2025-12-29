@@ -29,6 +29,10 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
         roundTrip[Parent](Parent(Child(MySealedTrait.Foo(1))), """{"child":{"test":{"Foo":{"foo":1}}}}""") &&
         roundTrip[Parent](Parent(Child(MySealedTrait.Bar("WWW"))), """{"child":{"test":{"Bar":{"bar":"WWW"}}}}""")
+      },
+      test("record with array field") {
+        roundTrip(Arrays(IArray()), """{}""") &&
+        roundTrip(Arrays(IArray("VVV", "WWW")), """{"xs":["VVV","WWW"]}""")
       }
     ),
     suite("variants")(
@@ -138,4 +142,17 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
   sealed trait Bar extends Foo
 
   case object Bar1 extends Bar
+
+  case class Arrays(xs: IArray[String]) {
+    override def hashCode(): Int = java.util.Arrays.hashCode(xs.asInstanceOf[Array[AnyRef]])
+
+    override def equals(obj: Any): Boolean = obj match {
+      case that: Arrays => java.util.Arrays.equals(xs.asInstanceOf[Array[AnyRef]], that.xs.asInstanceOf[Array[AnyRef]])
+      case _            => false
+    }
+  }
+
+  object Arrays {
+    implicit val schema: Schema[Arrays] = Schema.derived
+  }
 }

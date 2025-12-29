@@ -1557,6 +1557,10 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         encode(BigProduct(f00 = true, f66 = Some(2), f69 = 1), """{"f00":true,"f69":1}""") &&
         decode("""{"f00":true,"f66":2,"f69":1}""", BigProduct(f00 = true, f66 = Some(1), f69 = 1))
       },
+      test("record with array field") {
+        roundTrip(Arrays(Array()), """{}""") &&
+        roundTrip(Arrays(Array("VVV", "WWW")), """{"xs":["VVV","WWW"]}""")
+      },
       test("recursive record") {
         roundTrip(
           Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
@@ -3323,5 +3327,18 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
   object GeoJSON {
     implicit val schema: Schema[GeoJSON] = Schema.derived
+  }
+
+  case class Arrays(xs: Array[String]) {
+    override def hashCode(): Int = java.util.Arrays.hashCode(xs.asInstanceOf[Array[AnyRef]])
+
+    override def equals(obj: Any): Boolean = obj match {
+      case that: Arrays => java.util.Arrays.equals(xs.asInstanceOf[Array[AnyRef]], that.xs.asInstanceOf[Array[AnyRef]])
+      case _            => false
+    }
+  }
+
+  object Arrays {
+    implicit val schema: Schema[Arrays] = Schema.derived
   }
 }

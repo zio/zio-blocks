@@ -68,6 +68,7 @@ trait SeqConstructor[C[_]] {
 
   def resultChar(builder: CharBuilder): C[Char]
 }
+
 object SeqConstructor {
   abstract class Boxed[C[_]] extends SeqConstructor[C] {
     override type BooleanBuilder = ObjectBuilder[Boolean]
