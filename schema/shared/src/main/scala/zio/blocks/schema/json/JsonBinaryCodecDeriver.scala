@@ -2303,13 +2303,19 @@ class JsonBinaryCodecDeriver private[json] (
               }
             }
 
-            private[this] def writeCollection(out: JsonWriter, field: FieldInfo, regs: Registers): Unit = {
-              val value = regs.getObject(field.offset, 0)
-              if (value.asInstanceOf[Iterable[?]].nonEmpty) {
-                field.writeKey(out)
-                field.codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(value, out)
+            private[this] def writeCollection(out: JsonWriter, field: FieldInfo, regs: Registers): Unit =
+              regs.getObject(field.offset, 0) match {
+                case value: Iterable[?] =>
+                  if (value.nonEmpty) {
+                    field.writeKey(out)
+                    field.codec.asInstanceOf[JsonBinaryCodec[Iterable[?]]].encodeValue(value, out)
+                  }
+                case value: Array[?] =>
+                  if (value.length > 0) {
+                    field.writeKey(out)
+                    field.codec.asInstanceOf[JsonBinaryCodec[Array[?]]].encodeValue(value, out)
+                  }
               }
-            }
 
             private[this] def writeRequired(out: JsonWriter, field: FieldInfo, regs: Registers): Unit = {
               field.writeKey(out)
