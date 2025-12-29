@@ -370,7 +370,7 @@ private object IntoVersionSpecificImpl {
     /**
      * Generates code to convert a value to a ZIO Prelude newtype, applying validation
      * via the companion's `make` method.
-     * 
+     *
      * Uses compile-time code generation (quasiquotes) to generate direct calls
      * to the companion object's `make` method, avoiding runtime reflection entirely.
      * This allows the code to work on all platforms (JVM, JS, Native).
@@ -378,28 +378,28 @@ private object IntoVersionSpecificImpl {
      * For ZIO Prelude newtypes:
      * - `object Age extends Subtype[Int]` has `make(value: Int): Validation[String, Age]`
      * - We generate: `Age.make(value).toEither.left.map(err => SchemaError.conversionFailed(...))`
-     * 
+     *
      * Returns code that evaluates to Either[SchemaError, NewtypeType]
      */
     def convertToNewtypeEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type, fieldName: String): Tree = {
       // First, try to find an implicit Into instance for this conversion
       val implicitInto = findImplicitInto(sourceTpe, targetTpe)
-      
+
       val targetTypeTree = TypeTree(targetTpe)
       val fieldNameLit = Literal(Constant(fieldName))
-      
+
       implicitInto match {
         case Some(intoInstance) =>
           // Use the implicit Into instance (which may include validation)
           q"""$intoInstance.into($sourceExpr)"""
-          
+
         case None =>
           // No implicit Into found - generate direct call to companion.make(value)
           // For ZIO Prelude newtypes, the type is like "SomeObject.Type"
           // We need to find the companion object (SomeObject) and call its make method
-          
+
           val dealiased = targetTpe.dealias
-          
+
           // Extract companion symbol from the type
           val companionOpt: Option[Symbol] = dealiased match {
             case TypeRef(pre, sym, _) if sym.name.toString == "Type" =>
@@ -415,16 +415,16 @@ private object IntoVersionSpecificImpl {
             case _ =>
               None
           }
-          
+
           companionOpt match {
             case Some(companionSym) =>
               // Check if the companion has a `make` method
               val makeMethod = companionSym.typeSignature.member(TermName("make"))
-              
+
               if (makeMethod != NoSymbol && makeMethod.isMethod) {
                 // Generate: companion.make(value).toEither.left.map(err => SchemaError.conversionFailed(...))
                 val companionRef = Ident(companionSym)
-                
+
                 q"""
                   {
                     val validation = $companionRef.make($sourceExpr)
@@ -443,7 +443,7 @@ private object IntoVersionSpecificImpl {
                   _root_.scala.Right($sourceExpr.asInstanceOf[$targetTypeTree]): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $targetTypeTree]
                 """
               }
-              
+
             case None =>
               // Companion not found - fall back to asInstanceOf (no validation)
               q"""
@@ -527,30 +527,38 @@ private object IntoVersionSpecificImpl {
     // === Derivation: Case Class to Case Class ===
 
     def deriveProductToProduct(): c.Expr[Into[A, B]] = {
+      val schemaErrorType = typeOf[SchemaError]
       val sourceInfo = new ProductInfo(aTpe)
       val targetInfo = new ProductInfo(bTpe)
       val fieldMappings = matchFields(sourceInfo, targetInfo)
 
+      val sourceTypeName = aTpe.typeSymbol.name.toString
+      val targetTypeName = bTpe.typeSymbol.name.toString
+
       // Build field conversions that return Either[SchemaError, FieldType]
-      val fieldEithers = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+      // Also collect field names for error messages
+      val fieldEithersWithNames: List[(Tree, String, String)] = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+        val targetFieldName = targetField.name
         if (mapping.sourceField == null) {
           // No source field - use default value or None for Option types
-          if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
+          val expr = if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
             // Use the actual default value
             val defaultValue = targetField.defaultValue.get
-            q"_root_.scala.Right($defaultValue)"
+            q"_root_.scala.Right[$schemaErrorType, Any]($defaultValue)"
           } else {
             // Use None for Option types
-            q"_root_.scala.Right(_root_.scala.None)"
+            q"_root_.scala.Right[$schemaErrorType, Any](_root_.scala.None)"
           }
+          (expr, "", targetFieldName)
         } else {
           val sourceField = mapping.sourceField
           val getter = sourceField.getter
           val sourceTpe = sourceField.tpe
           val targetTpe = targetField.tpe
+          val sourceFieldName = sourceField.name
 
           // If types differ, try to find an implicit Into instance or handle newtype conversion
-          if (!(sourceTpe =:= targetTpe)) {
+          val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
             // Check if it's a newtype conversion (underlying -> newtype)
             val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
             // Check if it's a newtype unwrapping (newtype -> underlying)
@@ -561,12 +569,12 @@ private object IntoVersionSpecificImpl {
               convertToNewtypeEither(q"a.$getter", sourceTpe, targetTpe, sourceField.name)
             } else if (isNewtypeUnwrapping) {
               // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
-              q"_root_.scala.Right(a.$getter.asInstanceOf[$targetTpe])"
+              q"_root_.scala.Right[$schemaErrorType, Any](a.$getter.asInstanceOf[$targetTpe])"
             } else {
               findImplicitInto(sourceTpe, targetTpe) match {
                 case Some(intoInstance) =>
                   // Use Into instance, which already returns Either
-                  q"$intoInstance.into(a.$getter)"
+                  q"$intoInstance.into(a.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
                 case None =>
                   // No coercion available - fail at compile time
                   fail(
@@ -588,33 +596,59 @@ private object IntoVersionSpecificImpl {
             }
           } else {
             // Types match - wrap in Right
-            q"_root_.scala.Right(a.$getter)"
+            q"_root_.scala.Right[$schemaErrorType, Any](a.$getter)"
           }
+          (conversionExpr, sourceFieldName, targetFieldName)
         }
       }
 
-      // Build nested flatMap chain to sequence Either values
-      def buildFlatMapChain(eithers: List[Tree], accumulatedVals: List[TermName]): Tree = {
-        eithers match {
-          case Nil =>
-            // All fields sequenced - construct target with accumulated values
-            val constructorArgs = accumulatedVals.reverse.map(v => q"$v")
-            q"_root_.scala.Right(new $bTpe(..$constructorArgs))"
+      val fieldEithers = fieldEithersWithNames.map(_._1)
+      val fieldNamePairs = fieldEithersWithNames.map { case (_, src, tgt) => (src, tgt) }
 
-          case eitherExpr :: tail =>
-            // Generate a unique variable name for this field
-            val valName = TermName(c.freshName("field"))
-            val restExpr = buildFlatMapChain(tail, valName :: accumulatedVals)
+      // Build error-accumulating expression
+      def buildAccumulatingExpr(eithers: List[Tree], targetTypes: List[Type], namePairs: List[(String, String)]): Tree = {
+        if (eithers.isEmpty) {
+          // Empty case class
+          q"_root_.scala.Right[$schemaErrorType, $bTpe](new $bTpe())"
+        } else {
+          val valNames = eithers.indices.map(i => TermName(c.freshName(s"field$i"))).toList
+          val evaluations = eithers.zip(valNames).map { case (expr, name) =>
+            q"val $name: _root_.scala.Either[$schemaErrorType, Any] = $expr"
+          }
 
+          // Create properly typed constructor arguments
+          val constructorArgs = valNames.zip(targetTypes).map { case (name, targetTpe) =>
+            q"$name.right.get.asInstanceOf[$targetTpe]"
+          }
+
+          // Build error collection with field name enhancement
+          val errorCollection = valNames.zip(namePairs).map { case (name, (srcField, tgtField)) =>
+            val fieldDesc = if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField" else s"$targetTypeName.$tgtField"
+            val contextMsg = s"converting field '$fieldDesc'"
             q"""
-              $eitherExpr.flatMap { case $valName =>
-                $restExpr
+              if ($name.isLeft) {
+                _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.left.get))
+              } else {
+                _root_.scala.None
               }
             """
+          }
+
+          q"""
+            ..$evaluations
+            val _errorOptions: _root_.scala.List[_root_.scala.Option[$schemaErrorType]] = _root_.scala.List(..$errorCollection)
+            val _errors: _root_.scala.List[$schemaErrorType] = _errorOptions.flatten
+            if (_errors.isEmpty) {
+              _root_.scala.Right[$schemaErrorType, $bTpe](new $bTpe(..$constructorArgs))
+            } else {
+              _root_.scala.Left[$schemaErrorType, $bTpe](_errors.reduceLeft((a, b) => a.++(b)))
+            }
+          """
         }
       }
 
-      val sequencedExpr = buildFlatMapChain(fieldEithers, Nil)
+      val targetFieldTypes = targetInfo.fields.map(_.tpe)
+      val sequencedExpr = buildAccumulatingExpr(fieldEithers, targetFieldTypes, fieldNamePairs)
 
       c.Expr[Into[A, B]](
         q"""
@@ -950,8 +984,11 @@ private object IntoVersionSpecificImpl {
     }
 
     def generateCaseClassClause(sourceSubtype: Type, targetSubtype: Type): CaseDef = {
+      val schemaErrorType = typeOf[SchemaError]
       val sourceInfo = new ProductInfo(sourceSubtype)
       val targetInfo = new ProductInfo(targetSubtype)
+      val sourceTypeName = sourceSubtype.typeSymbol.name.toString
+      val targetTypeName = targetSubtype.typeSymbol.name.toString
 
       // Match fields between source and target case classes
       val fieldMappings = matchFields(sourceInfo, targetInfo)
@@ -959,44 +996,38 @@ private object IntoVersionSpecificImpl {
       // Generate binding pattern: case x: SourceType => ...
       val bindingName = TermName("x")
 
-      // Build field conversions that return Either[SchemaError, FieldType]
-      val fieldEithers = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+      // Build field conversions that return Either[SchemaError, Any] with field name tracking
+      val fieldEithersWithNames: List[(Tree, String, String)] = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+        val targetFieldName = targetField.name
         if (mapping.sourceField == null) {
           // No source field - use default value or None for Option types
-          if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
-            // Use the actual default value
+          val expr = if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
             val defaultValue = targetField.defaultValue.get
-            q"_root_.scala.Right($defaultValue)"
+            q"_root_.scala.Right[$schemaErrorType, Any]($defaultValue)"
           } else {
-            // Use None for Option types
-            q"_root_.scala.Right(_root_.scala.None)"
+            q"_root_.scala.Right[$schemaErrorType, Any](_root_.scala.None)"
           }
+          (expr, "", targetFieldName)
         } else {
           val sourceField = mapping.sourceField
           val getter = sourceField.getter
           val sourceTpe = sourceField.tpe
           val targetTpe = targetField.tpe
+          val sourceFieldName = sourceField.name
 
-          // If types differ, try to find an implicit Into instance or handle newtype conversion
-          if (!(sourceTpe =:= targetTpe)) {
-            // Check if it's a newtype conversion (underlying -> newtype)
+          val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
             val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
-            // Check if it's a newtype unwrapping (newtype -> underlying)
             val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
 
             if (isNewtypeConversion) {
-              // Generate code to convert to newtype, using implicit Into if available
               convertToNewtypeEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
             } else if (isNewtypeUnwrapping) {
-              // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
-              q"_root_.scala.Right($bindingName.$getter.asInstanceOf[$targetTpe])"
+              q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter.asInstanceOf[$targetTpe])"
             } else {
               findImplicitInto(sourceTpe, targetTpe) match {
                 case Some(intoInstance) =>
-                  // Use Into instance, which already returns Either
-                  q"$intoInstance.into($bindingName.$getter)"
+                  q"$intoInstance.into($bindingName.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
                 case None =>
-                  // No coercion available - fail at compile time
                   fail(
                     s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
                     s"Please provide an implicit Into instance in scope."
@@ -1004,34 +1035,57 @@ private object IntoVersionSpecificImpl {
               }
             }
           } else {
-            // Types match - wrap in Right
-            q"_root_.scala.Right($bindingName.$getter)"
+            q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter)"
           }
+          (conversionExpr, sourceFieldName, targetFieldName)
         }
       }
 
-      // Build nested flatMap chain to sequence Either values
-      def buildFlatMapChain(eithers: List[Tree], accumulatedVals: List[TermName]): Tree = {
-        eithers match {
-          case Nil =>
-            // All fields sequenced - construct target with accumulated values
-            val constructorArgs = accumulatedVals.reverse.map(v => q"$v")
-            q"_root_.scala.Right(new $targetSubtype(..$constructorArgs))"
+      val fieldEithers = fieldEithersWithNames.map(_._1)
+      val fieldNamePairs = fieldEithersWithNames.map { case (_, src, tgt) => (src, tgt) }
 
-          case eitherExpr :: tail =>
-            // Generate a unique variable name for this field
-            val valName = TermName(c.freshName("field"))
-            val restExpr = buildFlatMapChain(tail, valName :: accumulatedVals)
+      // Build error-accumulating expression for coproduct case
+      def buildAccumulatingExpr(eithers: List[Tree], targetTypes: List[Type], namePairs: List[(String, String)]): Tree = {
+        if (eithers.isEmpty) {
+          q"_root_.scala.Right[$schemaErrorType, $targetSubtype](new $targetSubtype())"
+        } else {
+          val valNames = eithers.indices.map(i => TermName(c.freshName(s"field$i"))).toList
+          val evaluations = eithers.zip(valNames).map { case (expr, name) =>
+            q"val $name: _root_.scala.Either[$schemaErrorType, Any] = $expr"
+          }
 
+          val constructorArgs = valNames.zip(targetTypes).map { case (name, targetTpe) =>
+            q"$name.right.get.asInstanceOf[$targetTpe]"
+          }
+
+          // Build error collection with field name enhancement
+          val errorCollection = valNames.zip(namePairs).map { case (name, (srcField, tgtField)) =>
+            val fieldDesc = if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField" else s"$targetTypeName.$tgtField"
+            val contextMsg = s"converting field '$fieldDesc'"
             q"""
-              $eitherExpr.flatMap { case $valName =>
-                $restExpr
+              if ($name.isLeft) {
+                _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.left.get))
+              } else {
+                _root_.scala.None
               }
             """
+          }
+
+          q"""
+            ..$evaluations
+            val _errorOptions: _root_.scala.List[_root_.scala.Option[$schemaErrorType]] = _root_.scala.List(..$errorCollection)
+            val _errors: _root_.scala.List[$schemaErrorType] = _errorOptions.flatten
+            if (_errors.isEmpty) {
+              _root_.scala.Right[$schemaErrorType, $targetSubtype](new $targetSubtype(..$constructorArgs))
+            } else {
+              _root_.scala.Left[$schemaErrorType, $targetSubtype](_errors.reduceLeft((a, b) => a.++(b)))
+            }
+          """
         }
       }
 
-      val sequencedExpr = buildFlatMapChain(fieldEithers, Nil)
+      val targetFieldTypes = targetInfo.fields.map(_.tpe)
+      val sequencedExpr = buildAccumulatingExpr(fieldEithers, targetFieldTypes, fieldNamePairs)
 
       cq"$bindingName: $sourceSubtype => $sequencedExpr"
     }

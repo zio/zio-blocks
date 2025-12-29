@@ -34,10 +34,9 @@ object ProductToStructuralSpec extends ZIOSpecDefault {
 
         result match {
           case Right(r) =>
-            assert(r.name)(equalTo("Alice")) &&
-            assert(r.age)(equalTo(30))
+            assertTrue(r.name == "Alice", r.age == 30)
           case Left(err) =>
-            assert(false)(equalTo(true)) // Force failure with error message
+            assertTrue(false) ?? s"Conversion failed with error: $err"
         }
       },
       test("converts case class with single field") {
@@ -47,9 +46,9 @@ object ProductToStructuralSpec extends ZIOSpecDefault {
 
         result match {
           case Right(r) =>
-            assert(r.name)(equalTo("Bob"))
+            assertTrue(r.name == "Bob")
           case Left(_) =>
-            assert(false)(equalTo(true))
+            assertTrue(false)
         }
       }
     ),
@@ -61,10 +60,9 @@ object ProductToStructuralSpec extends ZIOSpecDefault {
 
         result match {
           case Right(r) =>
-            assert(r.name)(equalTo("Carol")) &&
-            assert(r.age)(equalTo(25))
+            assertTrue(r.name == "Carol", r.age == 25)
           case Left(_) =>
-            assert(false)(equalTo(true))
+            assertTrue(false)
         }
       },
       test("converts case class to structural with single field from many") {
@@ -74,9 +72,9 @@ object ProductToStructuralSpec extends ZIOSpecDefault {
 
         result match {
           case Right(r) =>
-            assert(r.name)(equalTo("Dave"))
+            assertTrue(r.name == "Dave")
           case Left(_) =>
-            assert(false)(equalTo(true))
+            assertTrue(false)
         }
       }
     ),
@@ -88,11 +86,9 @@ object ProductToStructuralSpec extends ZIOSpecDefault {
 
         result match {
           case Right(r) =>
-            assert(r.name)(equalTo("Eve")) &&
-            assert(r.age)(equalTo(28)) &&
-            assert(r.department)(equalTo("Sales"))
+            assertTrue(r.name == "Eve", r.age == 28, r.department == "Sales")
           case Left(_) =>
-            assert(false)(equalTo(true))
+            assertTrue(false)
         }
       }
     ),
