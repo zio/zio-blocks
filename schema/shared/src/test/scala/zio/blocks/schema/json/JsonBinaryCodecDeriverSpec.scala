@@ -2114,15 +2114,16 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     ),
     suite("sequences")(
       test("primitive values") {
-        implicit val arrayOfUnitSchema: Schema[Array[Unit]]       = Schema.derived
-        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]] = Schema.derived
-        implicit val arrayOfByteSchema: Schema[Array[Byte]]       = Schema.derived
-        implicit val arrayOfShortSchema: Schema[Array[Short]]     = Schema.derived
-        implicit val arrayOfCharSchema: Schema[Array[Char]]       = Schema.derived
-        implicit val arrayOfIntSchema: Schema[Array[Int]]         = Schema.derived
-        implicit val arrayOfFloatSchema: Schema[Array[Float]]     = Schema.derived
-        implicit val arrayOfLongSchema: Schema[Array[Long]]       = Schema.derived
-        implicit val arrayOfDoubleSchema: Schema[Array[Double]]   = Schema.derived
+        implicit val arrayOfUnitSchema: Schema[Array[Unit]]         = Schema.derived
+        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]]   = Schema.derived
+        implicit val arrayOfByteSchema: Schema[Array[Byte]]         = Schema.derived
+        implicit val arrayOfShortSchema: Schema[Array[Short]]       = Schema.derived
+        implicit val arrayOfCharSchema: Schema[Array[Char]]         = Schema.derived
+        implicit val arrayOfIntSchema: Schema[Array[Int]]           = Schema.derived
+        implicit val arrayOfFloatSchema: Schema[Array[Float]]       = Schema.derived
+        implicit val arrayOfLongSchema: Schema[Array[Long]]         = Schema.derived
+        implicit val arrayOfDoubleSchema: Schema[Array[Double]]     = Schema.derived
+        implicit val arraySeqOfFloatSchema: Schema[ArraySeq[Float]] = Schema.derived
 
         decode("""null""", List.empty[Int]) &&
         roundTrip(List.empty[Int], """[]""") &&

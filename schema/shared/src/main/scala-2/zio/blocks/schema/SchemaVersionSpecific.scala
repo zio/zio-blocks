@@ -381,29 +381,39 @@ private object SchemaVersionSpecific {
         deriveSchemaForEnumOrModuleValue(tpe)
       } else if (isCollection(tpe)) {
         if (tpe <:< typeOf[Array[?]]) {
-          val elementTpe  = typeArgs(tpe).head
-          val schema      = findImplicitOrDeriveSchema(elementTpe)
-          val constructor =
-            if (elementTpe <:< definitions.AnyRefTpe) {
-              q"""new SeqConstructor.ArrayConstructor {
-                  override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                    new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
-                }"""
-            } else q"SeqConstructor.arrayConstructor"
-          val tpeName = toTree(typeName(tpe))
+          val elementTpe = typeArgs(tpe).head
+          val schema     = findImplicitOrDeriveSchema(elementTpe)
+          val tpeName    = toTree(typeName(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
                 typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                 seqBinding = new Binding.Seq(
-                  constructor = $constructor,
+                  constructor = new SeqConstructor.ArrayConstructor {
+                    override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+                  },
                   deconstructor = SeqDeconstructor.arrayDeconstructor
                 )
               )
             )"""
         } else if (tpe <:< typeOf[ArraySeq[?]]) {
-          val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
-          q"Schema.arraySeq($schema)"
+          val elementTpe = typeArgs(tpe).head
+          val schema     = findImplicitOrDeriveSchema(elementTpe)
+          val tpeName    = toTree(typeName(tpe))
+          q"""new Schema(
+              reflect = new Reflect.Sequence(
+                element = $schema.reflect,
+                typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                seqBinding = new Binding.Seq(
+                  constructor = new SeqConstructor.ArraySeqConstructor {
+                    override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+                  },
+                  deconstructor = SeqDeconstructor.arraySeqDeconstructor
+                )
+              )
+            )"""
         } else if (tpe <:< typeOf[List[?]]) {
           val schema = findImplicitOrDeriveSchema(typeArgs(tpe).head)
           q"Schema.list($schema)"
