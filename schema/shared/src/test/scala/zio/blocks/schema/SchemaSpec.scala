@@ -323,7 +323,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
         object Record4 extends CompanionOptics[Record4] {
           implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx).vectorValues.arraySeqValues
+          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx.each.each)
           val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
         }
 
@@ -353,7 +353,7 @@ object SchemaSpec extends ZIOSpecDefault {
             new Schema[Record4](
               reflect = Reflect.Record[Binding, Record4](
                 fields = Vector(
-                  Schema[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
+                  Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
                 typeName = TypeName(
@@ -1198,7 +1198,7 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates sequence documentation") {
         assert(Schema[List[Double]].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[ArraySeq[Int]].doc("ArraySeq (updated)").doc)(equalTo(Doc("ArraySeq (updated)")))
+        assert(Schema[Seq[Int]].doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
       },
       test("gets and updates sequence examples") {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
@@ -1231,8 +1231,8 @@ object SchemaSpec extends ZIOSpecDefault {
         )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
-        assert(Schema[ArraySeq[Int]].fromDynamicValue(Schema[ArraySeq[Int]].toDynamicValue(ArraySeq(1, 2, 3))))(
-          isRight(equalTo(ArraySeq(1, 2, 3)))
+        assert(Schema[Seq[Int]].fromDynamicValue(Schema[Seq[Int]].toDynamicValue(Seq(1, 2, 3))))(
+          isRight(equalTo(Seq(1, 2, 3)))
         ) &&
         assert(
           Schema

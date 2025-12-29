@@ -2,7 +2,6 @@ package zio.blocks.schema.binding
 
 import zio.blocks.schema.DynamicValue
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-import scala.collection.immutable.ArraySeq
 
 /**
  * A binding is used to attach non-serializable Scala functions, such as
@@ -331,9 +330,6 @@ object Binding {
     def list[A]: Seq[List, A] = new Seq(SeqConstructor.listConstructor, SeqDeconstructor.listDeconstructor)
 
     def vector[A]: Seq[Vector, A] = new Seq(SeqConstructor.vectorConstructor, SeqDeconstructor.vectorDeconstructor)
-
-    def arraySeq[A]: Seq[ArraySeq, A] =
-      new Seq(SeqConstructor.arraySeqConstructor, SeqDeconstructor.arraySeqDeconstructor)
 
     def indexedSeq[A]: Seq[IndexedSeq, A] =
       new Seq(SeqConstructor.indexedSeqConstructor, SeqDeconstructor.indexedSeqDeconstructor)

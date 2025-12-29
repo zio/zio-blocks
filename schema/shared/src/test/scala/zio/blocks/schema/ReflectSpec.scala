@@ -457,14 +457,13 @@ object ReflectSpec extends ZIOSpecDefault {
         val sequence1 = Reflect.vector(Reflect.int[Binding])
         assert(sequence1.fromDynamicValue(sequence1.toDynamicValue(Vector(1, 2, 3))))(isRight(equalTo(Vector(1, 2, 3))))
       },
-      test("has extractors for lists, vactors, sets, and arrays") {
+      test("has extractors for lists, vectors, and sets") {
         import Reflect.Extractors._
 
         val bigInt1 = Reflect.bigInt[Binding]
         assert(Option(Reflect.list(bigInt1)).collect { case List(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.vector(bigInt1)).collect { case Vector(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.set(bigInt1)).collect { case Set(e) => e })(isSome(equalTo(bigInt1))) &&
-        assert(Option(Reflect.arraySeq(bigInt1)).collect { case ArraySeq(e) => e })(isSome(equalTo(bigInt1))) &&
         assert(Option(Reflect.Deferred(() => Reflect.list(bigInt1))).collect { case List(e) => e })(
           isSome(equalTo(bigInt1))
         ) &&
@@ -472,9 +471,6 @@ object ReflectSpec extends ZIOSpecDefault {
           isSome(equalTo(bigInt1))
         ) &&
         assert(Option(Reflect.Deferred(() => Reflect.set(bigInt1))).collect { case Set(e) => e })(
-          isSome(equalTo(bigInt1))
-        ) &&
-        assert(Option(Reflect.Deferred(() => Reflect.arraySeq(bigInt1))).collect { case ArraySeq(e) => e })(
           isSome(equalTo(bigInt1))
         )
       },
@@ -499,9 +495,9 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(sequence1.defaultValue(Vector.empty).getDefaultValue)(isSome(equalTo(Vector.empty)))
       },
       test("gets and updates sequence documentation") {
-        val sequence1 = Reflect.arraySeq(Reflect.int[Binding])
+        val sequence1 = Reflect.seq(Reflect.int[Binding])
         assert(sequence1.doc)(equalTo(Doc.Empty)) &&
-        assert(sequence1.doc("Array (updated)").doc)(equalTo(Doc("Array (updated)")))
+        assert(sequence1.doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
       },
       test("gets and updates sequence examples") {
         val sequence1 = Reflect.Sequence[Binding, Double, List](

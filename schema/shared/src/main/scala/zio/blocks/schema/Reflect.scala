@@ -1619,9 +1619,6 @@ object Reflect {
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
     new Sequence(element, TypeName.vector(element.typeName), F.fromBinding(Binding.Seq.vector))
 
-  def arraySeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, ArraySeq] =
-    new Sequence(element, TypeName.arraySeq(element.typeName), F.fromBinding(Binding.Seq.arraySeq))
-
   def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] =
     new Sequence(element, TypeName.indexedSeq(element.typeName), F.fromBinding(Binding.Seq.indexedSeq))
 
