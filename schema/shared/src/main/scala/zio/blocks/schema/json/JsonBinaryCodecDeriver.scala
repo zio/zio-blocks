@@ -1837,7 +1837,7 @@ class JsonBinaryCodecDeriver private[json] (
                   in.rollbackToken()
                   val len         = fieldCodecs.length
                   var offset, idx = 0
-                  while (idx < len && (idx == 0 || in.isNextToken(',') || in.commaError())) {
+                  while ({
                     val codec = fieldCodecs(idx)
                     try {
                       (codec.valueType: @switch) match {
@@ -1918,7 +1918,8 @@ class JsonBinaryCodecDeriver private[json] (
                     }
                     offset += codec.valueOffset
                     idx += 1
-                  }
+                    idx < len && (in.isNextToken(',') || in.commaError())
+                  }) ()
                   if (!in.isNextToken(']')) in.arrayEndError()
                 }
                 constructor.construct(regs, 0)
@@ -2039,11 +2040,11 @@ class JsonBinaryCodecDeriver private[json] (
 
             override def decodeValue(in: JsonReader, default: A): A =
               if (in.isNextToken('{')) {
-                val regs             = Registers(usedRegisters)
-                val len              = fieldInfos.length
-                var field: FieldInfo = null
-                var seen1, seen2     = 0L
-                var idx, keyLen      = -1
+                val regs               = Registers(usedRegisters)
+                val len                = fieldInfos.length
+                var field: FieldInfo   = null
+                var missing1, missing2 = -1L
+                var idx, keyLen        = -1
                 if (!in.isNextToken('}')) {
                   in.rollbackToken()
                   while (keyLen < 0 || in.isNextToken(',')) {
@@ -2065,12 +2066,12 @@ class JsonBinaryCodecDeriver private[json] (
                     ) {
                       if (idx < 64) {
                         val mask = 1L << idx
-                        if ((seen1 & mask) != 0L) in.duplicatedKeyError(keyLen)
-                        seen1 ^= mask
+                        if ((missing1 & mask) == 0L) in.duplicatedKeyError(keyLen)
+                        missing1 ^= mask
                       } else {
                         val mask = 1L << (idx - 64)
-                        if ((seen2 & mask) != 0L) in.duplicatedKeyError(keyLen)
-                        seen2 ^= mask
+                        if ((missing2 & mask) == 0L) in.duplicatedKeyError(keyLen)
+                        missing2 ^= mask
                       }
                       try {
                         val codec  = field.codec
@@ -2154,23 +2155,21 @@ class JsonBinaryCodecDeriver private[json] (
                   }
                   if (!in.isCurrentToken('}')) in.objectEndOrCommaError()
                 }
-                var missing = ~seen1
-                val len64   = Math.min(len, 64)
+                val len64 = Math.min(len, 64)
                 while ({
-                  idx = java.lang.Long.numberOfTrailingZeros(missing)
+                  idx = java.lang.Long.numberOfTrailingZeros(missing1)
                   idx < len64
                 }) {
                   setMissingValueOrError(in, regs, idx)
-                  missing &= missing - 1L
+                  missing1 &= missing1 - 1L
                 }
                 if (len > 64) {
-                  missing = ~seen2
                   while ({
-                    idx = java.lang.Long.numberOfTrailingZeros(missing) + 64
+                    idx = java.lang.Long.numberOfTrailingZeros(missing2) + 64
                     idx < len
                   }) {
                     setMissingValueOrError(in, regs, idx)
-                    missing &= missing - 1L
+                    missing2 &= missing2 - 1L
                   }
                 }
                 constructor.construct(regs, 0)

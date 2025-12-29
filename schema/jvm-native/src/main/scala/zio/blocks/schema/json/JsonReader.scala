@@ -19,8 +19,6 @@ import scala.annotation.{switch, tailrec}
  *   the head position in the internal buffer
  * @param tail
  *   the tail position in the internal buffer
- * @param mark
- *   the current mark position
  * @param charBuf
  *   the internal char buffer for parsed strings
  * @param bbuf
@@ -31,6 +29,10 @@ import scala.annotation.{switch, tailrec}
  *   the total number of read bytes
  * @param config
  *   the JSON reader configuration
+ * @param markNum
+ *   the number of mark positions in the stack
+ * @param marks
+ *   the stack of mark positions
  */
 final class JsonReader private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
@@ -691,7 +693,7 @@ final class JsonReader private[json] (
    * Reads a JSON value into a `Int` value.
    *
    * @return
-   *   a `Int` value of the parsed JSON value
+   *   an `Int` value of the parsed JSON value
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or detection of leading zero or
    *   illegal format of JSON value or exceeding capacity of `Int`
@@ -1227,7 +1229,7 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON string value into a `Int` value.
+   * Reads a JSON string value into an `Int` value.
    *
    * @return
    *   a `Int` value of the parsed JSON value.
