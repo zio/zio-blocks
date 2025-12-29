@@ -93,6 +93,20 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  /**
+   * Converts this nominal schema to a structural schema.
+   *
+   * This transforms `Schema[A]` into `Schema[StructuralType]` where the
+   * structural type mirrors the fields of `A` using duck typing.
+   *
+   * @param ts
+   *   The ToStructural instance for type A (usually derived)
+   * @return
+   *   A Schema for the structural equivalent type
+   */
+  def structural(implicit ts: ToStructural[A]): Schema[ts.StructuralType] =
+    ts.structuralSchema(this)
 }
 
 object Schema extends SchemaVersionSpecific {

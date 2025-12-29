@@ -2,9 +2,82 @@ package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
 
-final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil)
+final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil) {
+
+  /**
+   * Returns a simple string representation of this TypeName, suitable for use
+   * in structural type names. For primitives, returns just the simple name. For
+   * parameterized types, includes the parameters.
+   */
+  def toSimpleName: String =
+    if (params.isEmpty) name
+    else s"$name[${params.map(_.toSimpleName).mkString(",")}]"
+}
 
 object TypeName {
+
+  /**
+   * Creates a normalized structural type name from a sequence of (fieldName,
+   * typeNameString) pairs. Fields are sorted alphabetically by name to ensure
+   * consistent naming.
+   *
+   * Format: {field1:Type1,field2:Type2,...}
+   *
+   * Example:
+   * {{{
+   * TypeName.structural(Seq("name" -> "String", "age" -> "Int"))
+   * // => TypeName with name "{age:Int,name:String}"
+   * }}}
+   */
+  def structural[A](fields: Seq[(String, String)]): TypeName[A] = {
+    val sortedFieldStrs = fields.sortBy(_._1).map { case (n, t) => s"$n:$t" }.mkString(",")
+    new TypeName[A](Namespace.empty, s"{$sortedFieldStrs}", Nil)
+  }
+
+  /**
+   * Creates a normalized structural type name from a sequence of (fieldName,
+   * TypeName) pairs. Fields are sorted alphabetically by name to ensure
+   * consistent naming. Uses the simple name representation of each TypeName.
+   *
+   * Format: {field1:Type1,field2:Type2,...}
+   */
+  def structuralFromTypeNames[A](fields: Seq[(String, TypeName[?])]): TypeName[A] =
+    structural(fields.map { case (n, tn) => (n, tn.toSimpleName) })
+
+  /**
+   * Creates a variant (union) type name from a sequence of case names. Each
+   * case is represented as {Tag:CaseName}.
+   *
+   * Format: {Tag:Case1}|{Tag:Case2}|...
+   *
+   * Example:
+   * {{{
+   * TypeName.variant(Seq("Success", "Failure"))
+   * // => TypeName with name "{Tag:Failure}|{Tag:Success}"
+   * }}}
+   */
+  def variant[A](cases: Seq[String]): TypeName[A] = {
+    val sortedCases = cases.sorted.map(n => s"{Tag:$n}").mkString("|")
+    new TypeName[A](Namespace.empty, sortedCases, Nil)
+  }
+
+  /**
+   * Creates a tagged case type name for a single case in a variant.
+   *
+   * Format: {Tag:CaseName}
+   */
+  def taggedCase[A](name: String): TypeName[A] =
+    new TypeName[A](Namespace.empty, s"{Tag:$name}", Nil)
+
+  /**
+   * Creates an empty structural type name (for case objects or empty case
+   * classes).
+   *
+   * Format: {}
+   */
+  def emptyStructural[A]: TypeName[A] =
+    new TypeName[A](Namespace.empty, "{}", Nil)
+
   val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
 
   val boolean: TypeName[Boolean] = new TypeName(Namespace.scala, "Boolean")
