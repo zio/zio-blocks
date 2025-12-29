@@ -44,20 +44,30 @@ object ToStructuralVersionSpecific {
           s"$name[$argsS]"
         case TypeRef(_, sym, _) =>
           // product types: attempt to inspect primary constructor params
-          val cls = sym.asClass
-          if (cls.isCaseClass) {
-            val ctor = cls.primaryConstructor.asMethod
-            val params = ctor.paramLists.flatten.map { p =>
-              val pname = p.name.toString
-              val ptype = tp.member(p.name) match {
-                case s: TermSymbol => s.typeSignatureIn(tp)
-                case _ => NoType
+          // Only call `asClass` when the symbol is a class; for other symbols
+          // (type aliases, type params) fall back to `dealias` or the symbol
+          // name to avoid crashing the macro on non-class symbols.
+          if (sym.isClass) {
+            val cls = sym.asClass
+            if (cls.isCaseClass) {
+              val ctor = cls.primaryConstructor.asMethod
+              val params = ctor.paramLists.flatten.map { p =>
+                val pname = p.name.toString
+                val ptype = tp.member(p.name) match {
+                  case s: TermSymbol => s.typeSignatureIn(tp)
+                  case _ => NoType
+                }
+                pname -> repr(ptype)
               }
-              pname -> repr(ptype)
-            }
-            val sorted = params.sortBy(_._1)
-            sorted.map { case (n, r) => s"$n:$r" }.mkString("{", ",", "}")
-          } else sym.name.toString
+              val sorted = params.sortBy(_._1)
+              sorted.map { case (n, r) => s"$n:$r" }.mkString("{", ",", "}")
+            } else sym.name.toString
+          } else {
+            // Non-class symbol (e.g., type alias). Attempt to resolve the alias
+            // to its underlying type and render that; if unresolved, use name.
+            val dealiased = tp.dealias
+            if (dealiased != tp) repr(dealiased) else sym.name.toString
+          }
         case _ => tp.toString
       }
     }

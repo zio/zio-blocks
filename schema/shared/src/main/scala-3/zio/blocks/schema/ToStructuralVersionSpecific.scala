@@ -161,16 +161,16 @@ object ToStructuralVersionSpecific {
       }
 
       // Convert to a quoted Type; this should succeed because every field was splicable.
+      // However, producing a truly-typed `Schema[GeneratedStructural]` is non-trivial
+      // (it requires building a Schema instance whose type matches the structural
+      // refinement). Casting `Schema.dynamic` is unsafe and defeats the purpose
+      // of typed derivation. For now, fall back to the untyped `derived`
+      // implementation which is safe and correct. Leave a diagnostic for future
+      // work to implement proper typed schema construction.
       refined.asType match {
         case '[s] =>
-          '{
-            type GeneratedStructural = s
-            new zio.blocks.schema.ToStructural[A] {
-              type StructuralType = GeneratedStructural
-              def apply(schema: zio.blocks.schema.Schema[A]): zio.blocks.schema.Schema[GeneratedStructural] =
-                zio.blocks.schema.Schema.dynamic.asInstanceOf[zio.blocks.schema.Schema[GeneratedStructural]]
-            }
-          }.asExprOf[ToStructural[A]]
+          report.info(s"Typed structural derivation for ${tpe.show} succeeded at the type-level, but typed Schema construction is not yet implemented; falling back to DynamicValue-backed schema.")
+          '{ zio.blocks.schema.ToStructuralVersionSpecific.derived[A] }
         case _ =>
           // Extremely unlikely given the pre-check, but fall back defensively.
           '{ zio.blocks.schema.ToStructuralVersionSpecific.derived[A] }
