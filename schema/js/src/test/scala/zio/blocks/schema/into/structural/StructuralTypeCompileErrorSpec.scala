@@ -4,9 +4,9 @@ import zio.test._
 
 /**
  * Tests that structural type conversions fail at compile time on Scala.js.
- * 
- * Structural types require reflection APIs (getClass.getMethod) which are
- * not available on Scala.js.
+ *
+ * Structural types require reflection APIs (getClass.getMethod) which are not
+ * available on Scala.js.
  */
 object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
 
@@ -85,4 +85,3 @@ object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
     )
   )
 }
-

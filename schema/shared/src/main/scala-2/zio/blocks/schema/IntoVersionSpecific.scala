@@ -627,7 +627,7 @@ private object IntoVersionSpecificImpl {
             val contextMsg = s"converting field '$fieldDesc'"
             q"""
               if ($name.isLeft) {
-                _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.left.get))
+                _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.swap.toOption.get))
               } else {
                 _root_.scala.None
               }
@@ -1064,7 +1064,7 @@ private object IntoVersionSpecificImpl {
             val contextMsg = s"converting field '$fieldDesc'"
             q"""
               if ($name.isLeft) {
-                _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.left.get))
+                _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.swap.toOption.get))
               } else {
                 _root_.scala.None
               }

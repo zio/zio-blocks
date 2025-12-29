@@ -23,13 +23,17 @@ object SchemaError {
   def conversionFailed(trace: List[DynamicOptic.Node], details: String): SchemaError =
     new SchemaError(new ::(ConversionFailed(toDynamicOptic(trace), details, None), Nil))
 
-  def conversionFailed(contextMessage: String, cause: SchemaError): SchemaError = {
-    new SchemaError(new ::(ConversionFailed(
-      DynamicOptic.root, 
-      contextMessage,
-      Some(cause)
-    ), Nil))
-  }
+  def conversionFailed(contextMessage: String, cause: SchemaError): SchemaError =
+    new SchemaError(
+      new ::(
+        ConversionFailed(
+          DynamicOptic.root,
+          contextMessage,
+          Some(cause)
+        ),
+        Nil
+      )
+    )
 
   def expectationMismatch(trace: List[DynamicOptic.Node], expectation: String): SchemaError =
     new SchemaError(new ::(new ExpectationMismatch(toDynamicOptic(trace), expectation), Nil))
@@ -74,8 +78,8 @@ object SchemaError {
   }
 
   case class ConversionFailed(
-    source: DynamicOptic, 
-    details: String, 
+    source: DynamicOptic,
+    details: String,
     cause: Option[SchemaError] = None
   ) extends IntoError {
     override def message: String = {

@@ -104,7 +104,9 @@ object NonReversibleSpec extends ZIOSpecDefault {
           val error = result.swap.getOrElse("")
           assertTrue(
             result.isLeft,
-            error.contains("Cannot derive") || error.contains("no matching field") || error.contains("not bidirectionally")
+            error.contains("Cannot derive") || error.contains("no matching field") || error.contains(
+              "not bidirectionally"
+            )
           )
         }
       }
