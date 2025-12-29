@@ -97,7 +97,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Int` value as a JSON key.
+   * Writes an `Int` value as a JSON key.
    *
    * @param x
    *   the `Int` value to write
@@ -238,7 +238,7 @@ final class JsonWriter private[json] (
    *
    * @note
    *   Use [[JsonWriter.isNonEscapedAscii]] for validation if the string is
-   *   eligable for writing by this method.
+   *   eligible for writing by this method.
    *
    * @param x
    *   the `String` value to write
@@ -540,7 +540,7 @@ final class JsonWriter private[json] (
    *
    * @note
    *   Use [[JsonWriter.isNonEscapedAscii]] for validation if the string is
-   *   eligable for writing by this method.
+   *   eligible for writing by this method.
    *
    * @param x
    *   the `String` value to write
@@ -786,7 +786,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Int` value as a JSON value.
+   * Writes an `Int` value as a JSON value.
    *
    * @param x
    *   the `Int` value to write
@@ -906,7 +906,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Int` value as a JSON string value.
+   * Writes an `Int` value as a JSON string value.
    *
    * @param x
    *   the `Int` value to write
