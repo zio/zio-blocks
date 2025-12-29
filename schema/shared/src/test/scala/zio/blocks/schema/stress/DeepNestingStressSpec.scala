@@ -96,12 +96,18 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
         implicit val l2Into: Into[Level2A, Level2B] = Into.derived[Level2A, Level2B]
         implicit val l3Into: Into[Level3A, Level3B] = Into.derived[Level3A, Level3B]
         implicit val l4Into: Into[Level4A, Level4B] = Into.derived[Level4A, Level4B]
-        val l5Into: Into[Level5A, Level5B] = Into.derived[Level5A, Level5B]
+        val l5Into: Into[Level5A, Level5B]          = Into.derived[Level5A, Level5B]
 
         val result = l5Into.into(source)
         assertTrue(result.isRight) && {
           val Right(target) = result: @unchecked
-          assertTrue(target.inner.inner.inner.inner.value == 42, target.inner.inner.inner.name == "inner", target.inner.inner.count == 100L, target.inner.flag == true, target.description == "outer")
+          assertTrue(
+            target.inner.inner.inner.inner.value == 42,
+            target.inner.inner.inner.name == "inner",
+            target.inner.inner.count == 100L,
+            target.inner.flag == true,
+            target.description == "outer"
+          )
         }
       },
       test("preserves data through all 5 levels") {
@@ -120,7 +126,7 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
         implicit val l2Into: Into[Level2A, Level2B] = Into.derived[Level2A, Level2B]
         implicit val l3Into: Into[Level3A, Level3B] = Into.derived[Level3A, Level3B]
         implicit val l4Into: Into[Level4A, Level4B] = Into.derived[Level4A, Level4B]
-        val l5Into: Into[Level5A, Level5B] = Into.derived[Level5A, Level5B]
+        val l5Into: Into[Level5A, Level5B]          = Into.derived[Level5A, Level5B]
 
         val result = l5Into.into(source)
 
@@ -147,9 +153,9 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
           field3 = true
         )
 
-        implicit val l1Into: Into[Level1A, Level1B] = Into.derived[Level1A, Level1B]
-        implicit val l2Into: Into[Level2A, Level2B] = Into.derived[Level2A, Level2B]
-        implicit val l3Into: Into[Level3A, Level3B] = Into.derived[Level3A, Level3B]
+        implicit val l1Into: Into[Level1A, Level1B]  = Into.derived[Level1A, Level1B]
+        implicit val l2Into: Into[Level2A, Level2B]  = Into.derived[Level2A, Level2B]
+        implicit val l3Into: Into[Level3A, Level3B]  = Into.derived[Level3A, Level3B]
         val wdInto: Into[WideAndDeepA, WideAndDeepB] = Into.derived[WideAndDeepA, WideAndDeepB]
 
         val result = wdInto.into(source)
@@ -167,7 +173,7 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
 
         implicit val l1Into: Into[Level1A, Level1B] = Into.derived[Level1A, Level1B]
         implicit val l2Into: Into[Level2A, Level2B] = Into.derived[Level2A, Level2B]
-        val mpInto: Into[MultiPathA, MultiPathB] = Into.derived[MultiPathA, MultiPathB]
+        val mpInto: Into[MultiPathA, MultiPathB]    = Into.derived[MultiPathA, MultiPathB]
 
         val result = mpInto.into(source)
         assertTrue(result.isRight) && {
@@ -202,14 +208,21 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
     suite("Same-Type Deep Nesting")(
       test("deeply nested same type converts to itself") {
         val source = DeepNode(
-          1, "root",
-          Some(DeepNode(
-            2, "child1",
-            Some(DeepNode(
-              3, "child2",
-              Some(DeepNode(4, "leaf", None))
-            ))
-          ))
+          1,
+          "root",
+          Some(
+            DeepNode(
+              2,
+              "child1",
+              Some(
+                DeepNode(
+                  3,
+                  "child2",
+                  Some(DeepNode(4, "leaf", None))
+                )
+              )
+            )
+          )
         )
 
         implicit lazy val nodeInto: Into[DeepNode, DeepNode] = Into.derived[DeepNode, DeepNode]
@@ -219,7 +232,8 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
       },
       test("deeply nested same type round-trips with As") {
         val source = DeepNode(
-          10, "top",
+          10,
+          "top",
           Some(DeepNode(20, "mid", Some(DeepNode(30, "bottom", None))))
         )
 
@@ -234,9 +248,12 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
         val source = CollNode(
           List(1, 2, 3),
           List(
-            CollNode(List(4, 5), List(
-              CollNode(List(6), List.empty)
-            )),
+            CollNode(
+              List(4, 5),
+              List(
+                CollNode(List(6), List.empty)
+              )
+            ),
             CollNode(List(7, 8), List.empty)
           )
         )
@@ -261,14 +278,16 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
     suite("Deep Option Nesting")(
       test("converts nested Options with Some values") {
         val source = OptLevel3A(
-          Some(OptLevel2A(
-            Some(OptLevel1A(42))
-          ))
+          Some(
+            OptLevel2A(
+              Some(OptLevel1A(42))
+            )
+          )
         )
 
         implicit val ol1Into: Into[OptLevel1A, OptLevel1B] = Into.derived[OptLevel1A, OptLevel1B]
         implicit val ol2Into: Into[OptLevel2A, OptLevel2B] = Into.derived[OptLevel2A, OptLevel2B]
-        val ol3Into: Into[OptLevel3A, OptLevel3B] = Into.derived[OptLevel3A, OptLevel3B]
+        val ol3Into: Into[OptLevel3A, OptLevel3B]          = Into.derived[OptLevel3A, OptLevel3B]
 
         val result = ol3Into.into(source)
         assertTrue(result.isRight) && {
@@ -281,7 +300,7 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
 
         implicit val ol1Into: Into[OptLevel1A, OptLevel1B] = Into.derived[OptLevel1A, OptLevel1B]
         implicit val ol2Into: Into[OptLevel2A, OptLevel2B] = Into.derived[OptLevel2A, OptLevel2B]
-        val ol3Into: Into[OptLevel3A, OptLevel3B] = Into.derived[OptLevel3A, OptLevel3B]
+        val ol3Into: Into[OptLevel3A, OptLevel3B]          = Into.derived[OptLevel3A, OptLevel3B]
 
         val result = ol3Into.into(source)
         assertTrue(result == Right(OptLevel3B(None)))
@@ -299,4 +318,3 @@ object DeepNestingStressSpec extends ZIOSpecDefault {
     )
   )
 }
-

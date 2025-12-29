@@ -53,17 +53,17 @@ object As extends AsVersionSpecific with AsLowPriorityImplicits {
 }
 
 /**
- * Low priority implicit for extracting Into[B, A] from As[A, B].
- * This is placed in a separate trait to have lower priority than direct Into instances.
+ * Low priority implicit for extracting Into[B, A] from As[A, B]. This is placed
+ * in a separate trait to have lower priority than direct Into instances.
  */
 trait AsLowPriorityImplicits {
+
   /**
-   * Extracts Into[B, A] from As[A, B].
-   * This allows container instances like `optionInto` to work when only As is in scope.
-   * For example, if `As[A, B]` is implicit, this provides `Into[B, A]` for the reverse direction.
+   * Extracts Into[B, A] from As[A, B]. This allows container instances like
+   * `optionInto` to work when only As is in scope. For example, if `As[A, B]`
+   * is implicit, this provides `Into[B, A]` for the reverse direction.
    */
   implicit def asReverse[A, B](implicit as: As[A, B]): Into[B, A] = new Into[B, A] {
     def into(input: B): Either[SchemaError, A] = as.from(input)
   }
 }
-

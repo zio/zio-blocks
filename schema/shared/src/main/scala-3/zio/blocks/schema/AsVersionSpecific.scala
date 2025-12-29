@@ -177,16 +177,18 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
     typeArgs(tpe.dealias).headOption
 
   /**
-   * Checks if two container types (Option, List, Vector, Set, Seq) have bidirectionally
-   * convertible element types (including when elements have implicit As instances available).
+   * Checks if two container types (Option, List, Vector, Set, Seq) have
+   * bidirectionally convertible element types (including when elements have
+   * implicit As instances available).
    */
   private def areBidirectionallyConvertibleContainers(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
     // Check if both are Options
     val bothOptions = isOptionType(sourceTpe) && isOptionType(targetTpe)
 
     // Check if both are collection types (can be different collection types)
-    val bothCollections = (isListType(sourceTpe) || isVectorType(sourceTpe) || isSetType(sourceTpe) || isSeqType(sourceTpe)) &&
-                          (isListType(targetTpe) || isVectorType(targetTpe) || isSetType(targetTpe) || isSeqType(targetTpe))
+    val bothCollections =
+      (isListType(sourceTpe) || isVectorType(sourceTpe) || isSetType(sourceTpe) || isSeqType(sourceTpe)) &&
+        (isListType(targetTpe) || isVectorType(targetTpe) || isSetType(targetTpe) || isSeqType(targetTpe))
 
     if (bothOptions || bothCollections) {
       (getContainerElementType(sourceTpe), getContainerElementType(targetTpe)) match {
@@ -261,7 +263,7 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
                 if (!canConvert || !canConvertBack) {
                   val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
                   val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe.show}").mkString(", ")
-                  val direction = if (!canConvert) "A → B" else "B → A"
+                  val direction       = if (!canConvert) "A → B" else "B → A"
                   fail(
                     s"""Cannot derive As[${aTpe.show}, ${bTpe.show}]: Field not bidirectionally convertible
                        |
