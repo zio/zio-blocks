@@ -74,16 +74,6 @@ sealed trait Optic[S, A] { self =>
     }
   }
 
-  final def arraySeqValues[B](implicit ev: A =:= ArraySeq[B]): Traversal[S, B] = {
-    import Reflect.Extractors.ArraySeq
-
-    val arraySeq = self.asEquivalent[ArraySeq[B]]
-    arraySeq.focus match {
-      case ArraySeq(element) => arraySeq(Traversal.arraySeqValues(element))
-      case _                 => sys.error("Expected ArraySeq")
-    }
-  }
-
   final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
     SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Literal(that, schema), SchemaExpr.RelationalOperator.Equal)
 
@@ -1314,8 +1304,6 @@ object Traversal {
       optional1.params ++ traversal2.params
     )
   }
-
-  def arraySeqValues[A](reflect: Reflect.Bound[A]): Traversal[ArraySeq[A], A] = seqValues(Reflect.arraySeq(reflect))
 
   def listValues[A](reflect: Reflect.Bound[A]): Traversal[List[A], A] = seqValues(Reflect.list(reflect))
 
