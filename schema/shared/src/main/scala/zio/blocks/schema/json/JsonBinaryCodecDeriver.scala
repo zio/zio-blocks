@@ -383,8 +383,8 @@ class JsonBinaryCodecDeriver private[json] (
   private[this] val recursiveRecordCache = new ThreadLocal[java.util.HashMap[TypeName[?], Array[FieldInfo]]] {
     override def initialValue: java.util.HashMap[TypeName[?], Array[FieldInfo]] = new java.util.HashMap
   }
-  private[this] val discriminatorFields = new ThreadLocal[List[(String, String)]] {
-    override def initialValue: List[(String, String)] = Nil
+  private[this] val discriminatorFields = new ThreadLocal[List[DiscriminatorFieldInfo]] {
+    override def initialValue: List[DiscriminatorFieldInfo] = Nil
   }
 
   private[this] def deriveCodec[F[_, _], A](reflect: Reflect[F, A]): JsonBinaryCodec[A] = {
@@ -536,7 +536,7 @@ class JsonBinaryCodecDeriver private[json] (
                         }
                         if (name eq null) name = caseNameMapper(case_.name)
                         map.put(name, infosIdx)
-                        discriminatorFields.set((fieldName, name) :: discriminatorFields.get)
+                        discriminatorFields.set(new DiscriminatorFieldInfo(fieldName, name) :: discriminatorFields.get)
                         val caseLeafInfo = new CaseLeafInfo("", deriveCodec(caseReflect), span :: spans)
                         discriminatorFields.set(discriminatorFields.get.tail)
                         allCaseLeafInfos.addOne(caseLeafInfo)
@@ -1743,7 +1743,7 @@ class JsonBinaryCodecDeriver private[json] (
                         idx += 1
                         if (idx == len) idx = 0
                         field = fieldInfos(idx)
-                        (in.isCharBufEqualsTo(keyLen, field.name) || {
+                        (field.nameMatch(in, keyLen) || {
                           val keyIdx = fieldIndexMap.get(in, keyLen)
                           (keyIdx >= 0) && {
                             field = fieldInfos(keyIdx)
@@ -1869,10 +1869,7 @@ class JsonBinaryCodecDeriver private[json] (
 
             override def encodeValue(x: A, out: JsonWriter): Unit = {
               out.writeObjectStart()
-              if (discriminatorField ne null) {
-                out.writeKey(discriminatorField._1)
-                out.writeVal(discriminatorField._2)
-              }
+              if (discriminatorField ne null) discriminatorField.writeKeyAndValue(out)
               val regs = Registers(usedRegisters)
               deconstructor.deconstruct(regs, 0, x)
               val len = fieldInfos.length
@@ -1909,7 +1906,7 @@ class JsonBinaryCodecDeriver private[json] (
                 }
               } else if (field.isOptional) regs.setObject(offset, 0, None)
               else if (field.isCollection) regs.setObject(offset, 0, field.codec.nullValue.asInstanceOf[AnyRef])
-              else in.requiredFieldError(field.name)
+              else field.requiredFieldError(in)
             }
 
             private[this] def writeDefaultValue(out: JsonWriter, field: FieldInfo, regs: Registers): Unit = {
@@ -2049,7 +2046,7 @@ class JsonBinaryCodecDeriver private[json] (
             }
 
             private[this] def skipOrReject(in: JsonReader, keyLen: Int): Unit =
-              if (doReject && ((discriminatorField eq null) || !in.isCharBufEqualsTo(keyLen, discriminatorField._1))) {
+              if (doReject && ((discriminatorField eq null) || !discriminatorField.nameMatch(in, keyLen))) {
                 in.unexpectedKeyError(keyLen)
               } else in.skip()
           }
@@ -2175,23 +2172,46 @@ trait Info {
   }
 }
 
-private case class FieldInfo(
+private class FieldInfo(
   name: String,
-  codec: JsonBinaryCodec[?],
-  offset: RegisterOffset,
-  isOptional: Boolean,
-  isCollection: Boolean,
-  nonTransient: Boolean,
-  defaultValueConstructor: Option[() => ?],
-  span: DynamicOptic.Node.Field
+  val codec: JsonBinaryCodec[?],
+  val offset: RegisterOffset,
+  val isOptional: Boolean,
+  val isCollection: Boolean,
+  val nonTransient: Boolean,
+  val defaultValueConstructor: Option[() => ?],
+  val span: DynamicOptic.Node.Field
 ) extends Info {
   val valueType: Int                      = codec.valueType
   val hasDefault: Boolean                 = defaultValueConstructor ne None
   private[this] val isNonEscapedAsciiName = isNonEscapedAscii(name)
 
+  @inline
+  def requiredFieldError(in: JsonReader): Nothing = in.requiredFieldError(name)
+
+  @inline
+  def nameMatch(in: JsonReader, keyLen: Int): Boolean = in.isCharBufEqualsTo(keyLen, name)
+
+  @inline
   def writeKey(out: JsonWriter): Unit =
     if (isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
     else out.writeKey(name)
+}
+
+private class DiscriminatorFieldInfo(name: String, value: String) extends Info {
+  private[this] val isNonEscapedAsciiName  = isNonEscapedAscii(name)
+  private[this] val isNonEscapedAsciiValue = isNonEscapedAscii(value)
+
+  @inline
+  def nameMatch(in: JsonReader, keyLen: Int): Boolean = in.isCharBufEqualsTo(keyLen, name)
+
+  @inline
+  def writeKeyAndValue(out: JsonWriter): Unit = {
+    if (isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
+    else out.writeKey(name)
+    if (isNonEscapedAsciiValue) out.writeNonEscapedAsciiVal(value)
+    else out.writeVal(value)
+  }
 }
 
 trait CaseInfo extends Info
@@ -2203,6 +2223,7 @@ private class CaseLeafInfo(
 ) extends CaseInfo {
   private[this] val isNonEscapedAsciiName = isNonEscapedAscii(name)
 
+  @inline
   def writeKey(out: JsonWriter): Unit =
     if (isNonEscapedAsciiName) out.writeNonEscapedAsciiKey(name)
     else out.writeKey(name)
@@ -2221,9 +2242,10 @@ private class CaseNodeInfo[A](
 
 trait EnumInfo extends Info
 
-private class EnumLeafInfo(private[this] val name: String, val constructor: Constructor[?]) extends EnumInfo {
+private class EnumLeafInfo(name: String, val constructor: Constructor[?]) extends EnumInfo {
   private[this] val isNonEscapedAsciiName = isNonEscapedAscii(name)
 
+  @inline
   def writeVal(out: JsonWriter): Unit =
     if (isNonEscapedAsciiName) out.writeNonEscapedAsciiVal(name)
     else out.writeVal(name)
