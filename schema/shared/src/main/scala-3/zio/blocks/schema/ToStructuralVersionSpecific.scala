@@ -24,7 +24,7 @@ object ToStructuralVersionSpecific {
 
     checkNonRecursive(tpe, Set.empty)
 
-    def repr(t: TypeRepr): String = {
+    def repr(t: TypeRepr): String =
       if (t =:= TypeRepr.of[String]) "String"
       else if (t =:= TypeRepr.of[Int]) "Int"
       else if (t =:= TypeRepr.of[Long]) "Long"
@@ -35,29 +35,29 @@ object ToStructuralVersionSpecific {
       else if (t =:= TypeRepr.of[Byte]) "Byte"
       else if (t =:= TypeRepr.of[Short]) "Short"
       else if (t =:= TypeRepr.of[Unit]) "Unit"
-      else t match {
-        case AppliedType(tycon, args) if tycon.typeSymbol.fullName == "scala.Option" => s"Option[${repr(args.head)}]"
-        case AppliedType(tycon, args) if args.nonEmpty =>
-          val name = tycon.typeSymbol.name
-          val argsS = args.map(repr).mkString(",")
-          s"$name[$argsS]"
-        case tr: TypeRef if tr.typeSymbol.isClassDef =>
-          // Attempt to gather constructor params for product types
-          tr.classSymbol match {
-            case Some(cls) if cls.primaryConstructor.paramSymss.nonEmpty =>
-              val params = cls.primaryConstructor.paramSymss.flatten.map { p =>
-                val pname = p.name
-                val ptype = tr.memberType(p).dealias
-                pname -> repr(ptype)
-              }
-              // sort alphabetically by field name for determinism
-              val sorted = params.sortBy(_._1)
-              sorted.map { case (n, r) => s"$n:$r" }.mkString("{", ",", "}")
-            case _ => tr.typeSymbol.name
-          }
-        case _ => t.show
-      }
-    }
+      else
+        t match {
+          case AppliedType(tycon, args) if tycon.typeSymbol.fullName == "scala.Option" => s"Option[${repr(args.head)}]"
+          case AppliedType(tycon, args) if args.nonEmpty                               =>
+            val name  = tycon.typeSymbol.name
+            val argsS = args.map(repr).mkString(",")
+            s"$name[$argsS]"
+          case tr: TypeRef if tr.typeSymbol.isClassDef =>
+            // Attempt to gather constructor params for product types
+            tr.classSymbol match {
+              case Some(cls) if cls.primaryConstructor.paramSymss.nonEmpty =>
+                val params = cls.primaryConstructor.paramSymss.flatten.map { p =>
+                  val pname = p.name
+                  val ptype = tr.memberType(p).dealias
+                  pname -> repr(ptype)
+                }
+                // sort alphabetically by field name for determinism
+                val sorted = params.sortBy(_._1)
+                sorted.map { case (n, r) => s"$n:$r" }.mkString("{", ",", "}")
+              case _ => tr.typeSymbol.name
+            }
+          case _ => t.show
+        }
 
     val params = tpe.classSymbol
       .map(_.primaryConstructor.paramSymss.flatten.map { p =>
@@ -88,14 +88,22 @@ object ToStructuralVersionSpecific {
     }
 
     if (fieldSignatures.nonEmpty)
-      q.reflect.report.info(s"Field signatures for $traitName: ${fieldSignatures.map { case (n, t) => s"$n:$t" }.mkString(", ")} )")
+      q.reflect.report.info(
+        s"Field signatures for $traitName: ${fieldSignatures.map { case (n, t) => s"$n:$t" }.mkString(", ")} )"
+      )
 
     q.reflect.report.info(s"Normalized type string: $normalized")
 
     val normalizedExpr = Expr(normalized)
 
-    val tnVal: Expr[zio.blocks.schema.TypeName[zio.blocks.schema.DynamicValue]] = 
-      '{ new zio.blocks.schema.TypeName[zio.blocks.schema.DynamicValue](zio.blocks.schema.Namespace.zioBlocksSchema, ${normalizedExpr}, Nil) }
+    val tnVal: Expr[zio.blocks.schema.TypeName[zio.blocks.schema.DynamicValue]] =
+      '{
+        new zio.blocks.schema.TypeName[zio.blocks.schema.DynamicValue](
+          zio.blocks.schema.Namespace.zioBlocksSchema,
+          ${ normalizedExpr },
+          Nil
+        )
+      }
 
     val res = '{
       new zio.blocks.schema.ToStructural[A] {
@@ -144,7 +152,7 @@ object ToStructuralVersionSpecific {
     val allSplicable: Boolean = sortedParams.forall { case (_, ptype) =>
       ptype.asType match {
         case '[t] => true
-        case _     => false
+        case _    => false
       }
     }
 
@@ -169,7 +177,9 @@ object ToStructuralVersionSpecific {
       // work to implement proper typed schema construction.
       refined.asType match {
         case '[s] =>
-          report.info(s"Typed structural derivation for ${tpe.show} succeeded at the type-level, but typed Schema construction is not yet implemented; falling back to DynamicValue-backed schema.")
+          report.info(
+            s"Typed structural derivation for ${tpe.show} succeeded at the type-level, but typed Schema construction is not yet implemented; falling back to DynamicValue-backed schema."
+          )
           '{ zio.blocks.schema.ToStructuralVersionSpecific.derived[A] }
         case _ =>
           // Extremely unlikely given the pre-check, but fall back defensively.

@@ -7,10 +7,11 @@ import scala.annotation.experimental
  * Scaffold for future named-trait generation for Scala 3 macros.
  *
  * The goal is to eventually generate a named trait per expansion such that
- * `ToStructural.Aux[A, GeneratedTrait]` can be summoned exactly at compile-time.
+ * `ToStructural.Aux[A, GeneratedTrait]` can be summoned exactly at
+ * compile-time.
  *
- * This file contains helper stubs and notes to implement the feature safely
- * in incremental steps.
+ * This file contains helper stubs and notes to implement the feature safely in
+ * incremental steps.
  */
 object ToStructuralNamedTraitScaffold {
   @experimental
@@ -39,16 +40,18 @@ object ToStructuralNamedTraitScaffold {
     // Additional flags to control symbol emission and strictness:
     // - emitNamedTraitSymbol: when true, attempt to create a class symbol and method symbols.
     // - requireNamedTraitSymbol: when true, fail compilation if symbol emission was attempted but failed.
-    val emitSymbol = sys.props.get("zio.blocks.structural.emitNamedTraitSymbol").contains("true")
+    val emitSymbol    = sys.props.get("zio.blocks.structural.emitNamedTraitSymbol").contains("true")
     val requireSymbol = sys.props.get("zio.blocks.structural.requireNamedTraitSymbol").contains("true")
-      val emitToSource = sys.props.get("zio.blocks.structural.emitToSource").contains("true")
+    val emitToSource  = sys.props.get("zio.blocks.structural.emitToSource").contains("true")
 
     if (enabled) {
-      report.warning("ToStructuralNamedTraitScaffold: experimental named-trait generation is ENABLED; returning a generated name (no class emitted)")
+      report.warning(
+        "ToStructuralNamedTraitScaffold: experimental named-trait generation is ENABLED; returning a generated name (no class emitted)"
+      )
 
       // Produce a deterministic-looking generated name based on the splice owner
-      val owner = Symbol.spliceOwner.owner
-      val ownerName = Option(owner.fullName).getOrElse("Owner")
+      val owner         = Symbol.spliceOwner.owner
+      val ownerName     = Option(owner.fullName).getOrElse("Owner")
       val generatedName = s"Structural_${ownerName.replace('.', '_')}_${System.nanoTime().toHexString}"
 
       // Build a trait source string describing the members we would emit if
@@ -84,29 +87,37 @@ object ToStructuralNamedTraitScaffold {
           import java.nio.file.{Files, Paths}
           val base = Paths.get("target", "structural-generated")
           Files.createDirectories(base)
-          val fname = s"${generatedName}.scala"
-          val file = base.resolve(fname)
+          val fname   = s"${generatedName}.scala"
+          val file    = base.resolve(fname)
           val content = s"package zio.blocks.structural.generated\n\n$traitSource\n"
           Files.writeString(file, content)
           report.info(s"[ToStructuralNamedTraitScaffold] Wrote generated trait to: ${file.toAbsolutePath}")
         } catch {
-          case t: Throwable => report.warning(s"ToStructuralNamedTraitScaffold: failed writing generated trait to disk: ${t.getMessage}")
+          case t: Throwable =>
+            report.warning(s"ToStructuralNamedTraitScaffold: failed writing generated trait to disk: ${t.getMessage}")
         }
 
         if (emitSymbol) {
           // Best-effort: create a class symbol and per-field method symbols,
           // but do NOT attempt to insert a ClassDef into the compilation unit.
           try {
-            val ownerSym = Symbol.spliceOwner.owner
+            val ownerSym                    = Symbol.spliceOwner.owner
             val parentReprs: List[TypeRepr] = List(TypeRepr.of[Object])
 
-            val clsSym = Symbol.newClass(ownerSym, generatedName, parents = parentReprs, decls = _ => Nil, selfType = Some(TypeRepr.of[Any]))
+            val clsSym = Symbol.newClass(
+              ownerSym,
+              generatedName,
+              parents = parentReprs,
+              decls = _ => Nil,
+              selfType = Some(TypeRepr.of[Any])
+            )
 
             params.sortBy(_._1).foreach { case (n, tp) =>
               try {
                 Symbol.newMethod(clsSym, n, MethodType(Nil)(_ => Nil, _ => tp))
               } catch {
-                case t: Throwable => report.warning(s"ToStructuralNamedTraitScaffold: failed creating method symbol $n: ${t.getMessage}")
+                case t: Throwable =>
+                  report.warning(s"ToStructuralNamedTraitScaffold: failed creating method symbol $n: ${t.getMessage}")
               }
             }
 
@@ -124,14 +135,13 @@ object ToStructuralNamedTraitScaffold {
 
                 // Create abstract method DefDefs for each param
                 val methodDefs: List[Statement] = params.sortBy(_._1).map { case (n, tp) =>
-                  val mSym = Symbol.newMethod(clsSym, n, MethodType(Nil)(_ => Nil, _ => tp), Flags.Deferred, Symbol.noSymbol)
+                  val mSym =
+                    Symbol.newMethod(clsSym, n, MethodType(Nil)(_ => Nil, _ => tp), Flags.Deferred, Symbol.noSymbol)
                   DefDef(mSym, _ => None)
                 }
 
                 // Create a minimal constructor DefDef that delegates to `()`
-                val ctorDef = DefDef(ctorSym, { (_: List[List[Tree]]) =>
-                  Some('{ () }.asTerm)
-                })
+                val ctorDef = DefDef(ctorSym, (_: List[List[Tree]]) => Some('{ () }.asTerm))
 
                 val parents: List[Tree] = List(TypeTree.of[Object])
 
@@ -164,7 +174,9 @@ object ToStructuralNamedTraitScaffold {
       // `requireSymbol` is set and symbol emission was attempted but failed,
       // report an error to make this opt-in strict mode fail the compilation.
       if (emitSymbol && requireSymbol && !symbolCreated) {
-        report.error("ToStructuralNamedTraitScaffold: required symbol emission failed; aborting compilation as requested by property 'zio.blocks.structural.requireNamedTraitSymbol'")
+        report.error(
+          "ToStructuralNamedTraitScaffold: required symbol emission failed; aborting compilation as requested by property 'zio.blocks.structural.requireNamedTraitSymbol'"
+        )
         '{ None }
       } else if (emitSymbol && !symbolCreated) {
         // Symbol emission was attempted but failed; fall back to returning None
