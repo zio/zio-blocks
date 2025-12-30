@@ -5,9 +5,10 @@ import zio.blocks.schema._
 import scala.compiletime.testing.typeCheckErrors
 
 /**
- * Tests verifying that unknown/unsupported types produce proper compile-time errors.
- * Unknown types include regular classes, traits (non-sealed), and other types that
- * are not primitives, case classes, sealed traits, collections, or tuples.
+ * Tests verifying that unknown/unsupported types produce proper compile-time
+ * errors. Unknown types include regular classes, traits (non-sealed), and other
+ * types that are not primitives, case classes, sealed traits, collections, or
+ * tuples.
  */
 object UnknownTypeErrorSpec extends ZIOSpecDefault {
 
@@ -31,7 +32,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
   // Sealed trait with unknown type field
   sealed trait StatusWithUnknown
   case class ActiveWithRegular(since: String, data: RegularClass) extends StatusWithUnknown
-  case object InactiveStatus extends StatusWithUnknown
+  case object InactiveStatus                                      extends StatusWithUnknown
 
   def spec = suite("UnknownTypeErrorSpec (Scala 3)")(
     suite("Regular Classes (not case classes)")(

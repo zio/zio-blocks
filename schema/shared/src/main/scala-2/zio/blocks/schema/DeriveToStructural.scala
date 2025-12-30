@@ -369,8 +369,9 @@ object DeriveToStructural {
   }
 
   /**
-   * Create a structural schema for a nested case class. This handles the case where
-   * the nested value is actually a StructuralRecord at runtime (converted by toStructural).
+   * Create a structural schema for a nested case class. This handles the case
+   * where the nested value is actually a StructuralRecord at runtime (converted
+   * by toStructural).
    */
   private def createNestedStructuralSchema(
     nestedRecord: Reflect.Record.Bound[_]

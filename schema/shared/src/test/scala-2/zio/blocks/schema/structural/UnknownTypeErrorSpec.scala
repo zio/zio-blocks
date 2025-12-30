@@ -4,9 +4,9 @@ import zio.test._
 import zio.test.Assertion._
 
 /**
- * Tests verifying that unknown/unsupported types produce proper compile-time errors.
- * Unknown types include regular classes, traits (non-sealed), and other types that
- * are not primitives, case classes, collections, or tuples.
+ * Tests verifying that unknown/unsupported types produce proper compile-time
+ * errors. Unknown types include regular classes, traits (non-sealed), and other
+ * types that are not primitives, case classes, collections, or tuples.
  */
 object UnknownTypeErrorSpec extends ZIOSpecDefault {
 

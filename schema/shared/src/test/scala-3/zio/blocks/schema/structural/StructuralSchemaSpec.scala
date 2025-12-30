@@ -23,13 +23,13 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
   // Opaque types for Phase 5
   opaque type UserId = String
   object UserId {
-    def apply(s: String): UserId = s
+    def apply(s: String): UserId             = s
     extension (id: UserId) def value: String = id
   }
 
   opaque type Age = Int
   object Age {
-    def apply(i: Int): Age = i
+    def apply(i: Int): Age              = i
     extension (age: Age) def value: Int = age
   }
 
@@ -392,7 +392,7 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
     ),
     suite("Phase 5: Opaque Types")(
       test("opaque type fields are unwrapped in structural representation") {
-        val ts                         = ToStructural.derived[UserWithOpaque]
+        val ts         = ToStructural.derived[UserWithOpaque]
         val original   = UserWithOpaque(UserId("user123"), "Alice", Age(30))
         val structural = ts.toStructural(original)
 

@@ -6,44 +6,44 @@ import zio.blocks.schema._
 /**
  * Tests for opaque type support in ToStructural (Scala 3 only).
  *
- * Opaque types should be unwrapped to their underlying type in the structural representation.
- * For example, `opaque type UserId = String` in a case class field should become `String`
- * in the structural type.
+ * Opaque types should be unwrapped to their underlying type in the structural
+ * representation. For example, `opaque type UserId = String` in a case class
+ * field should become `String` in the structural type.
  */
 object OpaqueTypeSpec extends ZIOSpecDefault {
 
   // Simple opaque type backed by String
   opaque type UserId = String
   object UserId {
-    def apply(s: String): UserId = s
+    def apply(s: String): UserId             = s
     extension (id: UserId) def value: String = id
   }
 
   // Opaque type backed by Int
   opaque type Age = Int
   object Age {
-    def apply(i: Int): Age = i
+    def apply(i: Int): Age              = i
     extension (age: Age) def value: Int = age
   }
 
   // Opaque type backed by Long
   opaque type Timestamp = Long
   object Timestamp {
-    def apply(l: Long): Timestamp = l
+    def apply(l: Long): Timestamp             = l
     extension (ts: Timestamp) def value: Long = ts
   }
 
   // Opaque type backed by Double
   opaque type Price = Double
   object Price {
-    def apply(d: Double): Price = d
+    def apply(d: Double): Price            = d
     extension (p: Price) def value: Double = p
   }
 
   // Opaque type backed by Boolean
   opaque type Active = Boolean
   object Active {
-    def apply(b: Boolean): Active = b
+    def apply(b: Boolean): Active            = b
     extension (a: Active) def value: Boolean = a
   }
 
