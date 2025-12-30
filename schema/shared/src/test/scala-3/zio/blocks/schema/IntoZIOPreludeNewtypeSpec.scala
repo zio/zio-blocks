@@ -4,12 +4,7 @@ import zio.prelude.{Assertion, *}
 import zio.test.*
 import zio.test.Assertion.*
 
-/**
- * Tests for ZIO Prelude Newtype and Subtype support in the Into type class.
- * These tests verify that the macro automatically detects ZIO Prelude newtypes
- * and uses the 'make' method for validation without requiring explicit implicit
- * instances.
- */
+/** Tests for ZIO Prelude Newtype and Subtype support in Into.derived. */
 object IntoZIOPreludeNewtypeSpec extends ZIOSpecDefault {
 
   // Define newtypes with validation

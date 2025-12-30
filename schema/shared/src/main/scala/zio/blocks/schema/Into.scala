@@ -11,7 +11,6 @@ trait Into[-A, +B] {
 object Into extends IntoVersionSpecific with IntoPrimitiveInstances with IntoContainerInstances {
   def apply[A, B](implicit ev: Into[A, B]): Into[A, B] = ev
 
-  /** Identity instance - any type converts to itself */
   implicit def identity[A]: Into[A, A] = (a: A) => Right(a)
 }
 
@@ -95,7 +94,7 @@ trait IntoPrimitiveInstances {
     else Left(SchemaError.conversionFailed(Nil, s"Value $a cannot be precisely converted to Long"))
 }
 
-trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
+trait IntoContainerInstances {
 
   implicit def optionInto[A, B](implicit into: Into[A, B]): Into[Option[A], Option[B]] = {
     case Some(value) => into.into(value).map(Some(_))
@@ -163,23 +162,18 @@ trait IntoContainerInstances extends IntoContainerInstancesLowPriority {
     sequence(results).map(_.toArray)
   }
 
-  /**
-   * Sequence a list of Eithers into an Either of list, short-circuiting on
-   * first error
-   */
-  protected def sequence[E, A](list: List[Either[E, A]]): Either[E, List[A]] = {
-    val builder = List.newBuilder[A]
-    val iter    = list.iterator
+  protected def sequence[A](list: List[Either[SchemaError, A]]): Either[SchemaError, List[A]] = {
+    val successBuilder = List.newBuilder[A]
+    val errorBuilder   = List.newBuilder[SchemaError]
+    val iter           = list.iterator
     while (iter.hasNext) {
       iter.next() match {
-        case Right(a) => builder += a
-        case Left(e)  => return Left(e)
+        case Right(a) => successBuilder += a
+        case Left(e)  => errorBuilder += e
       }
     }
-    Right(builder.result())
+    val errors = errorBuilder.result()
+    if (errors.isEmpty) Right(successBuilder.result())
+    else Left(errors.reduceLeft(_ ++ _))
   }
-}
-
-trait IntoContainerInstancesLowPriority {
-  // Low priority instances can go here if needed
 }

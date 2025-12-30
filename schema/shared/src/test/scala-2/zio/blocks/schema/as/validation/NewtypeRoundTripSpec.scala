@@ -8,8 +8,8 @@ import zio.prelude._
 /**
  * Tests for round-trip conversions with ZIO Prelude newtypes using As.
  *
- * Newtypes with validation should work correctly in both directions
- * when the underlying values are valid.
+ * Newtypes with validation should work correctly in both directions when the
+ * underlying values are valid.
  */
 object NewtypeRoundTripSpec extends ZIOSpecDefault {
 
@@ -53,7 +53,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
     suite("Basic Newtype Round-Trip")(
       test("valid age round-trips through newtype") {
         val original = PersonRawA("Alice", 30)
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as       = As.derived[PersonRawA, PersonValidatedB]
 
         val roundTrip = as.into(original).flatMap(b => as.from(b))
 
@@ -61,7 +61,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
       },
       test("boundary age (0) round-trips") {
         val original = PersonRawA("Baby", 0)
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as       = As.derived[PersonRawA, PersonValidatedB]
 
         val roundTrip = as.into(original).flatMap(b => as.from(b))
 
@@ -69,7 +69,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
       },
       test("boundary age (150) round-trips") {
         val original = PersonRawA("Elder", 150)
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as       = As.derived[PersonRawA, PersonValidatedB]
 
         val roundTrip = as.into(original).flatMap(b => as.from(b))
 
@@ -79,7 +79,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
     suite("Invalid Values Fail")(
       test("invalid age fails into direction") {
         val original = PersonRawA("Invalid", -5)
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as       = As.derived[PersonRawA, PersonValidatedB]
 
         val result = as.into(original)
 
@@ -87,7 +87,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
       },
       test("age over 150 fails into direction") {
         val original = PersonRawA("TooOld", 200)
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as       = As.derived[PersonRawA, PersonValidatedB]
 
         val result = as.into(original)
 
@@ -97,7 +97,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
     suite("Multiple Newtypes Round-Trip")(
       test("valid email and score round-trip") {
         val original = UserRawA("user@example.com", 100)
-        val as = As.derived[UserRawA, UserValidatedB]
+        val as       = As.derived[UserRawA, UserValidatedB]
 
         val roundTrip = as.into(original).flatMap(b => as.from(b))
 
@@ -105,7 +105,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
       },
       test("invalid email fails") {
         val original = UserRawA("invalid-email", 100)
-        val as = As.derived[UserRawA, UserValidatedB]
+        val as       = As.derived[UserRawA, UserValidatedB]
 
         val result = as.into(original)
 
@@ -113,7 +113,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
       },
       test("invalid score (zero) fails") {
         val original = UserRawA("user@example.com", 0)
-        val as = As.derived[UserRawA, UserValidatedB]
+        val as       = As.derived[UserRawA, UserValidatedB]
 
         val result = as.into(original)
 
@@ -121,7 +121,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
       },
       test("invalid score (negative) fails") {
         val original = UserRawA("user@example.com", -10)
-        val as = As.derived[UserRawA, UserValidatedB]
+        val as       = As.derived[UserRawA, UserValidatedB]
 
         val result = as.into(original)
 
@@ -131,7 +131,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
     suite("From Direction (Validated to Raw)")(
       test("from always succeeds with valid newtype values") {
         val validated = PersonValidatedB("Bob", makeAge(25))
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as        = As.derived[PersonRawA, PersonValidatedB]
 
         val result = as.from(validated)
 
@@ -139,7 +139,7 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
       },
       test("round-trip from validated to raw and back") {
         val validated = PersonValidatedB("Carol", makeAge(40))
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as        = As.derived[PersonRawA, PersonValidatedB]
 
         // B -> A -> B
         val roundTrip = as.from(validated).flatMap(a => as.into(a))
@@ -149,24 +149,23 @@ object NewtypeRoundTripSpec extends ZIOSpecDefault {
     ),
     suite("Swap Direction")(
       test("swapped As works correctly") {
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as      = As.derived[PersonRawA, PersonValidatedB]
         val swapped = as.reverse
 
         val validated = PersonValidatedB("Dave", makeAge(35))
-        val result = swapped.into(validated)
+        val result    = swapped.into(validated)
 
         assert(result)(isRight(equalTo(PersonRawA("Dave", 35))))
       },
       test("double swap returns to original") {
-        val as = As.derived[PersonRawA, PersonValidatedB]
+        val as            = As.derived[PersonRawA, PersonValidatedB]
         val doubleSwapped = as.reverse.reverse
 
         val original = PersonRawA("Eve", 28)
-        val result = doubleSwapped.into(original)
+        val result   = doubleSwapped.into(original)
 
         assertTrue(result == as.into(original))
       }
     )
   )
 }
-

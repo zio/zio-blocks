@@ -6,14 +6,8 @@ import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
 trait AsVersionSpecific {
-  /**
-   * Derives a bidirectional conversion As[A, B].
-   *
-   * This macro will:
-   * 1. Verify that both Into[A, B] and Into[B, A] can be derived
-   * 2. Check compatibility rules (no default values, consistent field mappings)
-   * 3. Generate an As[A, B] that delegates to both derived Into instances
-   */
+
+  /** Derives a bidirectional conversion As[A, B]. */
   def derived[A, B]: As[A, B] = macro AsVersionSpecificImpl.derived[A, B]
 }
 
@@ -70,12 +64,12 @@ private object AsVersionSpecificImpl {
           else Nil
 
         val constructor = primaryConstructor(tpe)
-        var idx = 0
+        var idx         = 0
 
         constructor.paramLists.flatten.map { param =>
           val symbol = param.asTerm
-          val name = NameTransformer.decode(symbol.name.toString)
-          var fTpe = symbol.typeSignature.dealias
+          val name   = NameTransformer.decode(symbol.name.toString)
+          var fTpe   = symbol.typeSignature.dealias
           if (tpeTypeArgs ne Nil) fTpe = fTpe.substituteTypes(tpeTypeParams, tpeTypeArgs)
           val getter = getters.getOrElse(
             name,
@@ -83,7 +77,7 @@ private object AsVersionSpecificImpl {
           )
           // Check if field has a default value
           val hasDefault = symbol.isParamWithDefault
-          val fieldInfo = new FieldInfo(name, fTpe, idx, getter, hasDefault)
+          val fieldInfo  = new FieldInfo(name, fTpe, idx, getter, hasDefault)
           idx += 1
           fieldInfo
         }
@@ -117,32 +111,31 @@ private object AsVersionSpecificImpl {
     def isOptionType(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
       dealiased.typeSymbol == definitions.OptionClass ||
-        dealiased.typeConstructor.typeSymbol == definitions.OptionClass
+      dealiased.typeConstructor.typeSymbol == definitions.OptionClass
     }
-
 
     def isListType(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
       dealiased.typeSymbol == symbolOf[List[_]] ||
-        dealiased.typeConstructor.typeSymbol == symbolOf[List[_]]
+      dealiased.typeConstructor.typeSymbol == symbolOf[List[_]]
     }
 
     def isVectorType(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
       dealiased.typeSymbol == symbolOf[Vector[_]] ||
-        dealiased.typeConstructor.typeSymbol == symbolOf[Vector[_]]
+      dealiased.typeConstructor.typeSymbol == symbolOf[Vector[_]]
     }
 
     def isSetType(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
       dealiased.typeSymbol == symbolOf[Set[_]] ||
-        dealiased.typeConstructor.typeSymbol == symbolOf[Set[_]]
+      dealiased.typeConstructor.typeSymbol == symbolOf[Set[_]]
     }
 
     def isSeqType(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
       dealiased.typeSymbol == symbolOf[Seq[_]] ||
-        dealiased.typeConstructor.typeSymbol == symbolOf[Seq[_]]
+      dealiased.typeConstructor.typeSymbol == symbolOf[Seq[_]]
     }
 
     def getContainerElementType(tpe: Type): Option[Type] = {
@@ -150,15 +143,12 @@ private object AsVersionSpecificImpl {
       if (args.nonEmpty) Some(args.head) else None
     }
 
-    /**
-     * Checks if two container types (Option, List, Vector, Set, Seq) have bidirectionally
-     * convertible element types (including when elements have implicit As instances available).
-     */
     def areBidirectionallyConvertibleContainers(sourceTpe: Type, targetTpe: Type): Boolean = {
       // Check if both are the same kind of container or both are collections
-      val bothOptions = isOptionType(sourceTpe) && isOptionType(targetTpe)
-      val bothCollections = (isListType(sourceTpe) || isVectorType(sourceTpe) || isSetType(sourceTpe) || isSeqType(sourceTpe)) &&
-                            (isListType(targetTpe) || isVectorType(targetTpe) || isSetType(targetTpe) || isSeqType(targetTpe))
+      val bothOptions     = isOptionType(sourceTpe) && isOptionType(targetTpe)
+      val bothCollections =
+        (isListType(sourceTpe) || isVectorType(sourceTpe) || isSetType(sourceTpe) || isSeqType(sourceTpe)) &&
+          (isListType(targetTpe) || isVectorType(targetTpe) || isSetType(targetTpe) || isSeqType(targetTpe))
 
       if (bothOptions || bothCollections) {
         (getContainerElementType(sourceTpe), getContainerElementType(targetTpe)) match {
@@ -188,16 +178,10 @@ private object AsVersionSpecificImpl {
       }
     }
 
-    // Check that field mappings are consistent in both directions
     def checkFieldMappingConsistency(sourceInfo: ProductInfo, targetInfo: ProductInfo): Unit = {
-      // For each non-optional field in target, there must be a corresponding field in source
-      // For optional fields in target that don't exist in source, they become None
-      // We verify that the mapping is symmetric and consistent
-
       val sourceFieldsByName = sourceInfo.fields.map(f => f.name -> f).toMap
       val targetFieldsByName = targetInfo.fields.map(f => f.name -> f).toMap
 
-      // Check: fields that exist in both must have compatible types
       sourceFieldsByName.foreach { case (name, sourceField) =>
         targetFieldsByName.get(name) match {
           case Some(targetField) =>
@@ -216,12 +200,13 @@ private object AsVersionSpecificImpl {
                   // Container types with bidirectionally convertible elements - OK
                 } else {
                   // Check for newtype conversions (bidirectional)
-                  val newtypeConvert = requiresNewtypeConversion(sourceField.tpe, targetField.tpe)
-                  val newtypeUnwrap = requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe)
+                  val newtypeConvert     = requiresNewtypeConversion(sourceField.tpe, targetField.tpe)
+                  val newtypeUnwrap      = requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe)
                   val newtypeConvertBack = requiresNewtypeConversion(targetField.tpe, sourceField.tpe)
-                  val newtypeUnwrapBack = requiresNewtypeUnwrapping(targetField.tpe, sourceField.tpe)
+                  val newtypeUnwrapBack  = requiresNewtypeUnwrapping(targetField.tpe, sourceField.tpe)
 
-                  val canConvertViaNewtype = (newtypeConvert && newtypeUnwrapBack) || (newtypeUnwrap && newtypeConvertBack)
+                  val canConvertViaNewtype =
+                    (newtypeConvert && newtypeUnwrapBack) || (newtypeUnwrap && newtypeConvertBack)
 
                   if (canConvertViaNewtype) {
                     // Newtype conversion is bidirectional - OK
@@ -237,7 +222,7 @@ private object AsVersionSpecificImpl {
                     if (!canConvert || !canConvertBack) {
                       val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
                       val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
-                      val direction = if (!canConvert) "A → B" else "B → A"
+                      val direction       = if (!canConvert) "A → B" else "B → A"
                       fail(
                         s"""Cannot derive As[$aTpe, $bTpe]: Field not bidirectionally convertible
                            |
@@ -264,25 +249,15 @@ private object AsVersionSpecificImpl {
               }
             }
           case None =>
-            // Source has field that target doesn't have
-            // It's OK if source has extra fields - they just get dropped when going to target
-            // and become None when coming back (if target has them as Option)
+          // Source has field that target doesn't have
+          // It's OK if source has extra fields - they just get dropped when going to target
+          // and become None when coming back (if target has them as Option)
         }
       }
     }
 
     // === ZIO Prelude Newtype Detection ===
-    // This must match the logic in IntoVersionSpecific.scala
 
-    /**
-     * Checks if a type is a ZIO Prelude newtype (Newtype[A] or Subtype[A])
-     *
-     * ZIO Prelude newtypes follow the pattern:
-     *   object Age extends Subtype[Int]
-     *   type Age = Age.Type
-     *
-     * We check if the type name is "Type" and if its owner extends Newtype or Subtype
-     */
     def isZIONewtype(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
 
@@ -310,9 +285,6 @@ private object AsVersionSpecificImpl {
       }
     }
 
-    /**
-     * Gets the underlying type of a ZIO Prelude newtype
-     */
     def getNewtypeUnderlying(tpe: Type): Option[Type] = {
       val dealiased = tpe.dealias
 
@@ -332,7 +304,7 @@ private object AsVersionSpecificImpl {
                 val baseType = companionType.baseType(cls)
                 baseType match {
                   case TypeRef(_, _, args) if args.nonEmpty => Some(args.head)
-                  case _ => None
+                  case _                                    => None
                 }
               }
             case _ => None
@@ -341,38 +313,40 @@ private object AsVersionSpecificImpl {
       }
     }
 
-    def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean = {
+    def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean =
       // Check if target is a ZIO Prelude newtype and source is its underlying type
       if (isZIONewtype(targetTpe)) {
         getNewtypeUnderlying(targetTpe) match {
           case Some(underlying) => sourceTpe =:= underlying
-          case None => false
+          case None             => false
         }
       } else {
         false
       }
-    }
 
-    def requiresNewtypeUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean = {
+    def requiresNewtypeUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean =
       // Check if source is a ZIO Prelude newtype and target is its underlying type
       if (isZIONewtype(sourceTpe)) {
         getNewtypeUnderlying(sourceTpe) match {
           case Some(underlying) => targetTpe =:= underlying
-          case None => false
+          case None             => false
         }
       } else {
         false
       }
-    }
 
     def isNumericCoercible(from: Type, to: Type): Boolean = {
       val numericTypes = List(
-        typeOf[Byte], typeOf[Short], typeOf[Int], typeOf[Long],
-        typeOf[Float], typeOf[Double]
+        typeOf[Byte],
+        typeOf[Short],
+        typeOf[Int],
+        typeOf[Long],
+        typeOf[Float],
+        typeOf[Double]
       )
 
       val fromIdx = numericTypes.indexWhere(t => from =:= t)
-      val toIdx = numericTypes.indexWhere(t => to =:= t)
+      val toIdx   = numericTypes.indexWhere(t => to =:= t)
 
       // Any numeric type can convert to any other with runtime validation
       fromIdx >= 0 && toIdx >= 0
@@ -398,10 +372,10 @@ private object AsVersionSpecificImpl {
 
     // === Main Derivation Logic ===
 
-    val aIsProduct = isProductType(aTpe)
-    val bIsProduct = isProductType(bTpe)
-    val aIsTuple = isTupleType(aTpe)
-    val bIsTuple = isTupleType(bTpe)
+    val aIsProduct   = isProductType(aTpe)
+    val bIsProduct   = isProductType(bTpe)
+    val aIsTuple     = isTupleType(aTpe)
+    val bIsTuple     = isTupleType(bTpe)
     val aIsCoproduct = isSealedTrait(aTpe)
     val bIsCoproduct = isSealedTrait(bTpe)
 
@@ -431,13 +405,13 @@ private object AsVersionSpecificImpl {
         }
 
       case (_, _, true, true, _, _) =>
-        // Tuple to tuple - no default value checks needed
+      // Tuple to tuple - no default value checks needed
 
       case (_, _, _, _, true, true) =>
-        // Coproduct to coproduct - no additional checks needed
+      // Coproduct to coproduct - no additional checks needed
 
       case _ =>
-        // Try to derive anyway - the Into macros will fail if not possible
+      // Try to derive anyway - the Into macros will fail if not possible
     }
 
     // Now try to derive both Into instances using the existing Into.derived macro
@@ -463,4 +437,3 @@ private object AsVersionSpecificImpl {
     )
   }
 }
-
