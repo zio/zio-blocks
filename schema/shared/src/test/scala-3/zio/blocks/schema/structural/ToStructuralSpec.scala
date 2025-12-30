@@ -52,6 +52,19 @@ object ToStructuralSpec extends ZIOSpecDefault {
           s.age == 30
         )
       },
+      test("case class with enum field") {
+        enum Gender { case Male, Female, Other }
+        case class PersonWithGender(name: String, age: Int, gender: Gender)
+
+        val ts = ToStructural.derived[PersonWithGender]
+        val s  = ts.toStructural(PersonWithGender("Alice", 30, Gender.Female))
+
+        assertTrue(
+          s.name == "Alice",
+          s.age == 30,
+          s.gender == Gender.Female
+        )
+      },
       test("large product (10 fields)") {
         val ts = ToStructural.derived[LargeProduct]
         val s  = ts.toStructural(LargeProduct("a", 1, true, 2.0, 3L, "b", 4, false, 5.0, 6L))

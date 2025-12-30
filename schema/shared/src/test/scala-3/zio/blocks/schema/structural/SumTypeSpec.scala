@@ -54,14 +54,20 @@ object SumTypeSpec extends ZIOSpecDefault {
         case class Contractor(company: String)              extends Person
 
         val ts: ToStructural[Person] = ToStructural.derived[Person]
-        val emp                      = ts.toStructural(Employee("Alice", Address("NYC"))).asInstanceOf[StructuralRecord]
 
+        val emp = ts.toStructural(Employee("Alice", Address("NYC"))).asInstanceOf[StructuralRecord]
         assertTrue(
           emp.selectDynamic("Tag") == "Employee",
           emp.selectDynamic("name") == "Alice"
         )
         val addr = emp.selectDynamic("address").asInstanceOf[StructuralRecord]
         assertTrue(addr.selectDynamic("city") == "NYC")
+
+        val contractor = ts.toStructural(Contractor("Acme Corp")).asInstanceOf[StructuralRecord]
+        assertTrue(
+          contractor.selectDynamic("Tag") == "Contractor",
+          contractor.selectDynamic("company") == "Acme Corp"
+        )
       }
     ),
     suite("Sealed Traits with Case Objects")(
@@ -93,17 +99,28 @@ object SumTypeSpec extends ZIOSpecDefault {
 
         val scroll = ts.toStructural(Scroll).asInstanceOf[StructuralRecord]
         assertTrue(scroll.selectDynamic("Tag") == "Scroll")
+
+        val keyPress = ts.toStructural(KeyPress("Enter")).asInstanceOf[StructuralRecord]
+        assertTrue(
+          keyPress.selectDynamic("Tag") == "KeyPress",
+          keyPress.selectDynamic("key") == "Enter"
+        )
       }
     ),
     suite("Scala 3 Enums")(
-      test("simple enum (case objects only)") {
+      test("simple enum (case objects only) - kept as leaf values") {
+        // Simple enums (all cases parameterless) are treated as leaf values like primitives
+        // They are NOT converted to StructuralRecord - they remain as their original enum type
         val ts: ToStructural[Color] = ToStructural.derived[Color]
 
-        val red = ts.toStructural(Color.Red).asInstanceOf[StructuralRecord]
-        assertTrue(red.selectDynamic("Tag") == "Red")
+        val red = ts.toStructural(Color.Red)
+        assertTrue(red == Color.Red)
 
-        val green = ts.toStructural(Color.Green).asInstanceOf[StructuralRecord]
-        assertTrue(green.selectDynamic("Tag") == "Green")
+        val green = ts.toStructural(Color.Green)
+        assertTrue(green == Color.Green)
+
+        val blue = ts.toStructural(Color.Blue)
+        assertTrue(blue == Color.Blue)
       },
       test("enum with case class variants") {
         val ts: ToStructural[ColorWithValue] = ToStructural.derived[ColorWithValue]
@@ -120,6 +137,19 @@ object SumTypeSpec extends ZIOSpecDefault {
         assertTrue(
           named.selectDynamic("Tag") == "Named",
           named.selectDynamic("name") == "coral"
+        )
+      },
+      test("case class containing enum field") {
+        enum Gender { case Male, Female, Other }
+        case class Person(name: String, age: Int, gender: Gender)
+
+        val ts: ToStructural[Person] = ToStructural.derived[Person]
+        val s                        = ts.toStructural(Person("Alice", 30, Gender.Female)).asInstanceOf[StructuralRecord]
+
+        assertTrue(
+          s.selectDynamic("name") == "Alice",
+          s.selectDynamic("age") == 30,
+          s.selectDynamic("gender") == Gender.Female
         )
       }
     ),

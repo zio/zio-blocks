@@ -155,6 +155,186 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
 
         assertTrue(fieldNames == Set("name", "nickname"))
       }
+    ),
+    suite("Collection field round-trips")(
+      test("List field round-trip") {
+        val schema = Schema.derived[TeamStructure]
+
+        val value: TeamStructure = new StructuralRecord(Map("name" -> "Team A", "members" -> List("Alice", "Bob")))
+          .asInstanceOf[TeamStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("name") == "Team A",
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("members") == List("Alice", "Bob")
+        )
+      },
+      test("Option field round-trip (Some)") {
+        val schema = Schema.derived[OptionalStructure]
+
+        val value: OptionalStructure = new StructuralRecord(Map("name" -> "Alice", "nickname" -> Some("Ali")))
+          .asInstanceOf[OptionalStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("name") == "Alice",
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("nickname") == Some("Ali")
+        )
+      },
+      test("Option field round-trip (None)") {
+        val schema = Schema.derived[OptionalStructure]
+
+        val value: OptionalStructure = new StructuralRecord(Map("name" -> "Bob", "nickname" -> None))
+          .asInstanceOf[OptionalStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("name") == "Bob",
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("nickname") == None
+        )
+      },
+      test("Vector field round-trip") {
+        type VectorStructure = StructuralRecord { def items: Vector[Int] }
+        val schema = Schema.derived[VectorStructure]
+
+        val value: VectorStructure = new StructuralRecord(Map("items" -> Vector(1, 2, 3)))
+          .asInstanceOf[VectorStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("items") == Vector(1, 2, 3)
+        )
+      },
+      test("Set field round-trip") {
+        type SetStructure = StructuralRecord { def tags: Set[String] }
+        val schema = Schema.derived[SetStructure]
+
+        val value: SetStructure = new StructuralRecord(Map("tags" -> Set("a", "b", "c")))
+          .asInstanceOf[SetStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("tags") == Set("a", "b", "c")
+        )
+      },
+      test("Map field round-trip") {
+        type MapStructure = StructuralRecord { def data: Map[String, Int] }
+        val schema = Schema.derived[MapStructure]
+
+        val value: MapStructure = new StructuralRecord(Map("data" -> Map("x" -> 1, "y" -> 2)))
+          .asInstanceOf[MapStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("data") == Map("x" -> 1, "y" -> 2)
+        )
+      }
+    ),
+    suite("Nested structural types")(
+      test("two-level nesting") {
+        type Inner = StructuralRecord { def value: Int }
+        type Outer = StructuralRecord { def inner: Inner; def name: String }
+        val schema = Schema.derived[Outer]
+
+        val record     = schema.reflect.asRecord.get
+        val fieldNames = record.fields.map(_.name).toSet
+
+        assertTrue(fieldNames == Set("inner", "name"))
+      },
+      test("three-level nesting") {
+        type Level3 = StructuralRecord { def value: String }
+        type Level2 = StructuralRecord { def level3: Level3 }
+        type Level1 = StructuralRecord { def level2: Level2; def name: String }
+        val schema = Schema.derived[Level1]
+
+        val record = schema.reflect.asRecord.get
+        assertTrue(record.fields.size == 2)
+      }
+    ),
+    suite("Structural types with tuples")(
+      test("Tuple2 field") {
+        type TupleStructure = StructuralRecord { def pair: (String, Int) }
+        val schema = Schema.derived[TupleStructure]
+
+        val record     = schema.reflect.asRecord.get
+        val fieldNames = record.fields.map(_.name).toSet
+
+        assertTrue(fieldNames == Set("pair"))
+      },
+      test("Tuple3 field") {
+        type TupleStructure = StructuralRecord { def triple: (String, Int, Boolean) }
+        val schema = Schema.derived[TupleStructure]
+
+        val record = schema.reflect.asRecord.get
+        assertTrue(record.fields.size == 1)
+      }
+    ),
+    suite("Extended primitives in structural types")(
+      test("BigDecimal field") {
+        type BigDecimalStructure = StructuralRecord { def amount: BigDecimal }
+        val schema = Schema.derived[BigDecimalStructure]
+
+        val value: BigDecimalStructure = new StructuralRecord(Map("amount" -> BigDecimal("123.45")))
+          .asInstanceOf[BigDecimalStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("amount") == BigDecimal("123.45")
+        )
+      },
+      test("UUID field") {
+        import java.util.UUID
+        type UUIDStructure = StructuralRecord { def id: UUID }
+        val schema = Schema.derived[UUIDStructure]
+
+        val uuid                 = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val value: UUIDStructure = new StructuralRecord(Map("id" -> uuid))
+          .asInstanceOf[UUIDStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("id") == uuid
+        )
+      },
+      test("BigInt field") {
+        type BigIntStructure = StructuralRecord { def count: BigInt }
+        val schema = Schema.derived[BigIntStructure]
+
+        val value: BigIntStructure = new StructuralRecord(Map("count" -> BigInt("12345678901234567890")))
+          .asInstanceOf[BigIntStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("count") == BigInt("12345678901234567890")
+        )
+      }
     )
   )
 }
