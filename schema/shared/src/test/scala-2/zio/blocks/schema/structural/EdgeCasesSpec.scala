@@ -313,8 +313,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
       }
     ),
     suite("Nested Case Classes in Collections")(
-      // Temporarily disabled failing Scala 2 structural tests.
-      /*
       test("List of nested case class") {
         case class Inner(value: Int)
         case class Outer(inners: List[Inner])
@@ -385,7 +383,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
 
         assertTrue(roundTrip.isRight)
       }
-       */
     ),
     suite("Complex Combinations")(
       test("case class with multiple collection types") {
@@ -427,10 +424,7 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.map(_.vector) == Right(Vector("a", "b")),
           roundTrip.map(_.option) == Right(Some(42L))
         )
-      }
-      // Temporarily disabled failing Scala 2 structural test.
-      /*
-      ,
+      },
       test("deeply nested structure with collections") {
         case class Level2(values: List[Int])
         case class Level1(level2: Level2, name: String)
@@ -460,7 +454,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
 
         assertTrue(roundTrip.isRight)
       }
-       */
     )
   )
 }

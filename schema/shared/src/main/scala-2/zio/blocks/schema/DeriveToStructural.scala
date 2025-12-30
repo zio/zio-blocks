@@ -299,17 +299,10 @@ object DeriveToStructural {
     // Field names from nominal schema
     val fieldNames: IndexedSeq[String] = nominalRecord.fields.map(_.name)
 
-    // For each field, use structural schema if it's a nested case class (Record type)
+    // For each field, transform nested case classes to structural schemas
     // This is needed because nested case classes are converted to StructuralRecord by toStructural
     val fieldSchemas: IndexedSeq[Reflect.Bound[_]] = nominalRecord.fields.map { term =>
-      term.value.asRecord match {
-        case Some(nestedRecord) if nestedRecord.fields.nonEmpty =>
-          // Nested case class: create a structural schema for it
-          createNestedStructuralSchema(nestedRecord)
-        case _ =>
-          // Not a case class, use the original schema
-          term.value
-      }
+      transformNestedToStructural(term.value)
     }
 
     // Reuse the nominal schema's register layout
@@ -368,6 +361,118 @@ object DeriveToStructural {
     )
   }
 
+  // Wrapper types that should NOT be converted to structural schemas
+  // These are standard library case classes used as containers
+  private val wrapperTypeNames: Set[String] = Set(
+    "scala.Some",
+    "scala.None",
+    "scala.util.Left",
+    "scala.util.Right"
+  )
+
+  private def isWrapperType(typeName: TypeName[_]): Boolean = {
+    val elements = typeName.namespace.elements
+    val fullName = (if (elements.isEmpty) "" else elements.mkString(".") + ".") + typeName.name
+    wrapperTypeNames.contains(fullName)
+  }
+
+  /**
+   * Recursively transform a schema to handle StructuralRecord for nested case classes.
+   * This is needed because toStructural converts nested case classes to StructuralRecord,
+   * so the schema needs to expect StructuralRecord instead of the nominal type.
+   */
+  private def transformNestedToStructural(reflect: Reflect.Bound[_]): Reflect.Bound[_] = {
+    import zio.blocks.schema.binding._
+
+    reflect match {
+      case record: Reflect.Record.Bound[_] if record.fields.nonEmpty && !isWrapperType(record.typeName) =>
+        // User-defined case class: convert to structural schema
+        createNestedStructuralSchema(record)
+
+      case record: Reflect.Record.Bound[_] if record.fields.nonEmpty && isWrapperType(record.typeName) =>
+        // Wrapper type (Some, None, Left, Right, Tuple): recursively transform fields but keep wrapper structure
+        val transformedFields = record.fields.map { term =>
+          val transformedValue = transformNestedToStructural(term.value)
+          if (transformedValue eq term.value) {
+            term
+          } else {
+            new Term[Binding, Any, Any](
+              name = term.name,
+              value = transformedValue.asInstanceOf[Reflect.Bound[Any]],
+              doc = term.doc,
+              modifiers = term.modifiers
+            )
+          }
+        }
+        if (transformedFields.zip(record.fields).forall { case (t, o) => t eq o }) {
+          record
+        } else {
+          new Reflect.Record[Binding, Any](
+            fields = transformedFields.asInstanceOf[IndexedSeq[Term[Binding, Any, _]]],
+            typeName = record.typeName.asInstanceOf[TypeName[Any]],
+            recordBinding = record.recordBinding.asInstanceOf[Binding.Record[Any]]
+          ).asInstanceOf[Reflect.Bound[_]]
+        }
+
+      case seq: Reflect.Sequence[Binding, _, _] =>
+        // Sequence (List, Vector, etc.): transform element schema
+        val transformedElement = transformNestedToStructural(seq.element)
+        if (transformedElement eq seq.element) {
+          seq
+        } else {
+          new Reflect.Sequence[Binding, Any, Any](
+            element = transformedElement.asInstanceOf[Reflect.Bound[Any]],
+            typeName = seq.typeName.asInstanceOf[TypeName[Any]],
+            seqBinding = seq.seqBinding.asInstanceOf[Binding.Seq[Any, Any]]
+          ).asInstanceOf[Reflect.Bound[_]]
+        }
+
+      case map: Reflect.Map[Binding, _, _, _] =>
+        // Map: transform key and value schemas
+        val transformedKey = transformNestedToStructural(map.key)
+        val transformedValue = transformNestedToStructural(map.value)
+        if ((transformedKey eq map.key) && (transformedValue eq map.value)) {
+          map
+        } else {
+          new Reflect.Map[Binding, Any, Any, scala.collection.immutable.Map](
+            key = transformedKey.asInstanceOf[Reflect.Bound[Any]],
+            value = transformedValue.asInstanceOf[Reflect.Bound[Any]],
+            typeName = map.typeName.asInstanceOf[TypeName[scala.collection.immutable.Map[Any, Any]]],
+            mapBinding = map.mapBinding.asInstanceOf[Binding.Map[scala.collection.immutable.Map, Any, Any]]
+          ).asInstanceOf[Reflect.Bound[_]]
+        }
+
+      case variant: Reflect.Variant.Bound[_] =>
+        // Variant (Option, Either, sealed trait): transform case schemas
+        val transformedCases = variant.cases.map { cse =>
+          val transformedSchema = transformNestedToStructural(cse.value)
+          if (transformedSchema eq cse.value) {
+            cse
+          } else {
+            new Term[Binding, Any, Any](
+              name = cse.name,
+              value = transformedSchema.asInstanceOf[Reflect.Bound[Any]],
+              doc = cse.doc,
+              modifiers = cse.modifiers
+            )
+          }
+        }
+        if (transformedCases.zip(variant.cases).forall { case (t, o) => t eq o }) {
+          variant
+        } else {
+          new Reflect.Variant[Binding, Any](
+            cases = transformedCases.asInstanceOf[IndexedSeq[Term[Binding, Any, _ <: Any]]],
+            typeName = variant.typeName.asInstanceOf[TypeName[Any]],
+            variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[Any]]
+          ).asInstanceOf[Reflect.Bound[_]]
+        }
+
+      case _ =>
+        // Primitive or other: return as-is
+        reflect
+    }
+  }
+
   /**
    * Create a structural schema for a nested case class. This handles the case
    * where the nested value is actually a StructuralRecord at runtime (converted
@@ -381,14 +486,9 @@ object DeriveToStructural {
 
     val fieldNames = nestedRecord.fields.map(_.name)
 
-    // Recursively convert nested field schemas
+    // Recursively convert nested field schemas (handles case classes inside collections too)
     val fieldSchemas: IndexedSeq[Reflect.Bound[_]] = nestedRecord.fields.map { term =>
-      term.value.asRecord match {
-        case Some(innerRecord) if innerRecord.fields.nonEmpty =>
-          createNestedStructuralSchema(innerRecord)
-        case _ =>
-          term.value
-      }
+      transformNestedToStructural(term.value)
     }
 
     val usedRegs = nestedRecord.constructor.usedRegisters
