@@ -7,10 +7,10 @@ object StructuralConversionsSpec extends ZIOSpecDefault {
 
   def spec = suite("StructuralConversionsSpec")(
     test("nominal -> structural -> nominal roundtrip") {
-      val p = Person("Bob", 42)
+      val p                = Person("Bob", 42)
       given Schema[Person] = Schema.derived[Person]
-      val dv = StructuralConversions.fromNominal(p)
-      val recovered = StructuralConversions.toNominal[Person](dv)
+      val dv               = StructuralConversions.fromNominal(p)
+      val recovered        = StructuralConversions.toNominal[Person](dv)
       assertTrue(recovered == Right(p))
     }
   )
