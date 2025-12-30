@@ -192,34 +192,25 @@ lazy val docs = project
   .dependsOn(schema.jvm)
   .enablePlugins(WebsitePlugin)
 
-
-
-
-
-
-
 lazy val chunks = crossProject(JSPlatform, JVMPlatform)
   .in(file("chunks"))
   .settings(stdSettings("zio-blocks-chunk"))
   .settings(
     Test / fork := false,
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.9" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.9" % Test,
-      "org.openjdk.jmh" % "jmh-core" % "1.37", 
+      "dev.zio"       %%% "zio-test"                 % "2.1.9" % Test,
+      "dev.zio"       %%% "zio-test-sbt"             % "2.1.9" % Test,
+      "org.openjdk.jmh" % "jmh-core"                 % "1.37",
       "org.openjdk.jmh" % "jmh-generator-annprocess" % "1.37"
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
   .enablePlugins(JmhPlugin)
 
-
-
-
-
 scalacOptions ++= Seq(
   "-deprecation",
-  "-encoding", "UTF-8",
+  "-encoding",
+  "UTF-8",
   "-feature",
   "-unchecked",
   "-Xfatal-warnings",
