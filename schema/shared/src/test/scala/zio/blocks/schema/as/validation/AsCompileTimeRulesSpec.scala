@@ -6,22 +6,16 @@ import zio.test.Assertion._
 
 /**
  * Tests for As compile-time validation rules.
- *
- * As[A, B] has stricter requirements than Into[A, B]:
- *   - No default values allowed (breaks round-trip guarantee)
- *   - Field mappings must be consistent in both directions
  */
 object AsCompileTimeRulesSpec extends ZIOSpecDefault {
 
   // === Types for Testing ===
 
-  // Same fields, same types - should work
-  case class SimpleA(name: String, age: Int)
-  case class SimpleB(name: String, age: Int)
+  final case class SimpleA(name: String, age: Int)
+  final case class SimpleB(name: String, age: Int)
 
-  // With Option fields that match - should work
-  case class WithOptA(name: String, opt: Option[Int])
-  case class WithOptB(name: String, opt: Option[Int])
+  final case class WithOptA(name: String, opt: Option[Int])
+  final case class WithOptB(name: String, opt: Option[Int])
 
   def spec: Spec[TestEnvironment, Any] = suite("AsCompileTimeRulesSpec")(
     suite("Valid As Derivations")(

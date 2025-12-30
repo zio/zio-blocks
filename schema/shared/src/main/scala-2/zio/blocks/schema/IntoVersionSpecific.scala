@@ -26,7 +26,7 @@ private object IntoVersionSpecificImpl {
       tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isCaseClass
 
     // Check if type is a case object (singleton type)
-    def isCaseObjectType(tpe: Type): Boolean = {
+    def isCaseObjectType(tpe: Type): Boolean =
       tpe match {
         case SingleType(_, sym) =>
           sym.isModule && sym.asModule.moduleClass.asClass.isCaseClass
@@ -35,15 +35,13 @@ private object IntoVersionSpecificImpl {
           val sym = tpe.typeSymbol
           sym.isModuleClass && sym.asClass.isCaseClass
       }
-    }
 
     // Get the module symbol for a case object type
-    def getCaseObjectModule(tpe: Type): Symbol = {
+    def getCaseObjectModule(tpe: Type): Symbol =
       tpe match {
         case SingleType(_, sym) => sym
-        case _ => tpe.typeSymbol.asClass.module
+        case _                  => tpe.typeSymbol.asClass.module
       }
-    }
 
     def primaryConstructor(tpe: Type): MethodSymbol = tpe.decls.collectFirst {
       case m: MethodSymbol if m.isPrimaryConstructor => m
@@ -92,10 +90,10 @@ private object IntoVersionSpecificImpl {
           )
 
           // Check for default value
-          val paramIdx = idx + 1 // Scala 2 uses 1-based index for default methods
+          val paramIdx                   = idx + 1 // Scala 2 uses 1-based index for default methods
           val defaultValue: Option[Tree] = companionSymbol.flatMap { companion =>
             val defaultMethodName = TermName(s"$$lessinit$$greater$$default$$$paramIdx")
-            val defaultMethod = companion.info.member(defaultMethodName)
+            val defaultMethod     = companion.info.member(defaultMethodName)
             if (defaultMethod != NoSymbol) {
               Some(q"${companion.asModule}.$defaultMethod")
             } else None
@@ -112,9 +110,9 @@ private object IntoVersionSpecificImpl {
     // === Field Mapping ===
 
     class FieldMapping(
-      val sourceField: FieldInfo,      // null means use default (None for Option types, or actual default value)
+      val sourceField: FieldInfo, // null means use default (None for Option types, or actual default value)
       val targetField: FieldInfo,
-      val useDefaultValue: Boolean = false  // true if we should use the target field's default value
+      val useDefaultValue: Boolean = false // true if we should use the target field's default value
     )
 
     def matchFields(
@@ -205,30 +203,30 @@ private object IntoVersionSpecificImpl {
       // Priority 1: Exact match - same name + same type
       val exactMatch = sourceInfo.fields.find { sourceField =>
         !usedSourceFields.contains(sourceField.index) &&
-          sourceField.name == targetField.name &&
-          sourceField.tpe =:= targetField.tpe
+        sourceField.name == targetField.name &&
+        sourceField.tpe =:= targetField.tpe
       }
       if (exactMatch.isDefined) return exactMatch
 
       // Priority 2: Name match with coercion - same name + coercible type, implicit Into available, or newtype conversion/unwrapping
       val nameWithCoercion = sourceInfo.fields.find { sourceField =>
         !usedSourceFields.contains(sourceField.index) &&
-          sourceField.name == targetField.name &&
-          (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined ||
-           requiresNewtypeConversion(sourceField.tpe, targetField.tpe) ||
-           requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe))
+        sourceField.name == targetField.name &&
+        (findImplicitInto(sourceField.tpe, targetField.tpe).isDefined ||
+          requiresNewtypeConversion(sourceField.tpe, targetField.tpe) ||
+          requiresNewtypeUnwrapping(sourceField.tpe, targetField.tpe))
       }
       if (nameWithCoercion.isDefined) return nameWithCoercion
 
       // Priority 3: Unique type match - type appears only once in both source and target
-      val targetTypeKey = targetField.tpe.dealias.toString
+      val targetTypeKey      = targetField.tpe.dealias.toString
       val isTargetTypeUnique = targetTypeFreq.getOrElse(targetTypeKey, 0) == 1
 
       if (isTargetTypeUnique) {
         val uniqueTypeMatch = sourceInfo.fields.find { sourceField =>
           if (usedSourceFields.contains(sourceField.index)) false
           else {
-            val sourceTypeKey = sourceField.tpe.dealias.toString
+            val sourceTypeKey      = sourceField.tpe.dealias.toString
             val isSourceTypeUnique = sourceTypeFreq.getOrElse(sourceTypeKey, 0) == 1
             isSourceTypeUnique && sourceField.tpe =:= targetField.tpe
           }
@@ -259,7 +257,7 @@ private object IntoVersionSpecificImpl {
             otherTarget.name == positionalField.name &&
             otherTarget.name != targetField.name &&
             (positionalField.tpe =:= otherTarget.tpe ||
-             findImplicitInto(positionalField.tpe, otherTarget.tpe).isDefined)
+              findImplicitInto(positionalField.tpe, otherTarget.tpe).isDefined)
           }
 
           if (!hasExactNameMatchElsewhere) {
@@ -267,9 +265,11 @@ private object IntoVersionSpecificImpl {
               return Some(positionalField)
             }
             // Also check coercible for positional (including implicit Into and newtype conversion/unwrapping)
-            if (findImplicitInto(positionalField.tpe, targetField.tpe).isDefined ||
-                requiresNewtypeConversion(positionalField.tpe, targetField.tpe) ||
-                requiresNewtypeUnwrapping(positionalField.tpe, targetField.tpe)) {
+            if (
+              findImplicitInto(positionalField.tpe, targetField.tpe).isDefined ||
+              requiresNewtypeConversion(positionalField.tpe, targetField.tpe) ||
+              requiresNewtypeUnwrapping(positionalField.tpe, targetField.tpe)
+            ) {
               return Some(positionalField)
             }
           }
@@ -282,17 +282,9 @@ private object IntoVersionSpecificImpl {
 
     // === ZIO Prelude Newtype Support ===
 
-    /**
-     * Checks if a type is a ZIO Prelude newtype (Newtype[A] or Subtype[A])
-     *
-     * ZIO Prelude newtypes follow the pattern:
-     *   object Age extends Subtype[Int]
-     *   type Age = Age.Type
-     *
-     * We check if the type name is "Type" and if its owner extends Newtype or Subtype
-     */
+    /** Check if type is a ZIO Prelude newtype */
     def isZIONewtype(tpe: Type): Boolean = {
-      val dealiased = tpe.dealias
+      val dealiased  = tpe.dealias
       val typeSymbol = dealiased.typeSymbol
 
       // Check if the type symbol name is "Type" (the inner type alias pattern)
@@ -300,13 +292,13 @@ private object IntoVersionSpecificImpl {
 
       if (typeName == "Type") {
         // Get the owner (which should be the companion object/module)
-        val owner = typeSymbol.owner
+        val owner         = typeSymbol.owner
         val ownerFullName = owner.fullName
 
         // Check if owner.fullName contains ZIO Prelude newtype patterns
         // This avoids loading TASTy files which can cause version mismatches
         val isZIOPreludeNewtype = ownerFullName.contains("zio.prelude.Subtype") ||
-                                  ownerFullName.contains("zio.prelude.Newtype")
+          ownerFullName.contains("zio.prelude.Newtype")
 
         isZIOPreludeNewtype
       } else {
@@ -314,31 +306,19 @@ private object IntoVersionSpecificImpl {
       }
     }
 
-    /**
-     * Checks if conversion from source to target requires ZIO Prelude newtype conversion
-     */
-    def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean = {
+    def requiresNewtypeConversion(sourceTpe: Type, targetTpe: Type): Boolean =
       isZIONewtype(targetTpe) && !(sourceTpe =:= targetTpe)
-    }
 
-    /**
-     * Checks if conversion from source to target requires unwrapping a ZIO Prelude newtype
-     * (i.e., source is a newtype and target is its underlying type)
-     */
-    def requiresNewtypeUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean = {
+    def requiresNewtypeUnwrapping(sourceTpe: Type, targetTpe: Type): Boolean =
       if (isZIONewtype(sourceTpe)) {
         getNewtypeUnderlying(sourceTpe) match {
           case Some(underlying) => targetTpe =:= underlying
-          case None => false
+          case None             => false
         }
       } else {
         false
       }
-    }
 
-    /**
-     * Gets the underlying type of a ZIO Prelude newtype
-     */
     def getNewtypeUnderlying(tpe: Type): Option[Type] = {
       val dealiased = tpe.dealias
 
@@ -358,7 +338,7 @@ private object IntoVersionSpecificImpl {
                 val baseType = companionType.baseType(cls)
                 baseType match {
                   case TypeRef(_, _, args) if args.nonEmpty => Some(args.head)
-                  case _ => None
+                  case _                                    => None
                 }
               }
             case _ => None
@@ -367,26 +347,13 @@ private object IntoVersionSpecificImpl {
       }
     }
 
-    /**
-     * Generates code to convert a value to a ZIO Prelude newtype, applying validation
-     * via the companion's `make` method.
-     *
-     * Uses compile-time code generation (quasiquotes) to generate direct calls
-     * to the companion object's `make` method, avoiding runtime reflection entirely.
-     * This allows the code to work on all platforms (JVM, JS, Native).
-     *
-     * For ZIO Prelude newtypes:
-     * - `object Age extends Subtype[Int]` has `make(value: Int): Validation[String, Age]`
-     * - We generate: `Age.make(value).toEither.left.map(err => SchemaError.conversionFailed(...))`
-     *
-     * Returns code that evaluates to Either[SchemaError, NewtypeType]
-     */
+    /** Convert value to ZIO Prelude newtype with validation */
     def convertToNewtypeEither(sourceExpr: Tree, sourceTpe: Type, targetTpe: Type, fieldName: String): Tree = {
       // First, try to find an implicit Into instance for this conversion
       val implicitInto = findImplicitInto(sourceTpe, targetTpe)
 
       val targetTypeTree = TypeTree(targetTpe)
-      val fieldNameLit = Literal(Constant(fieldName))
+      val fieldNameLit   = Literal(Constant(fieldName))
 
       implicitInto match {
         case Some(intoInstance) =>
@@ -453,13 +420,12 @@ private object IntoVersionSpecificImpl {
       }
     }
 
-    // Find or use cached Into instance
-    // Also looks for As instances and extracts Into from them
-    def findImplicitInto(sourceTpe: Type, targetTpe: Type): Option[Tree] = {
+    // Find or use cached Into instance (also looks for As instances)
+    def findImplicitInto(sourceTpe: Type, targetTpe: Type): Option[Tree] =
       // Check cache first
       intoRefs.get((sourceTpe, targetTpe)) match {
         case some @ Some(_) => some
-        case None =>
+        case None           =>
           // Try to find implicit Into first
           val intoType = c.universe.appliedType(
             c.universe.typeOf[Into[Any, Any]].typeConstructor,
@@ -513,7 +479,6 @@ private object IntoVersionSpecificImpl {
             }
           }
       }
-    }
 
     // === Tuple utilities ===
 
@@ -528,90 +493,91 @@ private object IntoVersionSpecificImpl {
 
     def deriveProductToProduct(): c.Expr[Into[A, B]] = {
       val schemaErrorType = typeOf[SchemaError]
-      val sourceInfo = new ProductInfo(aTpe)
-      val targetInfo = new ProductInfo(bTpe)
-      val fieldMappings = matchFields(sourceInfo, targetInfo)
+      val sourceInfo      = new ProductInfo(aTpe)
+      val targetInfo      = new ProductInfo(bTpe)
+      val fieldMappings   = matchFields(sourceInfo, targetInfo)
 
       val sourceTypeName = aTpe.typeSymbol.name.toString
       val targetTypeName = bTpe.typeSymbol.name.toString
 
       // Build field conversions that return Either[SchemaError, FieldType]
       // Also collect field names for error messages
-      val fieldEithersWithNames: List[(Tree, String, String)] = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
-        val targetFieldName = targetField.name
-        if (mapping.sourceField == null) {
-          // No source field - use default value or None for Option types
-          val expr = if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
-            // Use the actual default value
-            val defaultValue = targetField.defaultValue.get
-            q"_root_.scala.Right[$schemaErrorType, Any]($defaultValue)"
-          } else {
-            // Use None for Option types
-            q"_root_.scala.Right[$schemaErrorType, Any](_root_.scala.None)"
-          }
-          (expr, "", targetFieldName)
-        } else {
-          val sourceField = mapping.sourceField
-          val getter = sourceField.getter
-          val sourceTpe = sourceField.tpe
-          val targetTpe = targetField.tpe
-          val sourceFieldName = sourceField.name
-
-          // If types differ, try to find an implicit Into instance or handle newtype conversion
-          val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
-            // Check if it's a newtype conversion (underlying -> newtype)
-            val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
-            // Check if it's a newtype unwrapping (newtype -> underlying)
-            val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
-
-            if (isNewtypeConversion) {
-              // Generate code to convert to newtype, using implicit Into if available
-              convertToNewtypeEither(q"a.$getter", sourceTpe, targetTpe, sourceField.name)
-            } else if (isNewtypeUnwrapping) {
-              // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
-              q"_root_.scala.Right[$schemaErrorType, Any](a.$getter.asInstanceOf[$targetTpe])"
+      val fieldEithersWithNames: List[(Tree, String, String)] =
+        fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+          val targetFieldName = targetField.name
+          if (mapping.sourceField == null) {
+            // No source field - use default value or None for Option types
+            val expr = if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
+              // Use the actual default value
+              val defaultValue = targetField.defaultValue.get
+              q"_root_.scala.Right[$schemaErrorType, Any]($defaultValue)"
             } else {
-              findImplicitInto(sourceTpe, targetTpe) match {
-                case Some(intoInstance) =>
-                  // Use Into instance, which already returns Either
-                  q"$intoInstance.into(a.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
-                case None =>
-                  // No coercion available - fail at compile time
-                  fail(
-                    s"""Cannot derive Into[$aTpe, $bTpe]: No implicit conversion for field
-                       |
-                       |  Field: ${sourceField.name}
-                       |  Source type: $sourceTpe
-                       |  Target type: $targetTpe
-                       |
-                       |No implicit Into[$sourceTpe, $targetTpe] was found in scope.
-                       |
-                       |Consider:
-                       |  - Providing an implicit: implicit val ${sourceField.name}Into: Into[$sourceTpe, $targetTpe] = Into.derived
-                       |  - Using Into.derived[$sourceTpe, $targetTpe] inline
-                       |  - Changing the field types to be directly compatible
-                       |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
-                  )
-              }
+              // Use None for Option types
+              q"_root_.scala.Right[$schemaErrorType, Any](_root_.scala.None)"
             }
+            (expr, "", targetFieldName)
           } else {
-            // Types match - wrap in Right
-            q"_root_.scala.Right[$schemaErrorType, Any](a.$getter)"
-          }
-          (conversionExpr, sourceFieldName, targetFieldName)
-        }
-      }
+            val sourceField     = mapping.sourceField
+            val getter          = sourceField.getter
+            val sourceTpe       = sourceField.tpe
+            val targetTpe       = targetField.tpe
+            val sourceFieldName = sourceField.name
 
-      val fieldEithers = fieldEithersWithNames.map(_._1)
+            // If types differ, try to find an implicit Into instance or handle newtype conversion
+            val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
+              // Check if it's a newtype conversion (underlying -> newtype)
+              val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
+              // Check if it's a newtype unwrapping (newtype -> underlying)
+              val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
+
+              if (isNewtypeConversion) {
+                // Generate code to convert to newtype, using implicit Into if available
+                convertToNewtypeEither(q"a.$getter", sourceTpe, targetTpe, sourceField.name)
+              } else if (isNewtypeUnwrapping) {
+                // Unwrap newtype to underlying type - newtypes are type aliases, so just cast
+                q"_root_.scala.Right[$schemaErrorType, Any](a.$getter.asInstanceOf[$targetTpe])"
+              } else {
+                findImplicitInto(sourceTpe, targetTpe) match {
+                  case Some(intoInstance) =>
+                    // Use Into instance, which already returns Either
+                    q"$intoInstance.into(a.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
+                  case None =>
+                    // No coercion available - fail at compile time
+                    fail(
+                      s"""Cannot derive Into[$aTpe, $bTpe]: No implicit conversion for field
+                         |
+                         |  Field: ${sourceField.name}
+                         |  Source type: $sourceTpe
+                         |  Target type: $targetTpe
+                         |
+                         |No implicit Into[$sourceTpe, $targetTpe] was found in scope.
+                         |
+                         |Consider:
+                         |  - Providing an implicit: implicit val ${sourceField.name}Into: Into[$sourceTpe, $targetTpe] = Into.derived
+                         |  - Using Into.derived[$sourceTpe, $targetTpe] inline
+                         |  - Changing the field types to be directly compatible
+                         |  - Using numeric widening (Int → Long) or narrowing (Long → Int) if applicable""".stripMargin
+                    )
+                }
+              }
+            } else {
+              // Types match - wrap in Right
+              q"_root_.scala.Right[$schemaErrorType, Any](a.$getter)"
+            }
+            (conversionExpr, sourceFieldName, targetFieldName)
+          }
+        }
+
+      val fieldEithers   = fieldEithersWithNames.map(_._1)
       val fieldNamePairs = fieldEithersWithNames.map { case (_, src, tgt) => (src, tgt) }
 
       // Build error-accumulating expression
-      def buildAccumulatingExpr(eithers: List[Tree], targetTypes: List[Type], namePairs: List[(String, String)]): Tree = {
+      def buildAccumulatingExpr(eithers: List[Tree], targetTypes: List[Type], namePairs: List[(String, String)]): Tree =
         if (eithers.isEmpty) {
           // Empty case class
           q"_root_.scala.Right[$schemaErrorType, $bTpe](new $bTpe())"
         } else {
-          val valNames = eithers.indices.map(i => TermName(c.freshName(s"field$i"))).toList
+          val valNames    = eithers.indices.map(i => TermName(c.freshName(s"field$i"))).toList
           val evaluations = eithers.zip(valNames).map { case (expr, name) =>
             q"val $name: _root_.scala.Either[$schemaErrorType, Any] = $expr"
           }
@@ -623,7 +589,9 @@ private object IntoVersionSpecificImpl {
 
           // Build error collection with field name enhancement
           val errorCollection = valNames.zip(namePairs).map { case (name, (srcField, tgtField)) =>
-            val fieldDesc = if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField" else s"$targetTypeName.$tgtField"
+            val fieldDesc =
+              if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField"
+              else s"$targetTypeName.$tgtField"
             val contextMsg = s"converting field '$fieldDesc'"
             q"""
               if ($name.isLeft) {
@@ -645,10 +613,9 @@ private object IntoVersionSpecificImpl {
             }
           """
         }
-      }
 
       val targetFieldTypes = targetInfo.fields.map(_.tpe)
-      val sequencedExpr = buildAccumulatingExpr(fieldEithers, targetFieldTypes, fieldNamePairs)
+      val sequencedExpr    = buildAccumulatingExpr(fieldEithers, targetFieldTypes, fieldNamePairs)
 
       c.Expr[Into[A, B]](
         q"""
@@ -664,13 +631,13 @@ private object IntoVersionSpecificImpl {
     // === Derivation: Case Class to Tuple ===
 
     def deriveCaseClassToTuple(): c.Expr[Into[A, B]] = {
-      val sourceInfo = new ProductInfo(aTpe)
+      val sourceInfo     = new ProductInfo(aTpe)
       val targetTypeArgs = getTupleTypeArgs(bTpe)
 
       // Check field count matches
       if (sourceInfo.fields.size != targetTypeArgs.size) {
         val sourceFieldsStr = sourceInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
-        val targetTypesStr = targetTypeArgs.map(_.toString).mkString(", ")
+        val targetTypesStr  = targetTypeArgs.map(_.toString).mkString(", ")
         fail(
           s"""Cannot derive Into[$aTpe, $bTpe]: Arity mismatch
              |
@@ -727,11 +694,11 @@ private object IntoVersionSpecificImpl {
 
     def deriveTupleToCaseClass(): c.Expr[Into[A, B]] = {
       val sourceTypeArgs = getTupleTypeArgs(aTpe)
-      val targetInfo = new ProductInfo(bTpe)
+      val targetInfo     = new ProductInfo(bTpe)
 
       // Check field count matches
       if (sourceTypeArgs.size != targetInfo.fields.size) {
-        val sourceTypesStr = sourceTypeArgs.map(_.toString).mkString(", ")
+        val sourceTypesStr  = sourceTypeArgs.map(_.toString).mkString(", ")
         val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
         fail(
           s"""Cannot derive Into[$aTpe, $bTpe]: Arity mismatch
@@ -868,7 +835,7 @@ private object IntoVersionSpecificImpl {
     }
 
     /** Get the type signature of a case class/object - list of field types */
-    def getTypeSignature(tpe: Type): List[Type] = {
+    def getTypeSignature(tpe: Type): List[Type] =
       if (isEnumOrModuleValue(tpe)) {
         // Case object - no fields
         Nil
@@ -879,13 +846,11 @@ private object IntoVersionSpecificImpl {
       } else {
         Nil
       }
-    }
 
-    def signaturesMatch(source: List[Type], target: List[Type]): Boolean = {
+    def signaturesMatch(source: List[Type], target: List[Type]): Boolean =
       source.size == target.size && source.zip(target).forall { case (s, t) =>
         s =:= t || findImplicitInto(s, t).isDefined
       }
-    }
 
     def findMatchingTargetSubtype(
       sourceSubtype: Type,
@@ -929,9 +894,9 @@ private object IntoVersionSpecificImpl {
       val caseMappings = sourceSubtypes.map { sourceSubtype =>
         findMatchingTargetSubtype(sourceSubtype, targetSubtypes, sourceSubtypes) match {
           case Some(targetSubtype) => (sourceSubtype, targetSubtype)
-          case None =>
-            val sourceCases = sourceSubtypes.map(_.typeSymbol.name).mkString(", ")
-            val targetCases = targetSubtypes.map(_.typeSymbol.name).mkString(", ")
+          case None                =>
+            val sourceCases    = sourceSubtypes.map(_.typeSymbol.name).mkString(", ")
+            val targetCases    = targetSubtypes.map(_.typeSymbol.name).mkString(", ")
             val sourceCaseName = sourceSubtype.typeSymbol.name
             fail(
               s"""Cannot derive Into[$aTpe, $bTpe]: No matching case
@@ -985,10 +950,10 @@ private object IntoVersionSpecificImpl {
 
     def generateCaseClassClause(sourceSubtype: Type, targetSubtype: Type): CaseDef = {
       val schemaErrorType = typeOf[SchemaError]
-      val sourceInfo = new ProductInfo(sourceSubtype)
-      val targetInfo = new ProductInfo(targetSubtype)
-      val sourceTypeName = sourceSubtype.typeSymbol.name.toString
-      val targetTypeName = targetSubtype.typeSymbol.name.toString
+      val sourceInfo      = new ProductInfo(sourceSubtype)
+      val targetInfo      = new ProductInfo(targetSubtype)
+      val sourceTypeName  = sourceSubtype.typeSymbol.name.toString
+      val targetTypeName  = targetSubtype.typeSymbol.name.toString
 
       // Match fields between source and target case classes
       val fieldMappings = matchFields(sourceInfo, targetInfo)
@@ -997,59 +962,60 @@ private object IntoVersionSpecificImpl {
       val bindingName = TermName("x")
 
       // Build field conversions that return Either[SchemaError, Any] with field name tracking
-      val fieldEithersWithNames: List[(Tree, String, String)] = fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
-        val targetFieldName = targetField.name
-        if (mapping.sourceField == null) {
-          // No source field - use default value or None for Option types
-          val expr = if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
-            val defaultValue = targetField.defaultValue.get
-            q"_root_.scala.Right[$schemaErrorType, Any]($defaultValue)"
-          } else {
-            q"_root_.scala.Right[$schemaErrorType, Any](_root_.scala.None)"
-          }
-          (expr, "", targetFieldName)
-        } else {
-          val sourceField = mapping.sourceField
-          val getter = sourceField.getter
-          val sourceTpe = sourceField.tpe
-          val targetTpe = targetField.tpe
-          val sourceFieldName = sourceField.name
-
-          val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
-            val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
-            val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
-
-            if (isNewtypeConversion) {
-              convertToNewtypeEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
-            } else if (isNewtypeUnwrapping) {
-              q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter.asInstanceOf[$targetTpe])"
+      val fieldEithersWithNames: List[(Tree, String, String)] =
+        fieldMappings.zip(targetInfo.fields).map { case (mapping, targetField) =>
+          val targetFieldName = targetField.name
+          if (mapping.sourceField == null) {
+            // No source field - use default value or None for Option types
+            val expr = if (mapping.useDefaultValue && targetField.defaultValue.isDefined) {
+              val defaultValue = targetField.defaultValue.get
+              q"_root_.scala.Right[$schemaErrorType, Any]($defaultValue)"
             } else {
-              findImplicitInto(sourceTpe, targetTpe) match {
-                case Some(intoInstance) =>
-                  q"$intoInstance.into($bindingName.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
-                case None =>
-                  fail(
-                    s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
-                    s"Please provide an implicit Into instance in scope."
-                  )
-              }
+              q"_root_.scala.Right[$schemaErrorType, Any](_root_.scala.None)"
             }
+            (expr, "", targetFieldName)
           } else {
-            q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter)"
-          }
-          (conversionExpr, sourceFieldName, targetFieldName)
-        }
-      }
+            val sourceField     = mapping.sourceField
+            val getter          = sourceField.getter
+            val sourceTpe       = sourceField.tpe
+            val targetTpe       = targetField.tpe
+            val sourceFieldName = sourceField.name
 
-      val fieldEithers = fieldEithersWithNames.map(_._1)
+            val conversionExpr = if (!(sourceTpe =:= targetTpe)) {
+              val isNewtypeConversion = requiresNewtypeConversion(sourceTpe, targetTpe)
+              val isNewtypeUnwrapping = requiresNewtypeUnwrapping(sourceTpe, targetTpe)
+
+              if (isNewtypeConversion) {
+                convertToNewtypeEither(q"$bindingName.$getter", sourceTpe, targetTpe, sourceField.name)
+              } else if (isNewtypeUnwrapping) {
+                q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter.asInstanceOf[$targetTpe])"
+              } else {
+                findImplicitInto(sourceTpe, targetTpe) match {
+                  case Some(intoInstance) =>
+                    q"$intoInstance.into($bindingName.$getter).asInstanceOf[_root_.scala.Either[$schemaErrorType, Any]]"
+                  case None =>
+                    fail(
+                      s"Cannot find implicit Into[$sourceTpe, $targetTpe] for field in coproduct case. " +
+                        s"Please provide an implicit Into instance in scope."
+                    )
+                }
+              }
+            } else {
+              q"_root_.scala.Right[$schemaErrorType, Any]($bindingName.$getter)"
+            }
+            (conversionExpr, sourceFieldName, targetFieldName)
+          }
+        }
+
+      val fieldEithers   = fieldEithersWithNames.map(_._1)
       val fieldNamePairs = fieldEithersWithNames.map { case (_, src, tgt) => (src, tgt) }
 
       // Build error-accumulating expression for coproduct case
-      def buildAccumulatingExpr(eithers: List[Tree], targetTypes: List[Type], namePairs: List[(String, String)]): Tree = {
+      def buildAccumulatingExpr(eithers: List[Tree], targetTypes: List[Type], namePairs: List[(String, String)]): Tree =
         if (eithers.isEmpty) {
           q"_root_.scala.Right[$schemaErrorType, $targetSubtype](new $targetSubtype())"
         } else {
-          val valNames = eithers.indices.map(i => TermName(c.freshName(s"field$i"))).toList
+          val valNames    = eithers.indices.map(i => TermName(c.freshName(s"field$i"))).toList
           val evaluations = eithers.zip(valNames).map { case (expr, name) =>
             q"val $name: _root_.scala.Either[$schemaErrorType, Any] = $expr"
           }
@@ -1060,7 +1026,9 @@ private object IntoVersionSpecificImpl {
 
           // Build error collection with field name enhancement
           val errorCollection = valNames.zip(namePairs).map { case (name, (srcField, tgtField)) =>
-            val fieldDesc = if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField" else s"$targetTypeName.$tgtField"
+            val fieldDesc =
+              if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField"
+              else s"$targetTypeName.$tgtField"
             val contextMsg = s"converting field '$fieldDesc'"
             q"""
               if ($name.isLeft) {
@@ -1082,27 +1050,24 @@ private object IntoVersionSpecificImpl {
             }
           """
         }
-      }
 
       val targetFieldTypes = targetInfo.fields.map(_.tpe)
-      val sequencedExpr = buildAccumulatingExpr(fieldEithers, targetFieldTypes, fieldNamePairs)
+      val sequencedExpr    = buildAccumulatingExpr(fieldEithers, targetFieldTypes, fieldNamePairs)
 
       cq"$bindingName: $sourceSubtype => $sequencedExpr"
     }
 
     // === Structural Type Support ===
 
-    def isStructuralType(tpe: Type): Boolean = {
+    def isStructuralType(tpe: Type): Boolean =
       tpe.dealias match {
         case RefinedType(_, _) => true
-        case _ => false
+        case _                 => false
       }
-    }
 
     // Check if a type extends scala.Dynamic (Scala 2 equivalent of Scala 3's Selectable)
-    def isDynamicType(tpe: Type): Boolean = {
+    def isDynamicType(tpe: Type): Boolean =
       tpe <:< typeOf[scala.Dynamic]
-    }
 
     // Get the base Dynamic class from a refinement type
     def getDynamicBaseClass(tpe: Type): Option[Type] = {
@@ -1110,7 +1075,7 @@ private object IntoVersionSpecificImpl {
         case RefinedType(parents, _) =>
           parents.collectFirst { case p if isDynamicType(p) => findBase(p).getOrElse(p) }
         case base if isDynamicType(base) => Some(base)
-        case _ => None
+        case _                           => None
       }
       findBase(tpe)
     }
@@ -1123,8 +1088,8 @@ private object IntoVersionSpecificImpl {
 
       if (companion == NoSymbol) {
         // No companion object - check for constructor with Map parameter
-        val constructors = baseTpe.decl(termNames.CONSTRUCTOR).alternatives.collect {
-          case m: MethodSymbol => m
+        val constructors = baseTpe.decl(termNames.CONSTRUCTOR).alternatives.collect { case m: MethodSymbol =>
+          m
         }
         constructors.find { ctor =>
           val paramLists = ctor.paramLists
@@ -1150,8 +1115,8 @@ private object IntoVersionSpecificImpl {
           (q"$companion", method, true)
         }.orElse {
           // Fallback: check for constructor with Map parameter
-          val constructors = baseTpe.decl(termNames.CONSTRUCTOR).alternatives.collect {
-            case m: MethodSymbol => m
+          val constructors = baseTpe.decl(termNames.CONSTRUCTOR).alternatives.collect { case m: MethodSymbol =>
+            m
           }
           constructors.find { ctor =>
             val paramLists = ctor.paramLists
@@ -1173,7 +1138,7 @@ private object IntoVersionSpecificImpl {
           // Get members declared in this refinement
           val declaredMembers = decls.collect {
             case m: MethodSymbol if !m.isConstructor && m.paramLists.isEmpty =>
-              val name = NameTransformer.decode(m.name.toString)
+              val name       = NameTransformer.decode(m.name.toString)
               val returnType = m.returnType.dealias
               (name, returnType)
           }.toList
@@ -1191,14 +1156,17 @@ private object IntoVersionSpecificImpl {
 
     def deriveStructuralToProduct(): c.Expr[Into[A, B]] = {
       val structuralMembers = getStructuralMembers(aTpe)
-      val targetInfo = new ProductInfo(bTpe)
-      val sourceIsDynamic = isDynamicType(aTpe)
+      val targetInfo        = new ProductInfo(bTpe)
+      val sourceIsDynamic   = isDynamicType(aTpe)
 
       // For each target field, find matching structural member (by name or unique type)
       // or use default value/None for optional fields
       val fieldMappings: List[(Option[(String, Type)], FieldInfo)] = targetInfo.fields.map { targetField =>
         val matchingMember = structuralMembers.find { case (name, memberTpe) =>
-          name == targetField.name && (memberTpe =:= targetField.tpe || findImplicitInto(memberTpe, targetField.tpe).isDefined)
+          name == targetField.name && (memberTpe =:= targetField.tpe || findImplicitInto(
+            memberTpe,
+            targetField.tpe
+          ).isDefined)
         }.orElse {
           val uniqueTypeMatches = structuralMembers.filter { case (_, memberTpe) =>
             memberTpe =:= targetField.tpe || findImplicitInto(memberTpe, targetField.tpe).isDefined
@@ -1208,7 +1176,7 @@ private object IntoVersionSpecificImpl {
 
         matchingMember match {
           case Some((memberName, memberTpe)) => (Some((memberName, memberTpe)), targetField)
-          case None =>
+          case None                          =>
             // No matching structural member - check for default value or Option type
             if (targetField.hasDefault && targetField.defaultValue.isDefined) {
               (None, targetField) // Will use default value
@@ -1285,7 +1253,7 @@ private object IntoVersionSpecificImpl {
     // === Derivation: Product to Structural Type ===
 
     def deriveProductToStructural(): c.Expr[Into[A, B]] = {
-      val sourceInfo = new ProductInfo(aTpe)
+      val sourceInfo        = new ProductInfo(aTpe)
       val structuralMembers = getStructuralMembers(bTpe)
 
       // Validate that all structural type members exist in the source product
@@ -1314,7 +1282,10 @@ private object IntoVersionSpecificImpl {
     // === Derivation: Product to Anonymous Structural Type ===
     // Creates an anonymous class extending Dynamic with selectDynamic at compile time
 
-    def deriveProductToAnonymousStructural(sourceInfo: ProductInfo, structuralMembers: List[(String, Type)]): c.Expr[Into[A, B]] = {
+    def deriveProductToAnonymousStructural(
+      sourceInfo: ProductInfo,
+      structuralMembers: List[(String, Type)]
+    ): c.Expr[Into[A, B]] = {
       // Build map entries from source fields
       val mapEntries = structuralMembers.map { case (memberName, _) =>
         val sourceField = sourceInfo.fields.find(_.name == memberName).get
@@ -1373,7 +1344,8 @@ private object IntoVersionSpecificImpl {
                 q"($memberName, a.$fieldAccess: _root_.scala.Any)"
               }
 
-              val mapExpr = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
+              val mapExpr =
+                q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
 
               val constructExpr = if (isApply) {
                 q"$companionOrNew.apply($mapExpr)"
@@ -1461,8 +1433,8 @@ private object IntoVersionSpecificImpl {
         } else if (isOptionType(field.tpe)) {
           q"_root_.scala.None"
         } else {
-          val targetFieldsStr = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
-          val requiredFields = targetInfo.fields.filterNot(f => f.hasDefault || isOptionType(f.tpe))
+          val targetFieldsStr   = targetInfo.fields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
+          val requiredFields    = targetInfo.fields.filterNot(f => f.hasDefault || isOptionType(f.tpe))
           val requiredFieldsStr = requiredFields.map(f => s"${f.name}: ${f.tpe}").mkString(", ")
           fail(
             s"""Cannot derive Into[$aTpe, $bTpe]: Case object to case class conversion
@@ -1551,7 +1523,7 @@ private object IntoVersionSpecificImpl {
     // These have predefined implicit instances that should be discovered
     def isContainerType(tpe: Type): Boolean = {
       val dealiased = tpe.dealias
-      val sym = dealiased.typeSymbol
+      val sym       = dealiased.typeSymbol
       sym == definitions.OptionClass ||
       dealiased.typeConstructor =:= typeOf[Either[Any, Any]].typeConstructor ||
       dealiased.typeConstructor <:< typeOf[Iterable[Any]].typeConstructor ||
@@ -1574,19 +1546,30 @@ private object IntoVersionSpecificImpl {
       // If no predefined instance found, fall through to error or other handling
     }
 
-    val aIsProduct = isProductType(aTpe)
-    val bIsProduct = isProductType(bTpe)
-    val aIsTuple = isTupleType(aTpe)
-    val bIsTuple = isTupleType(bTpe)
-    val aIsCoproduct = isSealedTrait(aTpe)
-    val bIsCoproduct = isSealedTrait(bTpe)
+    val aIsProduct    = isProductType(aTpe)
+    val bIsProduct    = isProductType(bTpe)
+    val aIsTuple      = isTupleType(aTpe)
+    val bIsTuple      = isTupleType(bTpe)
+    val aIsCoproduct  = isSealedTrait(aTpe)
+    val bIsCoproduct  = isSealedTrait(bTpe)
     val aIsStructural = isStructuralType(aTpe)
     val bIsStructural = isStructuralType(bTpe)
     val aIsCaseObject = isCaseObjectType(aTpe)
     val bIsCaseObject = isCaseObjectType(bTpe)
 
     // Handle case object conversions first (before product matching)
-    (aIsCaseObject, bIsCaseObject, aIsProduct, bIsProduct, aIsTuple, bIsTuple, aIsCoproduct, bIsCoproduct, aIsStructural, bIsStructural) match {
+    (
+      aIsCaseObject,
+      bIsCaseObject,
+      aIsProduct,
+      bIsProduct,
+      aIsTuple,
+      bIsTuple,
+      aIsCoproduct,
+      bIsCoproduct,
+      aIsStructural,
+      bIsStructural
+    ) match {
       case (true, true, _, _, _, _, _, _, _, _) =>
         // Case object to case object
         deriveCaseObjectToCaseObject()
@@ -1637,8 +1620,10 @@ private object IntoVersionSpecificImpl {
         // at compile time - no reflection needed!
         deriveProductToStructural()
       case _ =>
-        val sourceKind = if (aIsProduct) "product" else if (aIsTuple) "tuple" else if (aIsCoproduct) "coproduct" else "other"
-        val targetKind = if (bIsProduct) "product" else if (bIsTuple) "tuple" else if (bIsCoproduct) "coproduct" else "other"
+        val sourceKind =
+          if (aIsProduct) "product" else if (aIsTuple) "tuple" else if (aIsCoproduct) "coproduct" else "other"
+        val targetKind =
+          if (bIsProduct) "product" else if (bIsTuple) "tuple" else if (bIsCoproduct) "coproduct" else "other"
         fail(
           s"""Cannot derive Into[$aTpe, $bTpe]: Unsupported type combination
              |

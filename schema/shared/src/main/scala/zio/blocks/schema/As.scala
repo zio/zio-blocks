@@ -3,10 +3,10 @@ package zio.blocks.schema
 import zio.blocks.schema.SchemaError
 
 /**
- * A bidirectional conversion between types A and B.
+ * Bidirectional conversion between types A and B.
  *
  * As[A, B] extends Into[A, B], so it can be used anywhere an Into is expected.
- * Use `swap` to get an As[B, A] that reverses the direction.
+ * Use `reverse` to get an As[B, A] that reverses the direction.
  *
  * For As[A, B] to be derivable, the bidirectional conversion must be
  * compatible:
@@ -26,10 +26,7 @@ import zio.blocks.schema.SchemaError
 trait As[A, B] extends Into[A, B] {
   def from(input: B): Either[SchemaError, A]
 
-  /**
-   * Returns an As[B, A] with swapped directions. The `into` method becomes
-   * `from` and vice versa.
-   */
+  /** Reverses the direction of this As, producing an As[B, A]. */
   def reverse: As[B, A] = {
     val self = this
     new As[B, A] {
@@ -41,9 +38,7 @@ trait As[A, B] extends Into[A, B] {
 
 object As extends AsVersionSpecific with AsLowPriorityImplicits {
 
-  /**
-   * Creates an As[A, B] from two Into instances.
-   */
+  /** Creates an As[A, B] from two Into instances. */
   def apply[A, B](intoAB: Into[A, B], intoBA: Into[B, A]): As[A, B] = new As[A, B] {
     def into(input: A): Either[SchemaError, B] = intoAB.into(input)
     def from(input: B): Either[SchemaError, A] = intoBA.into(input)
@@ -52,18 +47,8 @@ object As extends AsVersionSpecific with AsLowPriorityImplicits {
   def apply[A, B](implicit ev: As[A, B]): As[A, B] = ev
 }
 
-/**
- * Low priority implicit for extracting Into[B, A] from As[A, B]. This is placed
- * in a separate trait to have lower priority than direct Into instances.
- */
 trait AsLowPriorityImplicits {
 
-  /**
-   * Extracts Into[B, A] from As[A, B]. This allows container instances like
-   * `optionInto` to work when only As is in scope. For example, if `As[A, B]`
-   * is implicit, this provides `Into[B, A]` for the reverse direction.
-   */
-  implicit def asReverse[A, B](implicit as: As[A, B]): Into[B, A] = new Into[B, A] {
-    def into(input: B): Either[SchemaError, A] = as.from(input)
-  }
+  implicit def reverseInto[A, B](implicit as: As[A, B]): Into[B, A] =
+    (input: B) => as.from(input)
 }

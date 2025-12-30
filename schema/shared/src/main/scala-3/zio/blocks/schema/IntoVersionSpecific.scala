@@ -15,16 +15,12 @@ private object IntoVersionSpecificImpl {
 private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
   import quotes.reflect.*
 
-  // Cache for Into instances to handle recursive resolution
   private val intoRefs = scala.collection.mutable.HashMap[(TypeRepr, TypeRepr), Expr[Into[?, ?]]]()
-
-  // === Derivation logic ===
 
   def derive[A: Type, B: Type]: Expr[Into[A, B]] = {
     val aTpe = TypeRepr.of[A]
     val bTpe = TypeRepr.of[B]
 
-    // Check if both types are primitives - if so, there should be a predefined instance
     def isPrimitiveOrBoxed(tpe: TypeRepr): Boolean = {
       val sym = tpe.typeSymbol
       sym == defn.ByteClass || sym == defn.ShortClass ||
@@ -34,17 +30,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       sym == defn.StringClass
     }
 
-    // For primitive-to-primitive conversions, look up the predefined implicit
     if (isPrimitiveOrBoxed(aTpe) && isPrimitiveOrBoxed(bTpe)) {
       Expr.summon[Into[A, B]] match {
-        case Some(existingInto) =>
-          return existingInto
-        case None =>
-          fail(noPrimitiveConversionError(aTpe, bTpe))
+        case Some(existingInto) => return existingInto
+        case None               => fail(noPrimitiveConversionError(aTpe, bTpe))
       }
     }
 
-    // Check for container types (Option, Either, List, Set, Map, etc.)
     def isContainerType(tpe: TypeRepr): Boolean = {
       val dealiased = tpe.dealias
       dealiased <:< TypeRepr.of[Option[Any]] ||
@@ -54,17 +46,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       dealiased <:< TypeRepr.of[Map[Any, Any]]
     }
 
-    // For container-to-container conversions, look up predefined implicit
     if (isContainerType(aTpe) || isContainerType(bTpe)) {
       Expr.summon[Into[A, B]] match {
-        case Some(existingInto) =>
-          return existingInto
-        case None =>
-        // If no predefined instance found, fall through to other handling
+        case Some(existingInto) => return existingInto
+        case None               =>
       }
     }
 
-    // Check if type is a case object (singleton type)
     def isCaseObjectType(tpe: TypeRepr): Boolean =
       tpe match {
         case TermRef(_, _) =>
@@ -98,18 +86,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       bIsStructural
     ) match {
       case (true, true, _, _, _, _, _, _, _, _) =>
-        // Case object to case object
         deriveCaseObjectToCaseObject[A, B](bTpe)
       case (true, _, _, true, _, _, _, _, _, _) =>
-        // Case object to case class
         deriveCaseObjectToProduct[A, B](bTpe)
       case (_, true, true, _, _, _, _, _, _, _) =>
-        // Case class to case object
         deriveProductToCaseObject[A, B](bTpe)
-      // Handle structural types BEFORE product-to-product to handle refined types like `Record { def x: Int }`
       case (_, _, _, true, _, _, _, _, true, _) =>
-        // Structural type -> Product (structural source to case class target)
-        // Allow Selectable types on all platforms, but non-Selectable structural types only on JVM
+        // Structural → Product (Selectable types on all platforms, others JVM only)
         if (!Platform.supportsReflection && !isSelectableType(aTpe)) {
           fail(
             s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Structural type conversions are not supported on ${Platform.name}.
@@ -125,37 +108,35 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
         }
         deriveStructuralToProduct[A, B](aTpe, bTpe)
       case (_, _, true, _, _, _, _, _, _, true) =>
-        // Product -> Structural (case class source to structural target)
-        // Check if the target is a Selectable type - if so, we can handle it on all platforms
-        // as long as it has a Map constructor
+        // Product → Structural (Selectable types cross-platform, pure structural JVM only)
         if (!Platform.supportsReflection && !isSelectableType(bTpe)) {
           fail(
-            s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Structural type conversions are not supported on ${Platform.name}.
+            s"""Cannot derive Into[${aTpe.show}, ${bTpe.show}]: Pure structural types are not supported on ${Platform.name}.
                |
                |Structural types require reflection APIs which are only available on JVM.
                |
                |Consider:
-               |  - Using a Selectable type with a Map[String, Any] constructor for cross-platform support
+               |  - Using a Selectable type with a Map[String, Any] constructor for cross-platform support:
+               |
+               |    class Record(fields: Map[String, Any]) extends Selectable {
+               |      def selectDynamic(name: String): Any = fields(name)
+               |    }
+               |    type PersonLike = Record { def name: String; def age: Int }
+               |
                |  - Using a case class instead of a structural type
-               |  - Using a tuple instead of a structural type
-               |  - Only using structural type conversions in JVM-only code""".stripMargin
+               |  - Only using pure structural type conversions in JVM-only code""".stripMargin
           )
         }
         deriveProductToStructural[A, B](aTpe, bTpe)
       case (_, _, true, true, _, _, _, _, _, _) =>
-        // Case class to case class (no structural refinements)
         deriveProductToProduct[A, B](aTpe, bTpe)
       case (_, _, true, _, _, true, _, _, _, _) =>
-        // Case class to tuple
         deriveCaseClassToTuple[A, B](aTpe, bTpe)
       case (_, _, _, true, true, _, _, _, _, _) =>
-        // Tuple to case class
         deriveTupleToCaseClass[A, B](aTpe, bTpe)
       case (_, _, _, _, true, true, _, _, _, _) =>
-        // Tuple to tuple
         deriveTupleToTuple[A, B](aTpe, bTpe)
       case (_, _, _, _, _, _, true, true, _, _) =>
-        // Coproduct to coproduct (sealed trait/enum to sealed trait/enum)
         deriveCoproductToCoproduct[A, B](aTpe, bTpe)
       case _ =>
         // Check for opaque type conversions
@@ -187,7 +168,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
 
   private def deriveOpaqueUnwrapping[A: Type, B: Type]: Expr[Into[A, B]] =
-    // Opaque type unwrapping is safe at runtime since they are the same type
     '{
       new Into[A, B] {
         def into(a: A): Either[SchemaError, B] = Right(a.asInstanceOf[B])
@@ -381,8 +361,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  // Selectable-based structural type conversion - works on all platforms
-  // For Selectable types, we call selectDynamic which is implemented by the class
+  // Selectable-based structural type conversion (cross-platform)
   private def deriveSelectableToProduct[A: Type, B: Type](
     fieldMappings: List[(Option[(String, TypeRepr)], FieldInfo)],
     targetInfo: ProductInfo[B]
@@ -452,7 +431,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-  // Reflection-based structural type conversion - JVM only
+  // Reflection-based structural type conversion (JVM only)
   private def deriveReflectiveStructuralToProduct[A: Type, B: Type](
     fieldMappings: List[(Option[(String, TypeRepr)], FieldInfo)],
     targetInfo: ProductInfo[B]
@@ -550,7 +529,9 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     if (isSelectableType(bTpe)) {
       deriveProductToSelectable[A, B](aTpe, bTpe, structuralMembers, sourceInfo)
     } else {
-      // For non-Selectable structural types, we can only use a simple cast (JVM only, checked earlier)
+      // For pure structural types (JVM only - checked earlier), use a simple cast.
+      // This works because at runtime we're just creating an object that has
+      // the right methods, and Scala 3 uses reflection to access them.
       '{
         new Into[A, B] {
           def into(a: A): Either[SchemaError, B] =
@@ -560,7 +541,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  // Helper to get the base class of a refinement type (e.g., Record from Record { def x: Int })
   private def getSelectableBaseClass(tpe: TypeRepr): Option[TypeRepr] = {
     @tailrec
     def findBase(t: TypeRepr): Option[TypeRepr] = t.dealias match {
@@ -571,7 +551,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     findBase(tpe)
   }
 
-  // Get parameter types from a constructor by looking at its method type
   private def getConstructorParamTypes(ctor: Symbol): List[TypeRepr] = {
     // Get the method type of the constructor
     val methodType = ctor.typeRef.dealias match {
@@ -582,8 +561,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     methodType
   }
 
-  // Derive conversion from Product to Selectable using Map constructor only
-  // This works on all platforms because we generate the Map construction at compile time
+  // Product to Selectable conversion (uses Map constructor, cross-platform)
   private def deriveProductToSelectable[A: Type, B: Type](
     aTpe: TypeRepr,
     bTpe: TypeRepr,
@@ -634,8 +612,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  // Find a Map[String, Any] constructor or companion apply method
-  // Prefers companion apply method over constructor (as constructor may be private)
+  // Find Map[String, Any] constructor or companion apply method
   private def findMapConstructorOrApply(baseTpe: TypeRepr): Option[(Term, Symbol, Boolean)] = {
     val baseClass = baseTpe.typeSymbol
 
@@ -738,7 +715,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     None
   }
 
-  // Get constructor parameter types - robust version that handles secondary constructors
   private def getConstructorParamTypesRobust(ctor: Symbol, classTpe: TypeRepr): List[TypeRepr] =
     // First try: use the symbol's tree if available
     try {
@@ -755,7 +731,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       case _: Exception => getConstructorParamTypes(ctor)
     }
 
-  // Derive using Map constructor or apply method - compile-time code generation
   private def deriveProductToSelectableViaMap[A: Type, B: Type](
     baseClass: TypeRepr,
     method: Symbol,
@@ -877,9 +852,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     None
   }
 
-  /**
-   * Get the name of a subtype - handles enum values and case objects/classes
-   */
   private def getSubtypeName(tpe: TypeRepr): String = {
     // For enum values and case objects, the termSymbol has the correct name
     val termSym = tpe.termSymbol
@@ -890,7 +862,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  /** Get the type signature of a case class/object - list of field types */
   private def getTypeSignature(tpe: TypeRepr): List[TypeRepr] =
     if (isEnumOrModuleValue(tpe)) {
       // Case object / enum value - no fields
@@ -1261,11 +1232,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     None
   }
 
-  // isCoercible has been removed - implicit Into resolution now handles all type conversions
-  // including numeric widening/narrowing and opaque types
-
-  // Find or derive an Into instance, using cache to handle recursion
-  // Also looks for As instances and extracts Into from them
+  // Find or derive an Into instance (also looks for As instances)
   private def findImplicitInto(sourceTpe: TypeRepr, targetTpe: TypeRepr): Option[Expr[Into[?, ?]]] =
     // Check cache first
     intoRefs.get((sourceTpe, targetTpe)) match {
@@ -1444,9 +1411,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     buildSequencedConstruction[B](fieldConversions, targetInfo)
   }
 
-  /**
-   * Sequence a list of SchemaError Either expression.
-   */
   inline private def sequenceEithers(
     conversions: List[Expr[Either[SchemaError, Any]]]
   )(using Quotes): Expr[Either[SchemaError, List[Any]]] = {
@@ -1469,10 +1433,6 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  /**
-   * Build an expression that sequences field conversions and constructs the
-   * target object with error accumulation
-   */
   private def buildSequencedConstruction[B: Type](
     fieldConversions: List[(Int, Expr[Either[SchemaError, Any]])],
     targetInfo: ProductInfo[B]
@@ -1665,8 +1625,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  // NOTE: This method is only called when ALL source types exactly match target types
-  // (no conversions needed). For any type conversions, use buildCaseClassToTupleWithConversions.
+  // Only called when all types match exactly (no conversions needed)
   private def constructTupleFromCaseClass[A: Type, B: Type](
     sourceInfo: ProductInfo[A],
     targetTypeArgs: List[TypeRepr]
@@ -1840,8 +1799,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  // NOTE: This method is only called when ALL source types exactly match target types
-  // (no conversions needed). For any type conversions, use buildTupleToCaseClassWithConversions.
+  // Only called when all types match exactly (no conversions needed)
   private def constructCaseClassFromTuple[A: Type, B: Type](
     aTpe: TypeRepr,
     targetInfo: ProductInfo[B]
@@ -2020,8 +1978,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  // NOTE: This method is only called when ALL source types exactly match target types
-  // (no conversions needed). For any type conversions, use buildTupleToTupleWithConversions.
+  // Only called when all types match exactly (no conversions needed)
   private def constructTupleFromTuple[A: Type, B: Type](
     aTpe: TypeRepr,
     bTpe: TypeRepr
@@ -2053,22 +2010,13 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
 
   // === Opaque Type and Newtype Support ===
 
-  /**
-   * Checks if the target type is an opaque type
-   */
   private def isOpaqueType(tpe: TypeRepr): Boolean =
     tpe.typeSymbol.flags.is(Flags.Opaque)
 
-  /**
-   * Gets the underlying type of an opaque type
-   */
   private def getOpaqueUnderlying(tpe: TypeRepr): TypeRepr =
     opaqueDealias(tpe)
 
-  /**
-   * Tries to find a validation method (apply) that returns Either[_,
-   * OpaqueType] Returns (companionObject, applyMethod, errorType) if found
-   */
+  /** Find validation method (apply) that returns Either[_, OpaqueType] */
   private def findOpaqueValidationMethod(tpe: TypeRepr): Option[(Term, Symbol, TypeRepr)] =
     getOpaqueCompanion(tpe).flatMap { case (companionRef, companion) =>
       val applyMethods = companion.methodMembers.filter(_.name == "apply")
@@ -2105,10 +2053,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }
     }
 
-  /**
-   * Tries to find an unsafe constructor method for opaque types without
-   * validation Returns (companionObject, unsafeMethod) if found
-   */
+  /** Find unsafe constructor method for opaque types without validation */
   private def findOpaqueUnsafeMethod(tpe: TypeRepr): Option[(Term, Symbol)] =
     getOpaqueCompanion(tpe).flatMap { case (companionRef, companion) =>
       val allMethods    = (companion.declaredMethods ++ companion.methodMembers).distinct
@@ -2128,14 +2073,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
       }.map(method => (companionRef, method))
     }
 
-  /**
-   * Helper to find the companion object for an opaque type
-   *
-   * Note: Package-level opaque types are special. The type itself gets moved to
-   * the package object (e.g., `pkg$package.MyType` or `File$package.MyType`),
-   * but the companion object stays at the regular package level (e.g.,
-   * `pkg.MyType`). We need to handle this case specially.
-   */
+  /** Find companion object for an opaque type (handles package-level types) */
   private def getOpaqueCompanion(tpe: TypeRepr): Option[(Term, Symbol)] = {
     val typeSym      = tpe.typeSymbol
     val companionSym = typeSym.companionModule
@@ -2197,10 +2135,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     actualCompanion.map(companion => (Ref(companion), companion))
   }
 
-  /**
-   * Converts a value to an opaque type, applying validation if available
-   * Returns an Expr[Either[SchemaError, OpaqueType]]
-   */
+  /** Convert value to opaque type with validation */
   private def convertToOpaqueTypeEither(
     sourceValue: Term,
     sourceTpe: TypeRepr,
@@ -2256,22 +2191,15 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  /**
-   * Checks if conversion requires opaque type handling
-   */
   private def requiresOpaqueConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean =
     isOpaqueType(targetTpe) && {
       val underlying = getOpaqueUnderlying(targetTpe)
       sourceTpe =:= underlying
     }
 
-  // === ZIO Prelude Newtype Support (Scala 3) ===
+  // === ZIO Prelude Newtype Support ===
 
-  /**
-   * Checks if a type is a ZIO Prelude Newtype or Subtype Works without
-   * requiring zio-prelude as a dependency Checks both the type and its
-   * companion object for newtype markers
-   */
+  /** Check if type is a ZIO Prelude Newtype or Subtype */
   private def isZIONewtype(tpe: TypeRepr): Boolean = {
     val typeSym        = tpe.typeSymbol
     val typeSymbolName = typeSym.name
@@ -2298,24 +2226,10 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     false
   }
 
-  /**
-   * Gets the underlying type of a ZIO Prelude newtype For Newtype[A] or
-   * Subtype[A], returns A
-   *
-   * For ZIO Prelude, the pattern is: object Age extends Subtype[Int] type Age =
-   * Age.Type
-   *
-   * When we receive Age.Type (which is an opaque type alias to Int), we need to
-   * find the Age object (the actual owner in the enclosing scope, not the
-   * Subtype parent) and check what type parameter it has.
-   */
+  /** Get the underlying type of a ZIO Prelude newtype */
   private def getNewtypeUnderlying(tpe: TypeRepr): TypeRepr = {
 
     val typeSym = tpe.typeSymbol
-
-    // For ZIO Prelude newtypes:
-    // - Subtype[Int]: Type extends Int directly, so Int is in base types
-    // - Newtype[String]: Type wraps String
     //
     // IMPORTANT: We cannot access baseClasses as it loads TASTy files and causes
     // "Bad symbolic reference" errors with version mismatches.
@@ -2346,21 +2260,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  /**
-   * Converts a value to a ZIO Prelude newtype, applying validation via the
-   * companion's `make` method. Returns an Expr[Either[SchemaError,
-   * NewtypeType]]
-   *
-   * This uses compile-time code generation (quotes/splices) to generate direct
-   * calls to the companion object's `make` method, avoiding runtime reflection
-   * entirely. This allows the code to work on all platforms (JVM, JS, Native).
-   *
-   * For ZIO Prelude newtypes:
-   *   - `object Age extends Subtype[Int]` has
-   *     `make(value: Int): Validation[String, Age]`
-   *   - We generate:
-   *     `Age.make(value).toEither.left.map(err => SchemaError.conversionFailed(...))`
-   */
+  /** Convert value to ZIO Prelude newtype with validation */
   private def convertToNewtypeEither(
     sourceValue: Term,
     targetTpe: TypeRepr,
@@ -2473,12 +2373,7 @@ private class IntoVersionSpecificImpl(using Quotes) extends MacroUtils {
     }
   }
 
-  /**
-   * Checks if conversion requires ZIO Prelude newtype handling
-   */
   private def requiresNewtypeConversion(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
-
-    // Check if the target is a ZIO Prelude newtype
     val isNewtype = isZIONewtype(targetTpe)
 
     if (!isNewtype) {

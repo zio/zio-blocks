@@ -3,11 +3,7 @@ package zio.blocks.schema
 import zio.test._
 import zio.test.Assertion._
 
-/**
- * Tests to verify that implicit Into resolution can handle all cases that
- * isCoercible currently handles. If these tests pass, we can potentially remove
- * isCoercible from the macro.
- */
+/** Tests for implicit Into resolution handling numeric conversions. */
 object IntoIsCoercibleTest extends ZIOSpecDefault {
 
   def spec: Spec[TestEnvironment, Any] = suite("IntoIsCoercibleTest")(

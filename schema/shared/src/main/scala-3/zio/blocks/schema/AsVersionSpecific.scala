@@ -176,11 +176,6 @@ private class AsVersionSpecificImpl(using Quotes) extends MacroUtils {
   private def getContainerElementType(tpe: TypeRepr): Option[TypeRepr] =
     typeArgs(tpe.dealias).headOption
 
-  /**
-   * Checks if two container types (Option, List, Vector, Set, Seq) have
-   * bidirectionally convertible element types (including when elements have
-   * implicit As instances available).
-   */
   private def areBidirectionallyConvertibleContainers(sourceTpe: TypeRepr, targetTpe: TypeRepr): Boolean = {
     // Check if both are Options
     val bothOptions = isOptionType(sourceTpe) && isOptionType(targetTpe)
