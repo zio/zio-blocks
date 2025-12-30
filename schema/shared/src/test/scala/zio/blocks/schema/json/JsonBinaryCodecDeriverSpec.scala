@@ -2432,15 +2432,12 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .instance(
             TypeName.zonedDateTime,
             new JsonBinaryCodec[ZonedDateTime]() {
-              private[this] val codec: JsonBinaryCodec[ZonedDateTime] =
-                Schema[ZonedDateTime].derive(JsonBinaryCodecDeriver)
-
               def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readZonedDateTime(default)
 
               def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit =
                 if (x.getSecond != 0 || x.getNano != 0) out.writeVal(x)
                 else { // enforce serialization of seconds if zero seconds and nanos
-                  val buf    = codec.encode(x)
+                  val buf    = JsonBinaryCodec.zonedDateTimeCodec.encode(x)
                   val len    = buf.length
                   val newBuf = new Array[Byte](len + 3)
                   var pos    = 0
@@ -2478,8 +2475,6 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           .instance(
             TypeName.offsetDateTime,
             new JsonBinaryCodec[OffsetDateTime]() {
-              private[this] val codec: JsonBinaryCodec[OffsetDateTime] =
-                Schema[OffsetDateTime].derive(JsonBinaryCodecDeriver)
               private[this] val maxLen = 44 // should be enough for the longest offset date time value
               private[this] val pool   = new ThreadLocal[Array[Byte]] {
                 override def initialValue(): Array[Byte] = new Array[Byte](maxLen + 2)
@@ -2504,7 +2499,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
                     bits < 0x80
                   }
                 ) {
-                  codec.decode(buf, config) match {
+                  JsonBinaryCodec.offsetDateTimeCodec.decode(buf, config) match {
                     case Right(x) => return x
                     case _        => ()
                   }
