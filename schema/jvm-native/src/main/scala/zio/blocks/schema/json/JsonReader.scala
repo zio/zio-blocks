@@ -33,6 +33,8 @@ import scala.annotation.{switch, tailrec}
  *   the number of mark positions in the stack
  * @param marks
  *   the stack of mark positions
+ * @param inUse
+ *   a flag that indicates whether the reader is currently in use
  */
 final class JsonReader private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
@@ -44,7 +46,8 @@ final class JsonReader private[json] (
   private[this] var totalRead: Long = 0,
   private[this] var config: ReaderConfig = null,
   private[this] var markNum: Int = 0,
-  private[this] var marks: Array[Int] = Array.empty
+  private[this] var marks: Array[Int] = Array.empty,
+  private[this] var inUse: Boolean = false
 ) {
   private[this] var magnitude: Array[Byte] = null
   private[this] var zoneIdKey: Key         = null
@@ -1405,6 +1408,24 @@ final class JsonReader private[json] (
   }
 
   /**
+   * Reads a raw JSON value into an `Array[Byte]` instance without parsing.
+   *
+   * @return
+   *   an `Array[Byte]` instance containing the raw bytes of the JSON value.
+   * @throws JsonReaderException
+   *   in cases of reaching the end of input or invalid type of JSON value
+   */
+  def readRawValAsBytes(): Array[Byte] = {
+    setMark(head)
+    skip()
+    val from = marks(markNum - 1)
+    val len  = head - from
+    val x    = new Array[Byte](len)
+    System.arraycopy(buf, from, x, 0, len)
+    x
+  }
+
+  /**
    * Finishes reading the `null` JSON value and returns the provided default
    * value or throws [[JsonBinaryCodecError]].
    *
@@ -1689,6 +1710,14 @@ final class JsonReader private[json] (
   }
 
   /**
+   * Indicates whether the reader is currently in use.
+   *
+   * @return
+   *   true if the reader is in use, false otherwise
+   */
+  private[json] def isInUse: Boolean = inUse
+
+  /**
    * Reads a JSON value from the given byte array slice into an instance of type
    * `A` using the given [[JsonBinaryCodec]].
    *
@@ -1718,6 +1747,7 @@ final class JsonReader private[json] (
     to: Int,
     config: ReaderConfig
   ): A = {
+    inUse = true
     val currBuf = this.buf
     try {
       this.buf = buf
@@ -1732,6 +1762,7 @@ final class JsonReader private[json] (
     } finally {
       this.buf = currBuf
       if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
+      inUse = false
     }
   }
 
@@ -1756,6 +1787,7 @@ final class JsonReader private[json] (
    */
   private[json] def read[A](codec: JsonBinaryCodec[A], in: InputStream, config: ReaderConfig): A =
     try {
+      inUse = true
       this.config = config
       this.in = in
       head = 0
@@ -1770,6 +1802,7 @@ final class JsonReader private[json] (
       this.in = null
       if (buf.length > config.preferredBufSize) reallocateBufToPreferredSize()
       if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
+      inUse = false
     }
 
   /**
@@ -1791,7 +1824,8 @@ final class JsonReader private[json] (
    *   unexpected format of JSON value or when configured checking of reaching
    *   the end of input doesn't pass after reading of the whole JSON value
    */
-  private[json] def read[A](codec: JsonBinaryCodec[A], bbuf: ByteBuffer, config: ReaderConfig): A =
+  private[json] def read[A](codec: JsonBinaryCodec[A], bbuf: ByteBuffer, config: ReaderConfig): A = {
+    inUse = true
     if (bbuf.hasArray) {
       val offset  = bbuf.arrayOffset
       val to      = offset + bbuf.limit()
@@ -1810,6 +1844,7 @@ final class JsonReader private[json] (
         this.buf = currBuf
         if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
         bbuf.position(head - offset)
+        inUse = false
       }
     } else {
       val position = bbuf.position()
@@ -1829,8 +1864,10 @@ final class JsonReader private[json] (
         if (buf.length > config.preferredBufSize) reallocateBufToPreferredSize()
         if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
         bbuf.position(totalRead.toInt - tail + head + position)
+        inUse = false
       }
     }
+  }
 
   /**
    * Skips whitespace characters and checks if there are non-whitespace

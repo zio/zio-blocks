@@ -4,7 +4,6 @@ import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
-
 import java.nio.ByteBuffer
 import scala.annotation.switch
 import scala.collection.immutable.ArraySeq
@@ -138,8 +137,13 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    *   the `Right` contains the successfully decoded value of type `A`
    */
   def decode(input: ByteBuffer, config: ReaderConfig): Either[SchemaError, A] =
-    try new Right(JsonBinaryCodec.readerPool.get.read(this, input, config))
-    catch {
+    try {
+      var reader = JsonBinaryCodec.readerPool.get
+      if (reader.isInUse) {
+        reader = new JsonReader(buf = Array.emptyByteArray, charBuf = new Array[Char](config.preferredCharBufSize))
+      }
+      new Right(reader.read(this, input, config))
+    } catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
@@ -155,8 +159,11 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    * @param config
    *   the `WriterConfig` instance used to configure the encoding process
    */
-  def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit =
-    JsonBinaryCodec.writerPool.get.write(this, value, output, config)
+  def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit = {
+    var writer = JsonBinaryCodec.writerPool.get
+    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    writer.write(this, value, output, config)
+  }
 
   /**
    * Decodes a value of type `A` from the given byte array using the default
@@ -195,8 +202,13 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    *   the `Right` contains the successfully decoded value of type `A`
    */
   def decode(input: Array[Byte], config: ReaderConfig): Either[SchemaError, A] =
-    try new Right(JsonBinaryCodec.readerPool.get.read(this, input, 0, input.length, config))
-    catch {
+    try {
+      var reader = JsonBinaryCodec.readerPool.get
+      if (reader.isInUse) {
+        reader = new JsonReader(buf = input, charBuf = new Array[Char](config.preferredCharBufSize))
+      }
+      new Right(reader.read(this, input, 0, input.length, config))
+    } catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
@@ -211,8 +223,11 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    * @return
    *   an array of bytes representing the binary-encoded data
    */
-  def encode(value: A, config: WriterConfig): Array[Byte] =
-    JsonBinaryCodec.writerPool.get.write(this, value, config)
+  def encode(value: A, config: WriterConfig): Array[Byte] = {
+    var writer = JsonBinaryCodec.writerPool.get
+    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    writer.write(this, value, config)
+  }
 
   /**
    * Decodes a value of type `A` from the provided `InputStream` using the
@@ -251,8 +266,13 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    *   the `Right` contains the successfully decoded value of type `A`
    */
   def decode(input: java.io.InputStream, config: ReaderConfig): Either[SchemaError, A] =
-    try new Right(JsonBinaryCodec.readerPool.get.read(this, input, config))
-    catch {
+    try {
+      var reader = JsonBinaryCodec.readerPool.get
+      if (reader.isInUse) {
+        reader = new JsonReader(buf = Array.emptyByteArray, charBuf = new Array[Char](config.preferredCharBufSize))
+      }
+      new Right(reader.read(this, input, config))
+    } catch {
       case error if NonFatal(error) => new Left(toError(error))
     }
 
@@ -268,8 +288,11 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    * @param config
    *   the `WriterConfig` instance used to configure the encoding process
    */
-  def encode(value: A, output: java.io.OutputStream, config: WriterConfig): Unit =
-    JsonBinaryCodec.writerPool.get.write(this, value, output, config)
+  def encode(value: A, output: java.io.OutputStream, config: WriterConfig): Unit = {
+    var writer = JsonBinaryCodec.writerPool.get
+    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    writer.write(this, value, output, config)
+  }
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
