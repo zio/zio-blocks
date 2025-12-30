@@ -1656,14 +1656,6 @@ object Reflect {
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
-
-    object ArraySeq {
-      def unapply[F[_, _], A](reflect: Reflect[F, ArraySeq[A]]): Option[Reflect[F, A]] =
-        reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.arraySeq(x.sequence.element.typeName) =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
-        }
-    }
   }
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
