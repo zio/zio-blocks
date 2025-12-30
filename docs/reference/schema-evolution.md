@@ -355,6 +355,10 @@ class Record(fields: Map[String, Any]) extends Selectable {
   def selectDynamic(name: String): Any = fields(name)
 }
 
+object Record {
+  def apply(map: Map[String, Any]): Record = new Record(map)
+}
+
 type PersonLike = Record { def name: String; def age: Int }
 
 case class Person(name: String, age: Int)
