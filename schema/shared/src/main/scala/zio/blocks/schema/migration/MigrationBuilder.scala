@@ -1,7 +1,3 @@
-
-
-
-
 package zio.blocks.schema.migration
 
 import zio.blocks.schema.{DynamicOptic, DynamicValue, Schema}
