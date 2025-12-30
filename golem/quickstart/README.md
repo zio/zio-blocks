@@ -45,29 +45,24 @@ trait ShardAgent extends BaseAgent {
 
 ### Run locally
 
-Deploy the component from repo root:
+Build + wire the component from repo root:
 
 ```bash
-sbt -no-colors zioGolemQuickstartJS/golemDeploy
+sbt -no-colors zioGolemQuickstartJS/golemWire
 ```
 
-If you changed an existing durable agent's interface (added/removed methods), you must update that agent instance to the
-new component version. For example, to update `shard-agent("demo",42)` after deploy:
+Then use `golem-cli` as the driver from the generated app directory:
 
 ```bash
-sbt -no-colors 'zioGolemQuickstartJS/golemDeployUpdate scala:quickstart-counter/shard-agent("demo",42)'
+GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
+cd .golem-apps/scala-quickstart
+env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy scala:quickstart-counter
 ```
 
-To deploy and then update **all existing agents** for the component:
+Then run the REPL script:
 
 ```bash
-sbt -no-colors 'zioGolemQuickstartJS/golemDeployUpdate'
-```
-
-Then run the REPL script (deploy + repl):
-
-```bash
-sbt -no-colors "zioGolemQuickstartJS/golemAppRunScript golem/quickstart/repl-counter.rib"
+env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl scala:quickstart-counter --script-file "$PWD/../../golem/quickstart/script-test.rib" --disable-stream
 ```
 
 ### Agent-to-agent calling inside Golem (the core requirement)

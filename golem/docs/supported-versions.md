@@ -20,7 +20,7 @@ This project targets a moving toolchain (Scala.js + golem-cli). The compatibilit
 
 - If `golem-cli` changes invocation semantics again, prefer updating `cloud.golem.tooling.WitNames` and the docs/tests
   that depend on it.
-- The public primitives default to `--local`; use `golemCliFlags` to target a cloud router/base URL.
+- The examples/scripts default to `--local`; set `GOLEM_CLI_FLAGS="--cloud -p <profile>"` to target cloud.
 
 
 

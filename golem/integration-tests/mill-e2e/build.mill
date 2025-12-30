@@ -12,10 +12,11 @@ import mill.scalajslib.api.ModuleKind
  * Minimal Mill e2e harness for the zio-golem Mill plugin.
  *
  * Run:
- *   mill -i agents.golemDeploy
+ *   mill -i agents.golemWire
  *
- * (Optional) after deploy, you can invoke via:
- *   golem-cli --local agent invoke "<agentId>" "<fullyQualifiedMethod>" [args...]
+ * Then (from the app dir printed by golemWire), use golem-cli as the driver:
+ *   golem-cli --local --yes app deploy scala:name-agent
+ *   golem-cli --local --yes repl scala:name-agent --disable-stream
  */
 object agents extends ScalaJSModule with GolemModule {
   def scalaVersion = "3.7.4"

@@ -7,10 +7,6 @@ import sbt._
 import sbt.complete.DefaultParsers._
 
 import java.io.File
-import java.net.{InetSocketAddress, ServerSocket, Socket}
-import scala.concurrent.{Await, ExecutionContext, Future, blocking}
-import scala.concurrent.duration._
-import java.util.concurrent.TimeoutException
 import scala.sys.process._
 
 object GolemPlugin extends AutoPlugin {
@@ -37,9 +33,6 @@ object GolemPlugin extends AutoPlugin {
     val golemComponent         = settingKey[String]("Qualified component name (e.g. org:component)")
     val golemComponentTemplate =
       settingKey[String]("Component template for golem-cli (default ts)")
-    val golemCli        = settingKey[String]("golem-cli command (default golem-cli)")
-    val golemCliFlags   = settingKey[Seq[String]]("Flags to pass to golem-cli (e.g. --local)")
-    val golemTimeoutSec = settingKey[Int]("Timeout (seconds) for individual golem-cli steps")
 
     val golemBundleFileName =
       settingKey[String]("Filename to copy Scala.js bundle to inside component src/ (default scala.js)")
@@ -155,152 +148,9 @@ object GolemPlugin extends AutoPlugin {
 
     val golemScaffold     = taskKey[File]("Ensures the golem app/component scaffold exists; returns component dir")
     val golemWire         = taskKey[File]("Copies Scala.js bundle and writes src/main.ts; returns component dir")
-    val golemBuild        = taskKey[Unit]("Runs golem-cli app build for the configured component")
-    val golemDeploy       = taskKey[Unit]("Runs golem-cli app deploy for the configured component")
-    val golemDeployUpdate =
-      inputKey[Unit](
-        "Deploy, then update agent instances to the latest component version: golemDeployUpdate [agentId ...] [--all] [--mode auto|manual] [--no-await] [--target <version>]"
-      )
-    val golemInvoke =
-      inputKey[Unit](
-        "Invoke an agent method: golemInvoke <agentId> <fullyQualifiedMethod> [arg1] [arg2] ..."
-      )
-
-    // ---------------------------------------------------------------------------
-    // App run conveniences (deploy + invoke / deploy + repl script)
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Default agentId used by `golemAppRun`. Must be a golem-cli agent id
-     * string.
-     */
-    val golemRunAgentId =
-      settingKey[String]("Agent id for golemAppRun (golem-cli agent id string).")
-
-    /**
-     * Default fully-qualified method used by `golemAppRun` (e.g.
-     * org:comp/agent-type.{method}).
-     */
-    val golemRunFunction =
-      settingKey[String]("Fully-qualified method for golemAppRun (golem-cli function string).")
-
-    /** Default args (WAVE literals) passed to `golemAppRun`. */
-    val golemRunArgs =
-      settingKey[Seq[String]]("Default invocation args (WAVE literals) for golemAppRun.")
-
-    /**
-     * When true, golemAppRun/golemAppRunScript will run golemDeploy first
-     * (default: true).
-     */
-    val golemRunDeployFirst =
-      settingKey[Boolean]("Deploy before running (default: true).")
-
-    /**
-     * Optional publish step to run before deploy+run.
-     *
-     * Default is a no-op. In monorepo / snapshot workflows, you can set this to
-     * e.g. `publishLocal` or a custom task.
-     */
-    val golemRunPublish =
-      taskKey[Unit]("Optional publish step to run before golemAppRun/golemAppRunScript (default: no-op).")
-
-    /** When true, run golemRunPublish before deploy+run (default: false). */
-    val golemRunPublishFirst =
-      settingKey[Boolean]("Run golemRunPublish before deploy+run (default: false).")
-
-    /**
-     * Timeout (seconds) for golem-cli repl used by golemAppRunScript (default:
-     * 60).
-     */
-    val golemReplTimeoutSec =
-      settingKey[Int]("Timeout (seconds) for golem-cli repl in golemAppRunScript (default: 60).")
-
-    /** When true, pass --disable-stream to golem-cli repl (default: true). */
-    val golemReplDisableStream =
-      settingKey[Boolean]("Pass --disable-stream to golem-cli repl (default: true).")
-
-    /**
-     * Deploy (optional) then invoke a configured agent method using golem-cli.
-     */
-    val golemAppRun =
-      taskKey[Unit]("Deploy (optional) then invoke a configured method via golem-cli (developer convenience).")
-
-    /**
-     * Deploy (optional) then run a golem-cli repl script: golemAppRunScript
-     * <path-to.rib>.
-     */
-    val golemAppRunScript =
-      inputKey[Unit]("Deploy (optional) then run a golem-cli repl script: golemAppRunScript <path-to.rib>.")
-
-    /** Default update mode for golemDeployUpdate (auto|manual). */
-    val golemUpdateMode =
-      settingKey[String]("Default agent update mode used by golemDeployUpdate (auto|manual).")
-
-    /** When true, pass --await to golem-cli agent update (default: true). */
-    val golemUpdateAwait =
-      settingKey[Boolean]("Await agent updates in golemDeployUpdate (default: true).")
-
-    /**
-     * Optional explicit target version for golemDeployUpdate (default: latest).
-     */
-    val golemUpdateTargetVersion =
-      settingKey[Option[String]]("Optional explicit target version for golemDeployUpdate (default: latest).")
-
-    // ---------------------------------------------------------------------------
-    // Local runtime management (developer convenience)
-    // ---------------------------------------------------------------------------
-
-    /**
-     * Hostname to use when checking whether the local router is reachable
-     * (default: 127.0.0.1).
-     */
-    val golemRouterHost = settingKey[String]("Golem router host for local management (default: 127.0.0.1).")
-
-    /**
-     * Port to use when checking whether the local router is reachable (default:
-     * 9881).
-     */
-    val golemRouterPort = settingKey[Int]("Golem router port for local management (default: 9881).")
-
-    /**
-     * Data directory used when starting a local `golem server run` (default:
-     * <buildRoot>/.golem-local).
-     */
-    val golemLocalDataDir = settingKey[File]("Local golem server data dir (default: <buildRoot>/.golem-local).")
-
-    /**
-     * When true (default), `golemBuild`/`golemDeploy`/`golemInvoke` will
-     * auto-start local server when using `--local`.
-     */
-    val golemStartLocalServer =
-      settingKey[Boolean]("Auto-start a local golem server when using GOLEM_CLI_FLAGS=--local (default: true).")
-
-    /** File used to persist the PID for the managed local server. */
-    val golemLocalServerPidFile = settingKey[File]("PID file for managed local server.")
-
-    /** File used to capture logs for the managed local server. */
-    val golemLocalServerLogFile = settingKey[File]("Log file for managed local server.")
-
-    /**
-     * Starts a local golem server/router if needed (no-op if already reachable
-     * or not in `--local` mode).
-     */
-    val golemLocalUp = taskKey[Unit]("Start local golem server/router if needed (developer convenience).")
-
-    /**
-     * Stops the managed local golem server/router (no-op if none is running).
-     */
-    val golemLocalDown = taskKey[Unit]("Stop managed local golem server/router (developer convenience).")
-
-    // This plugin intentionally exposes only the generic primitives above.
   }
 
   import autoImport._
-
-  private def requireCommandOnPath(cmd: String, friendly: String): Unit =
-    Tooling.requireCommandOnPath(cmd, friendly)
-
-  private implicit val ec: ExecutionContext = ExecutionContext.global
 
   private def defaultTsClassNameFromTrait(traitClass: String): String = {
     val simple0 = traitClass.split('.').lastOption.getOrElse("Agent")
@@ -1091,64 +941,6 @@ object GolemPlugin extends AutoPlugin {
   private def stripHttpApiFromGolemYaml(componentDir: File, log: Logger): Unit =
     Tooling.stripHttpApiFromGolemYaml(componentDir.toPath, msg => log.info(msg))
 
-  // Prefer coreutils `timeout` for reliable kill of hung processes; fall back to manual Await.
-  private def isNoisyUpstreamWarning(line: String): Boolean =
-    Tooling.isNoisyUpstreamWarning(line)
-
-  private def runWithTimeout(cmd: Seq[String], cwd: File, label: String, timeoutSec: Int, log: Logger): Int = {
-    log.info(s"[$label] starting (cwd=${cwd.getAbsolutePath}): ${cmd.mkString(" ")}")
-    val timeoutCmd = Seq("timeout", s"${timeoutSec}s") ++ cmd
-    val proc       = Process(timeoutCmd, cwd).run(
-      ProcessLogger(
-        line => if (!isNoisyUpstreamWarning(line)) log.info(line),
-        line => if (!isNoisyUpstreamWarning(line)) log.error(line)
-      )
-    )
-    val futureExit = Future(blocking(proc.exitValue()))
-    try {
-      Await.result(futureExit, (timeoutSec + 10).seconds) // small grace
-    } catch {
-      case _: TimeoutException =>
-        log.error(s"[$label] timed out after ${timeoutSec}s; killing process")
-        proc.destroy()
-        -999
-    }
-  }
-
-  private def runWithTimeoutCapture(
-    cmd: Seq[String],
-    cwd: File,
-    label: String,
-    timeoutSec: Int,
-    log: Logger
-  ): (Int, String) = {
-    log.info(s"[$label] starting (cwd=${cwd.getAbsolutePath}): ${cmd.mkString(" ")}")
-    val timeoutCmd = Seq("timeout", s"${timeoutSec}s") ++ cmd
-    val out        = new StringBuilder
-    val proc       = Process(timeoutCmd, cwd).run(
-      ProcessLogger(
-        line => {
-          if (!isNoisyUpstreamWarning(line)) log.info(line)
-          out.append(line).append('\n')
-        },
-        line => {
-          if (!isNoisyUpstreamWarning(line)) log.error(line)
-          out.append(line).append('\n')
-        }
-      )
-    )
-    val futureExit = Future(blocking(proc.exitValue()))
-    try {
-      val exit = Await.result(futureExit, (timeoutSec + 10).seconds)
-      (exit, out.result())
-    } catch {
-      case _: TimeoutException =>
-        log.error(s"[$label] timed out after ${timeoutSec}s; killing process")
-        proc.destroy()
-        (-999, out.result())
-    }
-  }
-
   private lazy val runQuickstartTask = Def.task {
     val log    = streams.value.log
     val node   = golemNodeCommand.value
@@ -1160,45 +952,6 @@ object GolemPlugin extends AutoPlugin {
     val exit = Process(Seq(node, bundle.getAbsolutePath), base, env).!
     if (exit != 0) sys.error(s"Golem quickstart execution failed with exit code $exit")
     else log.info("Golem quickstart completed successfully.")
-  }
-
-  private def ensurePortFree(host: String, port: Int): Unit = {
-    var socket: ServerSocket = null
-    try {
-      socket = new ServerSocket()
-      socket.setReuseAddress(true)
-      socket.bind(new InetSocketAddress(host, port))
-    } catch {
-      case _: Throwable =>
-        sys.error(
-          s"Port $host:$port is already in use; stop the existing process or set GOLEM_ROUTER_PORT to a free port."
-        )
-    } finally {
-      if (socket != null) {
-        try socket.close()
-        catch { case _: Throwable => () }
-      }
-    }
-  }
-
-  private def waitForRouter(host: String, port: Int, attempts: Int, log: Logger): Unit = {
-    var remaining = attempts
-    var connected = false
-    while (!connected && remaining > 0) {
-      val socket = new Socket()
-      try {
-        socket.connect(new InetSocketAddress(host, port), 1000)
-        connected = true
-      } catch {
-        case _: Throwable =>
-          Thread.sleep(1000)
-          remaining -= 1
-      } finally {
-        try socket.close()
-        catch { case _: Throwable => () }
-      }
-    }
-    if (!connected) sys.error(s"Timed out waiting for Golem router at $host:$port")
   }
 
   private def writeBridgeSources(srcDir: File, bundleName: String): Unit = {
@@ -1288,10 +1041,6 @@ object GolemPlugin extends AutoPlugin {
   private def ensureComponentScaffoldTs(
     appDir: File,
     component: String,
-    template: String,
-    cliBase: Seq[String],
-    flags: Seq[String],
-    timeoutSec: Int,
     log: Logger
   ): File = {
     val slug         = componentSlug(component)
@@ -1306,13 +1055,10 @@ object GolemPlugin extends AutoPlugin {
     appName: String,
     component: String,
     template: String,
-    cliBase: Seq[String],
-    flags: Seq[String],
-    timeoutSec: Int,
     log: Logger
   ): File = {
     val appDir       = ensureAppScaffold(appRoot, appName, component, log)
-    val componentDir = ensureComponentScaffoldTs(appDir, component, template, cliBase, flags, timeoutSec, log)
+    val componentDir = ensureComponentScaffoldTs(appDir, component, log)
     stripHttpApiFromGolemYaml(componentDir, log)
     componentDir
   }
@@ -1346,16 +1092,6 @@ object GolemPlugin extends AutoPlugin {
     golemAppName           := name.value,
     golemComponent         := "",
     golemComponentTemplate := "ts",
-    golemCli               := "golem-cli",
-    // Allow env-driven overrides so CI/users can switch between local and cloud without editing build files.
-    // Example: GOLEM_CLI_FLAGS="--cloud -p my-profile"
-    golemCliFlags := sys.env
-      .get("GOLEM_CLI_FLAGS")
-      .map(_.trim)
-      .filter(_.nonEmpty)
-      .map(_.split("\\s+").toSeq)
-      .getOrElse(Seq("--local")),
-    golemTimeoutSec := 180,
     // Default to `<golemAppName>.js` so most projects don't need to set this explicitly.
     // (Override if you need backwards-compatibility with existing scaffolds that expect e.g. `scala.js`.)
     golemBundleFileName          := s"${golemAppName.value}.js",
@@ -1534,202 +1270,6 @@ object GolemPlugin extends AutoPlugin {
     golemScalaShimExportTopLevel := "__golemInternalScalaAgents",
     golemScalaShimObjectName     := "GolemInternalScalaAgents",
     golemScalaShimPackage        := "cloud.golem.internal",
-
-    // App run defaults (opt-in: users must set agentId/function, otherwise golemAppRun errors)
-    golemRunAgentId      := "",
-    golemRunFunction     := "",
-    golemRunArgs         := Nil,
-    golemRunDeployFirst  := true,
-    golemRunPublishFirst := false,
-    golemRunPublish      := {},
-    golemReplTimeoutSec  := sys.env
-      .get("GOLEM_REPL_TIMEOUT_SEC")
-      .flatMap(s => scala.util.Try(s.toInt).toOption)
-      .getOrElse(60),
-    golemReplDisableStream   := true,
-    golemUpdateMode          := "auto",
-    golemUpdateAwait         := true,
-    golemUpdateTargetVersion := None,
-    golemAppRun              := Def.taskDyn {
-      Def.task {
-        val log = streams.value.log
-
-        // Safe to always depend on this; it is a no-op unless in `--local` mode.
-        val _ = golemLocalUp.value
-
-        val agentId = golemRunAgentId.value.trim
-        val fn      = golemRunFunction.value.trim
-        if (agentId.isEmpty || fn.isEmpty) {
-          sys.error(
-            "golemAppRun requires golemRunAgentId and golemRunFunction to be set.\n" +
-              "Example:\n" +
-              "  golemRunAgentId := \"org:component/agent-type()\"\n" +
-              "  golemRunFunction := \"org:component/agent-type.{method}\""
-          )
-        }
-
-        val flags       = golemCliFlags.value
-        val args        = golemRunArgs.value
-        val appDir      = golemAppRoot.value / golemAppName.value
-        val golemCliCmd = golemCli.value
-        val cliBase     = Seq("env", "-u", "ARGV0", golemCliCmd)
-
-        val cmd = cliBase ++ (flags ++ (Seq("--yes", "agent", "invoke", agentId, fn) ++ args))
-        log.info(s"[golem] golemAppRun: invoking $agentId $fn")
-        val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent invoke", golemTimeoutSec.value, log)
-        if (exit != 0) sys.error(s"golem-cli agent invoke failed with exit code $exit\n$out")
-      }
-    }.dependsOn(
-      Def.taskDyn {
-        val publish =
-          if (golemRunPublishFirst.value) Def.task(golemRunPublish.value) else Def.task {}
-        val deploy =
-          if (golemRunDeployFirst.value) golemDeployUpdate.toTask("") else Def.task {}
-        Def.task {}.dependsOn(publish, deploy)
-      }
-    ).value,
-    golemAppRunScript := Def.inputTaskDyn {
-      val log           = streams.value.log
-      val scriptPathStr = spaceDelimited("<script-file>").parsed.headOption.getOrElse("")
-      if (scriptPathStr.trim.isEmpty) sys.error("Usage: golemAppRunScript <path-to.rib>")
-
-      val scriptFile0 = file(scriptPathStr)
-      val scriptFile  =
-        if (scriptFile0.isAbsolute) scriptFile0
-        else (ThisBuild / baseDirectory).value / scriptFile0.getPath
-
-      Def.task {
-        // Safe to always depend on this; it is a no-op unless in `--local` mode.
-        val _ = golemLocalUp.value
-
-        if (!scriptFile.exists())
-          sys.error(s"Script file not found: ${scriptFile.getAbsolutePath}")
-
-        val flags       = golemCliFlags.value
-        val appDir      = golemAppRoot.value / golemAppName.value
-        val component   = golemComponent.value
-        val golemCliCmd = golemCli.value
-        val cliBase     = Seq("env", "-u", "ARGV0", golemCliCmd)
-
-        val replArgs =
-          Seq("--yes", "repl", component, "--script-file", scriptFile.getAbsolutePath) ++
-            (if (golemReplDisableStream.value) Seq("--disable-stream") else Nil)
-
-        log.info(s"[golem] golemAppRunScript: running repl script ${scriptFile.getAbsolutePath}")
-        val (exit, out) =
-          runWithTimeoutCapture(cliBase ++ (flags ++ replArgs), appDir, "repl", golemReplTimeoutSec.value, log)
-        if (exit != 0) sys.error(s"golem-cli repl failed with exit code $exit\n$out")
-      }
-    }.dependsOn(
-      Def.taskDyn {
-        val publish =
-          if (golemRunPublishFirst.value) Def.task(golemRunPublish.value) else Def.task {}
-        val deploy =
-          if (golemRunDeployFirst.value) golemDeployUpdate.toTask("") else Def.task {}
-        Def.task {}.dependsOn(publish, deploy)
-      }
-    ).evaluated,
-
-    // Local runtime management defaults
-    golemRouterHost         := sys.env.getOrElse("GOLEM_ROUTER_HOST", "127.0.0.1"),
-    golemRouterPort         := sys.env.get("GOLEM_ROUTER_PORT").flatMap(s => scala.util.Try(s.toInt).toOption).getOrElse(9881),
-    golemLocalDataDir       := (ThisBuild / baseDirectory).value / ".golem-local",
-    golemStartLocalServer   := true,
-    golemLocalServerPidFile := golemLocalDataDir.value / "server.pid",
-    golemLocalServerLogFile := golemLocalDataDir.value / "server.log",
-    golemLocalDown          := {
-      val log     = streams.value.log
-      val pidFile = golemLocalServerPidFile.value
-      if (!pidFile.exists()) {
-        log.info("[golem] No managed local server PID file found; nothing to stop.")
-      } else {
-        val pid = IO.read(pidFile).trim
-        if (pid.nonEmpty) {
-          log.info(s"[golem] Stopping managed local server (pid=$pid)")
-          try scala.sys.process.Process(Seq("kill", "-TERM", pid)).!
-          catch { case _: Throwable => () }
-          Thread.sleep(500)
-          try scala.sys.process.Process(Seq("kill", "-KILL", pid)).!
-          catch { case _: Throwable => () }
-        }
-        IO.delete(pidFile)
-      }
-    },
-    golemLocalUp := {
-      val log     = streams.value.log
-      val flags   = golemCliFlags.value
-      val isLocal = flags.contains("--local") && !flags.contains("--cloud")
-
-      if (!isLocal) {
-        log.info("[golem] golemLocalUp: GOLEM_CLI_FLAGS is not local; skipping local server management.")
-      } else if (!golemStartLocalServer.value) {
-        log.info("[golem] golemLocalUp: golemStartLocalServer=false; skipping local server management.")
-      } else {
-        val host     = golemRouterHost.value
-        val port     = golemRouterPort.value
-        val dataDir  = golemLocalDataDir.value
-        val pidFile  = golemLocalServerPidFile.value
-        val logFile  = golemLocalServerLogFile.value
-        val golemBin = sys.env.getOrElse("GOLEM_BIN", "golem")
-
-        def routerReachable(): Boolean =
-          try {
-            val sock = new Socket()
-            sock.connect(new InetSocketAddress(host, port), 500)
-            sock.close()
-            true
-          } catch { case _: Throwable => false }
-
-        if (routerReachable()) {
-          log.info(s"[golem] golemLocalUp: router already reachable at $host:$port")
-        } else {
-          // If a previous run left a PID file around, attempt to stop it first.
-          if (pidFile.exists()) {
-            val stale = IO.read(pidFile).trim
-            if (stale.nonEmpty) {
-              log.warn(s"[golem] golemLocalUp: found stale pid file (pid=$stale); attempting to stop")
-              try scala.sys.process.Process(Seq("kill", "-TERM", stale)).!
-              catch { case _: Throwable => () }
-              Thread.sleep(500)
-              try scala.sys.process.Process(Seq("kill", "-KILL", stale)).!
-              catch { case _: Throwable => () }
-            }
-            IO.delete(pidFile)
-          }
-
-          log.info(s"[golem] Starting local golem server on $host:$port (dataDir=${dataDir.getAbsolutePath})")
-          ensurePortFree(host, port)
-          IO.createDirectory(dataDir)
-          IO.write(logFile, "")
-
-          val cmd =
-            Seq(
-              "env",
-              "-u",
-              "ARGV0",
-              golemBin,
-              "server",
-              "run",
-              "--clean",
-              "--data-dir",
-              dataDir.getAbsolutePath,
-              "--router-port",
-              port.toString
-            )
-
-          val pb = new java.lang.ProcessBuilder(cmd: _*)
-          pb.directory((ThisBuild / baseDirectory).value)
-          pb.redirectErrorStream(true)
-          pb.redirectOutput(java.lang.ProcessBuilder.Redirect.appendTo(logFile))
-          val p   = pb.start()
-          val pid = p.pid().toString
-          IO.write(pidFile, pid)
-
-          waitForRouter(host, port, attempts = 120, log = log)
-          log.info(s"[golem] Local router is reachable at $host:$port (pid=$pid)")
-        }
-      }
-    },
     Compile / sourceGenerators += golemGenerateScalaShim.taskValue,
     golemGenerateScalaShim := {
       val log = streams.value.log
@@ -1739,7 +1279,7 @@ object GolemPlugin extends AutoPlugin {
       // If we call the task here, sbt will cache its "no manifest written" result for the session and later
       // `golemWire` won't be able to force a re-run after compilation.
       //
-      // Instead, we only generate the shim *if* the manifest already exists on disk (typically created by golemWire/golemDeploy).
+      // Instead, we only generate the shim *if* the manifest already exists on disk (typically created by golemWire).
       val manifest = golemBridgeSpecManifestPath.value.toPath
       if (!java.nio.file.Files.exists(manifest)) {
         Nil
@@ -1788,16 +1328,15 @@ object GolemPlugin extends AutoPlugin {
       val appName    = golemAppName.value
       val component  = golemComponent.value
       val template   = golemComponentTemplate.value
-      val flags      = golemCliFlags.value
-      val timeoutSec = golemTimeoutSec.value
 
       if (component.trim.isEmpty)
         sys.error(
           "golemComponent is not set. Provide e.g. `golemComponent := \"org:component\"` before running golemScaffold."
         )
 
-      // Deterministic scaffold; golem-cli is only required for build/deploy/invoke.
-      ensureAppAndComponentScaffold(appRoot, appName, component, template, Nil, flags, timeoutSec, log)
+      // Deterministic scaffold for local development / repo tests.
+      // In a golem-cli-first workflow, a golem-cli template would create the app/component and call `golemWire`.
+      ensureAppAndComponentScaffold(appRoot, appName, component, template, log)
     },
     golemWire := Def.taskDyn {
       val log          = streams.value.log
@@ -1877,202 +1416,7 @@ object GolemPlugin extends AutoPlugin {
           }
         }
       }
-    }.value,
-    golemBuild := {
-      val log          = streams.value.log
-      val _            = golemLocalUp.value
-      val componentDir = golemWire.value
-      val appDir       = componentDir.getParentFile.getParentFile // <app>/components-ts/<slug>
-      val component    = golemComponent.value
-      val golemCliCmd  = golemCli.value
-      val flags        = golemCliFlags.value
-      val timeoutSec   = golemTimeoutSec.value
-      val cliBase      = Seq("env", "-u", "ARGV0", golemCliCmd)
-
-      log.info("[golem] Running golem-cli app build")
-      val exit = runWithTimeout(
-        cliBase ++ (flags ++ Seq("--yes", "app", "build", component)),
-        appDir,
-        "app build",
-        timeoutSec,
-        log
-      )
-      if (exit != 0) sys.error(s"golem-cli app build failed with exit code $exit")
-    },
-    golemDeploy := {
-      val log          = streams.value.log
-      val _            = golemLocalUp.value
-      val componentDir = golemWire.value
-      val appDir       = componentDir.getParentFile.getParentFile
-      val component    = golemComponent.value
-      val golemCliCmd  = golemCli.value
-      val flags        = golemCliFlags.value
-      val timeoutSec   = golemTimeoutSec.value
-      val cliBase      = Seq("env", "-u", "ARGV0", golemCliCmd)
-
-      log.info("[golem] Running golem-cli app deploy")
-      val exit = runWithTimeout(
-        cliBase ++ (flags ++ Seq("--yes", "app", "deploy", component)),
-        appDir,
-        "app deploy",
-        timeoutSec,
-        log
-      )
-      if (exit != 0) sys.error(s"golem-cli app deploy failed with exit code $exit")
-    },
-    golemDeployUpdate := {
-      val _   = golemLocalUp.value
-      val log = streams.value.log
-
-      val rawArgs = spaceDelimited("<arg>").parsed.toVector
-
-      // tiny flag parser (keep plugin dependency-free)
-      var mode: String           = golemUpdateMode.value
-      var await: Boolean         = golemUpdateAwait.value
-      var target: Option[String] = golemUpdateTargetVersion.value
-      val agentIds               = scala.collection.mutable.ArrayBuffer.empty[String]
-      var updateAll              = false
-
-      var i = 0
-      while (i < rawArgs.length) {
-        rawArgs(i) match {
-          case "--all" =>
-            updateAll = true
-            i += 1
-          case "--mode" if i + 1 < rawArgs.length =>
-            mode = rawArgs(i + 1)
-            i += 2
-          case "--no-await" =>
-            await = false
-            i += 1
-          case "--await" =>
-            await = true
-            i += 1
-          case "--target" if i + 1 < rawArgs.length =>
-            target = Some(rawArgs(i + 1))
-            i += 2
-          case other if other.startsWith("--") =>
-            sys.error(s"Unknown flag for golemDeployUpdate: $other")
-          case agentId =>
-            agentIds += agentId
-            i += 1
-        }
-      }
-
-      // If no explicit agent ids were provided, default to updating all agents for the component.
-      if (agentIds.isEmpty) updateAll = true
-
-      // Deploy first (new component version)
-      val _deploy = golemDeploy.value
-
-      val componentDir = golemScaffold.value
-      val appDir       = componentDir.getParentFile.getParentFile
-      val component    = golemComponent.value
-      val golemCliCmd  = golemCli.value
-      val flags        = golemCliFlags.value
-      val timeoutSec   = golemTimeoutSec.value
-      val cliBase      = Seq("env", "-u", "ARGV0", golemCliCmd)
-
-      val awaitFlag = if (await) Seq("--await") else Nil
-      val modeArg   = Seq(mode)
-      val targetArg = target.toSeq
-
-      def listAgentsForComponent(): Vector[String] = {
-        // golem-cli agent list --format json returns:
-        // { "workers": [ { "componentName": "...", "workerName": "agent-type(...)" }, ... ] }
-        val cmd         = cliBase ++ (flags ++ Seq("--yes", "--format", "json", "agent", "list", component))
-        val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent list", timeoutSec, log)
-        if (exit != 0) sys.error(s"golem-cli agent list failed with exit code $exit\n$out")
-
-        // Extract workerName values without adding a JSON dependency.
-        // Match JSON string content with escape support: ((?:\\.|[^"\\])*)
-        val workerNamePattern = "\"workerName\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"".r
-
-        def unescapeJsonString(s: String): String = {
-          val sb = new StringBuilder(s.length)
-          var i  = 0
-          while (i < s.length) {
-            val c = s.charAt(i)
-            if (c != '\\') { sb.append(c); i += 1 }
-            else if (i + 1 >= s.length) { sb.append('\\'); i += 1 }
-            else {
-              s.charAt(i + 1) match {
-                case '"'                     => sb.append('"'); i += 2
-                case '\\'                    => sb.append('\\'); i += 2
-                case 'n'                     => sb.append('\n'); i += 2
-                case 'r'                     => sb.append('\r'); i += 2
-                case 't'                     => sb.append('\t'); i += 2
-                case 'u' if i + 5 < s.length =>
-                  val hex = s.substring(i + 2, i + 6)
-                  try sb.append(Integer.parseInt(hex, 16).toChar)
-                  catch { case _: Throwable => sb.append("\\u").append(hex) }
-                  i += 6
-                case other =>
-                  sb.append(other)
-                  i += 2
-              }
-            }
-          }
-          sb.toString()
-        }
-
-        val workerNames: Vector[String] =
-          workerNamePattern.findAllMatchIn(out).map(m => unescapeJsonString(m.group(1))).toVector
-
-        workerNames.map(wn => s"$component/$wn").distinct
-      }
-
-      val resolvedAgents: Vector[String] =
-        if (updateAll || agentIds.isEmpty) {
-          val ids = listAgentsForComponent()
-          if (ids.isEmpty) log.info(s"[golem] No existing agents found for component $component; nothing to update.")
-          else log.info(s"[golem] Updating ${ids.length} agent(s) for component $component")
-          ids
-        } else agentIds.toVector
-
-      resolvedAgents.foreach { agentId =>
-        log.info(s"[golem] Updating agent $agentId (mode=$mode, target=${target.getOrElse("latest")}, await=$await)")
-        // Updates can legitimately take several minutes (even locally), especially when many agents exist.
-        // Use a larger timeout than the generic CLI timeout to avoid spurious failures.
-        val updateTimeoutSec = math.max(timeoutSec, 600)
-        val cmd              =
-          cliBase ++ (flags ++ (Seq("--yes", "agent", "update") ++ awaitFlag ++ Seq(agentId) ++ modeArg ++ targetArg))
-        val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent update", updateTimeoutSec, log)
-        if (exit != 0) {
-          // golem-cli sometimes reports a non-zero exit with this message even if the update has completed quickly.
-          // Treat it as a soft success and let subsequent invocations observe the new version.
-          if (await && out.contains("update is not pending anymore, but no outcome has been found")) {
-            log.info(
-              s"[golem] agent update returned a transient status for $agentId; continuing (CLI reported no outcome yet)"
-            )
-          } else {
-            sys.error(s"golem-cli agent update failed with exit code $exit for agentId=$agentId\n$out")
-          }
-        }
-      }
-    },
-    golemInvoke := {
-      val _    = golemLocalUp.value
-      val log  = streams.value.log
-      val args = spaceDelimited("<arg>").parsed
-      if (args.lengthCompare(2) < 0)
-        sys.error("Usage: golemInvoke <agentId> <fullyQualifiedMethod> [arg1] [arg2] ...")
-
-      val agentId  = args.head
-      val function = args(1)
-      val payloads = args.drop(2)
-
-      val componentDir = golemScaffold.value
-      val appDir       = componentDir.getParentFile.getParentFile
-      val golemCliCmd  = golemCli.value
-      val flags        = golemCliFlags.value
-      val timeoutSec   = golemTimeoutSec.value
-      val cliBase      = Seq("env", "-u", "ARGV0", golemCliCmd)
-
-      val cmd         = cliBase ++ (flags ++ (Seq("--yes", "agent", "invoke", agentId, function) ++ payloads))
-      val (exit, out) = runWithTimeoutCapture(cmd, appDir, "agent invoke", timeoutSec, log)
-      if (exit != 0) sys.error(s"golem-cli agent invoke failed with exit code $exit\n$out")
-    }
+    }.value
 
     // Harness/demo flows live outside the plugin; this plugin exposes only the generic primitives.
   )

@@ -11,13 +11,13 @@ When enabled, the integration flow:
 - Creates a **deterministic** TS component scaffold (owned by this repo’s tooling; avoids upstream template drift)
 - Copies the Scala.js bundle into the component (`src/scala-autowired.js`)
 - Writes `src/main.ts` from the configured `BridgeSpec`
-- Builds and deploys the component (`golem-cli app build`, `golem-cli app deploy`)
-- Invokes a suite of agent methods and **asserts** expected substrings in the CLI output
+- Uses `golem-cli` to deploy/invoke/repl and **asserts** expected substrings in the CLI output
 
 ## How to run (sbt)
 
 ```bash
-GOLEM_SDK_INTEGRATION=1 sbt golemCliIntegrationIfEnabled
+export GOLEM_SDK_INTEGRATION=1
+./golem/integration-tests/run-golem-cli-integration.sh
 ```
 
 ### Cloud mode (optional, gated)
@@ -37,38 +37,16 @@ Wire-only (no `golem-cli` / no router):
 sbt zioGolemExamplesJS/golemWire
 ```
 
-You can also use the thin wrapper script:
-
-```bash
-./golem/integration-tests/run-golem-cli-integration.sh
-```
+The integration scripts above call into the repo’s example quickstart + agent2agent smoke tests.
 
 ## Counter agent REPL script (repo-local)
 
-This repo includes `repl-counter.rib`, a small script that:
+This repo includes a repo-local quickstart REPL script (`golem/quickstart/script-test.rib`) that exercises a few agent calls.
 
-- creates two `counter-agent` instances
-- calls `increment()` twice on the first and once on the second
-- evaluates to `[1, 2, 1, 42]`
-
-You can run it using the **generic** plugin task `golemAppRunScript` from the quickstart build:
+You can run it using the repo-local quickstart script:
 
 ```bash
-cd golem/quickstart
-sbt -no-colors golemDeploy
-sbt -no-colors "golemAppRunScript ../integration-tests/repl-counter.rib"
-```
-
-Or use the thin wrapper script:
-
-```bash
-./golem/integration-tests/repl-counter-test.sh
-```
-
-To force running without the env gate:
-
-```bash
-sbt golemCliIntegration
+./golem/quickstart/script-test.sh
 ```
 
 ## How to run (Mill)
@@ -76,7 +54,7 @@ sbt golemCliIntegration
 ### Mill plugin end-to-end harness (this repo)
 
 This repo includes a minimal Mill build under `integration-tests/mill-e2e/` that exercises the published Mill plugin
-end-to-end (scaffold/wire/build/deploy).
+end-to-end (scaffold/wire).
 
 First publish the Mill plugin to **Ivy local** (preferred, avoids hardcoding `~/.m2` repositories):
 
@@ -89,7 +67,7 @@ Then run:
 ```bash
 cd golem/integration-tests/mill-e2e
 mill -i agents.golemWire   # just scaffold + wire (no golem-cli needed)
-mill -i agents.golemDeploy
+# then deploy via golem-cli from the app dir printed by golemWire
 ```
 
 ## sbt plugin external-style fixture
@@ -106,7 +84,7 @@ sbt printBridge
 ## Notes
 
 - **Wire-only** steps (`golemWire` / `printBridge`) do **not** require `golem-cli`.
-- **Build/deploy/invoke** steps require `golem-cli` (and a reachable router / `--base` depending on your flags).
+- **Deploy/invoke/repl** steps use `golem-cli` directly (and a reachable router / `--base` depending on your flags).
 - By default, they are **opt-in** so normal CI/dev runs do not require external tooling.
 
 

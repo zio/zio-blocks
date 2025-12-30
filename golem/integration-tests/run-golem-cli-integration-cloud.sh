@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Cloud-gated golem-cli integration runner.
 #
-# This is intentionally thin: the source-of-truth lives in the sbt task
-# `zioGolemExamplesJS/golemSdkIntegrationIfEnabled`.
+# This is intentionally thin: it runs repo-local smoke flows that use the
+# public plugin primitives (`golemWire`) and then uses golem-cli as the driver.
 #
 # Prereqs:
 # - golem-cli installed and authenticated/configured for your cloud profile
@@ -30,6 +30,6 @@ fi
 
 echo "[golem-cli-integration-cloud] GOLEM_SDK_INTEGRATION=${GOLEM_SDK_INTEGRATION}"
 echo "[golem-cli-integration-cloud] GOLEM_CLI_FLAGS=${GOLEM_CLI_FLAGS}"
-echo "[golem-cli-integration-cloud] Running: sbt golemCliIntegrationIfEnabled"
 
-sbt -no-colors golemCliIntegrationIfEnabled
+./golem/examples/agent2agent-local-repl.sh
+./golem/quickstart/script-test.sh

@@ -11,8 +11,8 @@ import scala.concurrent.Await
  * Repo-local JVM smoke test for the quickstart agents.
  *
  * Expected flow:
- *   - Deploy the quickstart JS component (e.g.
- *     `zioGolemQuickstartJS/golemDeploy`)
+ *   - Wire the quickstart JS component (`zioGolemQuickstartJS/golemWire`)
+ *   - Deploy via golem-cli from the generated app dir (e.g. `./golem/quickstart/jvm-test.sh`)
  *   - Run this main (uses golem-cli to invoke the deployed agents)
  */
 object QuickstartClient {
@@ -20,16 +20,57 @@ object QuickstartClient {
     val cfg = JvmAgentClientConfig.fromEnv(defaultComponent = "scala:quickstart-counter")
     JvmAgentClient.configure(cfg)
 
-    val counter = Await.result(CounterAgent.get("demo"), 30.seconds)
-    val n1      = Await.result(counter.increment(), 30.seconds)
-    println(s"[quickstart-jvm] CounterAgent.increment => $n1")
+    // Default: stable agent ids so repeated runs show persisted state (incrementing counters).
+    //
+    // Opt-in: set GOLEM_QUICKSTART_FRESH_IDS=1 to avoid getting stuck on a previously-failed durable worker instance.
+    // Override ids: GOLEM_QUICKSTART_COUNTER_ID / GOLEM_QUICKSTART_SHARD_TABLE.
+    //
+    // Note: a durable worker that failed during initialize becomes "poisoned" and later calls return
+    // "Previous Invocation Failed". To keep this smoke test robust, we retry once with a fresh id if we
+    // detect that condition.
+    val counterIdBase = sys.env.getOrElse("GOLEM_QUICKSTART_COUNTER_ID", "demo")
+    val tableBase     = sys.env.getOrElse("GOLEM_QUICKSTART_SHARD_TABLE", "table")
 
-    val shard = Await.result(ShardAgent.get("table", 1), 30.seconds)
-    val id    = Await.result(shard.id(), 30.seconds)
-    println(s"[quickstart-jvm] ShardAgent.id => $id")
+    def runOnce(counterId: String, tableName: String): Unit = {
+      val counter = Await.result(CounterAgent.get(counterId), 30.seconds)
+      val n1      = Await.result(counter.increment(), 30.seconds)
+      println(s"[quickstart-jvm] CounterAgent.increment($counterId) => $n1")
 
-    Await.result(shard.set("k", "v"), 30.seconds)
-    val got = Await.result(shard.get("k"), 30.seconds)
-    println(s"[quickstart-jvm] ShardAgent.get(k) => $got")
+      val shard = Await.result(ShardAgent.get(tableName, 1), 30.seconds)
+      val id    = Await.result(shard.id(), 30.seconds)
+      println(s"[quickstart-jvm] ShardAgent.id($tableName,1) => $id")
+
+      Await.result(shard.set("k", "v"), 30.seconds)
+      val got = Await.result(shard.get("k"), 30.seconds)
+      println(s"[quickstart-jvm] ShardAgent.get(k) => $got")
+    }
+
+    val forceFresh = sys.env.get("GOLEM_QUICKSTART_FRESH_IDS").contains("1")
+    val initialSuffix =
+      if (forceFresh) "-" + java.util.UUID.randomUUID().toString
+      else ""
+
+    val counterId0 = s"$counterIdBase$initialSuffix"
+    val table0     = s"$tableBase$initialSuffix"
+
+    try runOnce(counterId0, table0)
+    catch {
+      case t: Throwable =>
+        val msg = Option(t.getMessage).getOrElse("")
+        val looksPoisoned =
+          msg.contains("Previous Invocation Failed") ||
+            msg.contains("newCounterAgent") ||
+            msg.contains("guest.initialize")
+
+        if (!forceFresh && looksPoisoned) {
+          val suffix = "-" + java.util.UUID.randomUUID().toString
+          val c1     = s"$counterIdBase$suffix"
+          val t1     = s"$tableBase$suffix"
+          System.err.println(
+            s"[quickstart-jvm] Initial agent ids appear poisoned (counterId=$counterId0). Retrying with fresh ids: $c1 / $t1"
+          )
+          runOnce(c1, t1)
+        } else throw t
+    }
   }
 }

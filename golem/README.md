@@ -206,83 +206,39 @@ trait MyAgent {
 
 ## Running on Golem
 
-The sbt/Mill plugins provide a small set of **developer convenience tasks** so you can run your own Golem apps from your build tool:
+The Scala sbt/Mill plugins are **build adapters**: they generate the Scala.js bundle plus the internal bridge/shim artifacts needed by the TypeScript component template.
 
-- **sbt**:
-  - `golemLocalUp` / `golemLocalDown`: start/stop a local `golem server run` (when `GOLEM_CLI_FLAGS=--local`)
-  - `golemDeploy`: deploy your component (auto-starts local server when in `--local` mode)
-  - `golemInvoke`: invoke an agent method (auto-starts local server when in `--local` mode)
-  - `golemAppRun`: deploy (optional) then invoke a configured method (`golemRunAgentId` + `golemRunFunction`)
-  - `golemAppRunScript <path-to.rib>`: deploy (optional) then run `golem-cli repl --script-file`
-- **Mill**:
-  - `golemLocalUp()` / `golemLocalDown()`: start/stop a local `golem server run` (when `GOLEM_CLI_FLAGS=--local`)
-  - `golemDeploy()` / `golemInvoke()`: deploy/invoke (auto-starts local server when in `--local` mode)
-  - `golemAppRun()`: deploy (optional) then invoke a configured method (`golemRunAgentId` + `golemRunFunction`)
-  - `golemAppRunScript <path-to.rib>`: deploy (optional) then run `golem-cli repl --script-file`
+**`golem-cli` is the driver** for scaffolding/build/deploy/invoke/repl (this matches how golem apps are intended to be operated).
 
-Configure per-project:
+### sbt (example)
+
+Configure:
 
 - `golemComponent`: the qualified component name (e.g. `org:component`)
-- `golemCliFlags`: defaults to `--local` (or set `GOLEM_CLI_FLAGS="--cloud -p my-profile"` for cloud)
+- `golemAppName`: optional app folder name under `.golem-apps/` (defaults to sbt `name`)
 
-Recommended defaults (copy/paste):
-
-**sbt** (`build.sbt`):
-
-```scala
-// Required: which component to deploy
-cloud.golem.sbt.GolemPlugin.autoImport.golemComponent := "org:component",
-
-// Optional: "run" convenience (deploy + invoke)
-cloud.golem.sbt.GolemPlugin.autoImport.golemRunAgentId := "org:component/my-agent()",
-cloud.golem.sbt.GolemPlugin.autoImport.golemRunFunction := "org:component/my-agent.{ping}",
-cloud.golem.sbt.GolemPlugin.autoImport.golemRunArgs := Nil,                 // WAVE literals
-cloud.golem.sbt.GolemPlugin.autoImport.golemRunDeployFirst := true,         // default true
-cloud.golem.sbt.GolemPlugin.autoImport.golemRunPublishFirst := false,       // default false
-cloud.golem.sbt.GolemPlugin.autoImport.golemRunPublish := {},              // set to `publishLocal` in monorepo/snapshot workflows
-
-// Optional: "run script" convenience (deploy + repl script)
-cloud.golem.sbt.GolemPlugin.autoImport.golemReplDisableStream := true,      // default true
-cloud.golem.sbt.GolemPlugin.autoImport.golemReplTimeoutSec := 60            // default 60 (or GOLEM_REPL_TIMEOUT_SEC)
-```
-
-Run:
+Build + wire (writes into `.golem-apps/<golemAppName>`):
 
 ```bash
-sbt golemAppRun
-sbt "golemAppRunScript path/to/script.rib"
+sbt -no-colors <project>/golemWire
 ```
 
-**Mill** (`build.mill`):
-
-```scala
-object app extends ScalaJSModule with cloud.golem.mill.GolemModule {
-  def golemComponent = "org:component"
-
-  // Optional run convenience
-  def golemRunAgentId = "org:component/my-agent()"
-  def golemRunFunction = "org:component/my-agent.{ping}"
-  def golemRunArgs = Seq.empty
-
-  // Optional publish hook (monorepo/snapshot workflows)
-  def golemRunPublishFirst = false
-  def golemRunPublish = Task {}
-}
-```
-
-Run:
+Then run golem-cli from the generated app directory:
 
 ```bash
-mill -i app.golemAppRun
-GOLEM_REPL_SCRIPT=path/to/script.rib mill -i app.golemAppRunScript
+GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
+cd .golem-apps/<golemAppName>
+env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy org:component
+env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl org:component --disable-stream
 ```
 
-Local server defaults (override if needed):
+### Mill (example)
 
-- `GOLEM_ROUTER_HOST` (default `127.0.0.1`)
-- `GOLEM_ROUTER_PORT` (default `9881`)
-- `GOLEM_BIN` (default `golem`)
-- `golemStartLocalServer := false` to disable auto-start behavior
+```bash
+mill -i <module>.golemWire
+```
+
+Then use golem-cli as above from the app directory printed by `golemWire`.
 
 ## Dependencies
 

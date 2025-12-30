@@ -504,8 +504,14 @@ lazy val zioGolemHostTests = project
             val componentDir = golemWire.value
             val appDir       = componentDir.getParentFile.getParentFile
 
-            val golemCliCmd = golemCli.value
-            val cliBase     = Seq("env", "-u", "ARGV0", golemCliCmd)
+            val golemCliCmd = "golem-cli"
+            val cliFlags = sys.env
+              .get("GOLEM_CLI_FLAGS")
+              .map(_.trim)
+              .filter(_.nonEmpty)
+              .map(_.split("\\s+").toSeq)
+              .getOrElse(Seq("--local"))
+            val cliBase = Seq("env", "-u", "ARGV0", golemCliCmd)
 
             def run(cmd: Seq[String], label: String): Unit = {
               log.info(s"[host-tests] Running: ${cmd.mkString(" ")}")
@@ -523,7 +529,7 @@ lazy val zioGolemHostTests = project
             }
 
             if (startServer) {
-              requireCommandOnPath(golemCli.value, "golem-cli")
+              requireCommandOnPath(golemCliCmd, "golem-cli")
               requireCommandOnPath(golemBin, "golem server binary")
               ensurePortFree(routerHost, routerPort)
 
@@ -538,14 +544,14 @@ lazy val zioGolemHostTests = project
             }
 
             // Deploy via golem-cli directly (avoid sbt task ordering; ensures server is up first).
-            run(cliBase ++ (golemCliFlags.value ++ Seq("--yes", "app", "deploy", component)), "golem-cli app deploy")
+            run(cliBase ++ (cliFlags ++ Seq("--yes", "app", "deploy", component)), "golem-cli app deploy")
 
             val agentId = s"$component/$agentType()"
             val fn      = s"$component/$agentType.{$method}"
 
             val cmd =
               cliBase ++
-                (golemCliFlags.value ++ (Seq("--yes", "agent", "invoke") ++ invokeFlags ++ Seq(agentId, fn, payload)))
+                (cliFlags ++ (Seq("--yes", "agent", "invoke") ++ invokeFlags ++ Seq(agentId, fn, payload)))
 
             log.info(s"[host-tests] Invoking $agentId $fn")
             run(cmd, "golem-cli agent invoke")
