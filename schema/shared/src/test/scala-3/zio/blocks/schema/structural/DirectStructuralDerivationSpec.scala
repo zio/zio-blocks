@@ -314,7 +314,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
     suite("Nested structural types")(
       test("derive schema for nested structural type") {
         type AddressStructure = StructuralRecord { def city: String; def zip: Int }
-        type PersonStructure = StructuralRecord { def name: String; def address: AddressStructure }
+        type PersonStructure  = StructuralRecord { def name: String; def address: AddressStructure }
 
         // Create schema for nested type - requires given for the nested type
         given Schema[AddressStructure] = Schema.derived[AddressStructure]
@@ -327,12 +327,12 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
       },
       test("nested structural type round-trip") {
         type AddressStructure = StructuralRecord { def city: String; def zip: Int }
-        type PersonStructure = StructuralRecord { def name: String; def address: AddressStructure }
+        type PersonStructure  = StructuralRecord { def name: String; def address: AddressStructure }
 
         given Schema[AddressStructure] = Schema.derived[AddressStructure]
         val schema                     = Schema.derived[PersonStructure]
 
-        val addressValue = new StructuralRecord(Map("city" -> "NYC", "zip" -> 10001))
+        val addressValue                 = new StructuralRecord(Map("city" -> "NYC", "zip" -> 10001))
         val personValue: PersonStructure =
           new StructuralRecord(Map("name" -> "Alice", "address" -> addressValue))
             .asInstanceOf[PersonStructure]
@@ -350,16 +350,16 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         }
       },
       test("deeply nested structural types") {
-        type InnerStructure = StructuralRecord { def value: String }
+        type InnerStructure  = StructuralRecord { def value: String }
         type MiddleStructure = StructuralRecord { def inner: InnerStructure }
-        type OuterStructure = StructuralRecord { def middle: MiddleStructure }
+        type OuterStructure  = StructuralRecord { def middle: MiddleStructure }
 
         given Schema[InnerStructure]  = Schema.derived[InnerStructure]
         given Schema[MiddleStructure] = Schema.derived[MiddleStructure]
         val schema                    = Schema.derived[OuterStructure]
 
-        val innerValue  = new StructuralRecord(Map("value" -> "deep"))
-        val middleValue = new StructuralRecord(Map("inner" -> innerValue))
+        val innerValue                 = new StructuralRecord(Map("value" -> "deep"))
+        val middleValue                = new StructuralRecord(Map("inner" -> innerValue))
         val outerValue: OuterStructure =
           new StructuralRecord(Map("middle" -> middleValue))
             .asInstanceOf[OuterStructure]
@@ -386,12 +386,12 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
 
         assertTrue(fieldNames == Set("result"))
       },
-      /* TODO STRUCT: disable until Either round-trip is fixed
+      // TODO STRUCT: disable until Either round-trip is fixed
       test("Either field round-trip - Left") {
         type WithEitherStructure = StructuralRecord { def result: Either[String, Int] }
         val schema = Schema.derived[WithEitherStructure]
 
-        val eitherValue = new StructuralRecord(Map("Tag" -> "Left", "value" -> "error"))
+        val eitherValue                = new StructuralRecord(Map("Tag" -> "Left", "value" -> "error"))
         val value: WithEitherStructure =
           new StructuralRecord(Map("result" -> eitherValue))
             .asInstanceOf[WithEitherStructure]
@@ -407,13 +407,12 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           eitherField.selectDynamic("value") == "error"
         }
       },
-      */
-      /* TODO STRUCT: disable until Either round-trip is fixed
+      // TODO STRUCT: disable until Either round-trip is fixed
       test("Either field round-trip - Right") {
         type WithEitherStructure = StructuralRecord { def result: Either[String, Int] }
         val schema = Schema.derived[WithEitherStructure]
 
-        val eitherValue = new StructuralRecord(Map("Tag" -> "Right", "value" -> 42))
+        val eitherValue                = new StructuralRecord(Map("Tag" -> "Right", "value" -> 42))
         val value: WithEitherStructure =
           new StructuralRecord(Map("result" -> eitherValue))
             .asInstanceOf[WithEitherStructure]
@@ -429,7 +428,6 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           eitherField.selectDynamic("value") == 42
         }
       }
-      */
     ),
     suite("Structural types with tuples")(
       test("derive schema for structural type with tuple field") {
@@ -441,12 +439,12 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
 
         assertTrue(fieldNames == Set("pair"))
       },
-      /* TODO STRUCT: disable until tuple round-trip is fixed
+      // TODO STRUCT: disable until tuple round-trip is fixed
       test("tuple field round-trip") {
         type WithTupleStructure = StructuralRecord { def pair: (String, Int) }
         val schema = Schema.derived[WithTupleStructure]
 
-        val tupleValue = new StructuralRecord(Map("_1" -> "hello", "_2" -> 42))
+        val tupleValue                = new StructuralRecord(Map("_1" -> "hello", "_2" -> 42))
         val value: WithTupleStructure =
           new StructuralRecord(Map("pair" -> tupleValue))
             .asInstanceOf[WithTupleStructure]
@@ -462,7 +460,6 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           tupleField.selectDynamic("_2") == 42
         }
       }
-      */
     ),
     suite("Extended primitives in structural types")(
       test("derive schema for structural type with BigDecimal field") {
@@ -505,7 +502,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         type WithUUIDStructure = StructuralRecord { def id: UUID }
         val schema = Schema.derived[WithUUIDStructure]
 
-        val uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val uuid                     = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
         val value: WithUUIDStructure =
           new StructuralRecord(Map("id" -> uuid))
             .asInstanceOf[WithUUIDStructure]

@@ -255,8 +255,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           mapValue("key").selectDynamic("_1") == 42,
           mapValue("key").selectDynamic("_2") == "value"
         )
-      }
-      /* TODO STRUCT: disable until tuple map value round-trip is fixed
+      },
+      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Map[String, (Int, String)] - round-trip") {
         val ts                       = ToStructural.derived[WithTupleValue]
         given Schema[WithTupleValue] = Schema.derived[WithTupleValue]
@@ -268,15 +268,15 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val dv        = structSchema.toDynamicValue(structural)
         val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val result   = roundTrip.toOption.get
-          val mapValue = result.data.asInstanceOf[Map[String, StructuralRecord]]
-          mapValue("a").selectDynamic("_1") == 1 &&
-          mapValue("b").selectDynamic("_2") == "two"
-        }
+        assertTrue(
+          roundTrip.isRight, {
+            val result   = roundTrip.toOption.get
+            val mapValue = result.data.asInstanceOf[Map[String, StructuralRecord]]
+            mapValue("a").selectDynamic("_1") == 1 &&
+            mapValue("b").selectDynamic("_2") == "two"
+          }
+        )
       }
-       */
     ),
     // ===========================================
     // EMPTY COLLECTIONS
@@ -470,11 +470,11 @@ object EdgeCasesSpec extends ZIOSpecDefault {
       }
     ),
     suite("Large Tuples - Round-Trip")(
-      /* TODO STRUCT: disable until tuple round-trip is fixed
+      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Tuple4 round-trip") {
-        val ts                    = ToStructural.derived[WithTuple4]
-        given Schema[WithTuple4]  = Schema.derived[WithTuple4]
-        val structSchema          = ts.structuralSchema
+        val ts                   = ToStructural.derived[WithTuple4]
+        given Schema[WithTuple4] = Schema.derived[WithTuple4]
+        val structSchema         = ts.structuralSchema
 
         val original   = WithTuple4((1, "two", true, 4.0))
         val structural = ts.toStructural(original)
@@ -492,8 +492,7 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           tuple.selectDynamic("_4") == 4.0
         }
       },
-       */
-      /* TODO STRUCT: disable until tuple round-trip is fixed
+      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Tuple10 round-trip") {
         val ts                    = ToStructural.derived[WithTuple10]
         given Schema[WithTuple10] = Schema.derived[WithTuple10]
@@ -514,8 +513,7 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           tuple.selectDynamic("_10") == 10
         }
       },
-       */
-      /* TODO STRUCT: disable until tuple round-trip is fixed
+      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Tuple22 round-trip") {
         val ts                    = ToStructural.derived[WithTuple22]
         given Schema[WithTuple22] = Schema.derived[WithTuple22]
@@ -537,12 +535,11 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           tuple.selectDynamic("_22") == 22
         }
       },
-       */
-      /* TODO STRUCT: disable until nested tuple round-trip is fixed
+      // TODO STRUCT: disable until tuple round-trip is fixed
       test("nested tuples round-trip") {
-        val ts                        = ToStructural.derived[WithNestedTuples]
+        val ts                         = ToStructural.derived[WithNestedTuples]
         given Schema[WithNestedTuples] = Schema.derived[WithNestedTuples]
-        val structSchema              = ts.structuralSchema
+        val structSchema               = ts.structuralSchema
 
         val original   = WithNestedTuples(((10, "hello"), (false, 3.14)))
         val structural = ts.toStructural(original)
@@ -562,12 +559,11 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           inner2.selectDynamic("_2") == 3.14
         }
       },
-       */
-      /* TODO STRUCT: disable until tuple of case classes round-trip is fixed
+      // TODO STRUCT: disable until tuple round-trip is fixed
       test("tuple of case classes round-trip") {
-        val ts                            = ToStructural.derived[WithTupleOfCaseClass]
+        val ts                             = ToStructural.derived[WithTupleOfCaseClass]
         given Schema[WithTupleOfCaseClass] = Schema.derived[WithTupleOfCaseClass]
-        val structSchema                  = ts.structuralSchema
+        val structSchema                   = ts.structuralSchema
 
         val original   = WithTupleOfCaseClass((SimpleData(100, "first"), SimpleData(200, "second")))
         val structural = ts.toStructural(original)
@@ -587,7 +583,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           data2.selectDynamic("y") == "second"
         }
       }
-       */
     ),
     // ===========================================
     // TYPENAME TESTS

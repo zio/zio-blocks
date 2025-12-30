@@ -690,6 +690,44 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       })
   }
 
+  // Check if a field type requires structural transformation (i.e., it becomes StructuralRecord at runtime)
+  // These are types that toStructural converts to StructuralRecord: Either, Tuple, case classes
+  private def needsStructuralTransformation(tpe: TypeRepr): Boolean = {
+    val dealt = dealiasOnDemand(tpe)
+    // Primitives, Option, collections don't need transformation
+    if (
+      dealt <:< intTpe || dealt <:< floatTpe || dealt <:< longTpe || dealt <:< doubleTpe ||
+      dealt <:< booleanTpe || dealt <:< byteTpe || dealt <:< charTpe || dealt <:< shortTpe ||
+      dealt <:< unitTpe || dealt <:< stringTpe ||
+      dealt <:< TypeRepr.of[BigDecimal] || dealt <:< TypeRepr.of[BigInt] ||
+      isJavaTime(dealt) || dealt <:< TypeRepr.of[java.util.Currency] ||
+      dealt <:< TypeRepr.of[java.util.UUID] || dealt <:< TypeRepr.of[DynamicValue]
+    ) {
+      false
+    } else if (isOption(dealt) || isCollection(dealt)) {
+      // Option and collections: check if element type needs transformation
+      typeArgs(dealt).exists(needsStructuralTransformation)
+    } else if (dealt <:< TypeRepr.of[Either[?, ?]]) {
+      // Either is always converted to StructuralRecord with Tag
+      true
+    } else if (isGenericTuple(dealt)) {
+      // Tuples are converted to StructuralRecord with _1, _2, etc.
+      true
+    } else if (isNonAbstractScalaClass(dealt)) {
+      // Case classes are converted to StructuralRecord
+      true
+    } else if (isSealedTraitOrAbstractClass(dealt)) {
+      // Sealed traits with case class children are converted to StructuralRecord with Tag
+      // Simple enums (all case objects) are NOT converted
+      !directSubTypes(dealt).forall { subTpe =>
+        isEnumOrModuleValue(subTpe) ||
+        (isNonAbstractScalaClass(subTpe) && subTpe.classSymbol.get.caseFields.isEmpty)
+      }
+    } else {
+      false
+    }
+  }
+
   // TypeInfo for structural refinement types (e.g., { def name: String; def age: Int })
   // Uses StructuralRecord for construction/deconstruction via selectDynamic
   private class RefinementInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
@@ -715,13 +753,26 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           val fTpe = fieldInfo.tpe
           fTpe.asType match {
             case '[ft] =>
-              val schema = findImplicitOrDeriveSchema[ft](fTpe)
-              val name   = Expr {
+              val schema         = findImplicitOrDeriveSchema[ft](fTpe)
+              val needsTransform = needsStructuralTransformation(fTpe)
+              val name           = Expr {
                 if (idx < nameOverrides.length) nameOverrides(idx)
                 else fieldInfo.name
               }
-              if (isNonRecursive(fTpe)) '{ $schema.reflect.asTerm[S]($name) }
-              else '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name) }
+              // For field types that become StructuralRecord at runtime (Either, Tuple, case classes),
+              // we need to transform the schema so it expects StructuralRecord instead of the nominal type
+              if (needsTransform) {
+                '{
+                  StructuralSchemaTransformer
+                    .transform($schema.reflect)
+                    .asInstanceOf[Reflect.Bound[Any]]
+                    .asTerm[S]($name)
+                }
+              } else if (isNonRecursive(fTpe)) {
+                '{ $schema.reflect.asTerm[S]($name) }
+              } else {
+                '{ new Reflect.Deferred(() => $schema.reflect).asTerm[S]($name) }
+              }
           }
       })
 

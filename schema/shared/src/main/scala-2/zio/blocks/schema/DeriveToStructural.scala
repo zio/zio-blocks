@@ -377,9 +377,10 @@ object DeriveToStructural {
   }
 
   /**
-   * Recursively transform a schema to handle StructuralRecord for nested case classes.
-   * This is needed because toStructural converts nested case classes to StructuralRecord,
-   * so the schema needs to expect StructuralRecord instead of the nominal type.
+   * Recursively transform a schema to handle StructuralRecord for nested case
+   * classes. This is needed because toStructural converts nested case classes
+   * to StructuralRecord, so the schema needs to expect StructuralRecord instead
+   * of the nominal type.
    */
   private def transformNestedToStructural(reflect: Reflect.Bound[_]): Reflect.Bound[_] = {
     import zio.blocks.schema.binding._
@@ -429,7 +430,7 @@ object DeriveToStructural {
 
       case map: Reflect.Map[Binding, _, _, _] =>
         // Map: transform key and value schemas
-        val transformedKey = transformNestedToStructural(map.key)
+        val transformedKey   = transformNestedToStructural(map.key)
         val transformedValue = transformNestedToStructural(map.value)
         if ((transformedKey eq map.key) && (transformedValue eq map.value)) {
           map

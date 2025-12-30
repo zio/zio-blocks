@@ -317,11 +317,11 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         case class Inner(value: Int)
         case class Outer(inners: List[Inner])
 
-        val ts = ToStructural.derived[Outer]
+        val ts                             = ToStructural.derived[Outer]
         implicit val schema: Schema[Outer] = Schema.derived[Outer]
-        val structSchema = ts.structuralSchema
+        val structSchema                   = ts.structuralSchema
 
-        val original = Outer(List(Inner(1), Inner(2), Inner(3)))
+        val original   = Outer(List(Inner(1), Inner(2), Inner(3)))
         val structural = ts.toStructural(original)
 
         val inners = structural.inners.asInstanceOf[List[StructuralRecord]]
@@ -332,7 +332,7 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           inners(2).value == 3
         )
 
-        val dv = structSchema.toDynamicValue(structural)
+        val dv        = structSchema.toDynamicValue(structural)
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
@@ -343,11 +343,11 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         case class Value(data: String)
         case class Container(items: Map[String, Value])
 
-        val ts = ToStructural.derived[Container]
+        val ts                                 = ToStructural.derived[Container]
         implicit val schema: Schema[Container] = Schema.derived[Container]
-        val structSchema = ts.structuralSchema
+        val structSchema                       = ts.structuralSchema
 
-        val original = Container(Map("a" -> Value("first"), "b" -> Value("second")))
+        val original   = Container(Map("a" -> Value("first"), "b" -> Value("second")))
         val structural = ts.toStructural(original)
 
         val items = structural.items.asInstanceOf[Map[String, StructuralRecord]]
@@ -356,7 +356,7 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           items("b").data == "second"
         )
 
-        val dv = structSchema.toDynamicValue(structural)
+        val dv        = structSchema.toDynamicValue(structural)
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
@@ -365,11 +365,11 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         case class Data(name: String, count: Int)
         case class Container(data: Option[Data])
 
-        val ts = ToStructural.derived[Container]
+        val ts                                 = ToStructural.derived[Container]
         implicit val schema: Schema[Container] = Schema.derived[Container]
-        val structSchema = ts.structuralSchema
+        val structSchema                       = ts.structuralSchema
 
-        val original = Container(Some(Data("test", 42)))
+        val original   = Container(Some(Data("test", 42)))
         val structural = ts.toStructural(original)
 
         val data = structural.data.asInstanceOf[Option[StructuralRecord]].get
@@ -378,7 +378,7 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           data.count == 42
         )
 
-        val dv = structSchema.toDynamicValue(structural)
+        val dv        = structSchema.toDynamicValue(structural)
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
@@ -430,26 +430,28 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         case class Level1(level2: Level2, name: String)
         case class Root(items: Vector[Level1])
 
-        val ts = ToStructural.derived[Root]
+        val ts                            = ToStructural.derived[Root]
         implicit val schema: Schema[Root] = Schema.derived[Root]
-        val structSchema = ts.structuralSchema
+        val structSchema                  = ts.structuralSchema
 
-        val original = Root(Vector(
-          Level1(Level2(List(1, 2)), "first"),
-          Level1(Level2(List(3, 4, 5)), "second")
-        ))
+        val original = Root(
+          Vector(
+            Level1(Level2(List(1, 2)), "first"),
+            Level1(Level2(List(3, 4, 5)), "second")
+          )
+        )
         val structural = ts.toStructural(original)
 
         val items = structural.items.asInstanceOf[Vector[StructuralRecord]]
         val first = items(0)
-        val l2 = first.level2.asInstanceOf[StructuralRecord]
+        val l2    = first.level2.asInstanceOf[StructuralRecord]
         assertTrue(
           items.size == 2,
           first.name == "first",
           l2.values == List(1, 2)
         )
 
-        val dv = structSchema.toDynamicValue(structural)
+        val dv        = structSchema.toDynamicValue(structural)
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
