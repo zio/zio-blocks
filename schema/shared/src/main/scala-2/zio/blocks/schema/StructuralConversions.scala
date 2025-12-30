@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 object StructuralConversions {
+
   /** Return the structural schema for `A` (runtime: `DynamicValue`). */
   def structuralSchema[A](implicit schema: Schema[A]): Schema[DynamicValue] = schema.structural
 
