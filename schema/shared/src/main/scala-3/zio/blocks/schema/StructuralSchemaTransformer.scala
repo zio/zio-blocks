@@ -5,16 +5,44 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
 /**
- * Transforms nominal schemas to structural schemas.
+ * PHASE 3: Schema Transformation for Structural Types (Scala 3)
+ * ═════════════════════════════════════════════════════════════════════════════
  *
- * When `toStructural` converts a nominal value to a `StructuralRecord`:
- *   - Case classes → StructuralRecord with field name keys
+ * Transforms nominal schemas (Schema[CaseClass]) to structural schemas
+ * (Schema[StructuralRecord]) so serialization/deserialization works correctly.
+ *
+ * The Problem:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * After Phase 2 converts values to StructuralRecord, the original schema's
+ * bindings no longer work:
+ *
+ *   - Constructor: Registers → CaseClass (expects to create CaseClass)
+ *   - Deconstructor: CaseClass → Registers (expects to access case class
+ *     fields)
+ *   - Discriminator: CaseClass → Int (expects instanceof checks)
+ *
+ * But we have StructuralRecord, not CaseClass!
+ *
+ * The Solution:
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Transform each binding to work with StructuralRecord:
+ *
+ *   - Constructor: Registers → StructuralRecord (creates StructuralRecord)
+ *   - Deconstructor: StructuralRecord → Registers (uses selectDynamic for
+ *     fields)
+ *   - Discriminator: StructuralRecord → Int (reads "Tag" field)
+ *
+ * Transformations by Type:
+ * ─────────────────────────────────────────────────────────────────────────────
+ *   - Case classes → StructuralRecord with field names as keys
  *   - Tuples → StructuralRecord with _1, _2, ... keys
- *   - Either → StructuralRecord with Tag ("Left"/"Right") and value fields
- *   - Sealed traits → StructuralRecord with Tag and case fields
- *
- * This transformer creates schemas that match those runtime representations,
- * ensuring `toDynamicValue` and `fromDynamicValue` work correctly.
+ *   - Either[L, R] → StructuralRecord with Tag ("Left"/"Right") and value
+ *     fields
+ *   - Sealed traits → StructuralRecord with Tag (case name) and case data
+ *     fields
+ *   - Option → Keep as Option (Some/None discrimination works as-is)
+ *   - Simple enums → Keep original type (no data fields to transform)
+ *   - Primitives → Keep as-is
  */
 object StructuralSchemaTransformer {
 

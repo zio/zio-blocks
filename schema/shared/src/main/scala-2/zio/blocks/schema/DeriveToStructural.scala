@@ -2,6 +2,54 @@ package zio.blocks.schema
 
 import scala.reflect.macros.whitebox
 
+/**
+ * Macro-based derivation for ToStructural in Scala 2.
+ *
+ * ToStructural converts nominal types (case classes, tuples) into structural
+ * types represented at runtime by StructuralRecord.
+ *
+ * Three-Phase Architecture:
+ * ═════════════════════════════════════════════════════════════════════════════
+ *
+ * PHASE 1: Type Validation (Compile-time)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Goal: Validate input types can be converted to structural form
+ *
+ *   - categorize(): Classifies types into categories (primitive, case class,
+ *     etc.)
+ *   - checkRecursive(): Validates no recursive types (structural types can't
+ *     represent cycles)
+ *
+ * Note: Unlike Scala 3, Scala 2 does NOT build refined structural types because
+ * Scala 2's refinement types use reflection (incompatible with Dynamic trait).
+ * All structural types are simply StructuralRecord.
+ *
+ * PHASE 2: Value Converter Code Generation (Compile-time → Runtime)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Goal: Generate code that converts runtime values from nominal to structural
+ *
+ *   - buildValueConverter(): Generates quasiquote Tree expressions that convert
+ *     values Example: Person("Alice") → new StructuralRecord(Map("name" ->
+ *     "Alice"))
+ *
+ * Limitations: Scala 2 does not support Either or sealed traits (no union
+ * types).
+ *
+ * PHASE 3: Schema Transformation (Runtime)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Goal: Transform Schema[Nominal] to Schema[StructuralRecord] for serialization
+ *
+ *   - structuralSchema(): Delegates to StructuralSchemaTransformer.transform()
+ *   - Transforms bindings (constructor/deconstructor) to work with
+ *     StructuralRecord
+ *   - Enables toDynamicValue/fromDynamicValue to work with structural values
+ *
+ * Why 3 Phases?
+ * ─────────────────────────────────────────────────────────────────────────────
+ *   1. Validation: Ensure types are convertible (prevent runtime errors)
+ *   2. Value-level: Runtime needs to convert actual data
+ *   3. Schema-level: Serialization needs metadata about the structural form
+ */
 object DeriveToStructural {
   def derivedImpl[A: c.WeakTypeTag](c: whitebox.Context): c.Expr[ToStructural[A]] = {
     import c.universe._
@@ -12,7 +60,7 @@ object DeriveToStructural {
     val tpe    = weakTypeOf[A]
     val symbol = tpe.typeSymbol
 
-    // Validate: sealed traits/classes are not supported in Scala 2
+    // Entry validation: sealed traits not supported (no union types in Scala 2)
     if (symbol.isClass && symbol.asClass.isSealed) {
       fail(
         s"""Cannot generate structural type for sum types in Scala 2 ($tpe).
@@ -22,12 +70,16 @@ object DeriveToStructural {
       )
     }
 
-    // Validate: must be a case class
+    // Entry validation: must be a case class
     if (!symbol.isClass || !symbol.asClass.isCaseClass) {
       fail(s"ToStructural derivation only supports case classes, found: $tpe")
     }
 
-    // Type categorization ADT
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: TYPE VALIDATION
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // Type categorization ADT - single source of truth for type classification
     sealed trait TypeCategory
     object TypeCategory {
       case object PrimitiveLike                                    extends TypeCategory
@@ -182,16 +234,35 @@ object DeriveToStructural {
       }
     }
 
-    // Recursion Validation
+    // Validate no recursive types before proceeding
     checkRecursive(tpe, Nil)
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 2: VALUE CONVERTER CODE GENERATION
+    // ═══════════════════════════════════════════════════════════════════════════
 
     // Get case class fields
     val fields: List[(MethodSymbol, Type)] = tpe.decls.collect {
       case m: MethodSymbol if m.isCaseAccessor => m
     }.toList.map(f => (f, f.returnType.asSeenFrom(tpe, symbol)))
 
-    // Generate converter expression for a value of given type
-    def convertExpr(expr: Tree, t: Type, seen: Set[Type]): Tree = {
+    /**
+     * Generates code that converts runtime values from nominal to structural
+     * form.
+     *
+     * This creates Tree expressions (quasiquotes) that run at runtime to
+     * extract field values from nominal types and construct StructuralRecord
+     * instances.
+     *
+     * Example: For Person(name: String, age: Int), generates:
+     * ```
+     * new StructuralRecord(Map("name" -> person.name, "age" -> person.age))
+     * ```
+     *
+     * Handles nested conversions recursively (collections, tuples, case
+     * classes). Does NOT support Either or sealed traits (Scala 2 limitation).
+     */
+    def buildValueConverter(expr: Tree, t: Type, seen: Set[Type]): Tree = {
       val dealt = t.dealias
 
       if (seen.contains(dealt)) {
@@ -203,28 +274,28 @@ object DeriveToStructural {
           expr
 
         case TypeCategory.OptionType(elem) =>
-          val body = convertExpr(Ident(TermName("v")), elem, seen + dealt)
+          val body = buildValueConverter(Ident(TermName("v")), elem, seen + dealt)
           q"$expr.map(v => $body)"
 
         case TypeCategory.ListType(elem) =>
-          val body = convertExpr(Ident(TermName("v")), elem, seen + dealt)
+          val body = buildValueConverter(Ident(TermName("v")), elem, seen + dealt)
           q"$expr.map(v => $body)"
 
         case TypeCategory.VectorType(elem) =>
-          val body = convertExpr(Ident(TermName("v")), elem, seen + dealt)
+          val body = buildValueConverter(Ident(TermName("v")), elem, seen + dealt)
           q"$expr.map(v => $body)"
 
         case TypeCategory.SeqType(elem) =>
-          val body = convertExpr(Ident(TermName("v")), elem, seen + dealt)
+          val body = buildValueConverter(Ident(TermName("v")), elem, seen + dealt)
           q"$expr.map(v => $body)"
 
         case TypeCategory.SetType(elem) =>
-          val body = convertExpr(Ident(TermName("v")), elem, seen + dealt)
+          val body = buildValueConverter(Ident(TermName("v")), elem, seen + dealt)
           q"$expr.map(v => $body)"
 
         case TypeCategory.MapType(key, value) =>
-          val kbody = convertExpr(Ident(TermName("k")), key, seen + dealt)
-          val vbody = convertExpr(Ident(TermName("v")), value, seen + dealt)
+          val kbody = buildValueConverter(Ident(TermName("k")), key, seen + dealt)
+          val vbody = buildValueConverter(Ident(TermName("v")), value, seen + dealt)
           q"$expr.map { case (k, v) => ($kbody, $vbody) }"
 
         case TypeCategory.EitherType(_, _) =>
@@ -236,7 +307,7 @@ object DeriveToStructural {
           val entries = elements.zipWithIndex.map { case (argTpe, idx) =>
             val nameLit = Literal(Constant(s"_${idx + 1}"))
             val value   = q"$expr.${TermName(s"_${idx + 1}")}"
-            val conv    = convertExpr(value, argTpe, seen + dealt)
+            val conv    = buildValueConverter(value, argTpe, seen + dealt)
             q"$nameLit -> $conv"
           }
           q"new _root_.zio.blocks.schema.StructuralRecord(_root_.scala.collection.immutable.Map[String, Any](..$entries))"
@@ -246,22 +317,30 @@ object DeriveToStructural {
           val entries = cFields.map { case (f, fieldTpe) =>
             val nameLit   = Literal(Constant(f.name.decodedName.toString.trim))
             val fieldExpr = q"$expr.${f.name}"
-            val conv      = convertExpr(fieldExpr, fieldTpe, seen + dealt)
+            val conv      = buildValueConverter(fieldExpr, fieldTpe, seen + dealt)
             q"$nameLit -> $conv"
           }
           q"new _root_.zio.blocks.schema.StructuralRecord(_root_.scala.collection.immutable.Map[String, Any](..$entries))"
       }
     }
 
-    // Generate field entries for the root type
+    // ═══════════════════════════════════════════════════════════════════════════
+    // TOSTRUCTURAL INSTANCE GENERATION
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Generate the ToStructural[A] implementation with:
+    // 1. type StructuralType = StructuralRecord (always, no refinements in Scala 2)
+    // 2. toStructural(): Uses Phase 2 converters to transform values
+    // 3. structuralSchema(): Delegates to Phase 3 (StructuralSchemaTransformer)
+
+    // Generate field conversion entries for the root case class
     val fieldEntries = fields.map { case (f, fieldTpe) =>
       val nameLit   = Literal(Constant(f.name.decodedName.toString.trim))
       val fieldExpr = q"value.${f.name}"
-      val conv      = convertExpr(fieldExpr, fieldTpe, Set(tpe))
+      val conv      = buildValueConverter(fieldExpr, fieldTpe, Set(tpe))
       q"$nameLit -> $conv"
     }
 
-    // Generate the ToStructural instance
+    // Generate the ToStructural instance code
     val tree = q"""
       new _root_.zio.blocks.schema.ToStructural[$tpe] {
         type StructuralType = _root_.zio.blocks.schema.StructuralRecord
@@ -273,274 +352,15 @@ object DeriveToStructural {
         }
 
         def structuralSchema(implicit schema: _root_.zio.blocks.schema.Schema[$tpe]): _root_.zio.blocks.schema.Schema[StructuralType] = {
-          _root_.zio.blocks.schema.DeriveToStructural.createStructuralSchema[$tpe](schema, this)
+          // PHASE 3: Transform the schema's bindings to work with StructuralRecord
+          // The nominal schema expects case class objects with field accessors
+          // We transform it to expect StructuralRecord with selectDynamic access (via Dynamic trait)
+          // This enables serialization (toDynamicValue) and deserialization (fromDynamicValue)
+          _root_.zio.blocks.schema.StructuralSchemaTransformer.transform[$tpe](schema, this)
         }
       }
     """
 
     c.Expr[ToStructural[A]](tree)
-  }
-
-  /**
-   * Runtime helper to create structural schema from nominal schema. This is
-   * called from the macro-generated code.
-   */
-  def createStructuralSchema[A](
-    nominalSchema: Schema[A],
-    @annotation.unused toStructural: ToStructural[A]
-  ): Schema[StructuralRecord] = {
-    import zio.blocks.schema.binding._
-    import zio.blocks.schema.binding.RegisterOffset._
-
-    val nominalRecord = nominalSchema.reflect.asRecord.getOrElse(
-      throw new IllegalArgumentException(s"Expected Record schema, got: ${nominalSchema.reflect}")
-    )
-
-    // Field names from nominal schema
-    val fieldNames: IndexedSeq[String] = nominalRecord.fields.map(_.name)
-
-    // For each field, transform nested case classes to structural schemas
-    // This is needed because nested case classes are converted to StructuralRecord by toStructural
-    val fieldSchemas: IndexedSeq[Reflect.Bound[_]] = nominalRecord.fields.map { term =>
-      transformNestedToStructural(term.value)
-    }
-
-    // Reuse the nominal schema's register layout
-    val usedRegs = nominalRecord.constructor.usedRegisters
-
-    // Create Terms for structural record
-    val structuralFields: IndexedSeq[Term[Binding, StructuralRecord, _]] =
-      fieldNames.zip(fieldSchemas).map { case (name, fieldReflect) =>
-        new Term[Binding, StructuralRecord, Any](
-          name,
-          fieldReflect.asInstanceOf[Reflect.Bound[Any]]
-        )
-      }
-
-    // Create TypeName for structural type
-    val structuralTypeName: TypeName[StructuralRecord] =
-      TypeName.structuralFromTypeNames(fieldNames.zip(fieldSchemas.map(_.typeName)))
-
-    // Constructor: Registers -> StructuralRecord
-    val structuralConstructor = new Constructor[StructuralRecord] {
-      def usedRegisters: RegisterOffset = usedRegs
-
-      def construct(in: Registers, baseOffset: RegisterOffset): StructuralRecord = {
-        val fieldMap = nominalRecord.fields.map { term =>
-          val regIdx     = nominalRecord.fieldIndexByName(term.name)
-          val reg        = nominalRecord.registers(regIdx)
-          val fieldValue = reg.asInstanceOf[Register[Any]].get(in, baseOffset)
-          term.name -> fieldValue
-        }.toMap
-        new StructuralRecord(fieldMap)
-      }
-    }
-
-    // Deconstructor: StructuralRecord -> Registers
-    val structuralDeconstructor = new Deconstructor[StructuralRecord] {
-      def usedRegisters: RegisterOffset = usedRegs
-
-      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: StructuralRecord): Unit =
-        nominalRecord.fields.foreach { term =>
-          val fieldValue = in.selectDynamic(term.name)
-          val regIdx     = nominalRecord.fieldIndexByName(term.name)
-          val reg        = nominalRecord.registers(regIdx)
-          reg.asInstanceOf[Register[Any]].set(out, baseOffset, fieldValue)
-        }
-    }
-
-    new Schema[StructuralRecord](
-      new Reflect.Record[Binding, StructuralRecord](
-        fields = structuralFields,
-        typeName = structuralTypeName,
-        recordBinding = new Binding.Record[StructuralRecord](
-          constructor = structuralConstructor,
-          deconstructor = structuralDeconstructor
-        )
-      )
-    )
-  }
-
-  // Wrapper types that should NOT be converted to structural schemas
-  // These are standard library case classes used as containers
-  private val wrapperTypeNames: Set[String] = Set(
-    "scala.Some",
-    "scala.None",
-    "scala.util.Left",
-    "scala.util.Right"
-  )
-
-  private def isWrapperType(typeName: TypeName[_]): Boolean = {
-    val elements = typeName.namespace.elements
-    val fullName = (if (elements.isEmpty) "" else elements.mkString(".") + ".") + typeName.name
-    wrapperTypeNames.contains(fullName)
-  }
-
-  /**
-   * Recursively transform a schema to handle StructuralRecord for nested case
-   * classes. This is needed because toStructural converts nested case classes
-   * to StructuralRecord, so the schema needs to expect StructuralRecord instead
-   * of the nominal type.
-   */
-  private def transformNestedToStructural(reflect: Reflect.Bound[_]): Reflect.Bound[_] = {
-    import zio.blocks.schema.binding._
-
-    reflect match {
-      case record: Reflect.Record.Bound[_] if record.fields.nonEmpty && !isWrapperType(record.typeName) =>
-        // User-defined case class: convert to structural schema
-        createNestedStructuralSchema(record)
-
-      case record: Reflect.Record.Bound[_] if record.fields.nonEmpty && isWrapperType(record.typeName) =>
-        // Wrapper type (Some, None, Left, Right, Tuple): recursively transform fields but keep wrapper structure
-        val transformedFields = record.fields.map { term =>
-          val transformedValue = transformNestedToStructural(term.value)
-          if (transformedValue eq term.value) {
-            term
-          } else {
-            new Term[Binding, Any, Any](
-              name = term.name,
-              value = transformedValue.asInstanceOf[Reflect.Bound[Any]],
-              doc = term.doc,
-              modifiers = term.modifiers
-            )
-          }
-        }
-        if (transformedFields.zip(record.fields).forall { case (t, o) => t eq o }) {
-          record
-        } else {
-          new Reflect.Record[Binding, Any](
-            fields = transformedFields.asInstanceOf[IndexedSeq[Term[Binding, Any, _]]],
-            typeName = record.typeName.asInstanceOf[TypeName[Any]],
-            recordBinding = record.recordBinding.asInstanceOf[Binding.Record[Any]]
-          ).asInstanceOf[Reflect.Bound[_]]
-        }
-
-      case seq: Reflect.Sequence[Binding, _, _] =>
-        // Sequence (List, Vector, etc.): transform element schema
-        val transformedElement = transformNestedToStructural(seq.element)
-        if (transformedElement eq seq.element) {
-          seq
-        } else {
-          new Reflect.Sequence[Binding, Any, Any](
-            element = transformedElement.asInstanceOf[Reflect.Bound[Any]],
-            typeName = seq.typeName.asInstanceOf[TypeName[Any]],
-            seqBinding = seq.seqBinding.asInstanceOf[Binding.Seq[Any, Any]]
-          ).asInstanceOf[Reflect.Bound[_]]
-        }
-
-      case map: Reflect.Map[Binding, _, _, _] =>
-        // Map: transform key and value schemas
-        val transformedKey   = transformNestedToStructural(map.key)
-        val transformedValue = transformNestedToStructural(map.value)
-        if ((transformedKey eq map.key) && (transformedValue eq map.value)) {
-          map
-        } else {
-          new Reflect.Map[Binding, Any, Any, scala.collection.immutable.Map](
-            key = transformedKey.asInstanceOf[Reflect.Bound[Any]],
-            value = transformedValue.asInstanceOf[Reflect.Bound[Any]],
-            typeName = map.typeName.asInstanceOf[TypeName[scala.collection.immutable.Map[Any, Any]]],
-            mapBinding = map.mapBinding.asInstanceOf[Binding.Map[scala.collection.immutable.Map, Any, Any]]
-          ).asInstanceOf[Reflect.Bound[_]]
-        }
-
-      case variant: Reflect.Variant.Bound[_] =>
-        // Variant (Option, Either, sealed trait): transform case schemas
-        val transformedCases = variant.cases.map { cse =>
-          val transformedSchema = transformNestedToStructural(cse.value)
-          if (transformedSchema eq cse.value) {
-            cse
-          } else {
-            new Term[Binding, Any, Any](
-              name = cse.name,
-              value = transformedSchema.asInstanceOf[Reflect.Bound[Any]],
-              doc = cse.doc,
-              modifiers = cse.modifiers
-            )
-          }
-        }
-        if (transformedCases.zip(variant.cases).forall { case (t, o) => t eq o }) {
-          variant
-        } else {
-          new Reflect.Variant[Binding, Any](
-            cases = transformedCases.asInstanceOf[IndexedSeq[Term[Binding, Any, _ <: Any]]],
-            typeName = variant.typeName.asInstanceOf[TypeName[Any]],
-            variantBinding = variant.variantBinding.asInstanceOf[Binding.Variant[Any]]
-          ).asInstanceOf[Reflect.Bound[_]]
-        }
-
-      case _ =>
-        // Primitive or other: return as-is
-        reflect
-    }
-  }
-
-  /**
-   * Create a structural schema for a nested case class. This handles the case
-   * where the nested value is actually a StructuralRecord at runtime (converted
-   * by toStructural).
-   */
-  private def createNestedStructuralSchema(
-    nestedRecord: Reflect.Record.Bound[_]
-  ): Reflect.Bound[StructuralRecord] = {
-    import zio.blocks.schema.binding._
-    import zio.blocks.schema.binding.RegisterOffset._
-
-    val fieldNames = nestedRecord.fields.map(_.name)
-
-    // Recursively convert nested field schemas (handles case classes inside collections too)
-    val fieldSchemas: IndexedSeq[Reflect.Bound[_]] = nestedRecord.fields.map { term =>
-      transformNestedToStructural(term.value)
-    }
-
-    val usedRegs = nestedRecord.constructor.usedRegisters
-
-    val structuralFields: IndexedSeq[Term[Binding, StructuralRecord, _]] =
-      fieldNames.zip(fieldSchemas).map { case (name, fieldReflect) =>
-        new Term[Binding, StructuralRecord, Any](
-          name,
-          fieldReflect.asInstanceOf[Reflect.Bound[Any]]
-        )
-      }
-
-    val structuralTypeName: TypeName[StructuralRecord] =
-      TypeName.structuralFromTypeNames(fieldNames.zip(fieldSchemas.map(_.typeName)))
-
-    // Constructor: Registers -> StructuralRecord
-    val structuralConstructor = new Constructor[StructuralRecord] {
-      def usedRegisters: RegisterOffset = usedRegs
-
-      def construct(in: Registers, baseOffset: RegisterOffset): StructuralRecord = {
-        val fieldMap = nestedRecord.fields.map { term =>
-          val regIdx     = nestedRecord.fieldIndexByName(term.name)
-          val reg        = nestedRecord.registers(regIdx)
-          val fieldValue = reg.asInstanceOf[Register[Any]].get(in, baseOffset)
-          term.name -> fieldValue
-        }.toMap
-        new StructuralRecord(fieldMap)
-      }
-    }
-
-    // Deconstructor: StructuralRecord -> Registers
-    // This is the key fix: we expect StructuralRecord, not the nominal type
-    val structuralDeconstructor = new Deconstructor[StructuralRecord] {
-      def usedRegisters: RegisterOffset = usedRegs
-
-      def deconstruct(out: Registers, baseOffset: RegisterOffset, in: StructuralRecord): Unit =
-        nestedRecord.fields.foreach { term =>
-          val fieldValue = in.selectDynamic(term.name)
-          val regIdx     = nestedRecord.fieldIndexByName(term.name)
-          val reg        = nestedRecord.registers(regIdx)
-          reg.asInstanceOf[Register[Any]].set(out, baseOffset, fieldValue)
-        }
-    }
-
-    new Reflect.Record[Binding, StructuralRecord](
-      fields = structuralFields,
-      typeName = structuralTypeName,
-      recordBinding = new Binding.Record[StructuralRecord](
-        constructor = structuralConstructor,
-        deconstructor = structuralDeconstructor
-      )
-    )
   }
 }
