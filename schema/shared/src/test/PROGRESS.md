@@ -290,13 +290,41 @@ s ### ✅ Phase 15: Macro Cleanup & Error Message Improvements - COMPLETE
 
 ---
 
+### ✅ Phase 17: Structural Types (As) & JVM-Only Tests - COMPLETE
+**Status**: 4 files created, 26 tests passing
+
+| File | Platform | Tests | Status |
+|------|----------|-------|--------|
+| `scala-2/as/structural/DynamicAsSpec.scala` | Cross (JVM/JS) | 6 | ✅ |
+| `jvm/scala-2/as/structural/StructuralAsJVMOnlySpec.scala` | JVM Only | 6 | ✅ |
+| `jvm/scala-2/into/structural/StructuralTypeJVMOnlySpec.scala` | JVM Only | 8 | ✅ |
+| `scala-2/into/structural/DynamicTypeSpec.scala` | Cross (JVM/JS) | 10 | ✅ |
+
+**Total**: 26 tests (30 on JVM, 16 on JS)
+
+**Key Changes**:
+1. **Cross-platform Dynamic support**: `DynamicAsSpec.scala` tests As derivation with Dynamic types (DynamicRecord with Map apply) on all platforms
+2. **JVM-only pure structural tests**: `StructuralAsJVMOnlySpec.scala` tests As with pure structural types that require reflection for the reverse direction
+3. **Into structural JVM tests**: `StructuralTypeJVMOnlySpec.scala` tests reading from ad-hoc structural types (requires `getClass.getMethod`)
+4. **Into Dynamic cross-platform**: `DynamicTypeSpec.scala` tests Into with Dynamic types on all platforms
+
+**Platform Behavior**:
+- **Product → Structural**: Works cross-platform - macro generates anonymous Dynamic class at compile time
+- **Dynamic → Product**: Works cross-platform - uses `selectDynamic` at compile time
+- **Structural → Product (non-Dynamic)**: JVM only - requires reflection to read structural type fields
+- **As with pure structural**: JVM only - reverse direction needs reflection
+
+---
+
 ## Statistics
 
-- **Phases Completed**: 16/16 ✅ ALL COMPLETE
-- **Files Created**: 69
-- **Tests Passing**: ~1039 (106 + 66 + 154 + 149 + 58 + 65 + 106 + 22 + 90 + 62 + 40 + 56 + 23 + 25 + 17)
+- **Phases Completed**: 17/17 ✅ ALL COMPLETE
+- **Files Created**: 73
+- **Tests Passing**: ~1065 (previous 1039 + 26 new)
 - **Scala 2.13**: ✅ All passing
-- **Scala 3**: ✅ All passing
+- **Scala 3**: ✅ All passing (structural tests in scala-2 only)
+- **JS Platform**: ✅ Cross-platform tests passing
+- **Native Platform**: ✅ Cross-platform tests passing (tested)
 
 ---
 
@@ -322,3 +350,6 @@ All phases complete! The test restructuring is finished.
 12. Global implicit conversions from `As` to `Into` cause ambiguity issues - use inheritance instead
 13. Scala 2 and Scala 3 macros have different compile-time error behavior - Scala 3 is more lenient, deferring errors to runtime
 14. The `asReverse` implicit must be in a low-priority trait to avoid ambiguity with directly defined `Into` instances
+15. **Dynamic types work cross-platform** because `selectDynamic` is called at compile time - no reflection needed
+16. **Pure structural types require JVM** for reading (Structural → Product) because they need `getClass.getMethod`
+17. **As with structural types**: Product → Structural works cross-platform, but reverse needs reflection for pure structural types
