@@ -1099,6 +1099,73 @@ private object IntoVersionSpecificImpl {
       }
     }
 
+    // Check if a type extends scala.Dynamic (Scala 2 equivalent of Scala 3's Selectable)
+    def isDynamicType(tpe: Type): Boolean = {
+      tpe <:< typeOf[scala.Dynamic]
+    }
+
+    // Get the base Dynamic class from a refinement type
+    def getDynamicBaseClass(tpe: Type): Option[Type] = {
+      def findBase(t: Type): Option[Type] = t.dealias match {
+        case RefinedType(parents, _) =>
+          parents.collectFirst { case p if isDynamicType(p) => findBase(p).getOrElse(p) }
+        case base if isDynamicType(base) => Some(base)
+        case _ => None
+      }
+      findBase(tpe)
+    }
+
+    // Find a Map constructor or apply method on a Dynamic class's companion
+    // Returns: Option[(companionTree, methodSymbol, isApply)]
+    def findMapConstructorOrApply(baseTpe: Type): Option[(Tree, MethodSymbol, Boolean)] = {
+      val baseClass = baseTpe.typeSymbol.asClass
+      val companion = baseClass.companion
+
+      if (companion == NoSymbol) {
+        // No companion object - check for constructor with Map parameter
+        val constructors = baseTpe.decl(termNames.CONSTRUCTOR).alternatives.collect {
+          case m: MethodSymbol => m
+        }
+        constructors.find { ctor =>
+          val paramLists = ctor.paramLists
+          paramLists.size == 1 && paramLists.head.size == 1 && {
+            val paramTpe = paramLists.head.head.typeSignature
+            paramTpe <:< typeOf[Map[String, Any]]
+          }
+        }.map { ctor =>
+          (q"new $baseTpe", ctor, false)
+        }
+      } else {
+        // Check companion for apply method with Map parameter
+        val applyMethods = companion.typeSignature.decl(TermName("apply")).alternatives.collect {
+          case m: MethodSymbol => m
+        }
+        applyMethods.find { m =>
+          val paramLists = m.paramLists
+          paramLists.size == 1 && paramLists.head.size == 1 && {
+            val paramTpe = paramLists.head.head.typeSignature
+            paramTpe <:< typeOf[Map[String, Any]]
+          }
+        }.map { method =>
+          (q"$companion", method, true)
+        }.orElse {
+          // Fallback: check for constructor with Map parameter
+          val constructors = baseTpe.decl(termNames.CONSTRUCTOR).alternatives.collect {
+            case m: MethodSymbol => m
+          }
+          constructors.find { ctor =>
+            val paramLists = ctor.paramLists
+            paramLists.size == 1 && paramLists.head.size == 1 && {
+              val paramTpe = paramLists.head.head.typeSignature
+              paramTpe <:< typeOf[Map[String, Any]]
+            }
+          }.map { ctor =>
+            (q"new $baseTpe", ctor, false)
+          }
+        }
+      }
+    }
+
     def getStructuralMembers(tpe: Type): List[(String, Type)] = {
       // Extract only the members declared in the refinement, not inherited ones
       def collectRefinementMembers(t: Type): List[(String, Type)] = t.dealias match {
@@ -1125,6 +1192,7 @@ private object IntoVersionSpecificImpl {
     def deriveStructuralToProduct(): c.Expr[Into[A, B]] = {
       val structuralMembers = getStructuralMembers(aTpe)
       val targetInfo = new ProductInfo(bTpe)
+      val sourceIsDynamic = isDynamicType(aTpe)
 
       // For each target field, find matching structural member (by name or unique type)
       // or use default value/None for optional fields
@@ -1154,25 +1222,34 @@ private object IntoVersionSpecificImpl {
         }
       }
 
-      // Generate code that uses reflection to access structural type members
+      // Generate code that accesses structural type members
+      // For Dynamic types, use selectDynamic; for regular structural types, use method calls
       val args = fieldMappings.map { case (memberOpt, targetField) =>
         memberOpt match {
           case Some((memberName, memberTpe)) =>
-            val methodName = TermName(memberName)
-            if (memberTpe =:= targetField.tpe) {
+            val accessExpr = if (sourceIsDynamic) {
+              // Use selectDynamic for Dynamic types - more reliable for cross-platform
+              q"a.selectDynamic($memberName).asInstanceOf[$memberTpe]"
+            } else {
+              // Use method call for structural types
+              val methodName = TermName(memberName)
               q"a.$methodName"
+            }
+
+            if (memberTpe =:= targetField.tpe) {
+              accessExpr
             } else {
               // Need conversion via implicit Into
               findImplicitInto(memberTpe, targetField.tpe) match {
                 case Some(intoInstance) =>
                   q"""
-                    $intoInstance.into(a.$methodName) match {
+                    $intoInstance.into($accessExpr) match {
                       case _root_.scala.Right(v) => v
                       case _root_.scala.Left(_) => throw new _root_.java.lang.RuntimeException("Conversion failed")
                     }
                   """
                 case None =>
-                  q"a.$methodName"
+                  accessExpr
               }
             }
           case None =>
@@ -1186,11 +1263,18 @@ private object IntoVersionSpecificImpl {
         }
       }
 
+      // Import appropriate language feature
+      val languageImport = if (sourceIsDynamic) {
+        q"import _root_.scala.language.dynamics"
+      } else {
+        q"import _root_.scala.language.reflectiveCalls"
+      }
+
       c.Expr[Into[A, B]](
         q"""
           new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
-              import scala.language.reflectiveCalls
+              $languageImport
               _root_.scala.Right(new $bTpe(..$args))
             }
           }
@@ -1201,13 +1285,6 @@ private object IntoVersionSpecificImpl {
     // === Derivation: Product to Structural Type ===
 
     def deriveProductToStructural(): c.Expr[Into[A, B]] = {
-      // Product -> Structural type conversion is simple: since the product type has all the
-      // required fields/methods that the structural type demands (otherwise we couldn't derive
-      // this conversion), we can simply cast the product instance to the structural type.
-      //
-      // For example: case class Point(x: Int, y: Int) can be cast to { def x: Int; def y: Int }
-      // because Point already has methods x and y that return Int.
-
       val sourceInfo = new ProductInfo(aTpe)
       val structuralMembers = getStructuralMembers(bTpe)
 
@@ -1224,16 +1301,134 @@ private object IntoVersionSpecificImpl {
         }
       }
 
-      // The product instance already satisfies the structural type contract, just cast it
+      // Check if target type extends Dynamic - if so, we can create it properly on all platforms
+      if (isDynamicType(bTpe)) {
+        deriveProductToDynamic(sourceInfo, structuralMembers)
+      } else {
+        // For pure structural types (refinements without Dynamic base),
+        // generate an anonymous Dynamic class at compile time
+        deriveProductToAnonymousStructural(sourceInfo, structuralMembers)
+      }
+    }
+
+    // === Derivation: Product to Anonymous Structural Type ===
+    // Creates an anonymous class extending Dynamic with selectDynamic at compile time
+
+    def deriveProductToAnonymousStructural(sourceInfo: ProductInfo, structuralMembers: List[(String, Type)]): c.Expr[Into[A, B]] = {
+      // Build map entries from source fields
+      val mapEntries = structuralMembers.map { case (memberName, _) =>
+        val sourceField = sourceInfo.fields.find(_.name == memberName).get
+        val fieldAccess = sourceField.getter
+        q"($memberName, a.$fieldAccess: _root_.scala.Any)"
+      }
+
+      val mapExpr = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
+
+      // Generate an anonymous class that:
+      // 1. Extends scala.Dynamic
+      // 2. Stores the fields in a Map
+      // 3. Implements selectDynamic to access fields by name
+      // 4. Implements concrete methods for each structural member (for type safety)
+      //
+      // This allows the structural type contract to be satisfied at compile time.
+
+      // Generate method definitions for each structural member
+      val methodDefs = structuralMembers.map { case (memberName, memberTpe) =>
+        val methodName = TermName(memberName)
+        q"def $methodName: $memberTpe = _fields($memberName).asInstanceOf[$memberTpe]"
+      }
+
       c.Expr[Into[A, B]](
         q"""
           new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
             def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
-              _root_.scala.Right(a.asInstanceOf[$bTpe])
+              import _root_.scala.language.dynamics
+              val result = new _root_.scala.Dynamic {
+                private val _fields: _root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any] = $mapExpr
+                def selectDynamic(name: _root_.java.lang.String): _root_.scala.Any = _fields(name)
+                ..$methodDefs
+              }
+              _root_.scala.Right(result.asInstanceOf[$bTpe])
             }
           }
         """
       )
+    }
+
+    // === Derivation: Product to Dynamic Type ===
+
+    def deriveProductToDynamic(sourceInfo: ProductInfo, structuralMembers: List[(String, Type)]): c.Expr[Into[A, B]] = {
+      // Get the base Dynamic class
+      val baseClassOpt = getDynamicBaseClass(bTpe)
+
+      baseClassOpt match {
+        case Some(baseClass) =>
+          // Try to find a Map constructor or apply method
+          findMapConstructorOrApply(baseClass) match {
+            case Some((companionOrNew, method, isApply)) =>
+              // Build map entries from source fields
+              val mapEntries = structuralMembers.map { case (memberName, _) =>
+                val sourceField = sourceInfo.fields.find(_.name == memberName).get
+                val fieldAccess = sourceField.getter
+                q"($memberName, a.$fieldAccess: _root_.scala.Any)"
+              }
+
+              val mapExpr = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
+
+              val constructExpr = if (isApply) {
+                q"$companionOrNew.apply($mapExpr)"
+              } else {
+                // Constructor call
+                val baseClassSym = baseClass.typeSymbol
+                q"new $baseClassSym($mapExpr)"
+              }
+
+              c.Expr[Into[A, B]](
+                q"""
+                  new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+                    def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                      _root_.scala.Right($constructExpr.asInstanceOf[$bTpe])
+                    }
+                  }
+                """
+              )
+
+            case None =>
+              // No Map constructor found - provide a helpful error message
+              fail(
+                s"""Cannot derive Into[$aTpe, $bTpe]: Dynamic target requires Map constructor.
+                   |
+                   |The target Dynamic type '${baseClass.typeSymbol.name}' does not have:
+                   |  - A constructor taking Map[String, Any]
+                   |  - An apply method taking Map[String, Any]
+                   |
+                   |To enable cross-platform Into derivation to Dynamic types, add a Map constructor:
+                   |
+                   |  class MyRecord(map: Map[String, Any]) extends Dynamic {
+                   |    private val fields = map
+                   |    def selectDynamic(name: String): Any = fields(name)
+                   |  }
+                   |
+                   |Or add a companion apply method:
+                   |
+                   |  object MyRecord {
+                   |    def apply(map: Map[String, Any]): MyRecord = new MyRecord(map)
+                   |  }""".stripMargin
+              )
+          }
+
+        case None =>
+          // Not a Dynamic type, fallback to simple cast
+          c.Expr[Into[A, B]](
+            q"""
+              new _root_.zio.blocks.schema.Into[$aTpe, $bTpe] {
+                def into(a: $aTpe): _root_.scala.Either[_root_.zio.blocks.schema.SchemaError, $bTpe] = {
+                  _root_.scala.Right(a.asInstanceOf[$bTpe])
+                }
+              }
+            """
+          )
+      }
     }
 
     // === Derivation: Case Object to Case Object ===
@@ -1418,33 +1613,28 @@ private object IntoVersionSpecificImpl {
         deriveCoproductToCoproduct()
       case (_, _, _, true, _, _, _, _, true, _) =>
         // Structural type -> Product (structural source to case class target)
-        if (!Platform.supportsReflection) {
+        // Dynamic types use selectDynamic and work on all platforms
+        // Non-Dynamic structural types require reflection (JVM only)
+        if (!Platform.supportsReflection && !isDynamicType(aTpe)) {
           fail(
-            s"""Cannot derive Into[$aTpe, $bTpe]: Structural type conversions are not supported on ${Platform.name}.
+            s"""Cannot derive Into[$aTpe, $bTpe]: Non-Dynamic structural type conversions are not supported on ${Platform.name}.
                |
-               |Structural types require reflection APIs (getClass.getMethod) which are only available on JVM.
+               |Regular structural types require reflection APIs (getClass.getMethod) which are only available on JVM.
                |
                |Consider:
+               |  - Making your structural type extend scala.Dynamic with selectDynamic
                |  - Using a case class instead of a structural type
                |  - Using a tuple instead of a structural type
-               |  - Only using structural type conversions in JVM-only code""".stripMargin
+               |  - Only using structural type conversions in JVM-only code
+               |
+               |Dynamic types work cross-platform because selectDynamic is called at compile time.""".stripMargin
           )
         }
         deriveStructuralToProduct()
       case (_, _, true, _, _, _, _, _, _, true) =>
         // Product -> Structural (case class source to structural target)
-        if (!Platform.supportsReflection) {
-          fail(
-            s"""Cannot derive Into[$aTpe, $bTpe]: Structural type conversions are not supported on ${Platform.name}.
-               |
-               |Structural types require reflection APIs which are only available on JVM.
-               |
-               |Consider:
-               |  - Using a case class instead of a structural type
-               |  - Using a tuple instead of a structural type
-               |  - Only using structural type conversions in JVM-only code""".stripMargin
-          )
-        }
+        // This works cross-platform because we generate an anonymous Dynamic class
+        // at compile time - no reflection needed!
         deriveProductToStructural()
       case _ =>
         val sourceKind = if (aIsProduct) "product" else if (aIsTuple) "tuple" else if (aIsCoproduct) "coproduct" else "other"
