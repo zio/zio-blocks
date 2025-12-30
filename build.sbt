@@ -159,7 +159,7 @@ lazy val benchmarks = project
       "dev.zio"                               %% "zio-json"              % "0.7.45",
       "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
       "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
-      "io.github.arainko"                     %% "chanterelle"           % "0.1.1",
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.2",
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
