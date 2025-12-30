@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
  * of a Scala data type, together with the ability to tear down and build up
  * values of that type.
  */
-final case class Schema[A](reflect: Reflect.Bound[A]) {
+final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpecific[A] {
   private[this] val cache: ConcurrentHashMap[codec.Format, ?] = new ConcurrentHashMap
 
   private[this] def getInstance[F <: codec.Format](format: F): format.TypeClass[A] =
@@ -95,7 +95,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   )
 }
 
-object Schema extends SchemaVersionSpecific {
+object Schema extends SchemaCompanionVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
