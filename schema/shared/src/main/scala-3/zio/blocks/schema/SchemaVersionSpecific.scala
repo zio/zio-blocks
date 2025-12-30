@@ -670,26 +670,20 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema      = findImplicitOrDeriveSchema[et](eTpe)
-            val constructor =
-              if (eTpe <:< anyRefTpe) {
-                val classTag = summonClassTag[et]
-                '{
-                  implicit val ct: ClassTag[et] = $classTag
-                  new SeqConstructor.ArrayConstructor {
-                    override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
-                  }
-                }
-              } else '{ SeqConstructor.arrayConstructor }
-            val tpeName = toExpr(typeName[Array[et]](tpe))
+            val schema   = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag = summonClassTag[et]
+            val tpeName  = toExpr(typeName[Array[et]](tpe))
             '{
+              implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
                   typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                   seqBinding = new Binding.Seq(
-                    constructor = $constructor,
+                    constructor = new SeqConstructor.ArrayConstructor {
+                      override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
+                    },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
                 )
@@ -700,26 +694,20 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema      = findImplicitOrDeriveSchema[et](eTpe)
-            val constructor =
-              if (eTpe <:< anyRefTpe) {
-                val classTag = summonClassTag[et]
-                '{
-                  implicit val ct: ClassTag[et] = $classTag
-                  new SeqConstructor.IArrayConstructor {
-                    override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
-                  }
-                }
-              } else '{ SeqConstructor.iArrayConstructor }
-            val tpeName = toExpr(typeName[IArray[et]](tpe))
+            val schema   = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag = summonClassTag[et]
+            val tpeName  = toExpr(typeName[IArray[et]](tpe))
             '{
+              implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
                   typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                   seqBinding = new Binding.Seq(
-                    constructor = $constructor,
+                    constructor = new SeqConstructor.IArrayConstructor {
+                      override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
+                    },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
                   )
                 )
@@ -730,8 +718,25 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema = findImplicitOrDeriveSchema[et](eTpe)
-            '{ Schema.arraySeq($schema) }
+            val schema   = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag = summonClassTag[et]
+            val tpeName  = toExpr(typeName[ArraySeq[et]](tpe))
+            '{
+              implicit val ct: ClassTag[et] = $classTag
+              new Schema(
+                reflect = new Reflect.Sequence(
+                  element = $schema.reflect,
+                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  seqBinding = new Binding.Seq(
+                    constructor = new SeqConstructor.ArraySeqConstructor {
+                      override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
+                    },
+                    deconstructor = SeqDeconstructor.arraySeqDeconstructor
+                  )
+                )
+              )
+            }
         }
       } else if (tpe <:< TypeRepr.of[List[?]]) {
         val eTpe = typeArgs(tpe).head

@@ -30,6 +30,8 @@ import java.lang.Long.compareUnsigned
  *   the output stream for writing JSON data
  * @param config
  *   a writer configuration
+ * @param inUse
+ *   a flag that indicates whether the writer is currently in use
  */
 final class JsonWriter private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
@@ -40,7 +42,8 @@ final class JsonWriter private[json] (
   private[this] var disableBufGrowing: Boolean = false,
   private[this] var bbuf: ByteBuffer = null,
   private[this] var out: OutputStream = null,
-  private[this] var config: WriterConfig = null
+  private[this] var config: WriterConfig = null,
+  private[this] var inUse: Boolean = false
 ) {
 
   /**
@@ -97,7 +100,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Int` value as a JSON key.
+   * Writes an `Int` value as a JSON key.
    *
    * @param x
    *   the `Int` value to write
@@ -224,7 +227,7 @@ final class JsonWriter private[json] (
    *
    * @note
    *   Use [[JsonWriter.isNonEscapedAscii]] for validation if the string is
-   *   eligable for writing by this method.
+   *   eligible for writing by this method.
    *
    * @param x
    *   the `String` value to write
@@ -498,7 +501,7 @@ final class JsonWriter private[json] (
    *
    * @note
    *   Use [[JsonWriter.isNonEscapedAscii]] for validation if the string is
-   *   eligable for writing by this method.
+   *   eligible for writing by this method.
    *
    * @param x
    *   the `String` value to write
@@ -729,7 +732,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Int` value as a JSON value.
+   * Writes an `Int` value as a JSON value.
    *
    * @param x
    *   the `Int` value to write
@@ -843,7 +846,7 @@ final class JsonWriter private[json] (
   }
 
   /**
-   * Writes a `Int` value as a JSON string value.
+   * Writes an `Int` value as a JSON string value.
    *
    * @param x
    *   the `Int` value to write
@@ -899,6 +902,17 @@ final class JsonWriter private[json] (
   }
 
   /**
+   * Writes a byte array as a JSON raw binary value.
+   *
+   * @param bs
+   *   the byte array to write
+   */
+  def writeRawVal(bs: Array[Byte]): Unit = {
+    writeOptionalCommaAndIndentionBeforeValue()
+    writeRawBytes(bs)
+  }
+
+  /**
    * Writes a JSON `null` value.
    */
   def writeNull(): Unit = {
@@ -929,6 +943,14 @@ final class JsonWriter private[json] (
   def writeObjectEnd(): Unit = writeNestedEnd('}')
 
   /**
+   * Indicates whether the writer is currently in use.
+   *
+   * @return
+   *   true if the writer is in use, false otherwise
+   */
+  private[json] def isInUse: Boolean = inUse
+
+  /**
    * Writes JSON-encoded value of type `A` to an output stream.
    *
    * @param codec
@@ -942,6 +964,7 @@ final class JsonWriter private[json] (
    */
   private[json] def write[A](codec: JsonBinaryCodec[A], x: A, out: OutputStream, config: WriterConfig): Unit =
     try {
+      inUse = true
       this.out = out
       this.config = config
       count = 0
@@ -954,6 +977,7 @@ final class JsonWriter private[json] (
     } finally {
       this.out = null // don't close output stream
       if (limit > config.preferredBufSize) reallocateBufToPreferredSize()
+      inUse = false
     }
 
   /**
@@ -970,6 +994,7 @@ final class JsonWriter private[json] (
    */
   private[json] def write[A](codec: JsonBinaryCodec[A], x: A, config: WriterConfig): Array[Byte] =
     try {
+      inUse = true
       this.config = config
       count = 0
       indention = 0
@@ -979,6 +1004,7 @@ final class JsonWriter private[json] (
       java.util.Arrays.copyOf(buf, count)
     } finally {
       if (limit > config.preferredBufSize) reallocateBufToPreferredSize()
+      inUse = false
     }
 
   /**
@@ -993,7 +1019,8 @@ final class JsonWriter private[json] (
    * @param config
    *   the writer configuration
    */
-  private[json] def write[A](codec: JsonBinaryCodec[A], x: A, bbuf: ByteBuffer, config: WriterConfig): Unit =
+  private[json] def write[A](codec: JsonBinaryCodec[A], x: A, bbuf: ByteBuffer, config: WriterConfig): Unit = {
+    inUse = true
     if (bbuf.hasArray) {
       val offset  = bbuf.arrayOffset
       val currBuf = this.buf
@@ -1011,6 +1038,7 @@ final class JsonWriter private[json] (
       } finally {
         setBuf(currBuf)
         bbuf.position(count - offset)
+        inUse = false
       }
     } else {
       try {
@@ -1026,8 +1054,10 @@ final class JsonWriter private[json] (
       } finally {
         this.bbuf = null
         if (limit > config.preferredBufSize) reallocateBufToPreferredSize()
+        inUse = false
       }
     }
+  }
 
   private[this] def writeNestedStart(b: Byte): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
@@ -1098,6 +1128,22 @@ final class JsonWriter private[json] (
     if (pos >= limit) pos = flushAndGrowBuf(1, pos)
     buf(pos) = b
     count = pos + 1
+  }
+
+  private[this] def writeRawBytes(bs: Array[Byte]): Unit = {
+    var pos       = count
+    var step      = Math.max(config.preferredBufSize, limit - pos)
+    var remaining = bs.length
+    var offset    = 0
+    while (remaining > 0) {
+      step = Math.min(step, remaining)
+      if (pos + step > limit) pos = flushAndGrowBuf(step, pos)
+      System.arraycopy(bs, offset, buf, pos, step)
+      offset += step
+      pos += step
+      remaining -= step
+    }
+    count = pos
   }
 
   private[this] def writeLongNonEscapedAsciiKey(x: String): Unit = {

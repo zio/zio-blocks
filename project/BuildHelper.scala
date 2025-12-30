@@ -73,6 +73,7 @@ object BuildHelper {
   def stdSettings(prjName: String, scalaVersions: Seq[String] = Seq(Scala3, Scala213)): Seq[Def.Setting[?]] = Seq(
     name                     := prjName,
     crossScalaVersions       := scalaVersions,
+    scalaVersion             := scalaVersions.head,
     ThisBuild / scalaVersion := scalaVersions.head,
     ThisBuild / publishTo    := {
       val centralSnapshots = "https://central.sonatype.com/repository/maven-snapshots/"

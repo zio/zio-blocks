@@ -9,6 +9,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
 import java.math.MathContext
+import java.nio.charset.StandardCharsets
 import java.time._
 import java.util.{Currency, UUID}
 import scala.collection.immutable.ArraySeq
@@ -1557,6 +1558,10 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
         encode(BigProduct(f00 = true, f66 = Some(2), f69 = 1), """{"f00":true,"f69":1}""") &&
         decode("""{"f00":true,"f66":2,"f69":1}""", BigProduct(f00 = true, f66 = Some(1), f69 = 1))
       },
+      test("record with array field") {
+        roundTrip(Arrays(Array()), """{}""") &&
+        roundTrip(Arrays(Array("VVV", "WWW")), """{"xs":["VVV","WWW"]}""")
+      },
       test("recursive record") {
         roundTrip(
           Recursive(1, List(Recursive(2, List(Recursive(3, Nil))))),
@@ -1919,6 +1924,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             new JsonBinaryCodec[Currency]() { // decode null values as the default one ("USD")
               def decodeValue(in: JsonReader, default: Currency): Currency =
                 if (in.isNextToken('n')) {
+                  in.rollbackToken()
                   in.readNullOrError(default, "expected null")
                   default
                 } else {
@@ -1967,8 +1973,10 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             Record4.optKey,
             new JsonBinaryCodec[Option[String]]() { // more efficient decoding than with derived by default
               override def decodeValue(in: JsonReader, default: Option[String]): Option[String] =
-                if (in.isNextToken('n')) in.readNullOrError(default, "expected null")
-                else {
+                if (in.isNextToken('n')) {
+                  in.rollbackToken()
+                  in.readNullOrError(default, "expected null")
+                } else {
                   in.rollbackToken()
                   new Some(in.readString(null))
                 }
@@ -2103,19 +2111,76 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           "missing required field \"ln\" at: .ln.at(0).ln.at(0)",
           codec
         )
+      },
+      test("decode and encode record fields as raw untouched bytes using a custom codec") {
+        object RawVal {
+          def apply(s: String) = new RawVal(s)
+
+          val codec: JsonBinaryCodec[RawVal] = new JsonBinaryCodec[RawVal] {
+            override def decodeValue(in: JsonReader, default: RawVal): RawVal = new RawVal(in.readRawValAsBytes())
+
+            override def encodeValue(x: RawVal, out: JsonWriter): Unit = out.writeRawVal(x.bs)
+
+            override val nullValue: RawVal = new RawVal(Array.emptyByteArray)
+          }
+
+          private case class Nested(xx: Boolean, yy: Boolean)
+
+          private case class TopLevel(y: Nested)
+
+          private case object TopLevel {
+            val codec: JsonBinaryCodec[TopLevel] = Schema.derived.derive(JsonBinaryCodecDeriver)
+          }
+
+          implicit val schema: Schema[RawVal] = Schema.derived
+        }
+
+        case class RawVal private (bs: Array[Byte]) {
+          def this(s: String) = this(s.getBytes(StandardCharsets.UTF_8))
+
+          override lazy val hashCode: Int = java.util.Arrays.hashCode(bs)
+
+          override def equals(obj: Any): Boolean = obj match {
+            case that: RawVal => java.util.Arrays.equals(bs, that.bs)
+            case _            => false
+          }
+
+          lazy val isValid: Boolean = RawVal.TopLevel.codec.decode(bs) match {
+            case Right(topLevel) => topLevel.y.xx & !topLevel.y.yy
+            case _               => false
+          }
+        }
+
+        case class Message(param1: String, param2: String, payload: RawVal, param3: String)
+
+        object Message extends CompanionOptics[Message] {
+          implicit val schema: Schema[Message] = Schema.derived
+
+          val payload: Lens[Message, RawVal] = $(_.payload)
+        }
+
+        val rawVal = RawVal("""{"x":[-1.0,1,4.0E20],"y":{"xx":true,"yy":false,"zz":null},"z":"Z"}""")
+        val codec  = Schema[Message].deriving(JsonBinaryCodecDeriver).instance(Message.payload, RawVal.codec).derive
+        assertTrue(rawVal.isValid) &&
+        roundTrip(
+          Message("A", "B", rawVal, "C"),
+          """{"param1":"A","param2":"B","payload":{"x":[-1.0,1,4.0E20],"y":{"xx":true,"yy":false,"zz":null},"z":"Z"},"param3":"C"}""",
+          codec
+        )
       }
     ),
     suite("sequences")(
       test("primitive values") {
-        implicit val arrayOfUnitSchema: Schema[Array[Unit]]       = Schema.derived
-        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]] = Schema.derived
-        implicit val arrayOfByteSchema: Schema[Array[Byte]]       = Schema.derived
-        implicit val arrayOfShortSchema: Schema[Array[Short]]     = Schema.derived
-        implicit val arrayOfCharSchema: Schema[Array[Char]]       = Schema.derived
-        implicit val arrayOfIntSchema: Schema[Array[Int]]         = Schema.derived
-        implicit val arrayOfFloatSchema: Schema[Array[Float]]     = Schema.derived
-        implicit val arrayOfLongSchema: Schema[Array[Long]]       = Schema.derived
-        implicit val arrayOfDoubleSchema: Schema[Array[Double]]   = Schema.derived
+        implicit val arrayOfUnitSchema: Schema[Array[Unit]]         = Schema.derived
+        implicit val arrayOfBooleanSchema: Schema[Array[Boolean]]   = Schema.derived
+        implicit val arrayOfByteSchema: Schema[Array[Byte]]         = Schema.derived
+        implicit val arrayOfShortSchema: Schema[Array[Short]]       = Schema.derived
+        implicit val arrayOfCharSchema: Schema[Array[Char]]         = Schema.derived
+        implicit val arrayOfIntSchema: Schema[Array[Int]]           = Schema.derived
+        implicit val arrayOfFloatSchema: Schema[Array[Float]]       = Schema.derived
+        implicit val arrayOfLongSchema: Schema[Array[Long]]         = Schema.derived
+        implicit val arrayOfDoubleSchema: Schema[Array[Double]]     = Schema.derived
+        implicit val arraySeqOfFloatSchema: Schema[ArraySeq[Float]] = Schema.derived
 
         decode("""null""", List.empty[Int]) &&
         roundTrip(List.empty[Int], """[]""") &&
@@ -2310,13 +2375,37 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
           )
           .derive
         roundTrip(Array[Boolean](true, false, true), """["true","false","true"]""", codec1) &&
+        decodeError("true", "expected '[' or null at: .", codec1) &&
+        decodeError("""["true","false","true","false"}""", "expected ']' or ',' at: .", codec1) &&
+        decodeError("""["true","false","true","false""", "unexpected end of input at: .at(3)", codec1) &&
         roundTrip(Array[Byte](1: Byte, 2: Byte, 3: Byte), """["1","2","3"]""", codec2) &&
+        decodeError("true", "expected '[' or null at: .", codec2) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec2) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec2) &&
         roundTrip(Array[Char]('1', '2', '3'), """[49,50,51]""", codec3) &&
+        decodeError("true", "expected '[' or null at: .", codec3) &&
+        decodeError("""[49,50,51,52}""", "expected ']' or ',' at: .", codec3) &&
+        decodeError("""[49,50,51,52""", "unexpected end of input at: .at(3)", codec3) &&
         roundTrip(Array[Short](1: Short, 2: Short, 3: Short), """["1","2","3"]""", codec4) &&
+        decodeError("true", "expected '[' or null at: .", codec4) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec4) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec4) &&
         roundTrip(Array[Int](1, 2, 3), """["1","2","3"]""", codec5) &&
+        decodeError("true", "expected '[' or null at: .", codec5) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec5) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec5) &&
         roundTrip(Array[Float](1.0f, 2.0f, 3.0f), """["1.0","2.0","3.0"]""", codec6) &&
+        decodeError("true", "expected '[' or null at: .", codec6) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec6) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec6) &&
         roundTrip(Array[Long](1L, 2L, 3L), """["1","2","3"]""", codec7) &&
-        roundTrip(Array[Double](1.0, 2.0, 3.0), """["1.0","2.0","3.0"]""", codec8)
+        decodeError("true", "expected '[' or null at: .", codec7) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec7) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec7) &&
+        roundTrip(Array[Double](1.0, 2.0, 3.0), """["1.0","2.0","3.0"]""", codec8) &&
+        decodeError("true", "expected '[' or null at: .", codec8) &&
+        decodeError("""["1","2","3","4"}""", "expected ']' or ',' at: .", codec8) &&
+        decodeError("""["1","2","3","4""", "unexpected end of input at: .at(3)", codec8)
       },
       test("complex values") {
         roundTrip(
@@ -2334,6 +2423,108 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             Recursive(4, List(Recursive(5, List(Recursive(6, Nil)))))
           ),
           """[{"i":1,"ln":[{"i":2,"ln":[{"i":3}]}]},{"i":4,"ln":[{"i":5,"ln":[{"i":6}]}]}]"""
+        )
+      },
+      test("reentrant encoding using custom codecs") {
+        val codec = Schema
+          .derived[Array[ZonedDateTime]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.zonedDateTime,
+            new JsonBinaryCodec[ZonedDateTime]() {
+              private[this] val codec: JsonBinaryCodec[ZonedDateTime] =
+                Schema[ZonedDateTime].derive(JsonBinaryCodecDeriver)
+
+              def decodeValue(in: JsonReader, default: ZonedDateTime): ZonedDateTime = in.readZonedDateTime(default)
+
+              def encodeValue(x: ZonedDateTime, out: JsonWriter): Unit =
+                if (x.getSecond != 0 || x.getNano != 0) out.writeVal(x)
+                else { // enforce serialization of seconds if zero seconds and nanos
+                  val buf    = codec.encode(x)
+                  val len    = buf.length
+                  val newBuf = new Array[Byte](len + 3)
+                  var pos    = 0
+                  while ({ // copy up to `:` separator between hours and minutes
+                    val b = buf(pos)
+                    newBuf(pos) = b
+                    pos += 1
+                    b != ':'
+                  }) ()
+                  newBuf(pos) = buf(pos) // copy minutes
+                  newBuf(pos + 1) = buf(pos + 1)
+                  pos += 2
+                  newBuf(pos) = ':' // set zero seconds
+                  newBuf(pos + 1) = '0'
+                  newBuf(pos + 2) = '0'
+                  while (pos < len) { // copy the rest of the value
+                    newBuf(pos + 3) = buf(pos)
+                    pos += 1
+                  }
+                  out.writeRawVal(newBuf)
+                }
+            }
+          )
+          .derive
+        roundTrip(
+          Array(ZonedDateTime.parse("2020-04-10T10:07:00Z"), ZonedDateTime.parse("2020-04-10T10:07:10Z")),
+          """["2020-04-10T10:07:00Z","2020-04-10T10:07:10Z"]""",
+          codec
+        )
+      },
+      test("reentrant decoding using custom codecs") {
+        val codec = Schema
+          .derived[Array[OffsetDateTime]]
+          .deriving(JsonBinaryCodecDeriver)
+          .instance(
+            TypeName.offsetDateTime,
+            new JsonBinaryCodec[OffsetDateTime]() {
+              private[this] val codec: JsonBinaryCodec[OffsetDateTime] =
+                Schema[OffsetDateTime].derive(JsonBinaryCodecDeriver)
+              private[this] val maxLen = 44 // should be enough for the longest offset date time value
+              private[this] val pool   = new ThreadLocal[Array[Byte]] {
+                override def initialValue(): Array[Byte] = new Array[Byte](maxLen + 2)
+              }
+              private[this] val config = ReaderConfig.withCheckForEndOfInput(false).withPreferredCharBufSize(maxLen + 8)
+
+              def decodeValue(in: JsonReader, default: OffsetDateTime): OffsetDateTime = {
+                val buf = pool.get
+                val s   = in.readString(null)
+                val len = s.length
+                if (
+                  len <= maxLen && {
+                    buf(0) = '"'
+                    var bits, i = 0
+                    while (i < len) {
+                      val ch = s.charAt(i)
+                      buf(i + 1) = ch.toByte
+                      bits |= ch
+                      i += 1
+                    }
+                    buf(i + 1) = '"'
+                    bits < 0x80
+                  }
+                ) {
+                  codec.decode(buf, config) match {
+                    case Right(x) => return x
+                    case _        => ()
+                  }
+                }
+                in.decodeError("illegal offset date time")
+              }
+
+              def encodeValue(x: OffsetDateTime, out: JsonWriter): Unit = out.writeVal(x)
+            }
+          )
+          .derive
+        decode(
+          "[\"2020-01-01T12:34:56.789\\u002B08:00\"]",
+          Array(OffsetDateTime.parse("2020-01-01T12:34:56.789+08:00")),
+          codec
+        ) &&
+        decodeError(
+          """["2020-01-01ї12:34:56.789-08:00"]""",
+          "illegal offset date time at: .at(0)",
+          codec
         )
       }
     ),
@@ -3296,5 +3487,18 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
   object GeoJSON {
     implicit val schema: Schema[GeoJSON] = Schema.derived
+  }
+
+  case class Arrays(xs: Array[String]) {
+    override def hashCode(): Int = java.util.Arrays.hashCode(xs.asInstanceOf[Array[AnyRef]])
+
+    override def equals(obj: Any): Boolean = obj match {
+      case that: Arrays => java.util.Arrays.equals(xs.asInstanceOf[Array[AnyRef]], that.xs.asInstanceOf[Array[AnyRef]])
+      case _            => false
+    }
+  }
+
+  object Arrays {
+    implicit val schema: Schema[Arrays] = Schema.derived
   }
 }
