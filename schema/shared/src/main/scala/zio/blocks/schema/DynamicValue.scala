@@ -15,6 +15,13 @@ sealed trait DynamicValue {
 }
 
 object DynamicValue {
+  // Added for MigrationBuilder.dropField default value support
+  def fromValue(a: Any): DynamicValue = a match {
+    case dv: DynamicValue => dv
+    case _                => DynamicValue.Primitive(PrimitiveValue.Unit)
+  }
+
+
   case class Primitive(value: PrimitiveValue) extends DynamicValue {
     override def equals(that: Any): Boolean = that match {
       case Primitive(thatValue) => value == thatValue
