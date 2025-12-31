@@ -3110,28 +3110,28 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
   ) @@ exceptNative
   suite("String and CharBuffer methods")(
     test("decode String") {
-      val codec = Schema[Record1].derive(JsonBinaryCodecDeriver)
-      val input = """{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}"""
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val input    = """{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}"""
       val expected = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
       assert(codec.decode(input))(isRight(equalTo(expected)))
     },
     test("encode String") {
-      val codec = Schema[Record1].derive(JsonBinaryCodecDeriver)
-      val value = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val value    = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
       val expected = """{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}"""
       assert(codec.encodeString(value))(equalTo(expected))
     },
     test("decode CharBuffer") {
-      val codec = Schema[Record1].derive(JsonBinaryCodecDeriver)
-      val input = CharBuffer.wrap("""{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}""")
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val input    = CharBuffer.wrap("""{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}""")
       val expected = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
       assert(codec.decode(input))(isRight(equalTo(expected)))
     },
     test("encode CharBuffer") {
-      val codec = Schema[Record1].derive(JsonBinaryCodecDeriver)
-      val value = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val value    = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
       val expected = CharBuffer.wrap("""{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}""")
-      val output = CharBuffer.allocate(100)
+      val output   = CharBuffer.allocate(100)
       codec.encodeToCharBuffer(value, output)
       assert(output.flip())(equalTo(expected))
     },
