@@ -1670,11 +1670,11 @@ class JsonBinaryCodecDeriver private[json] (
               val field        = fields(idx)
               val fieldReflect = field.value
               infos(idx) = new FieldInfo(
-                idx,
+                new DynamicOptic.Node.Field(field.name),
                 defaultValue(fieldReflect).orNull,
+                idx,
                 isOptional(fieldReflect),
-                isCollection(fieldReflect),
-                new DynamicOptic.Node.Field(field.name)
+                isCollection(fieldReflect)
               )
               idx += 1
             }
@@ -1688,8 +1688,8 @@ class JsonBinaryCodecDeriver private[json] (
             val fieldInfo = infos(idx)
             if (deriveCodecs) {
               val codec = deriveCodec(field.value)
-              fieldInfo.codec = codec
-              fieldInfo.offset = offset
+              fieldInfo.setCodec(codec)
+              fieldInfo.setOffset(offset)
               offset += codec.valueOffset
             }
             var name: String = null
@@ -1721,11 +1721,11 @@ class JsonBinaryCodecDeriver private[json] (
 
             override def decodeValue(in: JsonReader, default: A): A =
               if (in.isNextToken('{')) {
-                val regs               = Registers(usedRegisters)
-                val len                = fieldInfos.length
-                var field: FieldInfo   = null
-                var missing1, missing2 = -1L
-                var idx, keyLen        = -1
+                val regs                 = Registers(usedRegisters)
+                val len                  = fieldInfos.length
+                var fieldInfo: FieldInfo = null
+                var missing1, missing2   = -1L
+                var idx, keyLen          = -1
                 if (!in.isNextToken('}')) {
                   in.rollbackToken()
                   while (keyLen < 0 || in.isNextToken(',')) {
@@ -1734,14 +1734,14 @@ class JsonBinaryCodecDeriver private[json] (
                       len > 0 && {
                         idx += 1
                         if (idx == len) idx = 0
-                        field = fieldInfos(idx)
-                        (field.nameMatch(in, keyLen) || {
-                          field = fieldIndexMap.get(in, keyLen)
-                          (field ne null) && {
-                            idx = field.idx
+                        fieldInfo = fieldInfos(idx)
+                        (fieldInfo.nameMatch(in, keyLen) || {
+                          fieldInfo = fieldIndexMap.get(in, keyLen)
+                          (fieldInfo ne null) && {
+                            idx = fieldInfo.idx
                             true
                           }
-                        }) && field.nonTransient
+                        }) && fieldInfo.nonTransient
                       }
                     ) {
                       var mask = 1L << idx
@@ -1753,9 +1753,9 @@ class JsonBinaryCodecDeriver private[json] (
                         missing2 ^= mask
                       }
                       if (mask == 0L) in.duplicatedKeyError(keyLen)
-                      try field.readValue(in, regs)
+                      try fieldInfo.readValue(in, regs)
                       catch {
-                        case error if NonFatal(error) => in.decodeError(field.span, error)
+                        case error if NonFatal(error) => in.decodeError(fieldInfo.span, error)
                       }
                     } else skipOrReject(in, keyLen)
                   }
@@ -1792,12 +1792,12 @@ class JsonBinaryCodecDeriver private[json] (
               val len = fieldInfos.length
               var idx = 0
               while (idx < len) {
-                val field = fieldInfos(idx)
-                if (field.nonTransient) {
-                  if (skipDefaultValue && field.hasDefault) field.writeDefaultValue(out, regs)
-                  else if (skipNone && field.isOptional) field.writeOptional(out, regs)
-                  else if (skipEmptyCollection && field.isCollection) field.writeCollection(out, regs)
-                  else field.writeRequired(out, regs)
+                val fieldInfo = fieldInfos(idx)
+                if (fieldInfo.nonTransient) {
+                  if (skipDefaultValue && fieldInfo.hasDefault) fieldInfo.writeDefaultValue(out, regs)
+                  else if (skipNone && fieldInfo.isOptional) fieldInfo.writeOptional(out, regs)
+                  else if (skipEmptyCollection && fieldInfo.isCollection) fieldInfo.writeCollection(out, regs)
+                  else fieldInfo.writeRequired(out, regs)
                 }
                 idx += 1
               }
@@ -1932,22 +1932,32 @@ trait Info {
 }
 
 private class FieldInfo(
-  val idx: Int,
+  val span: DynamicOptic.Node.Field,
   defaultValueConstructor: () => ?,
+  val idx: Int,
   val isOptional: Boolean,
-  val isCollection: Boolean,
-  val span: DynamicOptic.Node.Field
+  val isCollection: Boolean
 ) extends Info {
-  var codec: JsonBinaryCodec[?]                    = null
+  private[this] var codec: JsonBinaryCodec[?]      = null
   private[this] var name: String                   = null
-  var offset: RegisterOffset                       = 0
-  private[this] var isNonEscapedAsciiName: Boolean = false
+  private[this] var offset: RegisterOffset         = 0
   var nonTransient: Boolean                        = true
+  private[this] var isPredefinedCodec: Boolean     = false
+  private[this] var isNonEscapedAsciiName: Boolean = false
 
   def setName(name: String): Unit = {
     isNonEscapedAsciiName = isNonEscapedAscii(name)
     this.name = name
   }
+
+  def setCodec(codec: JsonBinaryCodec[?]): Unit = {
+    isPredefinedCodec =
+      (codec eq intCodec) || (codec eq longCodec) || (codec eq floatCodec) || (codec eq doubleCodec) ||
+        (codec eq booleanCodec) || (codec eq byteCodec) || (codec eq charCodec) || (codec eq shortCodec)
+    this.codec = codec
+  }
+
+  def setOffset(offset: RegisterOffset): Unit = this.offset = offset
 
   @inline
   def hasDefault: Boolean = defaultValueConstructor ne null
@@ -1958,75 +1968,101 @@ private class FieldInfo(
   def readValue(in: JsonReader, regs: Registers): Unit =
     (codec.valueType: @switch) match {
       case 0 =>
-        val objCodec = codec.asInstanceOf[JsonBinaryCodec[AnyRef]]
-        regs.setObject(offset, 0, objCodec.decodeValue(in, objCodec.nullValue))
+        regs.setObject(
+          offset,
+          0,
+          codec
+            .asInstanceOf[JsonBinaryCodec[AnyRef]]
+            .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[AnyRef]].nullValue)
+        )
       case 1 =>
-        val value =
-          if (codec eq intCodec) in.readInt()
+        regs.setInt(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readInt()
           else {
-            val intCodec = codec.asInstanceOf[JsonBinaryCodec[Int]]
-            intCodec.decodeValue(in, intCodec.nullValue)
+            codec.asInstanceOf[JsonBinaryCodec[Int]].decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Int]].nullValue)
           }
-        regs.setInt(offset, 0, value)
+        )
       case 2 =>
-        val value =
-          if (codec eq longCodec) in.readLong()
+        regs.setLong(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readLong()
           else {
-            val longCodec = codec.asInstanceOf[JsonBinaryCodec[Long]]
-            longCodec.decodeValue(in, longCodec.nullValue)
+            codec
+              .asInstanceOf[JsonBinaryCodec[Long]]
+              .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Long]].nullValue)
           }
-        regs.setLong(offset, 0, value)
+        )
       case 3 =>
-        val value =
-          if (codec eq floatCodec) in.readFloat()
+        regs.setFloat(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readFloat()
           else {
-            val floatCodec = codec.asInstanceOf[JsonBinaryCodec[Float]]
-            floatCodec.decodeValue(in, floatCodec.nullValue)
+            codec
+              .asInstanceOf[JsonBinaryCodec[Float]]
+              .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Float]].nullValue)
           }
-        regs.setFloat(offset, 0, value)
+        )
       case 4 =>
-        val value =
-          if (codec eq doubleCodec) in.readDouble()
+        regs.setDouble(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readDouble()
           else {
-            val doubleCodec = codec.asInstanceOf[JsonBinaryCodec[Double]]
-            doubleCodec.decodeValue(in, doubleCodec.nullValue)
+            codec
+              .asInstanceOf[JsonBinaryCodec[Double]]
+              .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Double]].nullValue)
           }
-        regs.setDouble(offset, 0, value)
+        )
       case 5 =>
-        val value =
-          if (codec eq booleanCodec) in.readBoolean()
+        regs.setBoolean(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readBoolean()
           else {
-            val booleanCodec = codec.asInstanceOf[JsonBinaryCodec[Boolean]]
-            booleanCodec.decodeValue(in, booleanCodec.nullValue)
+            codec
+              .asInstanceOf[JsonBinaryCodec[Boolean]]
+              .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Boolean]].nullValue)
           }
-        regs.setBoolean(offset, 0, value)
+        )
       case 6 =>
-        val value =
-          if (codec eq byteCodec) in.readByte()
+        regs.setByte(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readByte()
           else {
-            val byteCodec = codec.asInstanceOf[JsonBinaryCodec[Byte]]
-            byteCodec.decodeValue(in, byteCodec.nullValue)
+            codec
+              .asInstanceOf[JsonBinaryCodec[Byte]]
+              .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Byte]].nullValue)
           }
-        regs.setByte(offset, 0, value)
+        )
       case 7 =>
-        val value =
-          if (codec eq charCodec) in.readChar()
+        regs.setChar(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readChar()
           else {
-            val charCodec = codec.asInstanceOf[JsonBinaryCodec[Char]]
-            charCodec.decodeValue(in, charCodec.nullValue)
+            codec
+              .asInstanceOf[JsonBinaryCodec[Char]]
+              .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Char]].nullValue)
           }
-        regs.setChar(offset, 0, value)
+        )
       case 8 =>
-        val value =
-          if (codec eq shortCodec) in.readShort()
+        regs.setShort(
+          offset,
+          0,
+          if (isPredefinedCodec) in.readShort()
           else {
-            val shortCodec = codec.asInstanceOf[JsonBinaryCodec[Short]]
-            shortCodec.decodeValue(in, shortCodec.nullValue)
+            codec
+              .asInstanceOf[JsonBinaryCodec[Short]]
+              .decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Short]].nullValue)
           }
-        regs.setShort(offset, 0, value)
+        )
       case _ =>
-        val unitCodec = codec.asInstanceOf[JsonBinaryCodec[Unit]]
-        unitCodec.decodeValue(in, unitCodec.nullValue)
+        codec.asInstanceOf[JsonBinaryCodec[Unit]].decodeValue(in, codec.asInstanceOf[JsonBinaryCodec[Unit]].nullValue)
     }
 
   def setMissingValueOrError(in: JsonReader, regs: Registers): Unit =
@@ -2061,56 +2097,56 @@ private class FieldInfo(
         val value = regs.getInt(offset, 0)
         if (defaultValue.asInstanceOf[Int] != value) {
           writeKey(out)
-          if (codec eq intCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value, out)
         }
       case 2 =>
         val value = regs.getLong(offset, 0)
         if (defaultValue.asInstanceOf[Long] != value) {
           writeKey(out)
-          if (codec eq longCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value, out)
         }
       case 3 =>
         val value = regs.getFloat(offset, 0)
         if (defaultValue.asInstanceOf[Float] != value) {
           writeKey(out)
-          if (codec eq floatCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value, out)
         }
       case 4 =>
         val value = regs.getDouble(offset, 0)
         if (defaultValue.asInstanceOf[Double] != value) {
           writeKey(out)
-          if (codec eq doubleCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value, out)
         }
       case 5 =>
         val value = regs.getBoolean(offset, 0)
         if (defaultValue.asInstanceOf[Boolean] != value) {
           writeKey(out)
-          if (codec eq booleanCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value, out)
         }
       case 6 =>
         val value = regs.getByte(offset, 0)
         if (defaultValue.asInstanceOf[Byte] != value) {
           writeKey(out)
-          if (codec eq byteCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value, out)
         }
       case 7 =>
         val value = regs.getChar(offset, 0)
         if (defaultValue.asInstanceOf[Char] != value) {
           writeKey(out)
-          if (codec eq charCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value, out)
         }
       case 8 =>
         val value = regs.getShort(offset, 0)
         if (defaultValue.asInstanceOf[Short] != value) {
           writeKey(out)
-          if (codec eq shortCodec) out.writeVal(value)
+          if (isPredefinedCodec) out.writeVal(value)
           else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
         }
       case _ =>
@@ -2146,35 +2182,35 @@ private class FieldInfo(
         codec.asInstanceOf[JsonBinaryCodec[AnyRef]].encodeValue(regs.getObject(offset, 0), out)
       case 1 =>
         val value = regs.getInt(offset, 0)
-        if (codec eq intCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Int]].encodeValue(value, out)
       case 2 =>
         val value = regs.getLong(offset, 0)
-        if (codec eq longCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Long]].encodeValue(value, out)
       case 3 =>
         val value = regs.getFloat(offset, 0)
-        if (codec eq floatCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Float]].encodeValue(value, out)
       case 4 =>
         val value = regs.getDouble(offset, 0)
-        if (codec eq doubleCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Double]].encodeValue(value, out)
       case 5 =>
         val value = regs.getBoolean(offset, 0)
-        if (codec eq booleanCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Boolean]].encodeValue(value, out)
       case 6 =>
         val value = regs.getByte(offset, 0)
-        if (codec eq byteCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Byte]].encodeValue(value, out)
       case 7 =>
         val value = regs.getChar(offset, 0)
-        if (codec eq charCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Char]].encodeValue(value, out)
       case 8 =>
         val value = regs.getShort(offset, 0)
-        if (codec eq shortCodec) out.writeVal(value)
+        if (isPredefinedCodec) out.writeVal(value)
         else codec.asInstanceOf[JsonBinaryCodec[Short]].encodeValue(value, out)
       case _ => codec.asInstanceOf[JsonBinaryCodec[Unit]].encodeValue((), out)
     }
