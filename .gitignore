@@ -34,3 +34,5 @@ metals.sbt
 .golem-local/
 .golem-local-run/
 .golem-template-test/
+task-results/
+golem-temp/
