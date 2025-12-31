@@ -15,7 +15,6 @@ object TypeNameNormalizationSpec extends ZIOSpecDefault {
 
   def spec = suite("TypeNameNormalizationSpec")(
     test("type names are alphabetically sorted") {
-      // Fields z, a, m should be sorted as a, m, z
       type Unsorted = { def z: Int; def a: String; def m: Boolean }
       val schema = Schema.derived[Unsorted]
 
@@ -40,11 +39,10 @@ object TypeNameNormalizationSpec extends ZIOSpecDefault {
         schema1.reflect.typeName.name == schema2.reflect.typeName.name
       )
     },
-    test("type name format matches specification") {
+    test("type name format is ordered alphabetically") {
       val schema   = Schema.derived[PersonLike]
       val typeName = schema.reflect.typeName.name
 
-      // Should be "{age:Int,name:String}" (alphabetically sorted)
       assertTrue(typeName == "{age:Int,name:String}")
     },
     test("nominal and direct structural produce same type name") {
@@ -77,7 +75,6 @@ object TypeNameNormalizationSpec extends ZIOSpecDefault {
       val schema = Schema.derived[PersonLike]
       val typeName = schema.reflect.typeName.name
 
-      // Should use "Int" not "scala.Int"
       assertTrue(
         typeName.contains("Int"),
         !typeName.contains("scala.Int")
