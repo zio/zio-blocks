@@ -1619,9 +1619,6 @@ object Reflect {
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
     new Sequence(element, TypeName.vector(element.typeName), F.fromBinding(Binding.Seq.vector))
 
-  def arraySeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, ArraySeq] =
-    new Sequence(element, TypeName.arraySeq(element.typeName), F.fromBinding(Binding.Seq.arraySeq))
-
   def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] =
     new Sequence(element, TypeName.indexedSeq(element.typeName), F.fromBinding(Binding.Seq.indexedSeq))
 
@@ -1656,14 +1653,6 @@ object Reflect {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
           case x if x.sequence.typeName == TypeName.set(x.sequence.element.typeName) =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
-        }
-    }
-
-    object ArraySeq {
-      def unapply[F[_, _], A](reflect: Reflect[F, ArraySeq[A]]): Option[Reflect[F, A]] =
-        reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.arraySeq(x.sequence.element.typeName) =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }

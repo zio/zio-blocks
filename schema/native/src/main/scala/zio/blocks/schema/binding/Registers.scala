@@ -1,7 +1,6 @@
 package zio.blocks.schema.binding
 
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
-
 import java.util
 
 /**
@@ -10,10 +9,14 @@ import java.util
  * fiber locals, or pools, to ensure zero-allocation during encoding / decoding.
  */
 class Registers private (userRegister: RegisterOffset) {
-  import RegisterOffset.RegisterOffset
-
-  private[this] var bytes: Array[Byte]     = new Array[Byte](RegisterOffset.getBytes(userRegister))
-  private[this] var objects: Array[AnyRef] = new Array[AnyRef](RegisterOffset.getObjects(userRegister))
+  private[this] var bytes: Array[Byte] = {
+    val bytes = RegisterOffset.getBytes(userRegister)
+    if (bytes == 0) Array.emptyByteArray else new Array[Byte](bytes)
+  }
+  private[this] var objects: Array[AnyRef] = {
+    val objects = RegisterOffset.getObjects(userRegister)
+    if (objects == 0) Array.emptyObjectArray else new Array[AnyRef](objects)
+  }
 
   def getBoolean(baseOffset: RegisterOffset, relativeIndex: Int): Boolean =
     ByteArrayAccess.getBoolean(bytes, RegisterOffset.getBytes(baseOffset) + relativeIndex)

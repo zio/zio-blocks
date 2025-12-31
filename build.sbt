@@ -5,6 +5,7 @@ Global / onChangedBuildSource := ReloadOnSourceChanges
 
 inThisBuild(
   List(
+    name         := "ZIO Blocks",
     organization := "dev.zio",
     homepage     := Some(url("https://zio.dev")),
     licenses     := List(
@@ -43,7 +44,8 @@ lazy val root = project
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
-    benchmarks
+    benchmarks,
+    docs
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -59,8 +61,8 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     compileOrder := CompileOrder.JavaThenScala,
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-prelude"  % "1.0.0-RC44" % Test,
-      "dev.zio" %%% "zio-test"     % "2.1.23"     % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23"     % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24"     % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24"     % Test
     ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, _)) =>
         Seq(
@@ -111,8 +113,8 @@ lazy val streams = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .nativeSettings(nativeSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.23" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     )
   )
 
@@ -124,8 +126,8 @@ lazy val `schema-avro` = project
   .settings(
     libraryDependencies ++= Seq(
       "org.apache.avro" % "avro"         % "1.12.1",
-      "dev.zio"        %% "zio-test"     % "2.1.23" % Test,
-      "dev.zio"        %% "zio-test-sbt" % "2.1.23" % Test
+      "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
+      "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
     )
   )
 
@@ -136,8 +138,8 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(crossProjectSettings)
   .settings(
     libraryDependencies ++= Seq(
-      "dev.zio" %%% "zio-test"     % "2.1.23" % Test,
-      "dev.zio" %%% "zio-test-sbt" % "2.1.23" % Test
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
     ),
     publish / skip        := true,
     mimaPreviousArtifacts := Set()
@@ -152,17 +154,17 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.6",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.7",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
       "dev.zio"                               %% "zio-json"              % "0.7.45",
       "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
       "dev.zio"                               %% "zio-schema-json"       % "1.7.5",
-      "io.github.arainko"                     %% "chanterelle"           % "0.1.1",
+      "io.github.arainko"                     %% "chanterelle"           % "0.1.2",
       "com.softwaremill.quicklens"            %% "quicklens"             % "1.9.12",
       "dev.optics"                            %% "monocle-core"          % "3.3.0",
       "dev.optics"                            %% "monocle-macro"         % "3.3.0",
-      "dev.zio"                               %% "zio-test"              % "2.1.23",
-      "dev.zio"                               %% "zio-test-sbt"          % "2.1.23" % Test
+      "dev.zio"                               %% "zio-test"              % "2.1.24",
+      "dev.zio"                               %% "zio-test-sbt"          % "2.1.24" % Test
     ),
     assembly / assemblyJarName       := "benchmarks.jar",
     assembly / assemblyMergeStrategy := {
@@ -174,3 +176,18 @@ lazy val benchmarks = project
     publish / skip           := true,
     mimaPreviousArtifacts    := Set()
   )
+
+lazy val docs = project
+  .in(file("zio-blocks-docs"))
+  .settings(
+    moduleName := "zio-blocks-docs",
+    scalacOptions -= "-Yno-imports",
+    scalacOptions -= "-Xfatal-warnings",
+    projectName                                := (ThisBuild / name).value,
+    mainModuleName                             := (schema.jvm / moduleName).value,
+    projectStage                               := ProjectStage.Development,
+    ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(schema.jvm),
+    publish / skip                             := true
+  )
+  .dependsOn(schema.jvm)
+  .enablePlugins(WebsitePlugin)
