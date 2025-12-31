@@ -443,3 +443,23 @@ object Tree {
   }
 }
 ```
+
+## Auto-Derivation
+
+While you can manually construct `Reflect` instances as shown in the examples above, ZIO Blocks provides powerful auto-derivation capabilities that can automatically generate `Schema` instances (and thus `Reflect` instances) for most Scala types using macros and implicit resolution.
+
+The auto-derivation mechanism inspects the structure of your data types at compile time and generates the appropriate `Reflect` representation, including nested types, collections, options, and more.
+
+To leverage auto-derivation, simply define an implicit `Schema` for your type using `Schema.derived`:
+
+```scala mdoc:compile-only
+import zio.blocks.schema.Schema
+
+case class Person(name: String, age: Int)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived
+}
+```
+
+The above will automatically generate a `Reflect.Record` for the `Person` case class, including fields for `name` and `age`, along with the necessary bindings for construction and deconstruction. The same applies to more complex types, including variants, collections, and recursive structures.
