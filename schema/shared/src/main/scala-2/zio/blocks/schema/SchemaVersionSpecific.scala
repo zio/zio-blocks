@@ -328,18 +328,22 @@ private object SchemaVersionSpecific {
         fieldInfo.defaultValue match {
           case Some(dv) =>
             if (ms eq Nil) {
-              if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name)"
-              else q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name)"
-            } else if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+              else
+                q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+            } else if (isNonRec)
+              q"($schema.reflect.defaultValue($dv).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
             else {
-              q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              q"(new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
             }
           case _ =>
             if (ms eq Nil) {
-              if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name)"
-              else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name)"
-            } else if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name).copy(modifiers = $ms)"
-            else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+              else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+            } else if (isNonRec)
+              q"($schema.reflect.asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
+            else
+              q"(new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
         }
       })
 
@@ -448,8 +452,8 @@ private object SchemaVersionSpecific {
         val schema   = findImplicitOrDeriveSchema(fTpe)
         val isNonRec = isNonRecursive(fTpe)
         val name     = fieldInfo.name
-        if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name)"
-        else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name)"
+        if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+        else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
       }
 
       // Compute field pairs for TypeName.structural

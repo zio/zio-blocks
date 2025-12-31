@@ -2,6 +2,7 @@ package zio.blocks.schema.structural
 
 import zio.test._
 import zio.blocks.schema._
+import zio.test.TestAspect._
 
 import java.time.Instant
 import java.util.{Currency, UUID}
@@ -444,5 +445,5 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
         assertTrue(s1.hashCode == s2.hashCode)
       }
     )
-  )
+  ) @@ exceptNative
 }

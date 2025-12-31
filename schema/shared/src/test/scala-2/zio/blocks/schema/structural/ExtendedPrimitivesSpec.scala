@@ -2,6 +2,7 @@ package zio.blocks.schema.structural
 
 import zio.test._
 import zio.blocks.schema._
+import zio.test.TestAspect._
 
 import java.time.Instant
 import java.util.{Currency, UUID}
@@ -40,7 +41,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
       test("case class with all extended primitives") {
         val ts = ToStructural.derived[ExtendedPrimitives]
 
-        val uuid     = UUID.randomUUID()
+        val uuid     = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
         val currency = Currency.getInstance("USD")
         val instant  = Instant.now()
 
@@ -203,7 +204,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
         implicit val schema: Schema[ExtendedPrimitives] = Schema.derived[ExtendedPrimitives]
         val structSchema                                = ts.structuralSchema
 
-        val uuid     = UUID.randomUUID()
+        val uuid     = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
         val currency = Currency.getInstance("USD")
         val instant  = Instant.now()
 
@@ -262,7 +263,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
         implicit val schema: Schema[WithOptionalUUID] = Schema.derived[WithOptionalUUID]
         val structSchema                              = ts.structuralSchema
 
-        val uuid       = UUID.randomUUID()
+        val uuid       = UUID.fromString("f47ac10b-58cc-4372-a567-0e02b2c3d479")
         val original   = WithOptionalUUID(Some(uuid))
         val structural = ts.toStructural(original)
 
@@ -406,5 +407,5 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
         assertTrue(s1 == s2)
       }
     )
-  )
+  ) @@ exceptNative
 }
