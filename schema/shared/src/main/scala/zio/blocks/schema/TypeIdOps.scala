@@ -8,60 +8,66 @@ import zio.blocks.schema.binding.Binding
  * 
  * This keeps TypeId in the typeid module dependency-free (pure data),
  * while providing Schema-specific functionality in the schema module.
+ * 
+ * During the migration period, TypeId is converted to TypeName for use
+ * with Reflect.Wrapper. After full migration, this conversion will be removed.
  */
 object TypeIdOps {
   
   implicit class TypeIdSchemaOps[A](private val typeId: TypeId[A]) extends AnyVal {
     
     /**
+     * Convert TypeId to TypeName for compatibility during migration.
+     */
+    def toTypeName: TypeName[A] = {
+      val packages = typeId.owner.segments.collect { 
+        case zio.blocks.typeid.Owner.Package(name) => name 
+      }
+      val values = typeId.owner.segments.collect { 
+        case zio.blocks.typeid.Owner.Term(name) => name
+        case zio.blocks.typeid.Owner.Type(name) => name
+      }
+      new TypeName[A](new Namespace(packages, values), typeId.name, Nil)
+    }
+    
+    /**
      * Create a Schema for a wrapped type where the wrapper may fail.
      * 
-     * @param wrap Function to convert from underlying type to wrapped type (may fail)
-     * @param unwrap Function to convert from wrapped type to underlying type
+     * @param wrapFn Function to convert from underlying type to wrapped type (may fail)
+     * @param unwrapFn Function to convert from wrapped type to underlying type
      * @tparam B The underlying type (must have a Schema)
      */
-    def wrap[B](wrap: B => Either[String, A], unwrap: A => B)(implicit schemaB: Schema[B]): Schema[A] =
+    def wrap[B](wrapFn: B => Either[String, A], unwrapFn: A => B)(implicit schemaB: Schema[B]): Schema[A] = {
+      val typeName = toTypeName
+      val primitiveTypeOpt = Reflect.unwrapToPrimitiveTypeOption(schemaB.reflect).asInstanceOf[Option[PrimitiveType[A]]]
       new Schema(
         new Reflect.Wrapper[Binding, A, B](
           schemaB.reflect,
-          typeId,
-          new Binding.Wrapper(wrap, unwrap)
+          typeName,
+          primitiveTypeOpt,
+          new Binding.Wrapper[A, B](wrapFn, unwrapFn)
         )
       )
+    }
     
     /**
      * Create a Schema for a wrapped type where the wrapper always succeeds.
      * 
-     * @param wrap Function to convert from underlying type to wrapped type
-     * @param unwrap Function to convert from wrapped type to underlying type
+     * @param wrapFn Function to convert from underlying type to wrapped type
+     * @param unwrapFn Function to convert from wrapped type to underlying type
      * @tparam B The underlying type (must have a Schema)
      */
-    def wrapTotal[B](wrap: B => A, unwrap: A => B)(implicit schemaB: Schema[B]): Schema[A] =
+    def wrapTotal[B](wrapFn: B => A, unwrapFn: A => B)(implicit schemaB: Schema[B]): Schema[A] = {
+      val typeName = toTypeName
+      val primitiveTypeOpt = Reflect.unwrapToPrimitiveTypeOption(schemaB.reflect).asInstanceOf[Option[PrimitiveType[A]]]
       new Schema(
         new Reflect.Wrapper[Binding, A, B](
           schemaB.reflect,
-          typeId,
-          new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
+          typeName,
+          primitiveTypeOpt,
+          new Binding.Wrapper[A, B]((x: B) => Right(wrapFn(x)), unwrapFn)
         )
       )
-    
-    /**
-     * Lookup the PrimitiveType for this TypeId, if it represents a primitive type.
-     */
-    def primitiveType: Option[PrimitiveType[A]] = {
-      val typeName = typeIdToTypeName(typeId)
-      typeName.primitiveType
-    }
-    
-    /**
-     * Convert TypeId back to TypeName for compatibility during migration.
-     * This will be removed once migration is complete.
-     */
-    private def typeIdToTypeName(id: TypeId[A]): TypeName[A] = {
-      val namespace = Namespace(
-        id.owner.segments.collect { case zio.blocks.typeid.Owner.Package(name) => name }
-      )
-      new TypeName(namespace, id.name, Nil)
     }
   }
 }

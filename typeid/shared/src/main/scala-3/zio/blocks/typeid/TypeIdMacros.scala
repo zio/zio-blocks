@@ -1,6 +1,7 @@
 package zio.blocks.typeid
 
 import scala.quoted._
+import zio.blocks.typeid.{TypeRepr => ZTypeRepr}
 
 /**
  * Scala 3.5+ macro implementations for TypeId derivation.
@@ -36,7 +37,7 @@ object TypeIdMacros {
     if (isOpaque) {
       // Opaque type: opaque type Email = String
       val reprType = tpe.dealias
-      val reprExpr = buildTypeReprExpr(reprType)
+      val reprExpr = buildZTypeReprExpr(reprType)
       '{
         TypeId.opaque[A](
           ${Expr(name)},
@@ -48,7 +49,7 @@ object TypeIdMacros {
     } else if (isAlias) {
       // Type alias
       val aliasedType = tpe.dealias
-      val aliasedExpr = buildTypeReprExpr(aliasedType)
+      val aliasedExpr = buildZTypeReprExpr(aliasedType)
       '{
         TypeId.alias[A](
           ${Expr(name)},
@@ -85,7 +86,6 @@ object TypeIdMacros {
   }
   
   private def buildOwnerExpr(using Quotes)(segments: List[(String, String)]): Expr[Owner] = {
-    import quotes.reflect._
     
     if (segments.isEmpty) {
       '{ Owner.Root }
@@ -102,7 +102,6 @@ object TypeIdMacros {
   }
   
   private def buildTypeParamsExpr(using Quotes)(typeParams: List[quotes.reflect.Symbol]): Expr[List[TypeParam]] = {
-    import quotes.reflect._
     
     val paramExprs: List[Expr[TypeParam]] = typeParams.zipWithIndex.map { case (param, idx) =>
       val paramName = param.name
@@ -111,31 +110,32 @@ object TypeIdMacros {
     Expr.ofList(paramExprs)
   }
   
-  private def buildTypeReprExpr(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[TypeRepr] = {
+  // Renamed to avoid collision with quotes.reflect.TypeRepr
+  private def buildZTypeReprExpr(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[ZTypeRepr] = {
     import quotes.reflect._
     
     tpe match {
       case AppliedType(tycon, args) =>
-        val tyconExpr = buildTypeReprExpr(tycon)
-        val argsExpr = Expr.ofList(args.map(buildTypeReprExpr))
-        '{ TypeRepr.Applied(${tyconExpr}, ${argsExpr}) }
+        val tyconExpr = buildZTypeReprExpr(tycon)
+        val argsExpr = Expr.ofList(args.map(buildZTypeReprExpr))
+        '{ ZTypeRepr.Applied(${tyconExpr}, ${argsExpr}) }
         
       case TypeRef(qualifier, name) =>
         val symbol = tpe.typeSymbol
         val ownerSegments = buildOwnerSegments(symbol.owner)
         val ownerExpr = buildOwnerExpr(ownerSegments)
         val typeParamsExpr = buildTypeParamsExpr(symbol.typeMembers.filter(_.isTypeParam))
-        '{ TypeRepr.Ref(TypeId.nominal[Any](${Expr(name)}, ${ownerExpr}, ${typeParamsExpr})) }
+        '{ ZTypeRepr.Ref(TypeId.nominal[Any](${Expr(name)}, ${ownerExpr}, ${typeParamsExpr})) }
         
       case ParamRef(binder, idx) =>
-        '{ TypeRepr.ParamRef(TypeParam("?", ${Expr(idx)})) }
+        '{ ZTypeRepr.ParamRef(TypeParam("?", ${Expr(idx)})) }
         
       case other =>
         // Fallback for other types
         val name = other.typeSymbol.name
         val ownerSegments = buildOwnerSegments(other.typeSymbol.owner)
         val ownerExpr = buildOwnerExpr(ownerSegments)
-        '{ TypeRepr.Ref(TypeId.nominal[Any](${Expr(name)}, ${ownerExpr}, Nil)) }
+        '{ ZTypeRepr.Ref(TypeId.nominal[Any](${Expr(name)}, ${ownerExpr}, Nil)) }
     }
   }
 }
