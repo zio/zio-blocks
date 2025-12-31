@@ -51,15 +51,11 @@ object ToStructuralMacro {
     }
   }
 
-  private def isProductType(c: blackbox.Context)(tpe: c.universe.Type): Boolean = {
-    import c.universe._
+  private def isProductType(c: blackbox.Context)(tpe: c.universe.Type): Boolean =
     tpe.typeSymbol.isClass && tpe.typeSymbol.asClass.isCaseClass
-  }
 
-  private def isTupleType(c: blackbox.Context)(tpe: c.universe.Type): Boolean = {
-    import c.universe._
+  private def isTupleType(c: blackbox.Context)(tpe: c.universe.Type): Boolean =
     tpe.typeSymbol.fullName.startsWith("scala.Tuple")
-  }
 
   private def isRecursiveType(c: blackbox.Context)(tpe: c.universe.Type): Boolean = {
     import c.universe._
@@ -98,15 +94,6 @@ object ToStructuralMacro {
         (m.name.toString, m.returnType.asSeenFrom(aTpe, aTpe.typeSymbol))
     }.toList
 
-    if (fields.isEmpty) {
-      c.abort(
-        c.enclosingPosition,
-        s"""Cannot generate structural type for ${aTpe} with no fields.
-           |Empty structural types are not supported.""".stripMargin
-      )
-    }
-
-    // Build the structural type as a refinement
     val structuralTpe = buildStructuralType(c)(fields)
 
     c.Expr[ToStructural[A]](
@@ -152,27 +139,26 @@ object ToStructuralMacro {
   private def buildStructuralType(c: blackbox.Context)(fields: List[(String, c.universe.Type)]): c.universe.Type = {
     import c.universe._
 
-    // Build refinement type for structural type
-    // { def field1: Type1; def field2: Type2; ... }
-    val refinements = fields.map { case (name, tpe) =>
-      val methodName = TermName(name)
-      internal.refinedType(
-        List(definitions.AnyRefTpe),
-        internal.newScopeWith(
-          internal.newMethodSymbol(NoSymbol, methodName).setInfo(NullaryMethodType(tpe))
-        )
-      )
+    // Handle empty structural types - return AnyRef (equivalent to {})
+    if (fields.isEmpty) {
+      return definitions.AnyRefTpe
     }
 
-    // Combine all refinements
-    fields.foldLeft(definitions.AnyRefTpe: Type) { case (parent, (name, tpe)) =>
-      internal.refinedType(
-        List(parent),
-        internal.newScopeWith(
-          internal.newMethodSymbol(NoSymbol, TermName(name)).setInfo(NullaryMethodType(tpe))
-        )
-      )
+    // Build refinement type for structural type
+    // { def field1: Type1; def field2: Type2; ... }
+
+    // Sort fields alphabetically to match Scala 3 behavior
+    val sortedFields = fields.sortBy(_._1)
+
+    // Build refinement type using RefinedType
+    // We construct it by creating a type tree and then getting its type
+    val refinedTypeTree = sortedFields.foldLeft(tq"AnyRef": Tree) { case (parent, (name, tpe)) =>
+      val methodName = TermName(name)
+      tq"$parent { def $methodName: $tpe }"
     }
+
+    // Get the type from the tree
+    c.typecheck(refinedTypeTree, c.TYPEmode).tpe.dealias
   }
 }
 

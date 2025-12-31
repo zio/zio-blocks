@@ -74,7 +74,7 @@ object ToStructuralRuntime {
    */
   def transformTupleSchema[A, S](schema: Schema[A]): Schema[S] = {
     schema.reflect match {
-      case record: Reflect.Record[Binding, A] @unchecked =>
+      case _: Reflect.Record[Binding, A] @unchecked =>
         // Tuples are also represented as Record in the schema
         transformProductSchema[A, S](schema)
 
