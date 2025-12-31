@@ -393,7 +393,7 @@ lazy val zioGolemHostTests = project
           methods = Seq(
             GolemMethod(
               name = "runtests",
-              tsReturnType = "string",
+              returnType = "string",
               isAsync = true,
               params = Seq(GolemMethodParam("input", "HostTestsInput", "input")),
               implMethodName = "runtests"

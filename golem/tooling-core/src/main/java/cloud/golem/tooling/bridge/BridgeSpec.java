@@ -3,7 +3,7 @@ package cloud.golem.tooling.bridge;
 import java.util.Collections;
 import java.util.List;
 
-/** Top-level spec for generating {@code src/main.ts}. */
+/** Top-level bridge manifest spec used by build adapters. */
 public final class BridgeSpec {
   /** Import path for the Scala.js bundle (e.g. {@code ./scala-autowired.js}). */
   public final String scalaBundleImport;

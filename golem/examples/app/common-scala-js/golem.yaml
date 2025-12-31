@@ -4,30 +4,8 @@ templates:
   scala.js:
     build:
     - command: bash ../../build-scalajs.sh {{ component_name }}
-    - command: npx tsc --noEmit false --emitDeclarationOnly --declaration --outFile ../../golem-temp/ts-check/{{ component_name | to_kebab_case }}/main.d.ts
-      sources:
-      - src
-      - ../../common-ts
-      - tsconfig.js
-      targets:
-      - ../../golem-temp/ts-check/{{ component_name | to_kebab_case }}/main.d.ts
-    - command: npx --no golem-typegen ../../../components-ts/{{ component_name | to_kebab_case }}/tsconfig.json --files ../../../components-ts/{{ component_name | to_kebab_case }}/src/**/*.ts
-      dir: ../../golem-temp/ts-metadata/{{ component_name | to_kebab_case }}
-      sources:
-      - ../../../components-ts/{{ component_name | to_kebab_case }}/src
-      targets:
-      - .metadata
-    - command: npx --no rollup -- -c
-      sources:
-      - src
-      - ../../common-ts
-      - rollup.config.mjs
-      - tsconfig.js
-      - ../../golem-temp/ts-metadata/{{ component_name | to_kebab_case }}
-      targets:
-      - ../../golem-temp/ts-dist/{{ component_name | to_kebab_case }}/main.js
-    - injectToPrebuiltQuickjs: ../../node_modules/@golemcloud/golem-ts-sdk/wasm/agent_guest.wasm
-      module: ../../golem-temp/ts-dist/{{ component_name | to_kebab_case }}/main.js
+    - injectToPrebuiltQuickjs: ../../wasm/agent_guest.wasm
+      module: src/scala.js
       moduleWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.module.wasm
       into: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
     - generateAgentWrapper: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
@@ -35,7 +13,7 @@ templates:
     - composeAgentWrapper: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wrapper.wasm
       withAgent: ../../golem-temp/agents/{{ component_name | to_snake_case }}.dynamic.wasm
       to: ../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
-    sourceWit: ../../node_modules/@golemcloud/golem-ts-sdk/wasm/agent_guest.wasm
+    sourceWit: ../../wasm/agent_guest.wasm
     generatedWit: ../../golem-temp/agents/{{ component_name | to_snake_case }}/wit-generated
     componentWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.static.wasm
     linkedWasm: ../../golem-temp/agents/{{ component_name | to_snake_case }}.wasm

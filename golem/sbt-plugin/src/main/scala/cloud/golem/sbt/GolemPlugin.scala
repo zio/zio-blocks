@@ -7,7 +7,6 @@ import sbt._
 import sbt.complete.DefaultParsers._
 
 import java.io.File
-import scala.sys.process._
 
 object GolemPlugin extends AutoPlugin {
   override def requires: Plugins = ScalaJSPlugin
@@ -15,13 +14,10 @@ object GolemPlugin extends AutoPlugin {
   override def trigger: PluginTrigger = noTrigger
 
   object autoImport {
-    val golemNodeCommand    = settingKey[String]("Command used to invoke Node.js")
-    val golemNpmCommand     = settingKey[String]("Command used to invoke npm")
-    val golemNodeModulesDir = settingKey[File]("Directory containing node_modules")
-
-    val golemFastLink = taskKey[File]("Runs fastLinkJS and returns the generated bundle")
-    val golemSetup    = taskKey[Unit]("Ensures npm dependencies are installed")
-    val golemRun      = taskKey[Unit]("Builds the Scala.js bundle and runs it with Node.js")
+    val golemAgentGuestWasmFile =
+      settingKey[File]("Where to write wasm/agent_guest.wasm for golem-cli packaging (default: <base>/wasm/agent_guest.wasm)")
+    val golemEnsureAgentGuestWasm =
+      taskKey[File]("Ensure wasm/agent_guest.wasm exists (written from the Scala SDK tooling-core resources)")
 
     // Generic public primitives (Phase 2 of public SDK plan)
     val golemAppRoot           = settingKey[File]("Root dir for generated Golem apps (default .golem-apps)")
@@ -39,16 +35,8 @@ object GolemPlugin extends AutoPlugin {
     // Settings-based exports (Scala-only configuration; generates a hidden BridgeSpec manifest)
     // ---------------------------------------------------------------------------
 
-    /**
-     * TypeScript type expression used by the deterministic TS bridge generator.
-     *
-     * Examples:
-     *   - `"string"`, `"number"`, `"boolean"`, `"void"`
-     *   - `"Name"` (custom declared type)
-     *   - `"number | null"` (union)
-     *   - `"string[]"` (array)
-     */
-    object GolemTsType {
+    /** Wire type expression used by the BridgeSpec manifest. */
+    object GolemWireType {
       val string: String  = "string"
       val number: String  = "number"
       val boolean: String = "boolean"
@@ -56,12 +44,12 @@ object GolemPlugin extends AutoPlugin {
       val any: String     = "any"
     }
 
-    final case class GolemParam(name: String, tsType: String)
+    final case class GolemParam(name: String, wireType: String)
 
     sealed trait GolemConstructor
     object GolemConstructor {
       case object NoArg extends GolemConstructor
-      final case class Scalar(argName: String, tsType: String, scalaFactoryArgs: Seq[String] = Nil)
+      final case class Scalar(argName: String, wireType: String, scalaFactoryArgs: Seq[String] = Nil)
           extends GolemConstructor
       final case class Positional(params: Seq[GolemParam], scalaFactoryArgs: Seq[String] = Nil) extends GolemConstructor
       final case class Record(
@@ -71,7 +59,7 @@ object GolemPlugin extends AutoPlugin {
       ) extends GolemConstructor
     }
 
-    final case class GolemMethodParam(name: String, tsType: String, implArgExpr: String = "")
+    final case class GolemMethodParam(name: String, wireType: String, implArgExpr: String = "")
 
     final case class GolemExport(
       agentName: String,
@@ -86,7 +74,7 @@ object GolemPlugin extends AutoPlugin {
 
     final case class GolemMethod(
       name: String,
-      tsReturnType: String,
+      returnType: String,
       isAsync: Boolean = true,
       params: Seq[GolemMethodParam] = Nil,
       implMethodName: String = ""
@@ -129,11 +117,14 @@ object GolemPlugin extends AutoPlugin {
     val golemGenerateScalaShim =
       taskKey[Seq[File]]("Generate an internal Scala.js shim from BridgeSpec manifest into managed sources")
 
+    val golemGenerateAgentRegistration =
+      taskKey[Seq[File]]("Generate a Scala.js registration hook that registers annotated agents at runtime")
+
   }
 
   import autoImport._
 
-  private def defaultTsClassNameFromTrait(traitClass: String): String = {
+  private def defaultClassNameFromTrait(traitClass: String): String = {
     val simple0 = traitClass.split('.').lastOption.getOrElse("Agent")
     val simple  = simple0.stripSuffix("$")
     "Scala" + simple
@@ -166,6 +157,250 @@ object GolemPlugin extends AutoPlugin {
     ctorParams: Vector[(String, String, String)],
     methods: Vector[(String, Boolean, String, Vector[(String, String, String)])]
   )
+
+  private def writeStandaloneGuestSourceFromManifest(manifestFile: File, outFile: File): Unit = {
+    val props = new java.util.Properties()
+    val in    = new java.io.FileInputStream(manifestFile)
+    try props.load(in)
+    finally in.close()
+
+    def get(key: String): Option[String] =
+      Option(props.getProperty(key)).map(_.trim).filter(_.nonEmpty)
+
+    val agentIndices: Vector[Int] = {
+      val keys = props.stringPropertyNames().toArray(new Array[String](0)).toVector
+      keys
+        .flatMap { k =>
+          val prefix = "agents."
+          if (k.startsWith(prefix)) {
+            val rest = k.substring(prefix.length)
+            val dot  = rest.indexOf('.')
+            if (dot > 0) {
+              val idxStr = rest.substring(0, dot)
+              scala.util.Try(idxStr.toInt).toOption
+            } else None
+          } else None
+        }
+        .distinct
+        .sorted(Ordering.Int)
+    }
+
+    def mkCtorExpr(kind: String, ctorParamCount: Int): (String, String) = {
+      kind match {
+        case "noarg" =>
+          ("Unit", "() => ()")
+        case "scalar" =>
+          val scalaType = get(s"constructor.scalaType").getOrElse("Any")
+          (scalaType, "in")
+        case "positional" =>
+          val types = (0 until ctorParamCount).toVector.map { i =>
+            get(s"constructor.param." + i + ".scalaType").getOrElse("Any")
+          }
+          val ctorType = if (types.length == 1) types.head else types.mkString("(", ", ", ")")
+          val args     =
+            if (types.length == 1) "in"
+            else types.indices.map(i => s"in._${i + 1}").mkString(", ")
+          (ctorType, args)
+        case other =>
+          ("Any", "in")
+      }
+    }
+
+    val registrations = agentIndices.flatMap { idx =>
+      val base         = s"agents.$idx."
+      val traitClass   = get(base + "traitClass")
+      val implClass    = get(base + "implClass").orElse(get(base + "scalaShimImplClass"))
+      val ctorKind     = get(base + "constructor.kind").getOrElse("noarg")
+      val ctorParamCnt =
+        props
+          .stringPropertyNames()
+          .toArray(new Array[String](0))
+          .count(k => k.startsWith(base + "constructor.param.") && k.endsWith(".scalaType"))
+
+      (traitClass, implClass) match {
+        case (Some(traitFqn), Some(implFqn)) =>
+          val (ctorType, ctorArgsExpr0) = ctorKind match {
+            case "noarg" =>
+              ("Unit", "")
+            case "scalar" =>
+              val t = get(base + "constructor.scalaType").getOrElse("Any")
+              (t, "in")
+            case "positional" =>
+              val types = (0 until ctorParamCnt).toVector.map { i =>
+                get(base + s"constructor.param.$i.scalaType").getOrElse("Any")
+              }
+              val ctorType = if (types.length == 1) types.head else types.mkString("(", ", ", ")")
+              val args =
+                if (types.length == 1) "in"
+                else types.indices.map(i => s"in._${i + 1}").mkString(", ")
+              (ctorType, args)
+            case _ =>
+              ("Any", "in")
+          }
+
+          val registration =
+            ctorKind match {
+              case "noarg" =>
+                s"cloud.golem.runtime.autowire.AgentImplementation.register[$traitFqn](new $implFqn())"
+              case _ =>
+                s"cloud.golem.runtime.autowire.AgentImplementation.register[$traitFqn, $ctorType](in => new $implFqn($ctorArgsExpr0))"
+            }
+          Some(registration)
+        case _ => None
+      }
+    }
+
+    val registrationBlock =
+      if (registrations.isEmpty) ""
+      else registrations.map(r => s"      $r").mkString("\n")
+
+    val src =
+      s"""package cloud.golem.internal
+         |
+         |import cloud.golem.runtime.autowire.AgentRegistry
+         |import scala.scalajs.js
+         |import scala.scalajs.js.Dynamic
+         |import scala.scalajs.js.annotation.JSExportTopLevel
+         |
+         |object GolemStandaloneGuest {
+         |  private var registered: Boolean = false
+         |
+         |  private def ensureRegistered(): Unit =
+         |    if (!registered) {
+         |      registered = true
+         |$registrationBlock
+         |    }
+         |
+         |  private var resolved: js.UndefOr[Resolved] = js.undefined
+         |  private final case class Resolved(defn: cloud.golem.runtime.autowire.AgentDefinition[Any], instance: Any)
+         |
+         |  private def agentError(tag: String, message: String): js.Dynamic =
+         |    js.Dynamic.literal("tag" -> tag, "val" -> message)
+         |
+         |  private def invalidType(message: String): js.Dynamic =
+         |    agentError("invalid-type", message)
+         |
+         |  private def invalidAgentId(message: String): js.Dynamic =
+         |    agentError("invalid-agent-id", message)
+         |
+         |  private def customError(message: String): js.Dynamic = {
+         |    val witValue = cloud.golem.runtime.autowire.WitValueBuilder.build(
+         |      cloud.golem.data.DataType.StringType,
+         |      cloud.golem.data.DataValue.StringValue(message)
+         |    ) match {
+         |      case Left(_)    => js.Dynamic.literal("tag" -> "string", "val" -> message)
+         |      case Right(vit) => vit
+         |    }
+         |
+         |    val node =
+         |      js.Dynamic.literal(
+         |        "name"  -> (js.undefined: js.UndefOr[String]),
+         |        "owner" -> (js.undefined: js.UndefOr[String]),
+         |        "type"  -> js.Dynamic.literal("tag" -> "prim-string-type")
+         |      )
+         |    val witType = js.Dynamic.literal("nodes" -> js.Array(node))
+         |
+         |    js.Dynamic.literal(
+         |      "tag" -> "custom-error",
+         |      "val" -> js.Dynamic.literal(
+         |        "value" -> witValue,
+         |        "typ"   -> witType
+         |      )
+         |    )
+         |  }
+         |
+         |  private def asAgentError(err: Any, fallbackTag: String): js.Dynamic =
+         |    if (err == null) customError("null")
+         |    else {
+         |      val dyn = err.asInstanceOf[js.Dynamic]
+         |      val hasTagVal =
+         |        try !js.isUndefined(dyn.selectDynamic("tag")) && !js.isUndefined(dyn.selectDynamic("val"))
+         |        catch { case _: Throwable => false }
+         |
+         |      if (hasTagVal) dyn
+         |      else
+         |        err match {
+         |          case s: String => agentError(fallbackTag, s)
+         |          case other     => customError(String.valueOf(other))
+         |        }
+         |    }
+         |
+         |  private def normalizeMethodName(methodName: String): String =
+         |    if (methodName.contains(".{") && methodName.endsWith("}")) {
+         |      val start = methodName.indexOf(".{") + 2
+         |      methodName.substring(start, methodName.length - 1)
+         |    } else methodName
+         |
+         |  private def initialize(agentTypeName: String, input: js.Dynamic): js.Promise[Unit] = {
+         |    ensureRegistered()
+         |    if (!js.isUndefined(resolved)) {
+         |      js.Promise.reject(customError("Agent is already initialized in this container")).asInstanceOf[js.Promise[Unit]]
+         |    } else {
+         |      AgentRegistry.get(agentTypeName) match {
+         |        case None =>
+         |          js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
+         |        case Some(defnAny) =>
+         |          defnAny
+         |            .initializeAny(input)
+         |            .`then`[Unit](
+         |              (inst: Any) => { resolved = Resolved(defnAny, inst); () },
+         |              (err: Any) => js.Promise.reject(asAgentError(err, "invalid-input")).asInstanceOf[js.Thenable[Unit]]
+         |            )
+         |      }
+         |    }
+         |  }
+         |
+         |  private def invoke(methodName: String, input: js.Dynamic): js.Promise[js.Dynamic] = {
+         |    ensureRegistered()
+         |    if (js.isUndefined(resolved)) {
+         |      js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
+         |    } else {
+         |      val r  = resolved.asInstanceOf[Resolved]
+         |      val mn = normalizeMethodName(methodName)
+         |      r.defn
+         |        .invokeAny(r.instance, mn, input)
+         |        .`catch`[js.Dynamic]((err: Any) =>
+         |          js.Promise.reject(asAgentError(err, "invalid-method")).asInstanceOf[js.Thenable[js.Dynamic]]
+         |        )
+         |    }
+         |  }
+         |
+         |  private def getDefinition(): js.Promise[js.Dynamic] = {
+         |    ensureRegistered()
+         |    if (js.isUndefined(resolved)) {
+         |      js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
+         |    } else {
+         |      js.Promise.resolve(resolved.asInstanceOf[Resolved].defn.agentType)
+         |    }
+         |  }
+         |
+         |  private def discoverAgentTypes(): js.Promise[js.Array[js.Dynamic]] = {
+         |    ensureRegistered()
+         |    try {
+         |      val arr = new js.Array[js.Dynamic]()
+         |      AgentRegistry.all.foreach(d => arr.push(d.agentType))
+         |      js.Dynamic.global.console.log("[scala.js] discoverAgentTypes.json ->", js.JSON.stringify(arr))
+         |      js.Promise.resolve(arr)
+         |    } catch {
+         |      case t: Throwable =>
+         |        js.Promise.reject(asAgentError(t.toString, "custom-error")).asInstanceOf[js.Promise[js.Array[js.Dynamic]]]
+         |    }
+         |  }
+         |
+         |  @JSExportTopLevel("guest")
+         |  val guest: js.Dynamic =
+         |    js.Dynamic.literal(
+         |      "initialize"         -> ((agentTypeName: String, input: js.Dynamic) => initialize(agentTypeName, input)),
+         |      "invoke"             -> ((methodName: String, input: js.Dynamic) => invoke(methodName, input)),
+         |      "getDefinition"      -> (() => getDefinition()),
+         |      "discoverAgentTypes" -> (() => discoverAgentTypes())
+         |    )
+         |}
+         |""".stripMargin
+
+    IO.createDirectory(outFile.getParentFile)
+    IO.write(outFile, src)
+  }
 
   private def autoDetectExportsFromClassfiles(
     classDir: File,
@@ -435,7 +670,7 @@ object GolemPlugin extends AutoPlugin {
 
               // Scala 3 often erases value-type type arguments in generic signatures (e.g. Future[Int] -> Future[Object]).
               // We still want minimal-config auto-exports to work for "primitive-only" agents, and we must not emit `any`
-              // because the Golem TS schema generator rejects it. As a fallback, infer the boxed primitive return type
+              // because schema generation rejects it. As a fallback, infer the boxed primitive return type
               // by scanning the implementation classfile bytecode for BoxesRunTime.boxToX calls.
               def inferFutureReturnTsFromImplBytecode(
                 implClassName: String,
@@ -772,44 +1007,16 @@ object GolemPlugin extends AutoPlugin {
     def read(path: java.nio.file.Path): AnyRef =
       mRead.invoke(null, path).asInstanceOf[AnyRef]
   }
-
-  private lazy val runQuickstartTask = Def.task {
-    val log    = streams.value.log
-    val node   = golemNodeCommand.value
-    val bundle = golemFastLink.value
-    val base   = baseDirectory.value
-
-    log.info(s"Running ${bundle.getName} with $node ...")
-    val env  = "GOLEM_QUICKSTART" -> "1"
-    val exit = Process(Seq(node, bundle.getAbsolutePath), base, env).!
-    if (exit != 0) sys.error(s"Golem quickstart execution failed with exit code $exit")
-    else log.info("Golem quickstart completed successfully.")
-  }
-
-
   override def projectSettings: Seq[Setting[_]] = Seq(
-    golemNodeCommand    := "node",
-    golemNpmCommand     := "npm",
-    golemNodeModulesDir := baseDirectory.value / "node_modules",
-    golemFastLink       := {
-      val bundle = (Compile / fastLinkJS / scalaJSLinkedFile).value.data
-      streams.value.log.info(s"Golem quickstart bundle linked at ${bundle.getAbsolutePath}")
-      bundle
+    golemAgentGuestWasmFile := baseDirectory.value / "wasm" / "agent_guest.wasm",
+    golemEnsureAgentGuestWasm := {
+      val dest = golemAgentGuestWasmFile.value.toPath
+      IO.createDirectory(dest.getParent.toFile)
+      val cls = Class.forName("cloud.golem.tooling.GolemTooling")
+      val m   = cls.getMethod("ensureAgentGuestWasm", classOf[java.nio.file.Path])
+      m.invoke(null, dest)
+      dest.toFile
     },
-    golemSetup := {
-      val log     = streams.value.log
-      val modules = golemNodeModulesDir.value
-      val base    = baseDirectory.value
-      val npm     = golemNpmCommand.value
-
-      if (modules.exists()) log.info("node_modules already present; skipping npm install.")
-      else {
-        log.info("Installing npm dependencies via `npm install`...")
-        val exit = Process(Seq(npm, "install"), base).!
-        if (exit != 0) sys.error(s"`npm install` failed with exit code $exit")
-      }
-    },
-    golemRun := (runQuickstartTask dependsOn golemSetup).value,
 
     // Generic primitives defaults
     golemAppRoot           := (ThisBuild / baseDirectory).value / ".golem-apps",
@@ -841,11 +1048,13 @@ object GolemPlugin extends AutoPlugin {
           val p         = s"agents.$idx."
           val className =
             if (e.className.trim.nonEmpty) e.className.trim
-            else defaultTsClassNameFromTrait(e.traitClass)
+            else defaultClassNameFromTrait(e.traitClass)
           val scalaFactory =
             if (e.scalaFactory.trim.nonEmpty) e.scalaFactory.trim
             else defaultScalaFactoryFromTrait(e.traitClass)
 
+          sb.append(p).append("traitClass=").append(e.traitClass).append("\n")
+          sb.append(p).append("implClass=").append(e.scalaShimImplClass).append("\n")
           sb.append(p).append("agentName=").append(e.agentName).append("\n")
           sb.append(p).append("className=").append(className).append("\n")
           sb.append(p).append("scalaFactory=").append(scalaFactory).append("\n")
@@ -853,9 +1062,9 @@ object GolemPlugin extends AutoPlugin {
           e.constructor match {
             case autoImport.GolemConstructor.NoArg =>
               sb.append(p).append("constructor.kind=noarg\n")
-            case autoImport.GolemConstructor.Scalar(argName, tsType, scalaFactoryArgs) =>
+            case autoImport.GolemConstructor.Scalar(argName, wireType, scalaFactoryArgs) =>
               sb.append(p).append("constructor.kind=scalar\n")
-              sb.append(p).append("constructor.tsType=").append(tsType).append("\n")
+              sb.append(p).append("constructor.type=").append(wireType).append("\n")
               sb.append(p).append("constructor.argName=").append(argName).append("\n")
               scalaFactoryArgs.zipWithIndex.foreach { case (arg, ai) =>
                 sb.append(p).append(s"constructor.scalaFactoryArg.$ai=").append(arg).append("\n")
@@ -864,7 +1073,7 @@ object GolemPlugin extends AutoPlugin {
               sb.append(p).append("constructor.kind=positional\n")
               params.zipWithIndex.foreach { case (par, pi) =>
                 sb.append(p).append(s"constructor.param.$pi.name=").append(par.name).append("\n")
-                sb.append(p).append(s"constructor.param.$pi.tsType=").append(par.tsType).append("\n")
+                sb.append(p).append(s"constructor.param.$pi.type=").append(par.wireType).append("\n")
               }
               scalaFactoryArgs.zipWithIndex.foreach { case (arg, ai) =>
                 sb.append(p).append(s"constructor.scalaFactoryArg.$ai=").append(arg).append("\n")
@@ -874,7 +1083,7 @@ object GolemPlugin extends AutoPlugin {
               sb.append(p).append("constructor.inputTypeName=").append(inputTypeName).append("\n")
               fields.zipWithIndex.foreach { case (f, fi) =>
                 sb.append(p).append(s"constructor.field.$fi.name=").append(f.name).append("\n")
-                sb.append(p).append(s"constructor.field.$fi.tsType=").append(f.tsType).append("\n")
+                sb.append(p).append(s"constructor.field.$fi.type=").append(f.wireType).append("\n")
               }
               scalaFactoryArgs.zipWithIndex.foreach { case (arg, ai) =>
                 sb.append(p).append(s"constructor.scalaFactoryArg.$ai=").append(arg).append("\n")
@@ -891,12 +1100,12 @@ object GolemPlugin extends AutoPlugin {
             val mp = p + s"method.$mi."
             sb.append(mp).append("name=").append(m.name).append("\n")
             sb.append(mp).append("isAsync=").append(if (m.isAsync) "true" else "false").append("\n")
-            sb.append(mp).append("tsReturnType=").append(m.tsReturnType).append("\n")
+            sb.append(mp).append("returnType=").append(m.returnType).append("\n")
             sb.append(mp).append("implMethodName=").append(m.implMethodName).append("\n")
             m.params.zipWithIndex.foreach { case (par, pi) =>
               val pp = mp + s"param.$pi."
               sb.append(pp).append("name=").append(par.name).append("\n")
-              sb.append(pp).append("tsType=").append(par.tsType).append("\n")
+              sb.append(pp).append("type=").append(par.wireType).append("\n")
               sb.append(pp).append("implArgExpr=").append(par.implArgExpr).append("\n")
             }
           }
@@ -934,9 +1143,11 @@ object GolemPlugin extends AutoPlugin {
 
               detected.zipWithIndex.foreach { case (e, idx) =>
                 val p            = s"agents.$idx."
-                val className    = defaultTsClassNameFromTrait(e.traitClass)
+                val className    = defaultClassNameFromTrait(e.traitClass)
                 val scalaFactory = defaultScalaFactoryFromTrait(e.traitClass)
 
+                sb.append(p).append("traitClass=").append(e.traitClass).append("\n")
+                sb.append(p).append("implClass=").append(e.implClass).append("\n")
                 sb.append(p).append("agentName=").append(e.agentName).append("\n")
                 sb.append(p).append("className=").append(className).append("\n")
                 sb.append(p).append("scalaFactory=").append(scalaFactory).append("\n")
@@ -945,30 +1156,30 @@ object GolemPlugin extends AutoPlugin {
                 e.ctorParams match {
                   case Vector() =>
                     sb.append(p).append("constructor.kind=noarg\n")
-                  case Vector((argName, tsType, scalaType)) =>
+                  case Vector((argName, wireType, scalaType)) =>
                     sb.append(p).append("constructor.kind=scalar\n")
                     sb.append(p).append("constructor.argName=").append(argName).append("\n")
-                    sb.append(p).append("constructor.tsType=").append(tsType).append("\n")
+                    sb.append(p).append("constructor.type=").append(wireType).append("\n")
                     sb.append(p).append("constructor.scalaType=").append(scalaType).append("\n")
                   case params =>
                     sb.append(p).append("constructor.kind=positional\n")
                     params.zipWithIndex.foreach { case ((n, t, st), pi) =>
                       sb.append(p).append(s"constructor.param.$pi.name=").append(n).append("\n")
-                      sb.append(p).append(s"constructor.param.$pi.tsType=").append(t).append("\n")
+                      sb.append(p).append(s"constructor.param.$pi.type=").append(t).append("\n")
                       sb.append(p).append(s"constructor.param.$pi.scalaType=").append(st).append("\n")
                     }
                 }
 
-                e.methods.zipWithIndex.foreach { case ((mName, isAsync, tsRet, params), mi) =>
+                e.methods.zipWithIndex.foreach { case ((mName, isAsync, wireRet, params), mi) =>
                   val mp = p + s"method.$mi."
                   sb.append(mp).append("name=").append(mName).append("\n")
                   sb.append(mp).append("isAsync=").append(if (isAsync) "true" else "false").append("\n")
-                  sb.append(mp).append("tsReturnType=").append(tsRet).append("\n")
+                  sb.append(mp).append("returnType=").append(wireRet).append("\n")
                   sb.append(mp).append("implMethodName=").append(mName).append("\n")
                   params.zipWithIndex.foreach { case ((pn, pt, pst), pi) =>
                     val pp = mp + s"param.$pi."
                     sb.append(pp).append("name=").append(pn).append("\n")
-                    sb.append(pp).append("tsType=").append(pt).append("\n")
+                    sb.append(pp).append("type=").append(pt).append("\n")
                     sb.append(pp).append("scalaType=").append(pst).append("\n")
                     sb.append(pp).append("implArgExpr=").append("").append("\n")
                   }
@@ -987,6 +1198,7 @@ object GolemPlugin extends AutoPlugin {
     golemScalaShimObjectName     := "GolemInternalScalaAgents",
     golemScalaShimPackage        := "cloud.golem.internal",
     Compile / sourceGenerators += golemGenerateScalaShim.taskValue,
+    Compile / sourceGenerators += golemGenerateAgentRegistration.taskValue,
     golemGenerateScalaShim := {
       val log = streams.value.log
       val manifest = golemBridgeSpecManifestPath.value.toPath
@@ -1008,6 +1220,16 @@ object GolemPlugin extends AutoPlugin {
           log.info(s"[golem] Generated Scala shim at ${file.getAbsolutePath}")
           Seq(file)
         }
+      }
+    },
+    golemGenerateAgentRegistration := {
+      val manifest = golemBridgeSpecManifestPath.value
+      if (!manifest.exists()) Nil
+      else {
+        val outDir  = (Compile / sourceManaged).value / "golem" / "internal"
+        val outFile = outDir / "GolemStandaloneGuest.scala"
+        writeStandaloneGuestSourceFromManifest(manifest, outFile)
+        Seq(outFile)
       }
     },
     // No additional wiring helpers are provided by this plugin.

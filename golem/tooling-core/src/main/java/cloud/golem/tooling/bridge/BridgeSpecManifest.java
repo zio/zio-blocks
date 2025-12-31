@@ -20,6 +20,12 @@ import java.util.TreeSet;
 public final class BridgeSpecManifest {
   private BridgeSpecManifest() {}
 
+  private static String readLegacyOrNew(Properties p, String newKey, String legacyKey) {
+    String v = trimToNull(p.getProperty(newKey));
+    if (v != null) return v;
+    return trimToNull(p.getProperty(legacyKey));
+  }
+
   public static BridgeSpec read(Path path) {
     if (path == null) throw new IllegalArgumentException("path cannot be null");
     try {
@@ -65,7 +71,7 @@ public final class BridgeSpecManifest {
       } else if (a.constructor instanceof ScalarConstructorSpec) {
         ScalarConstructorSpec sc = (ScalarConstructorSpec) a.constructor;
         sb.append(p).append("constructor.kind=scalar\n");
-        sb.append(p).append("constructor.tsType=").append(escape(sc.tsType)).append("\n");
+        sb.append(p).append("constructor.type=").append(escape(sc.wireType)).append("\n");
         if (sc.scalaFactoryArgs != null) {
           for (int i = 0; i < sc.scalaFactoryArgs.size(); i++) {
             sb.append(p).append("constructor.scalaFactoryArg.").append(i).append("=")
@@ -80,7 +86,7 @@ public final class BridgeSpecManifest {
             FieldSpec f = pc.params.get(i);
             if (f == null) continue;
             sb.append(p).append("constructor.param.").append(i).append(".name=").append(escape(f.name)).append("\n");
-            sb.append(p).append("constructor.param.").append(i).append(".tsType=").append(escape(f.tsType)).append("\n");
+            sb.append(p).append("constructor.param.").append(i).append(".type=").append(escape(f.wireType)).append("\n");
           }
         }
         if (pc.scalaFactoryArgs != null) {
@@ -98,7 +104,7 @@ public final class BridgeSpecManifest {
             FieldSpec f = rc.fields.get(fi);
             if (f == null) continue;
             sb.append(p).append("constructor.field.").append(fi).append(".name=").append(escape(f.name)).append("\n");
-            sb.append(p).append("constructor.field.").append(fi).append(".tsType=").append(escape(f.tsType)).append("\n");
+            sb.append(p).append("constructor.field.").append(fi).append(".type=").append(escape(f.wireType)).append("\n");
           }
         }
         if (rc.scalaFactoryArgs != null) {
@@ -124,7 +130,7 @@ public final class BridgeSpecManifest {
           String mp = p + "method." + mi + ".";
           sb.append(mp).append("name=").append(escape(m.name)).append("\n");
           sb.append(mp).append("isAsync=").append(m.isAsync ? "true" : "false").append("\n");
-          sb.append(mp).append("tsReturnType=").append(escape(m.tsReturnType)).append("\n");
+          sb.append(mp).append("returnType=").append(escape(m.wireReturnType)).append("\n");
           sb.append(mp).append("implMethodName=").append(escape(m.implMethodName)).append("\n");
           if (m.params != null) {
             for (int pi = 0; pi < m.params.size(); pi++) {
@@ -132,7 +138,7 @@ public final class BridgeSpecManifest {
               if (ps == null) continue;
               String pp = mp + "param." + pi + ".";
               sb.append(pp).append("name=").append(escape(ps.name)).append("\n");
-              sb.append(pp).append("tsType=").append(escape(ps.tsType)).append("\n");
+              sb.append(pp).append("type=").append(escape(ps.wireType)).append("\n");
               sb.append(pp).append("implArgExpr=").append(escape(ps.implArgExpr)).append("\n");
             }
           }
@@ -181,9 +187,9 @@ public final class BridgeSpecManifest {
         List<String> factoryArgs = readIndexed(p, base + "constructor.scalaFactoryArg.");
         ctor = new RecordConstructorSpec(inputTypeName, fields, factoryArgs);
       } else if ("scalar".equalsIgnoreCase(ctorKind)) {
-        String tsType = trimToNull(p.getProperty(base + "constructor.tsType"));
+        String wireType = readLegacyOrNew(p, base + "constructor.type", base + "constructor.tsType");
         List<String> factoryArgs = readIndexed(p, base + "constructor.scalaFactoryArg.");
-        ctor = new ScalarConstructorSpec(tsType, factoryArgs);
+        ctor = new ScalarConstructorSpec(wireType, factoryArgs);
       } else if ("positional".equalsIgnoreCase(ctorKind)) {
         List<FieldSpec> params = readFields(p, base + "constructor.param.");
         List<String> factoryArgs = readIndexed(p, base + "constructor.scalaFactoryArg.");
@@ -208,8 +214,8 @@ public final class BridgeSpecManifest {
     for (int i = 0; i <= max; i++) out.add(null);
     for (Integer i : idx) {
       String name = trimToNull(p.getProperty(prefix + i + ".name"));
-      String tsType = trimToNull(p.getProperty(prefix + i + ".tsType"));
-      out.set(i, new FieldSpec(name, tsType));
+      String wireType = readLegacyOrNew(p, prefix + i + ".type", prefix + i + ".tsType");
+      out.set(i, new FieldSpec(name, wireType));
     }
     List<FieldSpec> compact = new ArrayList<FieldSpec>();
     for (FieldSpec f : out) if (f != null) compact.add(f);
@@ -225,10 +231,10 @@ public final class BridgeSpecManifest {
       String mp = prefix + i + ".";
       String name = trimToNull(p.getProperty(mp + "name"));
       boolean isAsync = "true".equalsIgnoreCase(trimToNull(p.getProperty(mp + "isAsync")));
-      String tsReturnType = trimToNull(p.getProperty(mp + "tsReturnType"));
+      String wireReturnType = readLegacyOrNew(p, mp + "returnType", mp + "tsReturnType");
       String implMethodName = trimToNull(p.getProperty(mp + "implMethodName"));
       List<ParamSpec> params = readParams(p, mp + "param.");
-      out.set(i, new MethodSpec(name, isAsync, tsReturnType, params, implMethodName));
+      out.set(i, new MethodSpec(name, isAsync, wireReturnType, params, implMethodName));
     }
     List<MethodSpec> compact = new ArrayList<MethodSpec>();
     for (MethodSpec m : out) if (m != null) compact.add(m);
@@ -243,9 +249,9 @@ public final class BridgeSpecManifest {
     for (Integer i : idx) {
       String pp = prefix + i + ".";
       String name = trimToNull(p.getProperty(pp + "name"));
-      String tsType = trimToNull(p.getProperty(pp + "tsType"));
+      String wireType = readLegacyOrNew(p, pp + "type", pp + "tsType");
       String implArgExpr = trimToNull(p.getProperty(pp + "implArgExpr"));
-      out.set(i, new ParamSpec(name, tsType, implArgExpr));
+      out.set(i, new ParamSpec(name, wireType, implArgExpr));
     }
     List<ParamSpec> compact = new ArrayList<ParamSpec>();
     for (ParamSpec ps : out) if (ps != null) compact.add(ps);

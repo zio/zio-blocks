@@ -24,11 +24,9 @@ automatically derive all the serialization, RPC bindings, and metadata generatio
 
 1. **`golem-cli`** installed and on your `PATH` (see the official Golem Cloud docs for installation).
 
-2. **Node.js** + **npm** installed (used internally by the component template; users do not write TypeScript)
+2. **sbt** installed
 
-3. **sbt** installed
-
-4. A reachable Golem router/executor (local or cloud, depending on your `GOLEM_CLI_FLAGS`)
+3. A reachable Golem router/executor (local or cloud, depending on your `GOLEM_CLI_FLAGS`)
 
 ### Define Your Agent
 
@@ -204,7 +202,7 @@ trait MyAgent {
 
 ## Running on Golem
 
-The Scala sbt/Mill plugins are **build adapters**: they generate the Scala.js bundle plus the internal bridge/shim artifacts needed by the TypeScript component template.
+The Scala sbt/Mill plugins are **build adapters**: they generate the Scala.js bundle plus internal registration/shim artifacts used by the Scala.js guest runtime.
 
 **`golem-cli` is the driver** for scaffolding/build/deploy/invoke/repl (this matches how golem apps are intended to be operated).
 
@@ -218,7 +216,6 @@ Then run golem-cli from the app directory:
 ```bash
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 cd <your-app-dir>
-npm install
 env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy org:component
 env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl org:component --disable-stream
 ```

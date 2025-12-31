@@ -39,16 +39,26 @@ private[autowire] object HostValueDecoder {
       var failure: Option[String] = None
       while (idx < schemaElements.length && failure.isEmpty) {
         val schemaElem = schemaElements(idx)
-        val entry      = payload(idx).asInstanceOf[js.Array[js.Any]]
-        val name       = entry(0).asInstanceOf[String]
-        if (name != schemaElem.name) {
-          failure = Some(s"Structured element name mismatch. Expected '${schemaElem.name}', found '$name'")
-        } else {
-          val elementValueDynamic = entry(1).asInstanceOf[js.Dynamic]
+        val raw = payload(idx).asInstanceOf[js.Any]
+        val elementValueDynamic: js.Dynamic =
+          if (js.Array.isArray(raw)) {
+            val entry = raw.asInstanceOf[js.Array[js.Any]]
+            if (entry.length < 2) {
+              failure = Some("Malformed tuple element: expected [name, value]")
+              js.undefined.asInstanceOf[js.Dynamic]
+            } else {
+              val name = entry(0).asInstanceOf[String]
+              if (name != schemaElem.name) {
+                failure = Some(s"Structured element name mismatch. Expected '${schemaElem.name}', found '$name'")
+                js.undefined.asInstanceOf[js.Dynamic]
+              } else entry(1).asInstanceOf[js.Dynamic]
+            }
+          } else raw.asInstanceOf[js.Dynamic]
+
+        if (failure.isEmpty) {
           decodeElement(schemaElem.schema, elementValueDynamic) match {
             case Left(err)    => failure = Some(err)
-            case Right(value) =>
-              builder += NamedElementValue(schemaElem.name, value)
+            case Right(value) => builder += NamedElementValue(schemaElem.name, value)
           }
         }
         idx += 1

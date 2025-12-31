@@ -1,7 +1,6 @@
 # WIT-Friendly Result Helpers
 
-When defining agent methods that surface `result<ok, err>` types, the TypeScript SDK provides a `Result` helper that
-mirrors WIT semantics. ZIO-Golem offers the same API under `cloud.golem.runtime.wit.WitResult`.
+When defining agent methods that surface `result<ok, err>` types, ZIO-Golem provides `cloud.golem.runtime.wit.WitResult`.
 
 ## Table of Contents
 
@@ -125,7 +124,7 @@ val error: String = WitResult.err[Int, String]("oops").unwrapErr()
 ### Returning to Host
 
 Use `unwrapForWit` when returning a result through the WIT boundary. If the result is `Err`, the payload is thrown (
-mirroring TypeScript's rejected promise behavior):
+mirroring rejected promise behavior):
 
 ```scala
 import scala.concurrent.Future

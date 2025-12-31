@@ -1,7 +1,6 @@
 # Transaction Helpers
 
-The TypeScript SDK exposes `infallibleTransaction` and `fallibleTransaction` for managing atomic operations with
-automatic rollback. ZIO-Golem provides equivalent functionality under `cloud.golem.sdk.Transactions`.
+ZIO-Golem provides transaction helpers under `cloud.golem.sdk.Transactions`.
 
 ## Table of Contents
 

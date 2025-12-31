@@ -27,9 +27,9 @@ private[golem] object WitValueBuilder {
         case (DataType.BoolType, BoolValue(v)) =>
           Right(js.Dynamic.literal("tag" -> "prim-bool", "val" -> v))
         case (DataType.IntType, IntValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-float64", "val" -> v.toDouble))
+          Right(js.Dynamic.literal("tag" -> "prim-s32", "val" -> v))
         case (DataType.LongType, LongValue(v)) =>
-          Right(js.Dynamic.literal("tag" -> "prim-float64", "val" -> v.toDouble))
+          Right(js.Dynamic.literal("tag" -> "prim-s64", "val" -> v.toDouble))
         case (DataType.DoubleType, DoubleValue(v)) =>
           Right(js.Dynamic.literal("tag" -> "prim-float64", "val" -> v))
         case (DataType.BigDecimalType, BigDecimalValue(v)) =>

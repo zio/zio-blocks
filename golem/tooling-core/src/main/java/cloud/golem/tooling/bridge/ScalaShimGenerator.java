@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 /**
- * Generates a Scala.js-visible shim object (exported via {@code @JSExportTopLevel}) used by the TS template.
+ * Generates a Scala.js-visible shim object (exported via {@code @JSExportTopLevel}) used by the Scala.js guest runtime.
  *
  * <p>This replaces hand-written {@code ScalaAgents.scala}-style glue with a deterministic, compile-time generated
  * source file produced by the build-tool plugins.</p>
@@ -25,10 +25,16 @@ import java.util.TreeSet;
  * </pre>
  *
  * The referenced class must be Scala.js-compileable and have a constructor matching the BridgeSpec constructor args.
- * Its methods should use JS-friendly shapes (e.g. {@code js.Dynamic} / primitives) matching the TS bridge types.
+ * Its methods should use JS-friendly shapes (e.g. {@code js.Dynamic} / primitives).
  */
 public final class ScalaShimGenerator {
   private ScalaShimGenerator() {}
+
+  private static String readLegacyOrNew(Properties p, String newKey, String legacyKey) {
+    String v = trimToNull(p.getProperty(newKey));
+    if (v != null) return v;
+    return trimToNull(p.getProperty(legacyKey));
+  }
 
   public static String generateFromManifest(Path manifestPath, String exportTopLevel, String objectName, String packageName) {
     if (manifestPath == null) throw new IllegalArgumentException("manifestPath cannot be null");
@@ -82,7 +88,7 @@ public final class ScalaShimGenerator {
       if (ctorKind == null) ctorKind = "noarg";
 
       List<Field> fields = readCtorFields(p, base + "constructor.field.");
-      String scalarTsType = trimToNull(p.getProperty(base + "constructor.tsType"));
+      String scalarWireType = readLegacyOrNew(p, base + "constructor.type", base + "constructor.tsType");
       String scalarScalaType = trimToNull(p.getProperty(base + "constructor.scalaType"));
       String scalarArgName = trimToNull(p.getProperty(base + "constructor.argName"));
       if (scalarArgName == null || !scalarArgName.matches("[A-Za-z_][A-Za-z0-9_]*")) scalarArgName = "input";
@@ -92,21 +98,21 @@ public final class ScalaShimGenerator {
       sb.append("  @JSExport\n");
       sb.append("  def ").append(scalaFactory).append("(");
       if ("scalar".equalsIgnoreCase(ctorKind)) {
-        String scalaT = scalaTypeOrTsType(scalarScalaType, scalarTsType);
+        String scalaT = scalaTypeOrWireType(scalarScalaType, scalarWireType);
         sb.append(scalarArgName).append(": ").append(scalaT);
       } else if ("positional".equalsIgnoreCase(ctorKind) && !positionalParams.isEmpty()) {
         for (int i = 0; i < positionalParams.size(); i++) {
           Field f = positionalParams.get(i);
           if (i > 0) sb.append(", ");
           String name = (f.name == null || f.name.isEmpty()) ? ("arg" + i) : f.name;
-          String scalaT = scalaTypeOrTsType(f.scalaType, f.tsType);
+          String scalaT = scalaTypeOrWireType(f.scalaType, f.wireType);
           sb.append(name).append(": ").append(scalaT);
         }
       } else if ("record".equalsIgnoreCase(ctorKind) && !fields.isEmpty()) {
         for (int i = 0; i < fields.size(); i++) {
           Field f = fields.get(i);
           if (i > 0) sb.append(", ");
-          String scalaT = scalaTypeOrTsType(f.scalaType, f.tsType);
+          String scalaT = scalaTypeOrWireType(f.scalaType, f.wireType);
           sb.append(f.name).append(": ").append(scalaT);
         }
       }
@@ -156,7 +162,7 @@ public final class ScalaShimGenerator {
           for (int pi = 0; pi < params.size(); pi++) {
             Param par = params.get(pi);
             if (pi > 0) sb.append(", ");
-            String scalaT = scalaTypeOrTsType(par.scalaType, par.tsType);
+            String scalaT = scalaTypeOrWireType(par.scalaType, par.wireType);
             // For complex Scala types (case classes, etc), accept js.Any from JS and decode inside.
             if (needsDecode(scalaT)) scalaT = "js.Any";
             sb.append(par.name).append(": ").append(scalaT);
@@ -172,7 +178,7 @@ public final class ScalaShimGenerator {
             for (int pi = 0; pi < params.size(); pi++) {
               Param par = params.get(pi);
               String scalaT = trimToNull(par.scalaType);
-              if (scalaT == null) scalaT = tsTypeToScalaParamType(par.tsType);
+              if (scalaT == null) scalaT = wireTypeToScalaParamType(par.wireType);
               if (needsDecode(scalaT)) {
                 String local = par.name + "Decoded";
                 sb.append("        val ").append(local).append(": ").append(scalaT).append(" = ")
@@ -211,8 +217,8 @@ public final class ScalaShimGenerator {
     return sb.toString();
   }
 
-  private static String tsTypeToScalaParamType(String tsType) {
-    String t = trimToNull(tsType);
+  private static String wireTypeToScalaParamType(String wireType) {
+    String t = trimToNull(wireType);
     if (t == null) return "js.Any";
     t = t.trim();
     if (t.equals("string")) return "String";
@@ -221,7 +227,7 @@ public final class ScalaShimGenerator {
     if (t.equals("void")) return "Unit";
     if (t.endsWith("[]")) return "js.Array[js.Any]";
     if (t.contains("| null") || t.contains("| undefined")) return "js.Any";
-    // Unknown / custom types are represented as plain JS objects in the TS runtime.
+    // Unknown / custom types are represented as plain JS objects in the guest runtime.
     return "js.Dynamic";
   }
 
@@ -236,9 +242,9 @@ public final class ScalaShimGenerator {
     return true;
   }
 
-  private static String scalaTypeOrTsType(String scalaType, String tsType) {
+  private static String scalaTypeOrWireType(String scalaType, String wireType) {
     String st = trimToNull(scalaType);
-    if (st == null) return tsTypeToScalaParamType(tsType);
+    if (st == null) return wireTypeToScalaParamType(wireType);
     st = st.trim();
     // Keep this conservative: only allow a small safe set of Scala type spellings.
     if (st.equals("String")) return "String";
@@ -253,22 +259,22 @@ public final class ScalaShimGenerator {
     if (st.equals("js.Any")) return "js.Any";
     if (st.equals("js.Dynamic")) return "js.Dynamic";
     if (st.equals("js.Array[js.Any]")) return "js.Array[js.Any]";
-    // Unknown hint -> fallback to ts mapping
-    return tsTypeToScalaParamType(tsType);
+    // Unknown hint -> fallback to wire mapping
+    return wireTypeToScalaParamType(wireType);
   }
 
   private static final class Field {
     final String name;
-    final String tsType;
+    final String wireType;
     final String scalaType;
-    Field(String name, String tsType, String scalaType) { this.name = name; this.tsType = tsType; this.scalaType = scalaType; }
+    Field(String name, String wireType, String scalaType) { this.name = name; this.wireType = wireType; this.scalaType = scalaType; }
   }
 
   private static final class Param {
     final String name;
-    final String tsType;
+    final String wireType;
     final String scalaType;
-    Param(String name, String tsType, String scalaType) { this.name = name; this.tsType = tsType; this.scalaType = scalaType; }
+    Param(String name, String wireType, String scalaType) { this.name = name; this.wireType = wireType; this.scalaType = scalaType; }
   }
 
   private static List<Field> readCtorFields(Properties p, String prefix) {
@@ -278,9 +284,9 @@ public final class ScalaShimGenerator {
     for (int i = 0; i <= max; i++) out.add(null);
     for (Integer i : idx) {
       String name = trimToNull(p.getProperty(prefix + i + ".name"));
-      String tsType = trimToNull(p.getProperty(prefix + i + ".tsType"));
+      String wireType = readLegacyOrNew(p, prefix + i + ".type", prefix + i + ".tsType");
       String scalaType = trimToNull(p.getProperty(prefix + i + ".scalaType"));
-      out.set(i, new Field(name == null ? ("arg" + i) : name, tsType, scalaType));
+      out.set(i, new Field(name == null ? ("arg" + i) : name, wireType, scalaType));
     }
     List<Field> compact = new ArrayList<Field>();
     for (Field f : out) if (f != null) compact.add(f);
@@ -294,9 +300,9 @@ public final class ScalaShimGenerator {
     for (int i = 0; i <= max; i++) out.add(null);
     for (Integer i : idx) {
       String name = trimToNull(p.getProperty(prefix + i + ".name"));
-      String tsType = trimToNull(p.getProperty(prefix + i + ".tsType"));
+      String wireType = readLegacyOrNew(p, prefix + i + ".type", prefix + i + ".tsType");
       String scalaType = trimToNull(p.getProperty(prefix + i + ".scalaType"));
-      out.set(i, new Param(name == null ? ("arg" + i) : name, tsType, scalaType));
+      out.set(i, new Param(name == null ? ("arg" + i) : name, wireType, scalaType));
     }
     List<Param> compact = new ArrayList<Param>();
     for (Param ps : out) if (ps != null) compact.add(ps);

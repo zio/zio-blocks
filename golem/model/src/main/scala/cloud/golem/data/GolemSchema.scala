@@ -53,6 +53,22 @@ trait GolemSchema[A] {
  */
 object GolemSchema {
 
+  implicit val unitGolemSchema: GolemSchema[Unit] =
+    new GolemSchema[Unit] {
+      override val schema: StructuredSchema =
+        StructuredSchema.Tuple(Nil)
+
+      override def encode(value: Unit): Either[String, StructuredValue] =
+        Right(StructuredValue.Tuple(Nil))
+
+      override def decode(value: StructuredValue): Either[String, Unit] =
+        value match {
+          case StructuredValue.Tuple(elements) if elements.isEmpty => Right(())
+          case other                                              =>
+            Left(s"Expected empty tuple for Unit payload, found: ${other.getClass.getSimpleName}")
+        }
+    }
+
   /**
    * Summons a GolemSchema instance for the given type.
    *

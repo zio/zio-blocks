@@ -1,10 +1,6 @@
 let a1 = counter-agent("agent-1");
 let a2 = counter-agent("another");
-let s1 = shard-agent("demo", 42);
-
 let r1 = a1.increment();
 let r2 = a1.increment();
 let r3 = a2.increment();
-let s  = s1.id();
-
-[r1, r2, r3, s]
+[r1, r2, r3]

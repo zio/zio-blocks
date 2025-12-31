@@ -1,7 +1,7 @@
 package cloud.golem.sdk
 
 /**
- * Utility guards that mirror the ergonomics of the TypeScript SDK's guard
+ * Utility guards that mirror the ergonomics of the JS SDK's guard
  * helpers.
  *
  * Each `use*` method applies a configuration change on the host and returns a

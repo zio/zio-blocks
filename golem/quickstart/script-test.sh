@@ -7,14 +7,6 @@ if ! command -v golem-cli >/dev/null 2>&1; then
   echo "[quickstart-script-test] error: golem-cli not found on PATH" >&2
   exit 1
 fi
-if ! command -v node >/dev/null 2>&1; then
-  echo "[quickstart-script-test] error: node not found on PATH" >&2
-  exit 1
-fi
-if ! command -v npm >/dev/null 2>&1; then
-  echo "[quickstart-script-test] error: npm not found on PATH" >&2
-  exit 1
-fi
 
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
@@ -40,17 +32,9 @@ script_file="$PWD/golem/quickstart/script-test.rib"
 
 (
   cd "$app_dir"
-  if [[ ! -d node_modules ]]; then
-    # Repo dev convenience: prefer reusing the repo-local golem/node_modules if present.
-    if [[ -d "$PWD/../../node_modules" ]]; then
-      ln -s "$PWD/../../node_modules" node_modules
-    else
-      echo "[quickstart-script-test] Missing node_modules. Run:" >&2
-      echo "  (cd $app_dir && npm install)" >&2
-      exit 1
-    fi
-  fi
-
   env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:quickstart-counter
-  env -u ARGV0 golem-cli "${flags[@]}" --yes repl scala:quickstart-counter --script-file "$script_file" --disable-stream
+  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/counter-agent("agent-1")' 'scala:quickstart-counter/counter-agent.{increment}'
+  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/counter-agent("agent-1")' 'scala:quickstart-counter/counter-agent.{increment}'
+  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/counter-agent("another")' 'scala:quickstart-counter/counter-agent.{increment}'
+  env -u ARGV0 golem-cli "${flags[@]}" --yes agent invoke 'scala:quickstart-counter/shard-agent("demo",42)' 'scala:quickstart-counter/shard-agent.{id}'
 )

@@ -6,7 +6,7 @@ import mill.scalajslib._
 import os.Path
 
 object GolemExports {
-  object TsType {
+  object WireType {
     val string: String  = "string"
     val number: String  = "number"
     val boolean: String = "boolean"
@@ -14,22 +14,22 @@ object GolemExports {
     val any: String     = "any"
   }
 
-  final case class Field(name: String, tsType: String)
+  final case class Field(name: String, wireType: String)
 
   sealed trait Constructor
   object Constructor {
     case object NoArg                                                                             extends Constructor
-    final case class Scalar(argName: String, tsType: String, scalaFactoryArgs: Seq[String] = Nil) extends Constructor
+    final case class Scalar(argName: String, wireType: String, scalaFactoryArgs: Seq[String] = Nil) extends Constructor
     final case class Positional(params: Seq[Field], scalaFactoryArgs: Seq[String] = Nil)          extends Constructor
     final case class Record(inputTypeName: String, fields: Seq[Field], scalaFactoryArgs: Seq[String] = Nil)
         extends Constructor
   }
 
-  final case class MethodParam(name: String, tsType: String, implArgExpr: String = "")
+  final case class MethodParam(name: String, wireType: String, implArgExpr: String = "")
 
   final case class Method(
     name: String,
-    tsReturnType: String,
+    returnType: String,
     isAsync: Boolean = true,
     params: Seq[MethodParam] = Nil,
     implMethodName: String = ""
@@ -48,38 +48,6 @@ object GolemExports {
 }
 
 trait GolemModule extends ScalaJSModule {
-
-  /** Command used to invoke Node.js (default: `node`). */
-  def golemNodeCommand: String = "node"
-
-  /** Command used to invoke npm (default: `npm`). */
-  def golemNpmCommand: String = "npm"
-
-  /** Directory where npm installs dependencies. */
-  def golemNodeModulesDir: Path = moduleDir / "node_modules"
-
-  /** Runs `npm install` (if necessary) before executing Scala.js bundles. */
-  def golemSetup: T[Unit] = Task {
-    val log     = Task.log
-    val modules = golemNodeModulesDir
-    if (os.exists(modules)) {
-      log.info("node_modules already present; skipping npm install.")
-    } else {
-      log.info("Installing npm dependencies via `npm install`...")
-      val proc = os.proc(golemNpmCommand, "install").call(cwd = moduleDir, check = false)
-      if (proc.exitCode != 0)
-        throw new RuntimeException(s"`npm install` failed with exit code ${proc.exitCode}")
-    }
-  }
-
-  /** Runs fastLinkJS and returns the generated bundle path. */
-  def golemFastLink: T[PathRef] = Task {
-    val log    = Task.log
-    val report = fastLinkJS()
-    val bundle = report.dest
-    log.info(s"Golem quickstart bundle linked at ${bundle.path}")
-    bundle
-  }
 
   // --- Generic public primitives (Phase 2 of public SDK plan) ---
 
@@ -213,7 +181,7 @@ trait GolemModule extends ScalaJSModule {
           .toLowerCase
       }
 
-      def tsTypeOf(tpe: java.lang.reflect.Type): Either[String, String] = {
+      def wireTypeOf(tpe: java.lang.reflect.Type): Either[String, String] = {
         def mapClass(c: Class[?]): Option[String] =
           if (c == classOf[String]) Some("string")
           else if (c == java.lang.Boolean.TYPE || c == classOf[java.lang.Boolean]) Some("boolean")
@@ -237,10 +205,10 @@ trait GolemModule extends ScalaJSModule {
             raw match {
               case "scala.Option" =>
                 if (args.length != 1) Left(s"Unsupported Option arity for auto exports: ${p.getTypeName}")
-                else tsTypeOf(args.head).map(inner => s"$inner | null")
+                else wireTypeOf(args.head).map(inner => s"$inner | null")
               case "scala.collection.immutable.List" | "scala.collection.immutable.Seq" | "scala.collection.Seq" =>
                 if (args.length != 1) Left(s"Unsupported collection arity for auto exports: ${p.getTypeName}")
-                else tsTypeOf(args.head).map(inner => s"$inner[]")
+                else wireTypeOf(args.head).map(inner => s"$inner[]")
               case "scala.concurrent.Future" =>
                 Left("Future[...] is only supported as a method return type in auto exports")
               case other =>
@@ -340,7 +308,7 @@ trait GolemModule extends ScalaJSModule {
               else {
                 val ctorParamsE =
                   ctor.getGenericParameterTypes.toVector.zipWithIndex.map { case (tpe, idx) =>
-                    tsTypeOf(tpe).map(ts => (s"arg$idx", ts, scalaParamTypeOf(tpe)))
+                    wireTypeOf(tpe).map(wt => (s"arg$idx", wt, scalaParamTypeOf(tpe)))
                   }
                 if (ctorParamsE.exists(_.isLeft)) None
                 else {
@@ -359,19 +327,19 @@ trait GolemModule extends ScalaJSModule {
                         case p: java.lang.reflect.ParameterizedType
                             if p.getRawType.asInstanceOf[Class[?]].getName == "scala.concurrent.Future" =>
                           val outTpe  = p.getActualTypeArguments.headOption.getOrElse(classOf[Object])
-                          val outTsE  = tsTypeOf(outTpe)
+                          val outWireE  = wireTypeOf(outTpe)
                           val paramsE =
                             m.getGenericParameterTypes.toVector.zipWithIndex.map { case (pt, i) =>
-                              tsTypeOf(pt).map(ts => (s"arg$i", ts, scalaParamTypeOf(pt)))
+                              wireTypeOf(pt).map(wt => (s"arg$i", wt, scalaParamTypeOf(pt)))
                             }
-                          if (outTsE.isLeft) Left(outTsE.swap.getOrElse(""))
+                          if (outWireE.isLeft) Left(outWireE.swap.getOrElse(""))
                           else if (paramsE.exists(_.isLeft)) Left(paramsE.collectFirst { case Left(e) => e }.get)
-                          else Right((m.getName, true, outTsE.toOption.get, paramsE.collect { case Right(v) => v }))
+                          else Right((m.getName, true, outWireE.toOption.get, paramsE.collect { case Right(v) => v }))
 
                         case c: Class[?] if c.getName == "scala.runtime.BoxedUnit" || c == java.lang.Void.TYPE =>
                           val paramsE =
                             m.getGenericParameterTypes.toVector.zipWithIndex.map { case (pt, i) =>
-                              tsTypeOf(pt).map(ts => (s"arg$i", ts, scalaParamTypeOf(pt)))
+                              wireTypeOf(pt).map(wt => (s"arg$i", wt, scalaParamTypeOf(pt)))
                             }
                           if (paramsE.exists(_.isLeft)) Left(paramsE.collectFirst { case Left(e) => e }.get)
                           else Right((m.getName, false, "void", paramsE.collect { case Right(v) => v }))
@@ -418,30 +386,30 @@ trait GolemModule extends ScalaJSModule {
           e.ctor match {
             case Vector() =>
               sb.append(p).append("constructor.kind=noarg\n")
-            case Vector((argName, tsType, scalaType)) =>
+            case Vector((argName, wireType, scalaType)) =>
               sb.append(p).append("constructor.kind=scalar\n")
               sb.append(p).append("constructor.argName=").append(argName).append("\n")
-              sb.append(p).append("constructor.tsType=").append(tsType).append("\n")
+              sb.append(p).append("constructor.type=").append(wireType).append("\n")
               sb.append(p).append("constructor.scalaType=").append(scalaType).append("\n")
             case params =>
               sb.append(p).append("constructor.kind=positional\n")
               params.zipWithIndex.foreach { case ((n, t, st), pi) =>
                 sb.append(p).append(s"constructor.param.$pi.name=").append(n).append("\n")
-                sb.append(p).append(s"constructor.param.$pi.tsType=").append(t).append("\n")
+                sb.append(p).append(s"constructor.param.$pi.type=").append(t).append("\n")
                 sb.append(p).append(s"constructor.param.$pi.scalaType=").append(st).append("\n")
               }
           }
 
-          e.methods.zipWithIndex.foreach { case ((mName, isAsync, tsRet, params), mi) =>
+          e.methods.zipWithIndex.foreach { case ((mName, isAsync, wireRet, params), mi) =>
             val mp = p + s"method.$mi."
             sb.append(mp).append("name=").append(mName).append("\n")
             sb.append(mp).append("isAsync=").append(if (isAsync) "true" else "false").append("\n")
-            sb.append(mp).append("tsReturnType=").append(tsRet).append("\n")
+            sb.append(mp).append("returnType=").append(wireRet).append("\n")
             sb.append(mp).append("implMethodName=").append(mName).append("\n")
             params.zipWithIndex.foreach { case ((pn, pt, pst), pi) =>
               val pp = mp + s"param.$pi."
               sb.append(pp).append("name=").append(pn).append("\n")
-              sb.append(pp).append("tsType=").append(pt).append("\n")
+              sb.append(pp).append("type=").append(pt).append("\n")
               sb.append(pp).append("scalaType=").append(pst).append("\n")
               sb.append(pp).append("implArgExpr=").append("").append("\n")
             }
@@ -463,7 +431,7 @@ trait GolemModule extends ScalaJSModule {
     bundleFileName: String,
     scalaShimExportTopLevel: String
   ): Unit = {
-    def defaultTsClassNameFromTrait(traitClass: String): String = {
+    def defaultClassNameFromTrait(traitClass: String): String = {
       val simple0 = traitClass.split('.').lastOption.getOrElse("Agent")
       val simple  = simple0.stripSuffix("$")
       "Scala" + simple
@@ -486,7 +454,7 @@ trait GolemModule extends ScalaJSModule {
       val p         = s"agents.$idx."
       val className =
         if (e.className.trim.nonEmpty) e.className.trim
-        else defaultTsClassNameFromTrait(e.traitClass)
+        else defaultClassNameFromTrait(e.traitClass)
       val scalaFactory =
         if (e.scalaFactory.trim.nonEmpty) e.scalaFactory.trim
         else defaultScalaFactoryFromTrait(e.traitClass)
@@ -498,9 +466,9 @@ trait GolemModule extends ScalaJSModule {
       e.constructor match {
         case GolemExports.Constructor.NoArg =>
           sb.append(p).append("constructor.kind=noarg\n")
-        case GolemExports.Constructor.Scalar(argName, tsType, scalaFactoryArgs) =>
+        case GolemExports.Constructor.Scalar(argName, wireType, scalaFactoryArgs) =>
           sb.append(p).append("constructor.kind=scalar\n")
-          sb.append(p).append("constructor.tsType=").append(tsType).append("\n")
+          sb.append(p).append("constructor.type=").append(wireType).append("\n")
           sb.append(p).append("constructor.argName=").append(argName).append("\n")
           scalaFactoryArgs.zipWithIndex.foreach { case (arg, ai) =>
             sb.append(p).append(s"constructor.scalaFactoryArg.$ai=").append(arg).append("\n")
@@ -509,7 +477,7 @@ trait GolemModule extends ScalaJSModule {
           sb.append(p).append("constructor.kind=positional\n")
           params.zipWithIndex.foreach { case (par, pi) =>
             sb.append(p).append(s"constructor.param.$pi.name=").append(par.name).append("\n")
-            sb.append(p).append(s"constructor.param.$pi.tsType=").append(par.tsType).append("\n")
+            sb.append(p).append(s"constructor.param.$pi.type=").append(par.wireType).append("\n")
           }
           scalaFactoryArgs.zipWithIndex.foreach { case (arg, ai) =>
             sb.append(p).append(s"constructor.scalaFactoryArg.$ai=").append(arg).append("\n")
@@ -519,7 +487,7 @@ trait GolemModule extends ScalaJSModule {
           sb.append(p).append("constructor.inputTypeName=").append(inputTypeName).append("\n")
           fields.zipWithIndex.foreach { case (f, fi) =>
             sb.append(p).append(s"constructor.field.$fi.name=").append(f.name).append("\n")
-            sb.append(p).append(s"constructor.field.$fi.tsType=").append(f.tsType).append("\n")
+            sb.append(p).append(s"constructor.field.$fi.type=").append(f.wireType).append("\n")
           }
           scalaFactoryArgs.zipWithIndex.foreach { case (arg, ai) =>
             sb.append(p).append(s"constructor.scalaFactoryArg.$ai=").append(arg).append("\n")
@@ -536,12 +504,12 @@ trait GolemModule extends ScalaJSModule {
         val mp = p + s"method.$mi."
         sb.append(mp).append("name=").append(m.name).append("\n")
         sb.append(mp).append("isAsync=").append(if (m.isAsync) "true" else "false").append("\n")
-        sb.append(mp).append("tsReturnType=").append(m.tsReturnType).append("\n")
+        sb.append(mp).append("returnType=").append(m.returnType).append("\n")
         sb.append(mp).append("implMethodName=").append(m.implMethodName).append("\n")
         m.params.zipWithIndex.foreach { case (par, pi) =>
           val pp = mp + s"param.$pi."
           sb.append(pp).append("name=").append(par.name).append("\n")
-          sb.append(pp).append("tsType=").append(par.tsType).append("\n")
+          sb.append(pp).append("type=").append(par.wireType).append("\n")
           sb.append(pp).append("implArgExpr=").append(par.implArgExpr).append("\n")
         }
       }
@@ -550,22 +518,6 @@ trait GolemModule extends ScalaJSModule {
     }
 
     os.write.over(os.Path(file), sb.result(), createFolders = true)
-  }
-
-  /**
-   * Installs dependencies (if needed), links the bundle, and executes it via
-   * Node.js.
-   */
-  def golemRun: T[Unit] = Task {
-    val log = Task.log
-    golemSetup()
-    val bundleRef = golemFastLink()
-    val bundle    = bundleRef.path
-    val node      = golemNodeCommand
-    log.info(s"Running ${bundle.last} with $node ...")
-    val exit = os.proc(node, bundle.toString).call(cwd = moduleDir, check = false)
-    if (exit.exitCode != 0)
-      throw new RuntimeException(s"Golem quickstart execution failed with exit code ${exit.exitCode}")
   }
 
   // Tooling-core access is done via reflection to keep the Mill plugin classpath stable.

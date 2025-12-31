@@ -19,14 +19,6 @@ object QuickstartClient {
     val cfg = JvmAgentClientConfig.fromEnv(defaultComponent = "scala:quickstart-counter")
     JvmAgentClient.configure(cfg)
 
-    // Default: stable agent ids so repeated runs show persisted state (incrementing counters).
-    //
-    // Opt-in: set GOLEM_QUICKSTART_FRESH_IDS=1 to avoid getting stuck on a previously-failed durable worker instance.
-    // Override ids: GOLEM_QUICKSTART_COUNTER_ID / GOLEM_QUICKSTART_SHARD_TABLE.
-    //
-    // Note: a durable worker that failed during initialize becomes "poisoned" and later calls return
-    // "Previous Invocation Failed". To keep this smoke test robust, we retry once with a fresh id if we
-    // detect that condition.
     val counterIdBase = sys.env.getOrElse("GOLEM_QUICKSTART_COUNTER_ID", "demo")
     val tableBase     = sys.env.getOrElse("GOLEM_QUICKSTART_SHARD_TABLE", "table")
 
@@ -65,9 +57,6 @@ object QuickstartClient {
           val suffix = "-" + java.util.UUID.randomUUID().toString
           val c1     = s"$counterIdBase$suffix"
           val t1     = s"$tableBase$suffix"
-          System.err.println(
-            s"[quickstart-jvm] Initial agent ids appear poisoned (counterId=$counterId0). Retrying with fresh ids: $c1 / $t1"
-          )
           runOnce(c1, t1)
         } else throw t
     }

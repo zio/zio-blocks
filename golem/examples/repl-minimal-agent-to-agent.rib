@@ -1,4 +1,4 @@
-let c = coordinator();
+let c = coordinator("demo");
 let r = c.route("demo", 42, "hello");
 
 // Note: RIB lists must have a single element type; prefer a record/object when combining mixed results.

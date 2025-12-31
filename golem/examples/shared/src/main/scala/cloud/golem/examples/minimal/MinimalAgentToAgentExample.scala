@@ -1,18 +1,11 @@
 package cloud.golem.examples.minimal
 
-import cloud.golem.runtime.annotations.{agentDefinition, description}
+import cloud.golem.runtime.annotations.{agentDefinition, description, mode, DurabilityMode}
 import cloud.golem.sdk.{AgentCompanion, BaseAgent}
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
 
-/**
- * Minimal “in-Golem” story:
- *   - Two agents (Worker + Coordinator)
- *   - Coordinator calls Worker via agent RPC (inside Golem)
- *   - Only Scala agent traits are defined here (no JS/TS main required; build
- *     tooling generates the bridge)
- */
 final case class TypedNested(x: Double, tags: List[String])
 object TypedNested {
   implicit val schema: Schema[TypedNested] = Schema.derived
@@ -21,8 +14,6 @@ final case class TypedPayload(
   name: String,
   count: Int,
   note: Option[String],
-  // Avoid collections of primitives here: Scala.js can erase List[Boolean]/List[Int] element types to Object in bytecode,
-  // which breaks reflection-based auto-exports.
   flags: List[String],
   nested: TypedNested
 )
@@ -45,8 +36,9 @@ object Worker extends AgentCompanion[Worker]
 
 @agentDefinition()
 @description("A minimal coordinator agent that calls Worker via agent RPC inside Golem.")
+@mode(DurabilityMode.Ephemeral)
 trait Coordinator extends BaseAgent {
-  type AgentInput = Unit
+  type AgentInput = String
   def route(shardName: String, shardIndex: Int, input: String): Future[String]
   def routeTyped(shardName: String, shardIndex: Int, payload: TypedPayload): Future[TypedReply]
 }

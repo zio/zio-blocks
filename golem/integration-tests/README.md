@@ -1,17 +1,14 @@
 # Golem CLI Integration Tests (Template-Style)
 
 This directory documents and scripts an end-to-end integration flow similar in spirit to the upstream Golem
-repository's `golem-cli` integration tests (TypeScript/Rust).
+repository's `golem-cli` integration tests (other SDKs).
 
 ## What it does
 
 When enabled, the integration flow:
 
-- Creates a **deterministic** app scaffold (owned by this repo’s tooling; avoids upstream drift)
-- Creates a **deterministic** TS component scaffold (owned by this repo’s tooling; avoids upstream template drift)
-- Copies the Scala.js bundle into the component (`src/scala-autowired.js`)
-- Writes `src/main.ts` from the configured `BridgeSpec`
-- Uses `golem-cli` to deploy/invoke/repl and **asserts** expected substrings in the CLI output
+- Uses the checked-in app scaffolds under `golem/examples/app` and `golem/quickstart/app`
+- Uses `golem-cli` to deploy/invoke and asserts expected substrings in the CLI output
 
 ## How to run (sbt)
 
@@ -39,7 +36,7 @@ sbt zioGolemExamplesJS/fastLinkJS
 
 The integration scripts above call into the repo’s example quickstart + agent2agent smoke tests.
 
-Note: the checked-in app scaffolds (`golem/quickstart/app` and `golem/examples/app`) require `npm install` once.
+Note: the checked-in app scaffolds (`golem/quickstart/app` and `golem/examples/app`) do not require Node tooling.
 
 ## Counter agent REPL script (repo-local)
 
@@ -68,8 +65,7 @@ Then run:
 
 ```bash
 cd golem/integration-tests/mill-e2e
-mill -i agents.golemWire   # just scaffold + wire (no golem-cli needed)
-# then deploy via golem-cli from the app dir printed by golemWire
+mill -i compile
 ```
 
 ## sbt plugin external-style fixture

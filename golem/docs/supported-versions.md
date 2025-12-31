@@ -14,7 +14,6 @@ This project targets a moving toolchain (Scala.js + golem-cli). The compatibilit
 | sbt | 1.10+ (tested with 1.11.x) |
 | Mill | 1.1.x (tested with 1.1.0-RC3; set `GOLEM_MILL_LIBS_VERSION` to compile the plugin against other 1.1.x versions) |
 | golem-cli | “recent” versions that support `agent invoke` with fully-qualified WIT names (`component/agent.{method}`) |
-| Node.js | any LTS compatible with your TypeScript dependencies |
 
 ## Notes
 

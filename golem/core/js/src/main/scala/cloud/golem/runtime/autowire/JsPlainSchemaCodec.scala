@@ -7,7 +7,7 @@ import scala.scalajs.js.JSConverters._
 
 /**
  * Encode/decode between **plain JS values** (as produced/consumed by the
- * generated TS bridge) and Scala values using `zio.blocks.schema.Schema`.
+ * generated bridge manifest) and Scala values using `zio.blocks.schema.Schema`.
  *
  * JS representation conventions:
  *   - **records**: JS objects with fields

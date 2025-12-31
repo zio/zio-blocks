@@ -12,11 +12,7 @@ This quickstart lives **in-repo** as the `zioGolemQuickstart` cross-project:
 
 ### What you configure (sbt)
 
-In the root `build.sbt`, `zioGolemQuickstartJS` configures only:
-
-- which component to deploy (`golemAppName`, `golemComponent`)
-
-Everything else needed for deployment (internal TS scaffold + `src/main.ts` + Scala shim code) is generated into `target/` by the plugin.
+In the root `build.sbt`, `zioGolemQuickstartJS` configures only which component to deploy.
 
 ### Constructor shape
 
@@ -50,15 +46,13 @@ Use `golem-cli` as the driver from the checked-in app directory:
 ```bash
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 cd golem/quickstart/app
-npm install
 env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy scala:quickstart-counter
 ```
 
-Then run the REPL script:
+Then run one of the smoke tests:
 
-```bash
-env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl scala:quickstart-counter --script-file "$PWD/../../golem/quickstart/script-test.rib" --disable-stream
-```
+- `bash golem/quickstart/script-test.sh`
+- `bash golem/quickstart/jvm-test.sh`
 
 ### Agent-to-agent calling inside Golem (the core requirement)
 
@@ -70,7 +64,6 @@ implementation calls another agent via the companion API (`AgentCompanion.get(..
 ### Prerequisites
 
 - **`golem-cli`** on your `PATH`
-- **Node.js** + **npm** on your `PATH` (used internally by the component template; you do not write TS)
 - A reachable Golem router/executor (local or cloud, depending on `GOLEM_CLI_FLAGS`)
 
 

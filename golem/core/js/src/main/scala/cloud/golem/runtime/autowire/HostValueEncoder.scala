@@ -37,7 +37,7 @@ private[autowire] object HostValueEncoder {
               Left(s"Structured element name mismatch. Expected '${schemaElem.name}', found '${valueElem.name}'")
             else
               encodeElement(schemaElem.schema, valueElem.value).map { encoded =>
-                array.push(js.Array(schemaElem.name, encoded))
+                array.push(encoded)
               }
           }
         }

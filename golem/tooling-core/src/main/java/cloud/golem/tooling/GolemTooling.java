@@ -6,7 +6,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -36,6 +38,69 @@ public final class GolemTooling {
       } catch (IOException ignored) {
         // ignore
       }
+    }
+  }
+
+  public static void copyClasspathResourceToPath(ClassLoader loader, String resourcePath, Path dest) {
+    if (loader == null) throw new IllegalArgumentException("loader must not be null");
+    if (resourcePath == null || resourcePath.trim().isEmpty())
+      throw new IllegalArgumentException("resourcePath must be non-empty");
+    if (dest == null) throw new IllegalArgumentException("dest must not be null");
+
+    InputStream is = loader.getResourceAsStream(resourcePath);
+    if (is == null) throw new RuntimeException("Missing classpath resource: " + resourcePath);
+
+    try {
+      Path parent = dest.getParent();
+      if (parent != null) Files.createDirectories(parent);
+      try (OutputStream os = Files.newOutputStream(dest)) {
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = is.read(buf)) >= 0) {
+          os.write(buf, 0, n);
+        }
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Failed copying classpath resource: " + resourcePath + " to " + dest, e);
+    } finally {
+      try {
+        is.close();
+      } catch (IOException ignored) {
+        // ignore
+      }
+    }
+  }
+
+  public static void ensureAgentGuestWasm(Path dest) {
+    if (dest == null) throw new IllegalArgumentException("dest must not be null");
+    if (Files.exists(dest)) return;
+    try {
+      copyClasspathResourceToPath(
+        GolemTooling.class.getClassLoader(),
+        "cloud/golem/tooling/wasm/agent_guest.wasm",
+        dest
+      );
+    } catch (RuntimeException e) {
+      // Repo-local fallback for source builds where tooling-core resources may not be on the task classloader.
+      Path cwd = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
+      Path[] candidates =
+        new Path[] {
+          cwd.resolve("golem/examples/app/wasm/agent_guest.wasm"),
+          cwd.resolve("golem/quickstart/app/wasm/agent_guest.wasm")
+        };
+      for (Path p : candidates) {
+        if (Files.exists(p)) {
+          try {
+            Path parent = dest.getParent();
+            if (parent != null) Files.createDirectories(parent);
+            Files.copy(p, dest);
+            return;
+          } catch (IOException io) {
+            throw new RuntimeException("Failed copying agent_guest.wasm from " + p + " to " + dest, io);
+          }
+        }
+      }
+      throw e;
     }
   }
 

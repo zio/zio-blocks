@@ -6,7 +6,7 @@ import java.util.List;
 public final class RecordConstructorSpec implements ConstructorSpec {
   public final String inputTypeName;
   public final List<FieldSpec> fields;
-  /** Scala factory arguments as TypeScript expressions, usually derived from {@code input.<field>}. */
+  /** Scala factory arguments as expressions, usually derived from {@code input.<field>}. */
   public final List<String> scalaFactoryArgs;
 
   public RecordConstructorSpec(String inputTypeName, List<FieldSpec> fields, List<String> scalaFactoryArgs) {

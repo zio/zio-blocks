@@ -4,11 +4,11 @@ import java.util.List;
 
 /** Single-argument constructor signature (e.g. {@code constructor(input: string)}). */
 public final class ScalarConstructorSpec implements ConstructorSpec {
-  public final String tsType;
+  public final String wireType;
   public final List<String> scalaFactoryArgs;
 
-  public ScalarConstructorSpec(String tsType, List<String> scalaFactoryArgs) {
-    this.tsType = tsType;
+  public ScalarConstructorSpec(String wireType, List<String> scalaFactoryArgs) {
+    this.wireType = wireType;
     this.scalaFactoryArgs = scalaFactoryArgs;
   }
 }

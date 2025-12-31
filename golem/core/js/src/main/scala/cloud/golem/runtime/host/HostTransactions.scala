@@ -6,7 +6,7 @@ import scala.util.control.NoStackTrace
 /**
  * Transaction helpers for managing atomic operations with automatic rollback.
  *
- * This mirrors the TypeScript SDK's `infallibleTransaction` and
+ * This mirrors the JS SDK's `infallibleTransaction` and
  * `fallibleTransaction` helpers, providing the same ergonomics for Scala.js
  * agents.
  *

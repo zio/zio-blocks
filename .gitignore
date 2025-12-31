@@ -36,3 +36,4 @@ metals.sbt
 .golem-template-test/
 task-results/
 golem-temp/
+.tmp-getting-started-e2e/

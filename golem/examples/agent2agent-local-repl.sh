@@ -7,14 +7,6 @@ if ! command -v golem-cli >/dev/null 2>&1; then
   echo "[agent2agent-local-repl] error: golem-cli not found on PATH" >&2
   exit 1
 fi
-if ! command -v node >/dev/null 2>&1; then
-  echo "[agent2agent-local-repl] error: node not found on PATH" >&2
-  exit 1
-fi
-if ! command -v npm >/dev/null 2>&1; then
-  echo "[agent2agent-local-repl] error: npm not found on PATH" >&2
-  exit 1
-fi
 
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
@@ -40,16 +32,6 @@ script_file="$PWD/golem/examples/repl-minimal-agent-to-agent.rib"
 
 out="$(
   cd "$app_dir"
-  if [[ ! -d node_modules ]]; then
-    # Repo dev convenience: prefer reusing the repo-local golem/node_modules if present.
-    if [[ -d "$PWD/../../node_modules" ]]; then
-      ln -s "$PWD/../../node_modules" node_modules
-    else
-      echo "[agent2agent-local-repl] Missing node_modules. Run:" >&2
-      echo "  (cd $app_dir && npm install)" >&2
-      exit 1
-    fi
-  fi
   env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:examples
   env -u ARGV0 golem-cli "${flags[@]}" --yes repl scala:examples --script-file "$script_file" --disable-stream
 )"

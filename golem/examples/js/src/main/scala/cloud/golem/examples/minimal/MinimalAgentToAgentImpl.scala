@@ -4,13 +4,6 @@ import cloud.golem.runtime.annotations.agentImplementation
 
 import scala.concurrent.Future
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
-
-/**
- * Minimal implementations for [[MinimalAgentToAgentExample]].
- *
- * These are discovered by the build tooling via annotations and wired into the
- * generated bridge/shim.
- */
 @agentImplementation()
 final class WorkerImpl(private val shardName: String, private val shardIndex: Int) extends Worker {
   override def reverse(input: String): Future[String] =
@@ -28,12 +21,11 @@ final class WorkerImpl(private val shardName: String, private val shardIndex: In
 }
 
 @agentImplementation()
-final class CoordinatorImpl() extends Coordinator {
+final class CoordinatorImpl(id: String) extends Coordinator {
   override def route(shardName: String, shardIndex: Int, input: String): Future[String] =
     Worker
       .get(shardName, shardIndex)
       .flatMap(_.reverse(input))
-      // Ensure we surface failures as a String so golem-cli invocation doesn't fail with "undefined -> string".
       .recover { case t: Throwable =>
         s"agent-to-agent failed: ${t.toString}"
       }
@@ -42,7 +34,6 @@ final class CoordinatorImpl() extends Coordinator {
     Worker
       .get(shardName, shardIndex)
       .flatMap(_.handle(payload))
-      // Surface failures as a value so golem-cli invocation doesn't fail with a type mismatch.
       .recover { case t: Throwable =>
         TypedReply(
           shardName = shardName,

@@ -8,7 +8,7 @@ if [[ -z "$component" ]]; then
 fi
 
 # Invoked by `golem-cli` as a build step (via `template: scala.js`).
-# Working directory is the component folder (e.g. components-ts/<component>/).
+# Working directory is the component folder (e.g. components-js/<component>/).
 
 app_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$app_dir/../../.." && pwd)"
@@ -19,8 +19,8 @@ tool="${GOLEM_SCALA_BUILD_TOOL:-sbt}"
 case "$component" in
   scala:examples)
     sbt_project="zioGolemExamplesJS"
-    sbt_bundle_glob="$repo_root/golem/examples/js/target/scala-*/zio-golem-examples-js-fastopt.js"
-    out_file="$component_dir/src/scala-examples.js"
+    sbt_bundle_glob="$repo_root/golem/examples/js/target/scala-*/zio-golem-examples-js-fastopt/main.js"
+    out_file="$component_dir/src/scala.js"
     ;;
   *)
     echo "[scala.js] Unknown component: $component" >&2
@@ -64,7 +64,11 @@ if [[ "$tool" == "mill" ]]; then
     exit 1
   fi
 else
+  rm -f "$repo_root"/golem/examples/js/target/scala-*/resource_managed/main/golem/bridge-spec.properties 2>/dev/null || true
+
   ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
+      "$sbt_project/compile" \
+      "$sbt_project/golemEnsureAgentGuestWasm" \
       "$sbt_project/golemEnsureBridgeSpecManifest" \
       "$sbt_project/golemGenerateScalaShim" \
       "$sbt_project/fastLinkJS" )
