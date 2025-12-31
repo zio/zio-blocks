@@ -1,0 +1,7 @@
+components:
+  scala:quickstart-counter:
+    template: scala.js
+
+dependencies:
+  scala:quickstart-counter:
+
