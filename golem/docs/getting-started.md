@@ -40,14 +40,14 @@ Create an sbt project under `scala/`:
 mkdir -p scala/project scala/src/main/scala/demo
 ```
 
-Create `scala/project/plugins.sbt`:
+Create `scala/project/plugins.sbt` with the following contents:
 
 ```scala
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.1")
 addSbtPlugin("dev.zio" % "zio-golem-sbt-plugin" % "<SDK_VERSION>")
 ```
 
-Create `scala/build.sbt`:
+Create `scala/build.sbt` with the following contents:
 
 ```scala
 import org.scalajs.linker.interface.ModuleKind
@@ -61,6 +61,7 @@ lazy val root = project
     name := "demo-counter-scala",
     scalaJSUseMainModuleInitializer := false,
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
+    scalacOptions += "-experimental",
     libraryDependencies ++= Seq(
       "dev.zio" %%% "zio-golem-core"  % "<SDK_VERSION>",
       "dev.zio" %%% "zio-golem-model" % "<SDK_VERSION>",
@@ -74,7 +75,7 @@ lazy val root = project
 
 ## 3) Write a minimal durable counter agent in Scala
 
-Create `scala/src/main/scala/demo/CounterAgent.scala`:
+Create `scala/src/main/scala/demo/CounterAgent.scala` with the following contents:
 
 ```scala
 package demo
@@ -105,7 +106,7 @@ final class CounterAgentImpl(name: String) extends CounterAgent {
 
 ## 4) Add a `scala.js` component template to the app
 
-Create `common-scala-js/golem.yaml`:
+Create `common-scala-js/golem.yaml` with the following contents:
 
 ```yaml
 templates:
@@ -151,10 +152,9 @@ templates:
 
 ## 5) Add the Scala build hook used by the template
 
-Create `build-scalajs.sh` at the app root and make it executable:
+Create `build-scalajs.sh` at the app root with the following contents (and mark it executable):
 
 ```bash
-cat > build-scalajs.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -166,6 +166,7 @@ component_dir="$app_dir/components-ts/$component_dir_name"
 scala_dir="$app_dir/scala"
 
 ( cd "$scala_dir" && sbt -batch -no-colors -Dsbt.supershell=false \
+    compile \
     golemEnsureBridgeSpecManifest \
     golemGenerateScalaShim \
     fastLinkJS )
@@ -186,9 +187,6 @@ fi
 mkdir -p "$component_dir/src"
 cp "$bundle" "$component_dir/src/scala.js"
 echo "[scala.js] Wrote Scala.js bundle to $component_dir/src/scala.js" >&2
-EOF
-
-chmod +x build-scalajs.sh
 ```
 
 ## 6) Switch the component to use the `scala.js` template
@@ -199,7 +197,7 @@ Edit `components-ts/demo-counter/golem.yaml` and change:
 
 ## 7) Replace the TypeScript agent implementation with a thin Scala.js wrapper
 
-Replace `components-ts/demo-counter/src/main.ts` with:
+Replace `components-ts/demo-counter/src/main.ts` with the following contents:
 
 ```ts
 // @ts-ignore Scala.js bundle does not ship TypeScript declarations
