@@ -584,7 +584,7 @@ private object IntoVersionSpecificImpl {
 
           // Create properly typed constructor arguments
           val constructorArgs = valNames.zip(targetTypes).map { case (name, targetTpe) =>
-            q"$name.right.get.asInstanceOf[$targetTpe]"
+            q"$name.toOption.get.asInstanceOf[$targetTpe]"
           }
 
           // Build error collection with field name enhancement
@@ -1021,7 +1021,7 @@ private object IntoVersionSpecificImpl {
           }
 
           val constructorArgs = valNames.zip(targetTypes).map { case (name, targetTpe) =>
-            q"$name.right.get.asInstanceOf[$targetTpe]"
+            q"$name.toOption.get.asInstanceOf[$targetTpe]"
           }
 
           // Build error collection with field name enhancement
@@ -1336,7 +1336,7 @@ private object IntoVersionSpecificImpl {
         case Some(baseClass) =>
           // Try to find a Map constructor or apply method
           findMapConstructorOrApply(baseClass) match {
-            case Some((companionOrNew, method, isApply)) =>
+            case Some((companionOrNew, _, isApply)) =>
               // Build map entries from source fields
               val mapEntries = structuralMembers.map { case (memberName, _) =>
                 val sourceField = sourceInfo.fields.find(_.name == memberName).get

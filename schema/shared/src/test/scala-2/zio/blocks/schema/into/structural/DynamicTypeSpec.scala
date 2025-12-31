@@ -4,6 +4,7 @@ import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion._
 import scala.language.dynamics
+import scala.language.reflectiveCalls
 
 /** Tests for Into with Dynamic structural types. */
 object DynamicTypeSpec extends ZIOSpecDefault {

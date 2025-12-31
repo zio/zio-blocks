@@ -1,6 +1,5 @@
 package zio.blocks.schema
 
-import scala.language.experimental.macros
 
 /**
  * Scala 2 version-specific methods for Schema instances.

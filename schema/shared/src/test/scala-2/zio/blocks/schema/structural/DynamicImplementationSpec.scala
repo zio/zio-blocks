@@ -1,6 +1,5 @@
 package zio.blocks.schema.structural
 
-import zio.blocks.schema._
 import zio.test._
 
 /**
