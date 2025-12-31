@@ -5,6 +5,8 @@ import zio.blocks.schema.{DynamicOptic, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
 import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.StandardCharsets
 import scala.collection.immutable.ArraySeq
 import scala.util.control.NonFatal
 
@@ -117,6 +119,34 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
 
   def encode(value: A, output: java.io.OutputStream, config: WriterConfig): Unit =
     JsonBinaryCodec.writerPool.get.write(this, value, output, config)
+
+  def decode(input: String): Either[SchemaError, A] = decode(input, ReaderConfig)
+
+  def encodeString(value: A): String = new String(encode(value), StandardCharsets.UTF_8)
+
+  def decode(input: String, config: ReaderConfig): Either[SchemaError, A] = {
+    val bytes = input.getBytes(StandardCharsets.UTF_8)
+    decode(bytes, config)
+  }
+
+  def encodeString(value: A, config: WriterConfig): String = new String(encode(value, config), StandardCharsets.UTF_8)
+
+  def decode(input: CharBuffer): Either[SchemaError, A] = decode(input, ReaderConfig)
+
+  def encodeToCharBuffer(value: A, output: CharBuffer): Unit = {
+    val str = encodeString(value)
+    output.append(str)
+  }
+
+  def decode(input: CharBuffer, config: ReaderConfig): Either[SchemaError, A] = {
+    val str = input.toString()
+    decode(str, config)
+  }
+
+  def encodeToCharBuffer(value: A, output: CharBuffer, config: WriterConfig): Unit = {
+    val str = encodeString(value, config)
+    output.append(str)
+  }
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
