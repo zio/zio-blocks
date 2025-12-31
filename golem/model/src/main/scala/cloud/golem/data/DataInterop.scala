@@ -120,10 +120,6 @@ object DataInterop {
   /**
    * Detects an Option-like schema (Variant(None, Some(value))) and returns the
    * inner `value` field reflect.
-   *
-   * We intentionally use structural detection rather than relying on the type
-   * name, because schema derivation can encode Option as a variant with
-   * differing type-name metadata.
    */
   private def optionInfo(reflect: Reflect.Bound[?]): Option[(Reflect.Bound[Any], Boolean)] =
     reflect.asVariant.flatMap { variant =>

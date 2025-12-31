@@ -1,6 +1,4 @@
-package cloud.golem.runtime.host
-
-import cloud.golem.sdk.HostApi
+package cloud.golem.sdk
 
 /**
  * Utility guards that mirror the ergonomics of the TypeScript SDK's guard
@@ -11,7 +9,8 @@ import cloud.golem.sdk.HostApi
  * `close()`) is invoked. The `with*` variants execute the supplied block with
  * the new setting and guarantee restoration.
  */
-object HostGuards {
+/** Scoped runtime controls for Scala.js agents. */
+object Guards {
   def withPersistenceLevel[A](level: HostApi.PersistenceLevel)(block: => A): A =
     withGuard(usePersistenceLevel(level))(block)
 
@@ -53,7 +52,7 @@ object HostGuards {
     finally active.drop()
   }
 
-  sealed abstract class Guard private[host] (release: () => Unit) extends AutoCloseable {
+  sealed abstract class Guard private[sdk] (release: () => Unit) extends AutoCloseable {
     private var active = true
 
     final override def close(): Unit = drop()
@@ -65,11 +64,11 @@ object HostGuards {
       }
   }
 
-  final class PersistenceLevelGuard private[host] (release: () => Unit) extends Guard(release)
+  final class PersistenceLevelGuard private[sdk] (release: () => Unit) extends Guard(release)
 
-  final class RetryPolicyGuard private[host] (release: () => Unit) extends Guard(release)
+  final class RetryPolicyGuard private[sdk] (release: () => Unit) extends Guard(release)
 
-  final class IdempotenceModeGuard private[host] (release: () => Unit) extends Guard(release)
+  final class IdempotenceModeGuard private[sdk] (release: () => Unit) extends Guard(release)
 
-  final class AtomicOperationGuard private[host] (release: () => Unit) extends Guard(release)
+  final class AtomicOperationGuard private[sdk] (release: () => Unit) extends Guard(release)
 }

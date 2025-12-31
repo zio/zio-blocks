@@ -26,9 +26,6 @@ private[golem] object WitValueBuilder {
           Right(js.Dynamic.literal("tag" -> "prim-string", "val" -> v))
         case (DataType.BoolType, BoolValue(v)) =>
           Right(js.Dynamic.literal("tag" -> "prim-bool", "val" -> v))
-        // NOTE: the TS SDK represents `number` as `f64` in WIT.
-        // To keep Scala APIs ergonomic (allowing `Int`/`Long` in agent signatures) while still interoperating
-        // with the TS-generated WIT surface, we encode integer types as `prim-float64` here.
         case (DataType.IntType, IntValue(v)) =>
           Right(js.Dynamic.literal("tag" -> "prim-float64", "val" -> v.toDouble))
         case (DataType.LongType, LongValue(v)) =>

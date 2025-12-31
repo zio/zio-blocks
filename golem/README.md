@@ -22,10 +22,7 @@ automatically derive all the serialization, RPC bindings, and metadata generatio
 
 ### Prerequisites
 
-1. **`golem-cli`** installed and on your `PATH`:
-   ```bash
-   curl -sSf https://join.golem.network/as-requestor | bash -
-   ```
+1. **`golem-cli`** installed and on your `PATH` (see the official Golem Cloud docs for installation).
 
 2. **Node.js** + **npm** installed (used internally by the component template; users do not write TypeScript)
 
@@ -149,6 +146,7 @@ object Example {
 
 ## Documentation
 
+- **[Getting started](docs/getting-started.md)** - Minimal end-to-end project setup (Scala.js + golem-cli)
 - **[Snapshot helpers](docs/snapshot.md)** - State persistence helpers
 - **[Multimodal helpers](docs/multimodal.md)** - Text/binary segment schemas with constraints
 - **[Transaction helpers](docs/transactions.md)** - Infallible and fallible transaction patterns
@@ -212,33 +210,22 @@ The Scala sbt/Mill plugins are **build adapters**: they generate the Scala.js bu
 
 ### sbt (example)
 
-Configure:
+In a Golem app manifest (`golem.yaml`), define a Scala template (e.g. `template: scala.js`) whose first build step
+invokes sbt to compile Scala to a single JS module, then run the standard QuickJS wrapping steps unchanged.
 
-- `golemComponent`: the qualified component name (e.g. `org:component`)
-- `golemAppName`: optional app folder name under `.golem-apps/` (defaults to sbt `name`)
-
-Build + wire (writes into `.golem-apps/<golemAppName>`):
-
-```bash
-sbt -no-colors <project>/golemWire
-```
-
-Then run golem-cli from the generated app directory:
+Then run golem-cli from the app directory:
 
 ```bash
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
-cd .golem-apps/<golemAppName>
+cd <your-app-dir>
+npm install
 env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy org:component
 env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes repl org:component --disable-stream
 ```
 
 ### Mill (example)
 
-```bash
-mill -i <module>.golemWire
-```
-
-Then use golem-cli as above from the app directory printed by `golemWire`.
+The same approach applies: the `scala.js` template can invoke `mill` instead of `sbt` to produce the JS module.
 
 ## Dependencies
 

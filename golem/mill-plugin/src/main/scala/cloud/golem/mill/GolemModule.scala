@@ -102,33 +102,8 @@ trait GolemModule extends ScalaJSModule {
   def golemBundleFileName: String = s"${golemAppName}.js"
 
   /**
-   * TypeScript guest bridge written to `src/main.ts` (required for golemWire).
-   */
-  def golemBridgeMainTs: String = ""
-
-  /**
-   * Bridge generation spec; used when golemBridgeMainTs is empty.
-   *
-   * Note: for Mill, the recommended public workflow is **provider-class**
-   * (`golemBridgeSpecProviderClass`) or a checked-in manifest
-   * (`golemBridgeSpecManifestPath`). These avoid classloader edge cases that
-   * can happen when constructing tooling-core objects directly in `build.mill`.
-   */
-  def golemBridgeSpec: AnyRef = null
-
-  /**
-   * Optional fully-qualified class name that can generate the bridge via
-   * tooling-core (metadata-driven).
-   *
-   * The class must be JVM-loadable and have a public no-arg constructor. It
-   * should implement
-   * {@code java.util.function.Supplier[cloud.golem.tooling.bridge.BridgeSpec]}.
-   */
-  def golemBridgeSpecProviderClass: String = ""
-
-  /**
    * Optional BridgeSpec manifest file (BridgeSpecManifest .properties); used
-   * when spec/provider are unset.
+   * when golemExports is empty and golemAutoExports cannot detect any exports.
    *
    * Can be absolute or relative to the Mill workspace.
    */
@@ -193,72 +168,7 @@ trait GolemModule extends ScalaJSModule {
     super.generatedSources() ++ golemGenerateScalaShim()
   }
 
-  /**
-   * Ensures the golem app/component scaffold exists; returns the component dir.
-   *
-   * Note: Mill tasks can only write within their own `Task.dest`. To keep this
-   * deterministic and valid in Mill, `golemScaffold` delegates to `golemWire`,
-   * which owns the writes.
-   */
-  def golemScaffold: T[Path] = Task {
-    golemWire()
-  }
-
-  /**
-   * Copies Scala.js bundle and writes `src/main.ts`; returns the component dir.
-   */
-  def golemWire: T[Path] = Task {
-    val log       = Task.log
-    val appRoot   = Task.dest / ".golem-apps"
-    val appName   = golemAppName
-    val component = golemComponent
-
-    if (component.trim.isEmpty)
-      throw new RuntimeException(
-        "golemComponent is not set. Override it (e.g. `def golemComponent = \"org:component\"`)."
-      )
-
-    os.makeDir.all(appRoot)
-    val appDir = appRoot / appName
-    if (!os.exists(appDir)) {
-      log.info(s"[golem] Creating deterministic app scaffold at $appDir")
-      Tooling.ensureTsAppScaffold(appRoot.toNIO, appName, component, msg => log.info(msg))
-    }
-
-    val slug         = component.replace(":", "-")
-    val componentDir = appDir / "components-ts" / slug
-    if (!os.exists(componentDir)) {
-      log.info(s"[golem] Creating deterministic TS component scaffold for $component")
-      Tooling.ensureTsComponentScaffold(appDir.toNIO, component, msg => log.info(msg))
-    }
-    stripHttpApiFromGolemYaml(componentDir, log)
-
-    val bundleDir     = fastLinkJS().dest.path
-    val bundle        = firstJsFile(bundleDir)
-    val bundleName    = golemBundleFileName
-    val spec          = golemBridgeSpec
-    val providerClass = golemBridgeSpecProviderClass.trim
-    val compileRes    = compile()
-    val compileCp     = compileClasspath().map(_.path).toSeq
-    val manifestAbs   = ensureBridgeSpecManifest(Task.dest, log, compileRes.classes.path, compileCp)
-    val mainTs        =
-      if (golemBridgeMainTs.trim.nonEmpty) golemBridgeMainTs
-      else if (Tooling.bridgeSpecHasAgents(spec)) Tooling.generateBridgeMainTsFromBridgeSpec(spec)
-      else if (providerClass.nonEmpty) {
-        // Compile first so the provider class is loadable.
-        val cps = compileCp.map(_.toNIO).toSeq
-        Tooling.generateBridgeMainTsFromProvider(cps, compileRes.classes.path.toNIO, providerClass)
-      } else if (manifestAbs.nonEmpty) Tooling.generateBridgeMainTsFromManifest(manifestAbs.get)
-      else ""
-
-    if (mainTs.trim.isEmpty)
-      throw new RuntimeException(
-        "No bridge configured. Override golemBridgeMainTs or set golemBridgeSpecProviderClass or golemBridgeSpecManifestPath (recommended)."
-      )
-
-    Tooling.wireTsComponent(componentDir.toNIO, bundle.toNIO, bundleName, mainTs, msg => log.info(msg))
-    componentDir
-  }
+  // No additional wiring helpers are provided by this plugin.
 
   private def ensureBridgeSpecManifest(
     taskDest: os.Path,
@@ -661,63 +571,6 @@ trait GolemModule extends ScalaJSModule {
   // Tooling-core access is done via reflection to keep the Mill plugin classpath stable.
   private object Tooling {
     private lazy val cls = Class.forName("cloud.golem.tooling.GolemTooling")
-
-    private lazy val mReadResourceUtf8 =
-      cls.getMethod("readResourceUtf8", classOf[ClassLoader], classOf[String])
-
-    private lazy val mStripHttpApi =
-      cls.getMethod("stripHttpApiFromGolemYaml", classOf[java.nio.file.Path], classOf[java.util.function.Consumer[?]])
-
-    private lazy val mIsNoisy =
-      cls.getMethod("isNoisyUpstreamWarning", classOf[String])
-
-    private lazy val mRequireCommandOnPath =
-      cls.getMethod("requireCommandOnPath", classOf[String], classOf[String])
-
-    private lazy val mEnsureTsComponentScaffold =
-      cls.getMethod(
-        "ensureTsComponentScaffold",
-        classOf[java.nio.file.Path],
-        classOf[String],
-        classOf[java.util.function.Consumer[?]]
-      )
-
-    private lazy val mEnsureTsAppScaffold =
-      cls.getMethod(
-        "ensureTsAppScaffold",
-        classOf[java.nio.file.Path],
-        classOf[String],
-        classOf[String],
-        classOf[java.util.function.Consumer[?]]
-      )
-
-    private lazy val mGenerateBridgeFromProvider =
-      cls.getMethod(
-        "generateBridgeMainTsFromProvider",
-        classOf[java.util.List[?]],
-        classOf[java.nio.file.Path],
-        classOf[String]
-      )
-
-    private lazy val mGenerateBridgeFromManifest =
-      cls.getMethod("generateBridgeMainTsFromManifest", classOf[java.nio.file.Path])
-
-    private lazy val mBridgeSpecHasAgents =
-      cls.getMethod("bridgeSpecHasAgents", classOf[Object])
-
-    private lazy val mGenerateBridgeFromBridgeSpec =
-      cls.getMethod("generateBridgeMainTsFromBridgeSpec", classOf[Object])
-
-    private lazy val mWireTsComponent =
-      cls.getMethod(
-        "wireTsComponent",
-        classOf[java.nio.file.Path],
-        classOf[java.nio.file.Path],
-        classOf[String],
-        classOf[String],
-        classOf[java.util.function.Consumer[?]]
-      )
-
     private lazy val mGenerateScalaShimFromManifest =
       cls.getMethod(
         "generateScalaShimFromManifest",
@@ -726,75 +579,6 @@ trait GolemModule extends ScalaJSModule {
         classOf[String],
         classOf[String]
       )
-
-    def readResourceUtf8(path: String): String =
-      mReadResourceUtf8
-        .invoke(null, getClass.getClassLoader, path)
-        .asInstanceOf[String]
-
-    def stripHttpApiFromGolemYaml(componentDir: java.nio.file.Path, logInfo: String => Unit): Unit = {
-      val consumer: java.util.function.Consumer[String] = (s: String) => logInfo(s)
-      mStripHttpApi.invoke(null, componentDir, consumer)
-      ()
-    }
-
-    def isNoisyUpstreamWarning(line: String): Boolean =
-      mIsNoisy.invoke(null, line).asInstanceOf[Boolean]
-
-    def requireCommandOnPath(cmd: String, friendly: String): Unit =
-      mRequireCommandOnPath.invoke(null, cmd, friendly)
-
-    def ensureTsComponentScaffold(
-      appDir: java.nio.file.Path,
-      componentQualified: String,
-      logInfo: String => Unit
-    ): Unit = {
-      val consumer: java.util.function.Consumer[String] = (s: String) => logInfo(s)
-      mEnsureTsComponentScaffold.invoke(null, appDir, componentQualified, consumer)
-      ()
-    }
-
-    def ensureTsAppScaffold(
-      appRoot: java.nio.file.Path,
-      appName: String,
-      componentQualified: String,
-      logInfo: String => Unit
-    ): Unit = {
-      val consumer: java.util.function.Consumer[String] = (s: String) => logInfo(s)
-      mEnsureTsAppScaffold.invoke(null, appRoot, appName, componentQualified, consumer)
-      ()
-    }
-
-    def generateBridgeMainTsFromProvider(
-      classpathEntries: Seq[java.nio.file.Path],
-      classesDir: java.nio.file.Path,
-      providerClass: String
-    ): String = {
-      val list = new java.util.ArrayList[java.nio.file.Path]()
-      classpathEntries.foreach(p => if (p != null) list.add(p))
-      mGenerateBridgeFromProvider.invoke(null, list, classesDir, providerClass).asInstanceOf[String]
-    }
-
-    def generateBridgeMainTsFromManifest(manifestPath: java.nio.file.Path): String =
-      mGenerateBridgeFromManifest.invoke(null, manifestPath).asInstanceOf[String]
-
-    def bridgeSpecHasAgents(spec: AnyRef): Boolean =
-      mBridgeSpecHasAgents.invoke(null, spec).asInstanceOf[Boolean]
-
-    def generateBridgeMainTsFromBridgeSpec(spec: AnyRef): String =
-      mGenerateBridgeFromBridgeSpec.invoke(null, spec).asInstanceOf[String]
-
-    def wireTsComponent(
-      componentDir: java.nio.file.Path,
-      scalaJsBundle: java.nio.file.Path,
-      bundleFileName: String,
-      mainTs: String,
-      logInfo: String => Unit
-    ): Unit = {
-      val consumer: java.util.function.Consumer[String] = (s: String) => logInfo(s)
-      mWireTsComponent.invoke(null, componentDir, scalaJsBundle, bundleFileName, mainTs, consumer)
-      ()
-    }
 
     def generateScalaShimFromManifest(
       manifest: java.nio.file.Path,
@@ -805,21 +589,6 @@ trait GolemModule extends ScalaJSModule {
       mGenerateScalaShimFromManifest
         .invoke(null, manifest, exportTopLevel, objectName, packageName)
         .asInstanceOf[String]
-
-  }
-
-  /**
-   * The default TS scaffold includes a sample `httpApi`
-   * definition that calls `counter-agent(...)`. Our Scala.js examples don't
-   * ship that agent, and `app deploy` will fail while compiling the RIB
-   * bindings unless we remove that section.
-   */
-  private def stripHttpApiFromGolemYaml(componentDir: os.Path, log: mill.api.Logger): Unit =
-    Tooling.stripHttpApiFromGolemYaml(componentDir.toNIO, msg => log.info(msg))
-
-  private def firstJsFile(dir: Path): Path = {
-    val js = os.list(dir).filter(p => p.ext == "js")
-    js.headOption.getOrElse(throw new RuntimeException(s"No .js bundle found under $dir"))
   }
 
   // Harness/demo flows live outside the plugin; this trait exposes only the generic primitives.

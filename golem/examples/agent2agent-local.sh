@@ -3,8 +3,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-# Build + wire the Scala.js bundle + generated bridge into a deterministic local app scaffold under `.golem-apps/`.
-sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/golemWire"
+if ! command -v golem-cli >/dev/null 2>&1; then
+  echo "[agent2agent-local] error: golem-cli not found on PATH" >&2
+  exit 1
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "[agent2agent-local] error: node not found on PATH" >&2
+  exit 1
+fi
+if ! command -v npm >/dev/null 2>&1; then
+  echo "[agent2agent-local] error: npm not found on PATH" >&2
+  exit 1
+fi
 
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
@@ -25,18 +35,21 @@ if [[ "$is_cloud" -eq 0 ]]; then
   fi
 fi
 
-app_dir="$PWD/.golem-apps/scala-examples"
+app_dir="$PWD/golem/examples/app"
 script_file="$PWD/golem/examples/repl-minimal-agent-to-agent.rib"
-
-# First-run safety: if the wired bundle is missing the shim export, rerun golemWire once more.
-bundle_file="$app_dir/components-ts/scala-examples/src/scala-examples.js"
-if [[ -f "$bundle_file" ]] && ! grep -q "__golemInternalScalaAgents" "$bundle_file"; then
-  echo "[agent2agent-local] Scala shim export missing from wired bundle; re-running golemWire..." >&2
-  sbt -batch -no-colors -Dsbt.supershell=false "zioGolemExamplesJS/golemWire"
-fi
 
 (
   cd "$app_dir"
+  if [[ ! -d node_modules ]]; then
+    # Repo dev convenience: prefer reusing the repo-local golem/node_modules if present.
+    if [[ -d "$PWD/../../node_modules" ]]; then
+      ln -s "$PWD/../../node_modules" node_modules
+    else
+      echo "[agent2agent-local] Missing node_modules. Run:" >&2
+      echo "  (cd $app_dir && npm install)" >&2
+      exit 1
+    fi
+  fi
   env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:examples
   env -u ARGV0 golem-cli "${flags[@]}" --yes repl scala:examples --script-file "$script_file" --disable-stream
 )

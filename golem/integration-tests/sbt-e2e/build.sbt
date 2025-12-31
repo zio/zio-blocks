@@ -7,7 +7,8 @@ import sbt._
 
 ThisBuild / scalaVersion := "3.7.4"
 
-lazy val printBridge = taskKey[Unit]("Generate the TypeScript bridge and write it to target/generated-main.ts")
+lazy val printManifest = taskKey[Unit]("Ensure BridgeSpec manifest and write its contents to target/bridge-spec.properties")
+lazy val printShim = taskKey[Unit]("Generate Scala shim and report its output path")
 
 lazy val root = (project in file("."))
   .enablePlugins(ScalaJSPlugin, GolemPlugin)
@@ -20,17 +21,16 @@ lazy val root = (project in file("."))
     golemComponent := "fixture:component",
     golemBundleFileName := "scala-autowired.js",
 
-    // Needed only for the provider-class (so it can compile against BridgeSpec types).
-    libraryDependencies += "dev.zio" % "zio-golem-tooling-core" % "0.0.0-SNAPSHOT",
+    printManifest := {
+      val f = golemEnsureBridgeSpecManifest.value
+      val out = target.value / "bridge-spec.properties"
+      IO.copyFile(f, out)
+      streams.value.log.info(s"Wrote ${out.getAbsolutePath}")
+    },
 
-    // Metadata-driven bridge generation: sbt plugin loads this class from the project classpath and calls get().
-    golemBridgeSpecProviderClass := "FixtureBridgeSpecProvider",
-
-    printBridge := {
-      val out = golemGenerateBridgeMainTs.value
-      val file = target.value / "generated-main.ts"
-      IO.write(file, out)
-      streams.value.log.info(s"Wrote ${file.getAbsolutePath}")
+    printShim := {
+      val files = golemGenerateScalaShim.value
+      streams.value.log.info(s"Generated shim files: ${files.map(_.getAbsolutePath).mkString(", ")}")
     }
   )
 

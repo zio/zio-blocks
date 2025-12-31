@@ -45,17 +45,12 @@ trait ShardAgent extends BaseAgent {
 
 ### Run locally
 
-Build + wire the component from repo root:
-
-```bash
-sbt -no-colors zioGolemQuickstartJS/golemWire
-```
-
-Then use `golem-cli` as the driver from the generated app directory:
+Use `golem-cli` as the driver from the checked-in app directory:
 
 ```bash
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
-cd .golem-apps/scala-quickstart
+cd golem/quickstart/app
+npm install
 env -u ARGV0 golem-cli $GOLEM_CLI_FLAGS --yes app deploy scala:quickstart-counter
 ```
 

@@ -3,8 +3,7 @@ set -euo pipefail
 
 # Cloud-gated golem-cli integration runner.
 #
-# This is intentionally thin: it runs repo-local smoke flows that use the
-# public plugin primitives (`golemWire`) and then uses golem-cli as the driver.
+# This runs repo-local smoke flows in cloud mode.
 #
 # Prereqs:
 # - golem-cli installed and authenticated/configured for your cloud profile

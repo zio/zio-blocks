@@ -3,8 +3,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../.."
 
-# Build + wire the Scala.js component into `.golem-apps/`, then use golem-cli as the driver.
-sbt -batch -no-colors -Dsbt.supershell=false "zioGolemQuickstartJS/golemWire"
+if ! command -v golem-cli >/dev/null 2>&1; then
+  echo "[quickstart-jvm-test] error: golem-cli not found on PATH" >&2
+  exit 1
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "[quickstart-jvm-test] error: node not found on PATH" >&2
+  exit 1
+fi
+if ! command -v npm >/dev/null 2>&1; then
+  echo "[quickstart-jvm-test] error: npm not found on PATH" >&2
+  exit 1
+fi
 
 GOLEM_CLI_FLAGS="${GOLEM_CLI_FLAGS:---local}"
 read -r -a flags <<<"$GOLEM_CLI_FLAGS"
@@ -25,17 +35,21 @@ if [[ "$is_cloud" -eq 0 ]]; then
   fi
 fi
 
-app_dir="$PWD/.golem-apps/scala-quickstart"
+app_dir="$PWD/golem/quickstart/app"
 
-# First-run safety: on a totally clean workspace, the manifest/shim may not exist
-# when the initial compilation happens (sbt caches source generator results for the session).
-# If the wired bundle is missing the shim export, rerun golemWire once more.
-bundle_file="$app_dir/components-ts/scala-quickstart-counter/src/scala-quickstart.js"
-if [[ -f "$bundle_file" ]] && ! grep -q "__golemInternalScalaAgents" "$bundle_file"; then
-  echo "[quickstart-jvm-test] Scala shim export missing from wired bundle; re-running golemWire..." >&2
-  sbt -batch -no-colors -Dsbt.supershell=false "zioGolemQuickstartJS/golemWire"
-fi
-
-(cd "$app_dir" && env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:quickstart-counter)
+(
+  cd "$app_dir"
+  if [[ ! -d node_modules ]]; then
+    # Repo dev convenience: prefer reusing the repo-local golem/node_modules if present.
+    if [[ -d "$PWD/../../node_modules" ]]; then
+      ln -s "$PWD/../../node_modules" node_modules
+    else
+      echo "[quickstart-jvm-test] Missing node_modules. Run:" >&2
+      echo "  (cd $app_dir && npm install)" >&2
+      exit 1
+    fi
+  fi
+  env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:quickstart-counter
+)
 
 sbt -batch -no-colors -Dsbt.supershell=false 'zioGolemQuickstartJVM/runMain cloud.golem.quickstart.QuickstartClient'

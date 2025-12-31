@@ -1,11 +1,11 @@
-# sbt plugin external-style fixture (provider-class BridgeSpec)
+# sbt plugin external-style fixture (manifest + shim generation)
 
 This directory is a **minimal sbt build** that acts like an *external repo* consuming the sbt plugin via **Ivy local**.
 
 ## What it validates
 
 - The published sbt plugin can be resolved by sbt
-- The plugin’s **provider-class BridgeSpec** generator works end-to-end (no golem runtime required)
+- The plugin can **ensure a BridgeSpec manifest** and **generate the Scala shim** (no golem runtime required)
 - This is a **wire-only** check: it does not require `golem-cli`
 
 ## How to run
@@ -20,14 +20,12 @@ Then:
 
 ```bash
 cd golem/integration-tests/sbt-e2e
-sbt printBridge
+sbt printManifest printShim
 ```
 
-This writes the generated TypeScript bridge to `target/generated-main.ts`.
+This writes the BridgeSpec manifest to `target/bridge-spec.properties` and logs the generated shim file(s).
 
 Notes:
-- This fixture includes a provider class in `src/main/scala` which depends on `zio-golem-tooling-core` to reference
-  `BridgeSpec`/`AgentSpec` types.
 
 If you’re looking for the recommended, Scala-only configuration path (`golemExports`), see:
 

@@ -1,7 +1,7 @@
 package cloud.golem.hosttests
 
 import cloud.golem.sdk.HostApi
-import cloud.golem.runtime.host.{HostGuards, HostTransactions}
+import cloud.golem.sdk.{Guards, Transactions}
 import cloud.golem.runtime.rpc.host.AgentHostApi
 
 import scala.annotation.nowarn
@@ -255,7 +255,7 @@ private[hosttests] object HostTestSuite {
       if (originalTag == "persist-nothing") HostApi.PersistenceLevel.Smart
       else HostApi.PersistenceLevel.PersistNothing
 
-    HostGuards.withPersistenceLevel(toggled) {
+    Guards.withPersistenceLevel(toggled) {
       val observedTag = persistenceTag(HostApi.getOplogPersistenceLevel())
       require(
         observedTag == persistenceTag(toggled),
@@ -283,7 +283,7 @@ private[hosttests] object HostTestSuite {
         multiplier = original.multiplier + 0.05d
       )
 
-    HostGuards.withRetryPolicy(updated) {
+    Guards.withRetryPolicy(updated) {
       val observed = HostApi.getRetryPolicy()
       require(observed.maxAttempts == updated.maxAttempts, "guard retry max-attempts mismatch")
       require(observed.minDelayNanos == updated.minDelayNanos, "guard retry min-delay mismatch")
@@ -301,7 +301,7 @@ private[hosttests] object HostTestSuite {
   private def testIdempotenceGuard(): Unit = {
     val original = HostApi.getIdempotenceMode()
     val toggled  = !original
-    HostGuards.withIdempotenceMode(toggled) {
+    Guards.withIdempotenceMode(toggled) {
       require(
         HostApi.getIdempotenceMode() == toggled,
         "idempotence guard failed to apply new mode"
@@ -316,7 +316,7 @@ private[hosttests] object HostTestSuite {
   private def testAtomicGuard(): Unit = {
     val before   = HostApi.getOplogIndex()
     var executed = false
-    HostGuards.atomically {
+    Guards.atomically {
       executed = true
       HostApi.oplogCommit(1)
     }
@@ -329,7 +329,7 @@ private[hosttests] object HostTestSuite {
 
     var failureObserved = false
     try {
-      HostGuards.atomically {
+      Guards.atomically {
         throw new RuntimeException("atomic failure sentinel")
       }
     } catch {
@@ -347,7 +347,7 @@ private[hosttests] object HostTestSuite {
   private def testInfallibleTransactionDsl(): Unit = {
     var applied       = false
     var compensations = 0
-    val op            = HostTransactions.operation[Unit, Int, String] { _ =>
+    val op            = Transactions.operation[Unit, Int, String] { _ =>
       applied = true
       Right(7)
     } { (_, _) =>
@@ -355,7 +355,7 @@ private[hosttests] object HostTestSuite {
       Right(())
     }
 
-    val value = HostTransactions.infallibleTransaction { tx =>
+    val value = Transactions.infallibleTransaction { tx =>
       tx.execute(op, ())
     }
 
@@ -367,19 +367,19 @@ private[hosttests] object HostTestSuite {
   private def testFallibleTransactionDsl(): Unit = {
     var compensations = 0
 
-    val op = HostTransactions.operation[Int, Int, String] { in =>
+    val op = Transactions.operation[Int, Int, String] { in =>
       Right(in + 1)
     } { (_, _) =>
       compensations += 1
       Right(())
     }
 
-    val failure = HostTransactions.fallibleTransaction[Int, String] { tx =>
+    val failure = Transactions.fallibleTransaction[Int, String] { tx =>
       tx.execute(op, 1).flatMap(_ => Left("boom"))
     }
 
     failure match {
-      case Left(HostTransactions.TransactionFailure.FailedAndRolledBackCompletely("boom")) =>
+      case Left(Transactions.TransactionFailure.FailedAndRolledBackCompletely("boom")) =>
         require(compensations == 1, s"expected exactly one compensation, observed $compensations")
       case other =>
         throw new IllegalStateException(s"unexpected fallible transaction result: $other")

@@ -8,33 +8,16 @@ import mill.*, scalalib.*, scalajslib.*
 import cloud.golem.mill.GolemModule
 import mill.scalajslib.api.ModuleKind
 
-/**
- * Minimal Mill e2e harness for the zio-golem Mill plugin.
- *
- * Run:
- *   mill -i agents.golemWire
- *
- * Then (from the app dir printed by golemWire), use golem-cli as the driver:
- *   golem-cli --local --yes app deploy scala:name-agent
- *   golem-cli --local --yes repl scala:name-agent --disable-stream
- */
 object agents extends ScalaJSModule with GolemModule {
   def scalaVersion = "3.7.4"
   def scalaJSVersion = "1.20.1"
 
-  // This fixture intentionally validates the provider-class BridgeSpec path.
-  // Needed at bridge-generation time: the Mill plugin loads the BridgeSpec provider class in an isolated classloader
-  // from this module's compileClasspath, so tooling-core must be present there.
   def mvnDeps = Seq(mvn"dev.zio:zio-golem-tooling-core:0.0.0-SNAPSHOT")
 
   def golemAppName = "scala-autowired"
   def golemComponent = "scala:name-agent"
   def golemBundleFileName = "scala-autowired.js"
   
-  def golemBridgeSpecProviderClass = "cloud.golem.mille2e.BridgeSpecProvider"
-
-  // Required so our TS bridge can `import * as scalaExports from "./scala-autowired.js"`
-  // and access `scalaExports.scalaAgents` (provided by ScalaAgents.scala in this fixture).
   def moduleKind = Task { ModuleKind.ESModule }
   def scalaJSUseMainModuleInitializer = Task { false }
 }

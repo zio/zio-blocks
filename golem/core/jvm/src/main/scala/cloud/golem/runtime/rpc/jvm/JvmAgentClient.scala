@@ -9,9 +9,6 @@ import scala.concurrent.{ExecutionContext, Future}
 
 /**
  * Repo-local JVM testing client backed by `golem-cli`.
- *
- * This is intentionally minimal and expected to be replaced by a real external
- * client in the future.
  */
 object JvmAgentClient {
   @volatile private var cfg: Option[JvmAgentClientConfig] = None

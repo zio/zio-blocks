@@ -7,14 +7,6 @@ import scala.scalajs.js
 /**
  * Public Scala.js SDK access to Golem's runtime host API.
  *
- * This is the Scala counterpart of the TypeScript SDK's `hostapi.ts` re-export.
- *
- * Goals:
- *   - Provide a stable, Scala-typed surface that does not require users to
- *     touch `js.Dynamic`.
- *   - Keep the low-level Scala.js facades encapsulated in
- *     `cloud.golem.runtime.rpc.host.AgentHostApi`.
- *
  * Scala.js-only API (delegates to `golem:api/host@1.3.0`).
  */
 object HostApi {

@@ -31,13 +31,15 @@ export GOLEM_SDK_INTEGRATION=1
 ./golem/integration-tests/run-golem-cli-integration-cloud.sh
 ```
 
-Wire-only (no `golem-cli` / no router):
+Build-only (no `golem-cli` / no router):
 
 ```bash
-sbt zioGolemExamplesJS/golemWire
+sbt zioGolemExamplesJS/fastLinkJS
 ```
 
 The integration scripts above call into the repo’s example quickstart + agent2agent smoke tests.
+
+Note: the checked-in app scaffolds (`golem/quickstart/app` and `golem/examples/app`) require `npm install` once.
 
 ## Counter agent REPL script (repo-local)
 

@@ -377,7 +377,6 @@ lazy val zioGolemHostTests = project
     cloud.golem.sbt.GolemPlugin.autoImport.golemAppName   := "scala-host-tests",
     cloud.golem.sbt.GolemPlugin.autoImport.golemComponent := sys.env
       .getOrElse("GOLEM_COMPONENT_QUALIFIED", "scala:host-tests"),
-    cloud.golem.sbt.GolemPlugin.autoImport.golemBridgeSpecProviderClass := "",
     cloud.golem.sbt.GolemPlugin.autoImport.golemExports                 := {
       import cloud.golem.sbt.GolemPlugin.autoImport._
       import GolemConstructor._
@@ -500,9 +499,13 @@ lazy val zioGolemHostTests = project
 
           // Always cleanup the server we start, even if deploy/invoke fails.
           try {
-            // Ensure scaffold + bridge wiring is done up-front (does not require golem server/router).
-            val componentDir = golemWire.value
-            val appDir       = componentDir.getParentFile.getParentFile
+            val appDir = baseDir / "golem" / "host-tests" / "app"
+            val componentSlug = component.replace(":", "-")
+            val componentDir = appDir / "components-ts" / componentSlug
+            if (!appDir.exists())
+              sys.error(s"[host-tests] Missing app scaffold at ${appDir.getAbsolutePath}")
+            if (!componentDir.exists())
+              sys.error(s"[host-tests] Missing component dir at ${componentDir.getAbsolutePath}")
 
             val golemCliCmd = "golem-cli"
             val cliFlags = sys.env

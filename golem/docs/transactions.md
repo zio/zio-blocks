@@ -1,7 +1,7 @@
 # Transaction Helpers
 
 The TypeScript SDK exposes `infallibleTransaction` and `fallibleTransaction` for managing atomic operations with
-automatic rollback. ZIO-Golem provides equivalent functionality under `cloud.golem.runtime.host.HostTransactions`.
+automatic rollback. ZIO-Golem provides equivalent functionality under `cloud.golem.sdk.Transactions`.
 
 ## Table of Contents
 
@@ -39,11 +39,11 @@ Use `infallibleTransaction` when operations must eventually succeed. On failure,
 transaction retries automatically.
 
 ```scala
-import cloud.golem.runtime.host.HostTransactions
+import cloud.golem.sdk.Transactions
 
-val result: Int = HostTransactions.infallibleTransaction { tx =>
+val result: Int = Transactions.infallibleTransaction { tx =>
   // Define an operation with its compensation
-  val createResource = HostTransactions.operation[Unit, Int, String](
+  val createResource = Transactions.operation[Unit, Int, String](
     // Execute: create the resource, return its ID
     _ => Right(42)
   )(
@@ -79,12 +79,12 @@ val result: Int = HostTransactions.infallibleTransaction { tx =>
 Use `fallibleTransaction` when you want to handle failures explicitly without automatic retry.
 
 ```scala
-import cloud.golem.runtime.host.HostTransactions
-import cloud.golem.runtime.host.HostTransactions.TransactionFailure
+import cloud.golem.sdk.Transactions
+import cloud.golem.sdk.Transactions.TransactionFailure
 
 val result: Either[TransactionFailure[String], Int] =
-  HostTransactions.fallibleTransaction[String, Int] { tx =>
-    val increment = HostTransactions.operation[Int, Int, String](
+  Transactions.fallibleTransaction[String, Int] { tx =>
+    val increment = Transactions.operation[Int, Int, String](
       in => Right(in + 1)
     )(
       (_, _) => Right(())
@@ -124,7 +124,7 @@ result match {
 Operations bundle an execute function with its compensation:
 
 ```scala
-val operation = HostTransactions.operation[In, Out, Err](
+val operation = Transactions.operation[In, Out, Err](
   // Execute: In => Either[Err, Out]
   run = (input: In) => {
     // Perform the operation
@@ -161,8 +161,8 @@ trait Operation[-In, Out, Err] {
 Compensation failures throw `IllegalStateException`:
 
 ```scala
-HostTransactions.infallibleTransaction { tx =>
-  val op = HostTransactions.operation[Unit, Int, String](
+Transactions.infallibleTransaction { tx =>
+  val op = Transactions.operation[Unit, Int, String](
     _ => Right(42)
   )(
     (_, _) => Left("Compensation failed!") // Throws on failure
@@ -177,7 +177,7 @@ HostTransactions.infallibleTransaction { tx =>
 Compensation failures are captured in the return type:
 
 ```scala
-HostTransactions.fallibleTransaction[String, Int] { tx =>
+Transactions.fallibleTransaction[String, Int] { tx =>
   // If compensation fails, result is FailedAndRolledBackPartially
   ???
 }
@@ -193,7 +193,7 @@ Compensations should be idempotent and unlikely to fail:
 
 ```scala
 // Good: Simple delete that tolerates non-existence
-val deleteOp = HostTransactions.operation[Unit, String, String](
+val deleteOp = Transactions.operation[Unit, String, String](
   _ => createFile()
 )(
   (_, path) => {
@@ -203,7 +203,7 @@ val deleteOp = HostTransactions.operation[Unit, String, String](
 )
 
 // Bad: Complex logic in compensation
-val badOp = HostTransactions.operation[Unit, String, String](
+val badOp = Transactions.operation[Unit, String, String](
   _ => createFile()
 )(
   (_, path) => {
@@ -221,7 +221,7 @@ val badOp = HostTransactions.operation[Unit, String, String](
 Put easily-reversible operations first:
 
 ```scala
-HostTransactions.fallibleTransaction[String, Unit] { tx =>
+Transactions.fallibleTransaction[String, Unit] { tx =>
   // Easy to reverse (just delete)
   tx.execute(createTempFile, ())
 
@@ -238,7 +238,7 @@ HostTransactions.fallibleTransaction[String, Unit] { tx =>
 When an operation *must* succeed (like cleanup), use infallible:
 
 ```scala
-HostTransactions.infallibleTransaction { tx =>
+Transactions.infallibleTransaction { tx =>
   // Will retry until cleanup completes
   tx.execute(cleanupResources, ())
 }
@@ -249,7 +249,7 @@ HostTransactions.infallibleTransaction { tx =>
 For debugging, log when transactions start and complete:
 
 ```scala
-HostTransactions.fallibleTransaction[String, Int] { tx =>
+Transactions.fallibleTransaction[String, Int] { tx =>
   console.log("Transaction started")
   val result = tx.execute(operation, input)
   console.log(s"Transaction completed: $result")
@@ -261,7 +261,7 @@ HostTransactions.fallibleTransaction[String, Int] { tx =>
 
 ## Integration with Host
 
-Both helpers internally manage the host's atomic markers:
+Both helpers manage the host's atomic markers:
 
 - `markBeginOperation` / `markEndOperation`
 - `setOplogIndex` for retry positioning

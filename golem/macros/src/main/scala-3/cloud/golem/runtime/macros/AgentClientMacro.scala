@@ -133,7 +133,6 @@ object AgentClientMacro {
     val metadataExpr = methodMetadata(method)
     val agentType    = agentTypeNameOrDefault(method.owner)
     val kebabName    = kebabCase(method.name)
-    // Match the TS SDK RPC naming convention: "<agent-type>.{<method>}"
     val functionName = Expr(s"$agentType.{$kebabName}")
 
     val parameters                   = extractParameters(method)

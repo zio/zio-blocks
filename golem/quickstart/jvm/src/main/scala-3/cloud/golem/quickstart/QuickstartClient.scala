@@ -11,8 +11,7 @@ import scala.concurrent.Await
  * Repo-local JVM smoke test for the quickstart agents.
  *
  * Expected flow:
- *   - Wire the quickstart JS component (`zioGolemQuickstartJS/golemWire`)
- *   - Deploy via golem-cli from the generated app dir (e.g. `./golem/quickstart/jvm-test.sh`)
+ *   - Deploy via golem-cli from the checked-in app dir (`./golem/quickstart/jvm-test.sh` runs from `golem/quickstart/app`)
  *   - Run this main (uses golem-cli to invoke the deployed agents)
  */
 object QuickstartClient {

@@ -29,14 +29,12 @@ private[golem] object WitValueCodec {
         case (IntType, "prim-s32") =>
           Right(IntValue(node.selectDynamic("val").asInstanceOf[Int]))
         case (IntType, "prim-float64") =>
-          // TS SDK numbers are f64; allow decoding into Scala `Int` schemas.
           val raw = node.selectDynamic("val").asInstanceOf[Double]
           Right(IntValue(raw.toInt))
         case (LongType, "prim-s64") =>
           val raw = node.selectDynamic("val").asInstanceOf[Double]
           Right(LongValue(raw.toLong))
         case (LongType, "prim-float64") =>
-          // TS SDK numbers are f64; allow decoding into Scala `Long` schemas.
           val raw = node.selectDynamic("val").asInstanceOf[Double]
           Right(LongValue(raw.toLong))
         case (DoubleType, "prim-float64") =>

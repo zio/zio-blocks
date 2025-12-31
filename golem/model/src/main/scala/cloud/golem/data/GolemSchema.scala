@@ -66,18 +66,10 @@ object GolemSchema {
   // ---------------------------------------------------------------------------
   // Convenience schemas
   //
-  // ZIO Blocks Schema supports tuple derivation, but it is not provided as an
-  // implicit out of the box. Since the Scala SDK exposes `AgentCompanion.get(a1, a2)`
-  // / `get(a1, a2, a3)` overloads, we provide tuple schemas here so constructor
-  // inputs can be encoded without extra user boilerplate.
+  // Tuple schemas are provided so constructor inputs can be encoded without extra boilerplate.
   // ---------------------------------------------------------------------------
 
   implicit def tuple2GolemSchema[A: Schema, B: Schema]: GolemSchema[(A, B)] =
-    // IMPORTANT: do not use `Schema.derived` for tuples here.
-    // In Scala.js this has been observed to trigger `ArrayIndexOutOfBoundsException` during `toDynamicValue`.
-    //
-    // Also: represent tuple inputs as *two separate elements* rather than a single tuple value. This matches how
-    // the TS SDK exposes agent constructors (`agent(string, f64)`), and is what the host-side `makeAgentId` expects.
     new GolemSchema[(A, B)] {
       private val aSchema = implicitly[Schema[A]]
       private val bSchema = implicitly[Schema[B]]

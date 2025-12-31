@@ -1,6 +1,4 @@
-package cloud.golem.runtime.host
-
-import cloud.golem.sdk.HostApi
+package cloud.golem.sdk
 
 import scala.annotation.tailrec
 import scala.util.control.NoStackTrace
@@ -18,8 +16,8 @@ import scala.util.control.NoStackTrace
  * failure, compensations run and the transaction retries automatically:
  *
  * {{{
- * val result = HostTransactions.infallibleTransaction { tx =>
- *   val op = HostTransactions.operation[Unit, Int, String](
+ * val result = Transactions.infallibleTransaction { tx =>
+ *   val op = Transactions.operation[Unit, Int, String](
  *     _ => Right(42)
  *   )((_, _) => Right(()))
  *   tx.execute(op, ())
@@ -31,8 +29,8 @@ import scala.util.control.NoStackTrace
  * Use [[fallibleTransaction]] when you want explicit error handling:
  *
  * {{{
- * val result = HostTransactions.fallibleTransaction[String, Int] { tx =>
- *   val op = HostTransactions.operation[Int, Int, String](
+ * val result = Transactions.fallibleTransaction[String, Int] { tx =>
+ *   val op = Transactions.operation[Int, Int, String](
  *     in => Right(in + 1)
  *   )((_, _) => Right(()))
  *   tx.execute(op, 1)
@@ -42,7 +40,8 @@ import scala.util.control.NoStackTrace
  * @see
  *   [[docs/transactions.md]] for detailed usage patterns
  */
-object HostTransactions {
+/** Transaction helpers for managing atomic operations with automatic rollback. */
+object Transactions {
 
   /**
    * Creates an operation from execute and compensate functions.
@@ -78,7 +77,7 @@ object HostTransactions {
    */
   def infallibleTransaction[A](body: InfallibleTransaction => A): A = {
     def loop(): A = {
-      val guard = HostGuards.markAtomicOperation()
+      val guard = Guards.markAtomicOperation()
       val begin = HostApi.getOplogIndex()
       val tx    = new InfallibleTransaction
       try {
@@ -111,7 +110,7 @@ object HostTransactions {
   def fallibleTransaction[A, Err](
     body: FallibleTransaction[Err] => Either[Err, A]
   ): Either[TransactionFailure[Err], A] = {
-    val guard = HostGuards.markAtomicOperation()
+    val guard = Guards.markAtomicOperation()
     val tx    = new FallibleTransaction[Err]
     try {
       body(tx) match {
@@ -155,7 +154,7 @@ object HostTransactions {
    *
    * Operations that fail trigger automatic rollback and retry.
    */
-  final class InfallibleTransaction private[host] () {
+  final class InfallibleTransaction private[sdk] () {
     private var compensations: List[() => Unit] = Nil
 
     /**
@@ -196,7 +195,7 @@ object HostTransactions {
    *
    * Operations that fail trigger best-effort rollback without retry.
    */
-  final class FallibleTransaction[Err] private[host] () {
+  final class FallibleTransaction[Err] private[sdk] () {
     private var compensations: List[() => Either[Err, Unit]] = Nil
 
     /**

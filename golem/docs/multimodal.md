@@ -228,19 +228,4 @@ trait DocumentAgent {
 }
 ```
 
----
-
-## Testing
-
-The parity tests in `examples/jvm/src/test/scala/cloud/golem/examples/RustAgentParitySpec.scala` exercise multimodal
-structures and validate that `GolemSchema` derives the expected schemas. Run them with:
-
-```bash
-sbt examplesJVM/test
-```
-
-These tests verify:
-
-- Schema structure matches expected multimodal layout
-- Encoding/decoding round-trips preserve data integrity
-- MIME and language constraints are properly propagated
+ 
