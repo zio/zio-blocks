@@ -3,7 +3,6 @@ package cloud.golem.runtime.macros
 import cloud.golem.data.GolemSchema
 import cloud.golem.runtime.plan.{
   AgentImplementationPlan,
-  AgentImplementationPlanWithCtor,
   AsyncMethodPlan,
   MethodPlan,
   SyncMethodPlan
@@ -12,17 +11,17 @@ import cloud.golem.runtime.{AgentMetadata, MethodMetadata}
 import scala.quoted.*
 
 object AgentImplementationMacro {
-  inline def plan[Trait](inline constructor: => Trait): AgentImplementationPlan[Trait] =
+  inline def plan[Trait](inline constructor: => Trait): AgentImplementationPlan[Trait, Unit] =
     ${ planImpl[Trait]('constructor) }
 
   inline def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
     inline build: Ctor => Trait
-  ): AgentImplementationPlanWithCtor[Trait, Ctor] =
+  ): AgentImplementationPlan[Trait, Ctor] =
     ${ planWithCtorImpl[Trait, Ctor]('build) }
 
   private def planImpl[Trait: Type](
     constructorExpr: Expr[Trait]
-  )(using Quotes): Expr[AgentImplementationPlan[Trait]] = {
+  )(using Quotes): Expr[AgentImplementationPlan[Trait, Unit]] = {
     import quotes.reflect.*
 
     val traitRepr   = TypeRepr.of[Trait]
@@ -39,11 +38,17 @@ object AgentImplementationMacro {
     val metadataExpr = '{ AgentDefinitionMacro.generate[Trait] }
     val methodsExpr  = buildMethodPlansExpr[Trait](methodSymbols, metadataExpr)
 
+    val ctorSchemaExpr =
+      Expr.summon[GolemSchema[Unit]].getOrElse {
+        report.errorAndAbort(s"Unable to summon GolemSchema for Unit constructor type on ${traitSymbol.fullName}")
+      }
+
     '{
       val metadata = $metadataExpr
-      AgentImplementationPlan[Trait](
+      AgentImplementationPlan[Trait, Unit](
         metadata = metadata,
-        buildInstance = () => $constructorExpr,
+        constructorSchema = $ctorSchemaExpr,
+        buildInstance = (_: Unit) => $constructorExpr,
         methods = $methodsExpr
       )
     }
@@ -51,7 +56,7 @@ object AgentImplementationMacro {
 
   private def planWithCtorImpl[Trait <: AnyRef { type AgentInput }: Type, Ctor: Type](
     buildExpr: Expr[Any]
-  )(using Quotes): Expr[AgentImplementationPlanWithCtor[Trait, Ctor]] = {
+  )(using Quotes): Expr[AgentImplementationPlan[Trait, Ctor]] = {
     import quotes.reflect.*
 
     val traitRepr   = TypeRepr.of[Trait]
@@ -86,7 +91,7 @@ object AgentImplementationMacro {
 
     '{
       val metadata = $metadataExpr
-      AgentImplementationPlanWithCtor[Trait, Ctor](
+      AgentImplementationPlan[Trait, Ctor](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = (input: Ctor) => $buildTyped(input),

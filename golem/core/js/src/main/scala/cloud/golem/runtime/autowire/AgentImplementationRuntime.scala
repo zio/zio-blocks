@@ -1,24 +1,37 @@
 package cloud.golem.runtime.autowire
 
 import cloud.golem.data.GolemSchema
+import cloud.golem.data.StructuredSchema
 import cloud.golem.runtime.plan.{
   AgentImplementationPlan,
-  AgentImplementationPlanWithCtor,
   AsyncMethodPlan,
   SyncMethodPlan
 }
 
 private[autowire] object AgentImplementationRuntime {
-  def register[Trait](
+  def register[Trait, Ctor](
     typeName: String,
     mode: AgentMode,
-    plan: AgentImplementationPlan[Trait]
+    plan: AgentImplementationPlan[Trait, Ctor]
   ): AgentDefinition[Trait] = {
     val constructor =
-      AgentConstructor.noArgs[Trait](
-        description = plan.metadata.description.getOrElse(typeName),
-        prompt = None
-      )(plan.buildInstance())
+      plan.constructorSchema.schema match {
+        case StructuredSchema.Tuple(elements) if elements.isEmpty =>
+          val instance = plan.buildInstance(().asInstanceOf[Ctor])
+          AgentConstructor.noArgs[Trait](
+            description = plan.metadata.description.getOrElse(typeName),
+            prompt = None
+          )(instance)
+        case _                                                    =>
+          implicit val ctorSchema: GolemSchema[Ctor] = plan.constructorSchema
+          AgentConstructor.sync[Ctor, Trait](
+            ConstructorMetadata(
+              name = None,
+              description = plan.metadata.description.getOrElse(typeName),
+              promptHint = None
+            )
+          )(plan.buildInstance)
+      }
 
     val bindings = plan.methods.map {
       case sync: SyncMethodPlan[Trait @unchecked, in, out] =>
@@ -42,36 +55,9 @@ private[autowire] object AgentImplementationRuntime {
   def registerWithCtor[Trait, Ctor](
     typeName: String,
     mode: AgentMode,
-    plan: AgentImplementationPlanWithCtor[Trait, Ctor]
+    plan: AgentImplementationPlan[Trait, Ctor]
   ): AgentDefinition[Trait] = {
-    implicit val ctorSchema: GolemSchema[Ctor] = plan.constructorSchema
-
-    val constructor =
-      AgentConstructor.sync[Ctor, Trait](
-        ConstructorMetadata(
-          name = None,
-          description = plan.metadata.description.getOrElse(typeName),
-          promptHint = None
-        )
-      )(plan.buildInstance)
-
-    val bindings = plan.methods.map {
-      case sync: SyncMethodPlan[Trait @unchecked, in, out] =>
-        buildSyncBinding[Trait, in, out](sync)
-      case async: AsyncMethodPlan[Trait @unchecked, in, out] =>
-        buildAsyncBinding[Trait, in, out](async)
-    }
-
-    val definition = new AgentDefinition[Trait](
-      typeName = typeName,
-      metadata = plan.metadata,
-      constructor = constructor,
-      bindings = bindings,
-      mode = mode
-    )
-
-    AgentRegistry.register(definition)
-    definition
+    register[Trait, Ctor](typeName, mode, plan)
   }
 
   private def buildSyncBinding[Trait, In, Out](plan: SyncMethodPlan[Trait, In, Out]): MethodBinding[Trait] = {

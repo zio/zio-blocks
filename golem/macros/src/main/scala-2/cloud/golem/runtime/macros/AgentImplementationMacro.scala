@@ -1,23 +1,25 @@
 package cloud.golem.runtime.macros
 
 import cloud.golem.data.GolemSchema
-import cloud.golem.runtime.plan.{AgentImplementationPlan, AgentImplementationPlanWithCtor}
+import cloud.golem.runtime.plan.AgentImplementationPlan
 
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentImplementationMacro {
-  def plan[Trait](constructor: => Trait): AgentImplementationPlan[Trait] =
+  def plan[Trait](constructor: => Trait): AgentImplementationPlan[Trait, Unit] =
     macro AgentImplementationMacroImpl.planImpl[Trait]
 
-  def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentImplementationPlanWithCtor[Trait, Ctor] =
+  def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
+    build: Ctor => Trait
+  ): AgentImplementationPlan[Trait, Ctor] =
     macro AgentImplementationMacroImpl.planWithCtorImpl[Trait, Ctor]
 }
 
 object AgentImplementationMacroImpl {
   def planImpl[Trait: c.WeakTypeTag](c: blackbox.Context)(
     constructor: c.Expr[Trait]
-  ): c.Expr[AgentImplementationPlan[Trait]] = {
+  ): c.Expr[AgentImplementationPlan[Trait, Unit]] = {
     import c.universe._
 
     val traitType = weakTypeOf[Trait]
@@ -30,12 +32,16 @@ object AgentImplementationMacroImpl {
     val metadataExpr = q"_root_.cloud.golem.runtime.macros.AgentDefinitionMacro.generate[$traitType]"
     val methodsExpr = buildMethodPlansExpr(c)(traitType, metadataExpr)
 
-    c.Expr[AgentImplementationPlan[Trait]](
+    val ctorSchemaExpr =
+      c.inferImplicitValue(appliedType(typeOf[GolemSchema[_]].typeConstructor, typeOf[Unit]))
+
+    c.Expr[AgentImplementationPlan[Trait, Unit]](
       q"""
       val metadata = $metadataExpr
-      _root_.cloud.golem.runtime.plan.AgentImplementationPlan[$traitType](
+      _root_.cloud.golem.runtime.plan.AgentImplementationPlan[$traitType, _root_.scala.Unit](
         metadata = metadata,
-        buildInstance = () => $constructor,
+        constructorSchema = $ctorSchemaExpr,
+        buildInstance = (_: _root_.scala.Unit) => $constructor,
         methods = $methodsExpr
       )
     """)
@@ -43,7 +49,7 @@ object AgentImplementationMacroImpl {
 
   def planWithCtorImpl[Trait: c.WeakTypeTag, Ctor: c.WeakTypeTag](c: blackbox.Context)(
     build: c.Expr[Any]
-  ): c.Expr[AgentImplementationPlanWithCtor[Trait, Ctor]] = {
+  ): c.Expr[AgentImplementationPlan[Trait, Ctor]] = {
     import c.universe._
 
     val traitType   = weakTypeOf[Trait]
@@ -82,15 +88,15 @@ object AgentImplementationMacroImpl {
       c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for constructor type $ctorType on ${traitSymbol.fullName}")
     }
 
-    c.Expr[AgentImplementationPlanWithCtor[Trait, Ctor]](
+    c.Expr[AgentImplementationPlan[Trait, Ctor]](
       q"""
       val metadata = $metadataExpr
-      _root_.cloud.golem.runtime.plan.AgentImplementationPlanWithCtor[$traitType, $ctorType](
+      _root_.cloud.golem.runtime.plan.AgentImplementationPlan[$traitType, $ctorType](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
         buildInstance = ($build).asInstanceOf[$ctorType => $traitType],
         methods = $methodsExpr
-      ).asInstanceOf[_root_.cloud.golem.runtime.plan.AgentImplementationPlanWithCtor[$traitType, ${weakTypeOf[Ctor]}]]
+      ).asInstanceOf[_root_.cloud.golem.runtime.plan.AgentImplementationPlan[$traitType, ${weakTypeOf[Ctor]}]]
       """
     )
   }

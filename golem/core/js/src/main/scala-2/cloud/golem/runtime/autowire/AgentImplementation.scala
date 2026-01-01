@@ -45,14 +45,14 @@ object AgentImplementation {
   def registerPlan[Trait](
     typeName: String,
     mode: AgentMode,
-    plan: _root_.cloud.golem.runtime.plan.AgentImplementationPlan[Trait]
+    plan: _root_.cloud.golem.runtime.plan.AgentImplementationPlan[Trait, _root_.scala.Unit]
   ): AgentDefinition[Trait] =
     AgentImplementationRuntime.register(typeName, mode, plan)
 
   def registerWithCtorPlan[Trait, Ctor](
     typeName: String,
     mode: AgentMode,
-    plan: _root_.cloud.golem.runtime.plan.AgentImplementationPlanWithCtor[Trait, Ctor]
+    plan: _root_.cloud.golem.runtime.plan.AgentImplementationPlan[Trait, Ctor]
   ): AgentDefinition[Trait] =
     AgentImplementationRuntime.registerWithCtor(typeName, mode, plan)
 
