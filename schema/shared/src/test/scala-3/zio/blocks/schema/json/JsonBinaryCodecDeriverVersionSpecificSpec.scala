@@ -3,7 +3,6 @@ package zio.blocks.schema.json
 import zio.blocks.schema.{Modifier, Schema}
 import zio.blocks.schema.json.JsonTestUtils._
 import zio.test._
-import zio.test.TestAspect.jvmOnly
 
 object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("JsonBinaryCodecDeriverVersionSpecificSpec")(
@@ -60,15 +59,14 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
           """{"::":{"val":"VVV","nxt":{"::":{"nxt":{"End":{}}}}}}"""
         )(schema2)
       },
-      test("complex recursive values without discriminator that uses marks") {
+      test("complex recursive values without discriminator") {
         import LinkedList._
 
         val codec = Schema
           .derived[LinkedList[Double]]
           .derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
-        // parsing a wrong value because of hiding the error of the mark limit
-        decode("""{"val":1.0,"nxt":{"val":2.0,"nxt":{}}}""", Node(1.0, End), codec, ReaderConfig.withMaxMarkNum(1))
-      } @@ jvmOnly,
+        roundTrip(Node(1.0, Node(2.0, End)), """{"val":1.0,"nxt":{"val":2.0,"nxt":{}}}""", codec)
+      },
       test("union type with key discriminator") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
 
