@@ -1,7 +1,5 @@
 package cloud.golem.mill
 
-import mill._
-import mill.api.PathRef
 import mill.scalajslib._
 import os.Path
 
@@ -102,10 +100,6 @@ trait GolemModule extends ScalaJSModule {
 
   /** Scala package for the generated Scala shim (internal). */
   def golemScalaShimPackage: String = "cloud.golem.internal"
-
-  // Intentionally no additional source generation: the Scala.js SDK exports `guest` from library code.
-
-  // No additional wiring helpers are provided by this plugin.
 
   private def ensureBridgeSpecManifest(
     taskDest: os.Path,

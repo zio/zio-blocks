@@ -2210,22 +2210,22 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
   var prompt = $m_s_None$();
   var mode = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var input = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$1 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var output = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var $x_1 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description, prompt, mode, input, output);
+  var $x_1 = new $c_Lcloud_golem_runtime_MethodMetadata("handle", description, prompt, mode, input, output);
   var description$1 = $m_s_None$();
   var prompt$1 = $m_s_None$();
   var mode$1 = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$2 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var input$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$3 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var output$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$3).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$1, prompt$1, mode$1, input$1, output$1), $m_sci_Nil$()));
+  var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$1, prompt$1, mode$1, input$1, output$1), $m_sci_Nil$()));
   $m_Lcloud_golem_data_GolemSchema$();
   var evidence$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var evidence$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
@@ -2243,22 +2243,22 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
   var prompt$2 = $m_s_None$();
   var mode$3 = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$4 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var input$4 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$4).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$5 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var output$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$5).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var $x_3 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$3, prompt$2, mode$3, input$4, output$2);
+  var $x_3 = new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$3, prompt$2, mode$3, input$4, output$2);
   var description$4 = $m_s_None$();
   var prompt$3 = $m_s_None$();
   var mode$4 = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$6 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$6 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var input$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$6).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$7 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$7 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var output$3 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$7).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var ev$1 = new $c_sci_$colon$colon($x_3, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$4, prompt$3, mode$4, input$5, output$3), $m_sci_Nil$()));
+  var ev$1 = new $c_sci_$colon$colon($x_3, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$4, prompt$3, mode$4, input$5, output$3), $m_sci_Nil$()));
   $m_Lcloud_golem_data_GolemSchema$();
   var evidence$1$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var evidence$2$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
@@ -2268,7 +2268,7 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     while ((!$n(these).isEmpty__Z())) {
       var x0 = $n(these).head__O();
       var _$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0);
-      if (($n(_$2).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse")) {
+      if (($n(_$2).Lcloud_golem_runtime_MethodMetadata__f_name === "handle")) {
         var this$19 = new $c_s_Some($n(these).head__O());
         break _return;
       }
@@ -2277,41 +2277,41 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var this$19 = $m_s_None$();
   }
   if (this$19.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for reverse");
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for handle");
   }
   var metadataEntry = $as_Lcloud_golem_runtime_MethodMetadata(this$19.get__O());
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$8 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$8 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var inputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$8);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$9 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$9 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var outputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$9);
   var handler = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance, input$2$1) => {
     var instance$1 = $as_Lcloud_golem_examples_minimal_Worker(instance);
-    var input$6 = $as_T(input$2$1);
-    return $n(instance$1).reverse__T__s_concurrent_Future(input$6);
+    var input$6 = $as_Lcloud_golem_examples_minimal_TypedPayload(input$2$1);
+    return $n(instance$1).handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future(input$6);
   }));
   var $x_4 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry, inputSchema, outputSchema, handler);
   var description$5 = $m_s_None$();
   var prompt$4 = $m_s_None$();
   var mode$5 = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$10 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$10 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var input$7 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$10).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$11 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$11 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var output$4 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$11).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var $x_2 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$5, prompt$4, mode$5, input$7, output$4);
+  var $x_2 = new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$5, prompt$4, mode$5, input$7, output$4);
   var description$6 = $m_s_None$();
   var prompt$5 = $m_s_None$();
   var mode$6 = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$12 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$12 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var input$8 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$12).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$13 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$13 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var output$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$13).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var ev$2 = new $c_sci_$colon$colon($x_2, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$6, prompt$5, mode$6, input$8, output$5), $m_sci_Nil$()));
+  var ev$2 = new $c_sci_$colon$colon($x_2, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$6, prompt$5, mode$6, input$8, output$5), $m_sci_Nil$()));
   $m_Lcloud_golem_data_GolemSchema$();
   var evidence$1$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var evidence$2$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
@@ -2321,7 +2321,7 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     while ((!$n(these$1).isEmpty__Z())) {
       var x0$1 = $n(these$1).head__O();
       var _$2$1 = $as_Lcloud_golem_runtime_MethodMetadata(x0$1);
-      if (($n(_$2$1).Lcloud_golem_runtime_MethodMetadata__f_name === "handle")) {
+      if (($n(_$2$1).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse")) {
         var this$30 = new $c_s_Some($n(these$1).head__O());
         break _return$1;
       }
@@ -2330,19 +2330,19 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var this$30 = $m_s_None$();
   }
   if (this$30.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for handle");
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for reverse");
   }
   var metadataEntry$2 = $as_Lcloud_golem_runtime_MethodMetadata(this$30.get__O());
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$14 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$14 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var inputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$14);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$15 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$15 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var outputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$15);
   var handler$1 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$2, input$3$1) => {
     var instance$3 = $as_Lcloud_golem_examples_minimal_Worker(instance$2);
-    var input$9 = $as_Lcloud_golem_examples_minimal_TypedPayload(input$3$1);
-    return $n(instance$3).handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future(input$9);
+    var input$9 = $as_T(input$3$1);
+    return $n(instance$3).reverse__T__s_concurrent_Future(input$9);
   }));
   var methods$1 = new $c_sci_$colon$colon($x_4, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$2, inputSchema$1, outputSchema$1, handler$1), $m_sci_Nil$()));
   var plan = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata, constructorSchema, buildInstance, methods$1);
@@ -5770,10 +5770,11 @@ function $p_Lcloud_golem_runtime_guest_Guest$__initialize__T__sjs_js_Dynamic__sj
     if ((x12 instanceof $c_s_Some)) {
       var x13 = $as_s_Some(x12);
       var defnAny = $as_Lcloud_golem_runtime_autowire_AgentDefinition($n(x13).s_Some__f_value);
+      var onRejected = $m_sjs_js_Any$().fromFunction1__F1__sjs_js_Function1(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-input")))));
       var this$2 = $n(defnAny);
       return $n(this$2.Lcloud_golem_runtime_autowire_AgentDefinition__f_constructor).initialize__sjs_js_Dynamic__sjs_js_Promise(input).then(((inst) => {
         $m_Lcloud_golem_runtime_guest_Guest$().Lcloud_golem_runtime_guest_Guest$__f_resolved = new $c_Lcloud_golem_runtime_guest_Guest$Resolved(defnAny, inst);
-      }), ((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-input"))));
+      }), onRejected);
     }
     throw new $c_s_MatchError(x12);
   }
@@ -5785,9 +5786,10 @@ function $p_Lcloud_golem_runtime_guest_Guest$__invoke__T__sjs_js_Dynamic__sjs_js
   } else {
     var r = $as_Lcloud_golem_runtime_guest_Guest$Resolved($thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved);
     var mn = $p_Lcloud_golem_runtime_guest_Guest$__normalizeMethodName__T__T($thiz, methodName);
+    var onRejected = $m_sjs_js_Any$().fromFunction1__F1__sjs_js_Function1(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-method")))));
     var this$2 = $n($n(r).Lcloud_golem_runtime_guest_Guest$Resolved__f_defn);
     var instance = $n(r).Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
-    return this$2.invoke__O__T__sjs_js_Dynamic__sjs_js_Promise(instance, mn, input).catch(((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-method"))));
+    return this$2.invoke__O__T__sjs_js_Dynamic__sjs_js_Promise(instance, mn, input).catch(onRejected);
   }
 }
 function $p_Lcloud_golem_runtime_guest_Guest$__getDefinition__sjs_js_Promise($thiz) {
@@ -20044,38 +20046,38 @@ $c_Lcloud_golem_examples_minimal_CoordinatorImpl.prototype.route__T__I__T__s_con
   var prompt = $m_s_None$();
   var mode = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var input$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$1 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var output = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var metadata = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description, prompt, mode, input$1, output);
+  var metadata = new $c_Lcloud_golem_runtime_MethodMetadata("handle", description, prompt, mode, input$1, output);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$2 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var inputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$3 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var outputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$3);
   var invocation = $m_Lcloud_golem_runtime_plan_ClientInvocation$Awaitable$();
-  var $x_1 = new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata, "worker.{reverse}", inputSchema, outputSchema, invocation);
+  var $x_1 = new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata, "worker.{handle}", inputSchema, outputSchema, invocation);
   var description$1 = $m_s_None$();
   var prompt$1 = $m_s_None$();
   var mode$1 = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$4 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var input$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$4).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$5 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var output$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$5).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var metadata$1 = new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$1, prompt$1, mode$1, input$2, output$1);
+  var metadata$1 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$1, prompt$1, mode$1, input$2, output$1);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$6 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$6 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var inputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$6);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$7 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$7 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var outputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$7);
   var invocation$1 = $m_Lcloud_golem_runtime_plan_ClientInvocation$Awaitable$();
-  var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata$1, "worker.{handle}", inputSchema$1, outputSchema$1, invocation$1), $m_sci_Nil$()));
+  var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata$1, "worker.{reverse}", inputSchema$1, outputSchema$1, invocation$1), $m_sci_Nil$()));
   var plan$proxy1 = new $c_Lcloud_golem_runtime_plan_AgentClientPlan("cloud.golem.examples.minimal.Worker", "worker", constructor, methods);
   var constructorArgs$proxy1 = new $c_T2(shardName, shardIndex);
   matchResult5: {
@@ -20111,38 +20113,38 @@ $c_Lcloud_golem_examples_minimal_CoordinatorImpl.prototype.routeTyped__T__I__Lcl
   var prompt = $m_s_None$();
   var mode = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var input = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$1 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var output = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var metadata = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description, prompt, mode, input, output);
+  var metadata = new $c_Lcloud_golem_runtime_MethodMetadata("handle", description, prompt, mode, input, output);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$2 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
   var inputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var baseSchema$3 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
   var outputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$3);
   var invocation = $m_Lcloud_golem_runtime_plan_ClientInvocation$Awaitable$();
-  var $x_1 = new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata, "worker.{reverse}", inputSchema, outputSchema, invocation);
+  var $x_1 = new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata, "worker.{handle}", inputSchema, outputSchema, invocation);
   var description$1 = $m_s_None$();
   var prompt$1 = $m_s_None$();
   var mode$1 = $m_s_None$();
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$4 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var input$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$4).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$5 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var output$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$5).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var metadata$1 = new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$1, prompt$1, mode$1, input$1, output$1);
+  var metadata$1 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$1, prompt$1, mode$1, input$1, output$1);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$6 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var baseSchema$6 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var inputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$6);
   $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$7 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var baseSchema$7 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var outputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$7);
   var invocation$1 = $m_Lcloud_golem_runtime_plan_ClientInvocation$Awaitable$();
-  var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata$1, "worker.{handle}", inputSchema$1, outputSchema$1, invocation$1), $m_sci_Nil$()));
+  var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_ClientMethodPlan(metadata$1, "worker.{reverse}", inputSchema$1, outputSchema$1, invocation$1), $m_sci_Nil$()));
   var plan$proxy2 = new $c_Lcloud_golem_runtime_plan_AgentClientPlan("cloud.golem.examples.minimal.Worker", "worker", constructor, methods);
   var constructorArgs$proxy2 = new $c_T2(shardName, shardIndex);
   matchResult12: {
@@ -20184,25 +20186,25 @@ $c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1.prototype.
 function $h_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1() {
 }
 $h_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1.prototype = $c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1.prototype;
-$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1.prototype.reverse__T__s_concurrent_Future = (function(input) {
+$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1.prototype.handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future = (function(payload) {
   var $x_1 = $n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1__f_$resolvedAgent$1);
   var this$1 = $n($n($n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1__f_$resolvedAgent$1).Lcloud_golem_runtime_rpc_AgentClientRuntime$ResolvedAgent__f_plan).Lcloud_golem_runtime_plan_AgentClientPlan__f_methods);
   var pf = new $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$1();
   var this$2 = $n($f_sc_IterableOnceOps__collectFirst__s_PartialFunction__s_Option(this$1, pf));
   if (this$2.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for reverse not found");
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for handle not found");
   }
-  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), input);
+  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), payload);
 });
-$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1.prototype.handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future = (function(payload) {
+$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1.prototype.reverse__T__s_concurrent_Future = (function(input) {
   var $x_1 = $n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1__f_$resolvedAgent$1);
   var this$1 = $n($n($n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1__f_$resolvedAgent$1).Lcloud_golem_runtime_rpc_AgentClientRuntime$ResolvedAgent__f_plan).Lcloud_golem_runtime_plan_AgentClientPlan__f_methods);
   var pf = new $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$2();
   var this$2 = $n($f_sc_IterableOnceOps__collectFirst__s_PartialFunction__s_Option(this$1, pf));
   if (this$2.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for handle not found");
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for reverse not found");
   }
-  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), payload);
+  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), input);
 });
 var $d_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1 = new $TypeData().initClass($c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1, "cloud.golem.examples.minimal.CoordinatorImpl$Worker$agentClient$1", ({
   Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$1: 1,
@@ -20220,25 +20222,25 @@ $c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2.prototype.
 function $h_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2() {
 }
 $h_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2.prototype = $c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2.prototype;
-$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2.prototype.reverse__T__s_concurrent_Future = (function(input) {
+$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2.prototype.handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future = (function(payload) {
   var $x_1 = $n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2__f_$resolvedAgent$2);
   var this$1 = $n($n($n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2__f_$resolvedAgent$2).Lcloud_golem_runtime_rpc_AgentClientRuntime$ResolvedAgent__f_plan).Lcloud_golem_runtime_plan_AgentClientPlan__f_methods);
   var pf = new $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$4();
   var this$2 = $n($f_sc_IterableOnceOps__collectFirst__s_PartialFunction__s_Option(this$1, pf));
   if (this$2.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for reverse not found");
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for handle not found");
   }
-  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), input);
+  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), payload);
 });
-$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2.prototype.handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future = (function(payload) {
+$c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2.prototype.reverse__T__s_concurrent_Future = (function(input) {
   var $x_1 = $n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2__f_$resolvedAgent$2);
   var this$1 = $n($n($n(this.Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2__f_$resolvedAgent$2).Lcloud_golem_runtime_rpc_AgentClientRuntime$ResolvedAgent__f_plan).Lcloud_golem_runtime_plan_AgentClientPlan__f_methods);
   var pf = new $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$5();
   var this$2 = $n($f_sc_IterableOnceOps__collectFirst__s_PartialFunction__s_Option(this$1, pf));
   if (this$2.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for handle not found");
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method plan for reverse not found");
   }
-  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), payload);
+  return $x_1.call__Lcloud_golem_runtime_plan_ClientMethodPlan__O__s_concurrent_Future($as_Lcloud_golem_runtime_plan_ClientMethodPlan(this$2.get__O()), input);
 });
 var $d_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2 = new $TypeData().initClass($c_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2, "cloud.golem.examples.minimal.CoordinatorImpl$Worker$agentClient$2", ({
   Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2: 1,
@@ -22745,6 +22747,9 @@ function $h_sjs_js_Any$() {
 $h_sjs_js_Any$.prototype = $c_sjs_js_Any$.prototype;
 $c_sjs_js_Any$.prototype.fromFunction0__F0__sjs_js_Function0 = (function(f) {
   return (() => $n(f).apply__O());
+});
+$c_sjs_js_Any$.prototype.fromFunction1__F1__sjs_js_Function1 = (function(f) {
+  return ((arg1$2) => $n(f).apply__O__O(arg1$2));
 });
 $c_sjs_js_Any$.prototype.fromFunction2__F2__sjs_js_Function2 = (function(f) {
   return ((arg1$2, arg2$2) => $n(f).apply__O__O__O(arg1$2, arg2$2));
@@ -31725,10 +31730,10 @@ function $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$1() {
 }
 $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$1.prototype = $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$1.prototype;
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$1.prototype.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z = (function(x) {
-  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse");
+  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle");
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$1.prototype.applyOrElse__Lcloud_golem_runtime_plan_ClientMethodPlan__F1__O = (function(x, default$1) {
-  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse") ? x : $n(default$1).apply__O__O(x));
+  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle") ? x : $n(default$1).apply__O__O(x));
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$1.prototype.isDefinedAt__O__Z = (function(x) {
   return this.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z($as_Lcloud_golem_runtime_plan_ClientMethodPlan(x));
@@ -31753,10 +31758,10 @@ function $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$2() {
 }
 $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$2.prototype = $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$2.prototype;
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$2.prototype.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z = (function(x) {
-  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle");
+  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse");
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$2.prototype.applyOrElse__Lcloud_golem_runtime_plan_ClientMethodPlan__F1__O = (function(x, default$1) {
-  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle") ? x : $n(default$1).apply__O__O(x));
+  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse") ? x : $n(default$1).apply__O__O(x));
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$2.prototype.isDefinedAt__O__Z = (function(x) {
   return this.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z($as_Lcloud_golem_runtime_plan_ClientMethodPlan(x));
@@ -31809,10 +31814,10 @@ function $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$4() {
 }
 $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$4.prototype = $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$4.prototype;
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$4.prototype.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z = (function(x) {
-  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse");
+  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle");
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$4.prototype.applyOrElse__Lcloud_golem_runtime_plan_ClientMethodPlan__F1__O = (function(x, default$1) {
-  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse") ? x : $n(default$1).apply__O__O(x));
+  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle") ? x : $n(default$1).apply__O__O(x));
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$4.prototype.isDefinedAt__O__Z = (function(x) {
   return this.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z($as_Lcloud_golem_runtime_plan_ClientMethodPlan(x));
@@ -31837,10 +31842,10 @@ function $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$5() {
 }
 $h_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$5.prototype = $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$5.prototype;
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$5.prototype.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z = (function(x) {
-  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle");
+  return ($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse");
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$5.prototype.applyOrElse__Lcloud_golem_runtime_plan_ClientMethodPlan__F1__O = (function(x, default$1) {
-  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "handle") ? x : $n(default$1).apply__O__O(x));
+  return (($n($n(x).Lcloud_golem_runtime_plan_ClientMethodPlan__f_metadata).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse") ? x : $n(default$1).apply__O__O(x));
 });
 $c_Lcloud_golem_examples_minimal_CoordinatorImpl$$anon$5.prototype.isDefinedAt__O__Z = (function(x) {
   return this.isDefinedAt__Lcloud_golem_runtime_plan_ClientMethodPlan__Z($as_Lcloud_golem_runtime_plan_ClientMethodPlan(x));

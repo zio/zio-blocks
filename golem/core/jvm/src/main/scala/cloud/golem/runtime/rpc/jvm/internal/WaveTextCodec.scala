@@ -2,11 +2,7 @@ package cloud.golem.runtime.rpc.jvm.internal
 
 import scala.util.Try
 
-/**
- * Extremely small WAVE-ish codec for the CLI-backed JVM testing client.
- *
- * Intentionally limited: only what's needed by quickstart smoke tests.
- */
+/** Extremely small WAVE-ish codec for the CLI-backed JVM testing client. */
 private[rpc] object WaveTextCodec {
 
   def encodeArg(value: Any): Either[String, String] =

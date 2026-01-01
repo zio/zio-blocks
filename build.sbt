@@ -347,7 +347,6 @@ lazy val zioGolemExamplesJS = zioGolemExamples.js
     Test / testOnly       := (Test / test).value,
     Test / testQuick      := (Test / test).value,
     Test / testFrameworks := Nil,
-    // Minimal example app: golem-cli drives the build; Scala.js produces a JS module with the required exports.
     cloud.golem.sbt.GolemPlugin.autoImport.golemAppName   := "scala-examples",
     cloud.golem.sbt.GolemPlugin.autoImport.golemComponent := "scala:examples"
   )

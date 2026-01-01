@@ -2,7 +2,6 @@ package cloud.golem.runtime.guest
 
 import cloud.golem.runtime.autowire.AgentRegistry
 import scala.scalajs.js
-import scala.scalajs.js.Dynamic
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 /**
@@ -82,11 +81,15 @@ object Guest {
         case None =>
           js.Promise.reject(invalidType("Invalid agent '" + agentTypeName + "'")).asInstanceOf[js.Promise[Unit]]
         case Some(defnAny) =>
+          val onRejected: js.Function1[Any, js.Thenable[Unit]] =
+            js.Any.fromFunction1((err: Any) =>
+              js.Promise.reject(asAgentError(err, "invalid-input")).asInstanceOf[js.Thenable[Unit]]
+            )
           defnAny
             .initializeAny(input)
             .`then`[Unit](
               (inst: Any) => { resolved = Resolved(defnAny, inst); () },
-              (err: Any) => js.Promise.reject(asAgentError(err, "invalid-input")).asInstanceOf[js.Thenable[Unit]]
+              onRejected
             )
       }
     }
@@ -98,11 +101,13 @@ object Guest {
     } else {
       val r  = resolved.asInstanceOf[Resolved]
       val mn = normalizeMethodName(methodName)
-      r.defn
-        .invokeAny(r.instance, mn, input)
-        .`catch`[js.Dynamic]((err: Any) =>
+      val onRejected: js.Function1[Any, js.Thenable[js.Dynamic]] =
+        js.Any.fromFunction1((err: Any) =>
           js.Promise.reject(asAgentError(err, "invalid-method")).asInstanceOf[js.Thenable[js.Dynamic]]
         )
+      r.defn
+        .invokeAny(r.instance, mn, input)
+        .`catch`[js.Dynamic](onRejected)
     }
   }
 
@@ -110,7 +115,7 @@ object Guest {
     if (js.isUndefined(resolved)) {
       js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
     } else {
-      js.Promise.resolve(resolved.asInstanceOf[Resolved].defn.agentType)
+      js.Promise.resolve[js.Dynamic](resolved.asInstanceOf[Resolved].defn.agentType)
     }
   }
 
@@ -118,7 +123,7 @@ object Guest {
     try {
       val arr = new js.Array[js.Dynamic]()
       AgentRegistry.all.foreach(d => arr.push(d.agentType))
-      js.Promise.resolve(arr)
+      js.Promise.resolve[js.Array[js.Dynamic]](arr)
     } catch {
       case t: Throwable =>
         js.Promise.reject(asAgentError(t.toString, "custom-error")).asInstanceOf[js.Promise[js.Array[js.Dynamic]]]
