@@ -64,7 +64,7 @@ object GolemSchema {
       override def decode(value: StructuredValue): Either[String, Unit] =
         value match {
           case StructuredValue.Tuple(elements) if elements.isEmpty => Right(())
-          case other                                              =>
+          case other                                               =>
             Left(s"Expected empty tuple for Unit payload, found: ${other.getClass.getSimpleName}")
         }
     }

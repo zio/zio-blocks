@@ -3,7 +3,8 @@ package cloud.golem.sdk
 import cloud.golem.runtime.wit.WitResult
 
 /**
- * This is a thin alias/wrapper over [[cloud.golem.runtime.wit.WitResult]] which contains the full implementation.
+ * This is a thin alias/wrapper over [[cloud.golem.runtime.wit.WitResult]] which
+ * contains the full implementation.
  */
 object Result {
   type Result[+Ok, +Err] = WitResult[Ok, Err]
@@ -20,4 +21,3 @@ object Result {
   def fromOption[Ok](value: Option[Ok], orElse: => String): Result[Ok, String] =
     WitResult.fromOption(value, orElse)
 }
-

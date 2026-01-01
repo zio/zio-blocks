@@ -62,7 +62,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   }
 
   test("Trigger rejects awaitable methods") {
-    val resolved                                                     = resolvedAgent()
+    val resolved                                                 = resolvedAgent()
     val firePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
       methodPlan[RpcParityAgent, String, Unit](rpcPlan, "fireAndForget")
     val awaitablePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
@@ -76,7 +76,7 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   }
 
   test("Schedule rejects awaitable methods") {
-    val resolved                                                     = resolvedAgent()
+    val resolved                                                 = resolvedAgent()
     val firePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
       methodPlan[RpcParityAgent, String, Unit](rpcPlan, "fireAndForget")
     val awaitablePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
@@ -250,4 +250,3 @@ private object AgentClientRuntimeSpecFixtures {
     implicit val schemaSampleOutput: Schema[SampleOutput] = Schema.derived
   }
 }
-

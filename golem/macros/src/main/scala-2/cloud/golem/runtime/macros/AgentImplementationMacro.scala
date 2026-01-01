@@ -7,7 +7,7 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentImplementationMacro {
-  def plan[Trait](constructor: => Trait): AgentImplementationPlan[Trait, Unit] =
+  def plan[Trait](build: => Trait): AgentImplementationPlan[Trait, Unit] =
     macro AgentImplementationMacroImpl.planImpl[Trait]
 
   def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
@@ -18,7 +18,7 @@ object AgentImplementationMacro {
 
 object AgentImplementationMacroImpl {
   def planImpl[Trait: c.WeakTypeTag](c: blackbox.Context)(
-    constructor: c.Expr[Trait]
+    build: c.Expr[Trait]
   ): c.Expr[AgentImplementationPlan[Trait, Unit]] = {
     import c.universe._
 
@@ -41,7 +41,7 @@ object AgentImplementationMacroImpl {
       _root_.cloud.golem.runtime.plan.AgentImplementationPlan[$traitType, _root_.scala.Unit](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
-        buildInstance = (_: _root_.scala.Unit) => $constructor,
+        buildInstance = (_: _root_.scala.Unit) => $build,
         methods = $methodsExpr
       )
     """)

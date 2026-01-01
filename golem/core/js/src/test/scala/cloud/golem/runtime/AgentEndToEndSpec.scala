@@ -63,4 +63,3 @@ final class AgentEndToEndSpec extends AsyncFunSuite {
   }
 
 }
-

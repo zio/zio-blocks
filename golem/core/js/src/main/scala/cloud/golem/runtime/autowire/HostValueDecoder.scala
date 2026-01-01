@@ -38,8 +38,8 @@ private[autowire] object HostValueDecoder {
       var idx                     = 0
       var failure: Option[String] = None
       while (idx < schemaElements.length && failure.isEmpty) {
-        val schemaElem = schemaElements(idx)
-        val raw = payload(idx).asInstanceOf[js.Any]
+        val schemaElem                      = schemaElements(idx)
+        val raw                             = payload(idx).asInstanceOf[js.Any]
         val elementValueDynamic: js.Dynamic =
           if (js.Array.isArray(raw)) {
             val entry = raw.asInstanceOf[js.Array[js.Any]]

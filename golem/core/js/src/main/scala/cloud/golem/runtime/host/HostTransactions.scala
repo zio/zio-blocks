@@ -6,9 +6,8 @@ import scala.util.control.NoStackTrace
 /**
  * Transaction helpers for managing atomic operations with automatic rollback.
  *
- * This mirrors the JS SDK's `infallibleTransaction` and
- * `fallibleTransaction` helpers, providing the same ergonomics for Scala.js
- * agents.
+ * This mirrors the JS SDK's `infallibleTransaction` and `fallibleTransaction`
+ * helpers, providing the same ergonomics for Scala.js agents.
  *
  * ==Infallible Transactions==
  *
@@ -40,7 +39,9 @@ import scala.util.control.NoStackTrace
  * @see
  *   [[docs/transactions.md]] for detailed usage patterns
  */
-/** Transaction helpers for managing atomic operations with automatic rollback. */
+/**
+ * Transaction helpers for managing atomic operations with automatic rollback.
+ */
 object Transactions {
 
   /**

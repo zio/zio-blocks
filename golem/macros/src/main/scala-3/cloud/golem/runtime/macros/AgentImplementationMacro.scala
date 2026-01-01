@@ -1,18 +1,13 @@
 package cloud.golem.runtime.macros
 
 import cloud.golem.data.GolemSchema
-import cloud.golem.runtime.plan.{
-  AgentImplementationPlan,
-  AsyncMethodPlan,
-  MethodPlan,
-  SyncMethodPlan
-}
+import cloud.golem.runtime.plan.{AgentImplementationPlan, AsyncMethodPlan, MethodPlan, SyncMethodPlan}
 import cloud.golem.runtime.{AgentMetadata, MethodMetadata}
 import scala.quoted.*
 
 object AgentImplementationMacro {
-  inline def plan[Trait](inline constructor: => Trait): AgentImplementationPlan[Trait, Unit] =
-    ${ planImpl[Trait]('constructor) }
+  inline def plan[Trait](inline build: => Trait): AgentImplementationPlan[Trait, Unit] =
+    ${ planImpl[Trait]('build) }
 
   inline def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
     inline build: Ctor => Trait
@@ -20,7 +15,7 @@ object AgentImplementationMacro {
     ${ planWithCtorImpl[Trait, Ctor]('build) }
 
   private def planImpl[Trait: Type](
-    constructorExpr: Expr[Trait]
+    buildExpr: Expr[Trait]
   )(using Quotes): Expr[AgentImplementationPlan[Trait, Unit]] = {
     import quotes.reflect.*
 
@@ -48,7 +43,7 @@ object AgentImplementationMacro {
       AgentImplementationPlan[Trait, Unit](
         metadata = metadata,
         constructorSchema = $ctorSchemaExpr,
-        buildInstance = (_: Unit) => $constructorExpr,
+        buildInstance = (_: Unit) => $buildExpr,
         methods = $methodsExpr
       )
     }

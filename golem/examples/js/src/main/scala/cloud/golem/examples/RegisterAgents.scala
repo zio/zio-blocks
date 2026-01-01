@@ -1,20 +1,15 @@
 package cloud.golem.examples
 
-import cloud.golem.examples.minimal.{
-  Coordinator,
-  CoordinatorImpl,
-  Shard,
-  ShardImpl,
-  Worker,
-  WorkerImpl
-}
+import cloud.golem.examples.minimal.{Coordinator, CoordinatorImpl, Shard, ShardImpl, Worker, WorkerImpl}
 import cloud.golem.runtime.autowire.AgentImplementation
 import scala.scalajs.js.annotation.JSExportTopLevel
 
 /**
- * Forces agent registration to run at module initialization time (ES module import).
+ * Forces agent registration to run at module initialization time (ES module
+ * import).
  *
- * This is intentionally a single exported value whose initializer registers all agents.
+ * This is intentionally a single exported value whose initializer registers all
+ * agents.
  */
 object RegisterAgents {
   @JSExportTopLevel("__golemRegisterAgents")
@@ -25,4 +20,3 @@ object RegisterAgents {
     ()
   }
 }
-

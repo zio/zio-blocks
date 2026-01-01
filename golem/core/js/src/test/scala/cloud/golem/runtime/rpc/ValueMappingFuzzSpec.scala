@@ -71,4 +71,3 @@ final class ValueMappingFuzzSpec extends AnyFunSuite {
   rpcRoundTrip[TinyProduct]("product", 150)(genTinyProduct())
   rpcRoundTrip[TinySum]("sum", 150)(genTinySum())
 }
-

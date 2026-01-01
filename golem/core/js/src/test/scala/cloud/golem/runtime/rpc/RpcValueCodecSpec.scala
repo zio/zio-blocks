@@ -39,4 +39,3 @@ final class RpcValueCodecSpec extends AnyFunSuite with TimeLimits {
     }
   }
 }
-

@@ -11,7 +11,8 @@ import scala.concurrent.Await
  * Repo-local JVM smoke test for the quickstart agents.
  *
  * Expected flow:
- *   - Deploy via golem-cli from the checked-in app dir (`./golem/quickstart/jvm-test.sh` runs from `golem/quickstart/app`)
+ *   - Deploy via golem-cli from the checked-in app dir
+ *     (`./golem/quickstart/jvm-test.sh` runs from `golem/quickstart/app`)
  *   - Run this main (uses golem-cli to invoke the deployed agents)
  */
 object QuickstartClient {
@@ -36,7 +37,7 @@ object QuickstartClient {
       println(s"[quickstart-jvm] ShardAgent.get(k) => $got")
     }
 
-    val forceFresh = sys.env.get("GOLEM_QUICKSTART_FRESH_IDS").contains("1")
+    val forceFresh    = sys.env.get("GOLEM_QUICKSTART_FRESH_IDS").contains("1")
     val initialSuffix =
       if (forceFresh) "-" + java.util.UUID.randomUUID().toString
       else ""
@@ -47,7 +48,7 @@ object QuickstartClient {
     try runOnce(counterId0, table0)
     catch {
       case t: Throwable =>
-        val msg = Option(t.getMessage).getOrElse("")
+        val msg           = Option(t.getMessage).getOrElse("")
         val looksPoisoned =
           msg.contains("Previous Invocation Failed") ||
             msg.contains("newCounterAgent") ||

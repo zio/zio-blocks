@@ -2,11 +2,7 @@ package cloud.golem.runtime.autowire
 
 import cloud.golem.data.GolemSchema
 import cloud.golem.data.StructuredSchema
-import cloud.golem.runtime.plan.{
-  AgentImplementationPlan,
-  AsyncMethodPlan,
-  SyncMethodPlan
-}
+import cloud.golem.runtime.plan.{AgentImplementationPlan, AsyncMethodPlan, SyncMethodPlan}
 
 private[autowire] object AgentImplementationRuntime {
   def register[Trait, Ctor](
@@ -22,7 +18,7 @@ private[autowire] object AgentImplementationRuntime {
             description = plan.metadata.description.getOrElse(typeName),
             prompt = None
           )(instance)
-        case _                                                    =>
+        case _ =>
           implicit val ctorSchema: GolemSchema[Ctor] = plan.constructorSchema
           AgentConstructor.sync[Ctor, Trait](
             ConstructorMetadata(
@@ -56,9 +52,8 @@ private[autowire] object AgentImplementationRuntime {
     typeName: String,
     mode: AgentMode,
     plan: AgentImplementationPlan[Trait, Ctor]
-  ): AgentDefinition[Trait] = {
+  ): AgentDefinition[Trait] =
     register[Trait, Ctor](typeName, mode, plan)
-  }
 
   private def buildSyncBinding[Trait, In, Out](plan: SyncMethodPlan[Trait, In, Out]): MethodBinding[Trait] = {
     implicit val inSchema: GolemSchema[In]   = plan.inputSchema

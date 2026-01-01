@@ -39,4 +39,3 @@ final class GolemSchemaRoundtripSpec extends AnyFunSuite {
   roundTrip("tuple2")(("a", 1))
   roundTrip("tuple3")(("a", 1, true))
 }
-

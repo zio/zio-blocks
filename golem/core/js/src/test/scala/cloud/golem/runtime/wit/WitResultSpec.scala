@@ -52,4 +52,3 @@ class WitResultSpec extends AnyFunSuite {
     assert(thrown.payload == "boom")
   }
 }
-

@@ -14,4 +14,3 @@ object Color {
   case object Blue extends Color
   implicit val schema: Schema[Color] = Schema.derived
 }
-

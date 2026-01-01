@@ -18,7 +18,7 @@ private[autowire] object WitTypeBuilder {
       js.Dynamic.literal("nodes" -> nodes)
 
     def buildNode(dataType: DataType): Int = {
-      val index = newNode()
+      val index       = newNode()
       val typeVariant = dataType match {
         case DataType.UnitType =>
           tupleType(js.Array())
@@ -78,12 +78,11 @@ private[autowire] object WitTypeBuilder {
       // The JS representation of `wit-type` nodes is a record:
       // { name: undefined | string, owner: undefined | string, type: { tag, val? } }
       // This matches the shape used by the JS SDK and by the hand-written JS example.
-      nodes(index) =
-        js.Dynamic.literal(
-          "name"  -> (js.undefined: js.UndefOr[String]),
-          "owner" -> (js.undefined: js.UndefOr[String]),
-          "type"  -> typeVariant
-        )
+      nodes(index) = js.Dynamic.literal(
+        "name"  -> (js.undefined: js.UndefOr[String]),
+        "owner" -> (js.undefined: js.UndefOr[String]),
+        "type"  -> typeVariant
+      )
       index
     }
 

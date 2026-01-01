@@ -54,7 +54,7 @@ object Guest {
   private def asAgentError(err: Any, fallbackTag: String): js.Dynamic =
     if (err == null) customError("null")
     else {
-      val dyn = err.asInstanceOf[js.Dynamic]
+      val dyn       = err.asInstanceOf[js.Dynamic]
       val hasTagVal =
         try !js.isUndefined(dyn.selectDynamic("tag")) && !js.isUndefined(dyn.selectDynamic("val"))
         catch { case _: Throwable => false }
@@ -73,7 +73,7 @@ object Guest {
       methodName.substring(start, methodName.length - 1)
     } else methodName
 
-  private def initialize(agentTypeName: String, input: js.Dynamic): js.Promise[Unit] = {
+  private def initialize(agentTypeName: String, input: js.Dynamic): js.Promise[Unit] =
     if (!js.isUndefined(resolved)) {
       js.Promise.reject(customError("Agent is already initialized in this container")).asInstanceOf[js.Promise[Unit]]
     } else {
@@ -93,14 +93,13 @@ object Guest {
             )
       }
     }
-  }
 
-  private def invoke(methodName: String, input: js.Dynamic): js.Promise[js.Dynamic] = {
+  private def invoke(methodName: String, input: js.Dynamic): js.Promise[js.Dynamic] =
     if (js.isUndefined(resolved)) {
       js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
     } else {
-      val r  = resolved.asInstanceOf[Resolved]
-      val mn = normalizeMethodName(methodName)
+      val r                                                      = resolved.asInstanceOf[Resolved]
+      val mn                                                     = normalizeMethodName(methodName)
       val onRejected: js.Function1[Any, js.Thenable[js.Dynamic]] =
         js.Any.fromFunction1((err: Any) =>
           js.Promise.reject(asAgentError(err, "invalid-method")).asInstanceOf[js.Thenable[js.Dynamic]]
@@ -109,15 +108,13 @@ object Guest {
         .invokeAny(r.instance, mn, input)
         .`catch`[js.Dynamic](onRejected)
     }
-  }
 
-  private def getDefinition(): js.Promise[js.Dynamic] = {
+  private def getDefinition(): js.Promise[js.Dynamic] =
     if (js.isUndefined(resolved)) {
       js.Promise.reject(invalidAgentId("Agent is not initialized")).asInstanceOf[js.Promise[js.Dynamic]]
     } else {
       js.Promise.resolve[js.Dynamic](resolved.asInstanceOf[Resolved].defn.agentType)
     }
-  }
 
   private def discoverAgentTypes(): js.Promise[js.Array[js.Dynamic]] =
     try {
@@ -138,4 +135,3 @@ object Guest {
       "discoverAgentTypes" -> (() => discoverAgentTypes())
     )
 }
-

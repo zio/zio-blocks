@@ -1,8 +1,8 @@
 package cloud.golem.runtime.wit
 
 /**
- * A WIT-friendly result type that mirrors the ergonomics of the JS SDK.
- * SDK's `Result`.
+ * A WIT-friendly result type that mirrors the ergonomics of the JS SDK. SDK's
+ * `Result`.
  *
  * Use this when defining agent methods that surface `result<ok, err>` values to
  * the host. It operates like Scala's `Either`, but includes helpers
@@ -126,8 +126,8 @@ sealed trait WitResult[+Ok, +Err] { self =>
    *
    * When exporting a `result` back through the WIT boundary (e.g., returning to
    * host JS), call this to either return the success value or throw the error
-   * payload. This mirrors the JS SDK behavior where `Result.err`
-   * triggers a rejected promise.
+   * payload. This mirrors the JS SDK behavior where `Result.err` triggers a
+   * rejected promise.
    *
    * @return
    *   The success value

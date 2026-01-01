@@ -334,10 +334,10 @@ lazy val zioGolemQuickstart = crossProject(JSPlatform, JVMPlatform)
   .jsSettings(
     scalaJSUseMainModuleInitializer := false,
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
-    Test / test                                           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
-    Test / testOnly                                       := (Test / test).value,
-    Test / testQuick                                      := (Test / test).value,
-    Test / testFrameworks                                 := Nil
+    Test / test           := Keys.streams.value.log.info("Skipping quickstart tests; run golemDeploy + repl script instead."),
+    Test / testOnly       := (Test / test).value,
+    Test / testQuick      := (Test / test).value,
+    Test / testFrameworks := Nil
   )
   .jsConfigure(_.dependsOn(zioGolemCoreJS, zioGolemMacros))
   .jvmConfigure(_.dependsOn(zioGolemCoreJVM, zioGolemMacros))

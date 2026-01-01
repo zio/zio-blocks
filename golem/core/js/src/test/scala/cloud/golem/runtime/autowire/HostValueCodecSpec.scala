@@ -76,4 +76,3 @@ final class HostValueCodecSpec extends AnyFunSuite with TimeLimits {
     }
   }
 }
-

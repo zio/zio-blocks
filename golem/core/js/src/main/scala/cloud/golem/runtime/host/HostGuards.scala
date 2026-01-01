@@ -1,8 +1,7 @@
 package cloud.golem.sdk
 
 /**
- * Utility guards that mirror the ergonomics of the JS SDK's guard
- * helpers.
+ * Utility guards that mirror the ergonomics of the JS SDK's guard helpers.
  *
  * Each `use*` method applies a configuration change on the host and returns a
  * guard that will automatically restore the previous value when `drop()` (or
