@@ -52,7 +52,7 @@ final class AgentClientPlanEndToEndSpec extends AsyncFunSuite {
         plan.asInstanceOf[cloud.golem.runtime.plan.AgentClientPlan[AsyncEchoAgent, Any]],
         RemoteAgentClient("e2e-client-async", "fake-id", null, rpc)
       )
-    val echo = plan.methods.collectFirst { case m: ClientMethodPlan.Aux[AsyncEchoAgent, String, String] @unchecked =>
+    val echo = plan.methods.collectFirst { case m: ClientMethodPlan[AsyncEchoAgent, String, String] @unchecked =>
       m
     }.get
 

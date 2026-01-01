@@ -21,13 +21,7 @@ final case class ClientMethodPlan[Trait, Input, Output](
   invocation: ClientInvocation
 )
 
-object ClientMethodPlan {
-  type Aux[Trait, In, Out] = ClientMethodPlan[Trait, In, Out]
-}
-
 object AgentClientPlan {
-  // Cross-build note: Scala 3 prefers `?` for wildcard type arguments, but Scala 2 requires `_`.
-  // Keep the Scala 2 form here and suppress the Scala 3 deprecation warning locally.
   @nowarn("msg=.*deprecated for wildcard arguments.*")
   type AnyClientMethodPlan[Trait] = ClientMethodPlan[Trait, _, _]
 }

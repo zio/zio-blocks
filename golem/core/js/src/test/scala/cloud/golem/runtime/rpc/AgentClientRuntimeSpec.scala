@@ -63,9 +63,9 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 
   test("Trigger rejects awaitable methods") {
     val resolved                                                     = resolvedAgent()
-    val firePlan: ClientMethodPlan.Aux[RpcParityAgent, String, Unit] =
+    val firePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
       methodPlan[RpcParityAgent, String, Unit](rpcPlan, "fireAndForget")
-    val awaitablePlan: ClientMethodPlan.Aux[RpcParityAgent, String, Unit] =
+    val awaitablePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
       firePlan.copy(invocation = ClientInvocation.Awaitable)
 
     recoverToExceptionIf[js.JavaScriptException] {
@@ -77,9 +77,9 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
 
   test("Schedule rejects awaitable methods") {
     val resolved                                                     = resolvedAgent()
-    val firePlan: ClientMethodPlan.Aux[RpcParityAgent, String, Unit] =
+    val firePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
       methodPlan[RpcParityAgent, String, Unit](rpcPlan, "fireAndForget")
-    val awaitablePlan: ClientMethodPlan.Aux[RpcParityAgent, String, Unit] =
+    val awaitablePlan: ClientMethodPlan[RpcParityAgent, String, Unit] =
       firePlan.copy(invocation = ClientInvocation.Awaitable)
 
     recoverToExceptionIf[js.JavaScriptException] {
@@ -181,10 +181,10 @@ final class AgentClientRuntimeSpec extends AsyncFunSuite {
   private def methodPlan[Trait, In, Out](
     plan: AgentClientPlan[Trait, RpcCtor],
     name: String
-  ): ClientMethodPlan.Aux[Trait, In, Out] =
+  ): ClientMethodPlan[Trait, In, Out] =
     plan.methods.collectFirst {
       case candidate if candidate.metadata.name == name =>
-        candidate.asInstanceOf[ClientMethodPlan.Aux[Trait, In, Out]]
+        candidate.asInstanceOf[ClientMethodPlan[Trait, In, Out]]
     }.getOrElse(throw new IllegalArgumentException(s"Method plan for $name not found"))
 
   private final class RecordingRpcInvoker extends RpcInvoker {

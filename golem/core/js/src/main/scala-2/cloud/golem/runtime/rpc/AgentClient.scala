@@ -68,7 +68,7 @@ private[rpc] object AgentClientBindMacro {
         $resolvedRef.plan.methods
           .collectFirst {
             case p if p.metadata.name == $methodName =>
-              p.asInstanceOf[_root_.cloud.golem.runtime.plan.ClientMethodPlan.Aux[$traitTpe, $inTpe, $outTpe]]
+              p.asInstanceOf[_root_.cloud.golem.runtime.plan.ClientMethodPlan[$traitTpe, $inTpe, $outTpe]]
           }
           .getOrElse(throw new _root_.java.lang.IllegalStateException("Method plan for " + $methodName + " not found"))
       """

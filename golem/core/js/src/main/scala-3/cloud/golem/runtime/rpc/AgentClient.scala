@@ -147,12 +147,12 @@ private object AgentClientInlineMacros {
           }
       }
 
-    def buildMethodPlanLookup[In: Type, Out: Type](methodName: String): Expr[ClientMethodPlan.Aux[Trait, In, Out]] = {
+    def buildMethodPlanLookup[In: Type, Out: Type](methodName: String): Expr[ClientMethodPlan[Trait, In, Out]] = {
       val methodNameExpr = Expr(methodName)
       '{
         $resolvedRef.plan.methods.collectFirst {
           case plan if plan.metadata.name == $methodNameExpr =>
-            plan.asInstanceOf[ClientMethodPlan.Aux[Trait, In, Out]]
+            plan.asInstanceOf[ClientMethodPlan[Trait, In, Out]]
         }
           .getOrElse(throw new IllegalStateException(s"Method plan for ${$methodNameExpr} not found"))
       }
@@ -183,7 +183,7 @@ private object AgentClientInlineMacros {
                   if !(planData.outputType =:= TypeRepr.of[Unit]) then
                     report.errorAndAbort(s"Fire-and-forget method ${planData.method.name} must return Unit")
                   val triggerPlanExpr =
-                    methodPlanExpr.asExprOf[ClientMethodPlan.Aux[Trait, input, Unit]]
+                    methodPlanExpr.asExprOf[ClientMethodPlan[Trait, input, Unit]]
                   '{
                     import scala.concurrent.ExecutionContext.Implicits.global
                     $resolvedRef
