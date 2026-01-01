@@ -22,7 +22,13 @@ object TypeIdOps {
     val packages = typeName.namespace.packages.map(Owner.Package(_)).toList
     val terms = typeName.namespace.values.map(Owner.Term(_)).toList
     val owner = Owner(packages ++ terms)
-    TypeId.nominal[A](typeName.name, owner)
+    val base = TypeId.nominal[A](typeName.name, owner)
+    
+    if (typeName.params.isEmpty) base
+    else {
+      val args = typeName.params.map(p => typeNameToTypeId(p)).toList
+      TypeId.applied[A](base, args)
+    }
   }
   
   /**
@@ -43,15 +49,20 @@ object TypeIdOps {
     /**
      * Convert TypeId to TypeName for compatibility during migration.
      */
-    def toTypeName: TypeName[A] = {
-      val packages = typeId.owner.segments.collect { 
-        case zio.blocks.typeid.Owner.Package(name) => name 
-      }
-      val values = typeId.owner.segments.collect { 
-        case zio.blocks.typeid.Owner.Term(name) => name
-        case zio.blocks.typeid.Owner.Type(name) => name
-      }
-      new TypeName[A](new Namespace(packages, values), typeId.name, Nil)
+    def toTypeName: TypeName[A] = typeId match {
+      case TypeId.Applied(ctor, args) =>
+        val base = ctor.toTypeName
+        new TypeName[A](base.namespace, base.name, args.map(_.toTypeName))
+        
+      case _ =>
+        val packages = typeId.owner.segments.collect { 
+          case zio.blocks.typeid.Owner.Package(name) => name 
+        }
+        val values = typeId.owner.segments.collect { 
+          case zio.blocks.typeid.Owner.Term(name) => name
+          case zio.blocks.typeid.Owner.Type(name) => name
+        }
+        new TypeName[A](new Namespace(packages, values), typeId.name, Nil)
     }
     
     /**

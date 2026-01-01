@@ -154,7 +154,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   }
 
   @deprecated("Use typeId(value) instead", "Phase 2")
-  final def typeName(value: TypeName[A]): Reflect[F, A] = this
+  final def typeName(value: TypeName[A]): Reflect[F, A] = {
+    import TypeIdOps._
+    typeId(value.toTypeId)
+  }
 
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
@@ -1114,7 +1117,7 @@ object Reflect {
     }
   }
 
-  case class Deferred[F[_, _], A](_value: () => Reflect[F, A]) extends Reflect[F, A] { self =>
+  case class Deferred[F[_, _], A](_value: () => Reflect[F, A], explicitTypeId: Option[TypeId[A]] = None) extends Reflect[F, A] { self =>
     protected def inner: Any = value.inner
 
     final lazy val value: Reflect[F, A] = _value()
@@ -1150,7 +1153,7 @@ object Reflect {
 
     def doc: Doc = value.doc
 
-    def typeId: TypeId[A] = value.typeId
+    def typeId: TypeId[A] = explicitTypeId.getOrElse(value.typeId)
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = this.value.toDynamicValue(value)
 
