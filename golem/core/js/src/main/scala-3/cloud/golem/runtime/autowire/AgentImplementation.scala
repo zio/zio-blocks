@@ -79,15 +79,15 @@ object AgentImplementation {
    * @return
    *   The registered agent definition
    */
-  inline def register[Trait](typeName: String)(inline constructor: => Trait): AgentDefinition[Trait] =
-    registerInternal[Trait](typeName, None)(constructor)
+  inline def register[Trait](typeName: String)(inline build: => Trait): AgentDefinition[Trait] =
+    registerInternal[Trait](typeName, None)(build)
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait.
    */
-  inline def register[Trait](inline constructor: => Trait): AgentDefinition[Trait] =
-    registerInternal[Trait](AgentNameMacro.typeName[Trait], None)(constructor)
+  inline def register[Trait](inline build: => Trait): AgentDefinition[Trait] =
+    registerInternal[Trait](AgentNameMacro.typeName[Trait], None)(build)
 
   /**
    * Registers an agent implementation using constructor input, as defined by
@@ -113,20 +113,20 @@ object AgentImplementation {
    * @return
    *   The registered agent definition
    */
-  inline def register[Trait](typeName: String, mode: AgentMode)(inline constructor: => Trait): AgentDefinition[Trait] =
-    registerInternal[Trait](typeName, Some(mode))(constructor)
+  inline def register[Trait](typeName: String, mode: AgentMode)(inline build: => Trait): AgentDefinition[Trait] =
+    registerInternal[Trait](typeName, Some(mode))(build)
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait, with a mode override.
    */
-  inline def register[Trait](mode: AgentMode)(inline constructor: => Trait): AgentDefinition[Trait] =
-    registerInternal[Trait](AgentNameMacro.typeName[Trait], Some(mode))(constructor)
+  inline def register[Trait](mode: AgentMode)(inline build: => Trait): AgentDefinition[Trait] =
+    registerInternal[Trait](AgentNameMacro.typeName[Trait], Some(mode))(build)
 
   private inline def registerInternal[Trait](typeName: String, modeOverride: Option[AgentMode])(
-    inline constructor: => Trait
+    inline build: => Trait
   ): AgentDefinition[Trait] = {
-    val plan          = AgentImplementationMacro.plan[Trait](constructor)
+    val plan          = AgentImplementationMacro.plan[Trait](build)
     val metadataMode  = plan.metadata.mode.flatMap(AgentMode.fromString)
     val effectiveMode = modeOverride.orElse(metadataMode).getOrElse(AgentMode.Durable)
     registerPlan(typeName, effectiveMode, plan)

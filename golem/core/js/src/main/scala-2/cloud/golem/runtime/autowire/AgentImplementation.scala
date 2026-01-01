@@ -69,14 +69,14 @@ object AgentImplementation {
    * @param constructor An instance of the implementation (evaluated lazily)
    * @return The registered agent definition
    */
-  def register[Trait](typeName: String)(constructor: => Trait): AgentDefinition[Trait] =
+  def register[Trait](typeName: String)(build: => Trait): AgentDefinition[Trait] =
   macro AgentImplementationMacroFacade.registerImpl[Trait]
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait.
    */
-  def register[Trait](constructor: => Trait): AgentDefinition[Trait] =
+  def register[Trait](build: => Trait): AgentDefinition[Trait] =
   macro AgentImplementationMacroFacade.registerImplCustomAgentTypeName[Trait]
 
   /**
@@ -98,14 +98,14 @@ object AgentImplementation {
    * @param constructor An instance of the implementation (evaluated lazily)
    * @return The registered agent definition
    */
-  def registerWithMode[Trait](typeName: String, mode: AgentMode)(constructor: => Trait): AgentDefinition[Trait] =
+  def registerWithMode[Trait](typeName: String, mode: AgentMode)(build: => Trait): AgentDefinition[Trait] =
   macro AgentImplementationMacroFacade.registerWithModeImpl[Trait]
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait, with a mode override.
    */
-  def register[Trait](mode: AgentMode)(constructor: => Trait): AgentDefinition[Trait] =
+  def register[Trait](mode: AgentMode)(build: => Trait): AgentDefinition[Trait] =
   macro AgentImplementationMacroFacade.registerFromAnnotationWithModeImpl[Trait]
 }
 
@@ -120,7 +120,7 @@ object AgentImplementationMacroFacade {
 
   def registerImpl[Trait: c.WeakTypeTag](c: blackbox.Context)
                                         (typeName: c.Expr[String])
-                                        (constructor: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
+                                        (build: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
     import c.universe._
 
     val traitType = weakTypeOf[Trait]
@@ -128,7 +128,7 @@ object AgentImplementationMacroFacade {
     c.Expr[AgentDefinition[Trait]](
       q"""
       {
-        val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($constructor)
+        val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($build)
         val metadataMode = plan.metadata.mode.flatMap(_root_.cloud.golem.runtime.autowire.AgentMode.fromString)
         val effectiveMode = metadataMode.getOrElse(_root_.cloud.golem.runtime.autowire.AgentMode.Durable)
         _root_.cloud.golem.runtime.autowire.AgentImplementation.registerPlan($typeName, effectiveMode, plan)
@@ -138,7 +138,7 @@ object AgentImplementationMacroFacade {
 
   def registerWithModeImpl[Trait: c.WeakTypeTag](c: blackbox.Context)
                                                 (typeName: c.Expr[String], mode: c.Expr[AgentMode])
-                                                (constructor: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
+                                                (build: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
     import c.universe._
 
     val traitType = weakTypeOf[Trait]
@@ -146,7 +146,7 @@ object AgentImplementationMacroFacade {
     c.Expr[AgentDefinition[Trait]](
       q"""
       {
-        val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($constructor)
+        val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($build)
         val metadataMode = plan.metadata.mode.flatMap(_root_.cloud.golem.runtime.autowire.AgentMode.fromString)
         val effectiveMode = Some($mode).orElse(metadataMode).getOrElse(_root_.cloud.golem.runtime.autowire.AgentMode.Durable)
         _root_.cloud.golem.runtime.autowire.AgentImplementation.registerPlan($typeName, effectiveMode, plan)
@@ -155,7 +155,7 @@ object AgentImplementationMacroFacade {
   }
 
   def registerImplCustomAgentTypeName[Trait: c.WeakTypeTag](c: blackbox.Context)(
-    constructor: c.Expr[Trait]
+    build: c.Expr[Trait]
   ): c.Expr[AgentDefinition[Trait]] = {
     import c.universe._
 
@@ -177,12 +177,12 @@ object AgentImplementationMacroFacade {
       }
     }
 
-    registerImpl[Trait](c)(c.Expr[String](Literal(Constant(typeName))))(constructor)
+    registerImpl[Trait](c)(c.Expr[String](Literal(Constant(typeName))))(build)
   }
 
   def registerFromAnnotationWithModeImpl[Trait: c.WeakTypeTag](c: blackbox.Context)(
     mode: c.Expr[AgentMode]
-  )(constructor: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
+  )(build: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
     import c.universe._
 
     val traitType = weakTypeOf[Trait]
@@ -203,7 +203,7 @@ object AgentImplementationMacroFacade {
       }
     }
 
-    registerWithModeImpl[Trait](c)(c.Expr[String](Literal(Constant(typeName))), mode)(constructor)
+    registerWithModeImpl[Trait](c)(c.Expr[String](Literal(Constant(typeName))), mode)(build)
   }
 
   def registerFromAnnotationCtorImpl[Trait: c.WeakTypeTag, Ctor: c.WeakTypeTag](c: blackbox.Context)(
