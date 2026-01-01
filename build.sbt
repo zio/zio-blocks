@@ -80,6 +80,7 @@ lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .enablePlugins(BuildInfoPlugin)
   .jvmSettings(mimaSettings(failOnProblem = false))
   .jsSettings(jsSettings)
+  .jsSettings(test / fork := false)
   .nativeSettings(nativeSettings)
   .settings(
     compileOrder := CompileOrder.JavaThenScala,

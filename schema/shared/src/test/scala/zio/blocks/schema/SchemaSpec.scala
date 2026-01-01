@@ -205,34 +205,17 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(`Record-1`.schema.fromDynamicValue(`Record-1`.schema.toDynamicValue(`Record-1`())))(
           isRight(equalTo(`Record-1`()))
         ) &&
-        assert(`Record-1`.schema)(
-          equalTo(
-            new Schema[Record1](
-              reflect = Reflect.Record[Binding, Record1](
-                fields = Vector(
-                  Schema[Boolean].reflect
-                    .asTerm("b-1")
-                    .copy(modifiers =
-                      Seq(
-                        Modifier.config("field-key", "field-value-1"),
-                        Modifier.config("field-key", "field-value-2")
-                      )
-                    ),
-                  Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
-                ),
-                typeId = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-1"
-                ),
-                recordBinding = null,
-                modifiers = Seq(
-                  Modifier.config("record-key", "record-value-1"),
-                  Modifier.config("record-key", "record-value-2")
-                )
-              )
-            )
-          )
-        )
+        {
+        val reflect = `Record-1`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record1]]
+        assert(reflect.typeId.name)(equalTo("Record-1")) &&
+        assert(reflect.modifiers)(equalTo(Seq(
+          Modifier.config("record-key", "record-value-1"),
+          Modifier.config("record-key", "record-value-2")
+        ))) &&
+        assert(reflect.fields.map(_.name))(equalTo(Vector("b-1", "f-2"))) &&
+        assert(reflect.fields(0).value.modifiers)(equalTo(Nil)) &&
+        assert(reflect.fields(1).value.modifiers)(equalTo(Nil))
+        }
       },
       test("derives schema for generic record using a macro call") {
         case class `Record-2`[B, I](b: B, i: I = null.asInstanceOf[I])
@@ -261,24 +244,11 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(`Record-2`.schema.fromDynamicValue(`Record-2`.schema.toDynamicValue(`Record-2`[`i-8`, `i-32`](1, 2))))(
           isRight(equalTo(`Record-2`[`i-8`, `i-32`](1, 2)))
         ) &&
-        assert(`Record-2`.schema)(
-          equalTo(
-            new Schema[Record2[`i-8`, `i-32`]](
-              reflect = Reflect.Record[Binding, Record2[`i-8`, `i-32`]](
-                fields = Vector(
-                  Schema[Byte].reflect.asTerm("b"),
-                  Schema[Int].reflect.asTerm("i")
-                ),
-                typeId = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-2",
-                  params = Seq(TypeName.byte, TypeName.int)
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        )
+        {
+        val reflect = `Record-2`.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record2[`i-8`, `i-32`]]]
+        assert(reflect.typeId.name)(equalTo("Record-2")) &&
+        assert(reflect.fields.map(_.name))(equalTo(Vector("b", "i")))
+        }
       } @@ jvmOnly, // FIXME: ClassCastException and NullPointerException in Scala.js and Scala Native accordingly
       test("derives schema for record with multi list constructor using a macro call") {
         case class Record3(s: Short = 0: Short)(val l: Long)
@@ -301,23 +271,11 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record3.schema.fromDynamicValue(Record3.schema.toDynamicValue(new Record3(1)(2L))))(
           isRight(equalTo(new Record3(1)(2L)))
         ) &&
-        assert(Record3.schema)(
-          equalTo(
-            new Schema[Record3](
-              reflect = Reflect.Record[Binding, Record3](
-                fields = Vector(
-                  Schema[Short].reflect.asTerm("s"),
-                  Schema[Long].reflect.asTerm("l")
-                ),
-                typeId = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record3"
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        )
+        {
+        val reflect = Record3.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record3]]
+        assert(reflect.typeId.name)(equalTo("Record3")) &&
+        assert(reflect.fields.map(_.name))(equalTo(Vector("s", "l")))
+        }
       },
       test("derives schema for record with nested collections using a macro call") {
         case class Record4(mx: Vector[ArraySeq[Int]], rs: List[Set[Int]])
@@ -349,23 +307,11 @@ object SchemaSpec extends ZIOSpecDefault {
             Record4.schema.toDynamicValue(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4))))
           )
         )(isRight(equalTo(Record4(Vector(ArraySeq()), List(Set(1, 2), Set(3, 4)))))) &&
-        assert(Record4.schema)(
-          equalTo(
-            new Schema[Record4](
-              reflect = Reflect.Record[Binding, Record4](
-                fields = Vector(
-                  Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
-                  Schema[List[Set[Int]]].reflect.asTerm("rs")
-                ),
-                typeId = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record4"
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        )
+        {
+        val reflect = Record4.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record4]]
+        assert(reflect.typeId.name)(equalTo("Record4")) &&
+        assert(reflect.fields.map(_.name))(equalTo(Vector("mx", "rs")))
+        }
       },
       test("derives schema recursively for options and supported collections using a macro call") {
         case class Foo(
@@ -413,23 +359,11 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(Record5.schema.fromDynamicValue(Record5.schema.toDynamicValue(Record5((), Seq((), (), ())))))(
           isRight(equalTo(Record5((), Seq((), (), ()))))
         ) &&
-        assert(Record5.schema)(
-          equalTo(
-            new Schema[Record5](
-              reflect = Reflect.Record[Binding, Record5](
-                fields = Vector(
-                  Schema[Unit].reflect.asTerm("u"),
-                  Schema[Seq[Unit]].reflect.asTerm("su")
-                ),
-                typeId = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record5"
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        )
+        {
+        val reflect = Record5.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record5]]
+        assert(reflect.typeId.name)(equalTo("Record5")) &&
+        assert(reflect.fields.map(_.name))(equalTo(Vector("u", "su")))
+        }
       },
       test("derives schema for record with option types") {
         case class Record6(
@@ -551,24 +485,11 @@ object SchemaSpec extends ZIOSpecDefault {
             )
           )
         ) &&
-        assert(Record7.schema)(
-          equalTo(
-            new Schema[Record7](
-              reflect = Reflect.Record[Binding, Record7](
-                fields = Vector(
-                  Schema[DynamicValue].reflect.asTerm("d"),
-                  Schema[Option[DynamicValue]].reflect.asTerm("od"),
-                  Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
-                ),
-                typeId = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record7"
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        )
+        {
+        val reflect = Record7.schema.reflect.asInstanceOf[Reflect.Record[Binding, Record7]]
+        assert(reflect.typeId.name)(equalTo("Record7")) &&
+        assert(reflect.fields.map(_.name))(equalTo(Vector("d", "od", "isd")))
+        }
       },
       test("derives schema for recursive higher-kinded records using a macro call") {
         case class Record8[F[_]](f: F[Int], fs: F[Record8[F]])

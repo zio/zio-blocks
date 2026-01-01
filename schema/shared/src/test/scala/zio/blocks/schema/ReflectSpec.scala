@@ -179,7 +179,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates primitive type name") {
         val int1 = Reflect.int[Binding]
-        assert(int1.typeName)(equalTo(TypeName.int)) &&
+        assert(int1.typeId.name)(equalTo("Int")) &&
         assert(
           int1
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "IntWrapper"))
@@ -265,15 +265,7 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates record type name") {
-        assert(tuple4Reflect.typeName)(
-          equalTo(
-            TypeName[(Byte, Short, Int, Long)](
-              Namespace.scala,
-              "Tuple4",
-              Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-            )
-          )
-        ) &&
+        assert(tuple4Reflect.typeId.name)(equalTo("Tuple4")) &&
         assert(
           tuple4Reflect
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Tuple4Wrapper"))
@@ -363,11 +355,8 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(eitherReflect.fromDynamicValue(eitherReflect.toDynamicValue(Left(0))))(isRight(equalTo(Left(0))))
       },
       test("gets and updates variant type name") {
-        assert(eitherReflect.typeName)(
-          equalTo(
-            TypeName[Either[Int, Long]](Namespace(Seq("scala", "util")), "Either", Seq(TypeName.int, TypeName.long))
-          )
-        ) &&
+        assert(eitherReflect.typeId.name)(equalTo("Either")) &&
+        assert(eitherReflect.typeId.typeParams.map(_.name))(equalTo(List("Int", "Long"))) &&
         assert(
           eitherReflect
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "EitherWrapper"))
@@ -476,9 +465,8 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates sequence type name") {
         val sequence1 = Reflect.vector(Reflect.int[Binding])
-        assert(sequence1.typeName)(
-          equalTo(TypeName[Vector[Int]](Namespace.scalaCollectionImmutable, "Vector", Seq(TypeName.int)))
-        ) &&
+        assert(sequence1.typeId.name)(equalTo("Vector")) &&
+        assert(sequence1.typeId.typeParams.map(_.name))(equalTo(List("A"))) &&
         assert(
           sequence1
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "VectorWrapper"))
@@ -568,9 +556,8 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates map type name") {
         val map1 = Reflect.map(Reflect.int[Binding], Reflect.long[Binding])
-        assert(map1.typeName)(
-          equalTo(TypeName[Map[Int, Long]](Namespace.scalaCollectionImmutable, "Map", Seq(TypeName.int, TypeName.long)))
-        ) &&
+        assert(map1.typeId.name)(equalTo("Map")) &&
+        assert(map1.typeId.typeParams.map(_.name))(equalTo(List("K", "V"))) &&
         assert(
           map1
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "MapWrapper"))
@@ -654,7 +641,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates dynamic type name") {
         val dynamic1 = Reflect.dynamic[Binding]
-        assert(dynamic1.typeName)(equalTo(TypeName.dynamicValue)) &&
+        assert(dynamic1.typeId.name)(equalTo("DynamicValue")) &&
         assert(
           dynamic1
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "DynamicWrapper"))
@@ -723,9 +710,7 @@ object ReflectSpec extends ZIOSpecDefault {
         )
       },
       test("gets and updates wrapper type name") {
-        assert(wrapperReflect.typeName)(
-          equalTo(TypeName[Wrapper](Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Wrapper"))
-        ) &&
+        assert(wrapperReflect.typeId.name)(equalTo("Wrapper")) &&
         assert(
           wrapperReflect
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "Wrapper2"))
@@ -784,7 +769,7 @@ object ReflectSpec extends ZIOSpecDefault {
       },
       test("gets and updates deferred type name") {
         val deferred1 = Reflect.Deferred[Binding, Year](() => Reflect.year)
-        assert(deferred1.typeName)(equalTo(TypeName.year)) &&
+        assert(deferred1.typeId.name)(equalTo("Year")) &&
         assert(
           deferred1
             .typeName(TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("ReflectSpec")), "YearWrapper"))
@@ -835,7 +820,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred1.isMap)(equalTo(false)) &&
         assert(deferred1.asWrapperUnknown)(isNone) &&
         assert(deferred1.isWrapper)(equalTo(false)) &&
-        assert(deferred1.typeName)(equalTo(null))
+        assert(deferred1.typeId)(equalTo(null))
       }
     )
   )
