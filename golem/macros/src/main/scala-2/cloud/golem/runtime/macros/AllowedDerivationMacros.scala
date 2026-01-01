@@ -17,7 +17,7 @@ object AllowedLanguagesDerivationMacro {
   def derive[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[AllowedLanguages[A]] = {
     import c.universe._
 
-    val tpe = weakTypeOf[A]
+    val tpe    = weakTypeOf[A]
     val symbol = tpe.typeSymbol
 
     val languageCodeType = typeOf[cloud.golem.runtime.annotations.languageCode]
@@ -25,13 +25,15 @@ object AllowedLanguagesDerivationMacro {
     val codes = MacroHelpers.collectEntries(c)(symbol, languageCodeType, _.toLowerCase.replace('_', '-'))
 
     if (codes.isEmpty) {
-      c.abort(c.enclosingPosition, s"AllowedLanguages can only be derived for sealed traits with cases, found: ${symbol.fullName}")
+      c.abort(
+        c.enclosingPosition,
+        s"AllowedLanguages can only be derived for sealed traits with cases, found: ${symbol.fullName}"
+      )
     }
 
     val codesExpr = codes.map(code => q"$code")
 
-    c.Expr[AllowedLanguages[A]](
-      q"""
+    c.Expr[AllowedLanguages[A]](q"""
       new _root_.cloud.golem.data.unstructured.AllowedLanguages[$tpe] {
         override val codes: Option[List[String]] = Some(List(..$codesExpr))
       }
@@ -43,7 +45,7 @@ object AllowedMimeTypesDerivationMacro {
   def derive[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[AllowedMimeTypes[A]] = {
     import c.universe._
 
-    val tpe = weakTypeOf[A]
+    val tpe    = weakTypeOf[A]
     val symbol = tpe.typeSymbol
 
     val mimeTypeType = typeOf[cloud.golem.runtime.annotations.mimeType]
@@ -51,13 +53,15 @@ object AllowedMimeTypesDerivationMacro {
     val codes = MacroHelpers.collectEntries(c)(symbol, mimeTypeType, identity)
 
     if (codes.isEmpty) {
-      c.abort(c.enclosingPosition, s"AllowedMimeTypes can only be derived for sealed traits with cases, found: ${symbol.fullName}")
+      c.abort(
+        c.enclosingPosition,
+        s"AllowedMimeTypes can only be derived for sealed traits with cases, found: ${symbol.fullName}"
+      )
     }
 
     val codesExpr = codes.map(code => q"$code")
 
-    c.Expr[AllowedMimeTypes[A]](
-      q"""
+    c.Expr[AllowedMimeTypes[A]](q"""
       new _root_.cloud.golem.data.unstructured.AllowedMimeTypes[$tpe] {
         override val mimeTypes: Option[List[String]] = Some(List(..$codesExpr))
       }
@@ -93,8 +97,8 @@ private object MacroHelpers {
 
     symbol.annotations.collectFirst {
       case ann if ann.tree.tpe =:= annotationType =>
-        ann.tree.children.tail.collectFirst {
-          case Literal(Constant(value: String)) => value
+        ann.tree.children.tail.collectFirst { case Literal(Constant(value: String)) =>
+          value
         }
     }.flatten
   }

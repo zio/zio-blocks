@@ -15,7 +15,7 @@ object AgentClientMacroImpl {
   def planImpl[Trait: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentClientPlan[Trait, _]] = {
     import c.universe._
 
-    val traitType = weakTypeOf[Trait]
+    val traitType   = weakTypeOf[Trait]
     val traitSymbol = traitType.typeSymbol
 
     if (!traitSymbol.isClass || !traitSymbol.asClass.isTrait) {
@@ -23,11 +23,10 @@ object AgentClientMacroImpl {
     }
 
     val (constructorType, constructorPlanExpr) = buildConstructorPlan(c)(traitType)
-    val methodPlans = buildMethodPlans(c)(traitType)
-    val traitName = agentTypeNameOrDefault(c)(traitSymbol)
+    val methodPlans                            = buildMethodPlans(c)(traitType)
+    val traitName                              = agentTypeNameOrDefault(c)(traitSymbol)
 
-    c.Expr[AgentClientPlan[Trait, _]](
-      q"""
+    c.Expr[AgentClientPlan[Trait, _]](q"""
       _root_.cloud.golem.runtime.plan.AgentClientPlan[$traitType, $constructorType](
         traitClassName = ${Literal(Constant(traitSymbol.fullName))},
         traitName = $traitName,
@@ -49,7 +48,7 @@ object AgentClientMacroImpl {
         multiParamSchemaExpr(c)("new", params)
       case _ =>
         val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, inputType)
-        val schemaInstance = c.inferImplicitValue(golemSchemaType)
+        val schemaInstance  = c.inferImplicitValue(golemSchemaType)
         if (schemaInstance.isEmpty) {
           c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for constructor input with type $inputType")
         }
@@ -72,7 +71,8 @@ object AgentClientMacroImpl {
 
     val annOpt =
       symbol.annotations.collectFirst {
-        case ann if ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
+        case ann
+            if ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
           ann
       }
 
@@ -111,22 +111,23 @@ object AgentClientMacroImpl {
     }.toList
   }
 
-  private def buildMethodPlan(c: blackbox.Context)
-                             (traitType: c.universe.Type, method: c.universe.MethodSymbol): c.Tree = {
+  private def buildMethodPlan(
+    c: blackbox.Context
+  )(traitType: c.universe.Type, method: c.universe.MethodSymbol): c.Tree = {
     import c.universe._
 
-    val methodName = method.name.toString
+    val methodName    = method.name.toString
     val agentTypeName = agentTypeNameOrDefault(c)(traitType.typeSymbol)
-    val functionName = s"$agentTypeName.{${kebabCase(methodName)}}"
-    val metadataExpr = methodMetadata(c)(method)
+    val functionName  = s"$agentTypeName.{${kebabCase(methodName)}}"
+    val metadataExpr  = methodMetadata(c)(method)
 
-    val params = extractParameters(c)(method)
-    val accessMode = paramAccessMode(params)
-    val inputType = inputTypeFor(c)(accessMode, params)
+    val params                       = extractParameters(c)(method)
+    val accessMode                   = paramAccessMode(params)
+    val inputType                    = inputTypeFor(c)(accessMode, params)
     val (invocationKind, outputType) = methodInvocationInfo(c)(method)
 
     val invocationExpr = invocationKind match {
-      case InvocationKind.Awaitable => q"_root_.cloud.golem.runtime.plan.ClientInvocation.Awaitable"
+      case InvocationKind.Awaitable     => q"_root_.cloud.golem.runtime.plan.ClientInvocation.Awaitable"
       case InvocationKind.FireAndForget => q"_root_.cloud.golem.runtime.plan.ClientInvocation.FireAndForget"
     }
 
@@ -135,17 +136,23 @@ object AgentClientMacroImpl {
         multiParamSchemaExpr(c)(methodName, params)
       case _ =>
         val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, inputType)
-        val schemaInstance = c.inferImplicitValue(golemSchemaType)
+        val schemaInstance  = c.inferImplicitValue(golemSchemaType)
         if (schemaInstance.isEmpty) {
-          c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for input of method $methodName with type $inputType")
+          c.abort(
+            c.enclosingPosition,
+            s"Unable to summon GolemSchema for input of method $methodName with type $inputType"
+          )
         }
         schemaInstance
     }
 
     val golemOutputSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, outputType)
-    val outputSchemaInstance = c.inferImplicitValue(golemOutputSchemaType)
+    val outputSchemaInstance  = c.inferImplicitValue(golemOutputSchemaType)
     if (outputSchemaInstance.isEmpty) {
-      c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for output of method $methodName with type $outputType")
+      c.abort(
+        c.enclosingPosition,
+        s"Unable to summon GolemSchema for output of method $methodName with type $outputType"
+      )
     }
 
     q"""
@@ -162,8 +169,8 @@ object AgentClientMacroImpl {
   private def methodMetadata(c: blackbox.Context)(method: c.universe.MethodSymbol): c.Tree = {
     import c.universe._
 
-    val methodName = method.name.toString
-    val inputSchema = methodInputSchema(c)(method)
+    val methodName   = method.name.toString
+    val inputSchema  = methodInputSchema(c)(method)
     val outputSchema = methodOutputSchema(c)(method)
 
     q"""
@@ -201,7 +208,7 @@ object AgentClientMacroImpl {
     import c.universe._
 
     val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)
-    val schemaInstance = c.inferImplicitValue(golemSchemaType)
+    val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
       c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
@@ -228,7 +235,7 @@ object AgentClientMacroImpl {
     import c.universe._
 
     val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)
-    val schemaInstance = c.inferImplicitValue(golemSchemaType)
+    val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
       c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
@@ -252,33 +259,34 @@ object AgentClientMacroImpl {
 
   private def extractParameters(c: blackbox.Context)(
     method: c.universe.MethodSymbol
-  ): List[(c.universe.TermName, c.universe.Type)] = {
+  ): List[(c.universe.TermName, c.universe.Type)] =
     method.paramLists.flatten.collect {
       case param if param.isTerm => (param.name.toTermName, param.typeSignature)
     }
-  }
 
   private def paramAccessMode(params: List[(_, _)]): ParamAccessMode = params match {
-    case Nil => ParamAccessMode.NoArgs
+    case Nil      => ParamAccessMode.NoArgs
     case _ :: Nil => ParamAccessMode.SingleArg
-    case _ => ParamAccessMode.MultiArgs
+    case _        => ParamAccessMode.MultiArgs
   }
 
-  private def inputTypeFor(c: blackbox.Context)
-                          (accessMode: ParamAccessMode, params: List[(c.universe.TermName, c.universe.Type)]): c.universe.Type = {
+  private def inputTypeFor(
+    c: blackbox.Context
+  )(accessMode: ParamAccessMode, params: List[(c.universe.TermName, c.universe.Type)]): c.universe.Type = {
     import c.universe._
     accessMode match {
-      case ParamAccessMode.NoArgs => typeOf[Unit]
+      case ParamAccessMode.NoArgs    => typeOf[Unit]
       case ParamAccessMode.SingleArg => params.head._2
       case ParamAccessMode.MultiArgs => typeOf[Vector[Any]]
     }
   }
 
-  private def methodInvocationInfo(c: blackbox.Context)
-                                  (method: c.universe.MethodSymbol): (InvocationKind, c.universe.Type) = {
+  private def methodInvocationInfo(
+    c: blackbox.Context
+  )(method: c.universe.MethodSymbol): (InvocationKind, c.universe.Type) = {
     import c.universe._
 
-    val returnType = method.returnType
+    val returnType   = method.returnType
     val futureSymbol = typeOf[scala.concurrent.Future[_]].typeSymbol
 
     returnType match {
@@ -287,23 +295,29 @@ object AgentClientMacroImpl {
       case _ if returnType =:= typeOf[Unit] =>
         (InvocationKind.FireAndForget, typeOf[Unit])
       case _ =>
-        c.abort(c.enclosingPosition,
-          s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: $returnType")
+        c.abort(
+          c.enclosingPosition,
+          s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: $returnType"
+        )
     }
   }
 
-  private def multiParamSchemaExpr(c: blackbox.Context)
-                                  (methodName: String, params: List[(c.universe.TermName, c.universe.Type)]): c.Tree = {
+  private def multiParamSchemaExpr(
+    c: blackbox.Context
+  )(methodName: String, params: List[(c.universe.TermName, c.universe.Type)]): c.Tree = {
     import c.universe._
 
     val expectedCount = params.length
 
     val paramEntries = params.map { case (name, tpe) =>
-      val nameStr = name.toString
+      val nameStr         = name.toString
       val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)
-      val schemaInstance = c.inferImplicitValue(golemSchemaType)
+      val schemaInstance  = c.inferImplicitValue(golemSchemaType)
       if (schemaInstance.isEmpty) {
-        c.abort(c.enclosingPosition, s"Unable to summon GolemSchema for parameter '$nameStr' of method $methodName with type $tpe")
+        c.abort(
+          c.enclosingPosition,
+          s"Unable to summon GolemSchema for parameter '$nameStr' of method $methodName with type $tpe"
+        )
       }
       q"($nameStr, $schemaInstance.asInstanceOf[_root_.cloud.golem.data.GolemSchema[Any]])"
     }
@@ -426,8 +440,3 @@ object AgentClientMacroImpl {
     case object FireAndForget extends InvocationKind
   }
 }
-
-
-
-
-

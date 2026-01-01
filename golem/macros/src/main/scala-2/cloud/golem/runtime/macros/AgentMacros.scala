@@ -15,7 +15,7 @@ object AgentMacrosImpl {
   def agentMetadataImpl[T: c.WeakTypeTag](c: blackbox.Context): c.Expr[AgentMetadata] = {
     import c.universe._
 
-    val tpe = weakTypeOf[T]
+    val tpe        = weakTypeOf[T]
     val typeSymbol = tpe.typeSymbol
 
     if (!typeSymbol.isClass || !typeSymbol.asClass.isTrait) {
@@ -23,19 +23,19 @@ object AgentMacrosImpl {
     }
 
     val descriptionType = typeOf[cloud.golem.runtime.annotations.description]
-    val modeType = typeOf[cloud.golem.runtime.annotations.mode]
-    val promptType = typeOf[cloud.golem.runtime.annotations.prompt]
+    val modeType        = typeOf[cloud.golem.runtime.annotations.mode]
+    val promptType      = typeOf[cloud.golem.runtime.annotations.prompt]
 
     val traitDescription = annotationString(c)(typeSymbol, descriptionType)
-    val traitMode = annotationModeWireValueExpr(c)(typeSymbol, modeType)
+    val traitMode        = annotationModeWireValueExpr(c)(typeSymbol, modeType)
 
     val methods = tpe.decls.collect {
       case method: MethodSymbol if method.isAbstract && method.isMethod =>
-        val methodName = method.name.toString
-        val descExpr = optionalStringExpr(c)(annotationString(c)(method, descriptionType))
-        val promptExpr = optionalStringExpr(c)(annotationString(c)(method, promptType))
-        val modeExpr = optionalTreeExpr(c)(annotationModeWireValueExpr(c)(method, modeType))
-        val inputSchemaExpr = methodInputSchema(c)(method)
+        val methodName       = method.name.toString
+        val descExpr         = optionalStringExpr(c)(annotationString(c)(method, descriptionType))
+        val promptExpr       = optionalStringExpr(c)(annotationString(c)(method, promptType))
+        val modeExpr         = optionalTreeExpr(c)(annotationModeWireValueExpr(c)(method, modeType))
+        val inputSchemaExpr  = methodInputSchema(c)(method)
         val outputSchemaExpr = methodOutputSchema(c)(method)
 
         q"""
@@ -50,15 +50,14 @@ object AgentMacrosImpl {
         """
     }.toList
 
-    val typeName = typeSymbol.fullName
+    val typeName      = typeSymbol.fullName
     val traitDescExpr = optionalStringExpr(c)(traitDescription)
     val traitModeExpr = optionalTreeExpr(c)(traitMode)
 
     val ctorSchema =
       constructorSchemaFromAgentInput(c)(tpe)
 
-    c.Expr[AgentMetadata](
-      q"""
+    c.Expr[AgentMetadata](q"""
       _root_.cloud.golem.runtime.AgentMetadata(
         name = $typeName,
         description = $traitDescExpr,
@@ -74,7 +73,7 @@ object AgentMacrosImpl {
     val member = tpe.member(TypeName("AgentInput"))
     if (member == NoSymbol) q"_root_.cloud.golem.data.StructuredSchema.Tuple(Nil)"
     else {
-      val sig = member.typeSignatureIn(tpe)
+      val sig      = member.typeSignatureIn(tpe)
       val inputTpe = sig match {
         case TypeBounds(_, hi) => hi.dealias
         case other             => other.dealias
@@ -109,7 +108,7 @@ object AgentMacrosImpl {
     import c.universe._
 
     val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)
-    val schemaInstance = c.inferImplicitValue(golemSchemaType)
+    val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
       c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
@@ -122,7 +121,7 @@ object AgentMacrosImpl {
     import c.universe._
 
     val golemSchemaType = appliedType(typeOf[GolemSchema[_]].typeConstructor, tpe)
-    val schemaInstance = c.inferImplicitValue(golemSchemaType)
+    val schemaInstance  = c.inferImplicitValue(golemSchemaType)
 
     if (schemaInstance.isEmpty) {
       c.abort(c.enclosingPosition, s"No implicit GolemSchema available for type $tpe")
@@ -140,17 +139,18 @@ object AgentMacrosImpl {
     """
   }
 
-  private def methodOutputSchema(c: blackbox.Context)(method: c.universe.MethodSymbol): c.Tree = {
+  private def methodOutputSchema(c: blackbox.Context)(method: c.universe.MethodSymbol): c.Tree =
     structuredSchemaExpr(c)(method.returnType)
-  }
 
-  private def annotationString(c: blackbox.Context)(symbol: c.universe.Symbol, annType: c.universe.Type): Option[String] = {
+  private def annotationString(
+    c: blackbox.Context
+  )(symbol: c.universe.Symbol, annType: c.universe.Type): Option[String] = {
     import c.universe._
 
     symbol.annotations.collectFirst {
       case ann if ann.tree.tpe =:= annType =>
-        ann.tree.children.tail.collectFirst {
-          case Literal(Constant(value: String)) => value
+        ann.tree.children.tail.collectFirst { case Literal(Constant(value: String)) =>
+          value
         }
     }.flatten
   }
@@ -175,7 +175,7 @@ object AgentMacrosImpl {
     import c.universe._
     value match {
       case Some(v) => q"Some($v)"
-      case None => q"None"
+      case None    => q"None"
     }
   }
 

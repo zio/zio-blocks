@@ -20,36 +20,33 @@ import scala.language.experimental.macros
 trait AgentCompanion[Trait <: AnyRef { type AgentInput }] extends AgentCompanionBase[Trait] {
   type AgentInput = Trait#AgentInput
 
-  def typeName: String =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.typeNameImpl
+  def typeName: String = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.typeNameImpl
 
-  def plan: AgentClientPlan[Trait, AgentInput] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.planImpl
+  def plan: AgentClientPlan[Trait, AgentInput] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.planImpl
 
-  def get(input: AgentInput): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getImpl
+  def get(input: AgentInput): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getImpl
 
-  def getPhantom(input: AgentInput, phantom: Uuid): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomImpl
+  def getPhantom(input: AgentInput, phantom: Uuid): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomImpl
 
-  def get(): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getUnitImpl
+  def get(): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getUnitImpl
 
-  def getPhantom(phantom: Uuid): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomUnitImpl
+  def getPhantom(phantom: Uuid): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomUnitImpl
 
-  def get[A1, A2](a1: A1, a2: A2): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getTuple2Impl[A1, A2]
+  def get[A1, A2](a1: A1, a2: A2): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getTuple2Impl[A1, A2]
 
-  def getPhantom[A1, A2](a1: A1, a2: A2, phantom: Uuid): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomTuple2Impl[A1, A2]
+  def getPhantom[A1, A2](a1: A1, a2: A2, phantom: Uuid): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomTuple2Impl[A1, A2]
 
-  def get[A1, A2, A3](a1: A1, a2: A2, a3: A3): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getTuple3Impl[A1, A2, A3]
+  def get[A1, A2, A3](a1: A1, a2: A2, a3: A3): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getTuple3Impl[A1, A2, A3]
 
-  def getPhantom[A1, A2, A3](a1: A1, a2: A2, a3: A3, phantom: Uuid): Future[Trait] =
-    macro cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomTuple3Impl[A1, A2, A3]
+  def getPhantom[A1, A2, A3](a1: A1, a2: A2, a3: A3, phantom: Uuid): Future[Trait] = macro
+    cloud.golem.runtime.macros.AgentCompanionMacro.getPhantomTuple3Impl[A1, A2, A3]
 }
-
-
-

@@ -23,13 +23,14 @@ object AgentNameMacroImpl {
     }
 
     val maybe = sym.annotations.collectFirst {
-      case ann if ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
+      case ann
+          if ann.tree.tpe != null && ann.tree.tpe.typeSymbol.fullName == "cloud.golem.runtime.annotations.agentDefinition" =>
         ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }
     }.flatten
 
     maybe match {
       case Some(value) if value.trim.nonEmpty => c.Expr[String](Literal(Constant(value)))
-      case _ =>
+      case _                                  =>
         // In Scala 2, macro annotations are stripped after expansion, so the trait may not
         // retain @agentDefinition. The macro annotation injects a `def typeName: String`
         // into the companion; use that as a fallback.
@@ -54,7 +55,7 @@ object AgentNameMacroImpl {
         if (companion2 != NoSymbol && companion2.isModule) {
           // Prefer checking the module class (more reliable than the singleton type's decls),
           // but ultimately just emit `<companion>.typeName` and let the typer decide.
-          val _ = companion2.asModule.moduleClass.typeSignature.decls // force completion
+          val _   = companion2.asModule.moduleClass.typeSignature.decls // force completion
           val ref = Ident(companion2.asModule)
           c.Expr[String](q"$ref.typeName")
         } else {
@@ -69,5 +70,3 @@ object AgentNameMacroImpl {
     }
   }
 }
-
-

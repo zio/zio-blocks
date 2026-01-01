@@ -2037,56 +2037,6 @@ function $m_Lcloud_golem_data_DataInterop$() {
   }
   return $n_Lcloud_golem_data_DataInterop$;
 }
-function $is_Lcloud_golem_data_GolemSchema(obj) {
-  return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_data_GolemSchema)));
-}
-function $as_Lcloud_golem_data_GolemSchema(obj) {
-  return (($is_Lcloud_golem_data_GolemSchema(obj) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.data.GolemSchema"));
-}
-function $isArrayOf_Lcloud_golem_data_GolemSchema(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_data_GolemSchema)));
-}
-function $asArrayOf_Lcloud_golem_data_GolemSchema(obj, depth) {
-  return (($isArrayOf_Lcloud_golem_data_GolemSchema(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.data.GolemSchema;", depth));
-}
-function $s_Lcloud_golem_data_GolemSchema$__cloud$golem$data$GolemSchema$$anon$2$$_$find$1__sci_List__T__s_util_Either(elements$1, name) {
-  var this$1 = $n(elements$1);
-  _return: {
-    var these = this$1;
-    while ((!$n(these).isEmpty__Z())) {
-      var x0 = $n(these).head__O();
-      var _$1 = $as_Lcloud_golem_data_NamedElementValue(x0);
-      if (($n(_$1).Lcloud_golem_data_NamedElementValue__f_name === name)) {
-        var this$2 = new $c_s_Some($n(these).head__O());
-        break _return;
-      }
-      these = $as_sci_List($n(these).tail__O());
-    }
-    var this$2 = $m_s_None$();
-  }
-  var this$3 = (this$2.isEmpty__Z() ? new $c_s_util_Left((("Tuple2 payload missing field '" + name) + "'")) : new $c_s_util_Right(this$2.get__O()));
-  if ((this$3 instanceof $c_s_util_Right)) {
-    var x2 = $as_s_util_Right(this$3);
-    var b = $n(x2).s_util_Right__f_value;
-    var x$1 = $as_Lcloud_golem_data_NamedElementValue(b);
-    if ((x$1 !== null)) {
-      $n(x$1);
-      var this$6 = $n(x$1);
-      var x11 = this$6.Lcloud_golem_data_NamedElementValue__f_value;
-      if ((x11 instanceof $c_Lcloud_golem_data_ElementValue$Component)) {
-        var x12 = $as_Lcloud_golem_data_ElementValue$Component(x11);
-        var this$8 = $n(x12);
-        var x14 = this$8.Lcloud_golem_data_ElementValue$Component__f_value;
-        return new $c_s_util_Right(x14);
-      }
-    }
-    var this$10 = $n($n(x$1).Lcloud_golem_data_NamedElementValue__f_value);
-    var value = ((("Tuple2 payload field '" + name) + "' must be component-model, found: ") + $objectGetClass(this$10).getSimpleName__T());
-    return new $c_s_util_Left(value);
-  } else {
-    return this$3;
-  }
-}
 /** @constructor */
 function $c_Lcloud_golem_data_GolemSchema$() {
   this.Lcloud_golem_data_GolemSchema$__f_unitGolemSchema = null;
@@ -2109,522 +2059,319 @@ function $m_Lcloud_golem_data_GolemSchema$() {
   }
   return $n_Lcloud_golem_data_GolemSchema$;
 }
-function $sct_Lcloud_golem_quickstart_RegisterAgents$__stinit__() {
-  $m_Lcloud_golem_quickstart_RegisterAgents$();
-}
 /** @constructor */
-function $c_Lcloud_golem_quickstart_RegisterAgents$() {
-  $n_Lcloud_golem_quickstart_RegisterAgents$ = this;
-  var description$1 = $m_s_None$();
-  var mode$1 = $m_s_None$();
-  var description = new $c_s_Some("Increases the count by one and returns the new value");
-  var prompt = new $c_s_Some("Increase the count by one");
-  var mode = $m_s_None$();
-  var elements = $m_sci_Nil$();
-  var input = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var output = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var methods = new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("increment", description, prompt, mode, input, output), $m_sci_Nil$());
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var constructor = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var metadata = new $c_Lcloud_golem_runtime_AgentMetadata("counter-agent", description$1, mode$1, methods, constructor);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var constructorSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
-  var buildInstance = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$1) => {
-    var input$2 = $as_T(input$1);
-    return new $c_Lcloud_golem_quickstart_counter_CounterAgentImpl(input$2);
-  }));
-  var description$2 = new $c_s_Some("Increases the count by one and returns the new value");
-  var prompt$1 = new $c_s_Some("Increase the count by one");
-  var mode$2 = $m_s_None$();
-  var elements$1 = $m_sci_Nil$();
-  var input$3 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$1);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var output$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$3).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var ev$1 = new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("increment", description$2, prompt$1, mode$2, input$3, output$1), $m_sci_Nil$());
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$4);
-  _return: {
-    var these = ev$1;
+function $c_Lcloud_golem_internal_GolemInternalScalaAgents$() {
+}
+$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype = new $h_O();
+$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.constructor = $c_Lcloud_golem_internal_GolemInternalScalaAgents$;
+/** @constructor */
+function $h_Lcloud_golem_internal_GolemInternalScalaAgents$() {
+}
+$h_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype = $c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype;
+$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.newCounterAgent__T__sjs_js_Dynamic = (function(arg0) {
+  var impl = new $c_Ldemo_CounterAgentImpl(arg0);
+  var $x_1 = $m_sr_ScalaRunTime$();
+  var _2 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $m_Lcloud_golem_runtime_util_FutureInterop$().toPromise__s_concurrent_Future__sjs_js_Promise($n(impl.increment__s_concurrent_Future()).map__F1__s_concurrent_ExecutionContext__s_concurrent_Future(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((v) => {
+    var v$1 = $uI(v);
+    return $m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$().encode__O__Lzio_blocks_schema_Schema__sjs_js_Any(v$1, $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int);
+  })), $m_sjs_concurrent_JSExecutionContext$Implicits$().sjs_concurrent_JSExecutionContext$Implicits$__f_queue)))));
+  var fields = $x_1.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("increment", _2)]));
+  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
+});
+$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.newCounterAgent = (function(arg) {
+  var prep0 = $as_T(arg);
+  return this.newCounterAgent__T__sjs_js_Dynamic(prep0);
+});
+var $d_Lcloud_golem_internal_GolemInternalScalaAgents$ = new $TypeData().initClass($c_Lcloud_golem_internal_GolemInternalScalaAgents$, "cloud.golem.internal.GolemInternalScalaAgents$", ({
+  Lcloud_golem_internal_GolemInternalScalaAgents$: 1
+}));
+var $n_Lcloud_golem_internal_GolemInternalScalaAgents$;
+function $m_Lcloud_golem_internal_GolemInternalScalaAgents$() {
+  if ((!$n_Lcloud_golem_internal_GolemInternalScalaAgents$)) {
+    $n_Lcloud_golem_internal_GolemInternalScalaAgents$ = new $c_Lcloud_golem_internal_GolemInternalScalaAgents$();
+  }
+  return $n_Lcloud_golem_internal_GolemInternalScalaAgents$;
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz) {
+  if ((!$thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered)) {
+    $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered = true;
+    var description$1 = $m_s_None$();
+    var mode$1 = $m_s_None$();
+    var description = new $c_s_Some("Increases the count by one and returns the new value");
+    var prompt = new $c_s_Some("Increase the count by one");
+    var mode = $m_s_None$();
+    var elements = $m_sci_Nil$();
+    var input = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var output = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    var methods = new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("increment", description, prompt, mode, input, output), $m_sci_Nil$());
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var constructor = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    var metadata = new $c_Lcloud_golem_runtime_AgentMetadata("counter-agent", description$1, mode$1, methods, constructor);
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var constructorSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
+    var buildInstance = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$1) => {
+      var input$2 = $as_T(input$1);
+      return new $c_Ldemo_CounterAgentImpl(input$2);
+    }));
+    var description$2 = new $c_s_Some("Increases the count by one and returns the new value");
+    var prompt$1 = new $c_s_Some("Increase the count by one");
+    var mode$2 = $m_s_None$();
+    var elements$1 = $m_sci_Nil$();
+    var input$3 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$1);
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var output$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$3).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    var ev$1 = new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("increment", description$2, prompt$1, mode$2, input$3, output$1), $m_sci_Nil$());
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$4);
+    _return: {
+      var these = ev$1;
+      while ((!$n(these).isEmpty__Z())) {
+        var x0 = $n(these).head__O();
+        var _$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0);
+        if (($n(_$2).Lcloud_golem_runtime_MethodMetadata__f_name === "increment")) {
+          var this$15 = new $c_s_Some($n(these).head__O());
+          break _return;
+        }
+        these = $as_sci_List($n(these).tail__O());
+      }
+      var this$15 = $m_s_None$();
+    }
+    if (this$15.isEmpty__Z()) {
+      throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for increment");
+    }
+    var metadataEntry = $as_Lcloud_golem_runtime_MethodMetadata(this$15.get__O());
+    var inputSchema = $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var outputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$5);
+    var handler = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance, input$2$1) => {
+      var instance$1 = $as_Ldemo_CounterAgent(instance);
+      $as_jl_Void(input$2$1);
+      return $n(instance$1).increment__s_concurrent_Future();
+    }));
+    var methods$1 = new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry, inputSchema, outputSchema, handler), $m_sci_Nil$());
+    var plan = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata, constructorSchema, buildInstance, methods$1);
+    var this$19 = $n($n(plan.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
+    if (this$19.isEmpty__Z()) {
+      var metadataMode = $m_s_None$();
+    } else {
+      var x0$1 = this$19.get__O();
+      var value = $as_T(x0$1);
+      var metadataMode = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value);
+    }
+    var this$20 = $n(metadataMode);
+    var effective = $as_Lcloud_golem_runtime_autowire_AgentMode((this$20.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$20.get__O()));
+    $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("counter-agent", effective, plan);
+  }
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, tag, message) {
+  var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", tag), new $c_T2("val", message)]));
+  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, message) {
+  matchResult4: {
+    var witValue;
+    var x5 = $m_Lcloud_golem_runtime_autowire_WitValueBuilder$().build__Lcloud_golem_data_DataType__Lcloud_golem_data_DataValue__s_util_Either($m_Lcloud_golem_data_DataType$StringType$(), new $c_Lcloud_golem_data_DataValue$StringValue(message));
+    if ((x5 instanceof $c_s_util_Left)) {
+      $as_s_util_Left(x5);
+      var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "string"), new $c_T2("val", message)]));
+      var witValue = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
+      break matchResult4;
+    }
+    if ((x5 instanceof $c_s_util_Right)) {
+      var x6 = $as_s_util_Right(x5);
+      var vit = $n(x6).s_util_Right__f_value;
+      var witValue = vit;
+      break matchResult4;
+    }
+    throw new $c_s_MatchError(x5);
+  }
+  var $x_3 = $m_sr_ScalaRunTime$();
+  var $x_2 = new $c_T2("name", (void 0));
+  var $x_1 = new $c_T2("owner", (void 0));
+  var fields$1 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "prim-string-type")]));
+  var y = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$1);
+  var fields$2 = $x_3.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("type", y)]));
+  var node = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$2);
+  var $x_4 = $m_sr_ScalaRunTime$();
+  var y$1 = [node];
+  var fields$3 = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("nodes", y$1)]));
+  var witType = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$3);
+  var $x_6 = $m_sr_ScalaRunTime$();
+  var $x_5 = new $c_T2("tag", "custom-error");
+  var fields$4 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("value", witValue), new $c_T2("typ", witType)]));
+  var y$2 = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$4);
+  var fields$5 = $x_6.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_5, new $c_T2("val", y$2)]));
+  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$5);
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($thiz, err, fallbackTag) {
+  if ((err === null)) {
+    return $p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, "null");
+  } else {
+    try {
+      var v = err.tag;
+      if ((!(v === (void 0)))) {
+        var v$1 = err.val;
+        var hasTagVal = (!(v$1 === (void 0)));
+      } else {
+        var hasTagVal = false;
+      }
+    } catch (e) {
+      var hasTagVal = false;
+    }
+    if (hasTagVal) {
+      return err;
+    } else if (((typeof err) === "string")) {
+      var x11 = $as_T(err);
+      return $p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, fallbackTag, x11);
+    } else {
+      return $p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, ("" + err));
+    }
+  }
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__normalizeMethodName__T__T($thiz, methodName) {
+  var this$1 = $n(methodName);
+  if (($uI(this$1.indexOf(".{")) !== (-1))) {
+    var this$2 = $n(methodName);
+    var $x_1 = $uZ(this$2.endsWith("}"));
+  } else {
+    var $x_1 = false;
+  }
+  if ($x_1) {
+    var this$3 = $n(methodName);
+    var start = ((2 + $uI(this$3.indexOf(".{"))) | 0);
+    var this$5 = $n(methodName);
+    var this$4 = $n(methodName);
+    var endIndex = (((-1) + this$4.length) | 0);
+    if ((start < 0)) {
+      $charAt(this$5, start);
+    }
+    if ((endIndex > this$5.length)) {
+      $charAt(this$5, endIndex);
+    }
+    if ((endIndex < start)) {
+      $charAt(this$5, (-1));
+    }
+    return $as_T(this$5.substring(start, endIndex));
+  } else {
+    return methodName;
+  }
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise($thiz, agentTypeName, input) {
+  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
+  var v = $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved;
+  if ((!(v === (void 0)))) {
+    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, "Agent is already initialized in this container"));
+  } else {
+    var x12 = $m_Lcloud_golem_runtime_autowire_AgentRegistry$().get__T__s_Option(agentTypeName);
+    var x = $m_s_None$();
+    if ((x === x12)) {
+      var $x_1 = Promise;
+      var message = (("Invalid agent '" + agentTypeName) + "'");
+      return $x_1.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-type", message));
+    }
+    if ((x12 instanceof $c_s_Some)) {
+      var x13 = $as_s_Some(x12);
+      var defnAny = $as_Lcloud_golem_runtime_autowire_AgentDefinition($n(x13).s_Some__f_value);
+      var this$2 = $n(defnAny);
+      return $n(this$2.Lcloud_golem_runtime_autowire_AgentDefinition__f_constructor).initialize__sjs_js_Dynamic__sjs_js_Promise(input).then(((inst) => {
+        $m_Lcloud_golem_internal_GolemStandaloneGuest$().Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved = new $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(defnAny, inst);
+      }), ((err) => Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_internal_GolemStandaloneGuest$(), err, "invalid-input"))));
+    }
+    throw new $c_s_MatchError(x12);
+  }
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise($thiz, methodName, input) {
+  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
+  var v = $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved;
+  if ((v === (void 0))) {
+    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
+  } else {
+    var r = $as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved($thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved);
+    var mn = $p_Lcloud_golem_internal_GolemStandaloneGuest$__normalizeMethodName__T__T($thiz, methodName);
+    var this$2 = $n($n(r).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn);
+    var instance = $n(r).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
+    return this$2.invoke__O__T__sjs_js_Dynamic__sjs_js_Promise(instance, mn, input).catch(((err) => Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_internal_GolemStandaloneGuest$(), err, "invalid-method"))));
+  }
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__getDefinition__sjs_js_Promise($thiz) {
+  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
+  var v = $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved;
+  if ((v === (void 0))) {
+    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
+  } else {
+    return Promise.resolve($n($n($as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved($thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved)).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn).agentType__sjs_js_Dynamic());
+  }
+}
+function $p_Lcloud_golem_internal_GolemStandaloneGuest$__discoverAgentTypes__sjs_js_Promise($thiz) {
+  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
+  try {
+    var arr = [];
+    var this$1 = $n($m_Lcloud_golem_runtime_autowire_AgentRegistry$().all__sci_List());
+    var these = this$1;
     while ((!$n(these).isEmpty__Z())) {
       var x0 = $n(these).head__O();
-      var _$3 = $as_Lcloud_golem_runtime_MethodMetadata(x0);
-      if (($n(_$3).Lcloud_golem_runtime_MethodMetadata__f_name === "increment")) {
-        var this$16 = new $c_s_Some($n(these).head__O());
-        break _return;
-      }
+      var d = $as_Lcloud_golem_runtime_autowire_AgentDefinition(x0);
+      $uI(arr.push($n(d).agentType__sjs_js_Dynamic()));
       these = $as_sci_List($n(these).tail__O());
     }
-    var this$16 = $m_s_None$();
+    var $x_1 = console;
+    var s = $as_T(JSON.stringify(arr));
+    $x_1.log("[scala.js] discoverAgentTypes.json ->", s);
+    return Promise.resolve(arr);
+  } catch (e) {
+    var e$2 = ((e instanceof $c_jl_Throwable) ? e : new $c_sjs_js_JavaScriptException(e));
+    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($thiz, e$2.toString__T(), "custom-error"));
   }
-  if (this$16.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for increment");
-  }
-  var metadataEntry = $as_Lcloud_golem_runtime_MethodMetadata(this$16.get__O());
-  var inputSchema = $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var outputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$5);
-  var handler = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance, input$2$1) => {
-    var instance$1 = $as_Lcloud_golem_quickstart_counter_CounterAgent(instance);
-    $as_jl_Void(input$2$1);
-    return $n(instance$1).increment__s_concurrent_Future();
-  }));
-  var methods$1 = new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry, inputSchema, outputSchema, handler), $m_sci_Nil$());
-  var plan = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlan(metadata, constructorSchema, buildInstance, methods$1);
-  var this$20 = $n($n(plan.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
-  if (this$20.isEmpty__Z()) {
-    var metadataMode = $m_s_None$();
-  } else {
-    var x0$1 = this$20.get__O();
-    var value = $as_T(x0$1);
-    var metadataMode = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value);
-  }
-  var this$21 = $n(metadataMode);
-  var effective = $as_Lcloud_golem_runtime_autowire_AgentMode((this$21.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$21.get__O()));
-  var this$23 = $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$();
-  this$23.register__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlan__Lcloud_golem_runtime_autowire_AgentDefinition("counter-agent", effective, plan);
-  var description$6 = $m_s_None$();
-  var mode$6 = $m_s_None$();
-  var description$3 = new $c_s_Some("Returns the shard id.");
-  var prompt$2 = $m_s_None$();
-  var mode$3 = $m_s_None$();
-  var elements$2 = $m_sci_Nil$();
-  var input$5 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$2);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$6 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var output$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$6).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var $x_3 = new $c_Lcloud_golem_runtime_MethodMetadata("id", description$3, prompt$2, mode$3, input$5, output$2);
-  var description$4 = new $c_s_Some("Set a value in the table");
-  var prompt$3 = $m_s_None$();
-  var mode$4 = $m_s_None$();
-  matchResult1: {
-    var schema;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$7 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$7).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x1 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x8 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x1);
-      var this$31 = $n(x8);
-      var x10 = this$31.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x10).length__I() === 1)) {
-        var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x10).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult1;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x2 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x1);
-      $n(x2)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x1);
-  }
-  var $x_1 = new $c_Lcloud_golem_data_NamedElementSchema("key", schema);
-  matchResult2: {
-    var schema$1;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$8 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$8).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x11 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x18 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x11);
-      var this$36 = $n(x18);
-      var x20 = this$36.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x20).length__I() === 1)) {
-        var schema$1 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x20).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult2;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x12 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x11);
-      $n(x12)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x11);
-  }
-  var elements$3 = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("value", schema$1), $m_sci_Nil$()));
-  var input$6 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$3);
-  var output$3 = $n($m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema).schema__Lcloud_golem_data_StructuredSchema();
-  var $x_2 = new $c_Lcloud_golem_runtime_MethodMetadata("set", description$4, prompt$3, mode$4, input$6, output$3);
-  var description$5 = new $c_s_Some("Get a value from the table");
-  var prompt$4 = $m_s_None$();
-  var mode$5 = $m_s_None$();
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$9 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var input$7 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$9).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$10 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
-  var output$4 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$10).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var methods$2 = new $c_sci_$colon$colon($x_3, new $c_sci_$colon$colon($x_2, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("get", description$5, prompt$4, mode$5, input$7, output$4), $m_sci_Nil$())));
-  $m_Lcloud_golem_data_GolemSchema$();
-  var evidence$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var evidence$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var constructor$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1, evidence$2).Lcloud_golem_data_GolemSchema$$anon$2__f_schema;
-  var metadata$2 = new $c_Lcloud_golem_runtime_AgentMetadata("shard-agent", description$6, mode$6, methods$2, constructor$1);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var evidence$1$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var evidence$2$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var constructorSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$1, evidence$2$1);
-  var buildInstance$1 = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$3$1) => {
-    var input$8 = $as_T2(input$3$1);
-    return new $c_Lcloud_golem_quickstart_shard_ShardAgentImpl($as_T($n(input$8)._1__O()), $uI($n(input$8)._2__O()));
-  }));
-  var description$7 = new $c_s_Some("Returns the shard id.");
-  var prompt$5 = $m_s_None$();
-  var mode$7 = $m_s_None$();
-  var elements$4 = $m_sci_Nil$();
-  var input$9 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$4);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$11 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var output$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$11).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var $x_18 = new $c_Lcloud_golem_runtime_MethodMetadata("id", description$7, prompt$5, mode$7, input$9, output$5);
-  var description$8 = new $c_s_Some("Set a value in the table");
-  var prompt$6 = $m_s_None$();
-  var mode$8 = $m_s_None$();
-  var $x_16 = $m_sr_ScalaRunTime$();
-  matchResult3: {
-    var schema$2;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$12 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x21 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$12).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x21 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x28 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x21);
-      var this$55 = $n(x28);
-      var x30 = this$55.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x30).length__I() === 1)) {
-        var schema$2 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x30).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult3;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x22 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x21);
-      $n(x22)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x21);
-  }
-  var $x_15 = new $c_Lcloud_golem_data_NamedElementSchema("key", schema$2);
-  matchResult4: {
-    var schema$3;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$13 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x31 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$13).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x31 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x38 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x31);
-      var this$60 = $n(x38);
-      var x40 = this$60.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x40).length__I() === 1)) {
-        var schema$3 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x40).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult4;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x32 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x31);
-      $n(x32)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x31);
-  }
-  var elems = $x_16.wrapRefArray__AO__sci_ArraySeq(new ($d_Lcloud_golem_data_NamedElementSchema.getArrayOf().constr)([$x_15, new $c_Lcloud_golem_data_NamedElementSchema("value", schema$3)]));
-  var elements$5 = $m_sci_Nil$().prependedAll__sc_IterableOnce__sci_List(elems);
-  var input$10 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$5);
-  var output$6 = $n($m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema).schema__Lcloud_golem_data_StructuredSchema();
-  var $x_17 = new $c_Lcloud_golem_runtime_MethodMetadata("set", description$8, prompt$6, mode$8, input$10, output$6);
-  var description$9 = new $c_s_Some("Get a value from the table");
-  var prompt$7 = $m_s_None$();
-  var mode$9 = $m_s_None$();
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$14 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var input$11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$14).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$15 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
-  var output$7 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$15).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var ev$2 = new $c_sci_$colon$colon($x_18, new $c_sci_$colon$colon($x_17, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("get", description$9, prompt$7, mode$9, input$11, output$7), $m_sci_Nil$())));
-  $m_Lcloud_golem_data_GolemSchema$();
-  var evidence$1$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var evidence$2$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$2, evidence$2$2);
-  _return$1: {
-    var these$1 = ev$2;
-    while ((!$n(these$1).isEmpty__Z())) {
-      var x0$2 = $n(these$1).head__O();
-      var _$3$1 = $as_Lcloud_golem_runtime_MethodMetadata(x0$2);
-      if (($n(_$3$1).Lcloud_golem_runtime_MethodMetadata__f_name === "id")) {
-        var this$71 = new $c_s_Some($n(these$1).head__O());
-        break _return$1;
-      }
-      these$1 = $as_sci_List($n(these$1).tail__O());
-    }
-    var this$71 = $m_s_None$();
-  }
-  if (this$71.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for id");
-  }
-  var metadataEntry$2 = $as_Lcloud_golem_runtime_MethodMetadata(this$71.get__O());
-  var inputSchema$1 = $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$16 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var outputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$16);
-  var handler$1 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$2, input$4$1) => {
-    var instance$3 = $as_Lcloud_golem_quickstart_shard_ShardAgent(instance$2);
-    $as_jl_Void(input$4$1);
-    var this$73 = $n(instance$3);
-    return $m_s_concurrent_Future$().successful__O__s_concurrent_Future(this$73.Lcloud_golem_quickstart_shard_ShardAgentImpl__f_shardId);
-  }));
-  var $x_19 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$2, inputSchema$1, outputSchema$1, handler$1);
-  var description$10 = new $c_s_Some("Returns the shard id.");
-  var prompt$8 = $m_s_None$();
-  var mode$10 = $m_s_None$();
-  var elements$6 = $m_sci_Nil$();
-  var input$13 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$6);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$17 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var output$8 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$17).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var $x_11 = new $c_Lcloud_golem_runtime_MethodMetadata("id", description$10, prompt$8, mode$10, input$13, output$8);
-  var description$11 = new $c_s_Some("Set a value in the table");
-  var prompt$9 = $m_s_None$();
-  var mode$11 = $m_s_None$();
-  var $x_9 = $m_sr_ScalaRunTime$();
-  matchResult5: {
-    var schema$4;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$18 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x41 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$18).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x41 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x48 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x41);
-      var this$82 = $n(x48);
-      var x50 = this$82.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x50).length__I() === 1)) {
-        var schema$4 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x50).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult5;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x42 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x41);
-      $n(x42)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x41);
-  }
-  var $x_8 = new $c_Lcloud_golem_data_NamedElementSchema("key", schema$4);
-  matchResult6: {
-    var schema$5;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$19 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x51 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$19).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x51 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x58 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x51);
-      var this$87 = $n(x58);
-      var x60 = this$87.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x60).length__I() === 1)) {
-        var schema$5 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x60).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult6;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x52 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x51);
-      $n(x52)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x51);
-  }
-  var elems$1 = $x_9.wrapRefArray__AO__sci_ArraySeq(new ($d_Lcloud_golem_data_NamedElementSchema.getArrayOf().constr)([$x_8, new $c_Lcloud_golem_data_NamedElementSchema("value", schema$5)]));
-  var elements$7 = $m_sci_Nil$().prependedAll__sc_IterableOnce__sci_List(elems$1);
-  var input$14 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$7);
-  var output$9 = $n($m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema).schema__Lcloud_golem_data_StructuredSchema();
-  var $x_10 = new $c_Lcloud_golem_runtime_MethodMetadata("set", description$11, prompt$9, mode$11, input$14, output$9);
-  var description$12 = new $c_s_Some("Get a value from the table");
-  var prompt$10 = $m_s_None$();
-  var mode$12 = $m_s_None$();
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$20 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var input$15 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$20).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$21 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
-  var output$10 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$21).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var ev$3 = new $c_sci_$colon$colon($x_11, new $c_sci_$colon$colon($x_10, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("get", description$12, prompt$10, mode$12, input$15, output$10), $m_sci_Nil$())));
-  $m_Lcloud_golem_data_GolemSchema$();
-  var evidence$1$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var evidence$2$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$3, evidence$2$3);
-  _return$2: {
-    var these$2 = ev$3;
-    while ((!$n(these$2).isEmpty__Z())) {
-      var x0$3 = $n(these$2).head__O();
-      var _$3$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0$3);
-      if (($n(_$3$2).Lcloud_golem_runtime_MethodMetadata__f_name === "set")) {
-        var this$98 = new $c_s_Some($n(these$2).head__O());
-        break _return$2;
-      }
-      these$2 = $as_sci_List($n(these$2).tail__O());
-    }
-    var this$98 = $m_s_None$();
-  }
-  if (this$98.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for set");
-  }
-  var metadataEntry$3 = $as_Lcloud_golem_runtime_MethodMetadata(this$98.get__O());
-  var inputSchema$2 = new $c_Lcloud_golem_quickstart_RegisterAgents$$anon$1();
-  var outputSchema$2 = $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema;
-  var handler$2 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$3$1, input$5$1) => {
-    var instance$4 = $as_Lcloud_golem_quickstart_shard_ShardAgent(instance$3$1);
-    var input$16 = $as_sci_List(input$5$1);
-    if (($n(input$16).length__I() !== 2)) {
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'set'. Expected 2.");
-    }
-    var $x_13 = $n(instance$4);
-    var this$99 = $n(input$16);
-    var $x_12 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$99, 0));
-    var this$100 = $n(input$16);
-    return $x_13.set__T__T__s_concurrent_Future($x_12, $as_T($f_sc_LinearSeqOps__apply__I__O(this$100, 1)));
-  }));
-  var $x_14 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$3, inputSchema$2, outputSchema$2, handler$2);
-  var description$13 = new $c_s_Some("Returns the shard id.");
-  var prompt$11 = $m_s_None$();
-  var mode$13 = $m_s_None$();
-  var elements$8 = $m_sci_Nil$();
-  var input$17 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$8);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$22 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var output$11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$22).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var $x_7 = new $c_Lcloud_golem_runtime_MethodMetadata("id", description$13, prompt$11, mode$13, input$17, output$11);
-  var description$14 = new $c_s_Some("Set a value in the table");
-  var prompt$12 = $m_s_None$();
-  var mode$14 = $m_s_None$();
-  var $x_5 = $m_sr_ScalaRunTime$();
-  matchResult15: {
-    var schema$6;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$23 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x100 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$23).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x100 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x107 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x100);
-      var this$109 = $n(x107);
-      var x109 = this$109.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x109).length__I() === 1)) {
-        var schema$6 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x109).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult15;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x101 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x100);
-      $n(x101)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x100);
-  }
-  var $x_4 = new $c_Lcloud_golem_data_NamedElementSchema("key", schema$6);
-  matchResult16: {
-    var schema$7;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$24 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var x110 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$24).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    if ((x110 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x117 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x110);
-      var this$114 = $n(x117);
-      var x119 = this$114.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if (($n(x119).length__I() === 1)) {
-        var schema$7 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x119).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-        break matchResult16;
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value expands to multiple elements; wrap it in a case class");
-    }
-    if (false) {
-      var x111 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x110);
-      $n(x111)._1__sci_List();
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value is multimodal; use a dedicated multimodal wrapper");
-    }
-    throw new $c_s_MatchError(x110);
-  }
-  var elems$2 = $x_5.wrapRefArray__AO__sci_ArraySeq(new ($d_Lcloud_golem_data_NamedElementSchema.getArrayOf().constr)([$x_4, new $c_Lcloud_golem_data_NamedElementSchema("value", schema$7)]));
-  var elements$9 = $m_sci_Nil$().prependedAll__sc_IterableOnce__sci_List(elems$2);
-  var input$18 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$9);
-  var output$12 = $n($m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema).schema__Lcloud_golem_data_StructuredSchema();
-  var $x_6 = new $c_Lcloud_golem_runtime_MethodMetadata("set", description$14, prompt$12, mode$14, input$18, output$12);
-  var description$15 = new $c_s_Some("Get a value from the table");
-  var prompt$13 = $m_s_None$();
-  var mode$15 = $m_s_None$();
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$25 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var input$19 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$25).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$26 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
-  var output$13 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$26).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-  var ev$4 = new $c_sci_$colon$colon($x_7, new $c_sci_$colon$colon($x_6, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("get", description$15, prompt$13, mode$15, input$19, output$13), $m_sci_Nil$())));
-  $m_Lcloud_golem_data_GolemSchema$();
-  var evidence$1$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var evidence$2$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$4, evidence$2$4);
-  _return$3: {
-    var these$3 = ev$4;
-    while ((!$n(these$3).isEmpty__Z())) {
-      var x0$4 = $n(these$3).head__O();
-      var _$3$3 = $as_Lcloud_golem_runtime_MethodMetadata(x0$4);
-      if (($n(_$3$3).Lcloud_golem_runtime_MethodMetadata__f_name === "get")) {
-        var this$125 = new $c_s_Some($n(these$3).head__O());
-        break _return$3;
-      }
-      these$3 = $as_sci_List($n(these$3).tail__O());
-    }
-    var this$125 = $m_s_None$();
-  }
-  if (this$125.isEmpty__Z()) {
-    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for get");
-  }
-  var metadataEntry$4 = $as_Lcloud_golem_runtime_MethodMetadata(this$125.get__O());
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$27 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var inputSchema$3 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$27);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$28 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
-  var outputSchema$3 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$28);
-  var handler$3 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$4$1, input$6$1) => {
-    var instance$5 = $as_Lcloud_golem_quickstart_shard_ShardAgent(instance$4$1);
-    var input$20 = $as_T(input$6$1);
-    return $n(instance$5).get__T__s_concurrent_Future(input$20);
-  }));
-  var methods$3 = new $c_sci_$colon$colon($x_19, new $c_sci_$colon$colon($x_14, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$4, inputSchema$3, outputSchema$3, handler$3), $m_sci_Nil$())));
-  var plan$2 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlan(metadata$2, constructorSchema$1, buildInstance$1, methods$3);
-  var this$130 = $n($n(plan$2.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
-  if (this$130.isEmpty__Z()) {
-    var metadataMode$2 = $m_s_None$();
-  } else {
-    var x0$5 = this$130.get__O();
-    var value$1 = $as_T(x0$5);
-    var metadataMode$2 = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value$1);
-  }
-  var this$131 = $n(metadataMode$2);
-  var effective$2 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$131.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$131.get__O()));
-  var this$133 = $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$();
-  this$133.register__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlan__Lcloud_golem_runtime_autowire_AgentDefinition("shard-agent", effective$2, plan$2);
-  $t_Lcloud_golem_quickstart_RegisterAgents$___\uff3fgolemRegisterAgents = (void 0);
 }
-$c_Lcloud_golem_quickstart_RegisterAgents$.prototype = new $h_O();
-$c_Lcloud_golem_quickstart_RegisterAgents$.prototype.constructor = $c_Lcloud_golem_quickstart_RegisterAgents$;
+function $sct_Lcloud_golem_internal_GolemStandaloneGuest$__stinit__() {
+  $m_Lcloud_golem_internal_GolemStandaloneGuest$();
+}
 /** @constructor */
-function $h_Lcloud_golem_quickstart_RegisterAgents$() {
+function $c_Lcloud_golem_internal_GolemStandaloneGuest$() {
+  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered = false;
+  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved = null;
+  $n_Lcloud_golem_internal_GolemStandaloneGuest$ = this;
+  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered = false;
+  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved = (void 0);
+  var $x_4 = $m_sr_ScalaRunTime$();
+  var y = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((agentTypeName, input) => {
+    var agentTypeName$1 = $as_T(agentTypeName);
+    return $p_Lcloud_golem_internal_GolemStandaloneGuest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise(this, agentTypeName$1, input);
+  })));
+  var $x_3 = new $c_T2("initialize", y);
+  var y$1 = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((methodName, input$2) => {
+    var methodName$1 = $as_T(methodName);
+    return $p_Lcloud_golem_internal_GolemStandaloneGuest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise(this, methodName$1, input$2);
+  })));
+  var $x_2 = new $c_T2("invoke", y$1);
+  var y$2 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_internal_GolemStandaloneGuest$__getDefinition__sjs_js_Promise(this))));
+  var $x_1 = new $c_T2("getDefinition", y$2);
+  var y$3 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_internal_GolemStandaloneGuest$__discoverAgentTypes__sjs_js_Promise(this))));
+  var fields = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_3, $x_2, $x_1, new $c_T2("discoverAgentTypes", y$3)]));
+  $t_Lcloud_golem_internal_GolemStandaloneGuest$__guest = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
 }
-$h_Lcloud_golem_quickstart_RegisterAgents$.prototype = $c_Lcloud_golem_quickstart_RegisterAgents$.prototype;
-var $d_Lcloud_golem_quickstart_RegisterAgents$ = new $TypeData().initClass($c_Lcloud_golem_quickstart_RegisterAgents$, "cloud.golem.quickstart.RegisterAgents$", ({
-  Lcloud_golem_quickstart_RegisterAgents$: 1
+$c_Lcloud_golem_internal_GolemStandaloneGuest$.prototype = new $h_O();
+$c_Lcloud_golem_internal_GolemStandaloneGuest$.prototype.constructor = $c_Lcloud_golem_internal_GolemStandaloneGuest$;
+/** @constructor */
+function $h_Lcloud_golem_internal_GolemStandaloneGuest$() {
+}
+$h_Lcloud_golem_internal_GolemStandaloneGuest$.prototype = $c_Lcloud_golem_internal_GolemStandaloneGuest$.prototype;
+var $d_Lcloud_golem_internal_GolemStandaloneGuest$ = new $TypeData().initClass($c_Lcloud_golem_internal_GolemStandaloneGuest$, "cloud.golem.internal.GolemStandaloneGuest$", ({
+  Lcloud_golem_internal_GolemStandaloneGuest$: 1
 }));
-var $n_Lcloud_golem_quickstart_RegisterAgents$;
-function $m_Lcloud_golem_quickstart_RegisterAgents$() {
-  if ((!$n_Lcloud_golem_quickstart_RegisterAgents$)) {
-    $n_Lcloud_golem_quickstart_RegisterAgents$ = new $c_Lcloud_golem_quickstart_RegisterAgents$();
+var $n_Lcloud_golem_internal_GolemStandaloneGuest$;
+function $m_Lcloud_golem_internal_GolemStandaloneGuest$() {
+  if ((!$n_Lcloud_golem_internal_GolemStandaloneGuest$)) {
+    $n_Lcloud_golem_internal_GolemStandaloneGuest$ = new $c_Lcloud_golem_internal_GolemStandaloneGuest$();
   }
-  return $n_Lcloud_golem_quickstart_RegisterAgents$;
+  return $n_Lcloud_golem_internal_GolemStandaloneGuest$;
 }
 function $is_Lcloud_golem_runtime_autowire_AgentConstructor(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_runtime_autowire_AgentConstructor)));
@@ -2647,13 +2394,6 @@ $c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype.constructor = $c_Lc
 function $h_Lcloud_golem_runtime_autowire_AgentConstructor$() {
 }
 $h_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype = $c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype;
-$c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype.noArgs__T__s_Option__F0__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor = (function(description, prompt, build, codec) {
-  var name = $m_s_None$();
-  return this.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor(new $c_Lcloud_golem_runtime_autowire_ConstructorMetadata(name, description, prompt), new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((_$1) => {
-    $as_jl_Void(_$1);
-    return $n(build).apply__O();
-  })), codec);
-});
 $c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor = (function(ctorInfo, build, codec) {
   var build$1 = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((a) => $m_s_concurrent_Future$().successful__O__s_concurrent_Future($n(build).apply__O__O(a))));
   return new $c_Lcloud_golem_runtime_autowire_AgentConstructor$$anon$1(ctorInfo, codec, build$1);
@@ -2770,50 +2510,34 @@ $c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.construct
 function $h_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$() {
 }
 $h_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype = $c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype;
-$c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.register__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlan__Lcloud_golem_runtime_autowire_AgentDefinition = (function(typeName, mode, plan) {
-  matchResult1: {
-    var constructor;
-    var x1 = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema).schema__Lcloud_golem_data_StructuredSchema();
-    if ((x1 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-      var x2 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x1);
-      var this$2 = $n(x2);
-      var x4 = this$2.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-      if ($n(x4).isEmpty__Z()) {
-        var instance = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance).apply__O__O((void 0));
-        var $x_1 = $m_Lcloud_golem_runtime_autowire_AgentConstructor$();
-        var this$3 = $n($n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_description);
-        var constructor = $x_1.noArgs__T__s_Option__F0__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor($as_T((this$3.isEmpty__Z() ? typeName : this$3.get__O())), $m_s_None$(), new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => instance)), $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema);
-        break matchResult1;
-      }
-    }
-    var ctorSchema = $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
-    var $x_2 = $m_Lcloud_golem_runtime_autowire_AgentConstructor$();
-    var name = $m_s_None$();
-    var this$4 = $n($n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_description);
-    var description = $as_T((this$4.isEmpty__Z() ? typeName : this$4.get__O()));
-    var promptHint = $m_s_None$();
-    var constructor = $x_2.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor(new $c_Lcloud_golem_runtime_autowire_ConstructorMetadata(name, description, promptHint), $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance, ctorSchema);
-  }
-  var this$6 = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods);
+$c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition = (function(typeName, mode, plan) {
+  var ctorSchema = $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
+  var $x_1 = $m_Lcloud_golem_runtime_autowire_AgentConstructor$();
+  var name = $m_s_None$();
+  var this$1 = $n($n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_description);
+  var description = $as_T((this$1.isEmpty__Z() ? typeName : this$1.get__O()));
+  var promptHint = $m_s_None$();
+  var constructor = $x_1.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor(new $c_Lcloud_golem_runtime_autowire_ConstructorMetadata(name, description, promptHint), $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance, ctorSchema);
+  var this$3 = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods);
   var f = ((x$1) => {
     var x$1$1 = $as_Lcloud_golem_runtime_plan_MethodPlan(x$1);
     if (false) {
-      var x7 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$1$1);
-      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildSyncBinding__Lcloud_golem_runtime_plan_SyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x7);
+      var x6 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$1$1);
+      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildSyncBinding__Lcloud_golem_runtime_plan_SyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x6);
     }
     if ((x$1$1 instanceof $c_Lcloud_golem_runtime_plan_AsyncMethodPlan)) {
-      var x6 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$1$1);
-      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildAsyncBinding__Lcloud_golem_runtime_plan_AsyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x6);
+      var x5 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$1$1);
+      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildAsyncBinding__Lcloud_golem_runtime_plan_AsyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x5);
     }
     throw new $c_s_MatchError(x$1$1);
   });
-  if ((this$6 === $m_sci_Nil$())) {
+  if ((this$3 === $m_sci_Nil$())) {
     var bindings = $m_sci_Nil$();
   } else {
-    var x0 = this$6.head__O();
+    var x0 = this$3.head__O();
     var h = new $c_sci_$colon$colon(f(x0), $m_sci_Nil$());
     var t = h;
-    var rest = $as_sci_List(this$6.tail__O());
+    var rest = $as_sci_List(this$3.tail__O());
     while ((rest !== $m_sci_Nil$())) {
       var x0$1 = $n(rest).head__O();
       var nx = new $c_sci_$colon$colon(f(x0$1), $m_sci_Nil$());
@@ -2823,7 +2547,7 @@ $c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.register_
     }
     var bindings = h;
   }
-  var definition = new $c_Lcloud_golem_runtime_autowire_AgentDefinition(typeName, $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata, constructor, bindings, mode);
+  var definition = new $c_Lcloud_golem_runtime_autowire_AgentDefinition(typeName, $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata, constructor, bindings, mode);
   $m_Lcloud_golem_runtime_autowire_AgentRegistry$().register__Lcloud_golem_runtime_autowire_AgentDefinition__V(definition);
   return definition;
 });
@@ -3694,6 +3418,325 @@ function $m_Lcloud_golem_runtime_autowire_HostValueEncoder$() {
     $n_Lcloud_golem_runtime_autowire_HostValueEncoder$ = new $c_Lcloud_golem_runtime_autowire_HostValueEncoder$();
   }
   return $n_Lcloud_golem_runtime_autowire_HostValueEncoder$;
+}
+function $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__toJs__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_DynamicValue__sjs_js_Any($thiz, reflect0, value) {
+  var value$tailLocal1 = value;
+  var reflect0$tailLocal2 = reflect0;
+  while (true) {
+    matchResult8: {
+      $n(reflect0$tailLocal2);
+      var x24 = $m_s_None$();
+      var x = $m_s_None$();
+      if ((x === x24)) {
+        break matchResult8;
+      }
+      throw new $c_s_MatchError(x24);
+    }
+    matchResult11: {
+      var x40 = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__optionInfo__Lzio_blocks_schema_Reflect__s_Option($thiz, reflect0$tailLocal2);
+      if ((x40 instanceof $c_s_Some)) {
+        var x41 = $as_s_Some(x40);
+        var x42 = $as_T2($n(x41).s_Some__f_value);
+        if ((x42 !== null)) {
+          var innerRef = $as_Lzio_blocks_schema_Reflect($n(x42)._1__O());
+          var usesRecordWrapper = $uZ($n(x42)._2__O());
+          var x31 = value$tailLocal1;
+          if ((x31 instanceof $c_Lzio_blocks_schema_DynamicValue$Variant)) {
+            var x36 = $as_Lzio_blocks_schema_DynamicValue$Variant(x31);
+            var this$3 = $n(x36);
+            var x38 = this$3.Lzio_blocks_schema_DynamicValue$Variant__f_caseName;
+            var this$4 = $n(x36);
+            var x39 = this$4.Lzio_blocks_schema_DynamicValue$Variant__f_value;
+            if ((x38 === "None")) {
+              break matchResult11;
+            }
+            if ((x38 === "Some")) {
+              if (usesRecordWrapper) {
+                if ((x39 instanceof $c_Lzio_blocks_schema_DynamicValue$Record)) {
+                  var x28 = $as_Lzio_blocks_schema_DynamicValue$Record(x39);
+                  var this$6 = $n(x28);
+                  var x30 = this$6.Lzio_blocks_schema_DynamicValue$Record__f_fields;
+                  var this$7 = $n(x30);
+                  _return$1: {
+                    var it = this$7.iterator__sc_Iterator();
+                    while ($n(it).hasNext__Z()) {
+                      var a = $n(it).next__O();
+                      var _$2 = $as_T2(a);
+                      var x$1 = $n(_$2)._1__O();
+                      if (((x$1 !== null) && $dp_equals__O__Z($n(x$1), "value"))) {
+                        var this$8 = new $c_s_Some(a);
+                        break _return$1;
+                      }
+                    }
+                    var this$8 = $m_s_None$();
+                  }
+                  if (this$8.isEmpty__Z()) {
+                    var this$9 = $m_s_None$();
+                  } else {
+                    var x0 = this$8.get__O();
+                    var _$3 = $as_T2(x0);
+                    var this$9 = new $c_s_Some($as_Lzio_blocks_schema_DynamicValue($n(_$3)._2__O()));
+                  }
+                  if (this$9.isEmpty__Z()) {
+                    $m_sci_Vector$();
+                    var fields = $m_sci_Vector0$();
+                    var $x_1 = new $c_Lzio_blocks_schema_DynamicValue$Record(fields);
+                  } else {
+                    var $x_1 = this$9.get__O();
+                  }
+                  var inner = $as_Lzio_blocks_schema_DynamicValue($x_1);
+                } else {
+                  var inner = x39;
+                }
+              } else {
+                var inner = x39;
+              }
+              reflect0$tailLocal2 = innerRef;
+              value$tailLocal1 = inner;
+              continue;
+            }
+          }
+          return null;
+        }
+      }
+      var x$3 = $m_s_None$();
+      if ((x$3 === x40)) {
+        break matchResult11;
+      }
+      throw new $c_s_MatchError(x40);
+    }
+    var _1 = $n(reflect0$tailLocal2).asPrimitive__s_Option();
+    var _2 = $n(reflect0$tailLocal2).asRecord__s_Option();
+    $n(reflect0$tailLocal2);
+    $n(reflect0$tailLocal2);
+    if ((_1 instanceof $c_s_Some)) {
+      $as_s_Some(_1);
+      var x82 = value$tailLocal1;
+      if ((x82 instanceof $c_Lzio_blocks_schema_DynamicValue$Primitive)) {
+        var x83 = $as_Lzio_blocks_schema_DynamicValue$Primitive(x82);
+        var this$16 = $n(x83);
+        var x85 = this$16.Lzio_blocks_schema_DynamicValue$Primitive__f_value;
+        var x$5 = $m_Lzio_blocks_schema_PrimitiveValue$Unit$();
+        if ((x$5 === x85)) {
+          return null;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$String)) {
+          var x79 = $as_Lzio_blocks_schema_PrimitiveValue$String(x85);
+          var this$18 = $n(x79);
+          var x81 = this$18.Lzio_blocks_schema_PrimitiveValue$String__f_value;
+          return x81;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Boolean)) {
+          var x76 = $as_Lzio_blocks_schema_PrimitiveValue$Boolean(x85);
+          var this$21 = $n(x76);
+          var x78 = this$21.Lzio_blocks_schema_PrimitiveValue$Boolean__f_value;
+          return x78;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Byte)) {
+          var x73 = $as_Lzio_blocks_schema_PrimitiveValue$Byte(x85);
+          var this$24 = $n(x73);
+          var x75 = this$24.Lzio_blocks_schema_PrimitiveValue$Byte__f_value;
+          var value$1 = x75;
+          return value$1;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Short)) {
+          var x70 = $as_Lzio_blocks_schema_PrimitiveValue$Short(x85);
+          var this$27 = $n(x70);
+          var x72 = this$27.Lzio_blocks_schema_PrimitiveValue$Short__f_value;
+          var value$2 = x72;
+          return value$2;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Int)) {
+          var x67 = $as_Lzio_blocks_schema_PrimitiveValue$Int(x85);
+          var this$30 = $n(x67);
+          var x69 = this$30.Lzio_blocks_schema_PrimitiveValue$Int__f_value;
+          var value$3 = x69;
+          return value$3;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Long)) {
+          var x64 = $as_Lzio_blocks_schema_PrimitiveValue$Long(x85);
+          var this$33 = $n(x64);
+          var t = this$33.Lzio_blocks_schema_PrimitiveValue$Long__f_value;
+          var lo = t.RTLong__f_lo;
+          var hi = t.RTLong__f_hi;
+          var value$4 = ((4.294967296E9 * hi) + (lo >>> 0.0));
+          return value$4;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Float)) {
+          var x61 = $as_Lzio_blocks_schema_PrimitiveValue$Float(x85);
+          var this$37 = $n(x61);
+          var x63 = this$37.Lzio_blocks_schema_PrimitiveValue$Float__f_value;
+          var value$5 = x63;
+          return value$5;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Double)) {
+          var x58 = $as_Lzio_blocks_schema_PrimitiveValue$Double(x85);
+          var this$40 = $n(x58);
+          var x60 = this$40.Lzio_blocks_schema_PrimitiveValue$Double__f_value;
+          return x60;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$BigInt)) {
+          var x55 = $as_Lzio_blocks_schema_PrimitiveValue$BigInt(x85);
+          var this$43 = $n(x55);
+          var x57 = this$43.Lzio_blocks_schema_PrimitiveValue$BigInt__f_value;
+          var s = $n(x57).toString__T();
+          return s;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$BigDecimal)) {
+          var x52 = $as_Lzio_blocks_schema_PrimitiveValue$BigDecimal(x85);
+          var this$46 = $n(x52);
+          var x54 = this$46.Lzio_blocks_schema_PrimitiveValue$BigDecimal__f_value;
+          var this$47 = $n(x54);
+          var s$1 = $n(this$47.s_math_BigDecimal__f_bigDecimal).toString__T();
+          return s$1;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Char)) {
+          var x49 = $as_Lzio_blocks_schema_PrimitiveValue$Char(x85);
+          var this$50 = $n(x49);
+          var x51 = this$50.Lzio_blocks_schema_PrimitiveValue$Char__f_value;
+          var s$2 = ("" + $cToS(x51));
+          return s$2;
+        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$UUID)) {
+          var x46 = $as_Lzio_blocks_schema_PrimitiveValue$UUID(x85);
+          var this$54 = $n(x46);
+          var x48 = this$54.Lzio_blocks_schema_PrimitiveValue$UUID__f_value;
+          var s$3 = $n(x48).toString__T();
+          return s$3;
+        } else {
+          var s$4 = $n(x85).toString__T();
+          return s$4;
+        }
+      }
+      return null;
+    }
+    if ((_2 instanceof $c_s_Some)) {
+      var x118 = $as_s_Some(_2);
+      var rec = $as_Lzio_blocks_schema_Reflect$Record($n(x118).s_Some__f_value);
+      var x86 = value$tailLocal1;
+      if ((x86 instanceof $c_Lzio_blocks_schema_DynamicValue$Record)) {
+        var x87 = $as_Lzio_blocks_schema_DynamicValue$Record(x86);
+        var this$58 = $n(x87);
+        var x89 = this$58.Lzio_blocks_schema_DynamicValue$Record__f_fields;
+        var obj = ({});
+        var this$61 = $n(x89);
+        var map = $m_sci_Map$().from__sc_IterableOnce__sci_Map(this$61);
+        $n($n(rec).Lzio_blocks_schema_Reflect$Record__f_fields).foreach__F1__V(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((map, obj) => ((f) => {
+          var f$1 = $as_Lzio_blocks_schema_Term(f);
+          var this$62 = $n($n(map).get__O__s_Option($n(f$1).Lzio_blocks_schema_Term__f_name));
+          if ((!this$62.isEmpty__Z())) {
+            var x0$1 = this$62.get__O();
+            var dv = $as_Lzio_blocks_schema_DynamicValue(x0$1);
+            var key = $n(f$1).Lzio_blocks_schema_Term__f_name;
+            var value$6 = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__toJs__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_DynamicValue__sjs_js_Any($m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$(), $n(f$1).Lzio_blocks_schema_Term__f_value, dv);
+            obj[key] = value$6;
+          }
+        }))(map, obj)));
+        return obj;
+      }
+      return ({});
+    }
+    return null;
+  }
+}
+function $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__optionInfo__Lzio_blocks_schema_Reflect__s_Option($thiz, reflect) {
+  var this$1 = $n($n(reflect).asVariant__s_Option());
+  if (this$1.isEmpty__Z()) {
+    return $m_s_None$();
+  } else {
+    var x0 = this$1.get__O();
+    var variant = $as_Lzio_blocks_schema_Reflect$Variant(x0);
+    var this$2 = $n($n(variant).Lzio_blocks_schema_Reflect$Variant__f_cases);
+    _return: {
+      var it = this$2.iterator__sc_Iterator();
+      while ($n(it).hasNext__Z()) {
+        var a = $n(it).next__O();
+        var t = $as_Lzio_blocks_schema_Term(a);
+        if (($p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__simpleCaseName$1__T__T($thiz, $n(t).Lzio_blocks_schema_Term__f_name) === "None")) {
+          var noneCase = new $c_s_Some(a);
+          break _return;
+        }
+      }
+      var noneCase = $m_s_None$();
+    }
+    var this$3 = $n($n(variant).Lzio_blocks_schema_Reflect$Variant__f_cases);
+    _return$1: {
+      var it$1 = this$3.iterator__sc_Iterator();
+      while ($n(it$1).hasNext__Z()) {
+        var a$1 = $n(it$1).next__O();
+        var t$1 = $as_Lzio_blocks_schema_Term(a$1);
+        if (($p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__simpleCaseName$1__T__T($thiz, $n(t$1).Lzio_blocks_schema_Term__f_name) === "Some")) {
+          var someCase = new $c_s_Some(a$1);
+          break _return$1;
+        }
+      }
+      var someCase = $m_s_None$();
+    }
+    if ((noneCase.isEmpty__Z() || someCase.isEmpty__Z())) {
+      return $m_s_None$();
+    } else {
+      var someValue = $n($as_Lzio_blocks_schema_Term(someCase.get__O())).Lzio_blocks_schema_Term__f_value;
+      var x130 = $n(someValue).asRecord__s_Option();
+      if ((x130 instanceof $c_s_Some)) {
+        var x131 = $as_s_Some(x130);
+        var someRec = $as_Lzio_blocks_schema_Reflect$Record($n(x131).s_Some__f_value);
+        var x127 = $n(someRec).fieldByName__T__s_Option("value");
+        if ((x127 instanceof $c_s_Some)) {
+          var x128 = $as_s_Some(x127);
+          var valueField = $as_Lzio_blocks_schema_Term($n(x128).s_Some__f_value);
+          var _1 = $n(valueField).Lzio_blocks_schema_Term__f_value;
+          var value = new $c_T2(_1, true);
+          return new $c_s_Some(value);
+        }
+        var x = $m_s_None$();
+        if ((x === x127)) {
+          var value$1 = new $c_T2(someValue, false);
+          return new $c_s_Some(value$1);
+        }
+        throw new $c_s_MatchError(x127);
+      }
+      var x$3 = $m_s_None$();
+      if ((x$3 === x130)) {
+        var value$2 = new $c_T2(someValue, false);
+        return new $c_s_Some(value$2);
+      }
+      throw new $c_s_MatchError(x130);
+    }
+  }
+}
+function $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__simpleCaseName$1__T__T($thiz, name) {
+  matchResult19: {
+    var afterDot;
+    var x126 = $f_T__lastIndexOf__I__I($n(name), 46);
+    if ((x126 === (-1))) {
+      var afterDot = name;
+      break matchResult19;
+    }
+    var this$1 = $n(name);
+    var beginIndex = ((1 + x126) | 0);
+    if (((beginIndex < 0) || (beginIndex > this$1.length))) {
+      $charAt(this$1, beginIndex);
+    }
+    var afterDot = $as_T(this$1.substring(beginIndex));
+  }
+  var this$2 = $n(afterDot);
+  if ($uZ(this$2.endsWith("$"))) {
+    return $m_sc_StringOps$().dropRight$extension__T__I__T(afterDot, 1);
+  } else {
+    return afterDot;
+  }
+}
+/** @constructor */
+function $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$() {
+}
+$c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype = new $h_O();
+$c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype.constructor = $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$;
+/** @constructor */
+function $h_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$() {
+}
+$h_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype = $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype;
+$c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype.encode__O__Lzio_blocks_schema_Schema__sjs_js_Any = (function(value, schema) {
+  var $x_1 = $n(schema).Lzio_blocks_schema_Schema__f_reflect;
+  var this$1 = $n(schema);
+  return $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__toJs__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_DynamicValue__sjs_js_Any(this, $x_1, $n(this$1.Lzio_blocks_schema_Schema__f_reflect).toDynamicValue__O__Lzio_blocks_schema_binding_HasBinding__Lzio_blocks_schema_DynamicValue(value, $m_Lzio_blocks_schema_binding_Binding$().Lzio_blocks_schema_binding_Binding$__f_bindingHasBinding));
+});
+var $d_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$ = new $TypeData().initClass($c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$, "cloud.golem.runtime.autowire.JsPlainSchemaCodec$", ({
+  Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$: 1
+}));
+var $n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$;
+function $m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$() {
+  if ((!$n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$)) {
+    $n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$ = new $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$();
+  }
+  return $n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$;
 }
 function $is_Lcloud_golem_runtime_autowire_MethodBinding(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_runtime_autowire_MethodBinding)));
@@ -5088,202 +5131,6 @@ function $m_Lcloud_golem_runtime_autowire_WitValueCodec$() {
     $n_Lcloud_golem_runtime_autowire_WitValueCodec$ = new $c_Lcloud_golem_runtime_autowire_WitValueCodec$();
   }
   return $n_Lcloud_golem_runtime_autowire_WitValueCodec$;
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, tag, message) {
-  var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", tag), new $c_T2("val", message)]));
-  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, message) {
-  matchResult4: {
-    var witValue;
-    var x5 = $m_Lcloud_golem_runtime_autowire_WitValueBuilder$().build__Lcloud_golem_data_DataType__Lcloud_golem_data_DataValue__s_util_Either($m_Lcloud_golem_data_DataType$StringType$(), new $c_Lcloud_golem_data_DataValue$StringValue(message));
-    if ((x5 instanceof $c_s_util_Left)) {
-      $as_s_util_Left(x5);
-      var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "string"), new $c_T2("val", message)]));
-      var witValue = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
-      break matchResult4;
-    }
-    if ((x5 instanceof $c_s_util_Right)) {
-      var x6 = $as_s_util_Right(x5);
-      var vit = $n(x6).s_util_Right__f_value;
-      var witValue = vit;
-      break matchResult4;
-    }
-    throw new $c_s_MatchError(x5);
-  }
-  var $x_3 = $m_sr_ScalaRunTime$();
-  var $x_2 = new $c_T2("name", (void 0));
-  var $x_1 = new $c_T2("owner", (void 0));
-  var fields$1 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "prim-string-type")]));
-  var y = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$1);
-  var fields$2 = $x_3.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("type", y)]));
-  var node = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$2);
-  var $x_4 = $m_sr_ScalaRunTime$();
-  var y$1 = [node];
-  var fields$3 = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("nodes", y$1)]));
-  var witType = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$3);
-  var $x_6 = $m_sr_ScalaRunTime$();
-  var $x_5 = new $c_T2("tag", "custom-error");
-  var fields$4 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("value", witValue), new $c_T2("typ", witType)]));
-  var y$2 = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$4);
-  var fields$5 = $x_6.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_5, new $c_T2("val", y$2)]));
-  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$5);
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($thiz, err, fallbackTag) {
-  if ((err === null)) {
-    return $p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, "null");
-  } else {
-    try {
-      var v = err.tag;
-      if ((!(v === (void 0)))) {
-        var v$1 = err.val;
-        var hasTagVal = (!(v$1 === (void 0)));
-      } else {
-        var hasTagVal = false;
-      }
-    } catch (e) {
-      var hasTagVal = false;
-    }
-    if (hasTagVal) {
-      return err;
-    } else if (((typeof err) === "string")) {
-      var x11 = $as_T(err);
-      return $p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, fallbackTag, x11);
-    } else {
-      return $p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, ("" + err));
-    }
-  }
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__normalizeMethodName__T__T($thiz, methodName) {
-  var this$1 = $n(methodName);
-  if (($uI(this$1.indexOf(".{")) !== (-1))) {
-    var this$2 = $n(methodName);
-    var $x_1 = $uZ(this$2.endsWith("}"));
-  } else {
-    var $x_1 = false;
-  }
-  if ($x_1) {
-    var this$3 = $n(methodName);
-    var start = ((2 + $uI(this$3.indexOf(".{"))) | 0);
-    var this$5 = $n(methodName);
-    var this$4 = $n(methodName);
-    var endIndex = (((-1) + this$4.length) | 0);
-    if ((start < 0)) {
-      $charAt(this$5, start);
-    }
-    if ((endIndex > this$5.length)) {
-      $charAt(this$5, endIndex);
-    }
-    if ((endIndex < start)) {
-      $charAt(this$5, (-1));
-    }
-    return $as_T(this$5.substring(start, endIndex));
-  } else {
-    return methodName;
-  }
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise($thiz, agentTypeName, input) {
-  var v = $thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved;
-  if ((!(v === (void 0)))) {
-    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, "Agent is already initialized in this container"));
-  } else {
-    var x12 = $m_Lcloud_golem_runtime_autowire_AgentRegistry$().get__T__s_Option(agentTypeName);
-    var x = $m_s_None$();
-    if ((x === x12)) {
-      var $x_1 = Promise;
-      var message = (("Invalid agent '" + agentTypeName) + "'");
-      return $x_1.reject($p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-type", message));
-    }
-    if ((x12 instanceof $c_s_Some)) {
-      var x13 = $as_s_Some(x12);
-      var defnAny = $as_Lcloud_golem_runtime_autowire_AgentDefinition($n(x13).s_Some__f_value);
-      var onRejected = $m_sjs_js_Any$().fromFunction1__F1__sjs_js_Function1(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-input")))));
-      var this$2 = $n(defnAny);
-      return $n(this$2.Lcloud_golem_runtime_autowire_AgentDefinition__f_constructor).initialize__sjs_js_Dynamic__sjs_js_Promise(input).then(((inst) => {
-        $m_Lcloud_golem_runtime_guest_Guest$().Lcloud_golem_runtime_guest_Guest$__f_resolved = new $c_Lcloud_golem_runtime_guest_Guest$Resolved(defnAny, inst);
-      }), onRejected);
-    }
-    throw new $c_s_MatchError(x12);
-  }
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise($thiz, methodName, input) {
-  var v = $thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved;
-  if ((v === (void 0))) {
-    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
-  } else {
-    var r = $as_Lcloud_golem_runtime_guest_Guest$Resolved($thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved);
-    var mn = $p_Lcloud_golem_runtime_guest_Guest$__normalizeMethodName__T__T($thiz, methodName);
-    var onRejected = $m_sjs_js_Any$().fromFunction1__F1__sjs_js_Function1(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-method")))));
-    var this$2 = $n($n(r).Lcloud_golem_runtime_guest_Guest$Resolved__f_defn);
-    var instance = $n(r).Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
-    return this$2.invoke__O__T__sjs_js_Dynamic__sjs_js_Promise(instance, mn, input).catch(onRejected);
-  }
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__getDefinition__sjs_js_Promise($thiz) {
-  var v = $thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved;
-  if ((v === (void 0))) {
-    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
-  } else {
-    return Promise.resolve($n($n($as_Lcloud_golem_runtime_guest_Guest$Resolved($thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved)).Lcloud_golem_runtime_guest_Guest$Resolved__f_defn).agentType__sjs_js_Dynamic());
-  }
-}
-function $p_Lcloud_golem_runtime_guest_Guest$__discoverAgentTypes__sjs_js_Promise($thiz) {
-  try {
-    var arr = [];
-    var this$1 = $n($m_Lcloud_golem_runtime_autowire_AgentRegistry$().all__sci_List());
-    var these = this$1;
-    while ((!$n(these).isEmpty__Z())) {
-      var x0 = $n(these).head__O();
-      var d = $as_Lcloud_golem_runtime_autowire_AgentDefinition(x0);
-      $uI(arr.push($n(d).agentType__sjs_js_Dynamic()));
-      these = $as_sci_List($n(these).tail__O());
-    }
-    return Promise.resolve(arr);
-  } catch (e) {
-    var e$2 = ((e instanceof $c_jl_Throwable) ? e : new $c_sjs_js_JavaScriptException(e));
-    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($thiz, e$2.toString__T(), "custom-error"));
-  }
-}
-function $sct_Lcloud_golem_runtime_guest_Guest$__stinit__() {
-  $m_Lcloud_golem_runtime_guest_Guest$();
-}
-/** @constructor */
-function $c_Lcloud_golem_runtime_guest_Guest$() {
-  this.Lcloud_golem_runtime_guest_Guest$__f_resolved = null;
-  $n_Lcloud_golem_runtime_guest_Guest$ = this;
-  this.Lcloud_golem_runtime_guest_Guest$__f_resolved = (void 0);
-  var $x_4 = $m_sr_ScalaRunTime$();
-  var y = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((agentTypeName, input) => {
-    var agentTypeName$1 = $as_T(agentTypeName);
-    return $p_Lcloud_golem_runtime_guest_Guest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise(this, agentTypeName$1, input);
-  })));
-  var $x_3 = new $c_T2("initialize", y);
-  var y$1 = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((methodName, input$2) => {
-    var methodName$1 = $as_T(methodName);
-    return $p_Lcloud_golem_runtime_guest_Guest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise(this, methodName$1, input$2);
-  })));
-  var $x_2 = new $c_T2("invoke", y$1);
-  var y$2 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_runtime_guest_Guest$__getDefinition__sjs_js_Promise(this))));
-  var $x_1 = new $c_T2("getDefinition", y$2);
-  var y$3 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_runtime_guest_Guest$__discoverAgentTypes__sjs_js_Promise(this))));
-  var fields = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_3, $x_2, $x_1, new $c_T2("discoverAgentTypes", y$3)]));
-  $t_Lcloud_golem_runtime_guest_Guest$__guest = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
-}
-$c_Lcloud_golem_runtime_guest_Guest$.prototype = new $h_O();
-$c_Lcloud_golem_runtime_guest_Guest$.prototype.constructor = $c_Lcloud_golem_runtime_guest_Guest$;
-/** @constructor */
-function $h_Lcloud_golem_runtime_guest_Guest$() {
-}
-$h_Lcloud_golem_runtime_guest_Guest$.prototype = $c_Lcloud_golem_runtime_guest_Guest$.prototype;
-var $d_Lcloud_golem_runtime_guest_Guest$ = new $TypeData().initClass($c_Lcloud_golem_runtime_guest_Guest$, "cloud.golem.runtime.guest.Guest$", ({
-  Lcloud_golem_runtime_guest_Guest$: 1
-}));
-var $n_Lcloud_golem_runtime_guest_Guest$;
-function $m_Lcloud_golem_runtime_guest_Guest$() {
-  if ((!$n_Lcloud_golem_runtime_guest_Guest$)) {
-    $n_Lcloud_golem_runtime_guest_Guest$ = new $c_Lcloud_golem_runtime_guest_Guest$();
-  }
-  return $n_Lcloud_golem_runtime_guest_Guest$;
 }
 function $is_Lcloud_golem_runtime_plan_MethodPlan(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_runtime_plan_MethodPlan)));
@@ -10379,51 +10226,8 @@ function $m_sci_VectorStatics$() {
   }
   return $n_sci_VectorStatics$;
 }
-/** @constructor */
-function $c_scm_HashMap$Node(_key, _hash, _value, _next) {
-  this.scm_HashMap$Node__f__key = null;
-  this.scm_HashMap$Node__f__hash = 0;
-  this.scm_HashMap$Node__f__value = null;
-  this.scm_HashMap$Node__f__next = null;
-  this.scm_HashMap$Node__f__key = _key;
-  this.scm_HashMap$Node__f__hash = _hash;
-  this.scm_HashMap$Node__f__value = _value;
-  this.scm_HashMap$Node__f__next = _next;
-}
-$c_scm_HashMap$Node.prototype = new $h_O();
-$c_scm_HashMap$Node.prototype.constructor = $c_scm_HashMap$Node;
-/** @constructor */
-function $h_scm_HashMap$Node() {
-}
-$h_scm_HashMap$Node.prototype = $c_scm_HashMap$Node.prototype;
-$c_scm_HashMap$Node.prototype.findNode__O__I__scm_HashMap$Node = (function(k, h) {
-  var _$this = this;
-  while (true) {
-    if (((h === $n(_$this).scm_HashMap$Node__f__hash) && $m_sr_BoxesRunTime$().equals__O__O__Z(k, $n(_$this).scm_HashMap$Node__f__key))) {
-      return _$this;
-    } else if ((($n(_$this).scm_HashMap$Node__f__next === null) || ($n(_$this).scm_HashMap$Node__f__hash > h))) {
-      return null;
-    } else {
-      _$this = $n(_$this).scm_HashMap$Node__f__next;
-    }
-  }
-});
-$c_scm_HashMap$Node.prototype.foreachEntry__F2__V = (function(f) {
-  var _$this = this;
-  while (true) {
-    $n(f).apply__O__O__O($n(_$this).scm_HashMap$Node__f__key, $n(_$this).scm_HashMap$Node__f__value);
-    if (($n(_$this).scm_HashMap$Node__f__next !== null)) {
-      _$this = $n(_$this).scm_HashMap$Node__f__next;
-      continue;
-    }
-    break;
-  }
-});
-$c_scm_HashMap$Node.prototype.toString__T = (function() {
-  return ((((((("Node(" + this.scm_HashMap$Node__f__key) + ", ") + this.scm_HashMap$Node__f__value) + ", ") + this.scm_HashMap$Node__f__hash) + ") -> ") + this.scm_HashMap$Node__f__next);
-});
 function $as_scm_HashMap$Node(obj) {
-  return (((obj instanceof $c_scm_HashMap$Node) || (obj === null)) ? obj : $throwClassCastException(obj, "scala.collection.mutable.HashMap$Node"));
+  return ((false || (obj === null)) ? obj : $throwClassCastException(obj, "scala.collection.mutable.HashMap$Node"));
 }
 function $isArrayOf_scm_HashMap$Node(obj, depth) {
   return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.scm_HashMap$Node)));
@@ -10431,9 +10235,6 @@ function $isArrayOf_scm_HashMap$Node(obj, depth) {
 function $asArrayOf_scm_HashMap$Node(obj, depth) {
   return (($isArrayOf_scm_HashMap$Node(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lscala.collection.mutable.HashMap$Node;", depth));
 }
-var $d_scm_HashMap$Node = new $TypeData().initClass($c_scm_HashMap$Node, "scala.collection.mutable.HashMap$Node", ({
-  scm_HashMap$Node: 1
-}));
 /** @constructor */
 function $c_scm_LinkedHashMap$LinkedEntry(key, hash, value) {
   this.scm_LinkedHashMap$LinkedEntry__f_key = null;
@@ -11084,9 +10885,7 @@ $c_sr_ScalaRunTime$.prototype.array_clone__O__O = (function(xs) {
   }
 });
 $c_sr_ScalaRunTime$.prototype._toString__s_Product__T = (function(x) {
-  var this$1 = $n($n(x).productIterator__sc_Iterator());
-  var start = ($n(x).productPrefix__T() + "(");
-  return $f_sc_IterableOnceOps__mkString__T__T__T__T(this$1, start, ",", ")");
+  return $f_sc_IterableOnceOps__mkString__T__T__T__T($n($n(x).productIterator__sc_Iterator()), ($n(x).productPrefix__T() + "("), ",", ")");
 });
 $c_sr_ScalaRunTime$.prototype.genericWrapArray__O__sci_ArraySeq = (function(xs) {
   return ((xs === null) ? null : $m_sci_ArraySeq$().unsafeWrapArray__O__sci_ArraySeq(xs));
@@ -13015,105 +12814,6 @@ var $d_Lcloud_golem_data_GolemSchema$$anon$1 = new $TypeData().initClass($c_Lclo
   Lcloud_golem_data_GolemSchema: 1
 }));
 /** @constructor */
-function $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$1, evidence$2$1) {
-  this.Lcloud_golem_data_GolemSchema$$anon$2__f_aSchema = null;
-  this.Lcloud_golem_data_GolemSchema$$anon$2__f_bSchema = null;
-  this.Lcloud_golem_data_GolemSchema$$anon$2__f_schema = null;
-  this.Lcloud_golem_data_GolemSchema$$anon$2__f_aSchema = evidence$1$1;
-  this.Lcloud_golem_data_GolemSchema$$anon$2__f_bSchema = evidence$2$1;
-  var this$3 = $m_Lcloud_golem_data_DataInterop$();
-  var schema = this.Lcloud_golem_data_GolemSchema$$anon$2__f_aSchema;
-  var aDt = $p_Lcloud_golem_data_DataInterop$__reflectToDataType__Lzio_blocks_schema_Reflect__Lcloud_golem_data_DataType(this$3, $n(schema).Lzio_blocks_schema_Schema__f_reflect);
-  var this$4 = $m_Lcloud_golem_data_DataInterop$();
-  var schema$1 = this.Lcloud_golem_data_GolemSchema$$anon$2__f_bSchema;
-  var bDt = $p_Lcloud_golem_data_DataInterop$__reflectToDataType__Lzio_blocks_schema_Reflect__Lcloud_golem_data_DataType(this$4, $n(schema$1).Lzio_blocks_schema_Schema__f_reflect);
-  var schema$2 = new $c_Lcloud_golem_data_ElementSchema$Component(aDt);
-  var $x_1 = new $c_Lcloud_golem_data_NamedElementSchema("arg0", schema$2);
-  var schema$3 = new $c_Lcloud_golem_data_ElementSchema$Component(bDt);
-  var elements = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("arg1", schema$3), $m_sci_Nil$()));
-  this.Lcloud_golem_data_GolemSchema$$anon$2__f_schema = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
-}
-$c_Lcloud_golem_data_GolemSchema$$anon$2.prototype = new $h_O();
-$c_Lcloud_golem_data_GolemSchema$$anon$2.prototype.constructor = $c_Lcloud_golem_data_GolemSchema$$anon$2;
-/** @constructor */
-function $h_Lcloud_golem_data_GolemSchema$$anon$2() {
-}
-$h_Lcloud_golem_data_GolemSchema$$anon$2.prototype = $c_Lcloud_golem_data_GolemSchema$$anon$2.prototype;
-$c_Lcloud_golem_data_GolemSchema$$anon$2.prototype.schema__Lcloud_golem_data_StructuredSchema = (function() {
-  return this.Lcloud_golem_data_GolemSchema$$anon$2__f_schema;
-});
-$c_Lcloud_golem_data_GolemSchema$$anon$2.prototype.encode__T2__s_util_Either = (function(value) {
-  matchResult2: {
-    var \u03b42$;
-    if ((value !== null)) {
-      var \u03b42$ = value;
-      break matchResult2;
-    }
-    throw new $c_s_MatchError(value);
-  }
-  var a = $n(\u03b42$)._1__O();
-  var b = $n(\u03b42$)._2__O();
-  var av = $m_Lcloud_golem_data_DataInterop$().toData__O__Lzio_blocks_schema_Schema__Lcloud_golem_data_DataValue(a, this.Lcloud_golem_data_GolemSchema$$anon$2__f_aSchema);
-  var bv = $m_Lcloud_golem_data_DataInterop$().toData__O__Lzio_blocks_schema_Schema__Lcloud_golem_data_DataValue(b, this.Lcloud_golem_data_GolemSchema$$anon$2__f_bSchema);
-  var value$1 = new $c_Lcloud_golem_data_ElementValue$Component(av);
-  var $x_1 = new $c_Lcloud_golem_data_NamedElementValue("arg0", value$1);
-  var value$2 = new $c_Lcloud_golem_data_ElementValue$Component(bv);
-  var elements = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementValue("arg1", value$2), $m_sci_Nil$()));
-  var value$3 = new $c_Lcloud_golem_data_StructuredValue$Tuple(elements);
-  return new $c_s_util_Right(value$3);
-});
-$c_Lcloud_golem_data_GolemSchema$$anon$2.prototype.decode__Lcloud_golem_data_StructuredValue__s_util_Either = (function(value) {
-  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
-    var x19 = $as_Lcloud_golem_data_StructuredValue$Tuple(value);
-    var this$2 = $n(x19);
-    var x21 = this$2.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
-    var this$3 = $n($s_Lcloud_golem_data_GolemSchema$__cloud$golem$data$GolemSchema$$anon$2$$_$find$1__sci_List__T__s_util_Either(x21, "arg0"));
-    if ((this$3 instanceof $c_s_util_Right)) {
-      var x2 = $as_s_util_Right(this$3);
-      var b = $n(x2).s_util_Right__f_value;
-      var av = $as_Lcloud_golem_data_DataValue(b);
-      var this$4 = $n($s_Lcloud_golem_data_GolemSchema$__cloud$golem$data$GolemSchema$$anon$2$$_$find$1__sci_List__T__s_util_Either(x21, "arg1"));
-      if ((this$4 instanceof $c_s_util_Right)) {
-        var x2$1 = $as_s_util_Right(this$4);
-        var b$1 = $n(x2$1).s_util_Right__f_value;
-        var bv = $as_Lcloud_golem_data_DataValue(b$1);
-        var this$5 = $n($m_Lcloud_golem_data_DataInterop$().fromData__Lcloud_golem_data_DataValue__Lzio_blocks_schema_Schema__s_util_Either(av, this.Lcloud_golem_data_GolemSchema$$anon$2__f_aSchema));
-        if ((this$5 instanceof $c_s_util_Right)) {
-          var x2$2 = $as_s_util_Right(this$5);
-          var b$2 = $n(x2$2).s_util_Right__f_value;
-          var this$6 = $n($m_Lcloud_golem_data_DataInterop$().fromData__Lcloud_golem_data_DataValue__Lzio_blocks_schema_Schema__s_util_Either(bv, this.Lcloud_golem_data_GolemSchema$$anon$2__f_bSchema));
-          if ((this$6 instanceof $c_s_util_Right)) {
-            var x2$3 = $as_s_util_Right(this$6);
-            var b$3 = $n(x2$3).s_util_Right__f_value;
-            return new $c_s_util_Right(new $c_T2(b$2, b$3));
-          } else {
-            return this$6;
-          }
-        } else {
-          return this$5;
-        }
-      } else {
-        return this$4;
-      }
-    } else {
-      return this$3;
-    }
-  }
-  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Multimodal)) {
-    var x16 = $as_Lcloud_golem_data_StructuredValue$Multimodal(value);
-    $n(x16);
-    return new $c_s_util_Left("Multimodal payload cannot be decoded as component-model value");
-  }
-  throw new $c_s_MatchError(value);
-});
-$c_Lcloud_golem_data_GolemSchema$$anon$2.prototype.encode__O__s_util_Either = (function(value) {
-  return this.encode__T2__s_util_Either($as_T2(value));
-});
-var $d_Lcloud_golem_data_GolemSchema$$anon$2 = new $TypeData().initClass($c_Lcloud_golem_data_GolemSchema$$anon$2, "cloud.golem.data.GolemSchema$$anon$2", ({
-  Lcloud_golem_data_GolemSchema$$anon$2: 1,
-  Lcloud_golem_data_GolemSchema: 1
-}));
-/** @constructor */
 function $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1) {
   this.Lcloud_golem_data_GolemSchema$$anon$4__f_baseSchema$2 = null;
   this.Lcloud_golem_data_GolemSchema$$anon$4__f_schema = null;
@@ -13177,213 +12877,6 @@ var $d_Lcloud_golem_data_GolemSchema$$anon$4 = new $TypeData().initClass($c_Lclo
   Lcloud_golem_data_GolemSchema$$anon$4: 1,
   Lcloud_golem_data_GolemSchema: 1
 }));
-/** @constructor */
-function $c_Lcloud_golem_quickstart_RegisterAgents$$anon$1() {
-  this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params = null;
-  this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_schema = null;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var _2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema);
-  var $x_1 = new $c_T2("key", _2);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var _2$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1);
-  this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params = new ($d_T2.getArrayOf().constr)([$x_1, new $c_T2("value", _2$1)]);
-  var builder = new $c_scm_ListBuffer();
-  var idx = 0;
-  while ((idx < $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).u.length)) {
-    matchResult7: {
-      var \u03b44$;
-      var x61 = $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).get(idx);
-      if ((x61 !== null)) {
-        var \u03b44$ = x61;
-        break matchResult7;
-      }
-      throw new $c_s_MatchError(x61);
-    }
-    var paramName = $as_T($n(\u03b44$)._1__O());
-    var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b44$)._2__O());
-    matchResult8: {
-      var x64 = $n(codec).schema__Lcloud_golem_data_StructuredSchema();
-      if ((x64 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x65 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x64);
-        var this$7 = $n(x65);
-        var x67 = this$7.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x67).length__I() === 1)) {
-          var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x67).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          var elem = new $c_Lcloud_golem_data_NamedElementSchema(paramName, schema);
-          builder.addOne__O__scm_ListBuffer(elem);
-          break matchResult8;
-        }
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ((("Parameter '" + paramName) + "' in method 'set' must encode to a single element, found: ") + x64));
-    }
-    idx = ((1 + idx) | 0);
-  }
-  var elements = builder.toList__sci_List();
-  this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_schema = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
-}
-$c_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype = new $h_O();
-$c_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype.constructor = $c_Lcloud_golem_quickstart_RegisterAgents$$anon$1;
-/** @constructor */
-function $h_Lcloud_golem_quickstart_RegisterAgents$$anon$1() {
-}
-$h_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype = $c_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype;
-$c_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype.schema__Lcloud_golem_data_StructuredSchema = (function() {
-  return this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_schema;
-});
-$c_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype.encode__sci_List__s_util_Either = (function(value) {
-  var this$1 = $n(value);
-  var values = $m_sci_Vector$().from__sc_IterableOnce__sci_Vector(this$1);
-  if (($n(values).length__I() !== $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).u.length)) {
-    return new $c_s_util_Left("Parameter count mismatch for method 'set'. Expected 2, found ${values.length}");
-  } else {
-    var builder = new $c_scm_ListBuffer();
-    var idx = 0;
-    while ((idx < $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).u.length)) {
-      matchResult9: {
-        var \u03b46$;
-        var x68 = $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).get(idx);
-        if ((x68 !== null)) {
-          var \u03b46$ = x68;
-          break matchResult9;
-        }
-        throw new $c_s_MatchError(x68);
-      }
-      var paramName = $as_T($n(\u03b46$)._1__O());
-      var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b46$)._2__O());
-      matchResult11: {
-        var x78 = $n(codec).encode__O__s_util_Either($n(values).apply__I__O(idx));
-        if ((x78 instanceof $c_s_util_Left)) {
-          var x86 = $as_s_util_Left(x78);
-          var err = $as_T($n(x86).s_util_Left__f_value);
-          var value$1 = ((("Failed to encode parameter '" + paramName) + "' in method 'set': ") + err);
-          return new $c_s_util_Left(value$1);
-        }
-        if ((x78 instanceof $c_s_util_Right)) {
-          var x81 = $as_s_util_Right(x78);
-          var x82 = $as_Lcloud_golem_data_StructuredValue($n(x81).s_util_Right__f_value);
-          if ((x82 instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
-            var x83 = $as_Lcloud_golem_data_StructuredValue$Tuple(x82);
-            var this$6 = $n(x83);
-            var x85 = this$6.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
-            if ((x85 instanceof $c_sci_$colon$colon)) {
-              var x72 = $as_sci_$colon$colon(x85);
-              var x73 = $as_Lcloud_golem_data_NamedElementValue($n(x72).sci_$colon$colon__f_head);
-              var x74 = $n(x72).sci_$colon$colon__f_next;
-              if ((x73 !== null)) {
-                $n(x73);
-                var this$9 = $n(x73);
-                var x77 = this$9.Lcloud_golem_data_NamedElementValue__f_value;
-                var x = $m_sci_Nil$();
-                if (x.equals__O__Z(x74)) {
-                  var elem = new $c_Lcloud_golem_data_NamedElementValue(paramName, x77);
-                  builder.addOne__O__scm_ListBuffer(elem);
-                  break matchResult11;
-                }
-              }
-            }
-            var value$2 = (("Parameter '" + paramName) + "' in method 'set' must encode to a single element value");
-            return new $c_s_util_Left(value$2);
-          }
-          var value$3 = ((("Parameter '" + paramName) + "' in method 'set' produced unexpected structured value: ") + x82);
-          return new $c_s_util_Left(value$3);
-        }
-        throw new $c_s_MatchError(x78);
-      }
-      idx = ((1 + idx) | 0);
-    }
-    var elements = builder.toList__sci_List();
-    var value$4 = new $c_Lcloud_golem_data_StructuredValue$Tuple(elements);
-    return new $c_s_util_Right(value$4);
-  }
-});
-$c_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype.decode__Lcloud_golem_data_StructuredValue__s_util_Either = (function(value) {
-  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
-    var x97 = $as_Lcloud_golem_data_StructuredValue$Tuple(value);
-    var this$2 = $n(x97);
-    var x99 = this$2.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
-    if (($n(x99).length__I() !== $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).u.length)) {
-      return new $c_s_util_Left("Structured element count mismatch for method 'set'. Expected 2, found ${elements.length}");
-    } else {
-      var builder = new $c_scm_ListBuffer();
-      var idx = 0;
-      while ((idx < $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).u.length)) {
-        matchResult12: {
-          var \u03b48$;
-          var x88 = $n(this.Lcloud_golem_quickstart_RegisterAgents$$anon$1__f_params).get(idx);
-          if ((x88 !== null)) {
-            var \u03b48$ = x88;
-            break matchResult12;
-          }
-          throw new $c_s_MatchError(x88);
-        }
-        var paramName = $as_T($n(\u03b48$)._1__O());
-        var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b48$)._2__O());
-        var this$5 = $n(x99);
-        var n = idx;
-        var element = $as_Lcloud_golem_data_NamedElementValue($f_sc_LinearSeqOps__apply__I__O(this$5, n));
-        if (($n(element).Lcloud_golem_data_NamedElementValue__f_name !== paramName)) {
-          var value$1 = (("Structured element name mismatch for method 'set'. Expected '$paramName', found '" + $n(element).Lcloud_golem_data_NamedElementValue__f_name) + "'");
-          return new $c_s_util_Left(value$1);
-        }
-        matchResult13: {
-          var x91 = $n(codec).decode__Lcloud_golem_data_StructuredValue__s_util_Either($m_Lcloud_golem_data_StructuredValue$().single__Lcloud_golem_data_ElementValue__T__Lcloud_golem_data_StructuredValue($n(element).Lcloud_golem_data_NamedElementValue__f_value, "value"));
-          if ((x91 instanceof $c_s_util_Left)) {
-            var x94 = $as_s_util_Left(x91);
-            var err = $as_T($n(x94).s_util_Left__f_value);
-            var value$2 = ((("Failed to decode parameter '" + paramName) + "' in method 'set': ") + err);
-            return new $c_s_util_Left(value$2);
-          }
-          if ((x91 instanceof $c_s_util_Right)) {
-            var x92 = $as_s_util_Right(x91);
-            var decoded = $n(x92).s_util_Right__f_value;
-            builder.addOne__O__scm_ListBuffer(decoded);
-            break matchResult13;
-          }
-          throw new $c_s_MatchError(x91);
-        }
-        idx = ((1 + idx) | 0);
-      }
-      var value$3 = builder.toList__sci_List();
-      return new $c_s_util_Right(value$3);
-    }
-  } else {
-    var value$4 = ("Structured value mismatch for method 'set'. Expected tuple payload, found: " + value);
-    return new $c_s_util_Left(value$4);
-  }
-});
-$c_Lcloud_golem_quickstart_RegisterAgents$$anon$1.prototype.encode__O__s_util_Either = (function(value) {
-  return this.encode__sci_List__s_util_Either($as_sci_List(value));
-});
-var $d_Lcloud_golem_quickstart_RegisterAgents$$anon$1 = new $TypeData().initClass($c_Lcloud_golem_quickstart_RegisterAgents$$anon$1, "cloud.golem.quickstart.RegisterAgents$$anon$1", ({
-  Lcloud_golem_quickstart_RegisterAgents$$anon$1: 1,
-  Lcloud_golem_data_GolemSchema: 1
-}));
-function $is_Lcloud_golem_quickstart_counter_CounterAgent(obj) {
-  return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_quickstart_counter_CounterAgent)));
-}
-function $as_Lcloud_golem_quickstart_counter_CounterAgent(obj) {
-  return (($is_Lcloud_golem_quickstart_counter_CounterAgent(obj) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.quickstart.counter.CounterAgent"));
-}
-function $isArrayOf_Lcloud_golem_quickstart_counter_CounterAgent(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_quickstart_counter_CounterAgent)));
-}
-function $asArrayOf_Lcloud_golem_quickstart_counter_CounterAgent(obj, depth) {
-  return (($isArrayOf_Lcloud_golem_quickstart_counter_CounterAgent(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.quickstart.counter.CounterAgent;", depth));
-}
-function $is_Lcloud_golem_quickstart_shard_ShardAgent(obj) {
-  return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_quickstart_shard_ShardAgent)));
-}
-function $as_Lcloud_golem_quickstart_shard_ShardAgent(obj) {
-  return (($is_Lcloud_golem_quickstart_shard_ShardAgent(obj) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.quickstart.shard.ShardAgent"));
-}
-function $isArrayOf_Lcloud_golem_quickstart_shard_ShardAgent(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_quickstart_shard_ShardAgent)));
-}
-function $asArrayOf_Lcloud_golem_quickstart_shard_ShardAgent(obj, depth) {
-  return (($isArrayOf_Lcloud_golem_quickstart_shard_ShardAgent(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.quickstart.shard.ShardAgent;", depth));
-}
 /** @constructor */
 function $c_Lcloud_golem_runtime_autowire_AgentConstructor$$anon$1(ctorInfo$1, codec$1, build$4) {
   this.Lcloud_golem_runtime_autowire_AgentConstructor$$anon$1__f_codec$2 = null;
@@ -13475,6 +12968,18 @@ var $d_Lcloud_golem_runtime_autowire_MethodBinding$$anon$1 = new $TypeData().ini
   Lcloud_golem_runtime_autowire_MethodBinding$$anon$1: 1,
   Lcloud_golem_runtime_autowire_MethodBinding: 1
 }));
+function $is_Ldemo_CounterAgent(obj) {
+  return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Ldemo_CounterAgent)));
+}
+function $as_Ldemo_CounterAgent(obj) {
+  return (($is_Ldemo_CounterAgent(obj) || (obj === null)) ? obj : $throwClassCastException(obj, "demo.CounterAgent"));
+}
+function $isArrayOf_Ldemo_CounterAgent(obj, depth) {
+  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Ldemo_CounterAgent)));
+}
+function $asArrayOf_Ldemo_CounterAgent(obj, depth) {
+  return (($isArrayOf_Ldemo_CounterAgent(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Ldemo.CounterAgent;", depth));
+}
 function $p_jl_Character$__nonASCIIZeroDigitCodePoints$lzycompute__AI($thiz) {
   if (((((32 & $thiz.jl_Character$__f_bitmap$0) << 24) >> 24) === 0)) {
     $thiz.jl_Character$__f_nonASCIIZeroDigitCodePoints = new $ac_I(new Int32Array([1632, 1776, 1984, 2406, 2534, 2662, 2790, 2918, 3046, 3174, 3302, 3430, 3558, 3664, 3792, 3872, 4160, 4240, 6112, 6160, 6470, 6608, 6784, 6800, 6992, 7088, 7232, 7248, 42528, 43216, 43264, 43472, 43504, 43600, 44016, 65296, 66720, 68912, 69734, 69872, 69942, 70096, 70384, 70736, 70864, 71248, 71360, 71472, 71904, 72016, 72784, 73040, 73120, 73552, 92768, 92864, 93008, 120782, 120792, 120802, 120812, 120822, 123200, 123632, 124144, 125264, 130032]));
@@ -15778,18 +15283,6 @@ $c_sr_AbstractFunction2.prototype.toString__T = (function() {
   return "<function2>";
 });
 /** @constructor */
-function $c_sr_AbstractFunction3() {
-}
-$c_sr_AbstractFunction3.prototype = new $h_O();
-$c_sr_AbstractFunction3.prototype.constructor = $c_sr_AbstractFunction3;
-/** @constructor */
-function $h_sr_AbstractFunction3() {
-}
-$h_sr_AbstractFunction3.prototype = $c_sr_AbstractFunction3.prototype;
-$c_sr_AbstractFunction3.prototype.toString__T = (function() {
-  return "<function3>";
-});
-/** @constructor */
 function $c_sr_IntRef(elem) {
   this.sr_IntRef__f_elem = 0;
   this.sr_IntRef__f_elem = elem;
@@ -16366,50 +15859,6 @@ var $d_Lzio_blocks_schema_binding_Binding$Record$$anon$22 = new $TypeData().init
   Lzio_blocks_schema_binding_Deconstructor: 1
 }));
 /** @constructor */
-function $c_Lzio_blocks_schema_binding_Binding$Record$$anon$23() {
-}
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$23.prototype = new $h_Lzio_blocks_schema_binding_Constructor();
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$23.prototype.constructor = $c_Lzio_blocks_schema_binding_Binding$Record$$anon$23;
-/** @constructor */
-function $h_Lzio_blocks_schema_binding_Binding$Record$$anon$23() {
-}
-$h_Lzio_blocks_schema_binding_Binding$Record$$anon$23.prototype = $c_Lzio_blocks_schema_binding_Binding$Record$$anon$23.prototype;
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$23.prototype.usedRegisters__I = (function() {
-  return $m_Lzio_blocks_schema_binding_RegisterOffset$().apply__I__I__I__I__I__I__I__I__I__I(0, 0, 0, 0, 0, 0, 0, 0, 1);
-});
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$23.prototype.construct__Lzio_blocks_schema_binding_Registers__I__s_Some = (function(in$1, baseOffset) {
-  return new $c_s_Some($n(in$1).getObject__I__I__O(baseOffset, 0));
-});
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$23.prototype.construct__Lzio_blocks_schema_binding_Registers__I__O = (function(in$1, baseOffset) {
-  return this.construct__Lzio_blocks_schema_binding_Registers__I__s_Some(in$1, baseOffset);
-});
-var $d_Lzio_blocks_schema_binding_Binding$Record$$anon$23 = new $TypeData().initClass($c_Lzio_blocks_schema_binding_Binding$Record$$anon$23, "zio.blocks.schema.binding.Binding$Record$$anon$23", ({
-  Lzio_blocks_schema_binding_Binding$Record$$anon$23: 1,
-  Lzio_blocks_schema_binding_Constructor: 1
-}));
-/** @constructor */
-function $c_Lzio_blocks_schema_binding_Binding$Record$$anon$24() {
-}
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$24.prototype = new $h_Lzio_blocks_schema_binding_Deconstructor();
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$24.prototype.constructor = $c_Lzio_blocks_schema_binding_Binding$Record$$anon$24;
-/** @constructor */
-function $h_Lzio_blocks_schema_binding_Binding$Record$$anon$24() {
-}
-$h_Lzio_blocks_schema_binding_Binding$Record$$anon$24.prototype = $c_Lzio_blocks_schema_binding_Binding$Record$$anon$24.prototype;
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$24.prototype.usedRegisters__I = (function() {
-  return $m_Lzio_blocks_schema_binding_RegisterOffset$().apply__I__I__I__I__I__I__I__I__I__I(0, 0, 0, 0, 0, 0, 0, 0, 1);
-});
-$c_Lzio_blocks_schema_binding_Binding$Record$$anon$24.prototype.deconstruct__Lzio_blocks_schema_binding_Registers__I__O__V = (function(out, baseOffset, in$1) {
-  var in$2 = $as_s_Some(in$1);
-  var $x_1 = $n(out);
-  var this$1 = $n(in$2);
-  $x_1.setObject__I__I__O__V(baseOffset, 0, this$1.s_Some__f_value);
-});
-var $d_Lzio_blocks_schema_binding_Binding$Record$$anon$24 = new $TypeData().initClass($c_Lzio_blocks_schema_binding_Binding$Record$$anon$24, "zio.blocks.schema.binding.Binding$Record$$anon$24", ({
-  Lzio_blocks_schema_binding_Binding$Record$$anon$24: 1,
-  Lzio_blocks_schema_binding_Deconstructor: 1
-}));
-/** @constructor */
 function $c_Lzio_blocks_schema_binding_Binding$Record$$anon$3() {
 }
 $c_Lzio_blocks_schema_binding_Binding$Record$$anon$3.prototype = new $h_Lzio_blocks_schema_binding_Constructor();
@@ -16658,54 +16107,6 @@ function $m_Lcloud_golem_data_StructuredValue$() {
   return $n_Lcloud_golem_data_StructuredValue$;
 }
 /** @constructor */
-function $c_Lcloud_golem_quickstart_counter_CounterAgentImpl(name) {
-  this.Lcloud_golem_quickstart_counter_CounterAgentImpl__f_count = 0;
-  this.Lcloud_golem_quickstart_counter_CounterAgentImpl__f_count = 0;
-}
-$c_Lcloud_golem_quickstart_counter_CounterAgentImpl.prototype = new $h_O();
-$c_Lcloud_golem_quickstart_counter_CounterAgentImpl.prototype.constructor = $c_Lcloud_golem_quickstart_counter_CounterAgentImpl;
-/** @constructor */
-function $h_Lcloud_golem_quickstart_counter_CounterAgentImpl() {
-}
-$h_Lcloud_golem_quickstart_counter_CounterAgentImpl.prototype = $c_Lcloud_golem_quickstart_counter_CounterAgentImpl.prototype;
-$c_Lcloud_golem_quickstart_counter_CounterAgentImpl.prototype.increment__s_concurrent_Future = (function() {
-  var $x_1 = $m_s_concurrent_Future$();
-  this.Lcloud_golem_quickstart_counter_CounterAgentImpl__f_count = ((1 + this.Lcloud_golem_quickstart_counter_CounterAgentImpl__f_count) | 0);
-  return $x_1.successful__O__s_concurrent_Future(this.Lcloud_golem_quickstart_counter_CounterAgentImpl__f_count);
-});
-var $d_Lcloud_golem_quickstart_counter_CounterAgentImpl = new $TypeData().initClass($c_Lcloud_golem_quickstart_counter_CounterAgentImpl, "cloud.golem.quickstart.counter.CounterAgentImpl", ({
-  Lcloud_golem_quickstart_counter_CounterAgentImpl: 1,
-  Lcloud_golem_sdk_BaseAgent: 1,
-  Lcloud_golem_quickstart_counter_CounterAgent: 1
-}));
-/** @constructor */
-function $c_Lcloud_golem_quickstart_shard_ShardAgentImpl(tableName, shardId) {
-  this.Lcloud_golem_quickstart_shard_ShardAgentImpl__f_shardId = 0;
-  this.Lcloud_golem_quickstart_shard_ShardAgentImpl__f_table = null;
-  this.Lcloud_golem_quickstart_shard_ShardAgentImpl__f_shardId = shardId;
-  this.Lcloud_golem_quickstart_shard_ShardAgentImpl__f_table = $ct_scm_HashMap__(new $c_scm_HashMap());
-}
-$c_Lcloud_golem_quickstart_shard_ShardAgentImpl.prototype = new $h_O();
-$c_Lcloud_golem_quickstart_shard_ShardAgentImpl.prototype.constructor = $c_Lcloud_golem_quickstart_shard_ShardAgentImpl;
-/** @constructor */
-function $h_Lcloud_golem_quickstart_shard_ShardAgentImpl() {
-}
-$h_Lcloud_golem_quickstart_shard_ShardAgentImpl.prototype = $c_Lcloud_golem_quickstart_shard_ShardAgentImpl.prototype;
-$c_Lcloud_golem_quickstart_shard_ShardAgentImpl.prototype.get__T__s_concurrent_Future = (function(key) {
-  return $m_s_concurrent_Future$().successful__O__s_concurrent_Future($n(this.Lcloud_golem_quickstart_shard_ShardAgentImpl__f_table).get__O__s_Option(key));
-});
-$c_Lcloud_golem_quickstart_shard_ShardAgentImpl.prototype.set__T__T__s_concurrent_Future = (function(key, value) {
-  var $x_1 = $m_s_concurrent_Future$();
-  var this$1 = $n(this.Lcloud_golem_quickstart_shard_ShardAgentImpl__f_table);
-  $p_scm_HashMap__put0__O__O__Z__s_Some(this$1, key, value, false);
-  return $x_1.successful__O__s_concurrent_Future((void 0));
-});
-var $d_Lcloud_golem_quickstart_shard_ShardAgentImpl = new $TypeData().initClass($c_Lcloud_golem_quickstart_shard_ShardAgentImpl, "cloud.golem.quickstart.shard.ShardAgentImpl", ({
-  Lcloud_golem_quickstart_shard_ShardAgentImpl: 1,
-  Lcloud_golem_sdk_BaseAgent: 1,
-  Lcloud_golem_quickstart_shard_ShardAgent: 1
-}));
-/** @constructor */
 function $c_Lcloud_golem_runtime_autowire_AgentMode$() {
 }
 $c_Lcloud_golem_runtime_autowire_AgentMode$.prototype = new $h_O();
@@ -16750,6 +16151,27 @@ function $m_Lcloud_golem_runtime_autowire_AgentMode$() {
   }
   return $n_Lcloud_golem_runtime_autowire_AgentMode$;
 }
+/** @constructor */
+function $c_Ldemo_CounterAgentImpl(name) {
+  this.Ldemo_CounterAgentImpl__f_count = 0;
+  this.Ldemo_CounterAgentImpl__f_count = 0;
+}
+$c_Ldemo_CounterAgentImpl.prototype = new $h_O();
+$c_Ldemo_CounterAgentImpl.prototype.constructor = $c_Ldemo_CounterAgentImpl;
+/** @constructor */
+function $h_Ldemo_CounterAgentImpl() {
+}
+$h_Ldemo_CounterAgentImpl.prototype = $c_Ldemo_CounterAgentImpl.prototype;
+$c_Ldemo_CounterAgentImpl.prototype.increment__s_concurrent_Future = (function() {
+  var $x_1 = $m_s_concurrent_Future$();
+  this.Ldemo_CounterAgentImpl__f_count = ((1 + this.Ldemo_CounterAgentImpl__f_count) | 0);
+  return $x_1.successful__O__s_concurrent_Future(this.Ldemo_CounterAgentImpl__f_count);
+});
+var $d_Ldemo_CounterAgentImpl = new $TypeData().initClass($c_Ldemo_CounterAgentImpl, "demo.CounterAgentImpl", ({
+  Ldemo_CounterAgentImpl: 1,
+  Lcloud_golem_sdk_BaseAgent: 1,
+  Ldemo_CounterAgent: 1
+}));
 function $p_jl_Class__computeCachedSimpleNameBestEffort__T($thiz) {
   if ($thiz.data.isArrayClass) {
     return ($n($thiz.data.getComponentType()).getSimpleName__T() + "[]");
@@ -17689,22 +17111,6 @@ $c_sci_BitmapIndexedMapNode.prototype.foreachEntry__F2__V = (function(f) {
     j = ((1 + j) | 0);
   }
 });
-$c_sci_BitmapIndexedMapNode.prototype.foreachWithHash__F3__V = (function(f) {
-  var i = 0;
-  var i$1 = this.sci_BitmapIndexedMapNode__f_dataMap;
-  var iN = $m_jl_Integer$().bitCount__I__I(i$1);
-  while ((i < iN)) {
-    $n(f).apply__O__O__O__O(this.getKey__I__O(i), this.getValue__I__O(i), this.getHash__I__I(i));
-    i = ((1 + i) | 0);
-  }
-  var i$2 = this.sci_BitmapIndexedMapNode__f_nodeMap;
-  var jN = $m_jl_Integer$().bitCount__I__I(i$2);
-  var j = 0;
-  while ((j < jN)) {
-    $n(this.getNode__I__sci_MapNode(j)).foreachWithHash__F3__V(f);
-    j = ((1 + j) | 0);
-  }
-});
 $c_sci_BitmapIndexedMapNode.prototype.equals__O__Z = (function(that) {
   if ((that instanceof $c_sci_BitmapIndexedMapNode)) {
     var x2 = $as_sci_BitmapIndexedMapNode(that);
@@ -18213,13 +17619,6 @@ $c_sci_HashCollisionMapNode.prototype.foreachEntry__F2__V = (function(f) {
       throw new $c_s_MatchError(x0$1$2);
     }
   })));
-});
-$c_sci_HashCollisionMapNode.prototype.foreachWithHash__F3__V = (function(f) {
-  var iter = $n(this.sci_HashCollisionMapNode__f_content).iterator__sc_Iterator();
-  while ($n(iter).hasNext__Z()) {
-    var next = $as_T2($n(iter).next__O());
-    $n(f).apply__O__O__O__O($n(next)._1__O(), $n(next)._2__O(), this.sci_HashCollisionMapNode__f_originalHash);
-  }
 });
 $c_sci_HashCollisionMapNode.prototype.equals__O__Z = (function(that) {
   if ((that instanceof $c_sci_HashCollisionMapNode)) {
@@ -18779,38 +18178,6 @@ function $asArrayOf_scm_Builder(obj, depth) {
   return (($isArrayOf_scm_Builder(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lscala.collection.mutable.Builder;", depth));
 }
 /** @constructor */
-function $c_scm_HashMap$() {
-}
-$c_scm_HashMap$.prototype = new $h_O();
-$c_scm_HashMap$.prototype.constructor = $c_scm_HashMap$;
-/** @constructor */
-function $h_scm_HashMap$() {
-}
-$h_scm_HashMap$.prototype = $c_scm_HashMap$.prototype;
-$c_scm_HashMap$.prototype.from__sc_IterableOnce__scm_HashMap = (function(it) {
-  var k = $n(it).knownSize__I();
-  var cap = ((k > 0) ? $doubleToInt((((1 + k) | 0) / 0.75)) : 16);
-  return $ct_scm_HashMap__I__D__(new $c_scm_HashMap(), cap, 0.75).addAll__sc_IterableOnce__scm_HashMap(it);
-});
-$c_scm_HashMap$.prototype.newBuilder__scm_Builder = (function() {
-  return new $c_scm_HashMap$$anon$6(16, 0.75);
-});
-$c_scm_HashMap$.prototype.from__sc_IterableOnce__O = (function(it) {
-  return this.from__sc_IterableOnce__scm_HashMap(it);
-});
-var $d_scm_HashMap$ = new $TypeData().initClass($c_scm_HashMap$, "scala.collection.mutable.HashMap$", ({
-  scm_HashMap$: 1,
-  sc_MapFactory: 1,
-  Ljava_io_Serializable: 1
-}));
-var $n_scm_HashMap$;
-function $m_scm_HashMap$() {
-  if ((!$n_scm_HashMap$)) {
-    $n_scm_HashMap$ = new $c_scm_HashMap$();
-  }
-  return $n_scm_HashMap$;
-}
-/** @constructor */
 function $c_scm_LinkedHashMap$() {
 }
 $c_scm_LinkedHashMap$.prototype = new $h_O();
@@ -19014,25 +18381,6 @@ var $d_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc = 
   sr_AbstractFunction2: 1,
   F2: 1
 }));
-/** @constructor */
-function $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1(f) {
-  this.sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1__f_f = null;
-  this.sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1__f_f = f;
-}
-$c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype = new $h_sr_AbstractFunction3();
-$c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype.constructor = $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1;
-/** @constructor */
-function $h_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1() {
-}
-$h_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype = $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype;
-$c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype.apply__O__O__O__O = (function(x0, x1, x2) {
-  return $n(this.sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1__f_f)(x0, x1, x2);
-});
-var $d_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1 = new $TypeData().initClass($c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1, "scala.runtime.AbstractFunction3.$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1", ({
-  sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1: 1,
-  sr_AbstractFunction3: 1,
-  F3: 1
-}));
 var $d_sr_Nothing$ = new $TypeData().initClass(0, "scala.runtime.Nothing$", ({
   sr_Nothing$: 1,
   jl_Throwable: 1,
@@ -19049,9 +18397,6 @@ function $h_sjs_js_Any$() {
 $h_sjs_js_Any$.prototype = $c_sjs_js_Any$.prototype;
 $c_sjs_js_Any$.prototype.fromFunction0__F0__sjs_js_Function0 = (function(f) {
   return (() => $n(f).apply__O());
-});
-$c_sjs_js_Any$.prototype.fromFunction1__F1__sjs_js_Function1 = (function(f) {
-  return ((arg1$2) => $n(f).apply__O__O(arg1$2));
 });
 $c_sjs_js_Any$.prototype.fromFunction2__F2__sjs_js_Function2 = (function(f) {
   return ((arg1$2, arg2$2) => $n(f).apply__O__O__O(arg1$2, arg2$2));
@@ -19126,16 +18471,6 @@ function $p_Lzio_blocks_schema_Reflect$__primitive__Lzio_blocks_schema_Primitive
   $n(primitiveType);
   var binding = new $c_Lzio_blocks_schema_binding_Binding$Primitive(($m_Lzio_blocks_schema_binding_Binding$Primitive$(), $m_s_None$()), ($m_Lzio_blocks_schema_binding_Binding$Primitive$(), $m_sci_Nil$()));
   return new $c_Lzio_blocks_schema_Reflect$Primitive(primitiveType, $x_1, binding, $m_Lzio_blocks_schema_Doc$Empty$(), $m_sci_Nil$());
-}
-function $p_Lzio_blocks_schema_Reflect$__some__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_binding_FromBinding__Lzio_blocks_schema_Reflect$Record($thiz, element, F) {
-  var this$3 = $m_sci_Vector$();
-  var elems = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_Lzio_blocks_schema_Term.getArrayOf().constr)([new $c_Lzio_blocks_schema_Term("value", element, $m_Lzio_blocks_schema_Doc$Empty$(), $m_sci_Nil$())]));
-  var $x_2 = this$3.from__sc_IterableOnce__sci_Vector(elems);
-  var $x_1 = $m_Lzio_blocks_schema_TypeName$().some__Lzio_blocks_schema_TypeName__Lzio_blocks_schema_TypeName($n(element).typeName__Lzio_blocks_schema_TypeName());
-  $n(F);
-  $m_Lzio_blocks_schema_binding_Binding$Record$();
-  var binding = new $c_Lzio_blocks_schema_binding_Binding$Record(new $c_Lzio_blocks_schema_binding_Binding$Record$$anon$23(), new $c_Lzio_blocks_schema_binding_Binding$Record$$anon$24(), ($m_Lzio_blocks_schema_binding_Binding$Record$(), $m_s_None$()), ($m_Lzio_blocks_schema_binding_Binding$Record$(), $m_sci_Nil$()));
-  return new $c_Lzio_blocks_schema_Reflect$Record($x_2, $x_1, binding, $m_Lzio_blocks_schema_Doc$Empty$(), $m_sci_Nil$());
 }
 function $p_Lzio_blocks_schema_Reflect$__someDouble__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_binding_FromBinding__Lzio_blocks_schema_Reflect$Record($thiz, element, F) {
   var this$3 = $m_sci_Vector$();
@@ -19329,15 +18664,6 @@ $c_Lzio_blocks_schema_Reflect$.prototype.dynamic__Lzio_blocks_schema_binding_Fro
   var examples = $m_sci_Nil$();
   var binding = new $c_Lzio_blocks_schema_binding_Binding$Dynamic(defaultValue, examples);
   return new $c_Lzio_blocks_schema_Reflect$Dynamic(binding, $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_dynamicValue, $m_Lzio_blocks_schema_Doc$Empty$(), $m_sci_Nil$());
-});
-$c_Lzio_blocks_schema_Reflect$.prototype.option__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_binding_FromBinding__Lzio_blocks_schema_Reflect$Variant = (function(element, F) {
-  var this$5 = $m_sci_Vector$();
-  var elems = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_Lzio_blocks_schema_Term.getArrayOf().constr)([new $c_Lzio_blocks_schema_Term("None", $p_Lzio_blocks_schema_Reflect$__none__Lzio_blocks_schema_binding_FromBinding__Lzio_blocks_schema_Reflect$Record(this, F), $m_Lzio_blocks_schema_Doc$Empty$(), $m_sci_Nil$()), new $c_Lzio_blocks_schema_Term("Some", $p_Lzio_blocks_schema_Reflect$__some__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_binding_FromBinding__Lzio_blocks_schema_Reflect$Record(this, element, F), $m_Lzio_blocks_schema_Doc$Empty$(), $m_sci_Nil$())]));
-  var $x_2 = this$5.from__sc_IterableOnce__sci_Vector(elems);
-  var $x_1 = $m_Lzio_blocks_schema_TypeName$().option__Lzio_blocks_schema_TypeName__Lzio_blocks_schema_TypeName($n(element).typeName__Lzio_blocks_schema_TypeName());
-  $n(F);
-  var binding = $m_Lzio_blocks_schema_binding_Binding$Variant$().option__Lzio_blocks_schema_binding_Binding$Variant();
-  return new $c_Lzio_blocks_schema_Reflect$Variant($x_2, $x_1, binding, $m_Lzio_blocks_schema_Doc$Empty$(), $m_sci_Nil$());
 });
 $c_Lzio_blocks_schema_Reflect$.prototype.optionDouble__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_binding_FromBinding__Lzio_blocks_schema_Reflect$Variant = (function(element, F) {
   var this$5 = $m_sci_Vector$();
@@ -20390,6 +19716,82 @@ function $asArrayOf_Lcloud_golem_data_UnstructuredTextValue(obj, depth) {
   return (($isArrayOf_Lcloud_golem_data_UnstructuredTextValue(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.data.UnstructuredTextValue;", depth));
 }
 /** @constructor */
+function $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(defn, instance) {
+  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn = null;
+  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance = null;
+  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn = defn;
+  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance = instance;
+}
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype = new $h_O();
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.constructor = $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved;
+/** @constructor */
+function $h_Lcloud_golem_internal_GolemStandaloneGuest$Resolved() {
+}
+$h_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype = $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype;
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productIterator__sc_Iterator = (function() {
+  return new $c_s_Product$$anon$1(this);
+});
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.hashCode__I = (function() {
+  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 788875605, true);
+});
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.equals__O__Z = (function(x$0) {
+  if ((this === x$0)) {
+    return true;
+  } else if ((x$0 instanceof $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved)) {
+    var x2 = $as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(x$0);
+    var x = this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn;
+    var x$2 = $n(x2).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn;
+    if ((x === null)) {
+      var $x_1 = (x$2 === null);
+    } else {
+      var this$1 = $n(x);
+      var $x_1 = (this$1 === x$2);
+    }
+    if ($x_1) {
+      var x$1 = this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
+      var y = $n(x2).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
+      return $m_sr_BoxesRunTime$().equals__O__O__Z(x$1, y);
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+});
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.toString__T = (function() {
+  return $m_sr_ScalaRunTime$()._toString__s_Product__T(this);
+});
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productArity__I = (function() {
+  return 2;
+});
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productPrefix__T = (function() {
+  return "Resolved";
+});
+$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productElement__I__O = (function(n) {
+  if ((n === 0)) {
+    return this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn;
+  }
+  if ((n === 1)) {
+    return this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
+  }
+  throw $ct_jl_IndexOutOfBoundsException__T__(new $c_jl_IndexOutOfBoundsException(), ("" + n));
+});
+function $as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj) {
+  return (((obj instanceof $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.internal.GolemStandaloneGuest$Resolved"));
+}
+function $isArrayOf_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj, depth) {
+  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_internal_GolemStandaloneGuest$Resolved)));
+}
+function $asArrayOf_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj, depth) {
+  return (($isArrayOf_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.internal.GolemStandaloneGuest$Resolved;", depth));
+}
+var $d_Lcloud_golem_internal_GolemStandaloneGuest$Resolved = new $TypeData().initClass($c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved, "cloud.golem.internal.GolemStandaloneGuest$Resolved", ({
+  Lcloud_golem_internal_GolemStandaloneGuest$Resolved: 1,
+  s_Equals: 1,
+  s_Product: 1,
+  Ljava_io_Serializable: 1
+}));
+/** @constructor */
 function $c_Lcloud_golem_runtime_AgentMetadata(name, description, mode, methods, constructor) {
   this.Lcloud_golem_runtime_AgentMetadata__f_name = null;
   this.Lcloud_golem_runtime_AgentMetadata__f_description = null;
@@ -20711,114 +20113,38 @@ var $d_Lcloud_golem_runtime_autowire_ConstructorMetadata = new $TypeData().initC
   Ljava_io_Serializable: 1
 }));
 /** @constructor */
-function $c_Lcloud_golem_runtime_guest_Guest$Resolved(defn, instance) {
-  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn = null;
-  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance = null;
-  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn = defn;
-  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance = instance;
+function $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata, constructorSchema, buildInstance, methods) {
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata = metadata;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema = constructorSchema;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance = buildInstance;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods = methods;
 }
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype = new $h_O();
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.constructor = $c_Lcloud_golem_runtime_guest_Guest$Resolved;
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype = new $h_O();
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.constructor = $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor;
 /** @constructor */
-function $h_Lcloud_golem_runtime_guest_Guest$Resolved() {
+function $h_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor() {
 }
-$h_Lcloud_golem_runtime_guest_Guest$Resolved.prototype = $c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype;
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productIterator__sc_Iterator = (function() {
+$h_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype = $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype;
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productIterator__sc_Iterator = (function() {
   return new $c_s_Product$$anon$1(this);
 });
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.hashCode__I = (function() {
-  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 788875605, true);
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.hashCode__I = (function() {
+  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 1904671360, true);
 });
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.equals__O__Z = (function(x$0) {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.equals__O__Z = (function(x$0) {
   if ((this === x$0)) {
     return true;
-  } else if ((x$0 instanceof $c_Lcloud_golem_runtime_guest_Guest$Resolved)) {
-    var x2 = $as_Lcloud_golem_runtime_guest_Guest$Resolved(x$0);
-    var x = this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn;
-    var x$2 = $n(x2).Lcloud_golem_runtime_guest_Guest$Resolved__f_defn;
-    if ((x === null)) {
-      var $x_1 = (x$2 === null);
-    } else {
-      var this$1 = $n(x);
-      var $x_1 = (this$1 === x$2);
-    }
-    if ($x_1) {
-      var x$1 = this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
-      var y = $n(x2).Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
-      return $m_sr_BoxesRunTime$().equals__O__O__Z(x$1, y);
-    } else {
-      return false;
-    }
-  } else {
-    return false;
-  }
-});
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.toString__T = (function() {
-  return $m_sr_ScalaRunTime$()._toString__s_Product__T(this);
-});
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productArity__I = (function() {
-  return 2;
-});
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productPrefix__T = (function() {
-  return "Resolved";
-});
-$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productElement__I__O = (function(n) {
-  if ((n === 0)) {
-    return this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn;
-  }
-  if ((n === 1)) {
-    return this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
-  }
-  throw $ct_jl_IndexOutOfBoundsException__T__(new $c_jl_IndexOutOfBoundsException(), ("" + n));
-});
-function $as_Lcloud_golem_runtime_guest_Guest$Resolved(obj) {
-  return (((obj instanceof $c_Lcloud_golem_runtime_guest_Guest$Resolved) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.guest.Guest$Resolved"));
-}
-function $isArrayOf_Lcloud_golem_runtime_guest_Guest$Resolved(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_runtime_guest_Guest$Resolved)));
-}
-function $asArrayOf_Lcloud_golem_runtime_guest_Guest$Resolved(obj, depth) {
-  return (($isArrayOf_Lcloud_golem_runtime_guest_Guest$Resolved(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.runtime.guest.Guest$Resolved;", depth));
-}
-var $d_Lcloud_golem_runtime_guest_Guest$Resolved = new $TypeData().initClass($c_Lcloud_golem_runtime_guest_Guest$Resolved, "cloud.golem.runtime.guest.Guest$Resolved", ({
-  Lcloud_golem_runtime_guest_Guest$Resolved: 1,
-  s_Equals: 1,
-  s_Product: 1,
-  Ljava_io_Serializable: 1
-}));
-/** @constructor */
-function $c_Lcloud_golem_runtime_plan_AgentImplementationPlan(metadata, constructorSchema, buildInstance, methods) {
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata = metadata;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema = constructorSchema;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance = buildInstance;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods = methods;
-}
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype = new $h_O();
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.constructor = $c_Lcloud_golem_runtime_plan_AgentImplementationPlan;
-/** @constructor */
-function $h_Lcloud_golem_runtime_plan_AgentImplementationPlan() {
-}
-$h_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype = $c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype;
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productIterator__sc_Iterator = (function() {
-  return new $c_s_Product$$anon$1(this);
-});
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.hashCode__I = (function() {
-  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 1925879595, true);
-});
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.equals__O__Z = (function(x$0) {
-  if ((this === x$0)) {
-    return true;
-  } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlan)) {
-    var x2 = $as_Lcloud_golem_runtime_plan_AgentImplementationPlan(x$0);
-    var x = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata;
-    var x$2 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata;
+  } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor)) {
+    var x6 = $as_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(x$0);
+    var x = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata;
+    var x$2 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata;
     if (((x === null) ? (x$2 === null) : $n(x).equals__O__Z(x$2))) {
-      var x$3 = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
-      var x$4 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
+      var x$3 = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
+      var x$4 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
       if ((x$3 === null)) {
         var $x_2 = (x$4 === null);
       } else {
@@ -20829,15 +20155,15 @@ $c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.equals__O__Z = (f
       var $x_2 = false;
     }
     if ($x_2) {
-      var x$5 = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance;
-      var x$6 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance;
+      var x$5 = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance;
+      var x$6 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance;
       var $x_1 = ((x$5 === null) ? (x$6 === null) : $n(x$5).equals__O__Z(x$6));
     } else {
       var $x_1 = false;
     }
     if ($x_1) {
-      var x$7 = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods;
-      var x$8 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods;
+      var x$7 = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods;
+      var x$8 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods;
       return ((x$7 === null) ? (x$8 === null) : $n(x$7).equals__O__Z(x$8));
     } else {
       return false;
@@ -20846,31 +20172,31 @@ $c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.equals__O__Z = (f
     return false;
   }
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.toString__T = (function() {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.toString__T = (function() {
   return $m_sr_ScalaRunTime$()._toString__s_Product__T(this);
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productArity__I = (function() {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productArity__I = (function() {
   return 4;
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productPrefix__T = (function() {
-  return "AgentImplementationPlan";
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productPrefix__T = (function() {
+  return "AgentImplementationPlanWithCtor";
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productElement__I__O = (function(n) {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productElement__I__O = (function(n) {
   switch (n) {
     case 0: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata;
       break;
     }
     case 1: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
       break;
     }
     case 2: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance;
       break;
     }
     case 3: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods;
       break;
     }
     default: {
@@ -20878,17 +20204,17 @@ $c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productElement__I
     }
   }
 });
-function $as_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj) {
-  return (((obj instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlan) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.plan.AgentImplementationPlan"));
+function $as_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj) {
+  return (((obj instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.plan.AgentImplementationPlanWithCtor"));
 }
-function $isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_runtime_plan_AgentImplementationPlan)));
+function $isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj, depth) {
+  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor)));
 }
-function $asArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj, depth) {
-  return (($isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.runtime.plan.AgentImplementationPlan;", depth));
+function $asArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj, depth) {
+  return (($isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.runtime.plan.AgentImplementationPlanWithCtor;", depth));
 }
-var $d_Lcloud_golem_runtime_plan_AgentImplementationPlan = new $TypeData().initClass($c_Lcloud_golem_runtime_plan_AgentImplementationPlan, "cloud.golem.runtime.plan.AgentImplementationPlan", ({
-  Lcloud_golem_runtime_plan_AgentImplementationPlan: 1,
+var $d_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor = new $TypeData().initClass($c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor, "cloud.golem.runtime.plan.AgentImplementationPlanWithCtor", ({
+  Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor: 1,
   s_Equals: 1,
   s_Product: 1,
   Ljava_io_Serializable: 1
@@ -23622,12 +22948,7 @@ function $f_sc_SeqOps__sameElements__sc_IterableOnce__Z($thiz, that) {
   } else {
     var knownSizeDifference = false;
   }
-  if ((!knownSizeDifference)) {
-    var this$1 = $n($thiz.iterator__sc_Iterator());
-    return $f_sc_Iterator__sameElements__sc_IterableOnce__Z(this$1, that);
-  } else {
-    return false;
-  }
+  return ((!knownSizeDifference) && $f_sc_Iterator__sameElements__sc_IterableOnce__Z($n($thiz.iterator__sc_Iterator()), that));
 }
 function $is_sc_SeqOps(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.sc_SeqOps)));
@@ -24450,9 +23771,6 @@ $c_Lzio_blocks_schema_Schema$.prototype.constructor = $c_Lzio_blocks_schema_Sche
 function $h_Lzio_blocks_schema_Schema$() {
 }
 $h_Lzio_blocks_schema_Schema$.prototype = $c_Lzio_blocks_schema_Schema$.prototype;
-$c_Lzio_blocks_schema_Schema$.prototype.option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema = (function(element) {
-  return new $c_Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Reflect$().option__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_binding_FromBinding__Lzio_blocks_schema_Reflect$Variant($n(element).Lzio_blocks_schema_Schema__f_reflect, $m_Lzio_blocks_schema_binding_Binding$().Lzio_blocks_schema_binding_Binding$__f_bindingFromBinding));
-});
 var $d_Lzio_blocks_schema_Schema$ = new $TypeData().initClass($c_Lzio_blocks_schema_Schema$, "zio.blocks.schema.Schema$", ({
   Lzio_blocks_schema_Schema$: 1,
   Lzio_blocks_schema_SchemaVersionSpecific: 1,
@@ -26561,12 +25879,12 @@ $c_Lcloud_golem_runtime_plan_AsyncMethodPlan.prototype.equals__O__Z = (function(
   if ((this === x$0)) {
     return true;
   } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_AsyncMethodPlan)) {
-    var x10 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$0);
+    var x14 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$0);
     var x = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_metadata;
-    var x$2 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_metadata;
+    var x$2 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_metadata;
     if (((x === null) ? (x$2 === null) : $n(x).equals__O__Z(x$2))) {
       var x$3 = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_inputSchema;
-      var x$4 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_inputSchema;
+      var x$4 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_inputSchema;
       if ((x$3 === null)) {
         var $x_2 = (x$4 === null);
       } else {
@@ -26578,7 +25896,7 @@ $c_Lcloud_golem_runtime_plan_AsyncMethodPlan.prototype.equals__O__Z = (function(
     }
     if ($x_2) {
       var x$5 = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_outputSchema;
-      var x$6 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_outputSchema;
+      var x$6 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_outputSchema;
       if ((x$5 === null)) {
         var $x_1 = (x$6 === null);
       } else {
@@ -26590,7 +25908,7 @@ $c_Lcloud_golem_runtime_plan_AsyncMethodPlan.prototype.equals__O__Z = (function(
     }
     if ($x_1) {
       var x$7 = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_handler;
-      var x$8 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_handler;
+      var x$8 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_handler;
       if ((x$7 === null)) {
         return (x$8 === null);
       } else {
@@ -28329,7 +27647,7 @@ $c_sci_HashMapBuilder.prototype.addAll__sc_IterableOnce__sci_HashMapBuilder = (f
   if ((xs instanceof $c_sci_HashMap)) {
     var x2 = $as_sci_HashMap(xs);
     new $c_sci_HashMapBuilder$$anon$1(this, x2);
-  } else if ((xs instanceof $c_scm_HashMap)) {
+  } else if (false) {
     var x3 = $as_scm_HashMap(xs);
     var iter = $n(x3).nodeIterator__sc_Iterator();
     while ($n(iter).hasNext__Z()) {
@@ -30390,72 +29708,6 @@ function $m_scm_Buffer$() {
   }
   return $n_scm_Buffer$;
 }
-/** @constructor */
-function $c_scm_HashMap$$anon$6(initialCapacity$1, loadFactor$1) {
-  this.scm_GrowableBuilder__f_elems = null;
-  $ct_scm_GrowableBuilder__scm_Growable__(this, $ct_scm_HashMap__I__D__(new $c_scm_HashMap(), initialCapacity$1, loadFactor$1));
-}
-$c_scm_HashMap$$anon$6.prototype = new $h_scm_GrowableBuilder();
-$c_scm_HashMap$$anon$6.prototype.constructor = $c_scm_HashMap$$anon$6;
-/** @constructor */
-function $h_scm_HashMap$$anon$6() {
-}
-$h_scm_HashMap$$anon$6.prototype = $c_scm_HashMap$$anon$6.prototype;
-$c_scm_HashMap$$anon$6.prototype.sizeHint__I__V = (function(size) {
-  $n($as_scm_HashMap(this.scm_GrowableBuilder__f_elems)).sizeHint__I__V(size);
-});
-var $d_scm_HashMap$$anon$6 = new $TypeData().initClass($c_scm_HashMap$$anon$6, "scala.collection.mutable.HashMap$$anon$6", ({
-  scm_HashMap$$anon$6: 1,
-  scm_GrowableBuilder: 1,
-  scm_Builder: 1,
-  scm_Growable: 1,
-  scm_Clearable: 1
-}));
-function $ct_scm_HashMap$HashMapIterator__scm_HashMap__($thiz, outer) {
-  $n(outer);
-  $thiz.scm_HashMap$HashMapIterator__f_$outer = outer;
-  $thiz.scm_HashMap$HashMapIterator__f_i = 0;
-  $thiz.scm_HashMap$HashMapIterator__f_node = null;
-  $thiz.scm_HashMap$HashMapIterator__f_len = $n($n(outer).scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length;
-  return $thiz;
-}
-/** @constructor */
-function $c_scm_HashMap$HashMapIterator() {
-  this.scm_HashMap$HashMapIterator__f_i = 0;
-  this.scm_HashMap$HashMapIterator__f_node = null;
-  this.scm_HashMap$HashMapIterator__f_len = 0;
-  this.scm_HashMap$HashMapIterator__f_$outer = null;
-}
-$c_scm_HashMap$HashMapIterator.prototype = new $h_sc_AbstractIterator();
-$c_scm_HashMap$HashMapIterator.prototype.constructor = $c_scm_HashMap$HashMapIterator;
-/** @constructor */
-function $h_scm_HashMap$HashMapIterator() {
-}
-$h_scm_HashMap$HashMapIterator.prototype = $c_scm_HashMap$HashMapIterator.prototype;
-$c_scm_HashMap$HashMapIterator.prototype.hasNext__Z = (function() {
-  if ((this.scm_HashMap$HashMapIterator__f_node !== null)) {
-    return true;
-  } else {
-    while ((this.scm_HashMap$HashMapIterator__f_i < this.scm_HashMap$HashMapIterator__f_len)) {
-      var n = $n($n(this.scm_HashMap$HashMapIterator__f_$outer).scm_HashMap__f_scala$collection$mutable$HashMap$$table).get(this.scm_HashMap$HashMapIterator__f_i);
-      this.scm_HashMap$HashMapIterator__f_i = ((1 + this.scm_HashMap$HashMapIterator__f_i) | 0);
-      if ((n !== null)) {
-        this.scm_HashMap$HashMapIterator__f_node = n;
-        return true;
-      }
-    }
-    return false;
-  }
-});
-$c_scm_HashMap$HashMapIterator.prototype.next__O = (function() {
-  if ((!this.hasNext__Z())) {
-    return $n($m_sc_Iterator$().sc_Iterator$__f_scala$collection$Iterator$$_empty).next__O();
-  } else {
-    var r = this.extract__scm_HashMap$Node__O(this.scm_HashMap$HashMapIterator__f_node);
-    this.scm_HashMap$HashMapIterator__f_node = $n(this.scm_HashMap$HashMapIterator__f_node).scm_HashMap$Node__f__next;
-    return r;
-  }
-});
 function $ct_scm_ImmutableBuilder__sc_IterableOnce__($thiz, empty) {
   $thiz.scm_ImmutableBuilder__f_elems = empty;
   return $thiz;
@@ -39407,119 +38659,6 @@ function $m_scm_ArraySeq$() {
   return $n_scm_ArraySeq$;
 }
 /** @constructor */
-function $c_scm_HashMap$$anon$1(outer) {
-  this.scm_HashMap$HashMapIterator__f_i = 0;
-  this.scm_HashMap$HashMapIterator__f_node = null;
-  this.scm_HashMap$HashMapIterator__f_len = 0;
-  this.scm_HashMap$HashMapIterator__f_$outer = null;
-  $ct_scm_HashMap$HashMapIterator__scm_HashMap__(this, outer);
-}
-$c_scm_HashMap$$anon$1.prototype = new $h_scm_HashMap$HashMapIterator();
-$c_scm_HashMap$$anon$1.prototype.constructor = $c_scm_HashMap$$anon$1;
-/** @constructor */
-function $h_scm_HashMap$$anon$1() {
-}
-$h_scm_HashMap$$anon$1.prototype = $c_scm_HashMap$$anon$1.prototype;
-$c_scm_HashMap$$anon$1.prototype.extract__scm_HashMap$Node__O = (function(nd) {
-  return new $c_T2($n(nd).scm_HashMap$Node__f__key, $n(nd).scm_HashMap$Node__f__value);
-});
-var $d_scm_HashMap$$anon$1 = new $TypeData().initClass($c_scm_HashMap$$anon$1, "scala.collection.mutable.HashMap$$anon$1", ({
-  scm_HashMap$$anon$1: 1,
-  scm_HashMap$HashMapIterator: 1,
-  sc_AbstractIterator: 1,
-  sc_Iterator: 1,
-  sc_IterableOnce: 1,
-  sc_IterableOnceOps: 1
-}));
-/** @constructor */
-function $c_scm_HashMap$$anon$3(outer) {
-  this.scm_HashMap$HashMapIterator__f_i = 0;
-  this.scm_HashMap$HashMapIterator__f_node = null;
-  this.scm_HashMap$HashMapIterator__f_len = 0;
-  this.scm_HashMap$HashMapIterator__f_$outer = null;
-  $ct_scm_HashMap$HashMapIterator__scm_HashMap__(this, outer);
-}
-$c_scm_HashMap$$anon$3.prototype = new $h_scm_HashMap$HashMapIterator();
-$c_scm_HashMap$$anon$3.prototype.constructor = $c_scm_HashMap$$anon$3;
-/** @constructor */
-function $h_scm_HashMap$$anon$3() {
-}
-$h_scm_HashMap$$anon$3.prototype = $c_scm_HashMap$$anon$3.prototype;
-$c_scm_HashMap$$anon$3.prototype.extract__scm_HashMap$Node__O = (function(nd) {
-  return $n(nd).scm_HashMap$Node__f__value;
-});
-var $d_scm_HashMap$$anon$3 = new $TypeData().initClass($c_scm_HashMap$$anon$3, "scala.collection.mutable.HashMap$$anon$3", ({
-  scm_HashMap$$anon$3: 1,
-  scm_HashMap$HashMapIterator: 1,
-  sc_AbstractIterator: 1,
-  sc_Iterator: 1,
-  sc_IterableOnce: 1,
-  sc_IterableOnceOps: 1
-}));
-/** @constructor */
-function $c_scm_HashMap$$anon$4(outer) {
-  this.scm_HashMap$HashMapIterator__f_i = 0;
-  this.scm_HashMap$HashMapIterator__f_node = null;
-  this.scm_HashMap$HashMapIterator__f_len = 0;
-  this.scm_HashMap$HashMapIterator__f_$outer = null;
-  $ct_scm_HashMap$HashMapIterator__scm_HashMap__(this, outer);
-}
-$c_scm_HashMap$$anon$4.prototype = new $h_scm_HashMap$HashMapIterator();
-$c_scm_HashMap$$anon$4.prototype.constructor = $c_scm_HashMap$$anon$4;
-/** @constructor */
-function $h_scm_HashMap$$anon$4() {
-}
-$h_scm_HashMap$$anon$4.prototype = $c_scm_HashMap$$anon$4.prototype;
-$c_scm_HashMap$$anon$4.prototype.extract__scm_HashMap$Node__O = (function(nd) {
-  return nd;
-});
-var $d_scm_HashMap$$anon$4 = new $TypeData().initClass($c_scm_HashMap$$anon$4, "scala.collection.mutable.HashMap$$anon$4", ({
-  scm_HashMap$$anon$4: 1,
-  scm_HashMap$HashMapIterator: 1,
-  sc_AbstractIterator: 1,
-  sc_Iterator: 1,
-  sc_IterableOnce: 1,
-  sc_IterableOnceOps: 1
-}));
-/** @constructor */
-function $c_scm_HashMap$$anon$5(outer) {
-  this.scm_HashMap$HashMapIterator__f_i = 0;
-  this.scm_HashMap$HashMapIterator__f_node = null;
-  this.scm_HashMap$HashMapIterator__f_len = 0;
-  this.scm_HashMap$HashMapIterator__f_$outer = null;
-  this.scm_HashMap$$anon$5__f_hash = 0;
-  this.scm_HashMap$$anon$5__f_$outer = null;
-  $n(outer);
-  this.scm_HashMap$$anon$5__f_$outer = outer;
-  $ct_scm_HashMap$HashMapIterator__scm_HashMap__(this, outer);
-  this.scm_HashMap$$anon$5__f_hash = 0;
-}
-$c_scm_HashMap$$anon$5.prototype = new $h_scm_HashMap$HashMapIterator();
-$c_scm_HashMap$$anon$5.prototype.constructor = $c_scm_HashMap$$anon$5;
-/** @constructor */
-function $h_scm_HashMap$$anon$5() {
-}
-$h_scm_HashMap$$anon$5.prototype = $c_scm_HashMap$$anon$5.prototype;
-$c_scm_HashMap$$anon$5.prototype.hashCode__I = (function() {
-  return this.scm_HashMap$$anon$5__f_hash;
-});
-$c_scm_HashMap$$anon$5.prototype.extract__scm_HashMap$Node__O = (function(nd) {
-  var $x_1 = $m_s_util_hashing_MurmurHash3$();
-  $n(this.scm_HashMap$$anon$5__f_$outer);
-  var improvedHash = $n(nd).scm_HashMap$Node__f__hash;
-  var x = $n(nd).scm_HashMap$Node__f__value;
-  this.scm_HashMap$$anon$5__f_hash = $x_1.tuple2Hash__O__O__I((improvedHash ^ ((improvedHash >>> 16) | 0)), $m_sr_Statics$().anyHash__O__I(x));
-  return this;
-});
-var $d_scm_HashMap$$anon$5 = new $TypeData().initClass($c_scm_HashMap$$anon$5, "scala.collection.mutable.HashMap$$anon$5", ({
-  scm_HashMap$$anon$5: 1,
-  scm_HashMap$HashMapIterator: 1,
-  sc_AbstractIterator: 1,
-  sc_Iterator: 1,
-  sc_IterableOnce: 1,
-  sc_IterableOnceOps: 1
-}));
-/** @constructor */
 function $c_scm_LinkedHashMap$$anon$1(outer) {
   this.scm_LinkedHashMap$LinkedHashMapIterator__f_cur = null;
   $ct_scm_LinkedHashMap$LinkedHashMapIterator__scm_LinkedHashMap__(this, outer);
@@ -41535,6 +40674,10 @@ $h_s_concurrent_impl_Promise$DefaultPromise.prototype = $c_s_concurrent_impl_Pro
 $c_s_concurrent_impl_Promise$DefaultPromise.prototype.flatMap__F1__s_concurrent_ExecutionContext__s_concurrent_Future = (function(f, executor) {
   var state = this.ju_concurrent_atomic_AtomicReference__f_value;
   return ((!(state instanceof $c_s_util_Failure)) ? $as_s_concurrent_Future($p_s_concurrent_impl_Promise$DefaultPromise__dispatchOrAddCallbacks__O__s_concurrent_impl_Promise$Callbacks__s_concurrent_impl_Promise$Callbacks(this, state, $ct_s_concurrent_impl_Promise$Transformation__I__F1__s_concurrent_ExecutionContext__(new $c_s_concurrent_impl_Promise$Transformation(), 2, f, executor))) : this);
+});
+$c_s_concurrent_impl_Promise$DefaultPromise.prototype.map__F1__s_concurrent_ExecutionContext__s_concurrent_Future = (function(f, executor) {
+  var state = this.ju_concurrent_atomic_AtomicReference__f_value;
+  return ((!(state instanceof $c_s_util_Failure)) ? $as_s_concurrent_Future($p_s_concurrent_impl_Promise$DefaultPromise__dispatchOrAddCallbacks__O__s_concurrent_impl_Promise$Callbacks__s_concurrent_impl_Promise$Callbacks(this, state, $ct_s_concurrent_impl_Promise$Transformation__I__F1__s_concurrent_ExecutionContext__(new $c_s_concurrent_impl_Promise$Transformation(), 1, f, executor))) : this);
 });
 $c_s_concurrent_impl_Promise$DefaultPromise.prototype.onComplete__F1__s_concurrent_ExecutionContext__V = (function(func, executor) {
   $p_s_concurrent_impl_Promise$DefaultPromise__dispatchOrAddCallbacks__O__s_concurrent_impl_Promise$Callbacks__s_concurrent_impl_Promise$Callbacks(this, this.ju_concurrent_atomic_AtomicReference__f_value, $ct_s_concurrent_impl_Promise$Transformation__I__F1__s_concurrent_ExecutionContext__(new $c_s_concurrent_impl_Promise$Transformation(), 6, func, executor));
@@ -44682,8 +43825,7 @@ $c_sc_SeqView$Sorted.prototype.reverseIterator__sc_Iterator = (function() {
   return new $c_sc_SeqView$Sorted$ReverseSorted(this).iterator__sc_Iterator();
 });
 $c_sc_SeqView$Sorted.prototype.indexWhere__F1__I__I = (function(p, from) {
-  var this$1 = $n(this.iterator__sc_Iterator());
-  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
+  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
 });
 $c_sc_SeqView$Sorted.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -44803,8 +43945,7 @@ $c_sc_SeqView$Sorted$ReverseSorted.prototype.reverseIterator__sc_Iterator = (fun
   return $n(this.sc_SeqView$Sorted$ReverseSorted__f_$outer).iterator__sc_Iterator();
 });
 $c_sc_SeqView$Sorted$ReverseSorted.prototype.indexWhere__F1__I__I = (function(p, from) {
-  var this$1 = $n(this.iterator__sc_Iterator());
-  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
+  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
 });
 $c_sc_SeqView$Sorted$ReverseSorted.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -45287,8 +44428,7 @@ $c_sc_AbstractSeq.prototype.isDefinedAt__I__Z = (function(idx) {
   return $f_sc_SeqOps__isDefinedAt__I__Z(this, idx);
 });
 $c_sc_AbstractSeq.prototype.indexWhere__F1__I__I = (function(p, from) {
-  var this$1 = $n(this.iterator__sc_Iterator());
-  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
+  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
 });
 $c_sc_AbstractSeq.prototype.sorted__s_math_Ordering__O = (function(ord) {
   return $f_sc_SeqOps__sorted__s_math_Ordering__O(this, ord);
@@ -45330,8 +44470,7 @@ $c_sc_AbstractSeqView.prototype.reverseIterator__sc_Iterator = (function() {
   return $n(this.reversed__sc_Iterable()).iterator__sc_Iterator();
 });
 $c_sc_AbstractSeqView.prototype.indexWhere__F1__I__I = (function(p, from) {
-  var this$1 = $n(this.iterator__sc_Iterator());
-  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
+  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
 });
 $c_sc_AbstractSeqView.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -45436,7 +44575,7 @@ $c_sc_AbstractMap.prototype.addString__scm_StringBuilder__T__T__T__scm_StringBui
   return $f_sc_MapOps__addString__scm_StringBuilder__T__T__T__scm_StringBuilder(this, sb, start, sep, end);
 });
 $c_sc_AbstractMap.prototype.fromSpecific__sc_IterableOnce__O = (function(coll) {
-  return $as_sc_IterableOps($n(this.mapFactory__sc_MapFactory()).from__sc_IterableOnce__O(coll));
+  return this.fromSpecific__sc_IterableOnce__sc_IterableOps(coll);
 });
 function $ct_sc_SeqView$DropRight__sc_SeqOps__I__($thiz, underlying, n) {
   $thiz.sc_SeqView$DropRight__f_underlying = underlying;
@@ -45470,8 +44609,7 @@ $c_sc_SeqView$DropRight.prototype.reverseIterator__sc_Iterator = (function() {
   return $n(this.reversed__sc_Iterable()).iterator__sc_Iterator();
 });
 $c_sc_SeqView$DropRight.prototype.indexWhere__F1__I__I = (function(p, from) {
-  var this$1 = $n(this.iterator__sc_Iterator());
-  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
+  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
 });
 $c_sc_SeqView$DropRight.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -45568,8 +44706,7 @@ function $h_sc_SeqView$Map() {
 }
 $h_sc_SeqView$Map.prototype = $c_sc_SeqView$Map.prototype;
 $c_sc_SeqView$Map.prototype.indexWhere__F1__I__I = (function(p, from) {
-  var this$1 = $n(this.iterator__sc_Iterator());
-  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
+  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
 });
 $c_sc_SeqView$Map.prototype.isEmpty__Z = (function() {
   return $f_sc_SeqOps__isEmpty__Z(this);
@@ -47465,18 +46602,6 @@ var $d_sci_Map$Map4 = new $TypeData().initClass($c_sci_Map$Map4, "scala.collecti
   sc_StrictOptimizedIterableOps: 1,
   Ljava_io_Serializable: 1
 }));
-function $is_scm_Map(obj) {
-  return (!(!((obj && obj.$classData) && obj.$classData.ancestors.scm_Map)));
-}
-function $as_scm_Map(obj) {
-  return (($is_scm_Map(obj) || (obj === null)) ? obj : $throwClassCastException(obj, "scala.collection.mutable.Map"));
-}
-function $isArrayOf_scm_Map(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.scm_Map)));
-}
-function $asArrayOf_scm_Map(obj, depth) {
-  return (($isArrayOf_scm_Map(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lscala.collection.mutable.Map;", depth));
-}
 function $p_sci_HashSet__newHashSetOrThis__sci_BitmapIndexedSetNode__sci_HashSet($thiz, newRootNode) {
   return (($thiz.sci_HashSet__f_rootNode === newRootNode) ? $thiz : new $c_sci_HashSet(newRootNode));
 }
@@ -51260,263 +50385,8 @@ var $d_scm_ArraySeq$ofUnit = new $TypeData().initClass($c_scm_ArraySeq$ofUnit, "
   sc_StrictOptimizedIterableOps: 1,
   Ljava_io_Serializable: 1
 }));
-function $p_scm_HashMap__put0__O__O__I__Z__s_Some($thiz, key, value, hash, getOld) {
-  if ((((1 + $thiz.scm_HashMap__f_contentSize) | 0) >= $thiz.scm_HashMap__f_threshold)) {
-    $p_scm_HashMap__growTable__I__V($thiz, ($n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length << 1));
-  }
-  var idx = (hash & (((-1) + $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length) | 0));
-  return $p_scm_HashMap__put0__O__O__Z__I__I__s_Some($thiz, key, value, getOld, hash, idx);
-}
-function $p_scm_HashMap__put0__O__O__Z__s_Some($thiz, key, value, getOld) {
-  if ((((1 + $thiz.scm_HashMap__f_contentSize) | 0) >= $thiz.scm_HashMap__f_threshold)) {
-    $p_scm_HashMap__growTable__I__V($thiz, ($n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length << 1));
-  }
-  var originalHash = $m_sr_Statics$().anyHash__O__I(key);
-  var hash = (originalHash ^ ((originalHash >>> 16) | 0));
-  var idx = (hash & (((-1) + $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length) | 0));
-  return $p_scm_HashMap__put0__O__O__Z__I__I__s_Some($thiz, key, value, getOld, hash, idx);
-}
-function $p_scm_HashMap__put0__O__O__Z__I__I__s_Some($thiz, key, value, getOld, hash, idx) {
-  var x1 = $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).get(idx);
-  if ((x1 === null)) {
-    $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).set(idx, new $c_scm_HashMap$Node(key, hash, value, null));
-  } else {
-    var prev = null;
-    var n = x1;
-    while (((n !== null) && ($n(n).scm_HashMap$Node__f__hash <= hash))) {
-      if ((($n(n).scm_HashMap$Node__f__hash === hash) && $m_sr_BoxesRunTime$().equals__O__O__Z(key, $n(n).scm_HashMap$Node__f__key))) {
-        var old = $n(n).scm_HashMap$Node__f__value;
-        $n(n).scm_HashMap$Node__f__value = value;
-        return (getOld ? new $c_s_Some(old) : null);
-      }
-      prev = n;
-      n = $n(n).scm_HashMap$Node__f__next;
-    }
-    if ((prev === null)) {
-      $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).set(idx, new $c_scm_HashMap$Node(key, hash, value, x1));
-    } else {
-      $n(prev).scm_HashMap$Node__f__next = new $c_scm_HashMap$Node(key, hash, value, $n(prev).scm_HashMap$Node__f__next);
-    }
-  }
-  $thiz.scm_HashMap__f_contentSize = ((1 + $thiz.scm_HashMap__f_contentSize) | 0);
-  return null;
-}
-function $p_scm_HashMap__growTable__I__V($thiz, newlen) {
-  if ((newlen < 0)) {
-    throw $ct_jl_RuntimeException__T__(new $c_jl_RuntimeException(), (("new HashMap table size " + newlen) + " exceeds maximum"));
-  }
-  var oldlen = $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length;
-  $thiz.scm_HashMap__f_threshold = $p_scm_HashMap__newThreshold__I__I($thiz, newlen);
-  if (($thiz.scm_HashMap__f_contentSize === 0)) {
-    $thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table = new ($d_scm_HashMap$Node.getArrayOf().constr)(newlen);
-  } else {
-    var original = $thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table;
-    $thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table = $asArrayOf_scm_HashMap$Node($m_ju_Arrays$().copyOf__AO__I__AO(original, newlen), 1);
-    var preLow = new $c_scm_HashMap$Node(null, 0, null, null);
-    var preHigh = new $c_scm_HashMap$Node(null, 0, null, null);
-    while ((oldlen < newlen)) {
-      var i = 0;
-      while ((i < oldlen)) {
-        var old = $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).get(i);
-        if ((old !== null)) {
-          preLow.scm_HashMap$Node__f__next = null;
-          preHigh.scm_HashMap$Node__f__next = null;
-          var lastLow = preLow;
-          var lastHigh = preHigh;
-          var n = old;
-          while ((n !== null)) {
-            var next = $n(n).scm_HashMap$Node__f__next;
-            if ((($n(n).scm_HashMap$Node__f__hash & oldlen) === 0)) {
-              $n(lastLow).scm_HashMap$Node__f__next = n;
-              lastLow = n;
-            } else {
-              $n(lastHigh).scm_HashMap$Node__f__next = n;
-              lastHigh = n;
-            }
-            n = next;
-          }
-          $n(lastLow).scm_HashMap$Node__f__next = null;
-          if ((old !== preLow.scm_HashMap$Node__f__next)) {
-            $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).set(i, preLow.scm_HashMap$Node__f__next);
-          }
-          if ((preHigh.scm_HashMap$Node__f__next !== null)) {
-            $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).set(((i + oldlen) | 0), preHigh.scm_HashMap$Node__f__next);
-            $n(lastHigh).scm_HashMap$Node__f__next = null;
-          }
-        }
-        i = ((1 + i) | 0);
-      }
-      oldlen = (oldlen << 1);
-    }
-  }
-}
-function $p_scm_HashMap__tableSizeFor__I__I($thiz, capacity) {
-  var x = (((-1) + capacity) | 0);
-  var i = ((x > 4) ? x : 4);
-  var x$1 = ((((-2147483648) >> Math.clz32(i)) & i) << 1);
-  return ((x$1 < 1073741824) ? x$1 : 1073741824);
-}
-function $p_scm_HashMap__newThreshold__I__I($thiz, size) {
-  return $doubleToInt((size * $thiz.scm_HashMap__f_loadFactor));
-}
-function $ct_scm_HashMap__I__D__($thiz, initialCapacity, loadFactor) {
-  $thiz.scm_HashMap__f_loadFactor = loadFactor;
-  $thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table = new ($d_scm_HashMap$Node.getArrayOf().constr)($p_scm_HashMap__tableSizeFor__I__I($thiz, initialCapacity));
-  $thiz.scm_HashMap__f_threshold = $p_scm_HashMap__newThreshold__I__I($thiz, $n($thiz.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length);
-  $thiz.scm_HashMap__f_contentSize = 0;
-  return $thiz;
-}
-function $ct_scm_HashMap__($thiz) {
-  $ct_scm_HashMap__I__D__($thiz, 16, 0.75);
-  return $thiz;
-}
-/** @constructor */
-function $c_scm_HashMap() {
-  this.scm_HashMap__f_loadFactor = 0.0;
-  this.scm_HashMap__f_scala$collection$mutable$HashMap$$table = null;
-  this.scm_HashMap__f_threshold = 0;
-  this.scm_HashMap__f_contentSize = 0;
-}
-$c_scm_HashMap.prototype = new $h_scm_AbstractMap();
-$c_scm_HashMap.prototype.constructor = $c_scm_HashMap;
-/** @constructor */
-function $h_scm_HashMap() {
-}
-$h_scm_HashMap.prototype = $c_scm_HashMap.prototype;
-$c_scm_HashMap.prototype.dropRight__I__O = (function(n) {
-  return $f_sc_StrictOptimizedIterableOps__dropRight__I__O(this, n);
-});
-$c_scm_HashMap.prototype.size__I = (function() {
-  return this.scm_HashMap__f_contentSize;
-});
-$c_scm_HashMap.prototype.contains__O__Z = (function(key) {
-  var originalHash = $m_sr_Statics$().anyHash__O__I(key);
-  var hash = (originalHash ^ ((originalHash >>> 16) | 0));
-  var x1 = $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).get((hash & (((-1) + $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length) | 0)));
-  return (((x1 === null) ? null : $n(x1).findNode__O__I__scm_HashMap$Node(key, hash)) !== null);
-});
-$c_scm_HashMap.prototype.sizeHint__I__V = (function(size) {
-  var target = $p_scm_HashMap__tableSizeFor__I__I(this, $doubleToInt((((1 + size) | 0) / this.scm_HashMap__f_loadFactor)));
-  if ((target > $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length)) {
-    $p_scm_HashMap__growTable__I__V(this, target);
-  }
-});
-$c_scm_HashMap.prototype.addAll__sc_IterableOnce__scm_HashMap = (function(xs) {
-  $f_scm_Builder__sizeHint__sc_IterableOnce__I__V(this, xs, 0);
-  if ((xs instanceof $c_sci_HashMap)) {
-    var x2 = $as_sci_HashMap(xs);
-    var this$2 = $n(x2);
-    var f = new $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1(((k$2$2, v$2$2, h$2$2) => {
-      var h$2 = $uI(h$2$2);
-      $p_scm_HashMap__put0__O__O__I__Z__s_Some(this, k$2$2, v$2$2, (h$2 ^ ((h$2 >>> 16) | 0)), false);
-    }));
-    $n(this$2.sci_HashMap__f_rootNode).foreachWithHash__F3__V(f);
-    return this;
-  } else if ((xs instanceof $c_scm_HashMap)) {
-    var x3 = $as_scm_HashMap(xs);
-    var iter = $n(x3).nodeIterator__sc_Iterator();
-    while ($n(iter).hasNext__Z()) {
-      var next = $as_scm_HashMap$Node($n(iter).next__O());
-      $p_scm_HashMap__put0__O__O__I__Z__s_Some(this, $n(next).scm_HashMap$Node__f__key, $n(next).scm_HashMap$Node__f__value, $n(next).scm_HashMap$Node__f__hash, false);
-    }
-    return this;
-  } else if ((xs instanceof $c_scm_LinkedHashMap)) {
-    var x4 = $as_scm_LinkedHashMap(xs);
-    var iter$2 = $n(x4).entryIterator__sc_Iterator();
-    while ($n(iter$2).hasNext__Z()) {
-      var entry = $as_scm_LinkedHashMap$LinkedEntry($n(iter$2).next__O());
-      $p_scm_HashMap__put0__O__O__I__Z__s_Some(this, $n(entry).scm_LinkedHashMap$LinkedEntry__f_key, $n(entry).scm_LinkedHashMap$LinkedEntry__f_value, $n(entry).scm_LinkedHashMap$LinkedEntry__f_hash, false);
-    }
-    return this;
-  } else if ($is_scm_Map(xs)) {
-    var x5 = $as_scm_Map(xs);
-    $n(x5).foreachEntry__F2__V(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((key$2$2, value$2$2) => {
-      var originalHash = $m_sr_Statics$().anyHash__O__I(key$2$2);
-      return $p_scm_HashMap__put0__O__O__I__Z__s_Some(this, key$2$2, value$2$2, (originalHash ^ ((originalHash >>> 16) | 0)), false);
-    })));
-    return this;
-  } else {
-    return $as_scm_HashMap($f_scm_Growable__addAll__sc_IterableOnce__scm_Growable(this, xs));
-  }
-});
-$c_scm_HashMap.prototype.iterator__sc_Iterator = (function() {
-  return ((this.scm_HashMap__f_contentSize === 0) ? $m_sc_Iterator$().sc_Iterator$__f_scala$collection$Iterator$$_empty : new $c_scm_HashMap$$anon$1(this));
-});
-$c_scm_HashMap.prototype.valuesIterator__sc_Iterator = (function() {
-  return ((this.scm_HashMap__f_contentSize === 0) ? $m_sc_Iterator$().sc_Iterator$__f_scala$collection$Iterator$$_empty : new $c_scm_HashMap$$anon$3(this));
-});
-$c_scm_HashMap.prototype.nodeIterator__sc_Iterator = (function() {
-  return ((this.scm_HashMap__f_contentSize === 0) ? $m_sc_Iterator$().sc_Iterator$__f_scala$collection$Iterator$$_empty : new $c_scm_HashMap$$anon$4(this));
-});
-$c_scm_HashMap.prototype.get__O__s_Option = (function(key) {
-  var originalHash = $m_sr_Statics$().anyHash__O__I(key);
-  var hash = (originalHash ^ ((originalHash >>> 16) | 0));
-  var x1 = $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).get((hash & (((-1) + $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length) | 0)));
-  var x1$1 = ((x1 === null) ? null : $n(x1).findNode__O__I__scm_HashMap$Node(key, hash));
-  return ((x1$1 === null) ? $m_s_None$() : new $c_s_Some($n(x1$1).scm_HashMap$Node__f__value));
-});
-$c_scm_HashMap.prototype.apply__O__O = (function(key) {
-  var originalHash = $m_sr_Statics$().anyHash__O__I(key);
-  var hash = (originalHash ^ ((originalHash >>> 16) | 0));
-  var x1 = $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).get((hash & (((-1) + $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length) | 0)));
-  var x1$1 = ((x1 === null) ? null : $n(x1).findNode__O__I__scm_HashMap$Node(key, hash));
-  return ((x1$1 === null) ? $f_sc_MapOps__default__O__O(this, key) : $n(x1$1).scm_HashMap$Node__f__value);
-});
-$c_scm_HashMap.prototype.getOrElse__O__F0__O = (function(key, default$1) {
-  var x = $objectGetClass(this);
-  if ((!(x === $d_scm_HashMap.getClassOf()))) {
-    return $f_sc_MapOps__getOrElse__O__F0__O(this, key, default$1);
-  } else {
-    var originalHash = $m_sr_Statics$().anyHash__O__I(key);
-    var hash = (originalHash ^ ((originalHash >>> 16) | 0));
-    var x1 = $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).get((hash & (((-1) + $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length) | 0)));
-    var nd = ((x1 === null) ? null : $n(x1).findNode__O__I__scm_HashMap$Node(key, hash));
-    return ((nd === null) ? $n(default$1).apply__O() : $n(nd).scm_HashMap$Node__f__value);
-  }
-});
-$c_scm_HashMap.prototype.addOne__T2__scm_HashMap = (function(elem) {
-  $p_scm_HashMap__put0__O__O__Z__s_Some(this, $n(elem)._1__O(), $n(elem)._2__O(), false);
-  return this;
-});
-$c_scm_HashMap.prototype.knownSize__I = (function() {
-  return this.scm_HashMap__f_contentSize;
-});
-$c_scm_HashMap.prototype.isEmpty__Z = (function() {
-  return (this.scm_HashMap__f_contentSize === 0);
-});
-$c_scm_HashMap.prototype.foreachEntry__F2__V = (function(f) {
-  var len = $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).u.length;
-  var i = 0;
-  while ((i < len)) {
-    var n = $n(this.scm_HashMap__f_scala$collection$mutable$HashMap$$table).get(i);
-    if ((n !== null)) {
-      $n(n).foreachEntry__F2__V(f);
-    }
-    i = ((1 + i) | 0);
-  }
-});
-$c_scm_HashMap.prototype.mapFactory__sc_MapFactory = (function() {
-  return $m_scm_HashMap$();
-});
-$c_scm_HashMap.prototype.stringPrefix__T = (function() {
-  return "HashMap";
-});
-$c_scm_HashMap.prototype.hashCode__I = (function() {
-  if (this.isEmpty__Z()) {
-    return $m_s_util_hashing_MurmurHash3$().s_util_hashing_MurmurHash3$__f_emptyMapHash;
-  } else {
-    var tupleHashIterator = new $c_scm_HashMap$$anon$5(this);
-    return $m_s_util_hashing_MurmurHash3$().unorderedHash__sc_IterableOnce__I__I(tupleHashIterator, $m_s_util_hashing_MurmurHash3$().s_util_hashing_MurmurHash3$__f_mapSeed);
-  }
-});
-$c_scm_HashMap.prototype.addOne__O__scm_Growable = (function(elem) {
-  return this.addOne__T2__scm_HashMap($as_T2(elem));
-});
-$c_scm_HashMap.prototype.addAll__sc_IterableOnce__scm_Growable = (function(elems) {
-  return this.addAll__sc_IterableOnce__scm_HashMap(elems);
-});
 function $as_scm_HashMap(obj) {
-  return (((obj instanceof $c_scm_HashMap) || (obj === null)) ? obj : $throwClassCastException(obj, "scala.collection.mutable.HashMap"));
+  return ((false || (obj === null)) ? obj : $throwClassCastException(obj, "scala.collection.mutable.HashMap"));
 }
 function $isArrayOf_scm_HashMap(obj, depth) {
   return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.scm_HashMap)));
@@ -51524,35 +50394,6 @@ function $isArrayOf_scm_HashMap(obj, depth) {
 function $asArrayOf_scm_HashMap(obj, depth) {
   return (($isArrayOf_scm_HashMap(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lscala.collection.mutable.HashMap;", depth));
 }
-var $d_scm_HashMap = new $TypeData().initClass($c_scm_HashMap, "scala.collection.mutable.HashMap", ({
-  scm_HashMap: 1,
-  scm_AbstractMap: 1,
-  sc_AbstractMap: 1,
-  sc_AbstractIterable: 1,
-  sc_Iterable: 1,
-  sc_IterableOnce: 1,
-  sc_IterableOps: 1,
-  sc_IterableOnceOps: 1,
-  sc_IterableFactoryDefaults: 1,
-  sc_Map: 1,
-  sc_MapOps: 1,
-  s_PartialFunction: 1,
-  F1: 1,
-  sc_MapFactoryDefaults: 1,
-  s_Equals: 1,
-  scm_Map: 1,
-  scm_Iterable: 1,
-  scm_MapOps: 1,
-  scm_Cloneable: 1,
-  jl_Cloneable: 1,
-  scm_Builder: 1,
-  scm_Growable: 1,
-  scm_Clearable: 1,
-  scm_Shrinkable: 1,
-  sc_StrictOptimizedIterableOps: 1,
-  sc_StrictOptimizedMapOps: 1,
-  Ljava_io_Serializable: 1
-}));
 function $ct_sci_BigVector__AO__AO__I__($thiz, _prefix1, suffix1, length0) {
   $thiz.sci_BigVector__f_suffix1 = suffix1;
   $thiz.sci_BigVector__f_length0 = length0;
@@ -51747,15 +50588,6 @@ $c_sci_$colon$colon.prototype.tail__O = (function() {
 $c_sci_$colon$colon.prototype.headOption__s_Option = (function() {
   return new $c_s_Some(this.sci_$colon$colon__f_head);
 });
-function $as_sci_$colon$colon(obj) {
-  return (((obj instanceof $c_sci_$colon$colon) || (obj === null)) ? obj : $throwClassCastException(obj, "scala.collection.immutable.$colon$colon"));
-}
-function $isArrayOf_sci_$colon$colon(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.sci_$colon$colon)));
-}
-function $asArrayOf_sci_$colon$colon(obj, depth) {
-  return (($isArrayOf_sci_$colon$colon(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lscala.collection.immutable.$colon$colon;", depth));
-}
 var $d_sci_$colon$colon = new $TypeData().initClass($c_sci_$colon$colon, "scala.collection.immutable.$colon$colon", ({
   sci_$colon$colon: 1,
   sci_List: 1,
@@ -55543,14 +54375,13 @@ var $d_sjs_js_WrappedArray = new $TypeData().initClass($c_sjs_js_WrappedArray, "
 }));
 $L0 = new $c_RTLong(0, 0);
 $d_J.zero = $L0;
-var $t_Lcloud_golem_quickstart_RegisterAgents$___\uff3fgolemRegisterAgents = null;
-var $t_Lcloud_golem_runtime_guest_Guest$__guest = null;
-$sct_Lcloud_golem_quickstart_RegisterAgents$__stinit__();
-$sct_Lcloud_golem_runtime_guest_Guest$__stinit__();
-export { $t_Lcloud_golem_runtime_guest_Guest$__guest as guest };
+var $t_Lcloud_golem_internal_GolemStandaloneGuest$__guest = null;
+$sct_Lcloud_golem_internal_GolemStandaloneGuest$__stinit__();
+export { $t_Lcloud_golem_internal_GolemStandaloneGuest$__guest as guest };
 let $e_loadSnapshot = $m_Lcloud_golem_runtime_snapshot_SnapshotExports$LoadSnapshot$();
 export { $e_loadSnapshot as loadSnapshot };
-export { $t_Lcloud_golem_quickstart_RegisterAgents$___\uff3fgolemRegisterAgents as __golemRegisterAgents };
+let $e___golemInternalScalaAgents = $m_Lcloud_golem_internal_GolemInternalScalaAgents$();
+export { $e___golemInternalScalaAgents as __golemInternalScalaAgents };
 let $e_saveSnapshot = $m_Lcloud_golem_runtime_snapshot_SnapshotExports$SaveSnapshot$();
 export { $e_saveSnapshot as saveSnapshot };
 //# sourceMappingURL=main.js.map

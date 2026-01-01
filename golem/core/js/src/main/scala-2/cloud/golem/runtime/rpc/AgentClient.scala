@@ -4,15 +4,16 @@ import cloud.golem.runtime.plan.AgentClientPlan
 import scala.language.experimental.macros
 
 object AgentClient {
+
   /**
    * Resolves an agent id + RPC invoker for a trait + constructor args.
    *
-   * In Scala 2 (Scala.js), prefer:
-   *   1) `val plan = AgentClient.plan[MyAgent]`
-   *   2) `val resolved = AgentClient.resolve(plan, ctorArgs)`
-   *   3) `val client = AgentClient.bind[MyAgent](resolved)`
+   * In Scala 2 (Scala.js), prefer: 1) `val plan = AgentClient.plan[MyAgent]` 2)
+   * `val resolved = AgentClient.resolve(plan, ctorArgs)` 3)
+   * `val client = AgentClient.bind[MyAgent](resolved)`
    *
-   * This avoids relying on Java reflection proxies (which Scala.js doesn't support).
+   * This avoids relying on Java reflection proxies (which Scala.js doesn't
+   * support).
    */
   def resolve[Trait, Constructor](
     plan: AgentClientPlan[Trait, Constructor],
@@ -49,9 +50,9 @@ private[rpc] object AgentClientBindMacro {
 
     def unwrapAsync(tpe: Type): Type =
       tpe match {
-        case TypeRef(_, sym, List(arg)) if sym == futureSym => arg
+        case TypeRef(_, sym, List(arg)) if sym == futureSym                           => arg
         case TypeRef(_, sym, List(arg)) if sym.fullName == "scala.scalajs.js.Promise" => arg
-        case other => other
+        case other                                                                    => other
       }
 
     val methods: List[MethodSymbol] =
@@ -63,7 +64,7 @@ private[rpc] object AgentClientBindMacro {
     val resolvedValDef  = q"val $resolvedValName = $resolved"
     val resolvedRef     = Ident(resolvedValName)
 
-    def methodPlanLookup(methodName: String, inTpe: Type, outTpe: Type): Tree = {
+    def methodPlanLookup(methodName: String, inTpe: Type, outTpe: Type): Tree =
       q"""
         $resolvedRef.plan.methods
           .collectFirst {
@@ -72,14 +73,13 @@ private[rpc] object AgentClientBindMacro {
           }
           .getOrElse(throw new _root_.java.lang.IllegalStateException("Method plan for " + $methodName + " not found"))
       """
-    }
 
     def inputExpr(paramss: List[List[ValDef]]): Tree = {
       val params = paramss.flatten
       params match {
-        case Nil => q"()"
+        case Nil        => q"()"
         case one :: Nil => q"${Ident(one.name)}"
-        case many =>
+        case many       =>
           q"_root_.scala.collection.immutable.Vector(..${many.map(p => Ident(p.name))})"
       }
     }
@@ -91,29 +91,29 @@ private[rpc] object AgentClientBindMacro {
     }
 
     def mkMethodDef(m: MethodSymbol, rhs: Tree): DefDef = {
-      val name     = m.name.toTermName
-      val tparams  = Nil
-      val paramss  = m.paramLists.map(_.map(mkParamValDef))
-      val retTpt   = TypeTree(m.returnType)
+      val name    = m.name.toTermName
+      val tparams = Nil
+      val paramss = m.paramLists.map(_.map(mkParamValDef))
+      val retTpt  = TypeTree(m.returnType)
       DefDef(Modifiers(Flag.OVERRIDE), name, tparams, paramss, retTpt, rhs)
     }
 
     val methodDefs: List[DefDef] = methods.map { m =>
-      val methodNameStr = m.name.toString
+      val methodNameStr               = m.name.toString
       val paramss: List[List[ValDef]] = m.paramLists.map(_.map(mkParamValDef))
-      val returnTpe = m.returnType
+      val returnTpe                   = m.returnType
 
       val inType: Type =
         m.paramLists.flatten match {
-          case Nil => typeOf[Unit]
+          case Nil        => typeOf[Unit]
           case one :: Nil => one.typeSignature
-          case _ => typeOf[Vector[Any]]
+          case _          => typeOf[Vector[Any]]
         }
 
       if (returnTpe =:= typeOf[Unit]) {
         val planLookup = methodPlanLookup(methodNameStr, inType, typeOf[Unit])
         val inValue    = inputExpr(paramss)
-        val rhs =
+        val rhs        =
           q"""
             val plan = $planLookup
             $resolvedRef
@@ -124,10 +124,10 @@ private[rpc] object AgentClientBindMacro {
           """
         mkMethodDef(m, rhs)
       } else if (isFutureReturn(returnTpe) || isPromiseReturn(returnTpe)) {
-        val outType   = unwrapAsync(returnTpe)
+        val outType    = unwrapAsync(returnTpe)
         val planLookup = methodPlanLookup(methodNameStr, inType, outType)
         val inValue    = inputExpr(paramss)
-        val rhs =
+        val rhs        =
           q"""
             val plan = $planLookup
             $resolvedRef.call(plan, $inValue.asInstanceOf[$inType])

@@ -8,8 +8,8 @@ import scala.reflect.macros.blackbox
 /**
  * Scala 2 macro implementations backing `cloud.golem.sdk.AgentCompanion`.
  *
- * These expand at the call site and therefore work even when agent traits and their
- * companions are defined in the same compilation run.
+ * These expand at the call site and therefore work even when agent traits and
+ * their companions are defined in the same compilation run.
  */
 object AgentCompanionMacro {
   private def defaultTypeNameFromTrait(sym: scala.reflect.api.Universe#Symbol): String = {
@@ -27,7 +27,10 @@ object AgentCompanionMacro {
     val baseSym = typeOf[_root_.cloud.golem.sdk.AgentCompanionBase[_]].typeSymbol
     val baseTpe = prefix.baseType(baseSym)
     if (baseTpe == NoType)
-      c.abort(c.enclosingPosition, s"Expected companion to extend cloud.golem.sdk.AgentCompanionBase[AgentTrait], found: $prefix")
+      c.abort(
+        c.enclosingPosition,
+        s"Expected companion to extend cloud.golem.sdk.AgentCompanionBase[AgentTrait], found: $prefix"
+      )
 
     val traitTpe =
       baseTpe.typeArgs.headOption.getOrElse {
@@ -40,10 +43,10 @@ object AgentCompanionMacro {
   def typeNameImpl(c: blackbox.Context): c.Expr[String] = {
     import c.universe._
     val (traitTpe, _) = prefixTraitAndInput(c)
-    val traitSym       = traitTpe.typeSymbol
+    val traitSym      = traitTpe.typeSymbol
 
     val agentDefinitionType = typeOf[_root_.cloud.golem.runtime.annotations.agentDefinition]
-    val raw = traitSym.annotations.collectFirst {
+    val raw                 = traitSym.annotations.collectFirst {
       case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
         ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
     }.getOrElse("")
@@ -129,7 +132,7 @@ object AgentCompanionMacro {
   ): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
+    val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
     if (!(inTpe =:= expected))
       c.abort(c.enclosingPosition, s"get(a1,a2) requires: type AgentInput = ($expected) (found: $inTpe)")
     getImpl(c)(q"_root_.scala.Tuple2($a1, $a2)")
@@ -142,7 +145,7 @@ object AgentCompanionMacro {
   ): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
+    val expected   = appliedType(typeOf[Tuple2[_, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2]))
     if (!(inTpe =:= expected))
       c.abort(c.enclosingPosition, s"getPhantom(a1,a2,phantom) requires: type AgentInput = ($expected) (found: $inTpe)")
     getPhantomImpl(c)(q"_root_.scala.Tuple2($a1, $a2)", phantom.tree)
@@ -155,7 +158,7 @@ object AgentCompanionMacro {
   ): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected =
+    val expected   =
       appliedType(typeOf[Tuple3[_, _, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3]))
     if (!(inTpe =:= expected))
       c.abort(c.enclosingPosition, s"get(a1,a2,a3) requires: type AgentInput = ($expected) (found: $inTpe)")
@@ -170,10 +173,13 @@ object AgentCompanionMacro {
   ): c.Tree = {
     import c.universe._
     val (_, inTpe) = prefixTraitAndInput(c)
-    val expected =
+    val expected   =
       appliedType(typeOf[Tuple3[_, _, _]].typeConstructor, List(weakTypeOf[A1], weakTypeOf[A2], weakTypeOf[A3]))
     if (!(inTpe =:= expected))
-      c.abort(c.enclosingPosition, s"getPhantom(a1,a2,a3,phantom) requires: type AgentInput = ($expected) (found: $inTpe)")
+      c.abort(
+        c.enclosingPosition,
+        s"getPhantom(a1,a2,a3,phantom) requires: type AgentInput = ($expected) (found: $inTpe)"
+      )
     getPhantomImpl(c)(q"_root_.scala.Tuple3($a1, $a2, $a3)", phantom.tree)
   }
 
@@ -189,6 +195,3 @@ object AgentCompanionMacro {
     }
   }
 }
-
-
-

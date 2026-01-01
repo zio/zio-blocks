@@ -2267,8 +2267,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var these = ev$1;
     while ((!$n(these).isEmpty__Z())) {
       var x0 = $n(these).head__O();
-      var _$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0);
-      if (($n(_$2).Lcloud_golem_runtime_MethodMetadata__f_name === "handle")) {
+      var _$3 = $as_Lcloud_golem_runtime_MethodMetadata(x0);
+      if (($n(_$3).Lcloud_golem_runtime_MethodMetadata__f_name === "handle")) {
         var this$19 = new $c_s_Some($n(these).head__O());
         break _return;
       }
@@ -2320,8 +2320,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var these$1 = ev$2;
     while ((!$n(these$1).isEmpty__Z())) {
       var x0$1 = $n(these$1).head__O();
-      var _$2$1 = $as_Lcloud_golem_runtime_MethodMetadata(x0$1);
-      if (($n(_$2$1).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse")) {
+      var _$3$1 = $as_Lcloud_golem_runtime_MethodMetadata(x0$1);
+      if (($n(_$3$1).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse")) {
         var this$30 = new $c_s_Some($n(these$1).head__O());
         break _return$1;
       }
@@ -2345,8 +2345,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     return $n(instance$3).reverse__T__s_concurrent_Future(input$9);
   }));
   var methods$1 = new $c_sci_$colon$colon($x_4, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$2, inputSchema$1, outputSchema$1, handler$1), $m_sci_Nil$()));
-  var plan = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata, constructorSchema, buildInstance, methods$1);
-  var this$35 = $n($n(plan.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
+  var plan = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlan(metadata, constructorSchema, buildInstance, methods$1);
+  var this$35 = $n($n(plan.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
   if (this$35.isEmpty__Z()) {
     var metadataMode = $m_s_None$();
   } else {
@@ -2356,7 +2356,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
   }
   var this$36 = $n(metadataMode);
   var effective = $as_Lcloud_golem_runtime_autowire_AgentMode((this$36.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$36.get__O()));
-  $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("worker", effective, plan);
+  var this$38 = $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$();
+  this$38.register__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlan__Lcloud_golem_runtime_autowire_AgentDefinition("worker", effective, plan);
   var description$9 = new $c_s_Some("A minimal coordinator agent that calls Worker via agent RPC inside Golem.");
   var mode$9 = new $c_s_Some("ephemeral");
   var description$7 = $m_s_None$();
@@ -2369,8 +2370,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$16).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x1 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x8 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x1);
-      var this$42 = $n(x8);
-      var x10 = this$42.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$43 = $n(x8);
+      var x10 = this$43.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x10).length__I() === 1)) {
         var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x10).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult1;
@@ -2392,8 +2393,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$17).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x11 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x18 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x11);
-      var this$47 = $n(x18);
-      var x20 = this$47.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$48 = $n(x18);
+      var x20 = this$48.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x20).length__I() === 1)) {
         var schema$1 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x20).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult2;
@@ -2415,8 +2416,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x21 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$18).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x21 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x28 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x21);
-      var this$52 = $n(x28);
-      var x30 = this$52.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$53 = $n(x28);
+      var x30 = this$53.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x30).length__I() === 1)) {
         var schema$2 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x30).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult3;
@@ -2446,8 +2447,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x31 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$20).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x31 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x38 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x31);
-      var this$60 = $n(x38);
-      var x40 = this$60.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$61 = $n(x38);
+      var x40 = this$61.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x40).length__I() === 1)) {
         var schema$3 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x40).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult4;
@@ -2469,8 +2470,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x41 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$21).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x41 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x48 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x41);
-      var this$65 = $n(x48);
-      var x50 = this$65.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$66 = $n(x48);
+      var x50 = this$66.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x50).length__I() === 1)) {
         var schema$4 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x50).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult5;
@@ -2492,8 +2493,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x51 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$22).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x51 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x58 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x51);
-      var this$70 = $n(x58);
-      var x60 = this$70.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$71 = $n(x58);
+      var x60 = this$71.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x60).length__I() === 1)) {
         var schema$5 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x60).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult6;
@@ -2534,8 +2535,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x61 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$26).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x61 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x68 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x61);
-      var this$81 = $n(x68);
-      var x70 = this$81.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$82 = $n(x68);
+      var x70 = this$82.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x70).length__I() === 1)) {
         var schema$6 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x70).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult7;
@@ -2557,8 +2558,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x71 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$27).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x71 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x78 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x71);
-      var this$86 = $n(x78);
-      var x80 = this$86.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$87 = $n(x78);
+      var x80 = this$87.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x80).length__I() === 1)) {
         var schema$7 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x80).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult8;
@@ -2580,8 +2581,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x81 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$28).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x81 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x88 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x81);
-      var this$91 = $n(x88);
-      var x90 = this$91.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$92 = $n(x88);
+      var x90 = this$92.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x90).length__I() === 1)) {
         var schema$8 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x90).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult9;
@@ -2611,8 +2612,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x91 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$30).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x91 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x98 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x91);
-      var this$99 = $n(x98);
-      var x100 = this$99.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$100 = $n(x98);
+      var x100 = this$100.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x100).length__I() === 1)) {
         var schema$9 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x100).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult10;
@@ -2634,8 +2635,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x101 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$31).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x101 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x108 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x101);
-      var this$104 = $n(x108);
-      var x110 = this$104.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$105 = $n(x108);
+      var x110 = this$105.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x110).length__I() === 1)) {
         var schema$10 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x110).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult11;
@@ -2657,8 +2658,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x111 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$32).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x111 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x118 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x111);
-      var this$109 = $n(x118);
-      var x120 = this$109.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$110 = $n(x118);
+      var x120 = this$110.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x120).length__I() === 1)) {
         var schema$11 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x120).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult12;
@@ -2685,19 +2686,19 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var these$2 = ev$3;
     while ((!$n(these$2).isEmpty__Z())) {
       var x0$3 = $n(these$2).head__O();
-      var _$2$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0$3);
-      if (($n(_$2$2).Lcloud_golem_runtime_MethodMetadata__f_name === "route")) {
-        var this$116 = new $c_s_Some($n(these$2).head__O());
+      var _$3$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0$3);
+      if (($n(_$3$2).Lcloud_golem_runtime_MethodMetadata__f_name === "route")) {
+        var this$117 = new $c_s_Some($n(these$2).head__O());
         break _return$2;
       }
       these$2 = $as_sci_List($n(these$2).tail__O());
     }
-    var this$116 = $m_s_None$();
+    var this$117 = $m_s_None$();
   }
-  if (this$116.isEmpty__Z()) {
+  if (this$117.isEmpty__Z()) {
     throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for route");
   }
-  var metadataEntry$3 = $as_Lcloud_golem_runtime_MethodMetadata(this$116.get__O());
+  var metadataEntry$3 = $as_Lcloud_golem_runtime_MethodMetadata(this$117.get__O());
   var inputSchema$2 = new $c_Lcloud_golem_examples_RegisterAgents$$anon$1();
   $m_Lcloud_golem_data_GolemSchema$();
   var baseSchema$35 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
@@ -2709,12 +2710,12 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
       throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'route'. Expected 3.");
     }
     var $x_25 = $n(instance$4);
-    var this$118 = $n(input$15);
-    var $x_24 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$118, 0));
     var this$119 = $n(input$15);
-    var $x_23 = $uI($f_sc_LinearSeqOps__apply__I__O(this$119, 1));
+    var $x_24 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$119, 0));
     var this$120 = $n(input$15);
-    return $x_25.route__T__I__T__s_concurrent_Future($x_24, $x_23, $as_T($f_sc_LinearSeqOps__apply__I__O(this$120, 2)));
+    var $x_23 = $uI($f_sc_LinearSeqOps__apply__I__O(this$120, 1));
+    var this$121 = $n(input$15);
+    return $x_25.route__T__I__T__s_concurrent_Future($x_24, $x_23, $as_T($f_sc_LinearSeqOps__apply__I__O(this$121, 2)));
   }));
   var $x_26 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$3, inputSchema$2, outputSchema$2, handler$2);
   var description$12 = $m_s_None$();
@@ -2727,8 +2728,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x160 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$36).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x160 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x167 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x160);
-      var this$124 = $n(x167);
-      var x169 = this$124.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$125 = $n(x167);
+      var x169 = this$125.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x169).length__I() === 1)) {
         var schema$12 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x169).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult21;
@@ -2750,8 +2751,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x170 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$37).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x170 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x177 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x170);
-      var this$129 = $n(x177);
-      var x179 = this$129.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$130 = $n(x177);
+      var x179 = this$130.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x179).length__I() === 1)) {
         var schema$13 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x179).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult22;
@@ -2773,8 +2774,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x180 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$38).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x180 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x187 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x180);
-      var this$134 = $n(x187);
-      var x189 = this$134.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$135 = $n(x187);
+      var x189 = this$135.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x189).length__I() === 1)) {
         var schema$14 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x189).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult23;
@@ -2804,8 +2805,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x190 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$40).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x190 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x197 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x190);
-      var this$142 = $n(x197);
-      var x199 = this$142.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$143 = $n(x197);
+      var x199 = this$143.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x199).length__I() === 1)) {
         var schema$15 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x199).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult24;
@@ -2827,8 +2828,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x200 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$41).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x200 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x207 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x200);
-      var this$147 = $n(x207);
-      var x209 = this$147.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$148 = $n(x207);
+      var x209 = this$148.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x209).length__I() === 1)) {
         var schema$16 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x209).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult25;
@@ -2850,8 +2851,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x210 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$42).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x210 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x217 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x210);
-      var this$152 = $n(x217);
-      var x219 = this$152.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$153 = $n(x217);
+      var x219 = this$153.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x219).length__I() === 1)) {
         var schema$17 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x219).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult26;
@@ -2878,19 +2879,19 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var these$3 = ev$4;
     while ((!$n(these$3).isEmpty__Z())) {
       var x0$4 = $n(these$3).head__O();
-      var _$2$3 = $as_Lcloud_golem_runtime_MethodMetadata(x0$4);
-      if (($n(_$2$3).Lcloud_golem_runtime_MethodMetadata__f_name === "routeTyped")) {
-        var this$159 = new $c_s_Some($n(these$3).head__O());
+      var _$3$3 = $as_Lcloud_golem_runtime_MethodMetadata(x0$4);
+      if (($n(_$3$3).Lcloud_golem_runtime_MethodMetadata__f_name === "routeTyped")) {
+        var this$160 = new $c_s_Some($n(these$3).head__O());
         break _return$3;
       }
       these$3 = $as_sci_List($n(these$3).tail__O());
     }
-    var this$159 = $m_s_None$();
+    var this$160 = $m_s_None$();
   }
-  if (this$159.isEmpty__Z()) {
+  if (this$160.isEmpty__Z()) {
     throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for routeTyped");
   }
-  var metadataEntry$4 = $as_Lcloud_golem_runtime_MethodMetadata(this$159.get__O());
+  var metadataEntry$4 = $as_Lcloud_golem_runtime_MethodMetadata(this$160.get__O());
   var inputSchema$3 = new $c_Lcloud_golem_examples_RegisterAgents$$anon$2();
   $m_Lcloud_golem_data_GolemSchema$();
   var baseSchema$45 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
@@ -2902,26 +2903,27 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
       throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'routeTyped'. Expected 3.");
     }
     var $x_17 = $n(instance$5);
-    var this$161 = $n(input$18);
-    var $x_16 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$161, 0));
     var this$162 = $n(input$18);
-    var $x_15 = $uI($f_sc_LinearSeqOps__apply__I__O(this$162, 1));
+    var $x_16 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$162, 0));
     var this$163 = $n(input$18);
-    return $x_17.routeTyped__T__I__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future($x_16, $x_15, $as_Lcloud_golem_examples_minimal_TypedPayload($f_sc_LinearSeqOps__apply__I__O(this$163, 2)));
+    var $x_15 = $uI($f_sc_LinearSeqOps__apply__I__O(this$163, 1));
+    var this$164 = $n(input$18);
+    return $x_17.routeTyped__T__I__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future($x_16, $x_15, $as_Lcloud_golem_examples_minimal_TypedPayload($f_sc_LinearSeqOps__apply__I__O(this$164, 2)));
   }));
   var methods$3 = new $c_sci_$colon$colon($x_26, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$4, inputSchema$3, outputSchema$3, handler$3), $m_sci_Nil$()));
-  var plan$2 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata$2, constructorSchema$1, buildInstance$1, methods$3);
-  var this$166 = $n($n(plan$2.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
-  if (this$166.isEmpty__Z()) {
+  var plan$2 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlan(metadata$2, constructorSchema$1, buildInstance$1, methods$3);
+  var this$167 = $n($n(plan$2.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
+  if (this$167.isEmpty__Z()) {
     var metadataMode$2 = $m_s_None$();
   } else {
-    var x0$5 = this$166.get__O();
+    var x0$5 = this$167.get__O();
     var value$1 = $as_T(x0$5);
     var metadataMode$2 = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value$1);
   }
-  var this$167 = $n(metadataMode$2);
-  var effective$2 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$167.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$167.get__O()));
-  $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("coordinator", effective$2, plan$2);
+  var this$168 = $n(metadataMode$2);
+  var effective$2 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$168.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$168.get__O()));
+  var this$170 = $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$();
+  this$170.register__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlan__Lcloud_golem_runtime_autowire_AgentDefinition("coordinator", effective$2, plan$2);
   var description$16 = $m_s_None$();
   var mode$16 = $m_s_None$();
   var description$14 = new $c_s_Some("Set a value in the table");
@@ -2934,8 +2936,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x259 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$46).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x259 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x266 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x259);
-      var this$172 = $n(x266);
-      var x268 = this$172.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$174 = $n(x266);
+      var x268 = this$174.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x268).length__I() === 1)) {
         var schema$18 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x268).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult35;
@@ -2957,8 +2959,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x269 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$47).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x269 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x276 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x269);
-      var this$177 = $n(x276);
-      var x278 = this$177.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$179 = $n(x276);
+      var x278 = this$179.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x278).length__I() === 1)) {
         var schema$19 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x278).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult36;
@@ -3009,8 +3011,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x279 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$50).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x279 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x286 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x279);
-      var this$192 = $n(x286);
-      var x288 = this$192.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$194 = $n(x286);
+      var x288 = this$194.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x288).length__I() === 1)) {
         var schema$20 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x288).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult37;
@@ -3032,8 +3034,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x289 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$51).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x289 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x296 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x289);
-      var this$197 = $n(x296);
-      var x298 = this$197.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$199 = $n(x296);
+      var x298 = this$199.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x298).length__I() === 1)) {
         var schema$21 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x298).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult38;
@@ -3069,19 +3071,19 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var these$4 = ev$5;
     while ((!$n(these$4).isEmpty__Z())) {
       var x0$6 = $n(these$4).head__O();
-      var _$2$4 = $as_Lcloud_golem_runtime_MethodMetadata(x0$6);
-      if (($n(_$2$4).Lcloud_golem_runtime_MethodMetadata__f_name === "set")) {
-        var this$207 = new $c_s_Some($n(these$4).head__O());
+      var _$3$4 = $as_Lcloud_golem_runtime_MethodMetadata(x0$6);
+      if (($n(_$3$4).Lcloud_golem_runtime_MethodMetadata__f_name === "set")) {
+        var this$209 = new $c_s_Some($n(these$4).head__O());
         break _return$4;
       }
       these$4 = $as_sci_List($n(these$4).tail__O());
     }
-    var this$207 = $m_s_None$();
+    var this$209 = $m_s_None$();
   }
-  if (this$207.isEmpty__Z()) {
+  if (this$209.isEmpty__Z()) {
     throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for set");
   }
-  var metadataEntry$5 = $as_Lcloud_golem_runtime_MethodMetadata(this$207.get__O());
+  var metadataEntry$5 = $as_Lcloud_golem_runtime_MethodMetadata(this$209.get__O());
   var inputSchema$4 = new $c_Lcloud_golem_examples_RegisterAgents$$anon$3();
   var outputSchema$4 = $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema;
   var handler$4 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$5$1, input$8$1) => {
@@ -3091,10 +3093,10 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
       throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'set'. Expected 2.");
     }
     $n(instance$6);
-    var this$208 = $n(input$24);
-    $as_T($f_sc_LinearSeqOps__apply__I__O(this$208, 0));
-    var this$209 = $n(input$24);
-    $as_T($f_sc_LinearSeqOps__apply__I__O(this$209, 1));
+    var this$210 = $n(input$24);
+    $as_T($f_sc_LinearSeqOps__apply__I__O(this$210, 0));
+    var this$211 = $n(input$24);
+    $as_T($f_sc_LinearSeqOps__apply__I__O(this$211, 1));
   }));
   var $x_33 = new $c_Lcloud_golem_runtime_plan_SyncMethodPlan(metadataEntry$5, inputSchema$4, outputSchema$4, handler$4);
   var description$19 = new $c_s_Some("Set a value in the table");
@@ -3107,8 +3109,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x338 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$54).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x338 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x345 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x338);
-      var this$214 = $n(x345);
-      var x347 = this$214.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$216 = $n(x345);
+      var x347 = this$216.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x347).length__I() === 1)) {
         var schema$22 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x347).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult47;
@@ -3130,8 +3132,8 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var x348 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$55).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
     if ((x348 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
       var x355 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x348);
-      var this$219 = $n(x355);
-      var x357 = this$219.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      var this$221 = $n(x355);
+      var x357 = this$221.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
       if (($n(x357).length__I() === 1)) {
         var schema$23 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x357).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
         break matchResult48;
@@ -3167,19 +3169,19 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     var these$5 = ev$6;
     while ((!$n(these$5).isEmpty__Z())) {
       var x0$7 = $n(these$5).head__O();
-      var _$2$5 = $as_Lcloud_golem_runtime_MethodMetadata(x0$7);
-      if (($n(_$2$5).Lcloud_golem_runtime_MethodMetadata__f_name === "get")) {
-        var this$229 = new $c_s_Some($n(these$5).head__O());
+      var _$3$5 = $as_Lcloud_golem_runtime_MethodMetadata(x0$7);
+      if (($n(_$3$5).Lcloud_golem_runtime_MethodMetadata__f_name === "get")) {
+        var this$231 = new $c_s_Some($n(these$5).head__O());
         break _return$5;
       }
       these$5 = $as_sci_List($n(these$5).tail__O());
     }
-    var this$229 = $m_s_None$();
+    var this$231 = $m_s_None$();
   }
-  if (this$229.isEmpty__Z()) {
+  if (this$231.isEmpty__Z()) {
     throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for get");
   }
-  var metadataEntry$6 = $as_Lcloud_golem_runtime_MethodMetadata(this$229.get__O());
+  var metadataEntry$6 = $as_Lcloud_golem_runtime_MethodMetadata(this$231.get__O());
   $m_Lcloud_golem_data_GolemSchema$();
   var baseSchema$58 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
   var inputSchema$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$58);
@@ -3192,18 +3194,19 @@ function $c_Lcloud_golem_examples_RegisterAgents$() {
     return $n(instance$7).get__T__s_Option(input$27);
   }));
   var methods$5 = new $c_sci_$colon$colon($x_33, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_SyncMethodPlan(metadataEntry$6, inputSchema$5, outputSchema$5, handler$5), $m_sci_Nil$()));
-  var plan$3 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata$3, constructorSchema$2, buildInstance$2, methods$5);
-  var this$234 = $n($n(plan$3.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
-  if (this$234.isEmpty__Z()) {
+  var plan$3 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlan(metadata$3, constructorSchema$2, buildInstance$2, methods$5);
+  var this$236 = $n($n(plan$3.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
+  if (this$236.isEmpty__Z()) {
     var metadataMode$3 = $m_s_None$();
   } else {
-    var x0$8 = this$234.get__O();
+    var x0$8 = this$236.get__O();
     var value$2 = $as_T(x0$8);
     var metadataMode$3 = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value$2);
   }
-  var this$235 = $n(metadataMode$3);
-  var effective$3 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$235.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$235.get__O()));
-  $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("shard", effective$3, plan$3);
+  var this$237 = $n(metadataMode$3);
+  var effective$3 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$237.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$237.get__O()));
+  var this$239 = $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$();
+  this$239.register__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlan__Lcloud_golem_runtime_autowire_AgentDefinition("shard", effective$3, plan$3);
   $t_Lcloud_golem_examples_RegisterAgents$___\uff3fgolemRegisterAgents = (void 0);
 }
 $c_Lcloud_golem_examples_RegisterAgents$.prototype = new $h_O();
@@ -3243,6 +3246,13 @@ $c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype.constructor = $c_Lc
 function $h_Lcloud_golem_runtime_autowire_AgentConstructor$() {
 }
 $h_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype = $c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype;
+$c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype.noArgs__T__s_Option__F0__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor = (function(description, prompt, build, codec) {
+  var name = $m_s_None$();
+  return this.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor(new $c_Lcloud_golem_runtime_autowire_ConstructorMetadata(name, description, prompt), new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((_$1) => {
+    $as_jl_Void(_$1);
+    return $n(build).apply__O();
+  })), codec);
+});
 $c_Lcloud_golem_runtime_autowire_AgentConstructor$.prototype.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor = (function(ctorInfo, build, codec) {
   var build$1 = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((a) => $m_s_concurrent_Future$().successful__O__s_concurrent_Future($n(build).apply__O__O(a))));
   return new $c_Lcloud_golem_runtime_autowire_AgentConstructor$$anon$1(ctorInfo, codec, build$1);
@@ -3359,34 +3369,50 @@ $c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.construct
 function $h_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$() {
 }
 $h_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype = $c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype;
-$c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition = (function(typeName, mode, plan) {
-  var ctorSchema = $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
-  var $x_1 = $m_Lcloud_golem_runtime_autowire_AgentConstructor$();
-  var name = $m_s_None$();
-  var this$1 = $n($n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_description);
-  var description = $as_T((this$1.isEmpty__Z() ? typeName : this$1.get__O()));
-  var promptHint = $m_s_None$();
-  var constructor = $x_1.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor(new $c_Lcloud_golem_runtime_autowire_ConstructorMetadata(name, description, promptHint), $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance, ctorSchema);
-  var this$3 = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods);
+$c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.register__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlan__Lcloud_golem_runtime_autowire_AgentDefinition = (function(typeName, mode, plan) {
+  matchResult1: {
+    var constructor;
+    var x1 = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema).schema__Lcloud_golem_data_StructuredSchema();
+    if ((x1 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x2 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x1);
+      var this$2 = $n(x2);
+      var x4 = this$2.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if ($n(x4).isEmpty__Z()) {
+        var instance = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance).apply__O__O((void 0));
+        var $x_1 = $m_Lcloud_golem_runtime_autowire_AgentConstructor$();
+        var this$3 = $n($n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_description);
+        var constructor = $x_1.noArgs__T__s_Option__F0__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor($as_T((this$3.isEmpty__Z() ? typeName : this$3.get__O())), $m_s_None$(), new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => instance)), $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema);
+        break matchResult1;
+      }
+    }
+    var ctorSchema = $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
+    var $x_2 = $m_Lcloud_golem_runtime_autowire_AgentConstructor$();
+    var name = $m_s_None$();
+    var this$4 = $n($n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_description);
+    var description = $as_T((this$4.isEmpty__Z() ? typeName : this$4.get__O()));
+    var promptHint = $m_s_None$();
+    var constructor = $x_2.sync__Lcloud_golem_runtime_autowire_ConstructorMetadata__F1__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_AgentConstructor(new $c_Lcloud_golem_runtime_autowire_ConstructorMetadata(name, description, promptHint), $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance, ctorSchema);
+  }
+  var this$6 = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods);
   var f = ((x$1) => {
     var x$1$1 = $as_Lcloud_golem_runtime_plan_MethodPlan(x$1);
     if ((x$1$1 instanceof $c_Lcloud_golem_runtime_plan_SyncMethodPlan)) {
-      var x6 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$1$1);
-      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildSyncBinding__Lcloud_golem_runtime_plan_SyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x6);
+      var x7 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$1$1);
+      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildSyncBinding__Lcloud_golem_runtime_plan_SyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x7);
     }
     if ((x$1$1 instanceof $c_Lcloud_golem_runtime_plan_AsyncMethodPlan)) {
-      var x5 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$1$1);
-      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildAsyncBinding__Lcloud_golem_runtime_plan_AsyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x5);
+      var x6 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$1$1);
+      return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildAsyncBinding__Lcloud_golem_runtime_plan_AsyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x6);
     }
     throw new $c_s_MatchError(x$1$1);
   });
-  if ((this$3 === $m_sci_Nil$())) {
+  if ((this$6 === $m_sci_Nil$())) {
     var bindings = $m_sci_Nil$();
   } else {
-    var x0 = this$3.head__O();
+    var x0 = this$6.head__O();
     var h = new $c_sci_$colon$colon(f(x0), $m_sci_Nil$());
     var t = h;
-    var rest = $as_sci_List(this$3.tail__O());
+    var rest = $as_sci_List(this$6.tail__O());
     while ((rest !== $m_sci_Nil$())) {
       var x0$1 = $n(rest).head__O();
       var nx = new $c_sci_$colon$colon(f(x0$1), $m_sci_Nil$());
@@ -3396,7 +3422,7 @@ $c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.registerW
     }
     var bindings = h;
   }
-  var definition = new $c_Lcloud_golem_runtime_autowire_AgentDefinition(typeName, $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata, constructor, bindings, mode);
+  var definition = new $c_Lcloud_golem_runtime_autowire_AgentDefinition(typeName, $n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata, constructor, bindings, mode);
   $m_Lcloud_golem_runtime_autowire_AgentRegistry$().register__Lcloud_golem_runtime_autowire_AgentDefinition__V(definition);
   return definition;
 });
@@ -25004,38 +25030,38 @@ var $d_Lcloud_golem_runtime_plan_AgentClientPlan = new $TypeData().initClass($c_
   Ljava_io_Serializable: 1
 }));
 /** @constructor */
-function $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata, constructorSchema, buildInstance, methods) {
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods = null;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata = metadata;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema = constructorSchema;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance = buildInstance;
-  this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods = methods;
+function $c_Lcloud_golem_runtime_plan_AgentImplementationPlan(metadata, constructorSchema, buildInstance, methods) {
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods = null;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata = metadata;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema = constructorSchema;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance = buildInstance;
+  this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods = methods;
 }
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype = new $h_O();
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.constructor = $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor;
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype = new $h_O();
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.constructor = $c_Lcloud_golem_runtime_plan_AgentImplementationPlan;
 /** @constructor */
-function $h_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor() {
+function $h_Lcloud_golem_runtime_plan_AgentImplementationPlan() {
 }
-$h_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype = $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype;
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productIterator__sc_Iterator = (function() {
+$h_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype = $c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype;
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productIterator__sc_Iterator = (function() {
   return new $c_s_Product$$anon$1(this);
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.hashCode__I = (function() {
-  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 1904671360, true);
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.hashCode__I = (function() {
+  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 1925879595, true);
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.equals__O__Z = (function(x$0) {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.equals__O__Z = (function(x$0) {
   if ((this === x$0)) {
     return true;
-  } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor)) {
-    var x6 = $as_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(x$0);
-    var x = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata;
-    var x$2 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata;
+  } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlan)) {
+    var x2 = $as_Lcloud_golem_runtime_plan_AgentImplementationPlan(x$0);
+    var x = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata;
+    var x$2 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata;
     if (((x === null) ? (x$2 === null) : $n(x).equals__O__Z(x$2))) {
-      var x$3 = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
-      var x$4 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
+      var x$3 = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
+      var x$4 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
       if ((x$3 === null)) {
         var $x_2 = (x$4 === null);
       } else {
@@ -25046,15 +25072,15 @@ $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.equals__O
       var $x_2 = false;
     }
     if ($x_2) {
-      var x$5 = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance;
-      var x$6 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance;
+      var x$5 = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance;
+      var x$6 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance;
       var $x_1 = ((x$5 === null) ? (x$6 === null) : $n(x$5).equals__O__Z(x$6));
     } else {
       var $x_1 = false;
     }
     if ($x_1) {
-      var x$7 = this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods;
-      var x$8 = $n(x6).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods;
+      var x$7 = this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods;
+      var x$8 = $n(x2).Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods;
       return ((x$7 === null) ? (x$8 === null) : $n(x$7).equals__O__Z(x$8));
     } else {
       return false;
@@ -25063,31 +25089,31 @@ $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.equals__O
     return false;
   }
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.toString__T = (function() {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.toString__T = (function() {
   return $m_sr_ScalaRunTime$()._toString__s_Product__T(this);
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productArity__I = (function() {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productArity__I = (function() {
   return 4;
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productPrefix__T = (function() {
-  return "AgentImplementationPlanWithCtor";
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productPrefix__T = (function() {
+  return "AgentImplementationPlan";
 });
-$c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productElement__I__O = (function(n) {
+$c_Lcloud_golem_runtime_plan_AgentImplementationPlan.prototype.productElement__I__O = (function(n) {
   switch (n) {
     case 0: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_metadata;
       break;
     }
     case 1: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_constructorSchema;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_constructorSchema;
       break;
     }
     case 2: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_buildInstance;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_buildInstance;
       break;
     }
     case 3: {
-      return this.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods;
+      return this.Lcloud_golem_runtime_plan_AgentImplementationPlan__f_methods;
       break;
     }
     default: {
@@ -25095,17 +25121,17 @@ $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor.prototype.productEl
     }
   }
 });
-function $as_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj) {
-  return (((obj instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.plan.AgentImplementationPlanWithCtor"));
+function $as_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj) {
+  return (((obj instanceof $c_Lcloud_golem_runtime_plan_AgentImplementationPlan) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.plan.AgentImplementationPlan"));
 }
-function $isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor)));
+function $isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj, depth) {
+  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_runtime_plan_AgentImplementationPlan)));
 }
-function $asArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj, depth) {
-  return (($isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.runtime.plan.AgentImplementationPlanWithCtor;", depth));
+function $asArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj, depth) {
+  return (($isArrayOf_Lcloud_golem_runtime_plan_AgentImplementationPlan(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.runtime.plan.AgentImplementationPlan;", depth));
 }
-var $d_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor = new $TypeData().initClass($c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor, "cloud.golem.runtime.plan.AgentImplementationPlanWithCtor", ({
-  Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor: 1,
+var $d_Lcloud_golem_runtime_plan_AgentImplementationPlan = new $TypeData().initClass($c_Lcloud_golem_runtime_plan_AgentImplementationPlan, "cloud.golem.runtime.plan.AgentImplementationPlan", ({
+  Lcloud_golem_runtime_plan_AgentImplementationPlan: 1,
   s_Equals: 1,
   s_Product: 1,
   Ljava_io_Serializable: 1
@@ -31930,12 +31956,12 @@ $c_Lcloud_golem_runtime_plan_AsyncMethodPlan.prototype.equals__O__Z = (function(
   if ((this === x$0)) {
     return true;
   } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_AsyncMethodPlan)) {
-    var x14 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$0);
+    var x10 = $as_Lcloud_golem_runtime_plan_AsyncMethodPlan(x$0);
     var x = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_metadata;
-    var x$2 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_metadata;
+    var x$2 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_metadata;
     if (((x === null) ? (x$2 === null) : $n(x).equals__O__Z(x$2))) {
       var x$3 = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_inputSchema;
-      var x$4 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_inputSchema;
+      var x$4 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_inputSchema;
       if ((x$3 === null)) {
         var $x_2 = (x$4 === null);
       } else {
@@ -31947,7 +31973,7 @@ $c_Lcloud_golem_runtime_plan_AsyncMethodPlan.prototype.equals__O__Z = (function(
     }
     if ($x_2) {
       var x$5 = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_outputSchema;
-      var x$6 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_outputSchema;
+      var x$6 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_outputSchema;
       if ((x$5 === null)) {
         var $x_1 = (x$6 === null);
       } else {
@@ -31959,7 +31985,7 @@ $c_Lcloud_golem_runtime_plan_AsyncMethodPlan.prototype.equals__O__Z = (function(
     }
     if ($x_1) {
       var x$7 = this.Lcloud_golem_runtime_plan_AsyncMethodPlan__f_handler;
-      var x$8 = $n(x14).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_handler;
+      var x$8 = $n(x10).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_handler;
       if ((x$7 === null)) {
         return (x$8 === null);
       } else {
@@ -32048,12 +32074,12 @@ $c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.equals__O__Z = (function(x
   if ((this === x$0)) {
     return true;
   } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_SyncMethodPlan)) {
-    var x10 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$0);
+    var x6 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$0);
     var x = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata;
-    var x$2 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata;
+    var x$2 = $n(x6).Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata;
     if (((x === null) ? (x$2 === null) : $n(x).equals__O__Z(x$2))) {
       var x$3 = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema;
-      var x$4 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema;
+      var x$4 = $n(x6).Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema;
       if ((x$3 === null)) {
         var $x_2 = (x$4 === null);
       } else {
@@ -32065,7 +32091,7 @@ $c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.equals__O__Z = (function(x
     }
     if ($x_2) {
       var x$5 = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema;
-      var x$6 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema;
+      var x$6 = $n(x6).Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema;
       if ((x$5 === null)) {
         var $x_1 = (x$6 === null);
       } else {
@@ -32077,7 +32103,7 @@ $c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.equals__O__Z = (function(x
     }
     if ($x_1) {
       var x$7 = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler;
-      var x$8 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler;
+      var x$8 = $n(x6).Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler;
       if ((x$7 === null)) {
         return (x$8 === null);
       } else {

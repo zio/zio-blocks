@@ -5,11 +5,12 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 /**
- * Entry point for registering agent implementations using compile-time autowiring.
+ * Entry point for registering agent implementations using compile-time
+ * autowiring.
  *
- * This object provides macros that automatically generate RPC handlers, WIT types,
- * and metadata from a Scala trait definition. Use [[register]] to bind an implementation
- * to the agent registry.
+ * This object provides macros that automatically generate RPC handlers, WIT
+ * types, and metadata from a Scala trait definition. Use [[register]] to bind
+ * an implementation to the agent registry.
  *
  * ==Basic Usage==
  * {{{
@@ -34,8 +35,10 @@ import scala.reflect.macros.blackbox
  * )(new MyAgentImpl)
  * }}}
  *
- * @see [[AgentDefinition]] for the resulting definition type
- * @see [[AgentMode]] for available agent modes
+ * @see
+ *   [[AgentDefinition]] for the resulting definition type
+ * @see
+ *   [[AgentMode]] for available agent modes
  */
 object AgentImplementation {
   // ---------------------------------------------------------------------------
@@ -64,49 +67,58 @@ object AgentImplementation {
    *   - Input/output schema derivations
    *   - Agent metadata (name, description, method info)
    *
-   * @tparam Trait The agent trait type
-   * @param typeName    Unique name for this agent type
-   * @param constructor An instance of the implementation (evaluated lazily)
-   * @return The registered agent definition
+   * @tparam Trait
+   *   The agent trait type
+   * @param typeName
+   *   Unique name for this agent type
+   * @param constructor
+   *   An instance of the implementation (evaluated lazily)
+   * @return
+   *   The registered agent definition
    */
-  def register[Trait](typeName: String)(build: => Trait): AgentDefinition[Trait] =
-  macro AgentImplementationMacroFacade.registerImpl[Trait]
+  def register[Trait](typeName: String)(build: => Trait): AgentDefinition[Trait] = macro
+    AgentImplementationMacroFacade.registerImpl[Trait]
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait.
    */
-  def register[Trait](build: => Trait): AgentDefinition[Trait] =
-  macro AgentImplementationMacroFacade.registerImplCustomAgentTypeName[Trait]
+  def register[Trait](build: => Trait): AgentDefinition[Trait] = macro
+    AgentImplementationMacroFacade.registerImplCustomAgentTypeName[Trait]
 
   /**
    * Registers an agent implementation using constructor input, as defined by
    * `type AgentInput = ...` on the agent trait.
    *
-   * The agent mode is taken from the trait annotations (e.g. `@mode(DurabilityMode.Durable)`)
-   * or defaults to Durable when not specified.
+   * The agent mode is taken from the trait annotations (e.g.
+   * `@mode(DurabilityMode.Durable)`) or defaults to Durable when not specified.
    */
-  def register[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentDefinition[Trait] =
-  macro AgentImplementationMacroFacade.registerFromAnnotationCtorImpl[Trait, Ctor]
+  def register[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentDefinition[Trait] = macro
+    AgentImplementationMacroFacade.registerFromAnnotationCtorImpl[Trait, Ctor]
 
   /**
    * Registers an agent implementation with a specific mode.
    *
-   * @tparam Trait The agent trait type
-   * @param typeName    Unique name for this agent type
-   * @param mode        The agent mode (Durable or Ephemeral)
-   * @param constructor An instance of the implementation (evaluated lazily)
-   * @return The registered agent definition
+   * @tparam Trait
+   *   The agent trait type
+   * @param typeName
+   *   Unique name for this agent type
+   * @param mode
+   *   The agent mode (Durable or Ephemeral)
+   * @param constructor
+   *   An instance of the implementation (evaluated lazily)
+   * @return
+   *   The registered agent definition
    */
-  def registerWithMode[Trait](typeName: String, mode: AgentMode)(build: => Trait): AgentDefinition[Trait] =
-  macro AgentImplementationMacroFacade.registerWithModeImpl[Trait]
+  def registerWithMode[Trait](typeName: String, mode: AgentMode)(build: => Trait): AgentDefinition[Trait] = macro
+    AgentImplementationMacroFacade.registerWithModeImpl[Trait]
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait, with a mode override.
    */
-  def register[Trait](mode: AgentMode)(build: => Trait): AgentDefinition[Trait] =
-  macro AgentImplementationMacroFacade.registerFromAnnotationWithModeImpl[Trait]
+  def register[Trait](mode: AgentMode)(build: => Trait): AgentDefinition[Trait] = macro
+    AgentImplementationMacroFacade.registerFromAnnotationWithModeImpl[Trait]
 }
 
 object AgentImplementationMacroFacade {
@@ -118,15 +130,14 @@ object AgentImplementationMacroFacade {
       .toLowerCase
   }
 
-  def registerImpl[Trait: c.WeakTypeTag](c: blackbox.Context)
-                                        (typeName: c.Expr[String])
-                                        (build: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
+  def registerImpl[Trait: c.WeakTypeTag](
+    c: blackbox.Context
+  )(typeName: c.Expr[String])(build: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
     import c.universe._
 
     val traitType = weakTypeOf[Trait]
 
-    c.Expr[AgentDefinition[Trait]](
-      q"""
+    c.Expr[AgentDefinition[Trait]](q"""
       {
         val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($build)
         val metadataMode = plan.metadata.mode.flatMap(_root_.cloud.golem.runtime.autowire.AgentMode.fromString)
@@ -136,15 +147,14 @@ object AgentImplementationMacroFacade {
     """)
   }
 
-  def registerWithModeImpl[Trait: c.WeakTypeTag](c: blackbox.Context)
-                                                (typeName: c.Expr[String], mode: c.Expr[AgentMode])
-                                                (build: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
+  def registerWithModeImpl[Trait: c.WeakTypeTag](
+    c: blackbox.Context
+  )(typeName: c.Expr[String], mode: c.Expr[AgentMode])(build: c.Expr[Trait]): c.Expr[AgentDefinition[Trait]] = {
     import c.universe._
 
     val traitType = weakTypeOf[Trait]
 
-    c.Expr[AgentDefinition[Trait]](
-      q"""
+    c.Expr[AgentDefinition[Trait]](q"""
       {
         val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.plan[$traitType]($build)
         val metadataMode = plan.metadata.mode.flatMap(_root_.cloud.golem.runtime.autowire.AgentMode.fromString)
@@ -163,7 +173,7 @@ object AgentImplementationMacroFacade {
     val traitSym  = traitType.typeSymbol
 
     val agentDefinitionType = typeOf[_root_.cloud.golem.runtime.annotations.agentDefinition]
-    val raw = traitSym.annotations.collectFirst {
+    val raw                 = traitSym.annotations.collectFirst {
       case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
         ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
     }.getOrElse("")
@@ -189,7 +199,7 @@ object AgentImplementationMacroFacade {
     val traitSym  = traitType.typeSymbol
 
     val agentDefinitionType = typeOf[_root_.cloud.golem.runtime.annotations.agentDefinition]
-    val raw = traitSym.annotations.collectFirst {
+    val raw                 = traitSym.annotations.collectFirst {
       case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
         ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
     }.getOrElse("")
@@ -215,7 +225,7 @@ object AgentImplementationMacroFacade {
     val traitSym  = traitType.typeSymbol
 
     val agentDefinitionType = typeOf[_root_.cloud.golem.runtime.annotations.agentDefinition]
-    val raw = traitSym.annotations.collectFirst {
+    val raw                 = traitSym.annotations.collectFirst {
       case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
         ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
     }.getOrElse("")
@@ -232,7 +242,9 @@ object AgentImplementationMacroFacade {
     c.Expr[AgentDefinition[Trait]](
       q"""
       {
-        val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.planWithCtor[$traitType, ${weakTypeOf[Ctor]}]($build)
+        val plan = _root_.cloud.golem.runtime.macros.AgentImplementationMacro.planWithCtor[$traitType, ${weakTypeOf[
+          Ctor
+        ]}]($build)
         val metadataMode = plan.metadata.mode.flatMap(_root_.cloud.golem.runtime.autowire.AgentMode.fromString)
         val effectiveMode = metadataMode.getOrElse(_root_.cloud.golem.runtime.autowire.AgentMode.Durable)
         _root_.cloud.golem.runtime.autowire.AgentImplementation.registerWithCtorPlan($typeName, effectiveMode, plan)

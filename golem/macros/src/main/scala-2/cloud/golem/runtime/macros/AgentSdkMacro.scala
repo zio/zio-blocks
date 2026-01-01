@@ -6,8 +6,8 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentSdkMacro {
-  def derived[Trait]: _root_.cloud.golem.sdk.AgentApi[Trait] =
-    macro AgentSdkMacroImpl.derivedImpl[Trait]
+  def derived[Trait]: _root_.cloud.golem.sdk.AgentApi[Trait] = macro
+    AgentSdkMacroImpl.derivedImpl[Trait]
 }
 
 object AgentSdkMacroImpl {
@@ -26,17 +26,17 @@ object AgentSdkMacroImpl {
     }
 
     val agentDefinitionType = typeOf[_root_.cloud.golem.runtime.annotations.agentDefinition]
-    val typeName: String =
-      traitSym.annotations
-        .collectFirst {
-          case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
-            ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
-        }
+    val typeName: String    =
+      traitSym.annotations.collectFirst {
+        case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
+          ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
+      }
         .map(_.trim)
         .filter(_.nonEmpty)
         .getOrElse {
           val hasAnn = traitSym.annotations.exists(a => a.tree.tpe != null && a.tree.tpe =:= agentDefinitionType)
-          if (!hasAnn) c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
+          if (!hasAnn)
+            c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
           defaultTypeNameFromTrait(traitSym)
         }
 
@@ -66,5 +66,3 @@ object AgentSdkMacroImpl {
     )
   }
 }
-
-
