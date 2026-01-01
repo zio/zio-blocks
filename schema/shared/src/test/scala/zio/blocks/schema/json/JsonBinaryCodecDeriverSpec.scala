@@ -1750,7 +1750,17 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
             .deriving(JsonBinaryCodecDeriver)
             .modifier(Record5.bigDecimal, Modifier.rename("bigInt"))
             .derive
+        }.toEither)(isLeft(hasError("Cannot derive codec - duplicated name detected: 'bigInt'"))) &&
+        assert(scala.util.Try {
+          Record5.schema
+            .deriving(JsonBinaryCodecDeriver)
+            .modifier(Record5.bigDecimal, Modifier.alias("bigInt"))
+            .derive
         }.toEither)(isLeft(hasError("Cannot derive codec - duplicated name detected: 'bigInt'")))
+      },
+      test("record with an `AnyVal` field that uses a custom schema") {
+        roundTrip(Counter(PosInt.applyUnsafe(1)), """{"value":1}""") &&
+        decodeError[Counter]("""{"value":-1}""", "Expected positive value at: .value")
       },
       test("record with fields that have default values and custom codecs") {
         val codec1 = Schema[Record6]
@@ -3495,5 +3505,25 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
 
   object Arrays {
     implicit val schema: Schema[Arrays] = Schema.derived
+  }
+
+  case class PosInt private (value: Int) extends AnyVal
+
+  object PosInt {
+    def apply(value: Int): Either[String, PosInt] =
+      if (value >= 0) Right(new PosInt(value))
+      else Left("Expected positive value")
+
+    def applyUnsafe(value: Int): PosInt =
+      if (value >= 0) new PosInt(value)
+      else throw new IllegalArgumentException("Expected positive value")
+
+    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+  }
+
+  case class Counter(value: PosInt)
+
+  object Counter {
+    implicit val schema: Schema[Counter] = Schema.derived[Counter]
   }
 }
