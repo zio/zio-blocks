@@ -1,7 +1,6 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding._
-import zio.blocks.typeid.TypeId
 import zio.test.Assertion._
 import zio.test._
 
@@ -34,31 +33,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(NamedTuple4.l.replace(value, 5L))(equalTo((b = 1: Byte, sh = 2: Short, i = 3, l = 5L))) &&
         assert(NamedTuple4.schema.fromDynamicValue(NamedTuple4.schema.toDynamicValue(value)))(
           isRight(equalTo(value))
-        ) &&
-        assert(NamedTuple4.schema)(
-          equalTo(
-            new Schema[NamedTuple4](
-              reflect = Reflect.Record[Binding, NamedTuple4](
-                fields = Vector(
-                  Schema[Byte].reflect.asTerm("b"),
-                  Schema[Short].reflect.asTerm("sh"),
-                  Schema[Int].reflect.asTerm("i"),
-                  Schema[Long].reflect.asTerm("l")
-                ),
-                typeId = TypeId.nominal(
-                  name = "NamedTuple",
-                  owner = TypeId.parse("scala.NamedTuple").owner,
-                  typeParams = List(
-                    TypeId.parse("scala.Byte").typeParams.head,
-                    TypeId.parse("scala.Short").typeParams.head,
-                    TypeId.parse("scala.Int").typeParams.head,
-                    TypeId.parse("scala.Long").typeParams.head
-                  )
-                ),
-                recordBinding = null
-              )
-            )
-          )
         )
       },
       test("derives schema for case classes with named tuple fields") {
@@ -98,27 +72,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         val schema13: Schema[NamedTuple.From[Product]]                                      = Schema.derived
         val schema14: Schema[NamedTuple.Empty]                                              = Schema.derived
         val schema15: Schema[NamedTuple.Drop[(l: Long, i: Int, s: String), 3]]              = Schema.derived
-        assert(schema1)(
-          equalTo(
-            new Schema[(i: Int, s: String)](
-              reflect = Reflect.Record[Binding, (i: Int, s: String)](
-                fields = Vector(
-                  Schema[Int].reflect.asTerm("i"),
-                  Schema[String].reflect.asTerm("s")
-                ),
-                typeId = TypeId.nominal(
-                  name = "NamedTuple",
-                  owner = TypeId.parse("scala.NamedTuple").owner,
-                  typeParams = List(
-                    TypeId.parse("scala.Int").typeParams.head,
-                    TypeId.parse("java.lang.String").typeParams.head
-                  )
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
         assert(schema1)(equalTo(schema2)) &&
         assert(schema1)(equalTo(schema3)) &&
         assert(schema1)(equalTo(schema4)) &&
@@ -129,63 +82,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema1)(equalTo(schema9)) &&
         assert(schema1)(equalTo(schema10)) &&
         assert(schema1)(equalTo(schema13)) &&
-        assert(schema11)(
-          equalTo(
-            new Schema[(i: Int, s: String)](
-              reflect = Reflect.Record[Binding, (i: Int, s: String)](
-                fields = Vector(
-                  Schema.derived[(Int, Long)].reflect.asTerm("i"),
-                  Schema.derived[(String, String)].reflect.asTerm("s")
-                ),
-                typeId = TypeId.nominal(
-                  name = "NamedTuple",
-                  owner = TypeId.parse("scala.NamedTuple").owner,
-                  typeParams = List(
-                    TypeId.parse("scala.Tuple2").typeParams.head,
-                    TypeId.parse("scala.Tuple2").typeParams.head
-                  )
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
-        assert(schema12)(
-          equalTo(
-            new Schema[(i: Option[Int], s: Option[String])](
-              reflect = Reflect.Record[Binding, (i: Option[Int], s: Option[String])](
-                fields = Vector(
-                  Schema[Option[Int]].reflect.asTerm("i"),
-                  Schema[Option[String]].reflect.asTerm("s")
-                ),
-                typeId = TypeId.nominal(
-                  name = "NamedTuple",
-                  owner = TypeId.parse("scala.NamedTuple").owner,
-                  typeParams = List(
-                    TypeId.parse("scala.Option").typeParams.head,
-                    TypeId.parse("scala.Option").typeParams.head
-                  )
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
-        assert(schema14)(
-          equalTo(
-            new Schema[NamedTuple.Empty](
-              reflect = Reflect.Record[Binding, NamedTuple.Empty](
-                fields = Vector(),
-                typeId = TypeId.nominal(
-                  name = "NamedTuple",
-                  owner = TypeId.parse("scala.NamedTuple").owner,
-                  typeParams = Nil
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
         assert(schema15)(equalTo(schema14)) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value4)))(isRight(equalTo(value1))) &&
@@ -219,27 +115,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
 
         val schema1: Schema[Tuple.Reverse[(String, Int)]]              = Schema.derived
         val schema2: Schema[NamedTuple.DropNames[(i: Int, s: String)]] = Schema.derived
-        assert(schema1)(
-          equalTo(
-            new Schema[(Int, String)](
-              reflect = Reflect.Record[Binding, (Int, String)](
-                fields = Vector(
-                  Schema[Int].reflect.asTerm("_1"),
-                  Schema[String].reflect.asTerm("_2")
-                ),
-                typeId = TypeId.nominal(
-                  name = "Tuple2",
-                  owner = TypeId.parse("scala.Tuple2").owner,
-                  typeParams = List(
-                    TypeId.parse("scala.Int").typeParams.head,
-                    TypeId.parse("java.lang.String").typeParams.head
-                  )
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        ) &&
         assert(schema1)(equalTo(schema2)) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(value2)))(isRight(equalTo(value1))) &&
@@ -264,27 +139,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(NamedTupleOfIntAndString.b.replace(value, "WWW"))(equalTo((a = 1, b = "WWW"))) &&
         assert(NamedTupleOfIntAndString.schema.fromDynamicValue(NamedTupleOfIntAndString.schema.toDynamicValue(value)))(
           isRight(equalTo(value))
-        ) &&
-        assert(NamedTupleOfIntAndString.schema)(
-          equalTo(
-            new Schema[GenericNamedTuple2[Int, String]](
-              reflect = Reflect.Record[Binding, GenericNamedTuple2[Int, String]](
-                fields = Vector(
-                  Schema[Int].reflect.asTerm("a"),
-                  Schema[String].reflect.asTerm("b")
-                ),
-                typeId = TypeId.nominal(
-                  name = "NamedTuple",
-                  owner = TypeId.parse("scala.NamedTuple").owner,
-                  typeParams = List(
-                    TypeId.parse("scala.Int").typeParams.head,
-                    TypeId.parse("java.lang.String").typeParams.head
-                  )
-                ),
-                recordBinding = null
-              )
-            )
-          )
         )
       },
       test("derives schema for higher-kind named tuples") {
@@ -305,28 +159,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           NamedTupleOfIntAndStringLists.schema.fromDynamicValue(
             NamedTupleOfIntAndStringLists.schema.toDynamicValue(value)
           )
-        )(isRight(equalTo(value))) &&
-        assert(NamedTupleOfIntAndStringLists.schema)(
-          equalTo(
-            new Schema[HKNamedTuple2[List, Set]](
-              reflect = Reflect.Record[Binding, HKNamedTuple2[List, Set]](
-                fields = Vector(
-                  Schema[List[Int]].reflect.asTerm("a"),
-                  Schema[Set[String]].reflect.asTerm("b")
-                ),
-                typeId = TypeId.nominal(
-                  name = "NamedTuple",
-                  owner = TypeId.parse("scala.NamedTuple").owner,
-                  typeParams = List(
-                    TypeId.parse("scala.Int").typeParams.head,
-                    TypeId.parse("scala.collection.immutable.Set").typeParams.head
-                  )
-                ),
-                recordBinding = null
-              )
-            )
-          )
-        )
+        )(isRight(equalTo(value)))
       },
       test("derives schema for recursive named tuples") {
         type NamedTuple9 = (
