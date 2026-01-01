@@ -67,7 +67,6 @@ if [[ "$tool" == "mill" ]]; then
 else
   ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
       "$sbt_project/compile" \
-      "$sbt_project/golemEnsureAgentGuestWasm" \
       "$sbt_project/fastLinkJS" )
 
   bundle="$(ls -t $bundle_glob 2>/dev/null | head -n1 || true)"

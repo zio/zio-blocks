@@ -23,7 +23,6 @@ Create `scala/project/plugins.sbt` with the following contents:
 
 ```scala
 addSbtPlugin("org.scala-js" % "sbt-scalajs" % "1.20.1")
-addSbtPlugin("dev.zio" % "zio-golem-sbt-plugin" % "<SDK_VERSION>")
 ```
 
 Create `scala/build.sbt` with the following contents:
@@ -158,7 +157,6 @@ component_dir="$PWD"
 
 ( cd "$repo_root/scala" && sbt -batch -no-colors -Dsbt.supershell=false \
     "compile" \
-    "golemEnsureAgentGuestWasm" \
     "fastLinkJS" )
 
 bundle="$(
@@ -193,7 +191,6 @@ prebuilt guest runtime exists:
 
 ```bash
 cd scala
-sbt -batch -no-colors -Dsbt.supershell=false golemEnsureAgentGuestWasm
 cd ..
 ```
 

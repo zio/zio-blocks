@@ -139,8 +139,7 @@ object Example {
 | `core`   | yes     | Runtime client/server helpers (RPC, host API, transactions, snapshot helpers) |
 | `macros` | yes     | Compile-time derivation (analogous to Rust’s `golem-rust-macro`) |
 | `tools`  | no      | Repo-local JVM helpers/tests (not part of the SDK surface) |
-| `tooling-core`, `sbt-plugin`, `mill-plugin` | no | Repo-local build/deploy plumbing (implementation detail; not user-facing Scala SDK) |
-| `examples`, `host-tests`, `integration-tests` | no | Repo-local verification/harnesses (not user-facing) |
+| `examples` | no | Repo-local verification/harnesses (not user-facing) |
 
 ## Documentation
 

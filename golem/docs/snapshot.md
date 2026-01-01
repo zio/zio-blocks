@@ -137,7 +137,6 @@ The snapshot helper is used throughout the codebase:
 | Module        | Usage                                   |
 |---------------|-----------------------------------------|
 | `examples/js` | Demo agents with configurable snapshots |
-| `host-tests`  | Integration testing                     |
 
 ### Complete Example
 
