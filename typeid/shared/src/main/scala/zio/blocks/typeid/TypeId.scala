@@ -64,6 +64,16 @@ object TypeId extends TypeIdVersionSpecific {
     typeParams: List[TypeParam],
     representation: TypeRepr
   ) extends TypeId[A]
+
+  private final case class AppliedImpl[A](
+    ctor: TypeId[_],
+    args: List[TypeId[_]]
+  ) extends TypeId[A] {
+    def name: String = ctor.name
+    def owner: Owner = ctor.owner
+    def typeParams: List[TypeParam] = ctor.typeParams
+    override def toString: String = s"${ctor.fullName}[${args.mkString(", ")}]"
+  }
   
   // ============================================================================
   // Constructors
@@ -80,6 +90,10 @@ object TypeId extends TypeIdVersionSpecific {
   /** Create a TypeId for an opaque type */
   def opaque[A](name: String, owner: Owner, typeParams: List[TypeParam], representation: TypeRepr): TypeId[A] =
     OpaqueImpl(name, owner, typeParams, representation)
+
+  /** Create a TypeId for an applied type (generic instantiation) */
+  def applied[A](ctor: TypeId[_], args: List[TypeId[_]]): TypeId[A] =
+    AppliedImpl(ctor, args)
   
   // ============================================================================
   // Pattern matching support
@@ -96,6 +110,13 @@ object TypeId extends TypeIdVersionSpecific {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id match {
       case impl: AliasImpl[_] => Some((impl.name, impl.owner, impl.typeParams, impl.aliased))
       case _                  => None
+    }
+  }
+
+  object Applied {
+    def unapply(id: TypeId[_]): Option[(TypeId[_], List[TypeId[_]])] = id match {
+      case impl: AppliedImpl[_] => Some((impl.ctor, impl.args))
+      case _                    => None
     }
   }
   
@@ -166,33 +187,33 @@ object TypeId extends TypeIdVersionSpecific {
   
   /** Create a TypeId for Option[A] from a TypeId[A] */
   def option[A](element: TypeId[A]): TypeId[Option[A]] =
-    nominal("Option", Owner.scala)
+    applied(option, List(element))
   
   /** Create a TypeId for Some[A] from a TypeId[A] */
   def some[A](element: TypeId[A]): TypeId[Some[A]] =
-    nominal("Some", Owner.scala)
+    applied(some, List(element))
   
   /** Create a TypeId for List[A] from a TypeId[A] */
   def list[A](element: TypeId[A]): TypeId[List[A]] =
-    nominal("List", Owner.scalaCollectionImmutable)
+    applied(list, List(element))
   
   /** Create a TypeId for Vector[A] from a TypeId[A] */
   def vector[A](element: TypeId[A]): TypeId[Vector[A]] =
-    nominal("Vector", Owner.scalaCollectionImmutable)
+    applied(vector, List(element))
   
   /** Create a TypeId for Set[A] from a TypeId[A] */
   def set[A](element: TypeId[A]): TypeId[Set[A]] =
-    nominal("Set", Owner.scalaCollectionImmutable)
+    applied(set, List(element))
   
   /** Create a TypeId for IndexedSeq[A] from a TypeId[A] */
   def indexedSeq[A](element: TypeId[A]): TypeId[IndexedSeq[A]] =
-    nominal("IndexedSeq", Owner.scalaCollectionImmutable)
+    applied(indexedSeq, List(element))
   
   /** Create a TypeId for Seq[A] from a TypeId[A] */
   def seq[A](element: TypeId[A]): TypeId[Seq[A]] =
-    nominal("Seq", Owner.scalaCollectionImmutable)
+    applied(seq, List(element))
   
   /** Create a TypeId for Map[K, V] from TypeId[K] and TypeId[V] */
   def map[K, V](key: TypeId[K], value: TypeId[V]): TypeId[Map[K, V]] =
-    nominal("Map", Owner.scalaCollectionImmutable)
+    applied(map, List(key, value))
 }
