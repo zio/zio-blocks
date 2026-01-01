@@ -301,7 +301,7 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
               reflect = Reflect.Record[Binding, Opaque](
                 fields = Vector(
                   Schema[Id].reflect.asTerm("id"),
-                  Schema.derived[Value].reflect.asTerm("value")
+                  Schema[Int].reflect.asTerm("value")
                 ),
                 typeId = TypeName(Namespace.zioBlocksSchema, "Opaque"),
                 recordBinding = null

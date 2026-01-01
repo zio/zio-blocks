@@ -905,16 +905,16 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       sTpe.asType match {
         case '[s] =>
           val schema     = findImplicitOrDeriveSchema[s](sTpe)
-          val typeIdExpr = toExpr(calculateTypeId[T](tpe)).asInstanceOf[Expr[TypeId[s]]]
-          '{ new Schema($schema.reflect.typeId($typeIdExpr)).asInstanceOf[Schema[T]] }
+          val typeIdExpr = toExpr(calculateTypeId[T](tpe))
+          '{ new Schema($schema.reflect.typeId($typeIdExpr.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
       }
     } else if (isZioPreludeNewtype(tpe)) {
       val sTpe = zioPreludeNewtypeDealias(tpe)
       sTpe.asType match {
         case '[s] =>
           val schema     = findImplicitOrDeriveSchema[s](sTpe)
-          val typeIdExpr = toExpr(calculateTypeId[T](tpe)).asInstanceOf[Expr[TypeId[s]]]
-          '{ new Schema($schema.reflect.typeId($typeIdExpr)).asInstanceOf[Schema[T]] }
+          val typeIdExpr = toExpr(calculateTypeId[T](tpe))
+          '{ new Schema($schema.reflect.typeId($typeIdExpr.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
       }
     } else if (isTypeRef(tpe)) {
       val sTpe = typeRefDealias(tpe)
