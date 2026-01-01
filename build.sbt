@@ -37,6 +37,9 @@ lazy val root = project
     schema.jvm,
     schema.js,
     schema.native,
+    typeid.jvm,
+    typeid.js,
+    typeid.native,
     `schema-avro`,
     streams.jvm,
     streams.js,
@@ -48,8 +51,29 @@ lazy val root = project
     docs
   )
 
+lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-typeid"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.typeid"))
+  .enablePlugins(BuildInfoPlugin)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq(
+          "org.scala-lang" % "scala-reflect" % scalaVersion.value
+        )
+      case _ =>
+        Seq()
+    })
+  )
+
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
+  .dependsOn(typeid)
   .settings(stdSettings("zio-blocks-schema"))
   .settings(crossProjectSettings)
   .settings(buildInfoSettings("zio.blocks.schema"))
@@ -133,8 +157,8 @@ lazy val `schema-avro` = project
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Pure)
+  .dependsOn(schema, typeid)
   .settings(stdSettings("zio-blocks-scala-next-tests", Seq("3.7.4")))
-  .dependsOn(schema)
   .settings(crossProjectSettings)
   .settings(
     libraryDependencies ++= Seq(
