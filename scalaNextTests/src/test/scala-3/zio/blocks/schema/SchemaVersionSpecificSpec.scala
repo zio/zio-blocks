@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 import zio.test.Assertion._
 import zio.test._
 
