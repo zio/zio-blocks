@@ -71,14 +71,14 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
           )
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(schema3.reflect.typeId.name)(
         equalTo(
           TypeName.option(
             TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
           )
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(schema4.reflect.typeId.name)(
         equalTo(
           TypeName.option(
             TypeName[EmojiDataId](
@@ -116,16 +116,16 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
           )
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(schema3.reflect.typeId.name)(
         equalTo(
-          TypeName.set(
+          "Set"
             TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
           )
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(schema4.reflect.typeId.name)(
         equalTo(
-          TypeName.map(
+          "Map"
             TypeName[EmojiDataId](
               Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")),
               "EmojiDataId"

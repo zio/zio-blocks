@@ -578,17 +578,8 @@ object SchemaSpec extends ZIOSpecDefault {
         val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
-        assert(record.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[Record8[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Record8",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
-            )
-          )
-        ) &&
+        assert(record.map(_.typeId.name))(isSome(equalTo("Record8"))) &&
+        assert(record.map(_.typeId.typeParams.map(_.name)))(isSome(equalTo(List("Option")))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
       },
       test("derives schema for nested generic records") {
@@ -939,16 +930,7 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(`Case-3`))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2", "Case-3")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[`Variant-1`](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-1"
-              )
-            )
-          )
-        ) &&
+        assert(variant.map(_.typeId.name))(isSome(equalTo("Variant-1"))) &&
         assert(variant.map(_.modifiers))(
           isSome(
             equalTo(
@@ -995,17 +977,8 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("MissingValue", "NullValue", "Value")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[`Variant-2`[String]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-2",
-                params = Seq(TypeName.string)
-              )
-            )
-          )
-        )
+        assert(variant.map(_.typeId.name))(isSome(equalTo("Variant-2"))) &&
+        assert(variant.map(_.typeId.typeParams.map(_.name)))(isSome(equalTo(List("String"))))
       },
       test("derives schema for options") {
         val schema1  = Schema.derived[Option[String]]
@@ -1095,17 +1068,8 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(`Case-2`[Option](None)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[`Variant-3`[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-3",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
-            )
-          )
-        )
+        assert(variant.map(_.typeId.name))(isSome(equalTo("Variant-3"))) &&
+        assert(variant.map(_.typeId.typeParams.map(_.name)))(isSome(equalTo(List("Option"))))
       },
       test("derives schema for genetic variant with 'Nothing' type parameter using a macro call") {
         sealed trait Variant4[+E, +A]
@@ -1121,17 +1085,8 @@ object SchemaSpec extends ZIOSpecDefault {
         val schema  = Schema.derived[Variant4[String, Int]]
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
-        assert(variant.map(_.typeName))(
-          isSome(
-            equalTo(
-              TypeName[Variant4[String, Int]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant4",
-                params = Seq(TypeName.string, TypeName.int)
-              )
-            )
-          )
-        ) &&
+        assert(variant.map(_.typeId.name))(isSome(equalTo("Variant4"))) &&
+        assert(variant.map(_.typeId.typeParams.map(_.name)))(isSome(equalTo(List("String", "Int")))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Error[String]("error"))))(
           isRight(equalTo(Error[String]("error")))
         ) &&

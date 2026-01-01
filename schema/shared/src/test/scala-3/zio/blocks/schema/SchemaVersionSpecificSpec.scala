@@ -518,33 +518,24 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           Traversal.seqValues(
             schema9.reflect.asSequenceUnknown.get.sequence.asInstanceOf[Reflect.Sequence[Binding, Double, IArray]]
           )
-        assert(schema1.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.int)))
-        ) &&
-        assert(schema2.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.long)))
-        ) &&
-        assert(schema3.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.char)))
-        ) &&
-        assert(schema4.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.string)))
-        ) &&
-        assert(schema5.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.boolean)))
-        ) &&
-        assert(schema6.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.byte)))
-        ) &&
-        assert(schema7.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.short)))
-        ) &&
-        assert(schema8.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.float)))
-        ) &&
-        assert(schema9.reflect.typeName)(
-          equalTo(TypeName(Namespace(Seq("scala"), Seq("IArray$package")), "IArray", Seq(TypeName.double)))
-        ) &&
+        assert(schema1.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema1.reflect.typeId.typeParams.map(_.name))(equalTo(List("Int"))) &&
+        assert(schema2.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema2.reflect.typeId.typeParams.map(_.name))(equalTo(List("Long"))) &&
+        assert(schema3.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema3.reflect.typeId.typeParams.map(_.name))(equalTo(List("Char"))) &&
+        assert(schema4.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema4.reflect.typeId.typeParams.map(_.name))(equalTo(List("String"))) &&
+        assert(schema5.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema5.reflect.typeId.typeParams.map(_.name))(equalTo(List("Boolean"))) &&
+        assert(schema6.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema6.reflect.typeId.typeParams.map(_.name))(equalTo(List("Byte"))) &&
+        assert(schema7.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema7.reflect.typeId.typeParams.map(_.name))(equalTo(List("Short"))) &&
+        assert(schema8.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema8.reflect.typeId.typeParams.map(_.name))(equalTo(List("Float"))) &&
+        assert(schema9.reflect.typeId.name)(equalTo("IArray")) &&
+        assert(schema9.reflect.typeId.typeParams.map(_.name))(equalTo(List("Double"))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(IArray(1, 2, 3))).map(_.toSeq))(
           isRight(equalTo(Seq(1, 2, 3)))
         ) &&

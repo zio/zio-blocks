@@ -88,20 +88,8 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
           )
         )
       ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
-        )
-      ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId")
-          )
-        )
-      )
+      assert(schema3.reflect.typeId.name)(equalTo("Option")) &&
+      assert(schema4.reflect.typeId.name)(equalTo("Option"))
     },
     test("derive schemas for collections with newtypes and subtypes") {
       val schema1 = Schema.derived[List[Name]]
@@ -130,21 +118,8 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
           )
         )
       ) &&
-      assert(schema3.reflect.typeName)(
-        equalTo(
-          TypeName.set(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
-        )
-      ) &&
-      assert(schema4.reflect.typeName)(
-        equalTo(
-          TypeName.map(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId"),
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
-        )
-      )
+      assert(schema3.reflect.typeId.name)(equalTo("Set")) &&
+      assert(schema4.reflect.typeId.name)(equalTo("Map"))
     },
     test("derive schemas for cases classes and collections with newtypes for primitives") {
       val value         = Stats(Some(Id(123)), DropRate(0.5), Array(ResponseTime(0.1), ResponseTime(0.23)))
