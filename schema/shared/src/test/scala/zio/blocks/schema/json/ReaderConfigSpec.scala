@@ -11,13 +11,15 @@ object ReaderConfigSpec extends ZIOSpecDefault {
       assert(ReaderConfig.maxBufSize)(equalTo(33554432)) &&
       assert(ReaderConfig.maxCharBufSize)(equalTo(4194304)) &&
       assert(ReaderConfig.preferredBufSize)(equalTo(32768)) &&
-      assert(ReaderConfig.preferredCharBufSize)(equalTo(4096))
+      assert(ReaderConfig.preferredCharBufSize)(equalTo(4096)) &&
+      assert(ReaderConfig.maxMarkNum)(equalTo(512))
     },
     test("allow to set values") {
       assert(ReaderConfig.withMaxBufSize(32768).maxBufSize)(equalTo(32768)) &&
       assert(ReaderConfig.withMaxCharBufSize(4096).maxCharBufSize)(equalTo(4096)) &&
       assert(ReaderConfig.withPreferredBufSize(12).preferredBufSize)(equalTo(12)) &&
-      assert(ReaderConfig.withPreferredCharBufSize(0).preferredCharBufSize)(equalTo(0))
+      assert(ReaderConfig.withPreferredCharBufSize(0).preferredCharBufSize)(equalTo(0)) &&
+      assert(ReaderConfig.withMaxMarkNum(100).maxMarkNum)(equalTo(100))
     },
     test("throw exception in case for unsupported values of params") {
       assert(Try(ReaderConfig.withMaxBufSize(32767)).toEither)(
@@ -43,6 +45,9 @@ object ReaderConfigSpec extends ZIOSpecDefault {
       ) &&
       assert(Try(ReaderConfig.withPreferredCharBufSize(4194305)).toEither)(
         isLeft(hasError("'preferredCharBufSize' should be not greater than 'maxCharBufSize'"))
+      ) &&
+      assert(Try(ReaderConfig.withMaxMarkNum(0)).toEither)(
+        isLeft(hasError("'maxMarkNum' should be not less than 1"))
       )
     }
   )

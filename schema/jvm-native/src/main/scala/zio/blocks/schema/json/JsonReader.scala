@@ -142,13 +142,6 @@ final class JsonReader private[json] (
    */
   def setMark(): Unit = setMark(head)
 
-  private[this] def setMark(pos: Int): Unit = {
-    val i = markNum
-    if (i == marks.length) marks = java.util.Arrays.copyOf(marks, (i | 1) << 1)
-    marks(i) = pos
-    markNum = i + 1
-  }
-
   /**
    * Skips tokens with in the current JSON object until a key with the given
    * name is encountered.
@@ -172,7 +165,7 @@ final class JsonReader private[json] (
    * Rolls back the read head position to the previously set mark.
    *
    * @throws java.lang.IllegalStateException
-   *   in case of calling without preceding call of 'setMark()'
+   *   in case of calling without a preceding call of 'setMark()'
    */
   def rollbackToMark(): Unit = {
     var i = markNum
@@ -186,7 +179,7 @@ final class JsonReader private[json] (
    * Reset mark without changing of the read head position.
    *
    * @throws java.lang.IllegalStateException
-   *   in case of calling without preceding call of 'setMark()'
+   *   in case of calling without a preceding call of 'setMark()'
    */
   def resetMark(): Unit = {
     val i = markNum
@@ -505,10 +498,10 @@ final class JsonReader private[json] (
   }
 
   /**
-   * Reads a JSON key into a `Int` value.
+   * Reads a JSON key into an `Int` value.
    *
    * @return
-   *   a `Int` value of the parsed JSON key
+   *   an `Int` value of the parsed JSON key
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON key
    */
@@ -693,7 +686,7 @@ final class JsonReader private[json] (
   def readShort(): Short = readShort(isToken = true)
 
   /**
-   * Reads a JSON value into a `Int` value.
+   * Reads a JSON value into an `Int` value.
    *
    * @return
    *   an `Int` value of the parsed JSON value
@@ -1235,10 +1228,10 @@ final class JsonReader private[json] (
    * Reads a JSON string value into an `Int` value.
    *
    * @return
-   *   a `Int` value of the parsed JSON value.
+   *   an `Int` value of the parsed JSON value.
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding capacity of `Int`
+   *   exceeding the capacity of `Int`
    */
   def readStringAsInt(): Int = {
     nextTokenOrError('"', head)
@@ -1415,7 +1408,7 @@ final class JsonReader private[json] (
    * @throws JsonReaderException
    *   in cases of reaching the end of input or invalid type of JSON value
    */
-  def readRawValAsBytes(): Array[Byte] = {
+  def readRawValAsBytes(): Array[Byte] = try {
     setMark(head)
     skip()
     val from = marks(markNum - 1)
@@ -1423,7 +1416,7 @@ final class JsonReader private[json] (
     val x    = new Array[Byte](len)
     System.arraycopy(buf, from, x, 0, len)
     x
-  }
+  } finally markNum -= 1
 
   /**
    * Finishes reading the `null` JSON value and returns the provided default
@@ -1935,6 +1928,20 @@ final class JsonReader private[json] (
   private[this] def decodeError(from: Int): Nothing =
     throw new JsonBinaryCodecError(Nil, new String(charBuf, 0, from))
 
+  private[this] def setMark(pos: Int): Unit = {
+    val i = markNum
+    if (i == marks.length) growMarks()
+    marks(i) = pos
+    markNum = i + 1
+  }
+
+  private[this] def growMarks(): Unit = {
+    val len        = marks.length
+    val maxMarkNum = config.maxMarkNum
+    if (len >= maxMarkNum) decodeError("too many marks")
+    marks = java.util.Arrays.copyOf(marks, Math.min((len | 1) << 1, maxMarkNum))
+  }
+
   @tailrec
   private[this] def nextByte(pos: Int): Byte =
     if (pos < tail) {
@@ -2209,7 +2216,7 @@ final class JsonReader private[json] (
       if (zoneId eq null) zoneId = toZoneId(k)
       head = pos
       zoneId
-    } finally resetMark()
+    } finally markNum -= 1
   }
 
   private[this] def appendChar(ch: Char, i: Int): Int = {
@@ -2572,7 +2579,7 @@ final class JsonReader private[json] (
         } else toDouble(m10, e10, pos)
       if (isNeg) x = -x
       x
-    } finally resetMark()
+    } finally markNum -= 1
   }
 
   // Based on the 'Moderate Path' algorithm from the awesome library of Alexander Huszagh: https://github.com/Alexhuszagh/rust-lexical
@@ -2727,7 +2734,7 @@ final class JsonReader private[json] (
         } else toFloat(m10, e10, pos)
       if (isNeg) x = -x
       x
-    } finally resetMark()
+    } finally markNum -= 1
   }
 
   // Based on the 'Moderate Path' algorithm from the awesome library of Alexander Huszagh: https://github.com/Alexhuszagh/rust-lexical
@@ -2854,7 +2861,7 @@ final class JsonReader private[json] (
                 toBigDecimal(buf, from, midPos, s, -mid).add(toBigDecimal(buf, midPos, pos, s, 0)).unscaledValue
               }
             })
-        } finally resetMark()
+        } finally markNum -= 1
       }
     }
   }
@@ -3036,7 +3043,7 @@ final class JsonReader private[json] (
         if (mc.getPrecision < digits) d = d.plus(mc)
         if (Math.abs(d.scale) >= scaleLimit) scaleLimitError()
         new BigDecimal(d, mc)
-      } finally resetMark()
+      } finally markNum -= 1
     }
   }
 
@@ -4086,7 +4093,7 @@ final class JsonReader private[json] (
         if (buf(pos) != '"') tokenError('"')
         head = pos + 1
         ZonedDateTime.ofInstant(localDateTime, zoneOffset, zoneId)
-      } finally resetMark()
+      } finally markNum -= 1
     } else zonedDateTimeError(nanoDigitWeight)
   }
 
