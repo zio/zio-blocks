@@ -77,7 +77,7 @@ object AgentImplementation {
    * `@agentDefinition("...")` on the trait.
    */
   def register[Trait](constructor: => Trait): AgentDefinition[Trait] =
-  macro AgentImplementationMacroFacade.registerFromAnnotationImpl[Trait]
+  macro AgentImplementationMacroFacade.registerImplCustomAgentTypeName[Trait]
 
   /**
    * Registers an agent implementation using constructor input, as defined by
@@ -154,7 +154,7 @@ object AgentImplementationMacroFacade {
     """)
   }
 
-  def registerFromAnnotationImpl[Trait: c.WeakTypeTag](c: blackbox.Context)(
+  def registerImplCustomAgentTypeName[Trait: c.WeakTypeTag](c: blackbox.Context)(
     constructor: c.Expr[Trait]
   ): c.Expr[AgentDefinition[Trait]] = {
     import c.universe._
