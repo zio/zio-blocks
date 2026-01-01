@@ -108,7 +108,8 @@ object BuildHelper {
           "11",
           "-language:existentials",
           "-opt:l:method",
-          "-Ywarn-unused"
+          "-Ywarn-unused",
+          "-Xsource:3"
         )
     }),
     versionScheme := Some("early-semver"),
