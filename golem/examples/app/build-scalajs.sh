@@ -64,13 +64,9 @@ if [[ "$tool" == "mill" ]]; then
     exit 1
   fi
 else
-  rm -f "$repo_root"/golem/examples/js/target/scala-*/resource_managed/main/golem/bridge-spec.properties 2>/dev/null || true
-
   ( cd "$repo_root" && sbt -batch -no-colors -Dsbt.supershell=false \
       "$sbt_project/compile" \
       "$sbt_project/golemEnsureAgentGuestWasm" \
-      "$sbt_project/golemEnsureBridgeSpecManifest" \
-      "$sbt_project/golemGenerateScalaShim" \
       "$sbt_project/fastLinkJS" )
 
   bundle="$(ls -t $sbt_bundle_glob 2>/dev/null | head -n1 || true)"

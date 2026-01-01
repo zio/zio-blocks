@@ -90,18 +90,6 @@ object GolemPlugin extends AutoPlugin {
       )
 
     /**
-     * When `golemExports` is empty, attempt to auto-detect exports from
-     * compiled classes annotated with `@agentDefinition` /
-     * `@agentImplementation`.
-     *
-     * Currently this auto mode supports only "primitive-only" agents
-     * (String/Boolean/numbers, Option[T], List[T]). More complex shapes still
-     * require explicit `golemExports`.
-     */
-    val golemAutoExports =
-      settingKey[Boolean]("Enable auto-detection of exports when golemExports is empty (primitive-only for now).")
-
-    /**
      * Ensures the BridgeSpec manifest exists (generating it from golemExports
      * when configured).
      */
@@ -117,8 +105,7 @@ object GolemPlugin extends AutoPlugin {
     val golemGenerateScalaShim =
       taskKey[Seq[File]]("Generate an internal Scala.js shim from BridgeSpec manifest into managed sources")
 
-    val golemGenerateAgentRegistration =
-      taskKey[Seq[File]]("Generate a Scala.js registration hook that registers annotated agents at runtime")
+    // Intentionally no guest export generation here: the Scala.js SDK exports `guest` from library code.
 
   }
 
@@ -1028,7 +1015,6 @@ object GolemPlugin extends AutoPlugin {
     // Default to a managed target location; when golemExports is set, we auto-generate this file.
     golemBridgeSpecManifestPath   := (Compile / resourceManaged).value / "golem" / "bridge-spec.properties",
     golemExports                  := Nil,
-    golemAutoExports              := true,
     golemEnsureBridgeSpecManifest := Def.taskDyn {
       val log      = streams.value.log
       val exports  = golemExports.value
@@ -1119,86 +1105,12 @@ object GolemPlugin extends AutoPlugin {
       }
 
       if (exports.nonEmpty) Def.task(writeManifestFromExports(exports))
-      else if (!golemAutoExports.value) Def.task(manifest)
-      else
-        Def.task {
-          val classDir = (Compile / classDirectory).value
-          val cp       =
-            (Compile / dependencyClasspath).value.map(_.data) ++ scalaInstance.value.allJars
-
-          autoDetectExportsFromClassfiles(classDir, cp, s => log.info(s)) match {
-            case Left(err) =>
-              sys.error(err)
-            case Right(Vector()) =>
-              // No detected exports; keep returning the configured path. Downstream will prompt user to configure bridge.
-              manifest
-            case Right(detected) =>
-              IO.createDirectory(manifest.getParentFile)
-              val scalaBundleImport = s"./${golemBundleFileName.value}"
-              val sb                = new StringBuilder()
-              sb.append("scalaBundleImport=").append(scalaBundleImport).append("\n")
-              sb.append("scalaAgentsExpr=")
-                .append(scalaAgentsExprForExportTopLevel(golemScalaShimExportTopLevel.value))
-                .append("\n\n")
-
-              detected.zipWithIndex.foreach { case (e, idx) =>
-                val p            = s"agents.$idx."
-                val className    = defaultClassNameFromTrait(e.traitClass)
-                val scalaFactory = defaultScalaFactoryFromTrait(e.traitClass)
-
-                sb.append(p).append("traitClass=").append(e.traitClass).append("\n")
-                sb.append(p).append("implClass=").append(e.implClass).append("\n")
-                sb.append(p).append("agentName=").append(e.agentName).append("\n")
-                sb.append(p).append("className=").append(className).append("\n")
-                sb.append(p).append("scalaFactory=").append(scalaFactory).append("\n")
-                sb.append(p).append("scalaShimImplClass=").append(e.implClass).append("\n")
-
-                e.ctorParams match {
-                  case Vector() =>
-                    sb.append(p).append("constructor.kind=noarg\n")
-                  case Vector((argName, wireType, scalaType)) =>
-                    sb.append(p).append("constructor.kind=scalar\n")
-                    sb.append(p).append("constructor.argName=").append(argName).append("\n")
-                    sb.append(p).append("constructor.type=").append(wireType).append("\n")
-                    sb.append(p).append("constructor.scalaType=").append(scalaType).append("\n")
-                  case params =>
-                    sb.append(p).append("constructor.kind=positional\n")
-                    params.zipWithIndex.foreach { case ((n, t, st), pi) =>
-                      sb.append(p).append(s"constructor.param.$pi.name=").append(n).append("\n")
-                      sb.append(p).append(s"constructor.param.$pi.type=").append(t).append("\n")
-                      sb.append(p).append(s"constructor.param.$pi.scalaType=").append(st).append("\n")
-                    }
-                }
-
-                e.methods.zipWithIndex.foreach { case ((mName, isAsync, wireRet, params), mi) =>
-                  val mp = p + s"method.$mi."
-                  sb.append(mp).append("name=").append(mName).append("\n")
-                  sb.append(mp).append("isAsync=").append(if (isAsync) "true" else "false").append("\n")
-                  sb.append(mp).append("returnType=").append(wireRet).append("\n")
-                  sb.append(mp).append("implMethodName=").append(mName).append("\n")
-                  params.zipWithIndex.foreach { case ((pn, pt, pst), pi) =>
-                    val pp = mp + s"param.$pi."
-                    sb.append(pp).append("name=").append(pn).append("\n")
-                    sb.append(pp).append("type=").append(pt).append("\n")
-                    sb.append(pp).append("scalaType=").append(pst).append("\n")
-                    sb.append(pp).append("implArgExpr=").append("").append("\n")
-                  }
-                }
-
-                sb.append("\n")
-              }
-
-              IO.write(manifest, sb.result())
-              log.info(s"[golem] Wrote BridgeSpec manifest from auto-detected exports at ${manifest.getAbsolutePath}")
-              manifest
-          }
-        }
+      else Def.task(manifest)
     }.value,
     golemScalaShimExportTopLevel := "__golemInternalScalaAgents",
     golemScalaShimObjectName     := "GolemInternalScalaAgents",
     golemScalaShimPackage        := "cloud.golem.internal",
-    Compile / sourceGenerators += golemGenerateScalaShim.taskValue,
-    Compile / sourceGenerators += golemGenerateAgentRegistration.taskValue,
+    // Intentionally do not generate any additional sources by default.
     golemGenerateScalaShim := {
       val log = streams.value.log
       val manifest = golemBridgeSpecManifestPath.value.toPath
@@ -1220,16 +1132,6 @@ object GolemPlugin extends AutoPlugin {
           log.info(s"[golem] Generated Scala shim at ${file.getAbsolutePath}")
           Seq(file)
         }
-      }
-    },
-    golemGenerateAgentRegistration := {
-      val manifest = golemBridgeSpecManifestPath.value
-      if (!manifest.exists()) Nil
-      else {
-        val outDir  = (Compile / sourceManaged).value / "golem" / "internal"
-        val outFile = outDir / "GolemStandaloneGuest.scala"
-        writeStandaloneGuestSourceFromManifest(manifest, outFile)
-        Seq(outFile)
       }
     },
     // No additional wiring helpers are provided by this plugin.

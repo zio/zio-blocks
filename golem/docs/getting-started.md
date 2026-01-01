@@ -159,8 +159,6 @@ component_dir="$PWD"
 ( cd "$repo_root/scala" && sbt -batch -no-colors -Dsbt.supershell=false \
     "compile" \
     "golemEnsureAgentGuestWasm" \
-    "golemEnsureBridgeSpecManifest" \
-    "golemGenerateScalaShim" \
     "fastLinkJS" )
 
 bundle="$(

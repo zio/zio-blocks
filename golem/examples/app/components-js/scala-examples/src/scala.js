@@ -2178,8 +2178,9 @@ function $s_Lcloud_golem_data_GolemSchema$__cloud$golem$data$GolemSchema$$anon$2
 }
 /** @constructor */
 function $c_Lcloud_golem_data_GolemSchema$() {
+  this.Lcloud_golem_data_GolemSchema$__f_unitGolemSchema = null;
   $n_Lcloud_golem_data_GolemSchema$ = this;
-  new $c_Lcloud_golem_data_GolemSchema$$anon$1();
+  this.Lcloud_golem_data_GolemSchema$__f_unitGolemSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$1();
 }
 $c_Lcloud_golem_data_GolemSchema$.prototype = new $h_O();
 $c_Lcloud_golem_data_GolemSchema$.prototype.constructor = $c_Lcloud_golem_data_GolemSchema$;
@@ -2197,1031 +2198,1029 @@ function $m_Lcloud_golem_data_GolemSchema$() {
   }
   return $n_Lcloud_golem_data_GolemSchema$;
 }
+function $sct_Lcloud_golem_examples_RegisterAgents$__stinit__() {
+  $m_Lcloud_golem_examples_RegisterAgents$();
+}
 /** @constructor */
-function $c_Lcloud_golem_internal_GolemInternalScalaAgents$() {
-}
-$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype = new $h_O();
-$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.constructor = $c_Lcloud_golem_internal_GolemInternalScalaAgents$;
-/** @constructor */
-function $h_Lcloud_golem_internal_GolemInternalScalaAgents$() {
-}
-$h_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype = $c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype;
-$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.newWorker__T__I__sjs_js_Dynamic = (function(arg0, arg1) {
-  var impl = new $c_Lcloud_golem_examples_minimal_WorkerImpl(arg0, arg1);
-  var $x_3 = $m_sr_ScalaRunTime$();
-  var _2 = $m_sjs_js_Any$().fromFunction1__F1__sjs_js_Function1(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((arg0$2) => {
-    var arg0$1 = $as_T(arg0$2);
-    return $m_Lcloud_golem_runtime_util_FutureInterop$().toPromise__s_concurrent_Future__sjs_js_Promise($n(impl.reverse__T__s_concurrent_Future(arg0$1)).map__F1__s_concurrent_ExecutionContext__s_concurrent_Future(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((v) => {
-      var v$1 = $as_T(v);
-      return $m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$().encode__O__Lzio_blocks_schema_Schema__sjs_js_Any(v$1, $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
-    })), $m_sjs_concurrent_JSExecutionContext$Implicits$().sjs_concurrent_JSExecutionContext$Implicits$__f_queue));
-  })));
-  var $x_2 = new $c_T2("reverse", _2);
-  var _2$1 = $m_sjs_js_Any$().fromFunction1__F1__sjs_js_Function1(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((arg0$3) => {
-    var $x_1 = $m_Lcloud_golem_runtime_util_FutureInterop$();
-    var this$2 = $n($m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$().decode__sjs_js_Any__Lzio_blocks_schema_Schema__s_util_Either(arg0$3, $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema));
-    if ((!(this$2 instanceof $c_s_util_Right))) {
-      if ((this$2 instanceof $c_s_util_Left)) {
-        var x3 = $as_s_util_Left(this$2);
-        var a = $n(x3).s_util_Left__f_value;
-        var err = $as_T(a);
-        throw new $c_sjs_js_JavaScriptException(err).sjs_js_JavaScriptException__f_exception;
-      }
-      throw new $c_s_MatchError(this$2);
-    }
-    var x2 = $as_s_util_Right(this$2);
-    var b = $n(x2).s_util_Right__f_value;
-    var x = $as_Lcloud_golem_examples_minimal_TypedPayload(b);
-    return $x_1.toPromise__s_concurrent_Future__sjs_js_Promise($n(impl.handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future(x)).map__F1__s_concurrent_ExecutionContext__s_concurrent_Future(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((v$2) => {
-      var v$3 = $as_Lcloud_golem_examples_minimal_TypedReply(v$2);
-      return $m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$().encode__O__Lzio_blocks_schema_Schema__sjs_js_Any(v$3, $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema);
-    })), $m_sjs_concurrent_JSExecutionContext$Implicits$().sjs_concurrent_JSExecutionContext$Implicits$__f_queue));
-  })));
-  var fields = $x_3.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_2, new $c_T2("handle", _2$1)]));
-  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
-});
-$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.newCoordinator__T__sjs_js_Dynamic = (function(arg0) {
-  var impl = new $c_Lcloud_golem_examples_minimal_CoordinatorImpl(arg0);
-  var $x_3 = $m_sr_ScalaRunTime$();
-  var _2 = $m_sjs_js_Any$().fromFunction3__F3__sjs_js_Function3(new $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1(((arg0$2, arg1, arg2) => {
-    var arg0$1 = $as_T(arg0$2);
-    var arg1$1 = $uI(arg1);
-    var $x_1 = $m_Lcloud_golem_runtime_util_FutureInterop$();
-    var this$1 = $n($m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$().decode__sjs_js_Any__Lzio_blocks_schema_Schema__s_util_Either(arg2, $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema));
-    if ((!(this$1 instanceof $c_s_util_Right))) {
-      if ((this$1 instanceof $c_s_util_Left)) {
-        var x3 = $as_s_util_Left(this$1);
-        var a = $n(x3).s_util_Left__f_value;
-        var err = $as_T(a);
-        throw new $c_sjs_js_JavaScriptException(err).sjs_js_JavaScriptException__f_exception;
-      }
-      throw new $c_s_MatchError(this$1);
-    }
-    var x2 = $as_s_util_Right(this$1);
-    var b = $n(x2).s_util_Right__f_value;
-    var x = $as_Lcloud_golem_examples_minimal_TypedPayload(b);
-    return $x_1.toPromise__s_concurrent_Future__sjs_js_Promise($n(impl.routeTyped__T__I__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future(arg0$1, arg1$1, x)).map__F1__s_concurrent_ExecutionContext__s_concurrent_Future(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((v) => {
-      var v$1 = $as_Lcloud_golem_examples_minimal_TypedReply(v);
-      return $m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$().encode__O__Lzio_blocks_schema_Schema__sjs_js_Any(v$1, $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema);
-    })), $m_sjs_concurrent_JSExecutionContext$Implicits$().sjs_concurrent_JSExecutionContext$Implicits$__f_queue));
-  })));
-  var $x_2 = new $c_T2("routeTyped", _2);
-  var _2$1 = $m_sjs_js_Any$().fromFunction3__F3__sjs_js_Function3(new $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1(((arg0$3, arg1$2, arg2$2) => {
-    var arg0$4 = $as_T(arg0$3);
-    var arg1$3 = $uI(arg1$2);
-    var arg2$1 = $as_T(arg2$2);
-    return $m_Lcloud_golem_runtime_util_FutureInterop$().toPromise__s_concurrent_Future__sjs_js_Promise($n(impl.route__T__I__T__s_concurrent_Future(arg0$4, arg1$3, arg2$1)).map__F1__s_concurrent_ExecutionContext__s_concurrent_Future(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((v$2) => {
-      var v$3 = $as_T(v$2);
-      return $m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$().encode__O__Lzio_blocks_schema_Schema__sjs_js_Any(v$3, $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
-    })), $m_sjs_concurrent_JSExecutionContext$Implicits$().sjs_concurrent_JSExecutionContext$Implicits$__f_queue));
-  })));
-  var fields = $x_3.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_2, new $c_T2("route", _2$1)]));
-  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
-});
-$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.newCoordinator = (function(arg) {
-  var prep0 = $as_T(arg);
-  return this.newCoordinator__T__sjs_js_Dynamic(prep0);
-});
-$c_Lcloud_golem_internal_GolemInternalScalaAgents$.prototype.newWorker = (function(arg, arg$2) {
-  var prep0 = $as_T(arg);
-  var prep1 = $uI(arg$2);
-  return this.newWorker__T__I__sjs_js_Dynamic(prep0, prep1);
-});
-var $d_Lcloud_golem_internal_GolemInternalScalaAgents$ = new $TypeData().initClass($c_Lcloud_golem_internal_GolemInternalScalaAgents$, "cloud.golem.internal.GolemInternalScalaAgents$", ({
-  Lcloud_golem_internal_GolemInternalScalaAgents$: 1
-}));
-var $n_Lcloud_golem_internal_GolemInternalScalaAgents$;
-function $m_Lcloud_golem_internal_GolemInternalScalaAgents$() {
-  if ((!$n_Lcloud_golem_internal_GolemInternalScalaAgents$)) {
-    $n_Lcloud_golem_internal_GolemInternalScalaAgents$ = new $c_Lcloud_golem_internal_GolemInternalScalaAgents$();
-  }
-  return $n_Lcloud_golem_internal_GolemInternalScalaAgents$;
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz) {
-  if ((!$thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered)) {
-    $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered = true;
-    var description$2 = new $c_s_Some("A minimal worker agent used for in-Golem agent-to-agent calling examples.");
-    var mode$2 = $m_s_None$();
-    var description = $m_s_None$();
-    var prompt = $m_s_None$();
-    var mode = $m_s_None$();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var input = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var output = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var $x_1 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description, prompt, mode, input, output);
-    var description$1 = $m_s_None$();
-    var prompt$1 = $m_s_None$();
-    var mode$1 = $m_s_None$();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$2 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-    var input$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$3 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var output$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$3).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$1, prompt$1, mode$1, input$1, output$1), $m_sci_Nil$()));
-    $m_Lcloud_golem_data_GolemSchema$();
-    var evidence$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var evidence$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-    var constructor = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1, evidence$2).Lcloud_golem_data_GolemSchema$$anon$2__f_schema;
-    var metadata = new $c_Lcloud_golem_runtime_AgentMetadata("worker", description$2, mode$2, methods, constructor);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var evidence$1$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var evidence$2$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-    var constructorSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$1, evidence$2$1);
-    var buildInstance = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$2) => {
-      var input$3 = $as_T2(input$2);
-      return new $c_Lcloud_golem_examples_minimal_WorkerImpl($as_T($n(input$3)._1__O()), $uI($n(input$3)._2__O()));
-    }));
-    var description$3 = $m_s_None$();
-    var prompt$2 = $m_s_None$();
-    var mode$3 = $m_s_None$();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var input$4 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$4).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var output$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$5).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var $x_3 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$3, prompt$2, mode$3, input$4, output$2);
-    var description$4 = $m_s_None$();
-    var prompt$3 = $m_s_None$();
-    var mode$4 = $m_s_None$();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$6 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-    var input$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$6).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$7 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var output$3 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$7).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var ev$1 = new $c_sci_$colon$colon($x_3, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$4, prompt$3, mode$4, input$5, output$3), $m_sci_Nil$()));
-    $m_Lcloud_golem_data_GolemSchema$();
-    var evidence$1$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var evidence$2$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-    new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$2, evidence$2$2);
-    _return: {
-      var these = ev$1;
-      while ((!$n(these).isEmpty__Z())) {
-        var x0 = $n(these).head__O();
-        var _$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0);
-        if (($n(_$2).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse")) {
-          var this$18 = new $c_s_Some($n(these).head__O());
-          break _return;
-        }
-        these = $as_sci_List($n(these).tail__O());
-      }
-      var this$18 = $m_s_None$();
-    }
-    if (this$18.isEmpty__Z()) {
-      throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for reverse");
-    }
-    var metadataEntry = $as_Lcloud_golem_runtime_MethodMetadata(this$18.get__O());
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$8 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var inputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$8);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$9 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var outputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$9);
-    var handler = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance, input$2$1) => {
-      var instance$1 = $as_Lcloud_golem_examples_minimal_Worker(instance);
-      var input$6 = $as_T(input$2$1);
-      return $n(instance$1).reverse__T__s_concurrent_Future(input$6);
-    }));
-    var $x_4 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry, inputSchema, outputSchema, handler);
-    var description$5 = $m_s_None$();
-    var prompt$4 = $m_s_None$();
-    var mode$5 = $m_s_None$();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$10 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var input$7 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$10).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$11 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var output$4 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$11).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var $x_2 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$5, prompt$4, mode$5, input$7, output$4);
-    var description$6 = $m_s_None$();
-    var prompt$5 = $m_s_None$();
-    var mode$6 = $m_s_None$();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$12 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-    var input$8 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$12).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$13 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var output$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$13).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var ev$2 = new $c_sci_$colon$colon($x_2, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$6, prompt$5, mode$6, input$8, output$5), $m_sci_Nil$()));
-    $m_Lcloud_golem_data_GolemSchema$();
-    var evidence$1$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var evidence$2$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-    new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$3, evidence$2$3);
-    _return$1: {
-      var these$1 = ev$2;
-      while ((!$n(these$1).isEmpty__Z())) {
-        var x0$1 = $n(these$1).head__O();
-        var _$2$1 = $as_Lcloud_golem_runtime_MethodMetadata(x0$1);
-        if (($n(_$2$1).Lcloud_golem_runtime_MethodMetadata__f_name === "handle")) {
-          var this$29 = new $c_s_Some($n(these$1).head__O());
-          break _return$1;
-        }
-        these$1 = $as_sci_List($n(these$1).tail__O());
-      }
-      var this$29 = $m_s_None$();
-    }
-    if (this$29.isEmpty__Z()) {
-      throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for handle");
-    }
-    var metadataEntry$2 = $as_Lcloud_golem_runtime_MethodMetadata(this$29.get__O());
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$14 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-    var inputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$14);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$15 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var outputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$15);
-    var handler$1 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$2, input$3$1) => {
-      var instance$3 = $as_Lcloud_golem_examples_minimal_Worker(instance$2);
-      var input$9 = $as_Lcloud_golem_examples_minimal_TypedPayload(input$3$1);
-      return $n(instance$3).handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future(input$9);
-    }));
-    var methods$1 = new $c_sci_$colon$colon($x_4, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$2, inputSchema$1, outputSchema$1, handler$1), $m_sci_Nil$()));
-    var plan = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata, constructorSchema, buildInstance, methods$1);
-    var this$34 = $n($n(plan.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
-    if (this$34.isEmpty__Z()) {
-      var metadataMode = $m_s_None$();
-    } else {
-      var x0$2 = this$34.get__O();
-      var value = $as_T(x0$2);
-      var metadataMode = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value);
-    }
-    var this$35 = $n(metadataMode);
-    var effective = $as_Lcloud_golem_runtime_autowire_AgentMode((this$35.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$35.get__O()));
-    $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("worker", effective, plan);
-    var description$9 = new $c_s_Some("A minimal coordinator agent that calls Worker via agent RPC inside Golem.");
-    var mode$9 = new $c_s_Some("ephemeral");
-    var description$7 = $m_s_None$();
-    var prompt$6 = $m_s_None$();
-    var mode$7 = $m_s_None$();
-    matchResult1: {
-      var schema;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$16 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$16).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x1 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x8 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x1);
-        var this$41 = $n(x8);
-        var x10 = this$41.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x10).length__I() === 1)) {
-          var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x10).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult1;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x2 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x1);
-        $n(x2)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x1);
-    }
-    var $x_8 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema);
-    matchResult2: {
-      var schema$1;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$17 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-      var x11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$17).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x11 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x18 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x11);
-        var this$46 = $n(x18);
-        var x20 = this$46.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x20).length__I() === 1)) {
-          var schema$1 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x20).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult2;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x12 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x11);
-        $n(x12)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x11);
-    }
-    var $x_7 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$1);
-    matchResult3: {
-      var schema$2;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$18 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-      var x21 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$18).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x21 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x28 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x21);
-        var this$51 = $n(x28);
-        var x30 = this$51.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x30).length__I() === 1)) {
-          var schema$2 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x30).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult3;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x22 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x21);
-        $n(x22)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x21);
-    }
-    var elements = new $c_sci_$colon$colon($x_8, new $c_sci_$colon$colon($x_7, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("payload", schema$2), $m_sci_Nil$())));
-    var input$10 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$19 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var output$6 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$19).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var $x_9 = new $c_Lcloud_golem_runtime_MethodMetadata("routeTyped", description$7, prompt$6, mode$7, input$10, output$6);
-    var description$8 = $m_s_None$();
-    var prompt$7 = $m_s_None$();
-    var mode$8 = $m_s_None$();
-    matchResult4: {
-      var schema$3;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$20 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x31 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$20).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x31 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x38 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x31);
-        var this$59 = $n(x38);
-        var x40 = this$59.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x40).length__I() === 1)) {
-          var schema$3 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x40).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult4;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x32 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x31);
-        $n(x32)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x31);
-    }
-    var $x_6 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$3);
-    matchResult5: {
-      var schema$4;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$21 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-      var x41 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$21).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x41 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x48 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x41);
-        var this$64 = $n(x48);
-        var x50 = this$64.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x50).length__I() === 1)) {
-          var schema$4 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x50).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult5;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x42 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x41);
-        $n(x42)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x41);
-    }
-    var $x_5 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$4);
-    matchResult6: {
-      var schema$5;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$22 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x51 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$22).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x51 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x58 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x51);
-        var this$69 = $n(x58);
-        var x60 = this$69.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x60).length__I() === 1)) {
-          var schema$5 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x60).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult6;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x52 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x51);
-        $n(x52)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x51);
-    }
-    var elements$1 = new $c_sci_$colon$colon($x_6, new $c_sci_$colon$colon($x_5, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("input", schema$5), $m_sci_Nil$())));
-    var input$11 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$1);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$23 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var output$7 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$23).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var methods$2 = new $c_sci_$colon$colon($x_9, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("route", description$8, prompt$7, mode$8, input$11, output$7), $m_sci_Nil$()));
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$24 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var constructor$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$24).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var metadata$2 = new $c_Lcloud_golem_runtime_AgentMetadata("coordinator", description$9, mode$9, methods$2, constructor$1);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$25 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var constructorSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$25);
-    var buildInstance$1 = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$4$1) => {
-      var input$12 = $as_T(input$4$1);
-      return new $c_Lcloud_golem_examples_minimal_CoordinatorImpl(input$12);
-    }));
-    var description$10 = $m_s_None$();
-    var prompt$8 = $m_s_None$();
-    var mode$10 = $m_s_None$();
-    matchResult7: {
-      var schema$6;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$26 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x61 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$26).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x61 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x68 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x61);
-        var this$80 = $n(x68);
-        var x70 = this$80.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x70).length__I() === 1)) {
-          var schema$6 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x70).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult7;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x62 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x61);
-        $n(x62)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x61);
-    }
-    var $x_21 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$6);
-    matchResult8: {
-      var schema$7;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$27 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-      var x71 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$27).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x71 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x78 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x71);
-        var this$85 = $n(x78);
-        var x80 = this$85.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x80).length__I() === 1)) {
-          var schema$7 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x80).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult8;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x72 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x71);
-        $n(x72)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x71);
-    }
-    var $x_20 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$7);
-    matchResult9: {
-      var schema$8;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$28 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-      var x81 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$28).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x81 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x88 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x81);
-        var this$90 = $n(x88);
-        var x90 = this$90.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x90).length__I() === 1)) {
-          var schema$8 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x90).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult9;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x82 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x81);
-        $n(x82)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x81);
-    }
-    var elements$2 = new $c_sci_$colon$colon($x_21, new $c_sci_$colon$colon($x_20, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("payload", schema$8), $m_sci_Nil$())));
-    var input$13 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$2);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$29 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var output$8 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$29).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var $x_22 = new $c_Lcloud_golem_runtime_MethodMetadata("routeTyped", description$10, prompt$8, mode$10, input$13, output$8);
-    var description$11 = $m_s_None$();
-    var prompt$9 = $m_s_None$();
-    var mode$11 = $m_s_None$();
-    matchResult10: {
-      var schema$9;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$30 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x91 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$30).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x91 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x98 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x91);
-        var this$98 = $n(x98);
-        var x100 = this$98.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x100).length__I() === 1)) {
-          var schema$9 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x100).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult10;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x92 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x91);
-        $n(x92)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x91);
-    }
-    var $x_19 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$9);
-    matchResult11: {
-      var schema$10;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$31 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-      var x101 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$31).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x101 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x108 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x101);
-        var this$103 = $n(x108);
-        var x110 = this$103.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x110).length__I() === 1)) {
-          var schema$10 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x110).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult11;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x102 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x101);
-        $n(x102)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x101);
-    }
-    var $x_18 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$10);
-    matchResult12: {
-      var schema$11;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$32 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x111 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$32).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x111 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x118 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x111);
-        var this$108 = $n(x118);
-        var x120 = this$108.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x120).length__I() === 1)) {
-          var schema$11 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x120).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult12;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x112 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x111);
-        $n(x112)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x111);
-    }
-    var elements$3 = new $c_sci_$colon$colon($x_19, new $c_sci_$colon$colon($x_18, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("input", schema$11), $m_sci_Nil$())));
-    var input$14 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$3);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$33 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var output$9 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$33).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var ev$3 = new $c_sci_$colon$colon($x_22, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("route", description$11, prompt$9, mode$11, input$14, output$9), $m_sci_Nil$()));
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$34 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$34);
-    _return$2: {
-      var these$2 = ev$3;
-      while ((!$n(these$2).isEmpty__Z())) {
-        var x0$3 = $n(these$2).head__O();
-        var _$2$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0$3);
-        if (($n(_$2$2).Lcloud_golem_runtime_MethodMetadata__f_name === "routeTyped")) {
-          var this$115 = new $c_s_Some($n(these$2).head__O());
-          break _return$2;
-        }
-        these$2 = $as_sci_List($n(these$2).tail__O());
-      }
-      var this$115 = $m_s_None$();
-    }
-    if (this$115.isEmpty__Z()) {
-      throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for routeTyped");
-    }
-    var metadataEntry$3 = $as_Lcloud_golem_runtime_MethodMetadata(this$115.get__O());
-    var inputSchema$2 = new $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$35 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var outputSchema$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$35);
-    var handler$2 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$3$1, input$5$1) => {
-      var instance$4 = $as_Lcloud_golem_examples_minimal_Coordinator(instance$3$1);
-      var input$15 = $as_sci_List(input$5$1);
-      if (($n(input$15).length__I() !== 3)) {
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'routeTyped'. Expected 3.");
-      }
-      var $x_25 = $n(instance$4);
-      var this$117 = $n(input$15);
-      var $x_24 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$117, 0));
-      var this$118 = $n(input$15);
-      var $x_23 = $uI($f_sc_LinearSeqOps__apply__I__O(this$118, 1));
-      var this$119 = $n(input$15);
-      return $x_25.routeTyped__T__I__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future($x_24, $x_23, $as_Lcloud_golem_examples_minimal_TypedPayload($f_sc_LinearSeqOps__apply__I__O(this$119, 2)));
-    }));
-    var $x_26 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$3, inputSchema$2, outputSchema$2, handler$2);
-    var description$12 = $m_s_None$();
-    var prompt$10 = $m_s_None$();
-    var mode$12 = $m_s_None$();
-    matchResult21: {
-      var schema$12;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$36 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x160 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$36).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x160 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x167 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x160);
-        var this$123 = $n(x167);
-        var x169 = this$123.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x169).length__I() === 1)) {
-          var schema$12 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x169).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult21;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x161 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x160);
-        $n(x161)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x160);
-    }
-    var $x_13 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$12);
-    matchResult22: {
-      var schema$13;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$37 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-      var x170 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$37).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x170 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x177 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x170);
-        var this$128 = $n(x177);
-        var x179 = this$128.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x179).length__I() === 1)) {
-          var schema$13 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x179).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult22;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x171 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x170);
-        $n(x171)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x170);
-    }
-    var $x_12 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$13);
-    matchResult23: {
-      var schema$14;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$38 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-      var x180 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$38).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x180 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x187 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x180);
-        var this$133 = $n(x187);
-        var x189 = this$133.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x189).length__I() === 1)) {
-          var schema$14 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x189).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult23;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x181 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x180);
-        $n(x181)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x180);
-    }
-    var elements$4 = new $c_sci_$colon$colon($x_13, new $c_sci_$colon$colon($x_12, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("payload", schema$14), $m_sci_Nil$())));
-    var input$16 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$4);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$39 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
-    var output$10 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$39).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var $x_14 = new $c_Lcloud_golem_runtime_MethodMetadata("routeTyped", description$12, prompt$10, mode$12, input$16, output$10);
-    var description$13 = $m_s_None$();
-    var prompt$11 = $m_s_None$();
-    var mode$13 = $m_s_None$();
-    matchResult24: {
-      var schema$15;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$40 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x190 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$40).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x190 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x197 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x190);
-        var this$141 = $n(x197);
-        var x199 = this$141.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x199).length__I() === 1)) {
-          var schema$15 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x199).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult24;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x191 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x190);
-        $n(x191)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x190);
-    }
-    var $x_11 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$15);
-    matchResult25: {
-      var schema$16;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$41 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-      var x200 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$41).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x200 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x207 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x200);
-        var this$146 = $n(x207);
-        var x209 = this$146.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x209).length__I() === 1)) {
-          var schema$16 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x209).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult25;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x201 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x200);
-        $n(x201)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x200);
-    }
-    var $x_10 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$16);
-    matchResult26: {
-      var schema$17;
-      $m_Lcloud_golem_data_GolemSchema$();
-      var baseSchema$42 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-      var x210 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$42).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-      if ((x210 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x217 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x210);
-        var this$151 = $n(x217);
-        var x219 = this$151.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x219).length__I() === 1)) {
-          var schema$17 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x219).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          break matchResult26;
-        }
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input expands to multiple elements; wrap it in a case class");
-      }
-      if (false) {
-        var x211 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x210);
-        $n(x211)._1__sci_List();
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input is multimodal; use a dedicated multimodal wrapper");
-      }
-      throw new $c_s_MatchError(x210);
-    }
-    var elements$5 = new $c_sci_$colon$colon($x_11, new $c_sci_$colon$colon($x_10, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("input", schema$17), $m_sci_Nil$())));
-    var input$17 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$5);
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$43 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var output$11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$43).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
-    var ev$4 = new $c_sci_$colon$colon($x_14, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("route", description$13, prompt$11, mode$13, input$17, output$11), $m_sci_Nil$()));
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$44 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$44);
-    _return$3: {
-      var these$3 = ev$4;
-      while ((!$n(these$3).isEmpty__Z())) {
-        var x0$4 = $n(these$3).head__O();
-        var _$2$3 = $as_Lcloud_golem_runtime_MethodMetadata(x0$4);
-        if (($n(_$2$3).Lcloud_golem_runtime_MethodMetadata__f_name === "route")) {
-          var this$158 = new $c_s_Some($n(these$3).head__O());
-          break _return$3;
-        }
-        these$3 = $as_sci_List($n(these$3).tail__O());
-      }
-      var this$158 = $m_s_None$();
-    }
-    if (this$158.isEmpty__Z()) {
-      throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for route");
-    }
-    var metadataEntry$4 = $as_Lcloud_golem_runtime_MethodMetadata(this$158.get__O());
-    var inputSchema$3 = new $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2();
-    $m_Lcloud_golem_data_GolemSchema$();
-    var baseSchema$45 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-    var outputSchema$3 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$45);
-    var handler$3 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$4$1, input$6$1) => {
-      var instance$5 = $as_Lcloud_golem_examples_minimal_Coordinator(instance$4$1);
-      var input$18 = $as_sci_List(input$6$1);
-      if (($n(input$18).length__I() !== 3)) {
-        throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'route'. Expected 3.");
-      }
-      var $x_17 = $n(instance$5);
-      var this$160 = $n(input$18);
-      var $x_16 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$160, 0));
-      var this$161 = $n(input$18);
-      var $x_15 = $uI($f_sc_LinearSeqOps__apply__I__O(this$161, 1));
-      var this$162 = $n(input$18);
-      return $x_17.route__T__I__T__s_concurrent_Future($x_16, $x_15, $as_T($f_sc_LinearSeqOps__apply__I__O(this$162, 2)));
-    }));
-    var methods$3 = new $c_sci_$colon$colon($x_26, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$4, inputSchema$3, outputSchema$3, handler$3), $m_sci_Nil$()));
-    var plan$2 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata$2, constructorSchema$1, buildInstance$1, methods$3);
-    var this$165 = $n($n(plan$2.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
-    if (this$165.isEmpty__Z()) {
-      var metadataMode$2 = $m_s_None$();
-    } else {
-      var x0$5 = this$165.get__O();
-      var value$1 = $as_T(x0$5);
-      var metadataMode$2 = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value$1);
-    }
-    var this$166 = $n(metadataMode$2);
-    var effective$2 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$166.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$166.get__O()));
-    $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("coordinator", effective$2, plan$2);
-  }
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, tag, message) {
-  var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", tag), new $c_T2("val", message)]));
-  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, message) {
-  matchResult38: {
-    var witValue;
-    var x263 = $m_Lcloud_golem_runtime_autowire_WitValueBuilder$().build__Lcloud_golem_data_DataType__Lcloud_golem_data_DataValue__s_util_Either($m_Lcloud_golem_data_DataType$StringType$(), new $c_Lcloud_golem_data_DataValue$StringValue(message));
-    if ((x263 instanceof $c_s_util_Left)) {
-      $as_s_util_Left(x263);
-      var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "string"), new $c_T2("val", message)]));
-      var witValue = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
-      break matchResult38;
-    }
-    if ((x263 instanceof $c_s_util_Right)) {
-      var x264 = $as_s_util_Right(x263);
-      var vit = $n(x264).s_util_Right__f_value;
-      var witValue = vit;
-      break matchResult38;
-    }
-    throw new $c_s_MatchError(x263);
-  }
-  var $x_3 = $m_sr_ScalaRunTime$();
-  var $x_2 = new $c_T2("name", (void 0));
-  var $x_1 = new $c_T2("owner", (void 0));
-  var fields$1 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "prim-string-type")]));
-  var y = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$1);
-  var fields$2 = $x_3.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("type", y)]));
-  var node = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$2);
-  var $x_4 = $m_sr_ScalaRunTime$();
-  var y$1 = [node];
-  var fields$3 = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("nodes", y$1)]));
-  var witType = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$3);
-  var $x_6 = $m_sr_ScalaRunTime$();
-  var $x_5 = new $c_T2("tag", "custom-error");
-  var fields$4 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("value", witValue), new $c_T2("typ", witType)]));
-  var y$2 = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$4);
-  var fields$5 = $x_6.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_5, new $c_T2("val", y$2)]));
-  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$5);
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($thiz, err, fallbackTag) {
-  if ((err === null)) {
-    return $p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, "null");
-  } else {
-    try {
-      var v = err.tag;
-      if ((!(v === (void 0)))) {
-        var v$1 = err.val;
-        var hasTagVal = (!(v$1 === (void 0)));
-      } else {
-        var hasTagVal = false;
-      }
-    } catch (e) {
-      var hasTagVal = false;
-    }
-    if (hasTagVal) {
-      return err;
-    } else if (((typeof err) === "string")) {
-      var x269 = $as_T(err);
-      return $p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, fallbackTag, x269);
-    } else {
-      return $p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, ("" + err));
-    }
-  }
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__normalizeMethodName__T__T($thiz, methodName) {
-  var this$1 = $n(methodName);
-  if (($uI(this$1.indexOf(".{")) !== (-1))) {
-    var this$2 = $n(methodName);
-    var $x_1 = $uZ(this$2.endsWith("}"));
-  } else {
-    var $x_1 = false;
-  }
-  if ($x_1) {
-    var this$3 = $n(methodName);
-    var start = ((2 + $uI(this$3.indexOf(".{"))) | 0);
-    var this$5 = $n(methodName);
-    var this$4 = $n(methodName);
-    var endIndex = (((-1) + this$4.length) | 0);
-    if ((start < 0)) {
-      $charAt(this$5, start);
-    }
-    if ((endIndex > this$5.length)) {
-      $charAt(this$5, endIndex);
-    }
-    if ((endIndex < start)) {
-      $charAt(this$5, (-1));
-    }
-    return $as_T(this$5.substring(start, endIndex));
-  } else {
-    return methodName;
-  }
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise($thiz, agentTypeName, input) {
-  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
-  var v = $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved;
-  if ((!(v === (void 0)))) {
-    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__customError__T__sjs_js_Dynamic($thiz, "Agent is already initialized in this container"));
-  } else {
-    var x270 = $m_Lcloud_golem_runtime_autowire_AgentRegistry$().get__T__s_Option(agentTypeName);
-    var x = $m_s_None$();
-    if ((x === x270)) {
-      var $x_1 = Promise;
-      var message = (("Invalid agent '" + agentTypeName) + "'");
-      return $x_1.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-type", message));
-    }
-    if ((x270 instanceof $c_s_Some)) {
-      var x271 = $as_s_Some(x270);
-      var defnAny = $as_Lcloud_golem_runtime_autowire_AgentDefinition($n(x271).s_Some__f_value);
-      var this$2 = $n(defnAny);
-      return $n(this$2.Lcloud_golem_runtime_autowire_AgentDefinition__f_constructor).initialize__sjs_js_Dynamic__sjs_js_Promise(input).then(((inst) => {
-        $m_Lcloud_golem_internal_GolemStandaloneGuest$().Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved = new $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(defnAny, inst);
-      }), ((err) => Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_internal_GolemStandaloneGuest$(), err, "invalid-input"))));
-    }
-    throw new $c_s_MatchError(x270);
-  }
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise($thiz, methodName, input) {
-  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
-  var v = $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved;
-  if ((v === (void 0))) {
-    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
-  } else {
-    var r = $as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved($thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved);
-    var mn = $p_Lcloud_golem_internal_GolemStandaloneGuest$__normalizeMethodName__T__T($thiz, methodName);
-    var this$2 = $n($n(r).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn);
-    var instance = $n(r).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
-    return this$2.invoke__O__T__sjs_js_Dynamic__sjs_js_Promise(instance, mn, input).catch(((err) => Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_internal_GolemStandaloneGuest$(), err, "invalid-method"))));
-  }
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__getDefinition__sjs_js_Promise($thiz) {
-  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
-  var v = $thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved;
-  if ((v === (void 0))) {
-    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
-  } else {
-    return Promise.resolve($n($n($as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved($thiz.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved)).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn).agentType__sjs_js_Dynamic());
-  }
-}
-function $p_Lcloud_golem_internal_GolemStandaloneGuest$__discoverAgentTypes__sjs_js_Promise($thiz) {
-  $p_Lcloud_golem_internal_GolemStandaloneGuest$__ensureRegistered__V($thiz);
-  try {
-    var arr = [];
-    var this$1 = $n($m_Lcloud_golem_runtime_autowire_AgentRegistry$().all__sci_List());
-    var these = this$1;
+function $c_Lcloud_golem_examples_RegisterAgents$() {
+  $n_Lcloud_golem_examples_RegisterAgents$ = this;
+  var description$2 = new $c_s_Some("A minimal worker agent used for in-Golem agent-to-agent calling examples.");
+  var mode$2 = $m_s_None$();
+  var description = $m_s_None$();
+  var prompt = $m_s_None$();
+  var mode = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var input = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var output = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var $x_1 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description, prompt, mode, input, output);
+  var description$1 = $m_s_None$();
+  var prompt$1 = $m_s_None$();
+  var mode$1 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$2 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var input$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$3 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var output$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$3).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var methods = new $c_sci_$colon$colon($x_1, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$1, prompt$1, mode$1, input$1, output$1), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  var constructor = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1, evidence$2).Lcloud_golem_data_GolemSchema$$anon$2__f_schema;
+  var metadata = new $c_Lcloud_golem_runtime_AgentMetadata("worker", description$2, mode$2, methods, constructor);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  var constructorSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$1, evidence$2$1);
+  var buildInstance = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$2) => {
+    var input$3 = $as_T2(input$2);
+    return new $c_Lcloud_golem_examples_minimal_WorkerImpl($as_T($n(input$3)._1__O()), $uI($n(input$3)._2__O()));
+  }));
+  var description$3 = $m_s_None$();
+  var prompt$2 = $m_s_None$();
+  var mode$3 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var input$4 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$4).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var output$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$5).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var $x_3 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$3, prompt$2, mode$3, input$4, output$2);
+  var description$4 = $m_s_None$();
+  var prompt$3 = $m_s_None$();
+  var mode$4 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$6 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var input$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$6).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$7 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var output$3 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$7).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var ev$1 = new $c_sci_$colon$colon($x_3, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$4, prompt$3, mode$4, input$5, output$3), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$2, evidence$2$2);
+  _return: {
+    var these = ev$1;
     while ((!$n(these).isEmpty__Z())) {
       var x0 = $n(these).head__O();
-      var d = $as_Lcloud_golem_runtime_autowire_AgentDefinition(x0);
-      $uI(arr.push($n(d).agentType__sjs_js_Dynamic()));
+      var _$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0);
+      if (($n(_$2).Lcloud_golem_runtime_MethodMetadata__f_name === "reverse")) {
+        var this$19 = new $c_s_Some($n(these).head__O());
+        break _return;
+      }
       these = $as_sci_List($n(these).tail__O());
     }
-    var $x_1 = console;
-    var s = $as_T(JSON.stringify(arr));
-    $x_1.log("[scala.js] discoverAgentTypes.json ->", s);
-    return Promise.resolve(arr);
-  } catch (e) {
-    var e$2 = ((e instanceof $c_jl_Throwable) ? e : new $c_sjs_js_JavaScriptException(e));
-    return Promise.reject($p_Lcloud_golem_internal_GolemStandaloneGuest$__asAgentError__O__T__sjs_js_Dynamic($thiz, e$2.toString__T(), "custom-error"));
+    var this$19 = $m_s_None$();
   }
+  if (this$19.isEmpty__Z()) {
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for reverse");
+  }
+  var metadataEntry = $as_Lcloud_golem_runtime_MethodMetadata(this$19.get__O());
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$8 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var inputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$8);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$9 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var outputSchema = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$9);
+  var handler = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance, input$2$1) => {
+    var instance$1 = $as_Lcloud_golem_examples_minimal_Worker(instance);
+    var input$6 = $as_T(input$2$1);
+    return $n(instance$1).reverse__T__s_concurrent_Future(input$6);
+  }));
+  var $x_4 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry, inputSchema, outputSchema, handler);
+  var description$5 = $m_s_None$();
+  var prompt$4 = $m_s_None$();
+  var mode$5 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$10 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var input$7 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$10).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$11 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var output$4 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$11).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var $x_2 = new $c_Lcloud_golem_runtime_MethodMetadata("reverse", description$5, prompt$4, mode$5, input$7, output$4);
+  var description$6 = $m_s_None$();
+  var prompt$5 = $m_s_None$();
+  var mode$6 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$12 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var input$8 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$12).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$13 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var output$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$13).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var ev$2 = new $c_sci_$colon$colon($x_2, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("handle", description$6, prompt$5, mode$6, input$8, output$5), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2$3 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$3, evidence$2$3);
+  _return$1: {
+    var these$1 = ev$2;
+    while ((!$n(these$1).isEmpty__Z())) {
+      var x0$1 = $n(these$1).head__O();
+      var _$2$1 = $as_Lcloud_golem_runtime_MethodMetadata(x0$1);
+      if (($n(_$2$1).Lcloud_golem_runtime_MethodMetadata__f_name === "handle")) {
+        var this$30 = new $c_s_Some($n(these$1).head__O());
+        break _return$1;
+      }
+      these$1 = $as_sci_List($n(these$1).tail__O());
+    }
+    var this$30 = $m_s_None$();
+  }
+  if (this$30.isEmpty__Z()) {
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for handle");
+  }
+  var metadataEntry$2 = $as_Lcloud_golem_runtime_MethodMetadata(this$30.get__O());
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$14 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var inputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$14);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$15 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var outputSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$15);
+  var handler$1 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$2, input$3$1) => {
+    var instance$3 = $as_Lcloud_golem_examples_minimal_Worker(instance$2);
+    var input$9 = $as_Lcloud_golem_examples_minimal_TypedPayload(input$3$1);
+    return $n(instance$3).handle__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future(input$9);
+  }));
+  var methods$1 = new $c_sci_$colon$colon($x_4, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$2, inputSchema$1, outputSchema$1, handler$1), $m_sci_Nil$()));
+  var plan = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata, constructorSchema, buildInstance, methods$1);
+  var this$35 = $n($n(plan.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
+  if (this$35.isEmpty__Z()) {
+    var metadataMode = $m_s_None$();
+  } else {
+    var x0$2 = this$35.get__O();
+    var value = $as_T(x0$2);
+    var metadataMode = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value);
+  }
+  var this$36 = $n(metadataMode);
+  var effective = $as_Lcloud_golem_runtime_autowire_AgentMode((this$36.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$36.get__O()));
+  $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("worker", effective, plan);
+  var description$9 = new $c_s_Some("A minimal coordinator agent that calls Worker via agent RPC inside Golem.");
+  var mode$9 = new $c_s_Some("ephemeral");
+  var description$7 = $m_s_None$();
+  var prompt$6 = $m_s_None$();
+  var mode$7 = $m_s_None$();
+  matchResult1: {
+    var schema;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$16 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$16).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x1 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x8 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x1);
+      var this$42 = $n(x8);
+      var x10 = this$42.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x10).length__I() === 1)) {
+        var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x10).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult1;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x2 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x1);
+      $n(x2)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x1);
+  }
+  var $x_8 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema);
+  matchResult2: {
+    var schema$1;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$17 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var x11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$17).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x11 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x18 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x11);
+      var this$47 = $n(x18);
+      var x20 = this$47.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x20).length__I() === 1)) {
+        var schema$1 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x20).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult2;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x12 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x11);
+      $n(x12)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x11);
+  }
+  var $x_7 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$1);
+  matchResult3: {
+    var schema$2;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$18 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x21 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$18).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x21 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x28 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x21);
+      var this$52 = $n(x28);
+      var x30 = this$52.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x30).length__I() === 1)) {
+        var schema$2 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x30).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult3;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x22 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x21);
+      $n(x22)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x21);
+  }
+  var elements = new $c_sci_$colon$colon($x_8, new $c_sci_$colon$colon($x_7, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("input", schema$2), $m_sci_Nil$())));
+  var input$10 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$19 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var output$6 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$19).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var $x_9 = new $c_Lcloud_golem_runtime_MethodMetadata("route", description$7, prompt$6, mode$7, input$10, output$6);
+  var description$8 = $m_s_None$();
+  var prompt$7 = $m_s_None$();
+  var mode$8 = $m_s_None$();
+  matchResult4: {
+    var schema$3;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$20 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x31 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$20).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x31 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x38 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x31);
+      var this$60 = $n(x38);
+      var x40 = this$60.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x40).length__I() === 1)) {
+        var schema$3 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x40).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult4;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x32 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x31);
+      $n(x32)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x31);
+  }
+  var $x_6 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$3);
+  matchResult5: {
+    var schema$4;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$21 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var x41 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$21).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x41 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x48 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x41);
+      var this$65 = $n(x48);
+      var x50 = this$65.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x50).length__I() === 1)) {
+        var schema$4 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x50).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult5;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x42 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x41);
+      $n(x42)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x41);
+  }
+  var $x_5 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$4);
+  matchResult6: {
+    var schema$5;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$22 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+    var x51 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$22).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x51 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x58 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x51);
+      var this$70 = $n(x58);
+      var x60 = this$70.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x60).length__I() === 1)) {
+        var schema$5 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x60).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult6;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x52 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x51);
+      $n(x52)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x51);
+  }
+  var elements$1 = new $c_sci_$colon$colon($x_6, new $c_sci_$colon$colon($x_5, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("payload", schema$5), $m_sci_Nil$())));
+  var input$11 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$1);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$23 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var output$7 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$23).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var methods$2 = new $c_sci_$colon$colon($x_9, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("routeTyped", description$8, prompt$7, mode$8, input$11, output$7), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$24 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var constructor$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$24).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var metadata$2 = new $c_Lcloud_golem_runtime_AgentMetadata("coordinator", description$9, mode$9, methods$2, constructor$1);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$25 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var constructorSchema$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$25);
+  var buildInstance$1 = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$4$1) => {
+    var input$12 = $as_T(input$4$1);
+    return new $c_Lcloud_golem_examples_minimal_CoordinatorImpl(input$12);
+  }));
+  var description$10 = $m_s_None$();
+  var prompt$8 = $m_s_None$();
+  var mode$10 = $m_s_None$();
+  matchResult7: {
+    var schema$6;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$26 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x61 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$26).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x61 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x68 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x61);
+      var this$81 = $n(x68);
+      var x70 = this$81.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x70).length__I() === 1)) {
+        var schema$6 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x70).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult7;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x62 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x61);
+      $n(x62)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x61);
+  }
+  var $x_21 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$6);
+  matchResult8: {
+    var schema$7;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$27 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var x71 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$27).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x71 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x78 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x71);
+      var this$86 = $n(x78);
+      var x80 = this$86.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x80).length__I() === 1)) {
+        var schema$7 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x80).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult8;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x72 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x71);
+      $n(x72)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x71);
+  }
+  var $x_20 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$7);
+  matchResult9: {
+    var schema$8;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$28 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x81 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$28).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x81 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x88 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x81);
+      var this$91 = $n(x88);
+      var x90 = this$91.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x90).length__I() === 1)) {
+        var schema$8 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x90).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult9;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x82 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x81);
+      $n(x82)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x81);
+  }
+  var elements$2 = new $c_sci_$colon$colon($x_21, new $c_sci_$colon$colon($x_20, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("input", schema$8), $m_sci_Nil$())));
+  var input$13 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$2);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$29 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var output$8 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$29).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var $x_22 = new $c_Lcloud_golem_runtime_MethodMetadata("route", description$10, prompt$8, mode$10, input$13, output$8);
+  var description$11 = $m_s_None$();
+  var prompt$9 = $m_s_None$();
+  var mode$11 = $m_s_None$();
+  matchResult10: {
+    var schema$9;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$30 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x91 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$30).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x91 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x98 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x91);
+      var this$99 = $n(x98);
+      var x100 = this$99.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x100).length__I() === 1)) {
+        var schema$9 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x100).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult10;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x92 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x91);
+      $n(x92)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x91);
+  }
+  var $x_19 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$9);
+  matchResult11: {
+    var schema$10;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$31 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var x101 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$31).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x101 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x108 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x101);
+      var this$104 = $n(x108);
+      var x110 = this$104.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x110).length__I() === 1)) {
+        var schema$10 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x110).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult11;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x102 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x101);
+      $n(x102)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x101);
+  }
+  var $x_18 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$10);
+  matchResult12: {
+    var schema$11;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$32 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+    var x111 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$32).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x111 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x118 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x111);
+      var this$109 = $n(x118);
+      var x120 = this$109.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x120).length__I() === 1)) {
+        var schema$11 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x120).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult12;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x112 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x111);
+      $n(x112)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x111);
+  }
+  var elements$3 = new $c_sci_$colon$colon($x_19, new $c_sci_$colon$colon($x_18, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("payload", schema$11), $m_sci_Nil$())));
+  var input$14 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$3);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$33 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var output$9 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$33).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var ev$3 = new $c_sci_$colon$colon($x_22, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("routeTyped", description$11, prompt$9, mode$11, input$14, output$9), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$34 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$34);
+  _return$2: {
+    var these$2 = ev$3;
+    while ((!$n(these$2).isEmpty__Z())) {
+      var x0$3 = $n(these$2).head__O();
+      var _$2$2 = $as_Lcloud_golem_runtime_MethodMetadata(x0$3);
+      if (($n(_$2$2).Lcloud_golem_runtime_MethodMetadata__f_name === "route")) {
+        var this$116 = new $c_s_Some($n(these$2).head__O());
+        break _return$2;
+      }
+      these$2 = $as_sci_List($n(these$2).tail__O());
+    }
+    var this$116 = $m_s_None$();
+  }
+  if (this$116.isEmpty__Z()) {
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for route");
+  }
+  var metadataEntry$3 = $as_Lcloud_golem_runtime_MethodMetadata(this$116.get__O());
+  var inputSchema$2 = new $c_Lcloud_golem_examples_RegisterAgents$$anon$1();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$35 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var outputSchema$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$35);
+  var handler$2 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$3$1, input$5$1) => {
+    var instance$4 = $as_Lcloud_golem_examples_minimal_Coordinator(instance$3$1);
+    var input$15 = $as_sci_List(input$5$1);
+    if (($n(input$15).length__I() !== 3)) {
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'route'. Expected 3.");
+    }
+    var $x_25 = $n(instance$4);
+    var this$118 = $n(input$15);
+    var $x_24 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$118, 0));
+    var this$119 = $n(input$15);
+    var $x_23 = $uI($f_sc_LinearSeqOps__apply__I__O(this$119, 1));
+    var this$120 = $n(input$15);
+    return $x_25.route__T__I__T__s_concurrent_Future($x_24, $x_23, $as_T($f_sc_LinearSeqOps__apply__I__O(this$120, 2)));
+  }));
+  var $x_26 = new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$3, inputSchema$2, outputSchema$2, handler$2);
+  var description$12 = $m_s_None$();
+  var prompt$10 = $m_s_None$();
+  var mode$12 = $m_s_None$();
+  matchResult21: {
+    var schema$12;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$36 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x160 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$36).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x160 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x167 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x160);
+      var this$124 = $n(x167);
+      var x169 = this$124.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x169).length__I() === 1)) {
+        var schema$12 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x169).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult21;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x161 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x160);
+      $n(x161)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x160);
+  }
+  var $x_13 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$12);
+  matchResult22: {
+    var schema$13;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$37 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var x170 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$37).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x170 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x177 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x170);
+      var this$129 = $n(x177);
+      var x179 = this$129.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x179).length__I() === 1)) {
+        var schema$13 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x179).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult22;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x171 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x170);
+      $n(x171)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x170);
+  }
+  var $x_12 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$13);
+  matchResult23: {
+    var schema$14;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$38 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x180 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$38).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x180 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x187 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x180);
+      var this$134 = $n(x187);
+      var x189 = this$134.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x189).length__I() === 1)) {
+        var schema$14 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x189).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult23;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x181 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x180);
+      $n(x181)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter input is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x180);
+  }
+  var elements$4 = new $c_sci_$colon$colon($x_13, new $c_sci_$colon$colon($x_12, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("input", schema$14), $m_sci_Nil$())));
+  var input$16 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$4);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$39 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var output$10 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$39).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var $x_14 = new $c_Lcloud_golem_runtime_MethodMetadata("route", description$12, prompt$10, mode$12, input$16, output$10);
+  var description$13 = $m_s_None$();
+  var prompt$11 = $m_s_None$();
+  var mode$13 = $m_s_None$();
+  matchResult24: {
+    var schema$15;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$40 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x190 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$40).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x190 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x197 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x190);
+      var this$142 = $n(x197);
+      var x199 = this$142.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x199).length__I() === 1)) {
+        var schema$15 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x199).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult24;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x191 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x190);
+      $n(x191)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardName is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x190);
+  }
+  var $x_11 = new $c_Lcloud_golem_data_NamedElementSchema("shardName", schema$15);
+  matchResult25: {
+    var schema$16;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$41 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+    var x200 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$41).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x200 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x207 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x200);
+      var this$147 = $n(x207);
+      var x209 = this$147.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x209).length__I() === 1)) {
+        var schema$16 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x209).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult25;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x201 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x200);
+      $n(x201)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter shardIndex is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x200);
+  }
+  var $x_10 = new $c_Lcloud_golem_data_NamedElementSchema("shardIndex", schema$16);
+  matchResult26: {
+    var schema$17;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$42 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+    var x210 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$42).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x210 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x217 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x210);
+      var this$152 = $n(x217);
+      var x219 = this$152.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x219).length__I() === 1)) {
+        var schema$17 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x219).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult26;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x211 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x210);
+      $n(x211)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter payload is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x210);
+  }
+  var elements$5 = new $c_sci_$colon$colon($x_11, new $c_sci_$colon$colon($x_10, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("payload", schema$17), $m_sci_Nil$())));
+  var input$17 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$5);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$43 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var output$11 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$43).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var ev$4 = new $c_sci_$colon$colon($x_14, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("routeTyped", description$13, prompt$11, mode$13, input$17, output$11), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$44 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$44);
+  _return$3: {
+    var these$3 = ev$4;
+    while ((!$n(these$3).isEmpty__Z())) {
+      var x0$4 = $n(these$3).head__O();
+      var _$2$3 = $as_Lcloud_golem_runtime_MethodMetadata(x0$4);
+      if (($n(_$2$3).Lcloud_golem_runtime_MethodMetadata__f_name === "routeTyped")) {
+        var this$159 = new $c_s_Some($n(these$3).head__O());
+        break _return$3;
+      }
+      these$3 = $as_sci_List($n(these$3).tail__O());
+    }
+    var this$159 = $m_s_None$();
+  }
+  if (this$159.isEmpty__Z()) {
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for routeTyped");
+  }
+  var metadataEntry$4 = $as_Lcloud_golem_runtime_MethodMetadata(this$159.get__O());
+  var inputSchema$3 = new $c_Lcloud_golem_examples_RegisterAgents$$anon$2();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$45 = $m_Lcloud_golem_examples_minimal_TypedReply$().Lcloud_golem_examples_minimal_TypedReply$__f_schema;
+  var outputSchema$3 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$45);
+  var handler$3 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$4$1, input$6$1) => {
+    var instance$5 = $as_Lcloud_golem_examples_minimal_Coordinator(instance$4$1);
+    var input$18 = $as_sci_List(input$6$1);
+    if (($n(input$18).length__I() !== 3)) {
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'routeTyped'. Expected 3.");
+    }
+    var $x_17 = $n(instance$5);
+    var this$161 = $n(input$18);
+    var $x_16 = $as_T($f_sc_LinearSeqOps__apply__I__O(this$161, 0));
+    var this$162 = $n(input$18);
+    var $x_15 = $uI($f_sc_LinearSeqOps__apply__I__O(this$162, 1));
+    var this$163 = $n(input$18);
+    return $x_17.routeTyped__T__I__Lcloud_golem_examples_minimal_TypedPayload__s_concurrent_Future($x_16, $x_15, $as_Lcloud_golem_examples_minimal_TypedPayload($f_sc_LinearSeqOps__apply__I__O(this$163, 2)));
+  }));
+  var methods$3 = new $c_sci_$colon$colon($x_26, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_AsyncMethodPlan(metadataEntry$4, inputSchema$3, outputSchema$3, handler$3), $m_sci_Nil$()));
+  var plan$2 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata$2, constructorSchema$1, buildInstance$1, methods$3);
+  var this$166 = $n($n(plan$2.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
+  if (this$166.isEmpty__Z()) {
+    var metadataMode$2 = $m_s_None$();
+  } else {
+    var x0$5 = this$166.get__O();
+    var value$1 = $as_T(x0$5);
+    var metadataMode$2 = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value$1);
+  }
+  var this$167 = $n(metadataMode$2);
+  var effective$2 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$167.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$167.get__O()));
+  $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("coordinator", effective$2, plan$2);
+  var description$16 = $m_s_None$();
+  var mode$16 = $m_s_None$();
+  var description$14 = new $c_s_Some("Set a value in the table");
+  var prompt$12 = $m_s_None$();
+  var mode$14 = $m_s_None$();
+  matchResult35: {
+    var schema$18;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$46 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x259 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$46).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x259 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x266 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x259);
+      var this$172 = $n(x266);
+      var x268 = this$172.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x268).length__I() === 1)) {
+        var schema$18 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x268).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult35;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x260 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x259);
+      $n(x260)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x259);
+  }
+  var $x_27 = new $c_Lcloud_golem_data_NamedElementSchema("key", schema$18);
+  matchResult36: {
+    var schema$19;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$47 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x269 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$47).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x269 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x276 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x269);
+      var this$177 = $n(x276);
+      var x278 = this$177.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x278).length__I() === 1)) {
+        var schema$19 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x278).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult36;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x270 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x269);
+      $n(x270)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x269);
+  }
+  var elements$6 = new $c_sci_$colon$colon($x_27, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("value", schema$19), $m_sci_Nil$()));
+  var input$19 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$6);
+  var output$12 = $n($m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema).schema__Lcloud_golem_data_StructuredSchema();
+  var $x_28 = new $c_Lcloud_golem_runtime_MethodMetadata("set", description$14, prompt$12, mode$14, input$19, output$12);
+  var description$15 = new $c_s_Some("Get a value from the table");
+  var prompt$13 = $m_s_None$();
+  var mode$15 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$48 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var input$20 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$48).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$49 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
+  var output$13 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$49).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var methods$4 = new $c_sci_$colon$colon($x_28, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("get", description$15, prompt$13, mode$15, input$20, output$13), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2$4 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  var constructor$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$4, evidence$2$4).Lcloud_golem_data_GolemSchema$$anon$2__f_schema;
+  var metadata$3 = new $c_Lcloud_golem_runtime_AgentMetadata("shard", description$16, mode$16, methods$4, constructor$2);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2$5 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  var constructorSchema$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$5, evidence$2$5);
+  var buildInstance$2 = new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((input$7$1) => {
+    var input$21 = $as_T2(input$7$1);
+    return new $c_Lcloud_golem_examples_minimal_ShardImpl($as_T($n(input$21)._1__O()), $uI($n(input$21)._2__O()));
+  }));
+  var description$17 = new $c_s_Some("Set a value in the table");
+  var prompt$14 = $m_s_None$();
+  var mode$17 = $m_s_None$();
+  matchResult37: {
+    var schema$20;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$50 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x279 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$50).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x279 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x286 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x279);
+      var this$192 = $n(x286);
+      var x288 = this$192.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x288).length__I() === 1)) {
+        var schema$20 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x288).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult37;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x280 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x279);
+      $n(x280)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x279);
+  }
+  var $x_31 = new $c_Lcloud_golem_data_NamedElementSchema("key", schema$20);
+  matchResult38: {
+    var schema$21;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$51 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x289 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$51).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x289 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x296 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x289);
+      var this$197 = $n(x296);
+      var x298 = this$197.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x298).length__I() === 1)) {
+        var schema$21 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x298).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult38;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x290 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x289);
+      $n(x290)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x289);
+  }
+  var elements$7 = new $c_sci_$colon$colon($x_31, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("value", schema$21), $m_sci_Nil$()));
+  var input$22 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$7);
+  var output$14 = $n($m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema).schema__Lcloud_golem_data_StructuredSchema();
+  var $x_32 = new $c_Lcloud_golem_runtime_MethodMetadata("set", description$17, prompt$14, mode$17, input$22, output$14);
+  var description$18 = new $c_s_Some("Get a value from the table");
+  var prompt$15 = $m_s_None$();
+  var mode$18 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$52 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var input$23 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$52).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$53 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
+  var output$15 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$53).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var ev$5 = new $c_sci_$colon$colon($x_32, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("get", description$18, prompt$15, mode$18, input$23, output$15), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1$6 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2$6 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$6, evidence$2$6);
+  _return$4: {
+    var these$4 = ev$5;
+    while ((!$n(these$4).isEmpty__Z())) {
+      var x0$6 = $n(these$4).head__O();
+      var _$2$4 = $as_Lcloud_golem_runtime_MethodMetadata(x0$6);
+      if (($n(_$2$4).Lcloud_golem_runtime_MethodMetadata__f_name === "set")) {
+        var this$207 = new $c_s_Some($n(these$4).head__O());
+        break _return$4;
+      }
+      these$4 = $as_sci_List($n(these$4).tail__O());
+    }
+    var this$207 = $m_s_None$();
+  }
+  if (this$207.isEmpty__Z()) {
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for set");
+  }
+  var metadataEntry$5 = $as_Lcloud_golem_runtime_MethodMetadata(this$207.get__O());
+  var inputSchema$4 = new $c_Lcloud_golem_examples_RegisterAgents$$anon$3();
+  var outputSchema$4 = $m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema;
+  var handler$4 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$5$1, input$8$1) => {
+    var instance$6 = $as_Lcloud_golem_examples_minimal_Shard(instance$5$1);
+    var input$24 = $as_sci_List(input$8$1);
+    if (($n(input$24).length__I() !== 2)) {
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter count mismatch when invoking method 'set'. Expected 2.");
+    }
+    $n(instance$6);
+    var this$208 = $n(input$24);
+    $as_T($f_sc_LinearSeqOps__apply__I__O(this$208, 0));
+    var this$209 = $n(input$24);
+    $as_T($f_sc_LinearSeqOps__apply__I__O(this$209, 1));
+  }));
+  var $x_33 = new $c_Lcloud_golem_runtime_plan_SyncMethodPlan(metadataEntry$5, inputSchema$4, outputSchema$4, handler$4);
+  var description$19 = new $c_s_Some("Set a value in the table");
+  var prompt$16 = $m_s_None$();
+  var mode$19 = $m_s_None$();
+  matchResult47: {
+    var schema$22;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$54 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x338 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$54).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x338 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x345 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x338);
+      var this$214 = $n(x345);
+      var x347 = this$214.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x347).length__I() === 1)) {
+        var schema$22 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x347).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult47;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x339 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x338);
+      $n(x339)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter key is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x338);
+  }
+  var $x_29 = new $c_Lcloud_golem_data_NamedElementSchema("key", schema$22);
+  matchResult48: {
+    var schema$23;
+    $m_Lcloud_golem_data_GolemSchema$();
+    var baseSchema$55 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+    var x348 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$55).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+    if ((x348 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+      var x355 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x348);
+      var this$219 = $n(x355);
+      var x357 = this$219.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+      if (($n(x357).length__I() === 1)) {
+        var schema$23 = $n($as_Lcloud_golem_data_NamedElementSchema($n(x357).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+        break matchResult48;
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value expands to multiple elements; wrap it in a case class");
+    }
+    if (false) {
+      var x349 = $as_Lcloud_golem_data_StructuredSchema$Multimodal(x348);
+      $n(x349)._1__sci_List();
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), "Parameter value is multimodal; use a dedicated multimodal wrapper");
+    }
+    throw new $c_s_MatchError(x348);
+  }
+  var elements$8 = new $c_sci_$colon$colon($x_29, new $c_sci_$colon$colon(new $c_Lcloud_golem_data_NamedElementSchema("value", schema$23), $m_sci_Nil$()));
+  var input$25 = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements$8);
+  var output$16 = $n($m_Lcloud_golem_data_GolemSchema$().Lcloud_golem_data_GolemSchema$__f_unitGolemSchema).schema__Lcloud_golem_data_StructuredSchema();
+  var $x_30 = new $c_Lcloud_golem_runtime_MethodMetadata("set", description$19, prompt$16, mode$19, input$25, output$16);
+  var description$20 = new $c_s_Some("Get a value from the table");
+  var prompt$17 = $m_s_None$();
+  var mode$20 = $m_s_None$();
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$56 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var input$26 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$56).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$57 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
+  var output$17 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$57).Lcloud_golem_data_GolemSchema$$anon$4__f_schema;
+  var ev$6 = new $c_sci_$colon$colon($x_30, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_MethodMetadata("get", description$20, prompt$17, mode$20, input$26, output$17), $m_sci_Nil$()));
+  $m_Lcloud_golem_data_GolemSchema$();
+  var evidence$1$7 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var evidence$2$7 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  new $c_Lcloud_golem_data_GolemSchema$$anon$2(evidence$1$7, evidence$2$7);
+  _return$5: {
+    var these$5 = ev$6;
+    while ((!$n(these$5).isEmpty__Z())) {
+      var x0$7 = $n(these$5).head__O();
+      var _$2$5 = $as_Lcloud_golem_runtime_MethodMetadata(x0$7);
+      if (($n(_$2$5).Lcloud_golem_runtime_MethodMetadata__f_name === "get")) {
+        var this$229 = new $c_s_Some($n(these$5).head__O());
+        break _return$5;
+      }
+      these$5 = $as_sci_List($n(these$5).tail__O());
+    }
+    var this$229 = $m_s_None$();
+  }
+  if (this$229.isEmpty__Z()) {
+    throw $ct_jl_IllegalStateException__T__(new $c_jl_IllegalStateException(), "Method metadata missing for get");
+  }
+  var metadataEntry$6 = $as_Lcloud_golem_runtime_MethodMetadata(this$229.get__O());
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$58 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var inputSchema$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$58);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$59 = $m_Lzio_blocks_schema_Schema$().option__Lzio_blocks_schema_Schema__Lzio_blocks_schema_Schema($m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string);
+  var outputSchema$5 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$59);
+  var handler$5 = new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance$6$1, input$9$1) => {
+    var instance$7 = $as_Lcloud_golem_examples_minimal_Shard(instance$6$1);
+    var input$27 = $as_T(input$9$1);
+    return $n(instance$7).get__T__s_Option(input$27);
+  }));
+  var methods$5 = new $c_sci_$colon$colon($x_33, new $c_sci_$colon$colon(new $c_Lcloud_golem_runtime_plan_SyncMethodPlan(metadataEntry$6, inputSchema$5, outputSchema$5, handler$5), $m_sci_Nil$()));
+  var plan$3 = new $c_Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor(metadata$3, constructorSchema$2, buildInstance$2, methods$5);
+  var this$234 = $n($n(plan$3.Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_metadata).Lcloud_golem_runtime_AgentMetadata__f_mode);
+  if (this$234.isEmpty__Z()) {
+    var metadataMode$3 = $m_s_None$();
+  } else {
+    var x0$8 = this$234.get__O();
+    var value$2 = $as_T(x0$8);
+    var metadataMode$3 = $m_Lcloud_golem_runtime_autowire_AgentMode$().fromString__T__s_Option(value$2);
+  }
+  var this$235 = $n(metadataMode$3);
+  var effective$3 = $as_Lcloud_golem_runtime_autowire_AgentMode((this$235.isEmpty__Z() ? $m_Lcloud_golem_runtime_autowire_AgentMode$Durable$() : this$235.get__O()));
+  $m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$().registerWithCtor__T__Lcloud_golem_runtime_autowire_AgentMode__Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__Lcloud_golem_runtime_autowire_AgentDefinition("shard", effective$3, plan$3);
+  $t_Lcloud_golem_examples_RegisterAgents$___\uff3fgolemRegisterAgents = (void 0);
 }
-function $sct_Lcloud_golem_internal_GolemStandaloneGuest$__stinit__() {
-  $m_Lcloud_golem_internal_GolemStandaloneGuest$();
-}
+$c_Lcloud_golem_examples_RegisterAgents$.prototype = new $h_O();
+$c_Lcloud_golem_examples_RegisterAgents$.prototype.constructor = $c_Lcloud_golem_examples_RegisterAgents$;
 /** @constructor */
-function $c_Lcloud_golem_internal_GolemStandaloneGuest$() {
-  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered = false;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved = null;
-  $n_Lcloud_golem_internal_GolemStandaloneGuest$ = this;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_registered = false;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$__f_resolved = (void 0);
-  var $x_4 = $m_sr_ScalaRunTime$();
-  var y = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((agentTypeName, input) => {
-    var agentTypeName$1 = $as_T(agentTypeName);
-    return $p_Lcloud_golem_internal_GolemStandaloneGuest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise(this, agentTypeName$1, input);
-  })));
-  var $x_3 = new $c_T2("initialize", y);
-  var y$1 = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((methodName, input$2) => {
-    var methodName$1 = $as_T(methodName);
-    return $p_Lcloud_golem_internal_GolemStandaloneGuest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise(this, methodName$1, input$2);
-  })));
-  var $x_2 = new $c_T2("invoke", y$1);
-  var y$2 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_internal_GolemStandaloneGuest$__getDefinition__sjs_js_Promise(this))));
-  var $x_1 = new $c_T2("getDefinition", y$2);
-  var y$3 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_internal_GolemStandaloneGuest$__discoverAgentTypes__sjs_js_Promise(this))));
-  var fields = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_3, $x_2, $x_1, new $c_T2("discoverAgentTypes", y$3)]));
-  $t_Lcloud_golem_internal_GolemStandaloneGuest$__guest = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
+function $h_Lcloud_golem_examples_RegisterAgents$() {
 }
-$c_Lcloud_golem_internal_GolemStandaloneGuest$.prototype = new $h_O();
-$c_Lcloud_golem_internal_GolemStandaloneGuest$.prototype.constructor = $c_Lcloud_golem_internal_GolemStandaloneGuest$;
-/** @constructor */
-function $h_Lcloud_golem_internal_GolemStandaloneGuest$() {
-}
-$h_Lcloud_golem_internal_GolemStandaloneGuest$.prototype = $c_Lcloud_golem_internal_GolemStandaloneGuest$.prototype;
-var $d_Lcloud_golem_internal_GolemStandaloneGuest$ = new $TypeData().initClass($c_Lcloud_golem_internal_GolemStandaloneGuest$, "cloud.golem.internal.GolemStandaloneGuest$", ({
-  Lcloud_golem_internal_GolemStandaloneGuest$: 1
+$h_Lcloud_golem_examples_RegisterAgents$.prototype = $c_Lcloud_golem_examples_RegisterAgents$.prototype;
+var $d_Lcloud_golem_examples_RegisterAgents$ = new $TypeData().initClass($c_Lcloud_golem_examples_RegisterAgents$, "cloud.golem.examples.RegisterAgents$", ({
+  Lcloud_golem_examples_RegisterAgents$: 1
 }));
-var $n_Lcloud_golem_internal_GolemStandaloneGuest$;
-function $m_Lcloud_golem_internal_GolemStandaloneGuest$() {
-  if ((!$n_Lcloud_golem_internal_GolemStandaloneGuest$)) {
-    $n_Lcloud_golem_internal_GolemStandaloneGuest$ = new $c_Lcloud_golem_internal_GolemStandaloneGuest$();
+var $n_Lcloud_golem_examples_RegisterAgents$;
+function $m_Lcloud_golem_examples_RegisterAgents$() {
+  if ((!$n_Lcloud_golem_examples_RegisterAgents$)) {
+    $n_Lcloud_golem_examples_RegisterAgents$ = new $c_Lcloud_golem_examples_RegisterAgents$();
   }
-  return $n_Lcloud_golem_internal_GolemStandaloneGuest$;
+  return $n_Lcloud_golem_examples_RegisterAgents$;
 }
 function $is_Lcloud_golem_runtime_autowire_AgentConstructor(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_runtime_autowire_AgentConstructor)));
@@ -3340,9 +3339,9 @@ var $d_Lcloud_golem_runtime_autowire_AgentDefinition = new $TypeData().initClass
   Lcloud_golem_runtime_autowire_AgentDefinition: 1
 }));
 function $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildSyncBinding__Lcloud_golem_runtime_plan_SyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($thiz, plan) {
-  var inSchema = $n(plan).inputSchema__Lcloud_golem_data_GolemSchema();
-  var outSchema = $n(plan).outputSchema__Lcloud_golem_data_GolemSchema();
-  return $m_Lcloud_golem_runtime_autowire_MethodBinding$().sync__Lcloud_golem_runtime_MethodMetadata__F2__Lcloud_golem_data_GolemSchema__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_MethodBinding($n(plan).metadata__Lcloud_golem_runtime_MethodMetadata(), new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance, input) => $n($n(plan).handler__F2()).apply__O__O__O(instance, input))), inSchema, outSchema);
+  var inSchema = $n(plan).Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema;
+  var outSchema = $n(plan).Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema;
+  return $m_Lcloud_golem_runtime_autowire_MethodBinding$().sync__Lcloud_golem_runtime_MethodMetadata__F2__Lcloud_golem_data_GolemSchema__Lcloud_golem_data_GolemSchema__Lcloud_golem_runtime_autowire_MethodBinding($n(plan).Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata, new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((instance, input) => $n($n(plan).Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler).apply__O__O__O(instance, input))), inSchema, outSchema);
 }
 function $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildAsyncBinding__Lcloud_golem_runtime_plan_AsyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($thiz, plan) {
   var inSchema = $n(plan).Lcloud_golem_runtime_plan_AsyncMethodPlan__f_inputSchema;
@@ -3371,7 +3370,7 @@ $c_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$.prototype.registerW
   var this$3 = $n($n(plan).Lcloud_golem_runtime_plan_AgentImplementationPlanWithCtor__f_methods);
   var f = ((x$1) => {
     var x$1$1 = $as_Lcloud_golem_runtime_plan_MethodPlan(x$1);
-    if (false) {
+    if ((x$1$1 instanceof $c_Lcloud_golem_runtime_plan_SyncMethodPlan)) {
       var x6 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$1$1);
       return $p_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$__buildSyncBinding__Lcloud_golem_runtime_plan_SyncMethodPlan__Lcloud_golem_runtime_autowire_MethodBinding($m_Lcloud_golem_runtime_autowire_AgentImplementationRuntime$(), x6);
     }
@@ -4268,514 +4267,6 @@ function $m_Lcloud_golem_runtime_autowire_HostValueEncoder$() {
     $n_Lcloud_golem_runtime_autowire_HostValueEncoder$ = new $c_Lcloud_golem_runtime_autowire_HostValueEncoder$();
   }
   return $n_Lcloud_golem_runtime_autowire_HostValueEncoder$;
-}
-function $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__fromJs__Lzio_blocks_schema_Reflect__sjs_js_Any__Lzio_blocks_schema_DynamicValue($thiz, reflect0, value0) {
-  var reflect0$tailLocal1 = reflect0;
-  while (true) {
-    matchResult1: {
-      $n(reflect0$tailLocal1);
-      var x1 = $m_s_None$();
-      var x = $m_s_None$();
-      if ((x === x1)) {
-        break matchResult1;
-      }
-      throw new $c_s_MatchError(x1);
-    }
-    matchResult2: {
-      var x4 = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__optionInfo__Lzio_blocks_schema_Reflect__s_Option($thiz, reflect0$tailLocal1);
-      if ((x4 instanceof $c_s_Some)) {
-        var x5 = $as_s_Some(x4);
-        var x6 = $as_T2($n(x5).s_Some__f_value);
-        if ((x6 !== null)) {
-          var innerRef = $as_Lzio_blocks_schema_Reflect($n(x6)._1__O());
-          var usesRecordWrapper = $uZ($n(x6)._2__O());
-          if (((value0 === (void 0)) || (value0 === null))) {
-            $m_sci_Vector$();
-            var fields = $m_sci_Vector0$();
-            var value = new $c_Lzio_blocks_schema_DynamicValue$Record(fields);
-            return new $c_Lzio_blocks_schema_DynamicValue$Variant("None", value);
-          } else {
-            var inner = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__fromJs__Lzio_blocks_schema_Reflect__sjs_js_Any__Lzio_blocks_schema_DynamicValue($thiz, innerRef, value0);
-            if (usesRecordWrapper) {
-              var this$8 = $m_sci_Vector$();
-              var elems = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("value", inner)]));
-              var fields$1 = this$8.from__sc_IterableOnce__sci_Vector(elems);
-              var payload = new $c_Lzio_blocks_schema_DynamicValue$Record(fields$1);
-            } else {
-              var payload = inner;
-            }
-            return new $c_Lzio_blocks_schema_DynamicValue$Variant("Some", payload);
-          }
-        }
-      }
-      var x$3 = $m_s_None$();
-      if ((x$3 === x4)) {
-        break matchResult2;
-      }
-      throw new $c_s_MatchError(x4);
-    }
-    matchResult7: {
-      var $x_1;
-      var x21 = $n(reflect0$tailLocal1).asPrimitive__s_Option();
-      if ((x21 instanceof $c_s_Some)) {
-        var x22 = $as_s_Some(x21);
-        var p = $as_Lzio_blocks_schema_Reflect$Primitive($n(x22).s_Some__f_value);
-        var tn = $n($n(p).Lzio_blocks_schema_Reflect$Primitive__f_primitiveType).typeName__Lzio_blocks_schema_TypeName();
-        var x$6 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_unit;
-        if (((tn === null) ? (x$6 === null) : $n(tn).equals__O__Z(x$6))) {
-          var pv = $m_Lzio_blocks_schema_PrimitiveValue$Unit$();
-        } else {
-          var x$8 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_string;
-          if (((tn === null) ? (x$8 === null) : $n(tn).equals__O__Z(x$8))) {
-            var value$1 = $as_T(value0);
-            var pv = new $c_Lzio_blocks_schema_PrimitiveValue$String(value$1);
-          } else {
-            var x$10 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_boolean;
-            if (((tn === null) ? (x$10 === null) : $n(tn).equals__O__Z(x$10))) {
-              var value$2 = $uZ(value0);
-              var pv = new $c_Lzio_blocks_schema_PrimitiveValue$Boolean(value$2);
-            } else {
-              var x$12 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_byte;
-              if (((tn === null) ? (x$12 === null) : $n(tn).equals__O__Z(x$12))) {
-                var value$3 = (($doubleToInt($uD(value0)) << 24) >> 24);
-                var pv = new $c_Lzio_blocks_schema_PrimitiveValue$Byte(value$3);
-              } else {
-                var x$14 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_short;
-                if (((tn === null) ? (x$14 === null) : $n(tn).equals__O__Z(x$14))) {
-                  var value$4 = (($doubleToInt($uD(value0)) << 16) >> 16);
-                  var pv = new $c_Lzio_blocks_schema_PrimitiveValue$Short(value$4);
-                } else {
-                  var x$16 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_int;
-                  if (((tn === null) ? (x$16 === null) : $n(tn).equals__O__Z(x$16))) {
-                    var value$5 = $doubleToInt($uD(value0));
-                    var pv = new $c_Lzio_blocks_schema_PrimitiveValue$Int(value$5);
-                  } else {
-                    var x$18 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_long;
-                    if (((tn === null) ? (x$18 === null) : $n(tn).equals__O__Z(x$18))) {
-                      var value$6 = $uD(value0);
-                      var this$16 = $m_RTLong$();
-                      var lo = this$16.org$scalajs$linker$runtime$RuntimeLong$$fromDoubleImpl__D__I(value$6);
-                      var hi = this$16.RTLong$__f_org$scalajs$linker$runtime$RuntimeLong$$hiReturn;
-                      var pv = new $c_Lzio_blocks_schema_PrimitiveValue$Long(new $c_RTLong(lo, hi));
-                    } else {
-                      var x$20 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_float;
-                      if (((tn === null) ? (x$20 === null) : $n(tn).equals__O__Z(x$20))) {
-                        var value$7 = Math.fround($uD(value0));
-                        var $x_2 = new $c_Lzio_blocks_schema_PrimitiveValue$Float(value$7);
-                      } else {
-                        var x$22 = $m_Lzio_blocks_schema_TypeName$().Lzio_blocks_schema_TypeName$__f_double;
-                        if ((!((tn === null) ? (x$22 === null) : $n(tn).equals__O__Z(x$22)))) {
-                          throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ("Unsupported primitive for JS codec: " + tn));
-                        }
-                        var value$8 = $uD(value0);
-                        var $x_2 = new $c_Lzio_blocks_schema_PrimitiveValue$Double(value$8);
-                      }
-                      var pv = $as_Lzio_blocks_schema_PrimitiveValue($x_2);
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        var $x_1 = new $c_Lzio_blocks_schema_DynamicValue$Primitive(pv);
-        break matchResult7;
-      }
-      var x$23 = $m_s_None$();
-      if ((x$23 === x21)) {
-        var x18 = $n(reflect0$tailLocal1).asRecord__s_Option();
-        if ((x18 instanceof $c_s_Some)) {
-          var x19 = $as_s_Some(x18);
-          var rec = $as_Lzio_blocks_schema_Reflect$Record($n(x19).s_Some__f_value);
-          var fields$2 = $n($as_sc_IterableOnceOps($n($n(rec).Lzio_blocks_schema_Reflect$Record__f_fields).map__F1__O(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((value0) => ((f) => {
-            var f$1 = $as_Lzio_blocks_schema_Term(f);
-            var fv = value0[$n(f$1).Lzio_blocks_schema_Term__f_name];
-            var self = $n(f$1).Lzio_blocks_schema_Term__f_name;
-            var y = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__fromJs__Lzio_blocks_schema_Reflect__sjs_js_Any__Lzio_blocks_schema_DynamicValue($m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$(), $n(f$1).Lzio_blocks_schema_Term__f_value, fv);
-            return new $c_T2(self, y);
-          }))(value0))))).toVector__sci_Vector();
-          var $x_1 = new $c_Lzio_blocks_schema_DynamicValue$Record(fields$2);
-          break matchResult7;
-        }
-        var x$25 = $m_s_None$();
-        if ((x$25 === x18)) {
-          var x15 = $n(reflect0$tailLocal1).asSequenceUnknown__s_Option();
-          if ((x15 instanceof $c_s_Some)) {
-            var x16 = $as_s_Some(x15);
-            var seq = $as_Lzio_blocks_schema_Reflect$Sequence$Unknown($n(x16).s_Some__f_value);
-            var this$25 = $ct_sjs_js_WrappedArray__sjs_js_Array__(new $c_sjs_js_WrappedArray(), value0);
-            var elems$1 = $n($n($m_sci_Vector$().from__sc_IterableOnce__sci_Vector(this$25)).map__F1__sci_Vector(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((seq) => ((v) => $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__fromJs__Lzio_blocks_schema_Reflect__sjs_js_Any__Lzio_blocks_schema_DynamicValue($m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$(), $n($n(seq).Lzio_blocks_schema_Reflect$Sequence$$anon$6__f_$outer).Lzio_blocks_schema_Reflect$Sequence__f_element, v)))(seq))));
-            var $x_1 = new $c_Lzio_blocks_schema_DynamicValue$Sequence(elems$1);
-            break matchResult7;
-          }
-          var x$27 = $m_s_None$();
-          if ((x$27 === x15)) {
-            $n(reflect0$tailLocal1);
-            var x12 = $m_s_None$();
-            var x$29 = $m_s_None$();
-            if ((x$29 === x12)) {
-              throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ("Unsupported schema reflect for JS codec: " + $n(reflect0$tailLocal1).nodeType__Lzio_blocks_schema_Reflect$Type()));
-            }
-            throw new $c_s_MatchError(x12);
-          }
-          throw new $c_s_MatchError(x15);
-        }
-        throw new $c_s_MatchError(x18);
-      }
-      throw new $c_s_MatchError(x21);
-    }
-    return $as_Lzio_blocks_schema_DynamicValue($x_1);
-  }
-}
-function $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__toJs__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_DynamicValue__sjs_js_Any($thiz, reflect0, value) {
-  var value$tailLocal1 = value;
-  var reflect0$tailLocal2 = reflect0;
-  while (true) {
-    matchResult8: {
-      $n(reflect0$tailLocal2);
-      var x24 = $m_s_None$();
-      var x = $m_s_None$();
-      if ((x === x24)) {
-        break matchResult8;
-      }
-      throw new $c_s_MatchError(x24);
-    }
-    matchResult11: {
-      var x40 = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__optionInfo__Lzio_blocks_schema_Reflect__s_Option($thiz, reflect0$tailLocal2);
-      if ((x40 instanceof $c_s_Some)) {
-        var x41 = $as_s_Some(x40);
-        var x42 = $as_T2($n(x41).s_Some__f_value);
-        if ((x42 !== null)) {
-          var innerRef = $as_Lzio_blocks_schema_Reflect($n(x42)._1__O());
-          var usesRecordWrapper = $uZ($n(x42)._2__O());
-          var x31 = value$tailLocal1;
-          if ((x31 instanceof $c_Lzio_blocks_schema_DynamicValue$Variant)) {
-            var x36 = $as_Lzio_blocks_schema_DynamicValue$Variant(x31);
-            var this$3 = $n(x36);
-            var x38 = this$3.Lzio_blocks_schema_DynamicValue$Variant__f_caseName;
-            var this$4 = $n(x36);
-            var x39 = this$4.Lzio_blocks_schema_DynamicValue$Variant__f_value;
-            if ((x38 === "None")) {
-              break matchResult11;
-            }
-            if ((x38 === "Some")) {
-              if (usesRecordWrapper) {
-                if ((x39 instanceof $c_Lzio_blocks_schema_DynamicValue$Record)) {
-                  var x28 = $as_Lzio_blocks_schema_DynamicValue$Record(x39);
-                  var this$6 = $n(x28);
-                  var x30 = this$6.Lzio_blocks_schema_DynamicValue$Record__f_fields;
-                  var this$7 = $n(x30);
-                  _return$1: {
-                    var it = this$7.iterator__sc_Iterator();
-                    while ($n(it).hasNext__Z()) {
-                      var a = $n(it).next__O();
-                      var _$2 = $as_T2(a);
-                      var x$1 = $n(_$2)._1__O();
-                      if (((x$1 !== null) && $dp_equals__O__Z($n(x$1), "value"))) {
-                        var this$8 = new $c_s_Some(a);
-                        break _return$1;
-                      }
-                    }
-                    var this$8 = $m_s_None$();
-                  }
-                  if (this$8.isEmpty__Z()) {
-                    var this$9 = $m_s_None$();
-                  } else {
-                    var x0 = this$8.get__O();
-                    var _$3 = $as_T2(x0);
-                    var this$9 = new $c_s_Some($as_Lzio_blocks_schema_DynamicValue($n(_$3)._2__O()));
-                  }
-                  if (this$9.isEmpty__Z()) {
-                    $m_sci_Vector$();
-                    var fields = $m_sci_Vector0$();
-                    var $x_1 = new $c_Lzio_blocks_schema_DynamicValue$Record(fields);
-                  } else {
-                    var $x_1 = this$9.get__O();
-                  }
-                  var inner = $as_Lzio_blocks_schema_DynamicValue($x_1);
-                } else {
-                  var inner = x39;
-                }
-              } else {
-                var inner = x39;
-              }
-              reflect0$tailLocal2 = innerRef;
-              value$tailLocal1 = inner;
-              continue;
-            }
-          }
-          return null;
-        }
-      }
-      var x$3 = $m_s_None$();
-      if ((x$3 === x40)) {
-        break matchResult11;
-      }
-      throw new $c_s_MatchError(x40);
-    }
-    var _1 = $n(reflect0$tailLocal2).asPrimitive__s_Option();
-    var _2 = $n(reflect0$tailLocal2).asRecord__s_Option();
-    var _3 = $n(reflect0$tailLocal2).asSequenceUnknown__s_Option();
-    $n(reflect0$tailLocal2);
-    if ((_1 instanceof $c_s_Some)) {
-      $as_s_Some(_1);
-      var x82 = value$tailLocal1;
-      if ((x82 instanceof $c_Lzio_blocks_schema_DynamicValue$Primitive)) {
-        var x83 = $as_Lzio_blocks_schema_DynamicValue$Primitive(x82);
-        var this$15 = $n(x83);
-        var x85 = this$15.Lzio_blocks_schema_DynamicValue$Primitive__f_value;
-        var x$5 = $m_Lzio_blocks_schema_PrimitiveValue$Unit$();
-        if ((x$5 === x85)) {
-          return null;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$String)) {
-          var x79 = $as_Lzio_blocks_schema_PrimitiveValue$String(x85);
-          var this$17 = $n(x79);
-          var x81 = this$17.Lzio_blocks_schema_PrimitiveValue$String__f_value;
-          return x81;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Boolean)) {
-          var x76 = $as_Lzio_blocks_schema_PrimitiveValue$Boolean(x85);
-          var this$20 = $n(x76);
-          var x78 = this$20.Lzio_blocks_schema_PrimitiveValue$Boolean__f_value;
-          return x78;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Byte)) {
-          var x73 = $as_Lzio_blocks_schema_PrimitiveValue$Byte(x85);
-          var this$23 = $n(x73);
-          var x75 = this$23.Lzio_blocks_schema_PrimitiveValue$Byte__f_value;
-          var value$1 = x75;
-          return value$1;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Short)) {
-          var x70 = $as_Lzio_blocks_schema_PrimitiveValue$Short(x85);
-          var this$26 = $n(x70);
-          var x72 = this$26.Lzio_blocks_schema_PrimitiveValue$Short__f_value;
-          var value$2 = x72;
-          return value$2;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Int)) {
-          var x67 = $as_Lzio_blocks_schema_PrimitiveValue$Int(x85);
-          var this$29 = $n(x67);
-          var x69 = this$29.Lzio_blocks_schema_PrimitiveValue$Int__f_value;
-          var value$3 = x69;
-          return value$3;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Long)) {
-          var x64 = $as_Lzio_blocks_schema_PrimitiveValue$Long(x85);
-          var this$32 = $n(x64);
-          var t = this$32.Lzio_blocks_schema_PrimitiveValue$Long__f_value;
-          var lo = t.RTLong__f_lo;
-          var hi = t.RTLong__f_hi;
-          var value$4 = ((4.294967296E9 * hi) + (lo >>> 0.0));
-          return value$4;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Float)) {
-          var x61 = $as_Lzio_blocks_schema_PrimitiveValue$Float(x85);
-          var this$36 = $n(x61);
-          var x63 = this$36.Lzio_blocks_schema_PrimitiveValue$Float__f_value;
-          var value$5 = x63;
-          return value$5;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Double)) {
-          var x58 = $as_Lzio_blocks_schema_PrimitiveValue$Double(x85);
-          var this$39 = $n(x58);
-          var x60 = this$39.Lzio_blocks_schema_PrimitiveValue$Double__f_value;
-          return x60;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$BigInt)) {
-          var x55 = $as_Lzio_blocks_schema_PrimitiveValue$BigInt(x85);
-          var this$42 = $n(x55);
-          var x57 = this$42.Lzio_blocks_schema_PrimitiveValue$BigInt__f_value;
-          var s = $n(x57).toString__T();
-          return s;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$BigDecimal)) {
-          var x52 = $as_Lzio_blocks_schema_PrimitiveValue$BigDecimal(x85);
-          var this$45 = $n(x52);
-          var x54 = this$45.Lzio_blocks_schema_PrimitiveValue$BigDecimal__f_value;
-          var this$46 = $n(x54);
-          var s$1 = $n(this$46.s_math_BigDecimal__f_bigDecimal).toString__T();
-          return s$1;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$Char)) {
-          var x49 = $as_Lzio_blocks_schema_PrimitiveValue$Char(x85);
-          var this$49 = $n(x49);
-          var x51 = this$49.Lzio_blocks_schema_PrimitiveValue$Char__f_value;
-          var s$2 = ("" + $cToS(x51));
-          return s$2;
-        } else if ((x85 instanceof $c_Lzio_blocks_schema_PrimitiveValue$UUID)) {
-          var x46 = $as_Lzio_blocks_schema_PrimitiveValue$UUID(x85);
-          var this$53 = $n(x46);
-          var x48 = this$53.Lzio_blocks_schema_PrimitiveValue$UUID__f_value;
-          var s$3 = $n(x48).toString__T();
-          return s$3;
-        } else {
-          var s$4 = $n(x85).toString__T();
-          return s$4;
-        }
-      }
-      return null;
-    }
-    if ((_2 instanceof $c_s_Some)) {
-      var x118 = $as_s_Some(_2);
-      var rec = $as_Lzio_blocks_schema_Reflect$Record($n(x118).s_Some__f_value);
-      var x86 = value$tailLocal1;
-      if ((x86 instanceof $c_Lzio_blocks_schema_DynamicValue$Record)) {
-        var x87 = $as_Lzio_blocks_schema_DynamicValue$Record(x86);
-        var this$57 = $n(x87);
-        var x89 = this$57.Lzio_blocks_schema_DynamicValue$Record__f_fields;
-        var obj = ({});
-        var this$60 = $n(x89);
-        var map = $m_sci_Map$().from__sc_IterableOnce__sci_Map(this$60);
-        $n($n(rec).Lzio_blocks_schema_Reflect$Record__f_fields).foreach__F1__V(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((map, obj) => ((f) => {
-          var f$1 = $as_Lzio_blocks_schema_Term(f);
-          var this$61 = $n($n(map).get__O__s_Option($n(f$1).Lzio_blocks_schema_Term__f_name));
-          if ((!this$61.isEmpty__Z())) {
-            var x0$1 = this$61.get__O();
-            var dv = $as_Lzio_blocks_schema_DynamicValue(x0$1);
-            var key = $n(f$1).Lzio_blocks_schema_Term__f_name;
-            var value$6 = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__toJs__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_DynamicValue__sjs_js_Any($m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$(), $n(f$1).Lzio_blocks_schema_Term__f_value, dv);
-            obj[key] = value$6;
-          }
-        }))(map, obj)));
-        return obj;
-      }
-      return ({});
-    }
-    if ((_3 instanceof $c_s_Some)) {
-      var x112 = $as_s_Some(_3);
-      var seq = $as_Lzio_blocks_schema_Reflect$Sequence$Unknown($n(x112).s_Some__f_value);
-      var x90 = value$tailLocal1;
-      if ((x90 instanceof $c_Lzio_blocks_schema_DynamicValue$Sequence)) {
-        var x91 = $as_Lzio_blocks_schema_DynamicValue$Sequence(x90);
-        var this$65 = $n(x91);
-        var x93 = this$65.Lzio_blocks_schema_DynamicValue$Sequence__f_elements;
-        var col = $n(x93).map__F1__sci_Vector(new $c_sr_AbstractFunction1_$$Lambda$70e1780b84463d18653aacefee3ab989ac625f28(((seq) => ((e) => {
-          var e$1 = $as_Lzio_blocks_schema_DynamicValue(e);
-          return $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__toJs__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_DynamicValue__sjs_js_Any($m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$(), $n($n(seq).Lzio_blocks_schema_Reflect$Sequence$$anon$6__f_$outer).Lzio_blocks_schema_Reflect$Sequence__f_element, e$1);
-        }))(seq)));
-        return $m_sjs_js_JSConverters$JSRichIterableOnce$().toJSArray$extension__sc_IterableOnce__sjs_js_Array(col);
-      }
-      return [];
-    }
-    return null;
-  }
-}
-function $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__optionInfo__Lzio_blocks_schema_Reflect__s_Option($thiz, reflect) {
-  var this$1 = $n($n(reflect).asVariant__s_Option());
-  if (this$1.isEmpty__Z()) {
-    return $m_s_None$();
-  } else {
-    var x0 = this$1.get__O();
-    var variant = $as_Lzio_blocks_schema_Reflect$Variant(x0);
-    var this$2 = $n($n(variant).Lzio_blocks_schema_Reflect$Variant__f_cases);
-    _return: {
-      var it = this$2.iterator__sc_Iterator();
-      while ($n(it).hasNext__Z()) {
-        var a = $n(it).next__O();
-        var t = $as_Lzio_blocks_schema_Term(a);
-        if (($p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__simpleCaseName$1__T__T($thiz, $n(t).Lzio_blocks_schema_Term__f_name) === "None")) {
-          var noneCase = new $c_s_Some(a);
-          break _return;
-        }
-      }
-      var noneCase = $m_s_None$();
-    }
-    var this$3 = $n($n(variant).Lzio_blocks_schema_Reflect$Variant__f_cases);
-    _return$1: {
-      var it$1 = this$3.iterator__sc_Iterator();
-      while ($n(it$1).hasNext__Z()) {
-        var a$1 = $n(it$1).next__O();
-        var t$1 = $as_Lzio_blocks_schema_Term(a$1);
-        if (($p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__simpleCaseName$1__T__T($thiz, $n(t$1).Lzio_blocks_schema_Term__f_name) === "Some")) {
-          var someCase = new $c_s_Some(a$1);
-          break _return$1;
-        }
-      }
-      var someCase = $m_s_None$();
-    }
-    if ((noneCase.isEmpty__Z() || someCase.isEmpty__Z())) {
-      return $m_s_None$();
-    } else {
-      var someValue = $n($as_Lzio_blocks_schema_Term(someCase.get__O())).Lzio_blocks_schema_Term__f_value;
-      var x130 = $n(someValue).asRecord__s_Option();
-      if ((x130 instanceof $c_s_Some)) {
-        var x131 = $as_s_Some(x130);
-        var someRec = $as_Lzio_blocks_schema_Reflect$Record($n(x131).s_Some__f_value);
-        var x127 = $n(someRec).fieldByName__T__s_Option("value");
-        if ((x127 instanceof $c_s_Some)) {
-          var x128 = $as_s_Some(x127);
-          var valueField = $as_Lzio_blocks_schema_Term($n(x128).s_Some__f_value);
-          var _1 = $n(valueField).Lzio_blocks_schema_Term__f_value;
-          var value = new $c_T2(_1, true);
-          return new $c_s_Some(value);
-        }
-        var x = $m_s_None$();
-        if ((x === x127)) {
-          var value$1 = new $c_T2(someValue, false);
-          return new $c_s_Some(value$1);
-        }
-        throw new $c_s_MatchError(x127);
-      }
-      var x$3 = $m_s_None$();
-      if ((x$3 === x130)) {
-        var value$2 = new $c_T2(someValue, false);
-        return new $c_s_Some(value$2);
-      }
-      throw new $c_s_MatchError(x130);
-    }
-  }
-}
-function $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__simpleCaseName$1__T__T($thiz, name) {
-  matchResult19: {
-    var afterDot;
-    var x126 = $f_T__lastIndexOf__I__I($n(name), 46);
-    if ((x126 === (-1))) {
-      var afterDot = name;
-      break matchResult19;
-    }
-    var this$1 = $n(name);
-    var beginIndex = ((1 + x126) | 0);
-    if (((beginIndex < 0) || (beginIndex > this$1.length))) {
-      $charAt(this$1, beginIndex);
-    }
-    var afterDot = $as_T(this$1.substring(beginIndex));
-  }
-  var this$2 = $n(afterDot);
-  if ($uZ(this$2.endsWith("$"))) {
-    return $m_sc_StringOps$().dropRight$extension__T__I__T(afterDot, 1);
-  } else {
-    return afterDot;
-  }
-}
-/** @constructor */
-function $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$() {
-}
-$c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype = new $h_O();
-$c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype.constructor = $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$;
-/** @constructor */
-function $h_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$() {
-}
-$h_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype = $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype;
-$c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype.decode__sjs_js_Any__Lzio_blocks_schema_Schema__s_util_Either = (function(value, schema) {
-  var this$1 = $n(schema);
-  var value$1 = $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__fromJs__Lzio_blocks_schema_Reflect__sjs_js_Any__Lzio_blocks_schema_DynamicValue(this, $n(schema).Lzio_blocks_schema_Schema__f_reflect, value);
-  var this$2 = $n($n(this$1.Lzio_blocks_schema_Schema__f_reflect).fromDynamicValue__Lzio_blocks_schema_DynamicValue__sci_List__Lzio_blocks_schema_binding_HasBinding__s_util_Either(value$1, $m_sci_Nil$(), $m_Lzio_blocks_schema_binding_Binding$().Lzio_blocks_schema_binding_Binding$__f_bindingHasBinding));
-  var this$3 = new $c_s_util_Either$LeftProjection(this$2);
-  var x1 = this$3.s_util_Either$LeftProjection__f_e;
-  if ((x1 instanceof $c_s_util_Left)) {
-    var x2 = $as_s_util_Left(x1);
-    var a = $n(x2).s_util_Left__f_value;
-    var _$1 = $as_Lzio_blocks_schema_SchemaError(a);
-    return new $c_s_util_Left($n(_$1).toString__T());
-  } else {
-    return this$3.s_util_Either$LeftProjection__f_e;
-  }
-});
-$c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$.prototype.encode__O__Lzio_blocks_schema_Schema__sjs_js_Any = (function(value, schema) {
-  var $x_1 = $n(schema).Lzio_blocks_schema_Schema__f_reflect;
-  var this$1 = $n(schema);
-  return $p_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$__toJs__Lzio_blocks_schema_Reflect__Lzio_blocks_schema_DynamicValue__sjs_js_Any(this, $x_1, $n(this$1.Lzio_blocks_schema_Schema__f_reflect).toDynamicValue__O__Lzio_blocks_schema_binding_HasBinding__Lzio_blocks_schema_DynamicValue(value, $m_Lzio_blocks_schema_binding_Binding$().Lzio_blocks_schema_binding_Binding$__f_bindingHasBinding));
-});
-var $d_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$ = new $TypeData().initClass($c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$, "cloud.golem.runtime.autowire.JsPlainSchemaCodec$", ({
-  Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$: 1
-}));
-var $n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$;
-function $m_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$() {
-  if ((!$n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$)) {
-    $n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$ = new $c_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$();
-  }
-  return $n_Lcloud_golem_runtime_autowire_JsPlainSchemaCodec$;
 }
 function $is_Lcloud_golem_runtime_autowire_MethodBinding(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_runtime_autowire_MethodBinding)));
@@ -6170,6 +5661,200 @@ function $m_Lcloud_golem_runtime_autowire_WitValueCodec$() {
     $n_Lcloud_golem_runtime_autowire_WitValueCodec$ = new $c_Lcloud_golem_runtime_autowire_WitValueCodec$();
   }
   return $n_Lcloud_golem_runtime_autowire_WitValueCodec$;
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, tag, message) {
+  var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", tag), new $c_T2("val", message)]));
+  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, message) {
+  matchResult4: {
+    var witValue;
+    var x5 = $m_Lcloud_golem_runtime_autowire_WitValueBuilder$().build__Lcloud_golem_data_DataType__Lcloud_golem_data_DataValue__s_util_Either($m_Lcloud_golem_data_DataType$StringType$(), new $c_Lcloud_golem_data_DataValue$StringValue(message));
+    if ((x5 instanceof $c_s_util_Left)) {
+      $as_s_util_Left(x5);
+      var fields = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "string"), new $c_T2("val", message)]));
+      var witValue = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
+      break matchResult4;
+    }
+    if ((x5 instanceof $c_s_util_Right)) {
+      var x6 = $as_s_util_Right(x5);
+      var vit = $n(x6).s_util_Right__f_value;
+      var witValue = vit;
+      break matchResult4;
+    }
+    throw new $c_s_MatchError(x5);
+  }
+  var $x_3 = $m_sr_ScalaRunTime$();
+  var $x_2 = new $c_T2("name", (void 0));
+  var $x_1 = new $c_T2("owner", (void 0));
+  var fields$1 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("tag", "prim-string-type")]));
+  var y = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$1);
+  var fields$2 = $x_3.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("type", y)]));
+  var node = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$2);
+  var $x_4 = $m_sr_ScalaRunTime$();
+  var y$1 = [node];
+  var fields$3 = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("nodes", y$1)]));
+  var witType = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$3);
+  var $x_6 = $m_sr_ScalaRunTime$();
+  var $x_5 = new $c_T2("tag", "custom-error");
+  var fields$4 = $m_sr_ScalaRunTime$().wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([new $c_T2("value", witValue), new $c_T2("typ", witType)]));
+  var y$2 = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$4);
+  var fields$5 = $x_6.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_5, new $c_T2("val", y$2)]));
+  return $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields$5);
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($thiz, err, fallbackTag) {
+  if ((err === null)) {
+    return $p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, "null");
+  } else {
+    try {
+      var v = err.tag;
+      if ((!(v === (void 0)))) {
+        var v$1 = err.val;
+        var hasTagVal = (!(v$1 === (void 0)));
+      } else {
+        var hasTagVal = false;
+      }
+    } catch (e) {
+      var hasTagVal = false;
+    }
+    if (hasTagVal) {
+      return err;
+    } else if (((typeof err) === "string")) {
+      var x11 = $as_T(err);
+      return $p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, fallbackTag, x11);
+    } else {
+      return $p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, ("" + err));
+    }
+  }
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__normalizeMethodName__T__T($thiz, methodName) {
+  var this$1 = $n(methodName);
+  if (($uI(this$1.indexOf(".{")) !== (-1))) {
+    var this$2 = $n(methodName);
+    var $x_1 = $uZ(this$2.endsWith("}"));
+  } else {
+    var $x_1 = false;
+  }
+  if ($x_1) {
+    var this$3 = $n(methodName);
+    var start = ((2 + $uI(this$3.indexOf(".{"))) | 0);
+    var this$5 = $n(methodName);
+    var this$4 = $n(methodName);
+    var endIndex = (((-1) + this$4.length) | 0);
+    if ((start < 0)) {
+      $charAt(this$5, start);
+    }
+    if ((endIndex > this$5.length)) {
+      $charAt(this$5, endIndex);
+    }
+    if ((endIndex < start)) {
+      $charAt(this$5, (-1));
+    }
+    return $as_T(this$5.substring(start, endIndex));
+  } else {
+    return methodName;
+  }
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise($thiz, agentTypeName, input) {
+  var v = $thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved;
+  if ((!(v === (void 0)))) {
+    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__customError__T__sjs_js_Dynamic($thiz, "Agent is already initialized in this container"));
+  } else {
+    var x12 = $m_Lcloud_golem_runtime_autowire_AgentRegistry$().get__T__s_Option(agentTypeName);
+    var x = $m_s_None$();
+    if ((x === x12)) {
+      var $x_1 = Promise;
+      var message = (("Invalid agent '" + agentTypeName) + "'");
+      return $x_1.reject($p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-type", message));
+    }
+    if ((x12 instanceof $c_s_Some)) {
+      var x13 = $as_s_Some(x12);
+      var defnAny = $as_Lcloud_golem_runtime_autowire_AgentDefinition($n(x13).s_Some__f_value);
+      var this$2 = $n(defnAny);
+      return $n(this$2.Lcloud_golem_runtime_autowire_AgentDefinition__f_constructor).initialize__sjs_js_Dynamic__sjs_js_Promise(input).then(((inst) => {
+        $m_Lcloud_golem_runtime_guest_Guest$().Lcloud_golem_runtime_guest_Guest$__f_resolved = new $c_Lcloud_golem_runtime_guest_Guest$Resolved(defnAny, inst);
+      }), ((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-input"))));
+    }
+    throw new $c_s_MatchError(x12);
+  }
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise($thiz, methodName, input) {
+  var v = $thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved;
+  if ((v === (void 0))) {
+    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
+  } else {
+    var r = $as_Lcloud_golem_runtime_guest_Guest$Resolved($thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved);
+    var mn = $p_Lcloud_golem_runtime_guest_Guest$__normalizeMethodName__T__T($thiz, methodName);
+    var this$2 = $n($n(r).Lcloud_golem_runtime_guest_Guest$Resolved__f_defn);
+    var instance = $n(r).Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
+    return this$2.invoke__O__T__sjs_js_Dynamic__sjs_js_Promise(instance, mn, input).catch(((err) => Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($m_Lcloud_golem_runtime_guest_Guest$(), err, "invalid-method"))));
+  }
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__getDefinition__sjs_js_Promise($thiz) {
+  var v = $thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved;
+  if ((v === (void 0))) {
+    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__agentError__T__T__sjs_js_Dynamic($thiz, "invalid-agent-id", "Agent is not initialized"));
+  } else {
+    return Promise.resolve($n($n($as_Lcloud_golem_runtime_guest_Guest$Resolved($thiz.Lcloud_golem_runtime_guest_Guest$__f_resolved)).Lcloud_golem_runtime_guest_Guest$Resolved__f_defn).agentType__sjs_js_Dynamic());
+  }
+}
+function $p_Lcloud_golem_runtime_guest_Guest$__discoverAgentTypes__sjs_js_Promise($thiz) {
+  try {
+    var arr = [];
+    var this$1 = $n($m_Lcloud_golem_runtime_autowire_AgentRegistry$().all__sci_List());
+    var these = this$1;
+    while ((!$n(these).isEmpty__Z())) {
+      var x0 = $n(these).head__O();
+      var d = $as_Lcloud_golem_runtime_autowire_AgentDefinition(x0);
+      $uI(arr.push($n(d).agentType__sjs_js_Dynamic()));
+      these = $as_sci_List($n(these).tail__O());
+    }
+    return Promise.resolve(arr);
+  } catch (e) {
+    var e$2 = ((e instanceof $c_jl_Throwable) ? e : new $c_sjs_js_JavaScriptException(e));
+    return Promise.reject($p_Lcloud_golem_runtime_guest_Guest$__asAgentError__O__T__sjs_js_Dynamic($thiz, e$2.toString__T(), "custom-error"));
+  }
+}
+function $sct_Lcloud_golem_runtime_guest_Guest$__stinit__() {
+  $m_Lcloud_golem_runtime_guest_Guest$();
+}
+/** @constructor */
+function $c_Lcloud_golem_runtime_guest_Guest$() {
+  this.Lcloud_golem_runtime_guest_Guest$__f_resolved = null;
+  $n_Lcloud_golem_runtime_guest_Guest$ = this;
+  this.Lcloud_golem_runtime_guest_Guest$__f_resolved = (void 0);
+  var $x_4 = $m_sr_ScalaRunTime$();
+  var y = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((agentTypeName, input) => {
+    var agentTypeName$1 = $as_T(agentTypeName);
+    return $p_Lcloud_golem_runtime_guest_Guest$__initialize__T__sjs_js_Dynamic__sjs_js_Promise(this, agentTypeName$1, input);
+  })));
+  var $x_3 = new $c_T2("initialize", y);
+  var y$1 = $m_sjs_js_Any$().fromFunction2__F2__sjs_js_Function2(new $c_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc(((methodName, input$2) => {
+    var methodName$1 = $as_T(methodName);
+    return $p_Lcloud_golem_runtime_guest_Guest$__invoke__T__sjs_js_Dynamic__sjs_js_Promise(this, methodName$1, input$2);
+  })));
+  var $x_2 = new $c_T2("invoke", y$1);
+  var y$2 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_runtime_guest_Guest$__getDefinition__sjs_js_Promise(this))));
+  var $x_1 = new $c_T2("getDefinition", y$2);
+  var y$3 = $m_sjs_js_Any$().fromFunction0__F0__sjs_js_Function0(new $c_sr_AbstractFunction0_$$Lambda$a02b774b97db8234e08c6a02dd06557c99779855((() => $p_Lcloud_golem_runtime_guest_Guest$__discoverAgentTypes__sjs_js_Promise(this))));
+  var fields = $x_4.wrapRefArray__AO__sci_ArraySeq(new ($d_T2.getArrayOf().constr)([$x_3, $x_2, $x_1, new $c_T2("discoverAgentTypes", y$3)]));
+  $t_Lcloud_golem_runtime_guest_Guest$__guest = $m_sjs_js_special_package$().objectLiteral__sci_Seq__sjs_js_Object(fields);
+}
+$c_Lcloud_golem_runtime_guest_Guest$.prototype = new $h_O();
+$c_Lcloud_golem_runtime_guest_Guest$.prototype.constructor = $c_Lcloud_golem_runtime_guest_Guest$;
+/** @constructor */
+function $h_Lcloud_golem_runtime_guest_Guest$() {
+}
+$h_Lcloud_golem_runtime_guest_Guest$.prototype = $c_Lcloud_golem_runtime_guest_Guest$.prototype;
+var $d_Lcloud_golem_runtime_guest_Guest$ = new $TypeData().initClass($c_Lcloud_golem_runtime_guest_Guest$, "cloud.golem.runtime.guest.Guest$", ({
+  Lcloud_golem_runtime_guest_Guest$: 1
+}));
+var $n_Lcloud_golem_runtime_guest_Guest$;
+function $m_Lcloud_golem_runtime_guest_Guest$() {
+  if ((!$n_Lcloud_golem_runtime_guest_Guest$)) {
+    $n_Lcloud_golem_runtime_guest_Guest$ = new $c_Lcloud_golem_runtime_guest_Guest$();
+  }
+  return $n_Lcloud_golem_runtime_guest_Guest$;
 }
 function $is_Lcloud_golem_runtime_plan_MethodPlan(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_runtime_plan_MethodPlan)));
@@ -13138,7 +12823,9 @@ $c_sr_ScalaRunTime$.prototype.array_clone__O__O = (function(xs) {
   }
 });
 $c_sr_ScalaRunTime$.prototype._toString__s_Product__T = (function(x) {
-  return $f_sc_IterableOnceOps__mkString__T__T__T__T($n($n(x).productIterator__sc_Iterator()), ($n(x).productPrefix__T() + "("), ",", ")");
+  var this$1 = $n($n(x).productIterator__sc_Iterator());
+  var start = ($n(x).productPrefix__T() + "(");
+  return $f_sc_IterableOnceOps__mkString__T__T__T__T(this$1, start, ",", ")");
 });
 $c_sr_ScalaRunTime$.prototype.genericWrapArray__O__sci_ArraySeq = (function(xs) {
   return ((xs === null) ? null : $m_sci_ArraySeq$().unsafeWrapArray__O__sci_ArraySeq(xs));
@@ -13410,39 +13097,6 @@ function $m_sjs_js_JSConverters$JSRichFuture$() {
     $n_sjs_js_JSConverters$JSRichFuture$ = new $c_sjs_js_JSConverters$JSRichFuture$();
   }
   return $n_sjs_js_JSConverters$JSRichFuture$;
-}
-/** @constructor */
-function $c_sjs_js_JSConverters$JSRichIterableOnce$() {
-}
-$c_sjs_js_JSConverters$JSRichIterableOnce$.prototype = new $h_O();
-$c_sjs_js_JSConverters$JSRichIterableOnce$.prototype.constructor = $c_sjs_js_JSConverters$JSRichIterableOnce$;
-/** @constructor */
-function $h_sjs_js_JSConverters$JSRichIterableOnce$() {
-}
-$h_sjs_js_JSConverters$JSRichIterableOnce$.prototype = $c_sjs_js_JSConverters$JSRichIterableOnce$.prototype;
-$c_sjs_js_JSConverters$JSRichIterableOnce$.prototype.toJSArray$extension__sc_IterableOnce__sjs_js_Array = (function(this$) {
-  if ((this$ instanceof $c_sjs_js_WrappedArray)) {
-    var x2 = $as_sjs_js_WrappedArray(this$);
-    return $n(x2).sjs_js_WrappedArray__f_scala$scalajs$js$WrappedArray$$array;
-  } else {
-    var result = [];
-    var this$2 = $n($n(this$).iterator__sc_Iterator());
-    while (this$2.hasNext__Z()) {
-      var x0 = this$2.next__O();
-      $uI(result.push(x0));
-    }
-    return result;
-  }
-});
-var $d_sjs_js_JSConverters$JSRichIterableOnce$ = new $TypeData().initClass($c_sjs_js_JSConverters$JSRichIterableOnce$, "scala.scalajs.js.JSConverters$JSRichIterableOnce$", ({
-  sjs_js_JSConverters$JSRichIterableOnce$: 1
-}));
-var $n_sjs_js_JSConverters$JSRichIterableOnce$;
-function $m_sjs_js_JSConverters$JSRichIterableOnce$() {
-  if ((!$n_sjs_js_JSConverters$JSRichIterableOnce$)) {
-    $n_sjs_js_JSConverters$JSRichIterableOnce$ = new $c_sjs_js_JSConverters$JSRichIterableOnce$();
-  }
-  return $n_sjs_js_JSConverters$JSRichIterableOnce$;
 }
 /** @constructor */
 function $c_sjs_js_special_package$() {
@@ -14602,18 +14256,6 @@ function $isArrayOf_Lzio_blocks_schema_PrimitiveType(obj, depth) {
 function $asArrayOf_Lzio_blocks_schema_PrimitiveType(obj, depth) {
   return (($isArrayOf_Lzio_blocks_schema_PrimitiveType(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lzio.blocks.schema.PrimitiveType;", depth));
 }
-function $is_Lzio_blocks_schema_PrimitiveValue(obj) {
-  return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lzio_blocks_schema_PrimitiveValue)));
-}
-function $as_Lzio_blocks_schema_PrimitiveValue(obj) {
-  return (($is_Lzio_blocks_schema_PrimitiveValue(obj) || (obj === null)) ? obj : $throwClassCastException(obj, "zio.blocks.schema.PrimitiveValue"));
-}
-function $isArrayOf_Lzio_blocks_schema_PrimitiveValue(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lzio_blocks_schema_PrimitiveValue)));
-}
-function $asArrayOf_Lzio_blocks_schema_PrimitiveValue(obj, depth) {
-  return (($isArrayOf_Lzio_blocks_schema_PrimitiveValue(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lzio.blocks.schema.PrimitiveValue;", depth));
-}
 function $is_Lzio_blocks_schema_Reflect$Sequence$Unknown(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lzio_blocks_schema_Reflect$Sequence$Unknown)));
 }
@@ -15347,6 +14989,563 @@ var $d_Lcloud_golem_data_GolemSchema$$anon$4 = new $TypeData().initClass($c_Lclo
   Lcloud_golem_data_GolemSchema$$anon$4: 1,
   Lcloud_golem_data_GolemSchema: 1
 }));
+/** @constructor */
+function $c_Lcloud_golem_examples_RegisterAgents$$anon$1() {
+  this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params = null;
+  this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_schema = null;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var _2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema);
+  var $x_2 = new $c_T2("shardName", _2);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  var _2$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1);
+  var $x_1 = new $c_T2("shardIndex", _2$1);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var _2$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
+  this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params = new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("input", _2$2)]);
+  var builder = new $c_scm_ListBuffer();
+  var idx = 0;
+  while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).u.length)) {
+    matchResult13: {
+      var \u03b44$;
+      var x121 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).get(idx);
+      if ((x121 !== null)) {
+        var \u03b44$ = x121;
+        break matchResult13;
+      }
+      throw new $c_s_MatchError(x121);
+    }
+    var paramName = $as_T($n(\u03b44$)._1__O());
+    var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b44$)._2__O());
+    matchResult14: {
+      var x124 = $n(codec).schema__Lcloud_golem_data_StructuredSchema();
+      if ((x124 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+        var x125 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x124);
+        var this$9 = $n(x125);
+        var x127 = this$9.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+        if (($n(x127).length__I() === 1)) {
+          var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x127).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+          var elem = new $c_Lcloud_golem_data_NamedElementSchema(paramName, schema);
+          builder.addOne__O__scm_ListBuffer(elem);
+          break matchResult14;
+        }
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ((("Parameter '" + paramName) + "' in method 'route' must encode to a single element, found: ") + x124));
+    }
+    idx = ((1 + idx) | 0);
+  }
+  var elements = builder.toList__sci_List();
+  this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_schema = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
+}
+$c_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype = new $h_O();
+$c_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype.constructor = $c_Lcloud_golem_examples_RegisterAgents$$anon$1;
+/** @constructor */
+function $h_Lcloud_golem_examples_RegisterAgents$$anon$1() {
+}
+$h_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype = $c_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype;
+$c_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype.schema__Lcloud_golem_data_StructuredSchema = (function() {
+  return this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_schema;
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype.encode__sci_List__s_util_Either = (function(value) {
+  var this$1 = $n(value);
+  var values = $m_sci_Vector$().from__sc_IterableOnce__sci_Vector(this$1);
+  if (($n(values).length__I() !== $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).u.length)) {
+    return new $c_s_util_Left("Parameter count mismatch for method 'route'. Expected 3, found ${values.length}");
+  } else {
+    var builder = new $c_scm_ListBuffer();
+    var idx = 0;
+    while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).u.length)) {
+      matchResult15: {
+        var \u03b46$;
+        var x128 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).get(idx);
+        if ((x128 !== null)) {
+          var \u03b46$ = x128;
+          break matchResult15;
+        }
+        throw new $c_s_MatchError(x128);
+      }
+      var paramName = $as_T($n(\u03b46$)._1__O());
+      var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b46$)._2__O());
+      matchResult17: {
+        var x138 = $n(codec).encode__O__s_util_Either($n(values).apply__I__O(idx));
+        if ((x138 instanceof $c_s_util_Left)) {
+          var x146 = $as_s_util_Left(x138);
+          var err = $as_T($n(x146).s_util_Left__f_value);
+          var value$1 = ((("Failed to encode parameter '" + paramName) + "' in method 'route': ") + err);
+          return new $c_s_util_Left(value$1);
+        }
+        if ((x138 instanceof $c_s_util_Right)) {
+          var x141 = $as_s_util_Right(x138);
+          var x142 = $as_Lcloud_golem_data_StructuredValue($n(x141).s_util_Right__f_value);
+          if ((x142 instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
+            var x143 = $as_Lcloud_golem_data_StructuredValue$Tuple(x142);
+            var this$6 = $n(x143);
+            var x145 = this$6.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
+            if ((x145 instanceof $c_sci_$colon$colon)) {
+              var x132 = $as_sci_$colon$colon(x145);
+              var x133 = $as_Lcloud_golem_data_NamedElementValue($n(x132).sci_$colon$colon__f_head);
+              var x134 = $n(x132).sci_$colon$colon__f_next;
+              if ((x133 !== null)) {
+                $n(x133);
+                var this$9 = $n(x133);
+                var x137 = this$9.Lcloud_golem_data_NamedElementValue__f_value;
+                var x = $m_sci_Nil$();
+                if (x.equals__O__Z(x134)) {
+                  var elem = new $c_Lcloud_golem_data_NamedElementValue(paramName, x137);
+                  builder.addOne__O__scm_ListBuffer(elem);
+                  break matchResult17;
+                }
+              }
+            }
+            var value$2 = (("Parameter '" + paramName) + "' in method 'route' must encode to a single element value");
+            return new $c_s_util_Left(value$2);
+          }
+          var value$3 = ((("Parameter '" + paramName) + "' in method 'route' produced unexpected structured value: ") + x142);
+          return new $c_s_util_Left(value$3);
+        }
+        throw new $c_s_MatchError(x138);
+      }
+      idx = ((1 + idx) | 0);
+    }
+    var elements = builder.toList__sci_List();
+    var value$4 = new $c_Lcloud_golem_data_StructuredValue$Tuple(elements);
+    return new $c_s_util_Right(value$4);
+  }
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype.decode__Lcloud_golem_data_StructuredValue__s_util_Either = (function(value) {
+  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
+    var x157 = $as_Lcloud_golem_data_StructuredValue$Tuple(value);
+    var this$2 = $n(x157);
+    var x159 = this$2.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
+    if (($n(x159).length__I() !== $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).u.length)) {
+      return new $c_s_util_Left("Structured element count mismatch for method 'route'. Expected 3, found ${elements.length}");
+    } else {
+      var builder = new $c_scm_ListBuffer();
+      var idx = 0;
+      while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).u.length)) {
+        matchResult18: {
+          var \u03b48$;
+          var x148 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$1__f_params).get(idx);
+          if ((x148 !== null)) {
+            var \u03b48$ = x148;
+            break matchResult18;
+          }
+          throw new $c_s_MatchError(x148);
+        }
+        var paramName = $as_T($n(\u03b48$)._1__O());
+        var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b48$)._2__O());
+        var this$5 = $n(x159);
+        var n = idx;
+        var element = $as_Lcloud_golem_data_NamedElementValue($f_sc_LinearSeqOps__apply__I__O(this$5, n));
+        if (($n(element).Lcloud_golem_data_NamedElementValue__f_name !== paramName)) {
+          var value$1 = (("Structured element name mismatch for method 'route'. Expected '$paramName', found '" + $n(element).Lcloud_golem_data_NamedElementValue__f_name) + "'");
+          return new $c_s_util_Left(value$1);
+        }
+        matchResult19: {
+          var x151 = $n(codec).decode__Lcloud_golem_data_StructuredValue__s_util_Either($m_Lcloud_golem_data_StructuredValue$().single__Lcloud_golem_data_ElementValue__T__Lcloud_golem_data_StructuredValue($n(element).Lcloud_golem_data_NamedElementValue__f_value, "value"));
+          if ((x151 instanceof $c_s_util_Left)) {
+            var x154 = $as_s_util_Left(x151);
+            var err = $as_T($n(x154).s_util_Left__f_value);
+            var value$2 = ((("Failed to decode parameter '" + paramName) + "' in method 'route': ") + err);
+            return new $c_s_util_Left(value$2);
+          }
+          if ((x151 instanceof $c_s_util_Right)) {
+            var x152 = $as_s_util_Right(x151);
+            var decoded = $n(x152).s_util_Right__f_value;
+            builder.addOne__O__scm_ListBuffer(decoded);
+            break matchResult19;
+          }
+          throw new $c_s_MatchError(x151);
+        }
+        idx = ((1 + idx) | 0);
+      }
+      var value$3 = builder.toList__sci_List();
+      return new $c_s_util_Right(value$3);
+    }
+  } else {
+    var value$4 = ("Structured value mismatch for method 'route'. Expected tuple payload, found: " + value);
+    return new $c_s_util_Left(value$4);
+  }
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$1.prototype.encode__O__s_util_Either = (function(value) {
+  return this.encode__sci_List__s_util_Either($as_sci_List(value));
+});
+var $d_Lcloud_golem_examples_RegisterAgents$$anon$1 = new $TypeData().initClass($c_Lcloud_golem_examples_RegisterAgents$$anon$1, "cloud.golem.examples.RegisterAgents$$anon$1", ({
+  Lcloud_golem_examples_RegisterAgents$$anon$1: 1,
+  Lcloud_golem_data_GolemSchema: 1
+}));
+/** @constructor */
+function $c_Lcloud_golem_examples_RegisterAgents$$anon$2() {
+  this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params = null;
+  this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_schema = null;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var _2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema);
+  var $x_2 = new $c_T2("shardName", _2);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
+  var _2$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1);
+  var $x_1 = new $c_T2("shardIndex", _2$1);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$2 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
+  var _2$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
+  this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params = new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("payload", _2$2)]);
+  var builder = new $c_scm_ListBuffer();
+  var idx = 0;
+  while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).u.length)) {
+    matchResult27: {
+      var \u03b44$;
+      var x220 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).get(idx);
+      if ((x220 !== null)) {
+        var \u03b44$ = x220;
+        break matchResult27;
+      }
+      throw new $c_s_MatchError(x220);
+    }
+    var paramName = $as_T($n(\u03b44$)._1__O());
+    var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b44$)._2__O());
+    matchResult28: {
+      var x223 = $n(codec).schema__Lcloud_golem_data_StructuredSchema();
+      if ((x223 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+        var x224 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x223);
+        var this$9 = $n(x224);
+        var x226 = this$9.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+        if (($n(x226).length__I() === 1)) {
+          var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x226).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+          var elem = new $c_Lcloud_golem_data_NamedElementSchema(paramName, schema);
+          builder.addOne__O__scm_ListBuffer(elem);
+          break matchResult28;
+        }
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ((("Parameter '" + paramName) + "' in method 'routeTyped' must encode to a single element, found: ") + x223));
+    }
+    idx = ((1 + idx) | 0);
+  }
+  var elements = builder.toList__sci_List();
+  this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_schema = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
+}
+$c_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype = new $h_O();
+$c_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype.constructor = $c_Lcloud_golem_examples_RegisterAgents$$anon$2;
+/** @constructor */
+function $h_Lcloud_golem_examples_RegisterAgents$$anon$2() {
+}
+$h_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype = $c_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype;
+$c_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype.schema__Lcloud_golem_data_StructuredSchema = (function() {
+  return this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_schema;
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype.encode__sci_List__s_util_Either = (function(value) {
+  var this$1 = $n(value);
+  var values = $m_sci_Vector$().from__sc_IterableOnce__sci_Vector(this$1);
+  if (($n(values).length__I() !== $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).u.length)) {
+    return new $c_s_util_Left("Parameter count mismatch for method 'routeTyped'. Expected 3, found ${values.length}");
+  } else {
+    var builder = new $c_scm_ListBuffer();
+    var idx = 0;
+    while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).u.length)) {
+      matchResult29: {
+        var \u03b46$;
+        var x227 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).get(idx);
+        if ((x227 !== null)) {
+          var \u03b46$ = x227;
+          break matchResult29;
+        }
+        throw new $c_s_MatchError(x227);
+      }
+      var paramName = $as_T($n(\u03b46$)._1__O());
+      var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b46$)._2__O());
+      matchResult31: {
+        var x237 = $n(codec).encode__O__s_util_Either($n(values).apply__I__O(idx));
+        if ((x237 instanceof $c_s_util_Left)) {
+          var x245 = $as_s_util_Left(x237);
+          var err = $as_T($n(x245).s_util_Left__f_value);
+          var value$1 = ((("Failed to encode parameter '" + paramName) + "' in method 'routeTyped': ") + err);
+          return new $c_s_util_Left(value$1);
+        }
+        if ((x237 instanceof $c_s_util_Right)) {
+          var x240 = $as_s_util_Right(x237);
+          var x241 = $as_Lcloud_golem_data_StructuredValue($n(x240).s_util_Right__f_value);
+          if ((x241 instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
+            var x242 = $as_Lcloud_golem_data_StructuredValue$Tuple(x241);
+            var this$6 = $n(x242);
+            var x244 = this$6.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
+            if ((x244 instanceof $c_sci_$colon$colon)) {
+              var x231 = $as_sci_$colon$colon(x244);
+              var x232 = $as_Lcloud_golem_data_NamedElementValue($n(x231).sci_$colon$colon__f_head);
+              var x233 = $n(x231).sci_$colon$colon__f_next;
+              if ((x232 !== null)) {
+                $n(x232);
+                var this$9 = $n(x232);
+                var x236 = this$9.Lcloud_golem_data_NamedElementValue__f_value;
+                var x = $m_sci_Nil$();
+                if (x.equals__O__Z(x233)) {
+                  var elem = new $c_Lcloud_golem_data_NamedElementValue(paramName, x236);
+                  builder.addOne__O__scm_ListBuffer(elem);
+                  break matchResult31;
+                }
+              }
+            }
+            var value$2 = (("Parameter '" + paramName) + "' in method 'routeTyped' must encode to a single element value");
+            return new $c_s_util_Left(value$2);
+          }
+          var value$3 = ((("Parameter '" + paramName) + "' in method 'routeTyped' produced unexpected structured value: ") + x241);
+          return new $c_s_util_Left(value$3);
+        }
+        throw new $c_s_MatchError(x237);
+      }
+      idx = ((1 + idx) | 0);
+    }
+    var elements = builder.toList__sci_List();
+    var value$4 = new $c_Lcloud_golem_data_StructuredValue$Tuple(elements);
+    return new $c_s_util_Right(value$4);
+  }
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype.decode__Lcloud_golem_data_StructuredValue__s_util_Either = (function(value) {
+  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
+    var x256 = $as_Lcloud_golem_data_StructuredValue$Tuple(value);
+    var this$2 = $n(x256);
+    var x258 = this$2.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
+    if (($n(x258).length__I() !== $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).u.length)) {
+      return new $c_s_util_Left("Structured element count mismatch for method 'routeTyped'. Expected 3, found ${elements.length}");
+    } else {
+      var builder = new $c_scm_ListBuffer();
+      var idx = 0;
+      while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).u.length)) {
+        matchResult32: {
+          var \u03b48$;
+          var x247 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$2__f_params).get(idx);
+          if ((x247 !== null)) {
+            var \u03b48$ = x247;
+            break matchResult32;
+          }
+          throw new $c_s_MatchError(x247);
+        }
+        var paramName = $as_T($n(\u03b48$)._1__O());
+        var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b48$)._2__O());
+        var this$5 = $n(x258);
+        var n = idx;
+        var element = $as_Lcloud_golem_data_NamedElementValue($f_sc_LinearSeqOps__apply__I__O(this$5, n));
+        if (($n(element).Lcloud_golem_data_NamedElementValue__f_name !== paramName)) {
+          var value$1 = (("Structured element name mismatch for method 'routeTyped'. Expected '$paramName', found '" + $n(element).Lcloud_golem_data_NamedElementValue__f_name) + "'");
+          return new $c_s_util_Left(value$1);
+        }
+        matchResult33: {
+          var x250 = $n(codec).decode__Lcloud_golem_data_StructuredValue__s_util_Either($m_Lcloud_golem_data_StructuredValue$().single__Lcloud_golem_data_ElementValue__T__Lcloud_golem_data_StructuredValue($n(element).Lcloud_golem_data_NamedElementValue__f_value, "value"));
+          if ((x250 instanceof $c_s_util_Left)) {
+            var x253 = $as_s_util_Left(x250);
+            var err = $as_T($n(x253).s_util_Left__f_value);
+            var value$2 = ((("Failed to decode parameter '" + paramName) + "' in method 'routeTyped': ") + err);
+            return new $c_s_util_Left(value$2);
+          }
+          if ((x250 instanceof $c_s_util_Right)) {
+            var x251 = $as_s_util_Right(x250);
+            var decoded = $n(x251).s_util_Right__f_value;
+            builder.addOne__O__scm_ListBuffer(decoded);
+            break matchResult33;
+          }
+          throw new $c_s_MatchError(x250);
+        }
+        idx = ((1 + idx) | 0);
+      }
+      var value$3 = builder.toList__sci_List();
+      return new $c_s_util_Right(value$3);
+    }
+  } else {
+    var value$4 = ("Structured value mismatch for method 'routeTyped'. Expected tuple payload, found: " + value);
+    return new $c_s_util_Left(value$4);
+  }
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$2.prototype.encode__O__s_util_Either = (function(value) {
+  return this.encode__sci_List__s_util_Either($as_sci_List(value));
+});
+var $d_Lcloud_golem_examples_RegisterAgents$$anon$2 = new $TypeData().initClass($c_Lcloud_golem_examples_RegisterAgents$$anon$2, "cloud.golem.examples.RegisterAgents$$anon$2", ({
+  Lcloud_golem_examples_RegisterAgents$$anon$2: 1,
+  Lcloud_golem_data_GolemSchema: 1
+}));
+/** @constructor */
+function $c_Lcloud_golem_examples_RegisterAgents$$anon$3() {
+  this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params = null;
+  this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_schema = null;
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var _2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema);
+  var $x_1 = new $c_T2("key", _2);
+  $m_Lcloud_golem_data_GolemSchema$();
+  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
+  var _2$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1);
+  this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params = new ($d_T2.getArrayOf().constr)([$x_1, new $c_T2("value", _2$1)]);
+  var builder = new $c_scm_ListBuffer();
+  var idx = 0;
+  while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).u.length)) {
+    matchResult39: {
+      var \u03b44$;
+      var x299 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).get(idx);
+      if ((x299 !== null)) {
+        var \u03b44$ = x299;
+        break matchResult39;
+      }
+      throw new $c_s_MatchError(x299);
+    }
+    var paramName = $as_T($n(\u03b44$)._1__O());
+    var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b44$)._2__O());
+    matchResult40: {
+      var x302 = $n(codec).schema__Lcloud_golem_data_StructuredSchema();
+      if ((x302 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
+        var x303 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x302);
+        var this$7 = $n(x303);
+        var x305 = this$7.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
+        if (($n(x305).length__I() === 1)) {
+          var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x305).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
+          var elem = new $c_Lcloud_golem_data_NamedElementSchema(paramName, schema);
+          builder.addOne__O__scm_ListBuffer(elem);
+          break matchResult40;
+        }
+      }
+      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ((("Parameter '" + paramName) + "' in method 'set' must encode to a single element, found: ") + x302));
+    }
+    idx = ((1 + idx) | 0);
+  }
+  var elements = builder.toList__sci_List();
+  this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_schema = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
+}
+$c_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype = new $h_O();
+$c_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype.constructor = $c_Lcloud_golem_examples_RegisterAgents$$anon$3;
+/** @constructor */
+function $h_Lcloud_golem_examples_RegisterAgents$$anon$3() {
+}
+$h_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype = $c_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype;
+$c_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype.schema__Lcloud_golem_data_StructuredSchema = (function() {
+  return this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_schema;
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype.encode__sci_List__s_util_Either = (function(value) {
+  var this$1 = $n(value);
+  var values = $m_sci_Vector$().from__sc_IterableOnce__sci_Vector(this$1);
+  if (($n(values).length__I() !== $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).u.length)) {
+    return new $c_s_util_Left("Parameter count mismatch for method 'set'. Expected 2, found ${values.length}");
+  } else {
+    var builder = new $c_scm_ListBuffer();
+    var idx = 0;
+    while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).u.length)) {
+      matchResult41: {
+        var \u03b46$;
+        var x306 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).get(idx);
+        if ((x306 !== null)) {
+          var \u03b46$ = x306;
+          break matchResult41;
+        }
+        throw new $c_s_MatchError(x306);
+      }
+      var paramName = $as_T($n(\u03b46$)._1__O());
+      var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b46$)._2__O());
+      matchResult43: {
+        var x316 = $n(codec).encode__O__s_util_Either($n(values).apply__I__O(idx));
+        if ((x316 instanceof $c_s_util_Left)) {
+          var x324 = $as_s_util_Left(x316);
+          var err = $as_T($n(x324).s_util_Left__f_value);
+          var value$1 = ((("Failed to encode parameter '" + paramName) + "' in method 'set': ") + err);
+          return new $c_s_util_Left(value$1);
+        }
+        if ((x316 instanceof $c_s_util_Right)) {
+          var x319 = $as_s_util_Right(x316);
+          var x320 = $as_Lcloud_golem_data_StructuredValue($n(x319).s_util_Right__f_value);
+          if ((x320 instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
+            var x321 = $as_Lcloud_golem_data_StructuredValue$Tuple(x320);
+            var this$6 = $n(x321);
+            var x323 = this$6.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
+            if ((x323 instanceof $c_sci_$colon$colon)) {
+              var x310 = $as_sci_$colon$colon(x323);
+              var x311 = $as_Lcloud_golem_data_NamedElementValue($n(x310).sci_$colon$colon__f_head);
+              var x312 = $n(x310).sci_$colon$colon__f_next;
+              if ((x311 !== null)) {
+                $n(x311);
+                var this$9 = $n(x311);
+                var x315 = this$9.Lcloud_golem_data_NamedElementValue__f_value;
+                var x = $m_sci_Nil$();
+                if (x.equals__O__Z(x312)) {
+                  var elem = new $c_Lcloud_golem_data_NamedElementValue(paramName, x315);
+                  builder.addOne__O__scm_ListBuffer(elem);
+                  break matchResult43;
+                }
+              }
+            }
+            var value$2 = (("Parameter '" + paramName) + "' in method 'set' must encode to a single element value");
+            return new $c_s_util_Left(value$2);
+          }
+          var value$3 = ((("Parameter '" + paramName) + "' in method 'set' produced unexpected structured value: ") + x320);
+          return new $c_s_util_Left(value$3);
+        }
+        throw new $c_s_MatchError(x316);
+      }
+      idx = ((1 + idx) | 0);
+    }
+    var elements = builder.toList__sci_List();
+    var value$4 = new $c_Lcloud_golem_data_StructuredValue$Tuple(elements);
+    return new $c_s_util_Right(value$4);
+  }
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype.decode__Lcloud_golem_data_StructuredValue__s_util_Either = (function(value) {
+  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
+    var x335 = $as_Lcloud_golem_data_StructuredValue$Tuple(value);
+    var this$2 = $n(x335);
+    var x337 = this$2.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
+    if (($n(x337).length__I() !== $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).u.length)) {
+      return new $c_s_util_Left("Structured element count mismatch for method 'set'. Expected 2, found ${elements.length}");
+    } else {
+      var builder = new $c_scm_ListBuffer();
+      var idx = 0;
+      while ((idx < $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).u.length)) {
+        matchResult44: {
+          var \u03b48$;
+          var x326 = $n(this.Lcloud_golem_examples_RegisterAgents$$anon$3__f_params).get(idx);
+          if ((x326 !== null)) {
+            var \u03b48$ = x326;
+            break matchResult44;
+          }
+          throw new $c_s_MatchError(x326);
+        }
+        var paramName = $as_T($n(\u03b48$)._1__O());
+        var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b48$)._2__O());
+        var this$5 = $n(x337);
+        var n = idx;
+        var element = $as_Lcloud_golem_data_NamedElementValue($f_sc_LinearSeqOps__apply__I__O(this$5, n));
+        if (($n(element).Lcloud_golem_data_NamedElementValue__f_name !== paramName)) {
+          var value$1 = (("Structured element name mismatch for method 'set'. Expected '$paramName', found '" + $n(element).Lcloud_golem_data_NamedElementValue__f_name) + "'");
+          return new $c_s_util_Left(value$1);
+        }
+        matchResult45: {
+          var x329 = $n(codec).decode__Lcloud_golem_data_StructuredValue__s_util_Either($m_Lcloud_golem_data_StructuredValue$().single__Lcloud_golem_data_ElementValue__T__Lcloud_golem_data_StructuredValue($n(element).Lcloud_golem_data_NamedElementValue__f_value, "value"));
+          if ((x329 instanceof $c_s_util_Left)) {
+            var x332 = $as_s_util_Left(x329);
+            var err = $as_T($n(x332).s_util_Left__f_value);
+            var value$2 = ((("Failed to decode parameter '" + paramName) + "' in method 'set': ") + err);
+            return new $c_s_util_Left(value$2);
+          }
+          if ((x329 instanceof $c_s_util_Right)) {
+            var x330 = $as_s_util_Right(x329);
+            var decoded = $n(x330).s_util_Right__f_value;
+            builder.addOne__O__scm_ListBuffer(decoded);
+            break matchResult45;
+          }
+          throw new $c_s_MatchError(x329);
+        }
+        idx = ((1 + idx) | 0);
+      }
+      var value$3 = builder.toList__sci_List();
+      return new $c_s_util_Right(value$3);
+    }
+  } else {
+    var value$4 = ("Structured value mismatch for method 'set'. Expected tuple payload, found: " + value);
+    return new $c_s_util_Left(value$4);
+  }
+});
+$c_Lcloud_golem_examples_RegisterAgents$$anon$3.prototype.encode__O__s_util_Either = (function(value) {
+  return this.encode__sci_List__s_util_Either($as_sci_List(value));
+});
+var $d_Lcloud_golem_examples_RegisterAgents$$anon$3 = new $TypeData().initClass($c_Lcloud_golem_examples_RegisterAgents$$anon$3, "cloud.golem.examples.RegisterAgents$$anon$3", ({
+  Lcloud_golem_examples_RegisterAgents$$anon$3: 1,
+  Lcloud_golem_data_GolemSchema: 1
+}));
 function $is_Lcloud_golem_examples_minimal_Coordinator(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_examples_minimal_Coordinator)));
 }
@@ -15358,6 +15557,18 @@ function $isArrayOf_Lcloud_golem_examples_minimal_Coordinator(obj, depth) {
 }
 function $asArrayOf_Lcloud_golem_examples_minimal_Coordinator(obj, depth) {
   return (($isArrayOf_Lcloud_golem_examples_minimal_Coordinator(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.examples.minimal.Coordinator;", depth));
+}
+function $is_Lcloud_golem_examples_minimal_Shard(obj) {
+  return (!(!((obj && obj.$classData) && obj.$classData.ancestors.Lcloud_golem_examples_minimal_Shard)));
+}
+function $as_Lcloud_golem_examples_minimal_Shard(obj) {
+  return (($is_Lcloud_golem_examples_minimal_Shard(obj) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.examples.minimal.Shard"));
+}
+function $isArrayOf_Lcloud_golem_examples_minimal_Shard(obj, depth) {
+  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_examples_minimal_Shard)));
+}
+function $asArrayOf_Lcloud_golem_examples_minimal_Shard(obj, depth) {
+  return (($isArrayOf_Lcloud_golem_examples_minimal_Shard(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.examples.minimal.Shard;", depth));
 }
 /** @constructor */
 function $c_Lcloud_golem_examples_minimal_TypedNested$$anon$1() {
@@ -15511,380 +15722,6 @@ function $isArrayOf_Lcloud_golem_examples_minimal_Worker(obj, depth) {
 function $asArrayOf_Lcloud_golem_examples_minimal_Worker(obj, depth) {
   return (($isArrayOf_Lcloud_golem_examples_minimal_Worker(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.examples.minimal.Worker;", depth));
 }
-/** @constructor */
-function $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1() {
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params = null;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_schema = null;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var _2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema);
-  var $x_2 = new $c_T2("shardName", _2);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var _2$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1);
-  var $x_1 = new $c_T2("shardIndex", _2$1);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$2 = $m_Lcloud_golem_examples_minimal_TypedPayload$().Lcloud_golem_examples_minimal_TypedPayload$__f_schema;
-  var _2$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params = new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("payload", _2$2)]);
-  var builder = new $c_scm_ListBuffer();
-  var idx = 0;
-  while ((idx < $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).u.length)) {
-    matchResult13: {
-      var \u03b44$;
-      var x121 = $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).get(idx);
-      if ((x121 !== null)) {
-        var \u03b44$ = x121;
-        break matchResult13;
-      }
-      throw new $c_s_MatchError(x121);
-    }
-    var paramName = $as_T($n(\u03b44$)._1__O());
-    var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b44$)._2__O());
-    matchResult14: {
-      var x124 = $n(codec).schema__Lcloud_golem_data_StructuredSchema();
-      if ((x124 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x125 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x124);
-        var this$9 = $n(x125);
-        var x127 = this$9.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x127).length__I() === 1)) {
-          var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x127).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          var elem = new $c_Lcloud_golem_data_NamedElementSchema(paramName, schema);
-          builder.addOne__O__scm_ListBuffer(elem);
-          break matchResult14;
-        }
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ((("Parameter '" + paramName) + "' in method 'routeTyped' must encode to a single element, found: ") + x124));
-    }
-    idx = ((1 + idx) | 0);
-  }
-  var elements = builder.toList__sci_List();
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_schema = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
-}
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype = new $h_O();
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype.constructor = $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1;
-/** @constructor */
-function $h_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1() {
-}
-$h_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype = $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype;
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype.schema__Lcloud_golem_data_StructuredSchema = (function() {
-  return this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_schema;
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype.encode__sci_List__s_util_Either = (function(value) {
-  var this$1 = $n(value);
-  var values = $m_sci_Vector$().from__sc_IterableOnce__sci_Vector(this$1);
-  if (($n(values).length__I() !== $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).u.length)) {
-    return new $c_s_util_Left("Parameter count mismatch for method 'routeTyped'. Expected 3, found ${values.length}");
-  } else {
-    var builder = new $c_scm_ListBuffer();
-    var idx = 0;
-    while ((idx < $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).u.length)) {
-      matchResult15: {
-        var \u03b46$;
-        var x128 = $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).get(idx);
-        if ((x128 !== null)) {
-          var \u03b46$ = x128;
-          break matchResult15;
-        }
-        throw new $c_s_MatchError(x128);
-      }
-      var paramName = $as_T($n(\u03b46$)._1__O());
-      var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b46$)._2__O());
-      matchResult17: {
-        var x138 = $n(codec).encode__O__s_util_Either($n(values).apply__I__O(idx));
-        if ((x138 instanceof $c_s_util_Left)) {
-          var x146 = $as_s_util_Left(x138);
-          var err = $as_T($n(x146).s_util_Left__f_value);
-          var value$1 = ((("Failed to encode parameter '" + paramName) + "' in method 'routeTyped': ") + err);
-          return new $c_s_util_Left(value$1);
-        }
-        if ((x138 instanceof $c_s_util_Right)) {
-          var x141 = $as_s_util_Right(x138);
-          var x142 = $as_Lcloud_golem_data_StructuredValue($n(x141).s_util_Right__f_value);
-          if ((x142 instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
-            var x143 = $as_Lcloud_golem_data_StructuredValue$Tuple(x142);
-            var this$6 = $n(x143);
-            var x145 = this$6.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
-            if ((x145 instanceof $c_sci_$colon$colon)) {
-              var x132 = $as_sci_$colon$colon(x145);
-              var x133 = $as_Lcloud_golem_data_NamedElementValue($n(x132).sci_$colon$colon__f_head);
-              var x134 = $n(x132).sci_$colon$colon__f_next;
-              if ((x133 !== null)) {
-                $n(x133);
-                var this$9 = $n(x133);
-                var x137 = this$9.Lcloud_golem_data_NamedElementValue__f_value;
-                var x = $m_sci_Nil$();
-                if (x.equals__O__Z(x134)) {
-                  var elem = new $c_Lcloud_golem_data_NamedElementValue(paramName, x137);
-                  builder.addOne__O__scm_ListBuffer(elem);
-                  break matchResult17;
-                }
-              }
-            }
-            var value$2 = (("Parameter '" + paramName) + "' in method 'routeTyped' must encode to a single element value");
-            return new $c_s_util_Left(value$2);
-          }
-          var value$3 = ((("Parameter '" + paramName) + "' in method 'routeTyped' produced unexpected structured value: ") + x142);
-          return new $c_s_util_Left(value$3);
-        }
-        throw new $c_s_MatchError(x138);
-      }
-      idx = ((1 + idx) | 0);
-    }
-    var elements = builder.toList__sci_List();
-    var value$4 = new $c_Lcloud_golem_data_StructuredValue$Tuple(elements);
-    return new $c_s_util_Right(value$4);
-  }
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype.decode__Lcloud_golem_data_StructuredValue__s_util_Either = (function(value) {
-  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
-    var x157 = $as_Lcloud_golem_data_StructuredValue$Tuple(value);
-    var this$2 = $n(x157);
-    var x159 = this$2.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
-    if (($n(x159).length__I() !== $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).u.length)) {
-      return new $c_s_util_Left("Structured element count mismatch for method 'routeTyped'. Expected 3, found ${elements.length}");
-    } else {
-      var builder = new $c_scm_ListBuffer();
-      var idx = 0;
-      while ((idx < $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).u.length)) {
-        matchResult18: {
-          var \u03b48$;
-          var x148 = $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$1__f_params).get(idx);
-          if ((x148 !== null)) {
-            var \u03b48$ = x148;
-            break matchResult18;
-          }
-          throw new $c_s_MatchError(x148);
-        }
-        var paramName = $as_T($n(\u03b48$)._1__O());
-        var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b48$)._2__O());
-        var this$5 = $n(x159);
-        var n = idx;
-        var element = $as_Lcloud_golem_data_NamedElementValue($f_sc_LinearSeqOps__apply__I__O(this$5, n));
-        if (($n(element).Lcloud_golem_data_NamedElementValue__f_name !== paramName)) {
-          var value$1 = (("Structured element name mismatch for method 'routeTyped'. Expected '$paramName', found '" + $n(element).Lcloud_golem_data_NamedElementValue__f_name) + "'");
-          return new $c_s_util_Left(value$1);
-        }
-        matchResult19: {
-          var x151 = $n(codec).decode__Lcloud_golem_data_StructuredValue__s_util_Either($m_Lcloud_golem_data_StructuredValue$().single__Lcloud_golem_data_ElementValue__T__Lcloud_golem_data_StructuredValue($n(element).Lcloud_golem_data_NamedElementValue__f_value, "value"));
-          if ((x151 instanceof $c_s_util_Left)) {
-            var x154 = $as_s_util_Left(x151);
-            var err = $as_T($n(x154).s_util_Left__f_value);
-            var value$2 = ((("Failed to decode parameter '" + paramName) + "' in method 'routeTyped': ") + err);
-            return new $c_s_util_Left(value$2);
-          }
-          if ((x151 instanceof $c_s_util_Right)) {
-            var x152 = $as_s_util_Right(x151);
-            var decoded = $n(x152).s_util_Right__f_value;
-            builder.addOne__O__scm_ListBuffer(decoded);
-            break matchResult19;
-          }
-          throw new $c_s_MatchError(x151);
-        }
-        idx = ((1 + idx) | 0);
-      }
-      var value$3 = builder.toList__sci_List();
-      return new $c_s_util_Right(value$3);
-    }
-  } else {
-    var value$4 = ("Structured value mismatch for method 'routeTyped'. Expected tuple payload, found: " + value);
-    return new $c_s_util_Left(value$4);
-  }
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1.prototype.encode__O__s_util_Either = (function(value) {
-  return this.encode__sci_List__s_util_Either($as_sci_List(value));
-});
-var $d_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1 = new $TypeData().initClass($c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$1, "cloud.golem.internal.GolemStandaloneGuest$$anon$1", ({
-  Lcloud_golem_internal_GolemStandaloneGuest$$anon$1: 1,
-  Lcloud_golem_data_GolemSchema: 1
-}));
-/** @constructor */
-function $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2() {
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params = null;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_schema = null;
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var _2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema);
-  var $x_2 = new $c_T2("shardName", _2);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$1 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_int;
-  var _2$1 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$1);
-  var $x_1 = new $c_T2("shardIndex", _2$1);
-  $m_Lcloud_golem_data_GolemSchema$();
-  var baseSchema$2 = $m_Lzio_blocks_schema_Schema$().Lzio_blocks_schema_Schema$__f_string;
-  var _2$2 = new $c_Lcloud_golem_data_GolemSchema$$anon$4(baseSchema$2);
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params = new ($d_T2.getArrayOf().constr)([$x_2, $x_1, new $c_T2("input", _2$2)]);
-  var builder = new $c_scm_ListBuffer();
-  var idx = 0;
-  while ((idx < $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).u.length)) {
-    matchResult27: {
-      var \u03b44$;
-      var x220 = $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).get(idx);
-      if ((x220 !== null)) {
-        var \u03b44$ = x220;
-        break matchResult27;
-      }
-      throw new $c_s_MatchError(x220);
-    }
-    var paramName = $as_T($n(\u03b44$)._1__O());
-    var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b44$)._2__O());
-    matchResult28: {
-      var x223 = $n(codec).schema__Lcloud_golem_data_StructuredSchema();
-      if ((x223 instanceof $c_Lcloud_golem_data_StructuredSchema$Tuple)) {
-        var x224 = $as_Lcloud_golem_data_StructuredSchema$Tuple(x223);
-        var this$9 = $n(x224);
-        var x226 = this$9.Lcloud_golem_data_StructuredSchema$Tuple__f_elements;
-        if (($n(x226).length__I() === 1)) {
-          var schema = $n($as_Lcloud_golem_data_NamedElementSchema($n(x226).head__O())).Lcloud_golem_data_NamedElementSchema__f_schema;
-          var elem = new $c_Lcloud_golem_data_NamedElementSchema(paramName, schema);
-          builder.addOne__O__scm_ListBuffer(elem);
-          break matchResult28;
-        }
-      }
-      throw $ct_jl_IllegalArgumentException__T__(new $c_jl_IllegalArgumentException(), ((("Parameter '" + paramName) + "' in method 'route' must encode to a single element, found: ") + x223));
-    }
-    idx = ((1 + idx) | 0);
-  }
-  var elements = builder.toList__sci_List();
-  this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_schema = new $c_Lcloud_golem_data_StructuredSchema$Tuple(elements);
-}
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype = new $h_O();
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype.constructor = $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2;
-/** @constructor */
-function $h_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2() {
-}
-$h_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype = $c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype;
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype.schema__Lcloud_golem_data_StructuredSchema = (function() {
-  return this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_schema;
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype.encode__sci_List__s_util_Either = (function(value) {
-  var this$1 = $n(value);
-  var values = $m_sci_Vector$().from__sc_IterableOnce__sci_Vector(this$1);
-  if (($n(values).length__I() !== $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).u.length)) {
-    return new $c_s_util_Left("Parameter count mismatch for method 'route'. Expected 3, found ${values.length}");
-  } else {
-    var builder = new $c_scm_ListBuffer();
-    var idx = 0;
-    while ((idx < $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).u.length)) {
-      matchResult29: {
-        var \u03b46$;
-        var x227 = $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).get(idx);
-        if ((x227 !== null)) {
-          var \u03b46$ = x227;
-          break matchResult29;
-        }
-        throw new $c_s_MatchError(x227);
-      }
-      var paramName = $as_T($n(\u03b46$)._1__O());
-      var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b46$)._2__O());
-      matchResult31: {
-        var x237 = $n(codec).encode__O__s_util_Either($n(values).apply__I__O(idx));
-        if ((x237 instanceof $c_s_util_Left)) {
-          var x245 = $as_s_util_Left(x237);
-          var err = $as_T($n(x245).s_util_Left__f_value);
-          var value$1 = ((("Failed to encode parameter '" + paramName) + "' in method 'route': ") + err);
-          return new $c_s_util_Left(value$1);
-        }
-        if ((x237 instanceof $c_s_util_Right)) {
-          var x240 = $as_s_util_Right(x237);
-          var x241 = $as_Lcloud_golem_data_StructuredValue($n(x240).s_util_Right__f_value);
-          if ((x241 instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
-            var x242 = $as_Lcloud_golem_data_StructuredValue$Tuple(x241);
-            var this$6 = $n(x242);
-            var x244 = this$6.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
-            if ((x244 instanceof $c_sci_$colon$colon)) {
-              var x231 = $as_sci_$colon$colon(x244);
-              var x232 = $as_Lcloud_golem_data_NamedElementValue($n(x231).sci_$colon$colon__f_head);
-              var x233 = $n(x231).sci_$colon$colon__f_next;
-              if ((x232 !== null)) {
-                $n(x232);
-                var this$9 = $n(x232);
-                var x236 = this$9.Lcloud_golem_data_NamedElementValue__f_value;
-                var x = $m_sci_Nil$();
-                if (x.equals__O__Z(x233)) {
-                  var elem = new $c_Lcloud_golem_data_NamedElementValue(paramName, x236);
-                  builder.addOne__O__scm_ListBuffer(elem);
-                  break matchResult31;
-                }
-              }
-            }
-            var value$2 = (("Parameter '" + paramName) + "' in method 'route' must encode to a single element value");
-            return new $c_s_util_Left(value$2);
-          }
-          var value$3 = ((("Parameter '" + paramName) + "' in method 'route' produced unexpected structured value: ") + x241);
-          return new $c_s_util_Left(value$3);
-        }
-        throw new $c_s_MatchError(x237);
-      }
-      idx = ((1 + idx) | 0);
-    }
-    var elements = builder.toList__sci_List();
-    var value$4 = new $c_Lcloud_golem_data_StructuredValue$Tuple(elements);
-    return new $c_s_util_Right(value$4);
-  }
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype.decode__Lcloud_golem_data_StructuredValue__s_util_Either = (function(value) {
-  if ((value instanceof $c_Lcloud_golem_data_StructuredValue$Tuple)) {
-    var x256 = $as_Lcloud_golem_data_StructuredValue$Tuple(value);
-    var this$2 = $n(x256);
-    var x258 = this$2.Lcloud_golem_data_StructuredValue$Tuple__f_elements;
-    if (($n(x258).length__I() !== $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).u.length)) {
-      return new $c_s_util_Left("Structured element count mismatch for method 'route'. Expected 3, found ${elements.length}");
-    } else {
-      var builder = new $c_scm_ListBuffer();
-      var idx = 0;
-      while ((idx < $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).u.length)) {
-        matchResult32: {
-          var \u03b48$;
-          var x247 = $n(this.Lcloud_golem_internal_GolemStandaloneGuest$$anon$2__f_params).get(idx);
-          if ((x247 !== null)) {
-            var \u03b48$ = x247;
-            break matchResult32;
-          }
-          throw new $c_s_MatchError(x247);
-        }
-        var paramName = $as_T($n(\u03b48$)._1__O());
-        var codec = $as_Lcloud_golem_data_GolemSchema($n(\u03b48$)._2__O());
-        var this$5 = $n(x258);
-        var n = idx;
-        var element = $as_Lcloud_golem_data_NamedElementValue($f_sc_LinearSeqOps__apply__I__O(this$5, n));
-        if (($n(element).Lcloud_golem_data_NamedElementValue__f_name !== paramName)) {
-          var value$1 = (("Structured element name mismatch for method 'route'. Expected '$paramName', found '" + $n(element).Lcloud_golem_data_NamedElementValue__f_name) + "'");
-          return new $c_s_util_Left(value$1);
-        }
-        matchResult33: {
-          var x250 = $n(codec).decode__Lcloud_golem_data_StructuredValue__s_util_Either($m_Lcloud_golem_data_StructuredValue$().single__Lcloud_golem_data_ElementValue__T__Lcloud_golem_data_StructuredValue($n(element).Lcloud_golem_data_NamedElementValue__f_value, "value"));
-          if ((x250 instanceof $c_s_util_Left)) {
-            var x253 = $as_s_util_Left(x250);
-            var err = $as_T($n(x253).s_util_Left__f_value);
-            var value$2 = ((("Failed to decode parameter '" + paramName) + "' in method 'route': ") + err);
-            return new $c_s_util_Left(value$2);
-          }
-          if ((x250 instanceof $c_s_util_Right)) {
-            var x251 = $as_s_util_Right(x250);
-            var decoded = $n(x251).s_util_Right__f_value;
-            builder.addOne__O__scm_ListBuffer(decoded);
-            break matchResult33;
-          }
-          throw new $c_s_MatchError(x250);
-        }
-        idx = ((1 + idx) | 0);
-      }
-      var value$3 = builder.toList__sci_List();
-      return new $c_s_util_Right(value$3);
-    }
-  } else {
-    var value$4 = ("Structured value mismatch for method 'route'. Expected tuple payload, found: " + value);
-    return new $c_s_util_Left(value$4);
-  }
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2.prototype.encode__O__s_util_Either = (function(value) {
-  return this.encode__sci_List__s_util_Either($as_sci_List(value));
-});
-var $d_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2 = new $TypeData().initClass($c_Lcloud_golem_internal_GolemStandaloneGuest$$anon$2, "cloud.golem.internal.GolemStandaloneGuest$$anon$2", ({
-  Lcloud_golem_internal_GolemStandaloneGuest$$anon$2: 1,
-  Lcloud_golem_data_GolemSchema: 1
-}));
 /** @constructor */
 function $c_Lcloud_golem_runtime_autowire_AgentConstructor$$anon$1(ctorInfo$1, codec$1, build$4) {
   this.Lcloud_golem_runtime_autowire_AgentConstructor$$anon$1__f_codec$2 = null;
@@ -18320,18 +18157,6 @@ $c_sr_AbstractFunction2.prototype.toString__T = (function() {
   return "<function2>";
 });
 /** @constructor */
-function $c_sr_AbstractFunction3() {
-}
-$c_sr_AbstractFunction3.prototype = new $h_O();
-$c_sr_AbstractFunction3.prototype.constructor = $c_sr_AbstractFunction3;
-/** @constructor */
-function $h_sr_AbstractFunction3() {
-}
-$h_sr_AbstractFunction3.prototype = $c_sr_AbstractFunction3.prototype;
-$c_sr_AbstractFunction3.prototype.toString__T = (function() {
-  return "<function3>";
-});
-/** @constructor */
 function $c_sr_IntRef(elem) {
   this.sr_IntRef__f_elem = 0;
   this.sr_IntRef__f_elem = elem;
@@ -20419,6 +20244,28 @@ var $d_Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2 = new 
   Lcloud_golem_examples_minimal_CoordinatorImpl$Worker$agentClient$2: 1,
   Lcloud_golem_sdk_BaseAgent: 1,
   Lcloud_golem_examples_minimal_Worker: 1
+}));
+/** @constructor */
+function $c_Lcloud_golem_examples_minimal_ShardImpl(tableName, shardId) {
+  this.Lcloud_golem_examples_minimal_ShardImpl__f_tableName = null;
+  this.Lcloud_golem_examples_minimal_ShardImpl__f_shardId = 0;
+  this.Lcloud_golem_examples_minimal_ShardImpl__f_tableName = tableName;
+  this.Lcloud_golem_examples_minimal_ShardImpl__f_shardId = shardId;
+}
+$c_Lcloud_golem_examples_minimal_ShardImpl.prototype = new $h_O();
+$c_Lcloud_golem_examples_minimal_ShardImpl.prototype.constructor = $c_Lcloud_golem_examples_minimal_ShardImpl;
+/** @constructor */
+function $h_Lcloud_golem_examples_minimal_ShardImpl() {
+}
+$h_Lcloud_golem_examples_minimal_ShardImpl.prototype = $c_Lcloud_golem_examples_minimal_ShardImpl.prototype;
+$c_Lcloud_golem_examples_minimal_ShardImpl.prototype.get__T__s_Option = (function(key) {
+  var value = ((((this.Lcloud_golem_examples_minimal_ShardImpl__f_tableName + ":") + this.Lcloud_golem_examples_minimal_ShardImpl__f_shardId) + ":") + key);
+  return new $c_s_Some(value);
+});
+var $d_Lcloud_golem_examples_minimal_ShardImpl = new $TypeData().initClass($c_Lcloud_golem_examples_minimal_ShardImpl, "cloud.golem.examples.minimal.ShardImpl", ({
+  Lcloud_golem_examples_minimal_ShardImpl: 1,
+  Lcloud_golem_sdk_BaseAgent: 1,
+  Lcloud_golem_examples_minimal_Shard: 1
 }));
 /** @constructor */
 function $c_Lcloud_golem_examples_minimal_TypedNested$() {
@@ -22868,25 +22715,6 @@ var $d_sr_AbstractFunction2_$$Lambda$286cbfc6187197affcadc8465aaec93d6b7d20dc = 
   F2: 1
 }));
 /** @constructor */
-function $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1(f) {
-  this.sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1__f_f = null;
-  this.sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1__f_f = f;
-}
-$c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype = new $h_sr_AbstractFunction3();
-$c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype.constructor = $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1;
-/** @constructor */
-function $h_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1() {
-}
-$h_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype = $c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype;
-$c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1.prototype.apply__O__O__O__O = (function(x0, x1, x2) {
-  return $n(this.sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1__f_f)(x0, x1, x2);
-});
-var $d_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1 = new $TypeData().initClass($c_sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1, "scala.runtime.AbstractFunction3.$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1", ({
-  sr_AbstractFunction3_$$Lambda$26e0a25d9b29f6b82ea50ab7badf4fb70c5c74e1: 1,
-  sr_AbstractFunction3: 1,
-  F3: 1
-}));
-/** @constructor */
 function $c_sr_AbstractPartialFunction() {
 }
 $c_sr_AbstractPartialFunction.prototype = new $h_O();
@@ -22918,14 +22746,8 @@ $h_sjs_js_Any$.prototype = $c_sjs_js_Any$.prototype;
 $c_sjs_js_Any$.prototype.fromFunction0__F0__sjs_js_Function0 = (function(f) {
   return (() => $n(f).apply__O());
 });
-$c_sjs_js_Any$.prototype.fromFunction1__F1__sjs_js_Function1 = (function(f) {
-  return ((arg1$2) => $n(f).apply__O__O(arg1$2));
-});
 $c_sjs_js_Any$.prototype.fromFunction2__F2__sjs_js_Function2 = (function(f) {
   return ((arg1$2, arg2$2) => $n(f).apply__O__O__O(arg1$2, arg2$2));
-});
-$c_sjs_js_Any$.prototype.fromFunction3__F3__sjs_js_Function3 = (function(f) {
-  return ((arg1$2, arg2$2, arg3$2) => $n(f).apply__O__O__O__O(arg1$2, arg2$2, arg3$2));
 });
 var $d_sjs_js_Any$ = new $TypeData().initClass($c_sjs_js_Any$, "scala.scalajs.js.Any$", ({
   sjs_js_Any$: 1,
@@ -24687,82 +24509,6 @@ var $d_Lcloud_golem_examples_minimal_TypedReply = new $TypeData().initClass($c_L
   Ljava_io_Serializable: 1
 }));
 /** @constructor */
-function $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(defn, instance) {
-  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn = null;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance = null;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn = defn;
-  this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance = instance;
-}
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype = new $h_O();
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.constructor = $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved;
-/** @constructor */
-function $h_Lcloud_golem_internal_GolemStandaloneGuest$Resolved() {
-}
-$h_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype = $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype;
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productIterator__sc_Iterator = (function() {
-  return new $c_s_Product$$anon$1(this);
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.hashCode__I = (function() {
-  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 788875605, true);
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.equals__O__Z = (function(x$0) {
-  if ((this === x$0)) {
-    return true;
-  } else if ((x$0 instanceof $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved)) {
-    var x260 = $as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(x$0);
-    var x = this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn;
-    var x$2 = $n(x260).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn;
-    if ((x === null)) {
-      var $x_1 = (x$2 === null);
-    } else {
-      var this$1 = $n(x);
-      var $x_1 = (this$1 === x$2);
-    }
-    if ($x_1) {
-      var x$1 = this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
-      var y = $n(x260).Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
-      return $m_sr_BoxesRunTime$().equals__O__O__Z(x$1, y);
-    } else {
-      return false;
-    }
-  } else {
-    return false;
-  }
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.toString__T = (function() {
-  return $m_sr_ScalaRunTime$()._toString__s_Product__T(this);
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productArity__I = (function() {
-  return 2;
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productPrefix__T = (function() {
-  return "Resolved";
-});
-$c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved.prototype.productElement__I__O = (function(n) {
-  if ((n === 0)) {
-    return this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_defn;
-  }
-  if ((n === 1)) {
-    return this.Lcloud_golem_internal_GolemStandaloneGuest$Resolved__f_instance;
-  }
-  throw $ct_jl_IndexOutOfBoundsException__T__(new $c_jl_IndexOutOfBoundsException(), ("" + n));
-});
-function $as_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj) {
-  return (((obj instanceof $c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.internal.GolemStandaloneGuest$Resolved"));
-}
-function $isArrayOf_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj, depth) {
-  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_internal_GolemStandaloneGuest$Resolved)));
-}
-function $asArrayOf_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj, depth) {
-  return (($isArrayOf_Lcloud_golem_internal_GolemStandaloneGuest$Resolved(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.internal.GolemStandaloneGuest$Resolved;", depth));
-}
-var $d_Lcloud_golem_internal_GolemStandaloneGuest$Resolved = new $TypeData().initClass($c_Lcloud_golem_internal_GolemStandaloneGuest$Resolved, "cloud.golem.internal.GolemStandaloneGuest$Resolved", ({
-  Lcloud_golem_internal_GolemStandaloneGuest$Resolved: 1,
-  s_Equals: 1,
-  s_Product: 1,
-  Ljava_io_Serializable: 1
-}));
-/** @constructor */
 function $c_Lcloud_golem_runtime_AgentMetadata(name, description, mode, methods, constructor) {
   this.Lcloud_golem_runtime_AgentMetadata__f_name = null;
   this.Lcloud_golem_runtime_AgentMetadata__f_description = null;
@@ -25079,6 +24825,82 @@ function $asArrayOf_Lcloud_golem_runtime_autowire_ConstructorMetadata(obj, depth
 }
 var $d_Lcloud_golem_runtime_autowire_ConstructorMetadata = new $TypeData().initClass($c_Lcloud_golem_runtime_autowire_ConstructorMetadata, "cloud.golem.runtime.autowire.ConstructorMetadata", ({
   Lcloud_golem_runtime_autowire_ConstructorMetadata: 1,
+  s_Equals: 1,
+  s_Product: 1,
+  Ljava_io_Serializable: 1
+}));
+/** @constructor */
+function $c_Lcloud_golem_runtime_guest_Guest$Resolved(defn, instance) {
+  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn = null;
+  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance = null;
+  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn = defn;
+  this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance = instance;
+}
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype = new $h_O();
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.constructor = $c_Lcloud_golem_runtime_guest_Guest$Resolved;
+/** @constructor */
+function $h_Lcloud_golem_runtime_guest_Guest$Resolved() {
+}
+$h_Lcloud_golem_runtime_guest_Guest$Resolved.prototype = $c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype;
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productIterator__sc_Iterator = (function() {
+  return new $c_s_Product$$anon$1(this);
+});
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.hashCode__I = (function() {
+  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, 788875605, true);
+});
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.equals__O__Z = (function(x$0) {
+  if ((this === x$0)) {
+    return true;
+  } else if ((x$0 instanceof $c_Lcloud_golem_runtime_guest_Guest$Resolved)) {
+    var x2 = $as_Lcloud_golem_runtime_guest_Guest$Resolved(x$0);
+    var x = this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn;
+    var x$2 = $n(x2).Lcloud_golem_runtime_guest_Guest$Resolved__f_defn;
+    if ((x === null)) {
+      var $x_1 = (x$2 === null);
+    } else {
+      var this$1 = $n(x);
+      var $x_1 = (this$1 === x$2);
+    }
+    if ($x_1) {
+      var x$1 = this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
+      var y = $n(x2).Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
+      return $m_sr_BoxesRunTime$().equals__O__O__Z(x$1, y);
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+});
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.toString__T = (function() {
+  return $m_sr_ScalaRunTime$()._toString__s_Product__T(this);
+});
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productArity__I = (function() {
+  return 2;
+});
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productPrefix__T = (function() {
+  return "Resolved";
+});
+$c_Lcloud_golem_runtime_guest_Guest$Resolved.prototype.productElement__I__O = (function(n) {
+  if ((n === 0)) {
+    return this.Lcloud_golem_runtime_guest_Guest$Resolved__f_defn;
+  }
+  if ((n === 1)) {
+    return this.Lcloud_golem_runtime_guest_Guest$Resolved__f_instance;
+  }
+  throw $ct_jl_IndexOutOfBoundsException__T__(new $c_jl_IndexOutOfBoundsException(), ("" + n));
+});
+function $as_Lcloud_golem_runtime_guest_Guest$Resolved(obj) {
+  return (((obj instanceof $c_Lcloud_golem_runtime_guest_Guest$Resolved) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.guest.Guest$Resolved"));
+}
+function $isArrayOf_Lcloud_golem_runtime_guest_Guest$Resolved(obj, depth) {
+  return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_runtime_guest_Guest$Resolved)));
+}
+function $asArrayOf_Lcloud_golem_runtime_guest_Guest$Resolved(obj, depth) {
+  return (($isArrayOf_Lcloud_golem_runtime_guest_Guest$Resolved(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.runtime.guest.Guest$Resolved;", depth));
+}
+var $d_Lcloud_golem_runtime_guest_Guest$Resolved = new $TypeData().initClass($c_Lcloud_golem_runtime_guest_Guest$Resolved, "cloud.golem.runtime.guest.Guest$Resolved", ({
+  Lcloud_golem_runtime_guest_Guest$Resolved: 1,
   s_Equals: 1,
   s_Product: 1,
   Ljava_io_Serializable: 1
@@ -28605,7 +28427,12 @@ function $f_sc_SeqOps__sameElements__sc_IterableOnce__Z($thiz, that) {
   } else {
     var knownSizeDifference = false;
   }
-  return ((!knownSizeDifference) && $f_sc_Iterator__sameElements__sc_IterableOnce__Z($n($thiz.iterator__sc_Iterator()), that));
+  if ((!knownSizeDifference)) {
+    var this$1 = $n($thiz.iterator__sc_Iterator());
+    return $f_sc_Iterator__sameElements__sc_IterableOnce__Z(this$1, that);
+  } else {
+    return false;
+  }
 }
 function $is_sc_SeqOps(obj) {
   return (!(!((obj && obj.$classData) && obj.$classData.ancestors.sc_SeqOps)));
@@ -32189,8 +32016,110 @@ var $d_Lcloud_golem_runtime_plan_AsyncMethodPlan = new $TypeData().initClass($c_
   s_Product: 1,
   Ljava_io_Serializable: 1
 }));
+/** @constructor */
+function $c_Lcloud_golem_runtime_plan_SyncMethodPlan(metadata, inputSchema, outputSchema, handler) {
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata = null;
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema = null;
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema = null;
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler = null;
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata = metadata;
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema = inputSchema;
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema = outputSchema;
+  this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler = handler;
+}
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype = new $h_O();
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.constructor = $c_Lcloud_golem_runtime_plan_SyncMethodPlan;
+/** @constructor */
+function $h_Lcloud_golem_runtime_plan_SyncMethodPlan() {
+}
+$h_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype = $c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype;
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.productIterator__sc_Iterator = (function() {
+  return new $c_s_Product$$anon$1(this);
+});
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.hashCode__I = (function() {
+  return $m_s_util_hashing_MurmurHash3$().productHash__s_Product__I__Z__I(this, (-2087686881), true);
+});
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.equals__O__Z = (function(x$0) {
+  if ((this === x$0)) {
+    return true;
+  } else if ((x$0 instanceof $c_Lcloud_golem_runtime_plan_SyncMethodPlan)) {
+    var x10 = $as_Lcloud_golem_runtime_plan_SyncMethodPlan(x$0);
+    var x = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata;
+    var x$2 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata;
+    if (((x === null) ? (x$2 === null) : $n(x).equals__O__Z(x$2))) {
+      var x$3 = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema;
+      var x$4 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema;
+      if ((x$3 === null)) {
+        var $x_2 = (x$4 === null);
+      } else {
+        var this$1 = $n(x$3);
+        var $x_2 = (this$1 === x$4);
+      }
+    } else {
+      var $x_2 = false;
+    }
+    if ($x_2) {
+      var x$5 = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema;
+      var x$6 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema;
+      if ((x$5 === null)) {
+        var $x_1 = (x$6 === null);
+      } else {
+        var this$2 = $n(x$5);
+        var $x_1 = (this$2 === x$6);
+      }
+    } else {
+      var $x_1 = false;
+    }
+    if ($x_1) {
+      var x$7 = this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler;
+      var x$8 = $n(x10).Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler;
+      if ((x$7 === null)) {
+        return (x$8 === null);
+      } else {
+        var this$3 = $n(x$7);
+        return (this$3 === x$8);
+      }
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+});
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.toString__T = (function() {
+  return $m_sr_ScalaRunTime$()._toString__s_Product__T(this);
+});
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.productArity__I = (function() {
+  return 4;
+});
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.productPrefix__T = (function() {
+  return "SyncMethodPlan";
+});
+$c_Lcloud_golem_runtime_plan_SyncMethodPlan.prototype.productElement__I__O = (function(n) {
+  switch (n) {
+    case 0: {
+      return this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_metadata;
+      break;
+    }
+    case 1: {
+      return this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_inputSchema;
+      break;
+    }
+    case 2: {
+      return this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_outputSchema;
+      break;
+    }
+    case 3: {
+      return this.Lcloud_golem_runtime_plan_SyncMethodPlan__f_handler;
+      break;
+    }
+    default: {
+      throw $ct_jl_IndexOutOfBoundsException__T__(new $c_jl_IndexOutOfBoundsException(), ("" + n));
+    }
+  }
+});
 function $as_Lcloud_golem_runtime_plan_SyncMethodPlan(obj) {
-  return ((false || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.plan.SyncMethodPlan"));
+  return (((obj instanceof $c_Lcloud_golem_runtime_plan_SyncMethodPlan) || (obj === null)) ? obj : $throwClassCastException(obj, "cloud.golem.runtime.plan.SyncMethodPlan"));
 }
 function $isArrayOf_Lcloud_golem_runtime_plan_SyncMethodPlan(obj, depth) {
   return (!(!(((obj && obj.$classData) && (obj.$classData.arrayDepth === depth)) && obj.$classData.arrayBase.ancestors.Lcloud_golem_runtime_plan_SyncMethodPlan)));
@@ -32198,6 +32127,13 @@ function $isArrayOf_Lcloud_golem_runtime_plan_SyncMethodPlan(obj, depth) {
 function $asArrayOf_Lcloud_golem_runtime_plan_SyncMethodPlan(obj, depth) {
   return (($isArrayOf_Lcloud_golem_runtime_plan_SyncMethodPlan(obj, depth) || (obj === null)) ? obj : $throwArrayCastException(obj, "Lcloud.golem.runtime.plan.SyncMethodPlan;", depth));
 }
+var $d_Lcloud_golem_runtime_plan_SyncMethodPlan = new $TypeData().initClass($c_Lcloud_golem_runtime_plan_SyncMethodPlan, "cloud.golem.runtime.plan.SyncMethodPlan", ({
+  Lcloud_golem_runtime_plan_SyncMethodPlan: 1,
+  Lcloud_golem_runtime_plan_MethodPlan: 1,
+  s_Equals: 1,
+  s_Product: 1,
+  Ljava_io_Serializable: 1
+}));
 /** @constructor */
 function $c_Lcloud_golem_runtime_rpc_RpcValueCodec$$anon$1() {
 }
@@ -34076,11 +34012,9 @@ $c_sci_HashMapBuilder.prototype.addAll__sc_IterableOnce__sci_HashMapBuilder = (f
     var iter = $n(x3).nodeIterator__sc_Iterator();
     while ($n(iter).hasNext__Z()) {
       var next = $as_scm_HashMap$Node($n(iter).next__O());
-      $n(x3);
-      var improvedHash = $n(next).scm_HashMap$Node__f__hash;
-      var originalHash = (improvedHash ^ ((improvedHash >>> 16) | 0));
+      var originalHash = $n(x3).unimproveHash__I__I($n(next).hash__I());
       var hash = $m_sc_Hashing$().improve__I__I(originalHash);
-      this.update__sci_MapNode__O__O__I__I__I__V(this.sci_HashMapBuilder__f_scala$collection$immutable$HashMapBuilder$$rootNode, $n(next).scm_HashMap$Node__f__key, $n(next).scm_HashMap$Node__f__value, originalHash, hash, 0);
+      this.update__sci_MapNode__O__O__I__I__I__V(this.sci_HashMapBuilder__f_scala$collection$immutable$HashMapBuilder$$rootNode, $n(next).key__O(), $n(next).value__O(), originalHash, hash, 0);
     }
   } else if ((xs instanceof $c_scm_LinkedHashMap)) {
     var x4 = $as_scm_LinkedHashMap(xs);
@@ -34088,8 +34022,8 @@ $c_sci_HashMapBuilder.prototype.addAll__sc_IterableOnce__sci_HashMapBuilder = (f
     while ($n(iter$2).hasNext__Z()) {
       var next$2 = $as_scm_LinkedHashMap$LinkedEntry($n(iter$2).next__O());
       $n(x4);
-      var improvedHash$1 = $n(next$2).scm_LinkedHashMap$LinkedEntry__f_hash;
-      var originalHash$2 = (improvedHash$1 ^ ((improvedHash$1 >>> 16) | 0));
+      var improvedHash = $n(next$2).scm_LinkedHashMap$LinkedEntry__f_hash;
+      var originalHash$2 = (improvedHash ^ ((improvedHash >>> 16) | 0));
       var hash$2 = $m_sc_Hashing$().improve__I__I(originalHash$2);
       this.update__sci_MapNode__O__O__I__I__I__V(this.sci_HashMapBuilder__f_scala$collection$immutable$HashMapBuilder$$rootNode, $n(next$2).scm_LinkedHashMap$LinkedEntry__f_key, $n(next$2).scm_LinkedHashMap$LinkedEntry__f_value, originalHash$2, hash$2, 0);
     }
@@ -51161,7 +51095,8 @@ $c_sc_SeqView$Sorted.prototype.reverseIterator__sc_Iterator = (function() {
   return new $c_sc_SeqView$Sorted$ReverseSorted(this).iterator__sc_Iterator();
 });
 $c_sc_SeqView$Sorted.prototype.indexWhere__F1__I__I = (function(p, from) {
-  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
+  var this$1 = $n(this.iterator__sc_Iterator());
+  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
 });
 $c_sc_SeqView$Sorted.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -51281,7 +51216,8 @@ $c_sc_SeqView$Sorted$ReverseSorted.prototype.reverseIterator__sc_Iterator = (fun
   return $n(this.sc_SeqView$Sorted$ReverseSorted__f_$outer).iterator__sc_Iterator();
 });
 $c_sc_SeqView$Sorted$ReverseSorted.prototype.indexWhere__F1__I__I = (function(p, from) {
-  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
+  var this$1 = $n(this.iterator__sc_Iterator());
+  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
 });
 $c_sc_SeqView$Sorted$ReverseSorted.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -51764,7 +51700,8 @@ $c_sc_AbstractSeq.prototype.isDefinedAt__I__Z = (function(idx) {
   return $f_sc_SeqOps__isDefinedAt__I__Z(this, idx);
 });
 $c_sc_AbstractSeq.prototype.indexWhere__F1__I__I = (function(p, from) {
-  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
+  var this$1 = $n(this.iterator__sc_Iterator());
+  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
 });
 $c_sc_AbstractSeq.prototype.sorted__s_math_Ordering__O = (function(ord) {
   return $f_sc_SeqOps__sorted__s_math_Ordering__O(this, ord);
@@ -51806,7 +51743,8 @@ $c_sc_AbstractSeqView.prototype.reverseIterator__sc_Iterator = (function() {
   return $n(this.reversed__sc_Iterable()).iterator__sc_Iterator();
 });
 $c_sc_AbstractSeqView.prototype.indexWhere__F1__I__I = (function(p, from) {
-  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
+  var this$1 = $n(this.iterator__sc_Iterator());
+  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
 });
 $c_sc_AbstractSeqView.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -51911,7 +51849,7 @@ $c_sc_AbstractMap.prototype.addString__scm_StringBuilder__T__T__T__scm_StringBui
   return $f_sc_MapOps__addString__scm_StringBuilder__T__T__T__scm_StringBuilder(this, sb, start, sep, end);
 });
 $c_sc_AbstractMap.prototype.fromSpecific__sc_IterableOnce__O = (function(coll) {
-  return this.fromSpecific__sc_IterableOnce__sc_IterableOps(coll);
+  return $as_sc_IterableOps($n(this.mapFactory__sc_MapFactory()).from__sc_IterableOnce__O(coll));
 });
 function $ct_sc_SeqView$DropRight__sc_SeqOps__I__($thiz, underlying, n) {
   $thiz.sc_SeqView$DropRight__f_underlying = underlying;
@@ -51945,7 +51883,8 @@ $c_sc_SeqView$DropRight.prototype.reverseIterator__sc_Iterator = (function() {
   return $n(this.reversed__sc_Iterable()).iterator__sc_Iterator();
 });
 $c_sc_SeqView$DropRight.prototype.indexWhere__F1__I__I = (function(p, from) {
-  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
+  var this$1 = $n(this.iterator__sc_Iterator());
+  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
 });
 $c_sc_SeqView$DropRight.prototype.lengthCompare__I__I = (function(len) {
   return $f_sc_IterableOps__sizeCompare__I__I(this, len);
@@ -52042,7 +51981,8 @@ function $h_sc_SeqView$Map() {
 }
 $h_sc_SeqView$Map.prototype = $c_sc_SeqView$Map.prototype;
 $c_sc_SeqView$Map.prototype.indexWhere__F1__I__I = (function(p, from) {
-  return $f_sc_Iterator__indexWhere__F1__I__I($n(this.iterator__sc_Iterator()), p, from);
+  var this$1 = $n(this.iterator__sc_Iterator());
+  return $f_sc_Iterator__indexWhere__F1__I__I(this$1, p, from);
 });
 $c_sc_SeqView$Map.prototype.isEmpty__Z = (function() {
   return $f_sc_SeqOps__isEmpty__Z(this);
@@ -61723,13 +61663,14 @@ var $d_sjs_js_WrappedArray = new $TypeData().initClass($c_sjs_js_WrappedArray, "
 }));
 $L0 = new $c_RTLong(0, 0);
 $d_J.zero = $L0;
-var $t_Lcloud_golem_internal_GolemStandaloneGuest$__guest = null;
-$sct_Lcloud_golem_internal_GolemStandaloneGuest$__stinit__();
-export { $t_Lcloud_golem_internal_GolemStandaloneGuest$__guest as guest };
+var $t_Lcloud_golem_examples_RegisterAgents$___\uff3fgolemRegisterAgents = null;
+var $t_Lcloud_golem_runtime_guest_Guest$__guest = null;
+$sct_Lcloud_golem_examples_RegisterAgents$__stinit__();
+$sct_Lcloud_golem_runtime_guest_Guest$__stinit__();
+export { $t_Lcloud_golem_runtime_guest_Guest$__guest as guest };
 let $e_loadSnapshot = $m_Lcloud_golem_runtime_snapshot_SnapshotExports$LoadSnapshot$();
 export { $e_loadSnapshot as loadSnapshot };
-let $e___golemInternalScalaAgents = $m_Lcloud_golem_internal_GolemInternalScalaAgents$();
-export { $e___golemInternalScalaAgents as __golemInternalScalaAgents };
 let $e_saveSnapshot = $m_Lcloud_golem_runtime_snapshot_SnapshotExports$SaveSnapshot$();
 export { $e_saveSnapshot as saveSnapshot };
+export { $t_Lcloud_golem_examples_RegisterAgents$___\uff3fgolemRegisterAgents as __golemRegisterAgents };
 //# sourceMappingURL=main.js.map
