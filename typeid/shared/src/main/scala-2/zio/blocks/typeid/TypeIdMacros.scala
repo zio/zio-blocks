@@ -1,6 +1,5 @@
 package zio.blocks.typeid
 
-import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object TypeIdMacros {
@@ -12,7 +11,7 @@ object TypeIdMacros {
 
     def extractOwner(s: Symbol): Owner = {
       def loop(curr: Symbol): List[Owner.Segment] = {
-        if (curr == NoSymbol || curr.isRoot || curr.isEmpty || curr.isPackageClass) Nil
+        if (curr == NoSymbol || curr.isPackage && curr.name.decodedName.toString == "<root>") Nil
         else {
           val segment = if (curr.isPackage) Owner.Package(curr.name.decodedName.toString)
                         else if (curr.isTerm) Owner.Term(curr.name.decodedName.toString)
