@@ -712,7 +712,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(123))))(isRight(equalTo(Variant(123)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant(true))))(isRight(equalTo(Variant(true)))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(Variant("VVV"))))(isRight(equalTo(Variant("VVV")))) &&
-        assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))) &&
+        assert(variant.map(_.cases.map(_.name)))(
+          isSome(equalTo(Vector("scala.Int", "java.lang.String", "scala.Boolean")))
+        ) &&
         assert(variant.map(_.typeId.name))(isSome(equalTo("Variant")))
       },
       test("derives schema for case classes with fields of Scala 3 union types that have duplicated sub-types") {
@@ -741,7 +743,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
           isSome(equalTo(Seq("scala.Int", "java.lang.String"))) // deduplicates union cases without re-ordering
         ) &&
         assert(record.flatMap(_.fields(2).value.asVariant.map(_.cases.map(_.name))))(
-          isSome(equalTo(Seq("scala.Int", "scala.Boolean", "java.lang.String"))) // deduplicates union cases without re-ordering
+          isSome(
+            equalTo(Seq("scala.Int", "scala.Boolean", "java.lang.String"))
+          ) // deduplicates union cases without re-ordering
         ) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value1)))(isRight(equalTo(value1))) &&
         assert(schema.fromDynamicValue(schema.toDynamicValue(value2)))(isRight(equalTo(value2)))

@@ -7,7 +7,7 @@ import scala.reflect.ClassTag
 import scala.quoted.*
 import zio.blocks.typeid.*
 import zio.blocks.schema.TypeName.typeIdToTypeName
-import zio.blocks.schema.{Term as SchemaTerm}
+import zio.blocks.schema.Term as SchemaTerm
 import zio.blocks.schema.binding.*
 import zio.blocks.schema.binding.RegisterOffset.*
 import zio.blocks.schema.CommonMacroOps
@@ -233,7 +233,8 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           while (owner != defn.RootClass) {
             val ownerName = owner.name
             if (owner.flags.is(Flags.Package)) segments = Owner.Package(ownerName) :: segments
-            else if (owner.flags.is(Flags.Module)) segments = Owner.Term(ownerName.substring(0, ownerName.length - 1)) :: segments
+            else if (owner.flags.is(Flags.Module))
+              segments = Owner.Term(ownerName.substring(0, ownerName.length - 1)) :: segments
             else segments = Owner.Type(ownerName) :: segments
             owner = owner.owner
           }
@@ -261,10 +262,11 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             else typeArgs(tTpe)
           } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
           else typeArgs(tpe)
-        
+
         val params = tpeTypeArgs.zipWithIndex.map { case (x, idx) =>
-          val id = if (nestedTpes.contains(x)) calculate(anyTpe)
-                   else calculateTypeId(x, x :: nestedTpes)
+          val id =
+            if (nestedTpes.contains(x)) calculate(anyTpe)
+            else calculateTypeId(x, x :: nestedTpes)
           TypeParam(id.name, idx)
         }
         TypeId.nominal(name, Owner(segments), params)
@@ -283,15 +285,15 @@ private class SchemaVersionSpecificImpl(using Quotes) {
 
   private def toExpr[T: Type](id: TypeId[T])(using Quotes): Expr[TypeId[T]] = {
     val segments = Varargs(id.owner.segments.map {
-      case Owner.Package(name) => '{ Owner.Package(${Expr(name)}) }
-      case Owner.Term(name)    => '{ Owner.Term(${Expr(name)}) }
-      case Owner.Type(name)    => '{ Owner.Type(${Expr(name)}) }
+      case Owner.Package(name) => '{ Owner.Package(${ Expr(name) }) }
+      case Owner.Term(name)    => '{ Owner.Term(${ Expr(name) }) }
+      case Owner.Type(name)    => '{ Owner.Type(${ Expr(name) }) }
     })
-    val owner = '{ Owner(List($segments*)) }
+    val owner  = '{ Owner(List($segments*)) }
     val params = Varargs(id.typeParams.map { p =>
-      '{ TypeParam(${Expr(p.name)}, ${Expr(p.index)}) }
+      '{ TypeParam(${ Expr(p.name) }, ${ Expr(p.index) }) }
     })
-    '{ TypeId.nominal[T](${Expr(id.name)}, $owner, List($params*)).asInstanceOf[TypeId[T]] }
+    '{ TypeId.nominal[T](${ Expr(id.name) }, $owner, List($params*)).asInstanceOf[TypeId[T]] }
   }
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
@@ -673,9 +675,9 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
-            val tpeIdExpr  = toExpr(calculateTypeId[Array[et]](tpe))
+            val schema    = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag  = summonClassTag[et]
+            val tpeIdExpr = toExpr(calculateTypeId[Array[et]](tpe))
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
@@ -697,9 +699,9 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
-            val tpeIdExpr  = toExpr(calculateTypeId[IArray[et]](tpe))
+            val schema    = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag  = summonClassTag[et]
+            val tpeIdExpr = toExpr(calculateTypeId[IArray[et]](tpe))
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
@@ -721,9 +723,9 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         val eTpe = typeArgs(tpe).head
         eTpe.asType match {
           case '[et] =>
-            val schema   = findImplicitOrDeriveSchema[et](eTpe)
-            val classTag = summonClassTag[et]
-            val tpeIdExpr  = toExpr(calculateTypeId[ArraySeq[et]](tpe))
+            val schema    = findImplicitOrDeriveSchema[et](eTpe)
+            val classTag  = summonClassTag[et]
+            val tpeIdExpr = toExpr(calculateTypeId[ArraySeq[et]](tpe))
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
@@ -797,7 +799,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           val typeInfo =
             if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
             else new ClassInfo[tt](tTpe)
-          val fields  = typeInfo.fields[tt](Array.empty[String])
+          val fields     = typeInfo.fields[tt](Array.empty[String])
           val typeIdExpr = toExpr(calculateTypeId[tt](tTpe))
           '{
             new Schema(
@@ -867,7 +869,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           val typeInfo =
             if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
             else new ClassInfo[tt](tTpe)
-          val fields  = typeInfo.fields[T](nameOverrides)
+          val fields     = typeInfo.fields[T](nameOverrides)
           val typeIdExpr = toExpr(calculateTypeId[T](tpe))
           '{
             new Schema(
@@ -946,8 +948,8 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   }
 
   private def deriveSchemaForNonAbstractScalaClass[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
-    val classInfo = new ClassInfo(tpe)
-    val fields    = classInfo.fields(Array.empty[String])
+    val classInfo  = new ClassInfo(tpe)
+    val fields     = classInfo.fields(Array.empty[String])
     val typeIdExpr = toExpr(calculateTypeId[T](tpe))
     '{
       new Schema(

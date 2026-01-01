@@ -1660,7 +1660,7 @@ class JsonBinaryCodecDeriver private[json] (
           }
         } else {
           val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
-          val typeId    = record.typeId
+          val typeId      = record.typeId
           var infos       =
             if (isRecursive) recursiveRecordCache.get.get(typeId)
             else null
@@ -1878,7 +1878,7 @@ class JsonBinaryCodecDeriver private[json] (
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
     val typeId = variant.typeId
-    val cases    = variant.cases
+    val cases  = variant.cases
     if (
       typeId.namespace == Namespace.scala && typeId.name == "Option" &&
       cases.length == 2 && cases(1).name == "Some"
@@ -1888,9 +1888,9 @@ class JsonBinaryCodecDeriver private[json] (
 
   private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireOptionFields && reflect.isVariant && {
-      val variant  = reflect.asVariant.get
-      val typeId = reflect.typeId
-      val cases    = variant.cases
+      val variant = reflect.asVariant.get
+      val typeId  = reflect.typeId
+      val cases   = variant.cases
       typeId.namespace == Namespace.scala && typeId.name == "Option" &&
       cases.length == 2 && cases(1).name == "Some"
     }

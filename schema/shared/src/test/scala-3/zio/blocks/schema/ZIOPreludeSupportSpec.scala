@@ -41,8 +41,8 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(schema1.reflect.typeId.name)(equalTo("Option")) &&
       assert(schema2.reflect.typeId.name)(equalTo("Option")) &&
-       assert(schema3.reflect.typeId.name)(equalTo("Option")) &&
-       assert(schema4.reflect.typeId.name)(equalTo("Option"))
+      assert(schema3.reflect.typeId.name)(equalTo("Option")) &&
+      assert(schema4.reflect.typeId.name)(equalTo("Option"))
     },
     test("derive schemas for collections with newtypes and subtypes") {
       val schema1 = Schema.derived[List[Name]]
@@ -59,8 +59,8 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
       assert(schema1.reflect.typeId.name)(equalTo("List")) &&
       assert(schema2.reflect.typeId.name)(equalTo("Vector")) &&
-       assert(schema3.reflect.typeId.name)(equalTo("Set")) &&
-       assert(schema4.reflect.typeId.name)(equalTo("Map"))
+      assert(schema3.reflect.typeId.name)(equalTo("Set")) &&
+      assert(schema4.reflect.typeId.name)(equalTo("Map"))
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
       val value = new NRecord(
