@@ -37,6 +37,8 @@ sealed trait TypeId[A <: AnyKind] {
   def owner: Owner
   def typeParams: List[TypeParam]
 
+  def withTypeParams(params: List[TypeParam]): TypeId[A]
+
   final def arity: Int = typeParams.size
 
   final def fullName: String =
@@ -49,27 +51,27 @@ object TypeId extends TypeIdVersionSpecific {
     name: String,
     owner: Owner,
     typeParams: List[TypeParam]
-  ) extends TypeId[Nothing]
+  ) extends TypeId[Nothing] {
+    def withTypeParams(params: List[TypeParam]): TypeId[Nothing] = copy(typeParams = params)
+  }
 
   private final case class AliasImpl(
     name: String,
     owner: Owner,
     typeParams: List[TypeParam],
     aliased: TypeRepr
-  ) extends TypeId[Nothing]
+  ) extends TypeId[Nothing] {
+    def withTypeParams(params: List[TypeParam]): TypeId[Nothing] = copy(typeParams = params)
+  }
 
   private final case class OpaqueImpl(
     name: String,
     owner: Owner,
     typeParams: List[TypeParam],
     representation: TypeRepr
-  ) extends TypeId[Nothing]
-
-  /** Macro-derived TypeId for any type or type constructor */
-  // In Scala 3, this is overridden by TypeIdVersionSpecific's inline def.
-  // In Scala 2, this is the main entry point.
-  def derive[A <: AnyKind]: TypeId[A] =
-    macro TypeIdMacros.deriveMacro[A]
+  ) extends TypeId[Nothing] {
+    def withTypeParams(params: List[TypeParam]): TypeId[Nothing] = copy(typeParams = params)
+  }
 
   /** Manual construction: nominal type */
   def nominal[A <: AnyKind](

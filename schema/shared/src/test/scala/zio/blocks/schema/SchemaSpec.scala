@@ -162,7 +162,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(
+                typeId = TypeName(
                   namespace = Namespace(Seq("scala")),
                   name = "Tuple4",
                   params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
@@ -219,7 +219,7 @@ object SchemaSpec extends ZIOSpecDefault {
                     ),
                   Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
-                typeName = TypeName(
+                typeId = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record-1"
                 ),
@@ -268,7 +268,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Byte].reflect.asTerm("b"),
                   Schema[Int].reflect.asTerm("i")
                 ),
-                typeName = TypeName(
+                typeId = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record-2",
                   params = Seq(TypeName.byte, TypeName.int)
@@ -308,7 +308,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Short].reflect.asTerm("s"),
                   Schema[Long].reflect.asTerm("l")
                 ),
-                typeName = TypeName(
+                typeId = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record3"
                 ),
@@ -356,7 +356,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
-                typeName = TypeName(
+                typeId = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record4"
                 ),
@@ -420,7 +420,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
-                typeName = TypeName(
+                typeId = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record5"
                 ),
@@ -559,7 +559,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Option[DynamicValue]].reflect.asTerm("od"),
                   Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
                 ),
-                typeName = TypeName(
+                typeId = TypeName(
                   namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
                   name = "Record7"
                 ),
@@ -1384,7 +1384,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeName = TypeName.map(TypeName.int, TypeName.long),
+          typeId = TypeName.map(TypeName.int, TypeName.long),
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,

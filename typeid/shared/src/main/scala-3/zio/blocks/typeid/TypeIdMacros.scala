@@ -3,7 +3,7 @@ package zio.blocks.typeid
 import scala.quoted.*
 
 object TypeIdMacros {
-  def deriveMacro[A : Type](using Quotes): Expr[TypeId[A]] = {
+  def deriveMacro[A <: AnyKind : Type](using Quotes): Expr[TypeId[A]] = {
     import quotes.reflect.*
 
     val tpe = TypeRepr.of[A]
@@ -11,7 +11,7 @@ object TypeIdMacros {
 
     def extractOwner(s: Symbol): Owner = {
       def loop(curr: Symbol): List[Owner.Segment] = {
-        if (curr.isNoSymbol || curr.isRootSymbol || curr.name == "<empty>" || curr.name == "<root>") Nil
+        if (curr == Symbol.noSymbol || curr == defn.RootPackage || curr == defn.RootClass || curr.name == "<empty>" || curr.name == "<root>") Nil
         else {
           val segment = if (curr.flags.is(Flags.Package)) Owner.Package(curr.name)
                         else if (curr.isTerm) Owner.Term(curr.name)

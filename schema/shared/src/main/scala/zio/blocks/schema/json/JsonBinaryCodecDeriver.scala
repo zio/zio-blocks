@@ -3,13 +3,16 @@ package zio.blocks.schema.json
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers}
-import zio.blocks.schema._
+import zio.blocks.schema.*
+import zio.blocks.schema.TypeName.*
 import zio.blocks.schema.binding.{Constructor, Discriminator}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.SeqDeconstructor.SpecializedIndexed
 import zio.blocks.schema.codec.BinaryFormat
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
+
+import scala.annotation.{switch, tailrec}
 import scala.util.control.NonFatal
 
 /**
@@ -1833,7 +1836,7 @@ class JsonBinaryCodecDeriver private[json] (
                 case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
               }
             ) match {
-              case Right(x)    => x
+              case Right(x)    => x.asInstanceOf[A]
               case Left(error) => in.decodeError(error)
             }
 
@@ -1846,7 +1849,7 @@ class JsonBinaryCodecDeriver private[json] (
                 case error if NonFatal(error) => in.decodeError(DynamicOptic.Node.Wrapped, error)
               }
             ) match {
-              case Right(x)    => x
+              case Right(x)    => x.asInstanceOf[A]
               case Left(error) => in.decodeError(error)
             }
 

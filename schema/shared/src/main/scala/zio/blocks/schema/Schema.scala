@@ -2,7 +2,6 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
-import zio.blocks.typeid.TypeId
 import java.util.concurrent.ConcurrentHashMap
 
 /**

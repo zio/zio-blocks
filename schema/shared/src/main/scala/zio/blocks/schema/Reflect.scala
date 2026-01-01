@@ -146,6 +146,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def typeId(value: TypeId[A]): Reflect[F, A]
 
+  def typeName: TypeName[A] = TypeName(typeId)
+
+  def typeName(value: TypeName[A]): Reflect[F, A] = typeId(value.id)
+
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
       def update[C](reflect: Reflect[F, C]): Reflect[F, C] =
@@ -418,7 +422,9 @@ object Reflect {
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
-    def typeId(value: TypeId[A]): Record[F, A] = copy(typeId = value)
+    override def typeId(value: TypeId[A]): Record[F, A] = copy(typeId = value)
+
+    override def typeName(value: TypeName[A]): Record[F, A] = typeId(value.id)
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
 
@@ -581,7 +587,9 @@ object Reflect {
         variant <- f.transformVariant(path, cases, typeId, variantBinding, doc, modifiers)
       } yield variant
 
-    def typeId(value: TypeId[A]): Variant[F, A] = copy(typeId = value)
+    override def typeId(value: TypeId[A]): Variant[F, A] = copy(typeId = value)
+
+    override def typeName(value: TypeName[A]): Variant[F, A] = typeId(value.id)
 
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
 
@@ -776,7 +784,9 @@ object Reflect {
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
+    override def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
+
+    override def typeName(value: TypeName[C[A]]): Sequence[F, A, C] = typeId(value.id)
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
@@ -890,7 +900,9 @@ object Reflect {
         map   <- f.transformMap(path, key, value, typeId, mapBinding, doc, modifiers)
       } yield map
 
-    def typeId(value: TypeId[M[K, V]]): Map[F, K, V, M] = copy(typeId = value)
+    override def typeId(value: TypeId[M[K, V]]): Map[F, K, V, M] = copy(typeId = value)
+
+    override def typeName(value: TypeName[M[K, V]]): Map[F, K, V, M] = typeId(value.id)
 
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
@@ -959,7 +971,9 @@ object Reflect {
         dynamic <- f.transformDynamic(path, typeId, dynamicBinding, doc, modifiers)
       } yield dynamic
 
-    def typeId(value: TypeId[DynamicValue]): Dynamic[F] = copy(typeId = value)
+    override def typeId(value: TypeId[DynamicValue]): Dynamic[F] = copy(typeId = value)
+
+    override def typeName(value: TypeName[DynamicValue]): Dynamic[F] = typeId(value.id)
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
@@ -1015,7 +1029,9 @@ object Reflect {
         primitive <- f.transformPrimitive(path, primitiveType, typeId, primitiveBinding, doc, modifiers)
       } yield primitive
 
-    def typeId(value: TypeId[A]): Primitive[F, A] = copy(typeId = value)
+    override def typeId(value: TypeId[A]): Primitive[F, A] = copy(typeId = value)
+
+    override def typeName(value: TypeName[A]): Primitive[F, A] = typeId(value.id)
 
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
 
@@ -1082,7 +1098,9 @@ object Reflect {
         wrapper <- f.transformWrapper(path, wrapped, typeId, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
       } yield wrapper
 
-    def typeId(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
+    override def typeId(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
+
+    override def typeName(value: TypeName[A]): Wrapper[F, A, B] = typeId(value.id)
 
     override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
       def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped] = self.asInstanceOf[Reflect.Wrapper[F, Wrapping, Wrapped]]
