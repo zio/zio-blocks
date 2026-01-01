@@ -818,8 +818,8 @@ object ReflectSpec extends ZIOSpecDefault {
         )(equalTo(Seq(Modifier.config("key", "value"))))
       },
       test("avoids stack overflow for circulary dependent structures") {
-        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred2)
-        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred1)
+        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred2, Some(zio.blocks.typeid.TypeId.nominal[Any]("Deferred1", zio.blocks.typeid.Owner.zioBlocksSchema)))
+        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred1, Some(zio.blocks.typeid.TypeId.nominal[Any]("Deferred2", zio.blocks.typeid.Owner.zioBlocksSchema)))
         assert(deferred1.asDynamic)(isNone) &&
         assert(deferred1.isDynamic)(equalTo(false)) &&
         assert(deferred1.asRecord)(isNone) &&
@@ -836,7 +836,9 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred1.isMap)(equalTo(false)) &&
         assert(deferred1.asWrapperUnknown)(isNone) &&
         assert(deferred1.isWrapper)(equalTo(false)) &&
-        assert(deferred1.typeName)(equalTo(null))
+        assert(deferred1.typeName)(equalTo(
+          TypeName[Any](Namespace(Seq("zio", "blocks", "schema"), Nil), "Deferred1", Nil)
+        ))
       }
     )
   )
