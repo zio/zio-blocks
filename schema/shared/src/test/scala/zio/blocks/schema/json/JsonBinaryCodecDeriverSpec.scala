@@ -5,6 +5,7 @@ import zio.blocks.schema._
 import zio.blocks.schema.JavaTimeGen._
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.json.NameMapper._
+import zio.blocks.schema.TypeIdOps._
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
@@ -3205,7 +3206,7 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
     implicit val schema: Schema[Email] = new Schema(
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
-        TypeName(Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email"),
+        TypeName[Email](Namespace(Seq("zio", "blocks", "schema", "json"), Seq("JsonBinaryCodecDeriverSpec")), "Email").toTypeId,
         None,
         new Binding.Wrapper(
           {

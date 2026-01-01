@@ -5,6 +5,8 @@ import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
+import zio.blocks.typeid.TypeId
+import zio.blocks.typeid.Owner
 
 sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   protected def inner: Any
@@ -141,9 +143,18 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]]
 
-  def typeName: TypeName[A]
+  def typeId: TypeId[A]
 
-  def typeName(value: TypeName[A]): Reflect[F, A]
+  def typeId(value: TypeId[A]): Reflect[F, A]
+
+  // Backward compatibility bridge (remove in Phase 3)
+  final def typeName: TypeName[A] = {
+    import TypeIdOps._
+    typeId.toTypeName
+  }
+
+  @deprecated("Use typeId(value) instead", "Phase 2")
+  final def typeName(value: TypeName[A]): Reflect[F, A] = this
 
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
@@ -274,7 +285,7 @@ object Reflect {
 
   case class Record[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     recordBinding: F[BindingType.Record, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
@@ -289,7 +300,7 @@ object Reflect {
       }
     }
 
-    protected def inner: Any = (fields, typeName, doc, modifiers)
+    protected def inner: Any = (fields, typeId, doc, modifiers)
 
     type NodeBinding = BindingType.Record
 
@@ -408,7 +419,7 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Record[G, A]] =
       for {
         fields <- Lazy.foreach(fields)(_.transform(path, Term.Type.Record, f))
-        record <- f.transformRecord(path, fields, typeName, recordBinding, doc, modifiers)
+        record <- f.transformRecord(path, fields, typeId, recordBinding, doc, modifiers)
       } yield record
 
     lazy val registers: IndexedSeq[Register[Any]] = ArraySeq.unsafeWrapArray(Record.registers(fieldValues))
@@ -417,7 +428,7 @@ object Reflect {
       registers.asInstanceOf[ArraySeq[Register[Any]]].unsafeArray.asInstanceOf[Array[Register[Any]]]
     )
 
-    def typeName(value: TypeName[A]): Record[F, A] = copy(typeName = value)
+    def typeId(value: TypeId[A]): Record[F, A] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
 
@@ -487,7 +498,7 @@ object Reflect {
 
   case class Variant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ? <: A]],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     variantBinding: F[BindingType.Variant, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
@@ -501,7 +512,7 @@ object Reflect {
       }
     }
 
-    protected def inner: Any = (cases, typeName, doc, modifiers)
+    protected def inner: Any = (cases, typeId, doc, modifiers)
 
     type NodeBinding = BindingType.Variant
 
@@ -577,10 +588,10 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Variant[G, A]] =
       for {
         cases   <- Lazy.foreach(cases)(_.transform(path, Term.Type.Variant, f))
-        variant <- f.transformVariant(path, cases, typeName, variantBinding, doc, modifiers)
+        variant <- f.transformVariant(path, cases, typeId, variantBinding, doc, modifiers)
       } yield variant
 
-    def typeName(value: TypeName[A]): Variant[F, A] = copy(typeName = value)
+    def typeId(value: TypeId[A]): Variant[F, A] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
 
@@ -595,14 +606,14 @@ object Reflect {
 
   case class Sequence[F[_, _], A, C[_]](
     element: Reflect[F, A],
-    typeName: TypeName[C[A]],
+    typeId: TypeId[C[A]],
     seqBinding: F[BindingType.Seq[C], C[A]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, C[A]] { self =>
     require(element ne null)
 
-    protected def inner: Any = (element, typeName, doc, modifiers)
+    protected def inner: Any = (element, typeId, doc, modifiers)
 
     type NodeBinding = BindingType.Seq[C]
 
@@ -768,14 +779,14 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Sequence[G, A, C]] =
       for {
         element  <- element.transform(path(DynamicOptic.elements), f)
-        sequence <- f.transformSequence(path, element, typeName, seqBinding, doc, modifiers)
+        sequence <- f.transformSequence(path, element, typeId, seqBinding, doc, modifiers)
       } yield sequence
 
     def seqConstructor(implicit F: HasBinding[F]): SeqConstructor[C] = F.seqConstructor(seqBinding)
 
     def seqDeconstructor(implicit F: HasBinding[F]): SeqDeconstructor[C] = F.seqDeconstructor(seqBinding)
 
-    def typeName(value: TypeName[C[A]]): Sequence[F, A, C] = copy(typeName = value)
+    def typeId(value: TypeId[C[A]]): Sequence[F, A, C] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
@@ -804,14 +815,14 @@ object Reflect {
   case class Map[F[_, _], K, V, M[_, _]](
     key: Reflect[F, K],
     value: Reflect[F, V],
-    typeName: TypeName[M[K, V]],
+    typeId: TypeId[M[K, V]],
     mapBinding: F[BindingType.Map[M], M[K, V]],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, M[K, V]] { self =>
     require((key ne null) && (value ne null))
 
-    protected def inner: Any = (key, value, typeName, doc, modifiers)
+    protected def inner: Any = (key, value, typeId, doc, modifiers)
 
     type NodeBinding = BindingType.Map[M]
 
@@ -886,10 +897,10 @@ object Reflect {
       for {
         key   <- key.transform(path(DynamicOptic.mapKeys), f)
         value <- value.transform(path(DynamicOptic.mapValues), f)
-        map   <- f.transformMap(path, key, value, typeName, mapBinding, doc, modifiers)
+        map   <- f.transformMap(path, key, value, typeId, mapBinding, doc, modifiers)
       } yield map
 
-    def typeName(value: TypeName[M[K, V]]): Map[F, K, V, M] = copy(typeName = value)
+    def typeId(value: TypeId[M[K, V]]): Map[F, K, V, M] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
@@ -918,7 +929,7 @@ object Reflect {
 
   case class Dynamic[F[_, _]](
     dynamicBinding: F[BindingType.Dynamic, DynamicValue],
-    typeName: TypeName[DynamicValue] = TypeName.dynamicValue,
+    typeId: TypeId[DynamicValue] = TypeId.nominal[DynamicValue]("DynamicValue", Owner.zioBlocksSchema),
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, DynamicValue] {
@@ -955,10 +966,10 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Dynamic[G]] =
       for {
-        dynamic <- f.transformDynamic(path, typeName, dynamicBinding, doc, modifiers)
+        dynamic <- f.transformDynamic(path, typeId, dynamicBinding, doc, modifiers)
       } yield dynamic
 
-    def typeName(value: TypeName[DynamicValue]): Dynamic[F] = copy(typeName = value)
+    def typeId(value: TypeId[DynamicValue]): Dynamic[F] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
@@ -973,12 +984,12 @@ object Reflect {
 
   case class Primitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     primitiveBinding: F[BindingType.Primitive, A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, A] { self =>
-    protected def inner: Any = (primitiveType, typeName, doc, modifiers)
+    protected def inner: Any = (primitiveType, typeId, doc, modifiers)
 
     type NodeBinding = BindingType.Primitive
 
@@ -1011,10 +1022,10 @@ object Reflect {
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Primitive[G, A]] =
       for {
-        primitive <- f.transformPrimitive(path, primitiveType, typeName, primitiveBinding, doc, modifiers)
+        primitive <- f.transformPrimitive(path, primitiveType, typeId, primitiveBinding, doc, modifiers)
       } yield primitive
 
-    def typeName(value: TypeName[A]): Primitive[F, A] = copy(typeName = value)
+    def typeId(value: TypeId[A]): Primitive[F, A] = copy(typeId = value)
 
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
 
@@ -1029,13 +1040,13 @@ object Reflect {
 
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, A] { self =>
-    protected def inner: Any = (wrapped, typeName, wrapperPrimitiveType, doc, modifiers)
+    protected def inner: Any = (wrapped, typeId, wrapperPrimitiveType, doc, modifiers)
 
     type NodeBinding = BindingType.Wrapper[A, B]
 
@@ -1059,7 +1070,7 @@ object Reflect {
       (wrapped.fromDynamicValue(value) match {
         case Right(unwrapped) =>
           binding.wrap(unwrapped) match {
-            case Left(error) => new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeName.name}: $error"))
+            case Left(error) => new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeId.name}: $error"))
             case right       => right
           }
         case left => left
@@ -1078,10 +1089,10 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
         wrapped <- wrapped.transform(path, f)
-        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
+        wrapper <- f.transformWrapper(path, wrapped, typeId, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
       } yield wrapper
 
-    def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
+    def typeId(value: TypeId[A]): Wrapper[F, A, B] = copy(typeId = value)
 
     override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
       def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped] = self.asInstanceOf[Reflect.Wrapper[F, Wrapping, Wrapped]]
@@ -1139,6 +1150,8 @@ object Reflect {
 
     def doc: Doc = value.doc
 
+    def typeId: TypeId[A] = value.typeId
+
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = this.value.toDynamicValue(value)
 
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Reflect[G, A]] =
@@ -1154,7 +1167,7 @@ object Reflect {
         }
       }
 
-    def typeName(value: TypeName[A]): Deferred[F, A] = copy(_value = () => _value().typeName(value))
+    def typeId(value: TypeId[A]): Deferred[F, A] = copy(_value = () => _value().typeId(value))
 
     override def hashCode: Int = {
       val v = visited.get
@@ -1340,16 +1353,6 @@ object Reflect {
       }
     }
 
-    def typeName: TypeName[A] = {
-      val v = visited.get
-      if (v.containsKey(this)) null // exit from recursion
-      else {
-        v.put(this, ())
-        try value.typeName
-        finally v.remove(this)
-      }
-    }
-
     private[this] val visited =
       new ThreadLocal[java.util.IdentityHashMap[AnyRef, Unit]] {
         override def initialValue: java.util.IdentityHashMap[AnyRef, Unit] = new java.util.IdentityHashMap
@@ -1442,7 +1445,7 @@ object Reflect {
     primitive(new PrimitiveType.Period(Validation.None))
 
   private[this] def primitive[F[_, _], A](primitiveType: PrimitiveType[A])(implicit F: FromBinding[F]): Reflect[F, A] =
-    new Primitive(primitiveType, primitiveType.typeName, F.fromBinding(primitiveType.binding))
+    new Primitive(primitiveType, primitiveType.typeId, F.fromBinding(primitiveType.binding))
 
   def year[F[_, _]](implicit F: FromBinding[F]): Reflect[F, java.time.Year] =
     primitive(new PrimitiveType.Year(Validation.None))
@@ -1468,49 +1471,49 @@ object Reflect {
   def dynamic[F[_, _]](implicit F: FromBinding[F]): Dynamic[F] = new Dynamic(F.fromBinding(Binding.Dynamic()))
 
   private[this] def some[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Record[F, Some[A]] =
-    new Record(Vector(new Term("value", element)), TypeName.some(element.typeName), F.fromBinding(Binding.Record.some))
+    new Record(Vector(new Term("value", element)), TypeId.some(element.typeId), F.fromBinding(Binding.Record.some))
 
   private[this] def someDouble[F[_, _]](
     element: Reflect[F, Double]
   )(implicit F: FromBinding[F]): Record[F, Some[Double]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someDouble)
     )
 
   private[this] def someLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Record[F, Some[Long]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someLong)
     )
 
   private[this] def someFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Record[F, Some[Float]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someFloat)
     )
 
   private[this] def someInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Record[F, Some[Int]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someInt)
     )
 
   private[this] def someChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Record[F, Some[Char]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someChar)
     )
 
   private[this] def someShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Record[F, Some[Short]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someShort)
     )
 
@@ -1519,124 +1522,124 @@ object Reflect {
   )(implicit F: FromBinding[F]): Record[F, Some[Boolean]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someBoolean)
     )
 
   private[this] def someByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Record[F, Some[Byte]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someByte)
     )
 
   private[this] def someUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Record[F, Some[Unit]] =
     new Record(
       Vector(new Term("value", element)),
-      TypeName.some(element.typeName),
+      TypeId.some(element.typeId),
       F.fromBinding(Binding.Record.someUnit)
     )
 
   private[this] def none[F[_, _]](implicit F: FromBinding[F]): Record[F, None.type] =
-    new Record(Vector(), TypeName.none, F.fromBinding(Binding.Record.none))
+    new Record(Vector(), TypeId.none, F.fromBinding(Binding.Record.none))
 
   def option[F[_, _], A <: AnyRef](element: Reflect[F, A])(implicit F: FromBinding[F]): Variant[F, Option[A]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", some(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionDouble[F[_, _]](element: Reflect[F, Double])(implicit F: FromBinding[F]): Variant[F, Option[Double]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someDouble(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionLong[F[_, _]](element: Reflect[F, Long])(implicit F: FromBinding[F]): Variant[F, Option[Long]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someLong(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionFloat[F[_, _]](element: Reflect[F, Float])(implicit F: FromBinding[F]): Variant[F, Option[Float]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someFloat(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionInt[F[_, _]](element: Reflect[F, Int])(implicit F: FromBinding[F]): Variant[F, Option[Int]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someInt(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionChar[F[_, _]](element: Reflect[F, Char])(implicit F: FromBinding[F]): Variant[F, Option[Char]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someChar(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionShort[F[_, _]](element: Reflect[F, Short])(implicit F: FromBinding[F]): Variant[F, Option[Short]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someShort(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionBoolean[F[_, _]](element: Reflect[F, Boolean])(implicit F: FromBinding[F]): Variant[F, Option[Boolean]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someBoolean(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionByte[F[_, _]](element: Reflect[F, Byte])(implicit F: FromBinding[F]): Variant[F, Option[Byte]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someByte(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def optionUnit[F[_, _]](element: Reflect[F, Unit])(implicit F: FromBinding[F]): Variant[F, Option[Unit]] =
     new Variant(
       Vector(new Term("None", none), new Term("Some", someUnit(element))),
-      TypeName.option(element.typeName),
+      TypeId.option(element.typeId),
       F.fromBinding(Binding.Variant.option)
     )
 
   def set[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Set] =
-    new Sequence(element, TypeName.set(element.typeName), F.fromBinding(Binding.Seq.set))
+    new Sequence(element, TypeId.set(element.typeId), F.fromBinding(Binding.Seq.set))
 
   def list[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, List] =
-    new Sequence(element, TypeName.list(element.typeName), F.fromBinding(Binding.Seq.list))
+    new Sequence(element, TypeId.list(element.typeId), F.fromBinding(Binding.Seq.list))
 
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
-    new Sequence(element, TypeName.vector(element.typeName), F.fromBinding(Binding.Seq.vector))
+    new Sequence(element, TypeId.vector(element.typeId), F.fromBinding(Binding.Seq.vector))
 
   def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] =
-    new Sequence(element, TypeName.indexedSeq(element.typeName), F.fromBinding(Binding.Seq.indexedSeq))
+    new Sequence(element, TypeId.indexedSeq(element.typeId), F.fromBinding(Binding.Seq.indexedSeq))
 
   def seq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Seq] =
-    new Sequence(element, TypeName.seq(element.typeName), F.fromBinding(Binding.Seq.seq))
+    new Sequence(element, TypeId.seq(element.typeId), F.fromBinding(Binding.Seq.seq))
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
   ): Map[F, K, V, collection.immutable.Map] = {
-    val typeName = TypeName.map(key.typeName, value.typeName)
-    new Map(key, value, typeName, F.fromBinding(Binding.Map.map))
+    val mapTypeId = TypeId.map(key.typeId, value.typeId)
+    new Map(key, value, mapTypeId, F.fromBinding(Binding.Map.map))
   }
 
   object Extractors {
     object List {
       def unapply[F[_, _], A](reflect: Reflect[F, List[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.list(x.sequence.element.typeName) =>
+          case x if x.sequence.typeId == TypeId.list(x.sequence.element.typeId) =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
@@ -1644,7 +1647,7 @@ object Reflect {
     object Vector {
       def unapply[F[_, _], A](reflect: Reflect[F, Vector[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.vector(x.sequence.element.typeName) =>
+          case x if x.sequence.typeId == TypeId.vector(x.sequence.element.typeId) =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }
@@ -1652,7 +1655,7 @@ object Reflect {
     object Set {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.set(x.sequence.element.typeName) =>
+          case x if x.sequence.typeId == TypeId.set(x.sequence.element.typeId) =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }

@@ -159,4 +159,40 @@ object TypeId extends TypeIdVersionSpecific {
   val map: TypeId[Map[_, _]]             = nominal("Map", Owner.scalaCollectionImmutable, List(K, V))
   val indexedSeq: TypeId[IndexedSeq[_]]  = nominal("IndexedSeq", Owner.scalaCollectionImmutable, List(A))
   val seq: TypeId[Seq[_]]                = nominal("Seq", Owner.scalaCollectionImmutable, List(A))
+
+  // ============================================================================
+  // Applied type constructors - create TypeId for parameterized types
+  // ============================================================================
+  
+  /** Create a TypeId for Option[A] from a TypeId[A] */
+  def option[A](element: TypeId[A]): TypeId[Option[A]] =
+    nominal("Option", Owner.scala)
+  
+  /** Create a TypeId for Some[A] from a TypeId[A] */
+  def some[A](element: TypeId[A]): TypeId[Some[A]] =
+    nominal("Some", Owner.scala)
+  
+  /** Create a TypeId for List[A] from a TypeId[A] */
+  def list[A](element: TypeId[A]): TypeId[List[A]] =
+    nominal("List", Owner.scalaCollectionImmutable)
+  
+  /** Create a TypeId for Vector[A] from a TypeId[A] */
+  def vector[A](element: TypeId[A]): TypeId[Vector[A]] =
+    nominal("Vector", Owner.scalaCollectionImmutable)
+  
+  /** Create a TypeId for Set[A] from a TypeId[A] */
+  def set[A](element: TypeId[A]): TypeId[Set[A]] =
+    nominal("Set", Owner.scalaCollectionImmutable)
+  
+  /** Create a TypeId for IndexedSeq[A] from a TypeId[A] */
+  def indexedSeq[A](element: TypeId[A]): TypeId[IndexedSeq[A]] =
+    nominal("IndexedSeq", Owner.scalaCollectionImmutable)
+  
+  /** Create a TypeId for Seq[A] from a TypeId[A] */
+  def seq[A](element: TypeId[A]): TypeId[Seq[A]] =
+    nominal("Seq", Owner.scalaCollectionImmutable)
+  
+  /** Create a TypeId for Map[K, V] from TypeId[K] and TypeId[V] */
+  def map[K, V](key: TypeId[K], value: TypeId[V]): TypeId[Map[K, V]] =
+    nominal("Map", Owner.scalaCollectionImmutable)
 }

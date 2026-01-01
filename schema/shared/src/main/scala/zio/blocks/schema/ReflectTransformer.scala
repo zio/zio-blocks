@@ -1,12 +1,13 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding._
+import zio.blocks.typeid.TypeId
 
 trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformRecord[A](
     path: DynamicOptic,
     fields: IndexedSeq[Term[G, A, ?]],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     metadata: F[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -15,7 +16,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformVariant[A](
     path: DynamicOptic,
     cases: IndexedSeq[Term[G, A, ? <: A]],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     metadata: F[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -24,7 +25,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformSequence[A, C[_]](
     path: DynamicOptic,
     element: Reflect[G, A],
-    typeName: TypeName[C[A]],
+    typeId: TypeId[C[A]],
     metadata: F[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -34,7 +35,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     path: DynamicOptic,
     key: Reflect[G, Key],
     value: Reflect[G, Value],
-    typeName: TypeName[M[Key, Value]],
+    typeId: TypeId[M[Key, Value]],
     metadata: F[BindingType.Map[M], M[Key, Value]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -42,7 +43,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
 
   def transformDynamic(
     path: DynamicOptic,
-    typeName: TypeName[DynamicValue],
+    typeId: TypeId[DynamicValue],
     metadata: F[BindingType.Dynamic, DynamicValue],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -51,7 +52,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformPrimitive[A](
     path: DynamicOptic,
     primitiveType: PrimitiveType[A],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     metadata: F[BindingType.Primitive, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -60,7 +61,7 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
   def transformWrapper[A, B](
     path: DynamicOptic,
     wrapped: Reflect[G, B],
-    typeName: TypeName[A],
+    typeId: TypeId[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
     metadata: F[BindingType.Wrapper[A, B], A],
     doc: Doc,
@@ -75,79 +76,79 @@ object ReflectTransformer {
     def transformRecord[A](
       path: DynamicOptic,
       fields: IndexedSeq[Term[G, A, ?]],
-      typeName: TypeName[A],
+      typeId: TypeId[A],
       metadata: F[BindingType.Record, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[Reflect.Record[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Record(fields, typeName, binding, doc, modifiers)
+      } yield new Reflect.Record(fields, typeId, binding, doc, modifiers)
 
     def transformVariant[A](
       path: DynamicOptic,
       cases: IndexedSeq[Term[G, A, ? <: A]],
-      typeName: TypeName[A],
+      typeId: TypeId[A],
       metadata: F[BindingType.Variant, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[Reflect.Variant[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Variant(cases, typeName, binding, doc, modifiers)
+      } yield new Reflect.Variant(cases, typeId, binding, doc, modifiers)
 
     def transformSequence[A, C[_]](
       path: DynamicOptic,
       element: Reflect[G, A],
-      typeName: TypeName[C[A]],
+      typeId: TypeId[C[A]],
       metadata: F[BindingType.Seq[C], C[A]],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[Reflect.Sequence[G, A, C]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Sequence(element, typeName, binding, doc, modifiers)
+      } yield new Reflect.Sequence(element, typeId, binding, doc, modifiers)
 
     def transformMap[Key, Value, M[_, _]](
       path: DynamicOptic,
       key: Reflect[G, Key],
       value: Reflect[G, Value],
-      typeName: TypeName[M[Key, Value]],
+      typeId: TypeId[M[Key, Value]],
       metadata: F[BindingType.Map[M], M[Key, Value]],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[Reflect.Map[G, Key, Value, M]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield Reflect.Map(key, value, typeName, binding, doc, modifiers)
+      } yield Reflect.Map(key, value, typeId, binding, doc, modifiers)
 
     def transformDynamic(
       path: DynamicOptic,
-      typeName: TypeName[DynamicValue],
+      typeId: TypeId[DynamicValue],
       metadata: F[BindingType.Dynamic, DynamicValue],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[Reflect.Dynamic[G]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Dynamic(binding, typeName, doc, modifiers)
+      } yield new Reflect.Dynamic(binding, typeId, doc, modifiers)
 
     def transformPrimitive[A](
       path: DynamicOptic,
       primitiveType: PrimitiveType[A],
-      typeName: TypeName[A],
+      typeId: TypeId[A],
       metadata: F[BindingType.Primitive, A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[Reflect.Primitive[G, A]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Primitive(primitiveType, typeName, binding, doc, modifiers)
+      } yield new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)
 
     def transformWrapper[A, B](
       path: DynamicOptic,
       wrapped: Reflect[G, B],
-      typeName: TypeName[A],
+      typeId: TypeId[A],
       wrapperPrimitiveType: Option[PrimitiveType[A]],
       metadata: F[BindingType.Wrapper[A, B], A],
       doc: Doc,
@@ -155,7 +156,7 @@ object ReflectTransformer {
     ): Lazy[Reflect.Wrapper[G, A, B]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Wrapper(wrapped, typeName, wrapperPrimitiveType, binding, doc, modifiers)
+      } yield new Reflect.Wrapper(wrapped, typeId, wrapperPrimitiveType, binding, doc, modifiers)
   }
 
   private type Any2[_, _] = Any

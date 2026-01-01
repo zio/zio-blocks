@@ -1,6 +1,7 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.{Binding, BindingType}
+import zio.blocks.typeid.TypeId
 
 sealed trait PrimitiveType[A] {
   def binding: Binding[BindingType.Primitive, A] = new Binding.Primitive[A]
@@ -13,6 +14,8 @@ sealed trait PrimitiveType[A] {
 
   def typeName: TypeName[A]
 
+  def typeId: TypeId[A]
+
   def validation: Validation[A]
 }
 
@@ -23,6 +26,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Unit): DynamicValue = new DynamicValue.Primitive(PrimitiveValue.Unit)
 
     def typeName: TypeName[scala.Unit] = TypeName.unit
+
+    def typeId: TypeId[scala.Unit] = TypeId.unit
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -40,6 +45,8 @@ object PrimitiveType {
 
     def typeName: TypeName[scala.Boolean] = TypeName.boolean
 
+    def typeId: TypeId[scala.Boolean] = TypeId.boolean
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -54,6 +61,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Byte): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Byte(value))
 
     def typeName: TypeName[scala.Byte] = TypeName.byte
+
+    def typeId: TypeId[scala.Byte] = TypeId.byte
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -70,6 +79,8 @@ object PrimitiveType {
 
     def typeName: TypeName[scala.Short] = TypeName.short
 
+    def typeId: TypeId[scala.Short] = TypeId.short
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -84,6 +95,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Int): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Int(value))
 
     def typeName: TypeName[scala.Int] = TypeName.int
+
+    def typeId: TypeId[scala.Int] = TypeId.int
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -100,6 +113,8 @@ object PrimitiveType {
 
     def typeName: TypeName[scala.Long] = TypeName.long
 
+    def typeId: TypeId[scala.Long] = TypeId.long
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -114,6 +129,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Float): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Float(value))
 
     def typeName: TypeName[scala.Float] = TypeName.float
+
+    def typeId: TypeId[scala.Float] = TypeId.float
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -130,6 +147,8 @@ object PrimitiveType {
 
     def typeName: TypeName[scala.Double] = TypeName.double
 
+    def typeId: TypeId[scala.Double] = TypeId.double
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -144,6 +163,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Char): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Char(value))
 
     def typeName: TypeName[scala.Char] = TypeName.char
+
+    def typeId: TypeId[scala.Char] = TypeId.char
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -161,6 +182,8 @@ object PrimitiveType {
 
     def typeName: TypeName[Predef.String] = TypeName.string
 
+    def typeId: TypeId[Predef.String] = TypeId.string
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -175,6 +198,8 @@ object PrimitiveType {
     def toDynamicValue(value: scala.BigInt): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.BigInt(value))
 
     def typeName: TypeName[scala.BigInt] = TypeName.bigInt
+
+    def typeId: TypeId[scala.BigInt] = TypeId.bigInt
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -192,6 +217,8 @@ object PrimitiveType {
 
     def typeName: TypeName[scala.BigDecimal] = TypeName.bigDecimal
 
+    def typeId: TypeId[scala.BigDecimal] = TypeId.bigDecimal
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -208,6 +235,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.DayOfWeek] = TypeName.dayOfWeek
 
+    def typeId: TypeId[java.time.DayOfWeek] = TypeId.dayOfWeek
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -222,6 +251,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.Duration(value))
 
     def typeName: TypeName[java.time.Duration] = TypeName.duration
+
+    def typeId: TypeId[java.time.Duration] = TypeId.duration
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -239,6 +270,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.Instant] = TypeName.instant
 
+    def typeId: TypeId[java.time.Instant] = TypeId.instant
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -254,6 +287,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.LocalDate(value))
 
     def typeName: TypeName[java.time.LocalDate] = TypeName.localDate
+
+    def typeId: TypeId[java.time.LocalDate] = TypeId.localDate
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -271,6 +306,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.LocalDateTime] = TypeName.localDateTime
 
+    def typeId: TypeId[java.time.LocalDateTime] = TypeId.localDateTime
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -287,6 +324,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.LocalTime] = TypeName.localTime
 
+    def typeId: TypeId[java.time.LocalTime] = TypeId.localTime
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -301,6 +340,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.Month(value))
 
     def typeName: TypeName[java.time.Month] = TypeName.month
+
+    def typeId: TypeId[java.time.Month] = TypeId.month
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -317,6 +358,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.MonthDay(value))
 
     def typeName: TypeName[java.time.MonthDay] = TypeName.monthDay
+
+    def typeId: TypeId[java.time.MonthDay] = TypeId.monthDay
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -335,6 +378,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.OffsetDateTime] = TypeName.offsetDateTime
 
+    def typeId: TypeId[java.time.OffsetDateTime] = TypeId.offsetDateTime
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -351,6 +396,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.OffsetTime] = TypeName.offsetTime
 
+    def typeId: TypeId[java.time.OffsetTime] = TypeId.offsetTime
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -366,6 +413,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.Period] = TypeName.period
 
+    def typeId: TypeId[java.time.Period] = TypeId.period
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -380,6 +429,8 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Year): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Year(value))
 
     def typeName: TypeName[java.time.Year] = TypeName.year
+
+    def typeId: TypeId[java.time.Year] = TypeId.year
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -397,6 +448,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.YearMonth] = TypeName.yearMonth
 
+    def typeId: TypeId[java.time.YearMonth] = TypeId.yearMonth
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -411,6 +464,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.ZoneId(value))
 
     def typeName: TypeName[java.time.ZoneId] = TypeName.zoneId
+
+    def typeId: TypeId[java.time.ZoneId] = TypeId.zoneId
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -428,6 +483,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.time.ZoneOffset] = TypeName.zoneOffset
 
+    def typeId: TypeId[java.time.ZoneOffset] = TypeId.zoneOffset
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -443,6 +500,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.ZonedDateTime(value))
 
     def typeName: TypeName[java.time.ZonedDateTime] = TypeName.zonedDateTime
+
+    def typeId: TypeId[java.time.ZonedDateTime] = TypeId.zonedDateTime
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,
@@ -460,6 +519,8 @@ object PrimitiveType {
 
     def typeName: TypeName[java.util.UUID] = TypeName.uuid
 
+    def typeId: TypeId[java.util.UUID] = TypeId.uuid
+
     private[schema] def fromDynamicValue(
       value: DynamicValue,
       trace: List[DynamicOptic.Node]
@@ -475,6 +536,8 @@ object PrimitiveType {
       new DynamicValue.Primitive(new PrimitiveValue.Currency(value))
 
     def typeName: TypeName[java.util.Currency] = TypeName.currency
+
+    def typeId: TypeId[java.util.Currency] = TypeId.currency
 
     private[schema] def fromDynamicValue(
       value: DynamicValue,

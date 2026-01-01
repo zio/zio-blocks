@@ -9,6 +9,7 @@ import zio.blocks.schema.{Term => SchemaTerm}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps
+import zio.blocks.schema.TypeIdOps._
 
 trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecificImpl.derived }
@@ -678,7 +679,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = $tpeName.copy(params = List($schema.reflect.typeName)).toTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
                       override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -702,7 +703,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = $tpeName.copy(params = List($schema.reflect.typeName)).toTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
                       override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -726,7 +727,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
+                  typeId = $tpeName.copy(params = List($schema.reflect.typeName)).toTypeId,
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
                       override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -800,7 +801,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             new Schema(
               reflect = new Reflect.Record[Binding, tt](
                 fields = Vector($fields*),
-                typeName = $tpeName,
+                typeId = $tpeName.toTypeId,
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[tt] {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -870,7 +871,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             new Schema(
               reflect = new Reflect.Record[Binding, T](
                 fields = Vector($fields*),
-                typeName = $tpeName,
+                typeId = $tpeName.toTypeId,
                 recordBinding = new Binding.Record(
                   constructor = new Constructor {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -925,7 +926,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector.empty,
-          typeName = $tpeName,
+          typeId = $tpeName.toTypeId,
           recordBinding = new Binding.Record(
             constructor = new ConstantConstructor(${
               Ref(
@@ -950,7 +951,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector($fields*),
-          typeName = $tpeName,
+          typeId = $tpeName.toTypeId,
           recordBinding = new Binding.Record(
             constructor = new Constructor {
               def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
@@ -1026,7 +1027,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       new Schema(
         reflect = new Reflect.Variant[Binding, T](
           cases = Vector($cases*),
-          typeName = $tpeName,
+          typeId = $tpeName.toTypeId,
           variantBinding = new Binding.Variant(
             discriminator = new Discriminator {
               def discriminate(a: T): Int = ${
