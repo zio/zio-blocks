@@ -3,16 +3,7 @@ package zio.blocks.schema.structural
 import zio.test._
 import zio.blocks.schema._
 
-/**
- * Comprehensive tests for sum type schema integration. Covers: sealed traits,
- * Either, simple enums, complex enums. Tests: runtime value access, TypeName,
- * structural creation, round-trips.
- */
 object SumTypeSchemaSpec extends ZIOSpecDefault {
-
-  // ===========================================
-  // SEALED TRAIT DEFINITIONS
-  // ===========================================
 
   // Simple sealed trait (case classes only)
   sealed trait SimpleResult
@@ -31,10 +22,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
   case class ComplexSuccess(data: String)        extends ComplexResult
   case class ComplexFailure(error: ErrorDetails) extends ComplexResult
 
-  // ===========================================
-  // ENUM DEFINITIONS
-  // ===========================================
-
   // Simple enum (all case objects - treated as leaf values)
   enum Color {
     case Red, Green, Blue
@@ -46,10 +33,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
     case Rectangle(width: Double, height: Double)
     case Point
   }
-
-  // ===========================================
-  // CASE CLASSES CONTAINING SUM TYPES
-  // ===========================================
 
   // Case class containing simple sealed trait
   case class ResultWrapper(name: String, result: SimpleResult)
@@ -76,10 +59,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
   case class DataPayload(content: String)
   case class WithEitherOfCaseClasses(result: Either[ErrorDetails, DataPayload])
 
-  // ===========================================
-  // NESTED SUM TYPES
-  // ===========================================
-
   // Sealed trait containing another sealed trait
   sealed trait OuterSum
   case class OuterA(inner: SimpleResult) extends OuterSum
@@ -91,11 +70,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
   case class MapOfResults(resultMap: Map[String, SimpleResult])
 
   def spec = suite("SumTypeSchemaSpec")(
-    // ===========================================
-    // SEALED TRAIT - AS IS
-    // ===========================================
     suite("Sealed Trait - Direct")(
-      // TODO STRUCT: disable until discriminator handling for sealed trait is fixed
       test("toDynamicValue for sealed trait - Success case") {
         val ts                     = ToStructural.derived[SimpleResult]
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
@@ -123,7 +98,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until discriminator handling for sealed trait is fixed
       test("toDynamicValue for sealed trait - Failure case") {
         val ts                     = ToStructural.derived[SimpleResult]
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
@@ -151,7 +125,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until discriminator handling for sealed trait is fixed
       test("fromDynamicValue for sealed trait") {
         val ts                     = ToStructural.derived[SimpleResult]
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
@@ -176,7 +149,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until sealed trait round-trip works
       test("round-trip for sealed trait - Success") {
         val ts                     = ToStructural.derived[SimpleResult]
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
@@ -198,7 +170,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until sealed trait round-trip works
       test("round-trip for sealed trait - Failure") {
         val ts                     = ToStructural.derived[SimpleResult]
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
@@ -229,7 +200,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         // Sum types show all variants with Tag and fields, sorted alphabetically by case name
         assertTrue(typeName == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})""")
       },
-      // TODO STRUCT: disable until case object handling is fixed
       test("sealed trait with case object - round-trip") {
         val ts               = ToStructural.derived[Status]
         given Schema[Status] = Schema.derived[Status]
@@ -250,7 +220,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until nested sealed trait handling is fixed
       test("sealed trait with nested case class - round-trip") {
         val ts                      = ToStructural.derived[ComplexResult]
         given Schema[ComplexResult] = Schema.derived[ComplexResult]
@@ -278,12 +247,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         }
       }
     ),
-
-    // ===========================================
-    // EITHER - DIRECT
-    // ===========================================
     suite("Either - Direct")(
-      // TODO STRUCT: disable until Either structural round-trip is fixed
       test("toDynamicValue for Either[String, Int] - Left") {
         case class SimpleEitherWrapper(value: Either[String, Int])
         val ts                            = ToStructural.derived[SimpleEitherWrapper]
@@ -310,7 +274,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until toDynamicValue for Either[String, Int] - Right is fixed
       test("toDynamicValue for Either[String, Int] - Right") {
         case class SimpleEitherWrapper(value: Either[String, Int])
         val ts                            = ToStructural.derived[SimpleEitherWrapper]
@@ -332,7 +295,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
             assertTrue(false)
         }
       },
-      // TODO STRUCT: disable until Either structural round-trip is fixed
       test("round-trip for Either - Left") {
         val ts                         = ToStructural.derived[WithSimpleEither]
         given Schema[WithSimpleEither] = Schema.derived[WithSimpleEither]
@@ -355,7 +317,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until Either structural round-trip is fixed
       test("round-trip for Either - Right") {
         val ts                         = ToStructural.derived[WithSimpleEither]
         given Schema[WithSimpleEither] = Schema.derived[WithSimpleEither]
@@ -373,7 +334,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           eitherField.selectDynamic("value") == 100
         }
       },
-      // TODO STRUCT: disable until Either structural round-trip is fixed
       test("round-trip for Either with case class - Left") {
         val ts                          = ToStructural.derived[WithComplexEither]
         given Schema[WithComplexEither] = Schema.derived[WithComplexEither]
@@ -397,7 +357,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           errorRecord.selectDynamic("message") == "Server Error"
         }
       },
-      // TODO STRUCT: disable until Either structural round-trip is fixed
       test("round-trip for Either with case classes on both sides") {
         val ts                                = ToStructural.derived[WithEitherOfCaseClasses]
         given Schema[WithEitherOfCaseClasses] = Schema.derived[WithEitherOfCaseClasses]
@@ -432,9 +391,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         leftCheck && rightCheck
       }
     ),
-    // ===========================================
-    // SIMPLE ENUM - DIRECT
-    // ===========================================
     suite("Simple Enum - Direct")(
       test("simple enum is converted to StructuralRecord with Tag") {
         val ts = ToStructural.derived[Color]
@@ -485,11 +441,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         assertTrue(typeName == "Color")
       }
     ),
-    // ===========================================
-    // COMPLEX ENUM - DIRECT
-    // ===========================================
     suite("Complex Enum - Direct")(
-      // TODO STRUCT: disable until enum variant conversion is fixed
       test("toDynamicValue for complex enum - Circle") {
         val ts              = ToStructural.derived[Shape]
         given Schema[Shape] = Schema.derived[Shape]
@@ -512,7 +464,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
             assertTrue(false)
         }
       },
-      // TODO STRUCT: disable until enum variant conversion is fixed
       test("toDynamicValue for complex enum - Rectangle") {
         val ts              = ToStructural.derived[Shape]
         given Schema[Shape] = Schema.derived[Shape]
@@ -537,7 +488,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
             assertTrue(false)
         }
       },
-      // TODO STRUCT: disable until enum variant conversion is fixed
       test("toDynamicValue for complex enum - Point (case object)") {
         val ts              = ToStructural.derived[Shape]
         given Schema[Shape] = Schema.derived[Shape]
@@ -553,7 +503,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
             assertTrue(false)
         }
       },
-      // TODO STRUCT: disable until enum round-trip is fixed
       test("round-trip for complex enum - Circle") {
         val ts              = ToStructural.derived[Shape]
         given Schema[Shape] = Schema.derived[Shape]
@@ -570,7 +519,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           record.selectDynamic("radius") == 7.5
         }
       },
-      // TODO STRUCT: disable until enum round-trip is fixed
       test("round-trip for complex enum - Rectangle") {
         val ts              = ToStructural.derived[Shape]
         given Schema[Shape] = Schema.derived[Shape]
@@ -588,7 +536,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           record.selectDynamic("height") == 20.0
         }
       },
-      // TODO STRUCT: disable until enum round-trip is fixed
       test("round-trip for complex enum - Point") {
         val ts              = ToStructural.derived[Shape]
         given Schema[Shape] = Schema.derived[Shape]
@@ -605,11 +552,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         }
       }
     ),
-    // ===========================================
-    // CASE CLASS CONTAINING SUM TYPE
-    // ===========================================
     suite("Case Class Containing Sum Type")(
-      // TODO STRUCT: disable until case class + sealed trait round-trip is fixed
       test("case class with simple sealed trait - round-trip Success") {
         val ts                      = ToStructural.derived[ResultWrapper]
         given Schema[ResultWrapper] = Schema.derived[ResultWrapper]
@@ -636,7 +579,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until case class + sealed trait round-trip is fixed
       test("case class with simple sealed trait - round-trip Failure") {
         val ts                      = ToStructural.derived[ResultWrapper]
         given Schema[ResultWrapper] = Schema.derived[ResultWrapper]
@@ -654,7 +596,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           resultRecord.selectDynamic("error") == "error"
         }
       },
-      // TODO STRUCT: disable until case class + sealed trait round-trip is fixed
       test("case class with complex sealed trait - round-trip") {
         val ts                             = ToStructural.derived[ComplexResultWrapper]
         given Schema[ComplexResultWrapper] = Schema.derived[ComplexResultWrapper]
@@ -683,7 +624,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           errorRecord.selectDynamic("code") == 404
         }
       },
-      // TODO STRUCT: disable until case class + Either round-trip is fixed
       test("case class with simple Either - round-trip") {
         val ts                         = ToStructural.derived[WithSimpleEither]
         given Schema[WithSimpleEither] = Schema.derived[WithSimpleEither]
@@ -737,7 +677,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           }
         }
       },
-      // TODO STRUCT: disable until case class + complex enum round-trip is fixed
       test("case class with complex enum - round-trip Circle") {
         val ts                        = ToStructural.derived[WithComplexEnum]
         given Schema[WithComplexEnum] = Schema.derived[WithComplexEnum]
@@ -759,7 +698,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           shapeRecord.selectDynamic("radius") == 3.14
         }
       },
-      // TODO STRUCT: disable until case class + complex enum round-trip is fixed
       test("case class with complex enum - round-trip Rectangle") {
         val ts                        = ToStructural.derived[WithComplexEnum]
         given Schema[WithComplexEnum] = Schema.derived[WithComplexEnum]
@@ -777,7 +715,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           shapeRecord.selectDynamic("height") == 10.0
         }
       },
-      // TODO STRUCT: disable until case class + complex enum round-trip is fixed
       test("case class with complex enum - round-trip Point") {
         val ts                        = ToStructural.derived[WithComplexEnum]
         given Schema[WithComplexEnum] = Schema.derived[WithComplexEnum]
@@ -795,11 +732,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         }
       }
     ),
-    // ===========================================
-    // NESTED SUM TYPES
-    // ===========================================
     suite("Nested Sum Types")(
-      // TODO STRUCT: disable until nested sum type round-trip is fixed
       test("sealed trait containing another sealed trait - round-trip") {
         val ts                 = ToStructural.derived[OuterSum]
         given Schema[OuterSum] = Schema.derived[OuterSum]
@@ -821,7 +754,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           innerRecord.selectDynamic("value") == 100
         }
       },
-      // TODO STRUCT: disable until list/option sum type round-trip is fixed
       test("List of sealed trait - round-trip") {
         val ts                      = ToStructural.derived[ListOfResults]
         given Schema[ListOfResults] = Schema.derived[ListOfResults]
@@ -841,7 +773,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           results(2).selectDynamic("value") == 2
         }
       },
-      // TODO STRUCT: disable until list/option sum type round-trip is fixed
       test("Option of sealed trait - Some - round-trip") {
         val ts                       = ToStructural.derived[OptionOfResult]
         given Schema[OptionOfResult] = Schema.derived[OptionOfResult]
@@ -874,7 +805,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
           record.maybeResult == None
         }
       },
-      // TODO STRUCT: disable until map sum type round-trip is fixed
       test("Map of sealed trait - round-trip") {
         val ts                     = ToStructural.derived[MapOfResults]
         given Schema[MapOfResults] = Schema.derived[MapOfResults]
@@ -894,9 +824,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         }
       }
     ),
-    // ===========================================
-    // RUNTIME VALUE ACCESS
-    // ===========================================
     suite("Runtime Value Access")(
       test("access sum type Tag at runtime") {
         val ts         = ToStructural.derived[SimpleResult]
@@ -946,9 +873,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // ===========================================
-    // TYPENAME TESTS
-    // ===========================================
     suite("TypeName for Sum Types")(
       test("TypeName for case class containing sealed trait") {
         val ts                      = ToStructural.derived[ResultWrapper]
@@ -987,9 +911,6 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // ===========================================
-    // EQUALITY FOR SUM TYPES
-    // ===========================================
     suite("Equality for Sum Types")(
       test("equal sealed trait values produce equal structural records") {
         val ts = ToStructural.derived[SimpleResult]

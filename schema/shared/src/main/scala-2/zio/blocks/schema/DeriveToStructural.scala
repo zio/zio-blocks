@@ -2,54 +2,6 @@ package zio.blocks.schema
 
 import scala.reflect.macros.whitebox
 
-/**
- * Macro-based derivation for ToStructural in Scala 2.
- *
- * ToStructural converts nominal types (case classes, tuples) into structural
- * types represented at runtime by StructuralRecord.
- *
- * Three-Phase Architecture:
- * ═════════════════════════════════════════════════════════════════════════════
- *
- * PHASE 1: Type Validation (Compile-time)
- * ─────────────────────────────────────────────────────────────────────────────
- * Goal: Validate input types can be converted to structural form
- *
- *   - categorize(): Classifies types into categories (primitive, case class,
- *     etc.)
- *   - checkRecursive(): Validates no recursive types (structural types can't
- *     represent cycles)
- *
- * Note: Unlike Scala 3, Scala 2 does NOT build refined structural types because
- * Scala 2's refinement types use reflection (incompatible with Dynamic trait).
- * All structural types are simply StructuralRecord.
- *
- * PHASE 2: Value Converter Code Generation (Compile-time → Runtime)
- * ─────────────────────────────────────────────────────────────────────────────
- * Goal: Generate code that converts runtime values from nominal to structural
- *
- *   - buildValueConverter(): Generates quasiquote Tree expressions that convert
- *     values Example: Person("Alice") → new StructuralRecord(Map("name" ->
- *     "Alice"))
- *
- * Limitations: Scala 2 does not support Either or sealed traits (no union
- * types).
- *
- * PHASE 3: Schema Transformation (Runtime)
- * ─────────────────────────────────────────────────────────────────────────────
- * Goal: Transform Schema[Nominal] to Schema[StructuralRecord] for serialization
- *
- *   - structuralSchema(): Delegates to StructuralSchemaTransformer.transform()
- *   - Transforms bindings (constructor/deconstructor) to work with
- *     StructuralRecord
- *   - Enables toDynamicValue/fromDynamicValue to work with structural values
- *
- * Why 3 Phases?
- * ─────────────────────────────────────────────────────────────────────────────
- *   1. Validation: Ensure types are convertible (prevent runtime errors)
- *   2. Value-level: Runtime needs to convert actual data
- *   3. Schema-level: Serialization needs metadata about the structural form
- */
 object DeriveToStructural {
   def derivedImpl[A: c.WeakTypeTag](c: whitebox.Context): c.Expr[ToStructural[A]] = {
     import c.universe._
@@ -74,10 +26,6 @@ object DeriveToStructural {
     if (!symbol.isClass || !symbol.asClass.isCaseClass) {
       fail(s"ToStructural derivation only supports case classes, found: $tpe")
     }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PHASE 1: TYPE VALIDATION
-    // ═══════════════════════════════════════════════════════════════════════════
 
     // Type categorization ADT - single source of truth for type classification
     sealed trait TypeCategory
@@ -248,31 +196,11 @@ object DeriveToStructural {
     // Validate no recursive types before proceeding
     checkRecursive(tpe, Nil)
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PHASE 2: VALUE CONVERTER CODE GENERATION
-    // ═══════════════════════════════════════════════════════════════════════════
-
     // Get case class fields
     val fields: List[(MethodSymbol, Type)] = tpe.decls.collect {
       case m: MethodSymbol if m.isCaseAccessor => m
     }.toList.map(f => (f, f.returnType.asSeenFrom(tpe, symbol)))
 
-    /**
-     * Generates code that converts runtime values from nominal to structural
-     * form.
-     *
-     * This creates Tree expressions (quasiquotes) that run at runtime to
-     * extract field values from nominal types and construct StructuralRecord
-     * instances.
-     *
-     * Example: For Person(name: String, age: Int), generates:
-     * ```
-     * new StructuralRecord(Map("name" -> person.name, "age" -> person.age))
-     * ```
-     *
-     * Handles nested conversions recursively (collections, tuples, case
-     * classes). Does NOT support Either or sealed traits (Scala 2 limitation).
-     */
     def buildValueConverter(expr: Tree, t: Type, seen: Set[Type]): Tree = {
       val dealt = t.dealias
 
@@ -344,14 +272,6 @@ object DeriveToStructural {
       }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TOSTRUCTURAL INSTANCE GENERATION
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Generate the ToStructural[A] implementation with:
-    // 1. type StructuralType = StructuralRecord (always, no refinements in Scala 2)
-    // 2. toStructural(): Uses Phase 2 converters to transform values
-    // 3. structuralSchema(): Delegates to Phase 3 (StructuralSchemaTransformer)
-
     // Generate field conversion entries for the root case class
     val fieldEntries = fields.map { case (f, fieldTpe) =>
       val nameLit   = Literal(Constant(f.name.decodedName.toString.trim))
@@ -372,10 +292,6 @@ object DeriveToStructural {
         }
 
         def structuralSchema(implicit schema: _root_.zio.blocks.schema.Schema[$tpe]): _root_.zio.blocks.schema.Schema[StructuralType] = {
-          // PHASE 3: Transform the schema's bindings to work with StructuralRecord
-          // The nominal schema expects case class objects with field accessors
-          // We transform it to expect StructuralRecord with selectDynamic access (via Dynamic trait)
-          // This enables serialization (toDynamicValue) and deserialization (fromDynamicValue)
           _root_.zio.blocks.schema.StructuralSchemaTransformer.transform[$tpe](schema, this)
         }
       }

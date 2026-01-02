@@ -56,9 +56,6 @@ private object SchemaVersionSpecific {
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[?]] || tpe <:< typeOf[Iterator[?]] || tpe <:< typeOf[Array[?]]
 
-    // Check if a type is a structural refinement type
-    // e.g., { def name: String; def age: Int } or StructuralRecord { def name: String }
-    // In Scala 2, `{ def name: String }` is shorthand for `AnyRef { def name: String }`
     def isStructuralRefinementType(tpe: Type): Boolean = tpe.dealias match {
       case RefinedType(parents, scope) =>
         // Accept refinements with non-empty scope (method declarations)
@@ -69,17 +66,11 @@ private object SchemaVersionSpecific {
       case _ => false
     }
 
-    // Check if a type is a type alias (like `type AddressStructure = { def city: String }`)
-    // In Scala 2, type aliases have an isAliasType flag and dealias to a different type
     def isTypeAlias(tpe: Type): Boolean = {
       val symbol = tpe.typeSymbol
       symbol.isType && symbol.asType.isAliasType && !(tpe.dealias =:= tpe)
     }
 
-    // Extract field names and types from a refinement type
-    // Returns fields in alphabetical order for normalized TypeName
-    // Note: We don't dealias m.returnType to preserve type alias names for nested structural types.
-    // This allows Schema[AddressStructure] to be found when processing { def address: AddressStructure }.
     def extractRefinementFields(tpe: Type): List[(String, Type)] = tpe.dealias match {
       case RefinedType(_, scope) =>
         scope.toList.collect {
@@ -419,40 +410,34 @@ private object SchemaVersionSpecific {
       })
     }
 
-    // Helper function to recursively compute structural typename strings
-    // Handles nested structural types by recursively expanding them
+    // Helper - Handle nested structural types by recursively expanding them
     def structuralTypeNameString(tpe: Type): String = {
       val dealt = tpe.dealias
 
       // Check if this is a structural refinement type
       if (isStructuralRefinementType(dealt)) {
         // Recursively extract and format fields
-        val fields    = extractRefinementFields(dealt)
-        val fieldStrs = fields.map { case (name, fTpe) =>
-          val typeStr = structuralTypeNameString(fTpe)
-          s"$name:$typeStr"
+        val fields     = extractRefinementFields(dealt)
+        val fieldPairs = fields.map { case (name, fTpe) =>
+          (name, structuralTypeNameString(fTpe))
         }
-        s"{${fieldStrs.mkString(",")}}"
+        SchemaTypeName.formatStructuralRecord(fieldPairs)
       } else if (isTypeAlias(dealt)) {
         // If it's a type alias, check what it aliases to
         structuralTypeNameString(dealt.dealias)
       } else if (dealt.typeSymbol.fullName.startsWith("scala.Tuple")) {
         // Handle tuples: convert to structural form with _1, _2, _3, etc. fields
-        val elements  = typeArgs(dealt)
-        val fieldStrs = elements.zipWithIndex.map { case (elemTpe, idx) =>
-          val fieldName = s"_${idx + 1}"
-          val typeStr   = structuralTypeNameString(elemTpe)
-          s"$fieldName:$typeStr"
+        val elements   = typeArgs(dealt)
+        val tuplePairs = elements.zipWithIndex.map { case (elemTpe, idx) =>
+          (s"_${idx + 1}", structuralTypeNameString(elemTpe))
         }
-        s"{${fieldStrs.mkString(",")}}"
+        SchemaTypeName.formatStructuralRecord(tuplePairs)
       } else {
         // For non-structural types, use the normal typename
         typeName(dealt).toSimpleName
       }
     }
 
-    // RefinementInfo handles structural refinement types like:
-    // StructuralRecord { def name: String; def age: Int }
     class RefinementInfo(tpe: Type) {
       val refinementFields: List[(String, Type)]                       = extractRefinementFields(tpe)
       val (fieldInfos: List[FieldInfo], usedRegisters: RegisterOffset) = {
@@ -488,7 +473,6 @@ private object SchemaVersionSpecific {
         else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
       }
 
-      // Compute field pairs for TypeName.structural
       // Uses recursive expansion for nested structural types
       def fieldPairs: List[(String, String)] = fieldInfos.map { fieldInfo =>
         val fTpe           = fieldInfo.tpe

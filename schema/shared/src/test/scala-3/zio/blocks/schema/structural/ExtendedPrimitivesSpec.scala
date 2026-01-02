@@ -7,10 +7,6 @@ import zio.test.TestAspect._
 import java.time.Instant
 import java.util.{Currency, UUID}
 
-/**
- * Tests for extended primitive types in structural types. Covers: BigInt,
- * BigDecimal, UUID, Currency, java.time.Instant, Unit
- */
 object ExtendedPrimitivesSpec extends ZIOSpecDefault {
 
   // Case class with all extended primitives

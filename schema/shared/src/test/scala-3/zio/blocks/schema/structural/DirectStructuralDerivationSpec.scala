@@ -4,10 +4,6 @@ import scala.annotation.nowarn
 import zio.blocks.schema._
 import zio.test._
 
-/**
- * Tests for direct structural type derivation. This tests Schema.derived[{ def
- * name: String; def age: Int }] and similar.
- */
 object DirectStructuralDerivationSpec extends ZIOSpecDefault {
   override def spec = suite("DirectStructuralDerivationSpec")(
     suite("Simple structural types")(
@@ -771,6 +767,447 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         assertTrue(
           schema.reflect.typeName.name == "{data:Map[String,{_1:Int,_2:String}]}"
         )
+      }
+    ),
+    suite("Collections of sum types in structural types")(
+      test("List of Either in structural type - round-trip") {
+        type ListEitherStructure = StructuralRecord { def items: List[Either[String, Int]] }
+        val schema = Schema.derived[ListEitherStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{items:List[({Tag:"Left",value:String}|{Tag:"Right",value:Int})]}"""
+        ) &&
+        {
+          val leftValue                  = new StructuralRecord(Map("Tag" -> "Left", "value" -> "error"))
+          val rightValue                 = new StructuralRecord(Map("Tag" -> "Right", "value" -> 42))
+          val value: ListEitherStructure =
+            new StructuralRecord(Map("items" -> List(leftValue, rightValue)))
+              .asInstanceOf[ListEitherStructure]
+
+          val dv     = schema.toDynamicValue(value)
+          val result = schema.fromDynamicValue(dv)
+
+          assertTrue(result.isRight) &&
+          assertTrue {
+            val record = result.toOption.get.asInstanceOf[StructuralRecord]
+            val items  = record.selectDynamic("items").asInstanceOf[List[StructuralRecord]]
+            items.size == 2 &&
+            items(0).selectDynamic("Tag") == "Left" &&
+            items(1).selectDynamic("Tag") == "Right"
+          }
+        }
+      },
+      test("Option of enum in structural type - Some - round-trip") {
+        enum Priority { case High, Medium, Low }
+        given Schema[Priority] = Schema.derived[Priority]
+
+        type OptionalEnumStructure = StructuralRecord { def priority: Option[Priority] }
+        val schema = Schema.derived[OptionalEnumStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{priority:Option[({Tag:"High"}|{Tag:"Low"}|{Tag:"Medium"})]}"""
+        ) &&
+        {
+          val priorityValue                = new StructuralRecord(Map("Tag" -> "High"))
+          val value: OptionalEnumStructure =
+            new StructuralRecord(Map("priority" -> Some(priorityValue)))
+              .asInstanceOf[OptionalEnumStructure]
+
+          val dv     = schema.toDynamicValue(value)
+          val result = schema.fromDynamicValue(dv)
+
+          assertTrue(result.isRight) &&
+          assertTrue {
+            val record   = result.toOption.get.asInstanceOf[StructuralRecord]
+            val priority = record.selectDynamic("priority").asInstanceOf[Option[StructuralRecord]]
+            priority.isDefined && priority.get.selectDynamic("Tag") == "High"
+          }
+        }
+      },
+      test("Option of enum in structural type - None - round-trip") {
+        enum Priority { case High, Medium, Low }
+        given Schema[Priority] = Schema.derived[Priority]
+
+        type OptionalEnumStructure = StructuralRecord { def priority: Option[Priority] }
+        val schema = Schema.derived[OptionalEnumStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{priority:Option[({Tag:"High"}|{Tag:"Low"}|{Tag:"Medium"})]}"""
+        ) &&
+        {
+          val value: OptionalEnumStructure =
+            new StructuralRecord(Map("priority" -> None))
+              .asInstanceOf[OptionalEnumStructure]
+
+          val dv     = schema.toDynamicValue(value)
+          val result = schema.fromDynamicValue(dv)
+
+          assertTrue(result.isRight) &&
+          assertTrue {
+            val record = result.toOption.get.asInstanceOf[StructuralRecord]
+            record.selectDynamic("priority") == None
+          }
+        }
+      },
+      test("Vector of sealed trait in structural type") {
+        sealed trait Result
+        @nowarn("msg=unused") case class Ok(value: Int)   extends Result
+        @nowarn("msg=unused") case class Err(msg: String) extends Result
+
+        given Schema[Result] = Schema.derived[Result]
+
+        type VectorResultStructure = StructuralRecord { def results: Vector[Result] }
+        val schema = Schema.derived[VectorResultStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{results:Vector[({Tag:"Err",msg:String}|{Tag:"Ok",value:Int})]}"""
+        )
+      },
+      test("Set of enum in structural type - TypeName") {
+        enum Status { case Active, Inactive, Pending }
+        given Schema[Status] = Schema.derived[Status]
+
+        type SetStatusStructure = StructuralRecord { def statuses: Set[Status] }
+        val schema = Schema.derived[SetStatusStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{statuses:Set[({Tag:"Active"}|{Tag:"Inactive"}|{Tag:"Pending"})]}"""
+        )
+      },
+      test("Map with Either values in structural type - TypeName") {
+        type MapEitherStructure = StructuralRecord { def data: Map[String, Either[Int, String]] }
+        val schema = Schema.derived[MapEitherStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{data:Map[String,({Tag:"Left",value:Int}|{Tag:"Right",value:String})]}"""
+        )
+      }
+    ),
+    suite("Collections of opaque types in structural types")(
+      test("List of opaque type in structural type") {
+        object OpaqueUserId {
+          opaque type UserId = String
+          object UserId {
+            def apply(s: String): UserId = s
+          }
+          given Schema[UserId] = Schema.string.asInstanceOf[Schema[UserId]]
+        }
+        import OpaqueUserId._
+
+        type ListOpaqueStructure = StructuralRecord { def ids: List[UserId] }
+        val schema = Schema.derived[ListOpaqueStructure]
+
+        // Opaque types unwrap to their underlying type
+        assertTrue(schema.reflect.typeName.name == "{ids:List[String]}")
+
+        val value: ListOpaqueStructure =
+          new StructuralRecord(Map("ids" -> List("id1", "id2", "id3")))
+            .asInstanceOf[ListOpaqueStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("ids") == List("id1", "id2", "id3")
+        )
+      },
+      test("Option of opaque type in structural type - Some") {
+        object OpaquePrice {
+          opaque type Price = Double
+          object Price {
+            def apply(d: Double): Price = d
+          }
+          given Schema[Price] = Schema.double.asInstanceOf[Schema[Price]]
+        }
+        import OpaquePrice._
+
+        type OptionalPriceStructure = StructuralRecord { def price: Option[Price] }
+        val schema = Schema.derived[OptionalPriceStructure]
+
+        assertTrue(schema.reflect.typeName.name == "{price:Option[Double]}")
+
+        val value: OptionalPriceStructure =
+          new StructuralRecord(Map("price" -> Some(99.99)))
+            .asInstanceOf[OptionalPriceStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("price") == Some(99.99)
+        )
+      },
+      test("Option of opaque type in structural type - None") {
+        object OpaquePrice {
+          opaque type Price = Double
+          object Price {
+            def apply(d: Double): Price = d
+          }
+          given Schema[Price] = Schema.double.asInstanceOf[Schema[Price]]
+        }
+        import OpaquePrice._
+
+        type OptionalPriceStructure = StructuralRecord { def price: Option[Price] }
+        val schema = Schema.derived[OptionalPriceStructure]
+
+        assertTrue(schema.reflect.typeName.name == "{price:Option[Double]}") &&
+        {
+          val value: OptionalPriceStructure =
+            new StructuralRecord(Map("price" -> None))
+              .asInstanceOf[OptionalPriceStructure]
+
+          val dv     = schema.toDynamicValue(value)
+          val result = schema.fromDynamicValue(dv)
+
+          assertTrue(
+            result.isRight,
+            result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("price") == None
+          )
+        }
+      },
+      test("Map with opaque type keys and values") {
+        object OpaqueTypes {
+          opaque type Key = String
+          object Key {
+            def apply(s: String): Key = s
+          }
+          opaque type Value = Int
+          object Value {
+            def apply(i: Int): Value = i
+          }
+          given Schema[Key]   = Schema.string.asInstanceOf[Schema[Key]]
+          given Schema[Value] = Schema.int.asInstanceOf[Schema[Value]]
+        }
+        import OpaqueTypes._
+
+        type MapOpaqueStructure = StructuralRecord { def data: Map[Key, Value] }
+        val schema = Schema.derived[MapOpaqueStructure]
+
+        // Both key and value opaque types unwrap
+        assertTrue(schema.reflect.typeName.name == "{data:Map[String,Int]}")
+
+        val value: MapOpaqueStructure =
+          new StructuralRecord(Map("data" -> Map("a" -> 1, "b" -> 2)))
+            .asInstanceOf[MapOpaqueStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("data") == Map("a" -> 1, "b" -> 2)
+        )
+      },
+      test("Vector of opaque type in structural type") {
+        object OpaqueTimestamp {
+          opaque type Timestamp = Long
+          object Timestamp {
+            def apply(l: Long): Timestamp = l
+          }
+          given Schema[Timestamp] = Schema.long.asInstanceOf[Schema[Timestamp]]
+        }
+        import OpaqueTimestamp._
+
+        type VectorTimestampStructure = StructuralRecord { def timestamps: Vector[Timestamp] }
+        val schema = Schema.derived[VectorTimestampStructure]
+
+        assertTrue(schema.reflect.typeName.name == "{timestamps:Vector[Long]}")
+      }
+    ),
+    suite("Mixed sum types and opaque types in structural types")(
+      test("structural type with opaque field and Either field") {
+        object OpaqueUserId {
+          opaque type UserId = String
+          object UserId {
+            def apply(s: String): UserId = s
+          }
+          given Schema[UserId] = Schema.string.asInstanceOf[Schema[UserId]]
+        }
+        import OpaqueUserId._
+
+        type MixedStructure = StructuralRecord {
+          def userId: UserId
+          def result: Either[String, Int]
+        }
+        val schema = Schema.derived[MixedStructure]
+
+        // Opaque unwraps, Either shows structural representation
+        assertTrue(
+          schema.reflect.typeName.name == """{result:({Tag:"Left",value:String}|{Tag:"Right",value:Int}),userId:String}"""
+        )
+      },
+      test("structural type with opaque field and enum field - round-trip") {
+        enum Status { case Active, Inactive }
+        given Schema[Status] = Schema.derived[Status]
+
+        object OpaqueUserId {
+          opaque type UserId = String
+          object UserId {
+            def apply(s: String): UserId = s
+          }
+          given Schema[UserId] = Schema.string.asInstanceOf[Schema[UserId]]
+        }
+        import OpaqueUserId._
+
+        type UserStatusStructure = StructuralRecord {
+          def userId: UserId
+          def status: Status
+        }
+        val schema = Schema.derived[UserStatusStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{status:({Tag:"Active"}|{Tag:"Inactive"}),userId:String}"""
+        )
+
+        val statusValue                = new StructuralRecord(Map("Tag" -> "Active"))
+        val value: UserStatusStructure =
+          new StructuralRecord(Map("userId" -> "user123", "status" -> statusValue))
+            .asInstanceOf[UserStatusStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(result.isRight) &&
+        assertTrue {
+          val record = result.toOption.get.asInstanceOf[StructuralRecord]
+          record.selectDynamic("userId") == "user123" &&
+          record.selectDynamic("status").asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Active"
+        }
+      },
+      test("List of tuples with opaque and sum types") {
+        enum Priority { case High, Low }
+        given Schema[Priority] = Schema.derived[Priority]
+
+        object OpaqueTaskId {
+          opaque type TaskId = Int
+          object TaskId {
+            def apply(i: Int): TaskId = i
+          }
+          given Schema[TaskId] = Schema.int.asInstanceOf[Schema[TaskId]]
+        }
+        import OpaqueTaskId._
+
+        type TaskListStructure = StructuralRecord {
+          def tasks: List[(TaskId, Priority)]
+        }
+        val schema = Schema.derived[TaskListStructure]
+
+        // Opaque unwraps, tuple becomes structural, Priority shows as sum type
+        assertTrue(
+          schema.reflect.typeName.name == """{tasks:List[{_1:Int,_2:({Tag:"High"}|{Tag:"Low"})}]}"""
+        )
+      },
+      test("nested structural type with mixed opaque and sealed trait") {
+        sealed trait Result
+        @nowarn("msg=unused") case class Success(value: String) extends Result
+        @nowarn("msg=unused") case class Failure(code: Int)     extends Result
+
+        given Schema[Result] = Schema.derived[Result]
+
+        object OpaqueUserId {
+          opaque type UserId = String
+          object UserId {
+            def apply(s: String): UserId = s
+          }
+          given Schema[UserId] = Schema.string.asInstanceOf[Schema[UserId]]
+        }
+        import OpaqueUserId._
+
+        type InnerStructure = StructuralRecord { def userId: UserId }
+        type OuterStructure = StructuralRecord { def inner: InnerStructure; def result: Result }
+
+        given Schema[InnerStructure] = Schema.derived[InnerStructure]
+        val schema                   = Schema.derived[OuterStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{inner:{userId:String},result:({Tag:"Failure",code:Int}|{Tag:"Success",value:String})}"""
+        )
+      }
+    ),
+    suite("Equality for structural types with sum types")(
+      test("equal structural values with same Either produce same records") {
+        type WithEitherStructure = StructuralRecord { def value: Either[String, Int] }
+        val schema = Schema.derived[WithEitherStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{value:({Tag:"Left",value:String}|{Tag:"Right",value:Int})}"""
+        ) &&
+        {
+          val eitherValue1 = new StructuralRecord(Map("Tag" -> "Left", "value" -> "error"))
+          val value1       = new StructuralRecord(Map("value" -> eitherValue1))
+
+          val eitherValue2 = new StructuralRecord(Map("Tag" -> "Left", "value" -> "error"))
+          val value2       = new StructuralRecord(Map("value" -> eitherValue2))
+
+          assertTrue(value1 == value2)
+        }
+      },
+      test("different structural values with different Either sides are not equal") {
+        type WithEitherStructure = StructuralRecord { def value: Either[String, Int] }
+        val schema = Schema.derived[WithEitherStructure]
+
+        assertTrue(
+          schema.reflect.typeName.name == """{value:({Tag:"Left",value:String}|{Tag:"Right",value:Int})}"""
+        ) &&
+        {
+          val eitherValue1 = new StructuralRecord(Map("Tag" -> "Left", "value" -> "error"))
+          val value1       = new StructuralRecord(Map("value" -> eitherValue1))
+
+          val eitherValue2 = new StructuralRecord(Map("Tag" -> "Right", "value" -> 42))
+          val value2       = new StructuralRecord(Map("value" -> eitherValue2))
+
+          assertTrue(value1 != value2)
+        }
+      }
+    ),
+    suite("Equality for structural types with opaque types")(
+      test("equal structural values with same opaque values are equal") {
+        object OpaqueUserId {
+          opaque type UserId = String
+          object UserId {
+            def apply(s: String): UserId = s
+          }
+          given Schema[UserId] = Schema.string.asInstanceOf[Schema[UserId]]
+        }
+        import OpaqueUserId._
+
+        type WithOpaqueStructure = StructuralRecord { def id: UserId }
+        val schema = Schema.derived[WithOpaqueStructure]
+
+        assertTrue(schema.reflect.typeName.name == "{id:String}") &&
+        {
+          val value1: WithOpaqueStructure =
+            new StructuralRecord(Map("id" -> "user123")).asInstanceOf[WithOpaqueStructure]
+          val value2: WithOpaqueStructure =
+            new StructuralRecord(Map("id" -> "user123")).asInstanceOf[WithOpaqueStructure]
+
+          assertTrue(value1 == value2)
+        }
+      },
+      test("different structural values with different opaque values are not equal") {
+        object OpaqueUserId {
+          opaque type UserId = String
+          object UserId {
+            def apply(s: String): UserId = s
+          }
+          given Schema[UserId] = Schema.string.asInstanceOf[Schema[UserId]]
+        }
+        import OpaqueUserId._
+
+        type WithOpaqueStructure = StructuralRecord { def id: UserId }
+        val schema = Schema.derived[WithOpaqueStructure]
+
+        assertTrue(schema.reflect.typeName.name == "{id:String}") &&
+        {
+          val value1: WithOpaqueStructure =
+            new StructuralRecord(Map("id" -> "user1")).asInstanceOf[WithOpaqueStructure]
+          val value2: WithOpaqueStructure =
+            new StructuralRecord(Map("id" -> "user2")).asInstanceOf[WithOpaqueStructure]
+
+          assertTrue(value1 != value2)
+        }
       }
     )
   )

@@ -95,20 +95,20 @@ object TypeNameSpec extends ZIOSpecDefault {
     suite("variant")(
       test("creates variant type name from case names") {
         val tn = TypeName.variant[Any](Seq("Success", "Failure"))
-        assertTrue(tn.name == "{Tag:Failure}|{Tag:Success}")
+        assertTrue(tn.name == "({Tag:Failure}|{Tag:Success})")
       },
       test("sorts cases alphabetically") {
         val tn1 = TypeName.variant[Any](Seq("C", "A", "B"))
         val tn2 = TypeName.variant[Any](Seq("A", "B", "C"))
         assertTrue(
-          tn1.name == "{Tag:A}|{Tag:B}|{Tag:C}",
-          tn2.name == "{Tag:A}|{Tag:B}|{Tag:C}",
+          tn1.name == "({Tag:A}|{Tag:B}|{Tag:C})",
+          tn2.name == "({Tag:A}|{Tag:B}|{Tag:C})",
           tn1.name == tn2.name
         )
       },
       test("single case variant") {
         val tn = TypeName.variant[Any](Seq("Only"))
-        assertTrue(tn.name == "{Tag:Only}")
+        assertTrue(tn.name == "({Tag:Only})")
       },
       test("uses empty namespace") {
         val tn = TypeName.variant[Any](Seq("A", "B"))
@@ -157,7 +157,12 @@ object TypeNameSpec extends ZIOSpecDefault {
         val cases2 = Seq("A", "M", "Z")
         val tn1    = TypeName.variant[Any](cases1)
         val tn2    = TypeName.variant[Any](cases2)
-        assertTrue(tn1.name == tn2.name, tn1 == tn2)
+        assertTrue(
+          tn1.name == "({Tag:A}|{Tag:M}|{Tag:Z})",
+          tn2.name == "({Tag:A}|{Tag:M}|{Tag:Z})",
+          tn1.name == tn2.name,
+          tn1 == tn2
+        )
       }
     ),
     suite("predefined TypeNames")(

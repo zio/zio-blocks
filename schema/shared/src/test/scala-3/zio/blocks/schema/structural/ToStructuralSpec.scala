@@ -57,13 +57,17 @@ object ToStructuralSpec extends ZIOSpecDefault {
         case class PersonWithGender(name: String, age: Int, gender: Gender)
 
         val ts = ToStructural.derived[PersonWithGender]
-        val s  = ts.toStructural(PersonWithGender("Alice", 30, Gender.Female)).asInstanceOf[StructuralRecord]
+        val s  = ts.toStructural(PersonWithGender("Alice", 30, Gender.Female))
 
         assertTrue(
-          s.selectDynamic("name") == "Alice",
-          s.selectDynamic("age") == 30,
-          s.selectDynamic("gender").asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Female"
-        )
+          s.name == "Alice",
+          s.age == 30,
+          s.gender.selectDynamic("Tag") == "Female"
+        ) &&
+        {
+          val gsr = s.gender.asInstanceOf[StructuralRecord]
+          assertTrue(gsr.selectDynamic("Tag") == "Female")
+        }
       },
       test("large product (10 fields)") {
         val ts = ToStructural.derived[LargeProduct]

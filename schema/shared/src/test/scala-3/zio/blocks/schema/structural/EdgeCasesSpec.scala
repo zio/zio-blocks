@@ -3,15 +3,7 @@ package zio.blocks.schema.structural
 import zio.test._
 import zio.blocks.schema._
 
-/**
- * Edge case tests for structural types. Covers: nested collections, non-String
- * map keys, empty collections, large tuples.
- */
 object EdgeCasesSpec extends ZIOSpecDefault {
-
-  // ===========================================
-  // NESTED COLLECTIONS
-  // ===========================================
 
   case class WithNestedList(matrix: List[List[Int]])
   case class WithNestedVector(matrix: Vector[Vector[String]])
@@ -22,10 +14,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
   case class WithDeepNesting(data: List[List[List[Int]]])
   case class WithMixedNesting(data: Map[String, List[Option[Int]]])
 
-  // ===========================================
-  // NON-STRING MAP KEYS
-  // ===========================================
-
   case class WithIntKeys(data: Map[Int, String])
   case class WithLongKeys(data: Map[Long, String])
 
@@ -35,10 +23,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
 
   // Tuple as map value
   case class WithTupleValue(data: Map[String, (Int, String)])
-
-  // ===========================================
-  // EMPTY COLLECTIONS
-  // ===========================================
 
   case class WithEmptyList(items: List[String])
   case class WithEmptyVector(items: Vector[Int])
@@ -51,10 +35,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
     set: Set[Double],
     map: Map[String, Boolean]
   )
-
-  // ===========================================
-  // LARGE TUPLES
-  // ===========================================
 
   case class WithTuple4(value: (Int, String, Boolean, Double))
   case class WithTuple5(value: (Int, String, Boolean, Double, Long))
@@ -96,9 +76,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
   case class WithTupleOfCaseClass(value: (SimpleData, SimpleData))
 
   def spec = suite("EdgeCasesSpec")(
-    // ===========================================
-    // NESTED COLLECTIONS
-    // ===========================================
     suite("Nested Collections - ToStructural")(
       test("List[List[Int]]") {
         val ts                       = ToStructural.derived[WithNestedList]
@@ -211,9 +188,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // ===========================================
-    // NON-STRING MAP KEYS
-    // ===========================================
     suite("Non-String Map Keys - ToStructural")(
       test("Map[Int, String]") {
         val ts                    = ToStructural.derived[WithIntKeys]
@@ -280,7 +254,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         )
         assertTrue(ts.structuralSchema.reflect.typeName.name == """{data:Map[String,{_1:Int,_2:String}]}""")
       },
-      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Map[String, (Int, String)] - round-trip") {
         val ts                       = ToStructural.derived[WithTupleValue]
         given Schema[WithTupleValue] = Schema.derived[WithTupleValue]
@@ -303,9 +276,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         assertTrue(ts.structuralSchema.reflect.typeName.name == """{data:Map[String,{_1:Int,_2:String}]}""")
       }
     ),
-    // ===========================================
-    // EMPTY COLLECTIONS
-    // ===========================================
     suite("Empty Collections - ToStructural")(
       test("empty List") {
         val ts                      = ToStructural.derived[WithEmptyList]
@@ -408,9 +378,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // ===========================================
-    // LARGE TUPLES
-    // ===========================================
     suite("Large Tuples - ToStructural")(
       test("Tuple4") {
         val ts                   = ToStructural.derived[WithTuple4]
@@ -536,7 +503,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
       }
     ),
     suite("Large Tuples - Round-Trip")(
-      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Tuple4 round-trip") {
         val ts                   = ToStructural.derived[WithTuple4]
         given Schema[WithTuple4] = Schema.derived[WithTuple4]
@@ -558,7 +524,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           tuple.selectDynamic("_4") == 4.0
         }
       },
-      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Tuple10 round-trip") {
         val ts                    = ToStructural.derived[WithTuple10]
         given Schema[WithTuple10] = Schema.derived[WithTuple10]
@@ -579,7 +544,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           tuple.selectDynamic("_10") == 10
         }
       },
-      // TODO STRUCT: disable until tuple round-trip is fixed
       test("Tuple22 round-trip") {
         val ts                    = ToStructural.derived[WithTuple22]
         given Schema[WithTuple22] = Schema.derived[WithTuple22]
@@ -601,7 +565,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           tuple.selectDynamic("_22") == 22
         }
       },
-      // TODO STRUCT: disable until tuple round-trip is fixed
       test("nested tuples round-trip") {
         val ts                         = ToStructural.derived[WithNestedTuples]
         given Schema[WithNestedTuples] = Schema.derived[WithNestedTuples]
@@ -625,7 +588,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           inner2.selectDynamic("_2") == 3.14
         }
       },
-      // TODO STRUCT: disable until tuple round-trip is fixed
       test("tuple of case classes round-trip") {
         val ts                             = ToStructural.derived[WithTupleOfCaseClass]
         given Schema[WithTupleOfCaseClass] = Schema.derived[WithTupleOfCaseClass]
@@ -650,9 +612,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         }
       }
     ),
-    // ===========================================
-    // TYPENAME TESTS
-    // ===========================================
     suite("TypeName - Edge Cases")(
       test("TypeName for nested List") {
         val ts                       = ToStructural.derived[WithNestedList]
@@ -675,9 +634,6 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         )
       }
     ),
-    // ===========================================
-    // EQUALITY TESTS
-    // ===========================================
     suite("Equality - Edge Cases")(
       test("nested collections equality") {
         val ts = ToStructural.derived[WithNestedList]

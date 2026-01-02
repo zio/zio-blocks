@@ -2,49 +2,6 @@ package zio.blocks.schema
 
 import scala.quoted._
 
-/**
- * Macro-based derivation for ToStructural in Scala 3.
- *
- * ToStructural converts nominal types (case classes, sealed traits, Either,
- * tuples) into structural types represented at runtime by StructuralRecord.
- *
- * Three-Phase Architecture:
- * ═════════════════════════════════════════════════════════════════════════════
- *
- * PHASE 1: Type Validation & Structural Type Construction (Compile-time)
- * ─────────────────────────────────────────────────────────────────────────────
- * Goal: Validate input types and build actual structural type signatures
- *
- *   - categorize(): Classifies types into categories (primitive, case class,
- *     sealed, etc.)
- *   - checkRecursive(): Validates no recursive types (structural types can't
- *     represent cycles)
- *   - buildStructuralType(): Creates refinement types with field signatures
- *     Example: Person(name: String) → StructuralRecord { def name: String }
- *
- * PHASE 2: Value Converter Code Generation (Compile-time → Runtime)
- * ─────────────────────────────────────────────────────────────────────────────
- * Goal: Generate code that converts runtime values from nominal to structural
- *
- *   - buildValueConverter(): Generates Expr[Any => Any] functions that convert
- *     values Example: Person("Alice") → new StructuralRecord(Map("name" ->
- *     "Alice"))
- *
- * PHASE 3: Schema Transformation (Runtime)
- * ─────────────────────────────────────────────────────────────────────────────
- * Goal: Transform Schema[Nominal] to Schema[StructuralRecord] for serialization
- *
- *   - structuralSchema(): Delegates to StructuralSchemaTransformer.transform()
- *   - Transforms bindings (constructor/deconstructor) to work with
- *     StructuralRecord
- *   - Enables toDynamicValue/fromDynamicValue to work with structural values
- *
- * Why 3 Phases?
- * ─────────────────────────────────────────────────────────────────────────────
- *   1. Type-level: Compiler needs to know the structural type signature
- *   2. Value-level: Runtime needs to convert actual data
- *   3. Schema-level: Serialization needs metadata about the structural form
- */
 object DeriveToStructural {
   def derivedImpl[A: Type](using Quotes): Expr[ToStructural[A]] = {
     import quotes.reflect._
@@ -61,10 +18,6 @@ object DeriveToStructural {
         s"ToStructural derivation requires a case class or sealed trait, found: ${tpe.show}"
       )
     }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PHASE 1: TYPE VALIDATION & STRUCTURAL TYPE CONSTRUCTION
-    // ═══════════════════════════════════════════════════════════════════════════
 
     // Type categorization ADT - single source of truth for type classification
     enum TypeCategory {
@@ -261,20 +214,6 @@ object DeriveToStructural {
     // Validate no recursive types before proceeding
     checkRecursive(tpe, Nil)
 
-    /**
-     * Builds the structural type signature for a nominal type.
-     *
-     * This creates actual refinement types that the Scala 3 compiler
-     * understands. Example transformations:
-     *   - case class Person(name: String) → StructuralRecord { def name: String
-     *     }
-     *   - Either[Int, String] → (StructuralRecord { Tag: "Left"; value: Int }) |
-     *     (StructuralRecord { Tag: "Right"; value: String })
-     *   - (Int, String) → StructuralRecord { def _1: Int; def _2: String }
-     *
-     * Opaque types are unwrapped to their underlying type. Simple enums (all
-     * cases parameterless) keep their original type.
-     */
     def buildStructuralType(t: TypeRepr, seen: Set[TypeRepr]): TypeRepr = {
       val dealt = dealiasAll(t)
 
@@ -351,13 +290,9 @@ object DeriveToStructural {
 
         case TypeCategory.SealedType(children) =>
           // sealed trait → union of structural types with Tag
-          // Example: sealed trait Animal; case class Dog(name: String); case object Cat
-          // Becomes: ({ Tag: "Dog", name: String } | { Tag: "Cat" })
 
           val childStructuralTypes = children.map { childSym =>
             // STEP 1: Get the nominal type of this child case
-            // Case objects (isTerm) have no fields → use empty StructuralRecord as base
-            // Case classes need their actual type (with type parameters applied if needed)
             val childType = if (childSym.isTerm) {
               // Case object like "Cat" → no data fields, just needs Tag
               TypeRepr.of[StructuralRecord]
@@ -375,19 +310,15 @@ object DeriveToStructural {
             }
 
             // STEP 2: Recursively convert child to structural type
-            // Dog(name: String) → StructuralRecord { def name: String }
-            // Cat (case object) → StructuralRecord (empty)
             val structType = buildStructuralType(childType, seen + dealt)
 
             // STEP 3: Add Tag field to discriminate between cases
-            // Creates: StructuralRecord { def name: String; Tag: "Dog" }
             val tagName = childSym.name
             val tagType = ConstantType(StringConstant(tagName))
             Refinement(structType, "Tag", TypeBounds(tagType, tagType))
           }
 
           // STEP 4: Combine all child structural types into a union type
-          // ({ Tag: "Dog", name: String } | { Tag: "Cat" })
           if (childStructuralTypes.isEmpty) {
             TypeRepr.of[Nothing]
           } else {
@@ -399,30 +330,6 @@ object DeriveToStructural {
     // Compute the structural type signature for the root type A
     val structuralTypeRepr = buildStructuralType(tpe, Set.empty)
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // PHASE 2: VALUE CONVERTER CODE GENERATION
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    /**
-     * Generates code that converts runtime values from nominal to structural
-     * form.
-     *
-     * This creates Expr[Any => Any] converter functions that run at runtime.
-     * The generated code extracts field values from nominal types and
-     * constructs StructuralRecord instances with the appropriate field
-     * mappings.
-     *
-     * Example: For Person(name: String, age: Int), generates:
-     * ```
-     * (x: Any) => {
-     *   val v = x.asInstanceOf[Person]
-     *   new StructuralRecord(Map("name" -> v.name, "age" -> v.age))
-     * }
-     * ```
-     *
-     * Handles nested conversions recursively (collections, tuples, case
-     * classes, etc.)
-     */
     def buildValueConverter(fieldTpe: TypeRepr): Expr[Any => Any] = {
       categorize(fieldTpe) match {
         case TypeCategory.PrimitiveLike | TypeCategory.Unknown =>
@@ -430,7 +337,6 @@ object DeriveToStructural {
           '{ (x: Any) => x }
 
         case TypeCategory.CaseClassType(fields) =>
-          // CASE CLASS: Person(name: String, age: Int) → StructuralRecord(Map("name" -> "Alice", "age" -> 30))
           fieldTpe.asType match {
             case '[ft] =>
               // Build converters for each field recursively (handles nested case classes)
@@ -455,15 +361,11 @@ object DeriveToStructural {
           }
 
         case TypeCategory.OptionType(elem) =>
-          // OPTION: Option[T] stays as Option but contents are converted
-          // Some(Person("Alice", 30)) → Some(StructuralRecord(...))
-          // None stays None
           val elemConverter = buildValueConverter(elem)
           '{ (x: Any) => x.asInstanceOf[Option[Any]].map($elemConverter) }
 
         case TypeCategory.ListType(elem) =>
           // COLLECTIONS: Keep the collection structure, convert elements
-          // List[Person] → List[StructuralRecord]
           val elemConverter = buildValueConverter(elem)
           '{ (x: Any) => x.asInstanceOf[List[Any]].map($elemConverter) }
 
@@ -481,16 +383,12 @@ object DeriveToStructural {
 
         case TypeCategory.MapType(key, value) =>
           // MAP: Convert both keys and values
-          // Map[Person, Address] → Map[StructuralRecord, StructuralRecord]
           val keyConverter = buildValueConverter(key)
           val valConverter = buildValueConverter(value)
           '{ (x: Any) => x.asInstanceOf[Map[Any, Any]].map { case (k, v) => ($keyConverter(k), $valConverter(v)) } }
 
         case TypeCategory.EitherType(left, right) =>
           // EITHER: Pattern match and tag with "Left" or "Right"
-          // Left(42) → StructuralRecord(Map("Tag" -> "Left", "value" -> 42))
-          // Right("hi") → StructuralRecord(Map("Tag" -> "Right", "value" -> "hi"))
-          // Note: Converters handle nested transformations (e.g., Left(Person(...)))
           val leftConverter  = buildValueConverter(left)
           val rightConverter = buildValueConverter(right)
           '{ (x: Any) =>
@@ -504,8 +402,6 @@ object DeriveToStructural {
 
         case TypeCategory.TupleType(elements) =>
           // TUPLE: Convert to StructuralRecord with numbered fields
-          // ("Alice", 30) → StructuralRecord(Map("_1" -> "Alice", "_2" -> 30))
-          // Works like case class conversion but with _1, _2, _3... field names
           fieldTpe.asType match {
             case '[ft] =>
               val fieldConverters: List[(String, Expr[Any => Any])] = elements.zipWithIndex.map { case (elemTpe, idx) =>
@@ -528,14 +424,6 @@ object DeriveToStructural {
           }
 
         case TypeCategory.SealedType(children) =>
-          // SEALED TRAIT: Dynamic dispatch based on runtime type
-          // sealed trait Animal; case class Dog(name: String); case object Cat
-          //
-          // Dog("Rex") → StructuralRecord(Map("Tag" -> "Dog", "name" -> "Rex"))
-          // Cat → StructuralRecord(Map("Tag" -> "Cat"))
-          //
-          // Strategy: Build a converter for each child, then generate isInstanceOf chain
-
           val childConvertersWithTypes: List[(TypeRepr, Expr[Any => Any])] = children.map { childSym =>
             // STEP 1: Get the type of this child (case class or case object)
             val childTpe = if (childSym.isClassDef) {
@@ -581,7 +469,6 @@ object DeriveToStructural {
           }
 
           // STEP 3: Generate runtime pattern matching code
-          // Produces: if (x.isInstanceOf[Dog]) dogConverter(x) else if (x.isInstanceOf[Cat]) catConverter(x) else throw MatchError
           '{ (x: Any) =>
             ${
               // Build a chain of if-else checks using isInstanceOf
@@ -597,15 +484,7 @@ object DeriveToStructural {
       }
     }
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // TOSTRUCTURAL INSTANCE GENERATION
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Generate the ToStructural[A] implementation with:
-    // 1. type StructuralType = <computed structural type>
-    // 2. toStructural(): Uses Phase 2 converters to transform values
-    // 3. structuralSchema(): Delegates to Phase 3 (StructuralSchemaTransformer)
-
-    // Case Class Implementation
+    // Generate the ToStructural[A] implementation
     if (isCaseType && !isSealedType) {
       val fields = symbol.caseFields
 
@@ -636,10 +515,6 @@ object DeriveToStructural {
               }
 
               def structuralSchema(implicit schema: Schema[A]): Schema[StructuralType] = {
-                // PHASE 3: Transform the schema's bindings to work with StructuralRecord
-                // The nominal schema expects A objects with field accessors (e.g., person.name)
-                // We transform it to expect StructuralRecord with selectDynamic access
-                // This enables serialization (toDynamicValue) and deserialization (fromDynamicValue)
                 val structuralReflect = StructuralSchemaTransformer.transform(schema.reflect)
                 new Schema[StructuralType](structuralReflect.asInstanceOf[Reflect.Bound[StructuralType]])
               }
@@ -717,9 +592,6 @@ object DeriveToStructural {
               }
 
               def structuralSchema(implicit schema: Schema[A]): Schema[StructuralType] = {
-                // PHASE 3: Transform variant schema to use Tag-based discrimination
-                // The nominal schema discriminates using instanceof checks (e.g., value.isInstanceOf[Left])
-                // We transform it to read the "Tag" field from StructuralRecord
                 val structuralReflect = StructuralSchemaTransformer.transform(schema.reflect)
                 new Schema[StructuralType](structuralReflect.asInstanceOf[Reflect.Bound[StructuralType]])
               }

@@ -3,52 +3,8 @@ package zio.blocks.schema
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 
-/**
- * PHASE 3: Schema Transformation for Structural Types (Scala 2)
- * ═════════════════════════════════════════════════════════════════════════════
- *
- * Transforms nominal schemas (Schema[CaseClass]) to structural schemas
- * (Schema[StructuralRecord]) so serialization/deserialization works correctly.
- *
- * The Problem:
- * ─────────────────────────────────────────────────────────────────────────────
- * After Phase 2 converts values to StructuralRecord, the original schema's
- * bindings no longer work:
- *
- *   - Constructor: Registers → CaseClass (expects to create CaseClass)
- *   - Deconstructor: CaseClass → Registers (expects to access case class
- *     fields)
- *
- * But we have StructuralRecord, not CaseClass!
- *
- * The Solution:
- * ─────────────────────────────────────────────────────────────────────────────
- * Transform each binding to work with StructuralRecord:
- *
- *   - Constructor: Registers → StructuralRecord (creates StructuralRecord)
- *   - Deconstructor: StructuralRecord → Registers (uses selectDynamic via
- *     Dynamic)
- *
- * Transformations by Type:
- * ─────────────────────────────────────────────────────────────────────────────
- *   - Case classes → StructuralRecord with field names as keys
- *   - Tuples → StructuralRecord with _1, _2, ... keys (wrapped types preserved)
- *   - Nested case classes → Recursively transformed to StructuralRecord
- *   - Collections (List, Map, etc.) → Element schemas transformed recursively
- *   - Primitives → Keep as-is
- *
- * Limitations (Scala 2):
- * ─────────────────────────────────────────────────────────────────────────────
- *   - No Either support (no union types)
- *   - No sealed trait support (no union types)
- *   - Only case classes and collections are supported
- */
 object StructuralSchemaTransformer {
 
-  /**
-   * Transforms a nominal schema to a structural schema. This is the main entry
-   * point called from macro-generated code.
-   */
   def transform[A](
     nominalSchema: Schema[A],
     @annotation.unused toStructural: ToStructural[A]
@@ -60,16 +16,13 @@ object StructuralSchemaTransformer {
     // Field names from nominal schema
     val fieldNames: IndexedSeq[String] = nominalRecord.fields.map(_.name)
 
-    // For each field, transform nested case classes to structural schemas
-    // This is needed because nested case classes are converted to StructuralRecord by toStructural
+    // For each field, transform nested structurl types to structural schemas
     val fieldSchemas: IndexedSeq[Reflect.Bound[_]] = nominalRecord.fields.map { term =>
       transformReflect(term.value)
     }
 
-    // Reuse the nominal schema's register layout
     val usedRegs = nominalRecord.constructor.usedRegisters
 
-    // Create Terms for structural record
     val structuralFields: IndexedSeq[Term[Binding, StructuralRecord, _]] =
       fieldNames.zip(fieldSchemas).map { case (name, fieldReflect) =>
         new Term[Binding, StructuralRecord, Any](
@@ -126,9 +79,7 @@ object StructuralSchemaTransformer {
   // These are standard library case classes used as containers
   private val wrapperTypeNames: Set[String] = Set(
     "scala.Some",
-    "scala.None",
-    "scala.util.Left",
-    "scala.util.Right"
+    "scala.None"
   )
 
   private def isWrapperType(typeName: TypeName[_]): Boolean = {
@@ -137,20 +88,13 @@ object StructuralSchemaTransformer {
     wrapperTypeNames.contains(fullName)
   }
 
-  /**
-   * Recursively transform a schema to handle StructuralRecord for nested case
-   * classes. This is needed because toStructural converts nested case classes
-   * to StructuralRecord, so the schema needs to expect StructuralRecord instead
-   * of the nominal type.
-   */
   private def transformReflect(reflect: Reflect.Bound[_]): Reflect.Bound[_] =
     reflect match {
       case record: Reflect.Record.Bound[_] if record.fields.nonEmpty && !isWrapperType(record.typeName) =>
-        // User-defined case class: convert to structural schema
         transformRecord(record)
 
       case record: Reflect.Record.Bound[_] if record.fields.nonEmpty && isWrapperType(record.typeName) =>
-        // Wrapper type (Some, None, Left, Right, Tuple): recursively transform fields but keep wrapper structure
+        // Wrapper type (Some, None): recursively transform fields but keep wrapper structure
         val transformedFields = record.fields.map { term =>
           val transformedValue = transformReflect(term.value)
           if (transformedValue eq term.value) {
@@ -232,17 +176,11 @@ object StructuralSchemaTransformer {
         reflect
     }
 
-  /**
-   * Create a structural schema for a case class. This handles the case where
-   * the value is actually a StructuralRecord at runtime (converted by
-   * toStructural).
-   */
   private def transformRecord(
     nestedRecord: Reflect.Record.Bound[_]
   ): Reflect.Bound[StructuralRecord] = {
     val fieldNames = nestedRecord.fields.map(_.name)
 
-    // Recursively convert nested field schemas (handles case classes inside collections too)
     val fieldSchemas: IndexedSeq[Reflect.Bound[_]] = nestedRecord.fields.map { term =>
       transformReflect(term.value)
     }
@@ -276,7 +214,6 @@ object StructuralSchemaTransformer {
     }
 
     // Deconstructor: StructuralRecord -> Registers
-    // This is the key fix: we expect StructuralRecord, not the nominal type
     val structuralDeconstructor = new Deconstructor[StructuralRecord] {
       def usedRegisters: RegisterOffset = usedRegs
 

@@ -176,10 +176,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     case _                   => false
   }
 
-  // Extract field names and types from a refinement type chain
-  // Returns fields in definition order (reversed from the chain)
   private def extractRefinementFields(tpe: TypeRepr): List[(String, TypeRepr)] = {
-    // Helper to unwrap the result type from various type representations
     def unwrapType(info: TypeRepr): TypeRepr = info match {
       case MethodType(_, _, resType) => unwrapType(resType) // def name: String
       case ByNameType(underlying)    => unwrapType(underlying)
@@ -690,8 +687,6 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       })
   }
 
-  // Check if a field type requires structural transformation (i.e., it becomes StructuralRecord at runtime)
-  // These are types that toStructural converts to StructuralRecord: Either, Tuple, case classes
   private def needsStructuralTransformation(tpe: TypeRepr): Boolean = {
     val dealt = dealiasOnDemand(tpe)
     // Primitives, Option, collections don't need transformation
@@ -731,8 +726,8 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       val nestedFields = extractRefinementFields(tpe)
       val nestedPairs  = nestedFields.map { case (name, fTpe) =>
         (name, getTypeNameString(fTpe))
-      }.sortBy(_._1) // Sort alphabetically
-      "{" + nestedPairs.map { case (n, t) => s"$n:$t" }.mkString(",") + "}"
+      }
+      TypeName.formatStructuralRecord(nestedPairs)
     } else if (tpe <:< tupleTpe && (isGenericTuple(tpe) || defn.isTupleClass(tpe.typeSymbol))) {
       // Tuples are represented structurally: (String, Int) → {_1:String,_2:Int}
       // Handles both generic tuples (*:[...]) and regular tuple classes (Tuple2, Tuple3, etc.)
@@ -742,7 +737,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       val tuplePairs = tupleArgs.zipWithIndex.map { case (argTpe, idx) =>
         (s"_${idx + 1}", getTypeNameString(argTpe))
       }
-      "{" + tuplePairs.map { case (n, t) => s"$n:$t" }.mkString(",") + "}"
+      TypeName.formatStructuralRecord(tuplePairs)
     } else if (tpe <:< TypeRepr.of[Either[?, ?]]) {
       // Either[L, R] runtime: StructuralRecord with Tag and value fields
       // Left case: {Tag:"Left", value:L}
@@ -751,7 +746,9 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       val tpeTypeArgs = typeArgs(tpe)
       val leftType    = getTypeNameString(tpeTypeArgs.head)
       val rightType   = getTypeNameString(tpeTypeArgs.last)
-      s"""({Tag:"Left",value:$leftType}|{Tag:"Right",value:$rightType})"""
+      val leftCase    = TypeName.formatTaggedCaseWithFields("Left", Seq("value" -> leftType))
+      val rightCase   = TypeName.formatTaggedCaseWithFields("Right", Seq("value" -> rightType))
+      TypeName.formatVariantUnion(Seq(leftCase, rightCase))
     } else if (isOption(tpe) && !(tpe <:< TypeRepr.of[None.type]) && !(tpe <:< TypeRepr.of[Some[?]])) {
       // Option[T] stays as Option[T], not converted to variant form
       val vTpe = typeArgs(tpe).head
@@ -796,25 +793,23 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             val fieldTpe = sTpe.memberType(fieldSym)
             (fieldSym.name, getTypeNameString(fieldTpe))
           }
-          // Add Tag field and sort all fields alphabetically
-          val allFields = (("Tag", s""""$caseName"""") :: fieldPairs.toList).sortBy(_._1)
-          "{" + allFields.map { case (n, t) => s"$n:$t" }.mkString(",") + "}"
+          TypeName.formatTaggedCaseWithFields(caseName, fieldPairs.toList)
         } else {
           // Case object: {Tag:"CaseName"}
-          s"""{Tag:"$caseName"}"""
+          TypeName.formatTaggedCaseWithFields(caseName, Nil)
         }
-      }.sorted // Sort case representations alphabetically
+      }
 
       // Union of all cases
-      "(" + caseReprs.mkString("|") + ")"
+      TypeName.formatVariantUnion(caseReprs)
     } else if (isUnion(tpe)) {
       // Union types: similar to sealed traits
       val unionTypes = allUnionTypes(tpe)
       val caseReprs  = unionTypes.map { uTpe =>
         val caseName = typeName(uTpe).name.split('.').last
-        s"""{Tag:"$caseName"}"""
-      }.sorted
-      "(" + caseReprs.mkString("|") + ")"
+        TypeName.formatTaggedCaseWithFields(caseName, Nil)
+      }
+      TypeName.formatVariantUnion(caseReprs)
     } else if (isOpaque(tpe)) {
       // Opaque types: unwrap to actual type
       getTypeNameString(opaqueDealias(tpe))
@@ -831,7 +826,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   // TypeInfo for structural refinement types (e.g., { def name: String; def age: Int })
   // Uses StructuralRecord for construction/deconstruction via selectDynamic
   private class RefinementInfo[T: Type](tpe: TypeRepr) extends TypeInfo {
-    val tpeTypeArgs: List[TypeRepr]                                        = Nil // Refinement types don't have type args
+    val tpeTypeArgs: List[TypeRepr]                                        = Nil
     val (fieldInfos: List[FieldInfo], usedRegisters: Expr[RegisterOffset]) = {
       val refinementFields = extractRefinementFields(tpe)
       var usedRegisters    = RegisterOffset.Zero
@@ -859,8 +854,6 @@ private class SchemaVersionSpecificImpl(using Quotes) {
                 if (idx < nameOverrides.length) nameOverrides(idx)
                 else fieldInfo.name
               }
-              // For field types that become StructuralRecord at runtime (Either, Tuple, case classes),
-              // we need to transform the schema so it expects StructuralRecord instead of the nominal type
               if (needsTransform) {
                 '{
                   StructuralSchemaTransformer
@@ -1244,13 +1237,10 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     }
   }
 
-  // Derive schema for structural refinement types (e.g., { def name: String; def age: Int })
   private def deriveSchemaForRefinementType[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
     val refinementInfo = new RefinementInfo[T](tpe)
     val fields         = refinementInfo.fields[T](Array.empty[String])
 
-    // Generate normalized TypeName: {age:Int,name:String} (sorted alphabetically)
-    // For nested structural types, recursively build their TypeName representation
     val fieldInfoList = refinementInfo.fieldInfos
     val fieldPairs    = fieldInfoList.map { fi =>
       (fi.name, getTypeNameString(fi.tpe))

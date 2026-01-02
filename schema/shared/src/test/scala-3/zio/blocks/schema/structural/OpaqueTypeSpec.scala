@@ -3,13 +3,6 @@ package zio.blocks.schema.structural
 import zio.test._
 import zio.blocks.schema._
 
-/**
- * Tests for opaque type support in ToStructural (Scala 3 only).
- *
- * Opaque types should be unwrapped to their underlying type in the structural
- * representation. For example, `opaque type UserId = String` in a case class
- * field should become `String` in the structural type.
- */
 object OpaqueTypeSpec extends ZIOSpecDefault {
 
   // Simple opaque type backed by String

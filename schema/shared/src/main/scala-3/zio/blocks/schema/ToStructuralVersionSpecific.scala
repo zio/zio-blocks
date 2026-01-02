@@ -2,14 +2,8 @@ package zio.blocks.schema
 
 import scala.Selectable
 
-/**
- * Runtime representation for structural values. Stores field values in a Map
- * and implements Selectable for field access via selectDynamic.
- *
- * When cast to a structural refinement type like
- * `Selectable { def name: String; def age: Int }`, field access like `.name`
- * will call `selectDynamic("name")`.
- */
+// Runtime representation for structural values.
+//StructuralRecord does NOT extend Dynamic to preserve proper type inference
 final class StructuralRecord(private val values: Map[String, Any]) extends Selectable {
   def selectDynamic(name: String): Any = values(name)
 
