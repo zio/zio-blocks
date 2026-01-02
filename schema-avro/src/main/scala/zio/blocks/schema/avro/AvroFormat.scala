@@ -1333,7 +1333,18 @@ object AvroFormat
             if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
               val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
               val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[AvroBinaryCodec[Wrapped]]
-              new AvroBinaryCodec[A]() {
+              new AvroBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(AvroBinaryCodec.objectType) {
+                case _: PrimitiveType.Boolean   => AvroBinaryCodec.booleanType
+                case _: PrimitiveType.Byte      => AvroBinaryCodec.byteType
+                case _: PrimitiveType.Char      => AvroBinaryCodec.charType
+                case _: PrimitiveType.Short     => AvroBinaryCodec.shortType
+                case _: PrimitiveType.Float     => AvroBinaryCodec.floatType
+                case _: PrimitiveType.Int       => AvroBinaryCodec.intType
+                case _: PrimitiveType.Double    => AvroBinaryCodec.doubleType
+                case _: PrimitiveType.Long      => AvroBinaryCodec.longType
+                case _: PrimitiveType.Unit.type => AvroBinaryCodec.unitType
+                case _                          => AvroBinaryCodec.objectType
+              }) {
                 private[this] val unwrap       = binding.unwrap
                 private[this] val wrap         = binding.wrap
                 private[this] val wrappedCodec = codec

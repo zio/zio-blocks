@@ -128,7 +128,14 @@ lazy val `schema-avro` = project
       "org.apache.avro" % "avro"         % "1.12.1",
       "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
-    )
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
+        )
+    })
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
