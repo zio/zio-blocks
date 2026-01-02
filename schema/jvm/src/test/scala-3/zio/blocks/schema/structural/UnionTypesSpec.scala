@@ -33,27 +33,25 @@ import zio.test._
  */
 object UnionTypesSpec extends ZIOSpecDefault {
 
-  // Test sealed traits
   sealed trait Result
   object Result {
-    case class Success(value: Int) extends Result
+    case class Success(value: Int)    extends Result
     case class Failure(error: String) extends Result
   }
 
   sealed trait Status
   object Status {
-    case object Active extends Status
+    case object Active   extends Status
     case object Inactive extends Status
   }
 
   sealed trait Animal
   object Animal {
-    case class Dog(name: String, breed: String) extends Animal
-    case class Cat(name: String, indoor: Boolean) extends Animal
+    case class Dog(name: String, breed: String)    extends Animal
+    case class Cat(name: String, indoor: Boolean)  extends Animal
     case class Bird(name: String, canFly: Boolean) extends Animal
   }
 
-  // Test enum
   enum Color {
     case Red
     case Green
@@ -68,27 +66,27 @@ object UnionTypesSpec extends ZIOSpecDefault {
   def spec: Spec[Any, Nothing] = suite("UnionTypesSpec")(
     suite("Sealed Trait to Structural Conversion")(
       test("sealed trait with case classes converts to structural") {
-        val schema = Schema.derived[Result]
+        val schema     = Schema.derived[Result]
         val structural = schema.structural
         assertTrue(structural != null)
       },
       test("sealed trait with case objects converts to structural") {
-        val schema = Schema.derived[Status]
+        val schema     = Schema.derived[Status]
         val structural = schema.structural
         assertTrue(structural != null)
       },
       test("sealed trait with three variants converts to structural") {
-        val schema = Schema.derived[Animal]
+        val schema     = Schema.derived[Animal]
         val structural = schema.structural
         assertTrue(structural != null)
       }
     ),
     suite("Structural Type Name")(
       test("structural type name is a pipe-separated union of case types") {
-        val schema = Schema.derived[Result]
+        val schema     = Schema.derived[Result]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
-        val caseTypes = typeName.split('|').map(_.trim).toSet
+        val typeName   = structural.reflect.typeName.name
+        val caseTypes  = typeName.split('|').map(_.trim).toSet
 
         assertTrue(
           caseTypes.size == 2,
@@ -97,10 +95,10 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("each case in union has correct Tag field with case name as value") {
-        val schema = Schema.derived[Result]
+        val schema     = Schema.derived[Result]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
-        val caseTypes = typeName.split('|').map(_.trim)
+        val typeName   = structural.reflect.typeName.name
+        val caseTypes  = typeName.split('|').map(_.trim)
 
         val hasSuccessTag = caseTypes.exists(_.contains("Tag:\"Success\""))
         val hasFailureTag = caseTypes.exists(_.contains("Tag:\"Failure\""))
@@ -111,11 +109,11 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("Success case structural type has correct structure") {
-        val schema = Schema.derived[Result]
+        val schema     = Schema.derived[Result]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
-        val caseTypes = typeName.split('|').map(_.trim)
+        val caseTypes   = typeName.split('|').map(_.trim)
         val successCase = caseTypes.find(_.contains("Tag:\"Success\""))
 
         assertTrue(
@@ -125,11 +123,11 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("Failure case structural type has correct structure") {
-        val schema = Schema.derived[Result]
+        val schema     = Schema.derived[Result]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
-        val caseTypes = typeName.split('|').map(_.trim)
+        val caseTypes   = typeName.split('|').map(_.trim)
         val failureCase = caseTypes.find(_.contains("Tag:\"Failure\""))
 
         assertTrue(
@@ -139,9 +137,9 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("three-case sealed trait produces union with three types") {
-        val schema = Schema.derived[Animal]
+        val schema     = Schema.derived[Animal]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
         val caseTypes = typeName.split('|').map(_.trim).toSet
 
@@ -153,14 +151,14 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("each Animal case has correct fields") {
-        val schema = Schema.derived[Animal]
+        val schema     = Schema.derived[Animal]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
         val caseTypes = typeName.split('|').map(_.trim)
 
-        val dogCase = caseTypes.find(_.contains("Tag:\"Dog\""))
-        val catCase = caseTypes.find(_.contains("Tag:\"Cat\""))
+        val dogCase  = caseTypes.find(_.contains("Tag:\"Dog\""))
+        val catCase  = caseTypes.find(_.contains("Tag:\"Cat\""))
         val birdCase = caseTypes.find(_.contains("Tag:\"Bird\""))
 
         assertTrue(
@@ -176,13 +174,13 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("case object structural type has only Tag field") {
-        val schema = Schema.derived[Status]
+        val schema     = Schema.derived[Status]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
         val caseTypes = typeName.split('|').map(_.trim)
 
-        val activeCase = caseTypes.find(_.contains("Tag:\"Active\""))
+        val activeCase   = caseTypes.find(_.contains("Tag:\"Active\""))
         val inactiveCase = caseTypes.find(_.contains("Tag:\"Inactive\""))
 
         assertTrue(
@@ -195,8 +193,8 @@ object UnionTypesSpec extends ZIOSpecDefault {
     ),
     suite("Structural Schema Structure")(
       test("structural schema is a Variant reflecting sum type") {
-        val schema = Schema.derived[Result]
-        val structural = schema.structural
+        val schema                           = Schema.derived[Result]
+        val structural                       = schema.structural
         val (isVariant, hasCorrectCaseCount) = structural.reflect match {
           case v: Reflect.Variant[_, _] => (true, v.cases.size == 2)
           case _                        => (false, false)
@@ -204,9 +202,9 @@ object UnionTypesSpec extends ZIOSpecDefault {
         assertTrue(isVariant, hasCorrectCaseCount)
       },
       test("structural variant cases have correct names") {
-        val schema = Schema.derived[Result]
+        val schema     = Schema.derived[Result]
         val structural = schema.structural
-        val caseNames = structural.reflect match {
+        val caseNames  = structural.reflect match {
           case v: Reflect.Variant[_, _] => v.cases.map(_.name).toSet
           case _                        => Set.empty[String]
         }
@@ -217,8 +215,8 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("three-variant Animal has correct case count and names") {
-        val schema = Schema.derived[Animal]
-        val structural = schema.structural
+        val schema                 = Schema.derived[Animal]
+        val structural             = schema.structural
         val (caseCount, caseNames) = structural.reflect match {
           case v: Reflect.Variant[_, _] => (v.cases.size, v.cases.map(_.name).toSet)
           case _                        => (-1, Set.empty[String])
@@ -231,7 +229,7 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("each variant case is a Record with correct fields") {
-        val schema = Schema.derived[Result]
+        val schema     = Schema.derived[Result]
         val structural = schema.structural
 
         val caseRecords = structural.reflect match {
@@ -239,7 +237,7 @@ object UnionTypesSpec extends ZIOSpecDefault {
             v.cases.map { c =>
               val fieldNames = c.value match {
                 case r: Reflect.Record[_, _] => r.fields.map(_.name).toSet
-                case _ => Set.empty[String]
+                case _                       => Set.empty[String]
               }
               (c.name, fieldNames)
             }.toMap
@@ -254,11 +252,11 @@ object UnionTypesSpec extends ZIOSpecDefault {
     ),
     suite("Round-Trip Through Structural")(
       test("Success case round-trips through structural with correct value") {
-        val schema = Schema.derived[Result]
+        val schema          = Schema.derived[Result]
         val nominal: Result = Result.Success(42)
 
-        val dynamic = schema.toDynamicValue(nominal)
-        val structural = schema.structural
+        val dynamic       = schema.toDynamicValue(nominal)
+        val structural    = schema.structural
         val reconstructed = structural.fromDynamicValue(dynamic)
 
         val isVariant = dynamic match {
@@ -279,11 +277,11 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("Failure case round-trips through structural with correct error message") {
-        val schema = Schema.derived[Result]
+        val schema          = Schema.derived[Result]
         val nominal: Result = Result.Failure("error message")
 
-        val dynamic = schema.toDynamicValue(nominal)
-        val structural = schema.structural
+        val dynamic       = schema.toDynamicValue(nominal)
+        val structural    = schema.structural
         val reconstructed = structural.fromDynamicValue(dynamic)
 
         val isVariant = dynamic match {
@@ -304,16 +302,16 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("case object round-trips with correct tag") {
-        val schema = Schema.derived[Status]
+        val schema          = Schema.derived[Status]
         val nominal: Status = Status.Active
 
-        val dynamic = schema.toDynamicValue(nominal)
-        val structural = schema.structural
+        val dynamic       = schema.toDynamicValue(nominal)
+        val structural    = schema.structural
         val reconstructed = structural.fromDynamicValue(dynamic)
 
         val isActiveVariant = dynamic match {
           case DynamicValue.Variant(tag, _) => tag == "Active"
-          case _ => false
+          case _                            => false
         }
 
         assertTrue(
@@ -322,16 +320,16 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("Inactive case object round-trips correctly") {
-        val schema = Schema.derived[Status]
+        val schema          = Schema.derived[Status]
         val nominal: Status = Status.Inactive
 
-        val dynamic = schema.toDynamicValue(nominal)
-        val structural = schema.structural
+        val dynamic       = schema.toDynamicValue(nominal)
+        val structural    = schema.structural
         val reconstructed = structural.fromDynamicValue(dynamic)
 
         val isInactiveVariant = dynamic match {
           case DynamicValue.Variant(tag, _) => tag == "Inactive"
-          case _ => false
+          case _                            => false
         }
 
         assertTrue(
@@ -340,15 +338,15 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("all Animal variants round-trip with correct structure") {
-        val schema = Schema.derived[Animal]
+        val schema     = Schema.derived[Animal]
         val structural = schema.structural
 
-        val dog: Animal = Animal.Dog("Rex", "German Shepherd")
-        val cat: Animal = Animal.Cat("Whiskers", true)
+        val dog: Animal  = Animal.Dog("Rex", "German Shepherd")
+        val cat: Animal  = Animal.Cat("Whiskers", true)
         val bird: Animal = Animal.Bird("Tweety", true)
 
-        val dogDynamic = schema.toDynamicValue(dog)
-        val catDynamic = schema.toDynamicValue(cat)
+        val dogDynamic  = schema.toDynamicValue(dog)
+        val catDynamic  = schema.toDynamicValue(cat)
         val birdDynamic = schema.toDynamicValue(bird)
 
         val dogIsCorrect = dogDynamic match {
@@ -387,19 +385,19 @@ object UnionTypesSpec extends ZIOSpecDefault {
     ),
     suite("Enum to Structural Conversion")(
       test("simple enum converts to structural") {
-        val schema = Schema.derived[Color]
+        val schema     = Schema.derived[Color]
         val structural = schema.structural
         assertTrue(structural != null)
       },
       test("parameterized enum converts to structural") {
-        val schema = Schema.derived[Shape]
+        val schema     = Schema.derived[Shape]
         val structural = schema.structural
         assertTrue(structural != null)
       },
       test("simple enum structural produces three-way union") {
-        val schema = Schema.derived[Color]
+        val schema     = Schema.derived[Color]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
         val caseTypes = typeName.split('|').map(_.trim).toSet
 
@@ -411,9 +409,9 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("simple enum cases have only Tag field") {
-        val schema = Schema.derived[Color]
+        val schema     = Schema.derived[Color]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
         val caseTypes = typeName.split('|').map(_.trim)
 
@@ -422,13 +420,13 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("parameterized enum structural contains field types") {
-        val schema = Schema.derived[Shape]
+        val schema     = Schema.derived[Shape]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
         val caseTypes = typeName.split('|').map(_.trim)
 
-        val circleCase = caseTypes.find(_.contains("Tag:\"Circle\""))
+        val circleCase    = caseTypes.find(_.contains("Tag:\"Circle\""))
         val rectangleCase = caseTypes.find(_.contains("Tag:\"Rectangle\""))
 
         assertTrue(
@@ -440,11 +438,11 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("Circle case has exactly two fields (Tag and radius)") {
-        val schema = Schema.derived[Shape]
+        val schema     = Schema.derived[Shape]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
-        val caseTypes = typeName.split('|').map(_.trim)
+        val caseTypes  = typeName.split('|').map(_.trim)
         val circleCase = caseTypes.find(_.contains("Tag:\"Circle\""))
 
         assertTrue(
@@ -453,11 +451,11 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("Rectangle case has exactly three fields (Tag, width, height)") {
-        val schema = Schema.derived[Shape]
+        val schema     = Schema.derived[Shape]
         val structural = schema.structural
-        val typeName = structural.reflect.typeName.name
+        val typeName   = structural.reflect.typeName.name
 
-        val caseTypes = typeName.split('|').map(_.trim)
+        val caseTypes     = typeName.split('|').map(_.trim)
         val rectangleCase = caseTypes.find(_.contains("Tag:\"Rectangle\""))
 
         assertTrue(
@@ -481,7 +479,7 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("structural union contains all case variants") {
-        val schema = Schema.derived[Result]
+        val schema   = Schema.derived[Result]
         val typeName = schema.structural.reflect.typeName.name
 
         val failureIdx = typeName.indexOf("Failure")
@@ -493,12 +491,12 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("Animal structural union contains all three cases") {
-        val schema = Schema.derived[Animal]
+        val schema   = Schema.derived[Animal]
         val typeName = schema.structural.reflect.typeName.name
 
         val birdIdx = typeName.indexOf("Bird")
-        val catIdx = typeName.indexOf("Cat")
-        val dogIdx = typeName.indexOf("Dog")
+        val catIdx  = typeName.indexOf("Cat")
+        val dogIdx  = typeName.indexOf("Dog")
 
         assertTrue(
           birdIdx >= 0,
@@ -507,12 +505,12 @@ object UnionTypesSpec extends ZIOSpecDefault {
         )
       },
       test("enum structural type name contains all variants") {
-        val schema = Schema.derived[Color]
+        val schema   = Schema.derived[Color]
         val typeName = schema.structural.reflect.typeName.name
 
-        val blueIdx = typeName.indexOf("Blue")
+        val blueIdx  = typeName.indexOf("Blue")
         val greenIdx = typeName.indexOf("Green")
-        val redIdx = typeName.indexOf("Red")
+        val redIdx   = typeName.indexOf("Red")
 
         assertTrue(
           blueIdx >= 0,

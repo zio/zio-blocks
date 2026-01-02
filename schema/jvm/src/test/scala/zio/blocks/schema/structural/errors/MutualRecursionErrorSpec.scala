@@ -3,7 +3,8 @@ package zio.blocks.schema.structural.errors
 import zio.test._
 
 /**
- * Tests that mutually recursive types produce compile-time errors when converting to structural.
+ * Tests that mutually recursive types produce compile-time errors when
+ * converting to structural.
  *
  * ==Overview==
  * Mutual recursion occurs when:
@@ -19,7 +20,8 @@ import zio.test._
  * }}}
  *
  * Note: The error message for mutual recursion is the same as direct recursion
- * because from the perspective of each type, it appears as a recursive reference.
+ * because from the perspective of each type, it appears as a recursive
+ * reference.
  */
 object MutualRecursionErrorSpec extends ZIOSpecDefault {
 
@@ -200,4 +202,3 @@ object MutualRecursionErrorSpec extends ZIOSpecDefault {
     )
   )
 }
-

@@ -15,15 +15,14 @@ object NestedProductSpec extends ZIOSpecDefault {
   case class Middle(inner: Inner)
   case class Outer(middle: Middle)
 
-  // Helper to create DynamicValue.Primitive for common types
-  private def intPrim(i: Int) = DynamicValue.Primitive(PrimitiveValue.Int(i))
-  private def strPrim(s: String) = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intPrim(i: Int)       = DynamicValue.Primitive(PrimitiveValue.Int(i))
+  private def strPrim(s: String)    = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def doublePrim(d: Double) = DynamicValue.Primitive(PrimitiveValue.Double(d))
 
   def spec = suite("NestedProductSpec")(
     suite("Type Name Verification")(
       test("nested case classes produce type name with all fields") {
-        val nominalSchema = Schema.derived[Person]
+        val nominalSchema    = Schema.derived[Person]
         val structuralSchema = nominalSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
@@ -34,7 +33,7 @@ object NestedProductSpec extends ZIOSpecDefault {
         )
       },
       test("deeply nested structures produce non-empty type name") {
-        val schema = Schema.derived[Outer]
+        val schema     = Schema.derived[Outer]
         val structural = schema.structural
 
         val typeName = structural.reflect.typeName.name
@@ -46,7 +45,7 @@ object NestedProductSpec extends ZIOSpecDefault {
     ),
     suite("Field Hierarchy")(
       test("structural schema preserves top-level field names") {
-        val schema = Schema.derived[Person]
+        val schema     = Schema.derived[Person]
         val structural = schema.structural
 
         val fieldNames = structural.reflect match {
@@ -62,7 +61,7 @@ object NestedProductSpec extends ZIOSpecDefault {
         )
       },
       test("nested field count matches original") {
-        val schema = Schema.derived[Address]
+        val schema     = Schema.derived[Address]
         val structural = schema.structural
 
         val fieldCount = structural.reflect match {
@@ -75,12 +74,12 @@ object NestedProductSpec extends ZIOSpecDefault {
     ),
     suite("Construction and Destruction")(
       test("nested case class round-trip preserves all data") {
-        val person = Person("Alice", 30, Address("123 Main St", "Springfield", 12345))
-        val schema = Schema.derived[Person]
+        val person     = Person("Alice", 30, Address("123 Main St", "Springfield", 12345))
+        val schema     = Schema.derived[Person]
         val structural = schema.structural
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(person)
-        
+
         dynamic match {
           case record: DynamicValue.Record =>
             val fieldMap = record.fields.toMap
@@ -101,8 +100,8 @@ object NestedProductSpec extends ZIOSpecDefault {
         }
       },
       test("deeply nested case class extracts all levels correctly") {
-        val outer = Outer(Middle(Inner(42)))
-        val schema = Schema.derived[Outer]
+        val outer      = Outer(Middle(Inner(42)))
+        val schema     = Schema.derived[Outer]
         val structural = schema.structural
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(outer)
@@ -128,18 +127,18 @@ object NestedProductSpec extends ZIOSpecDefault {
         }
       },
       test("construction from DynamicValue succeeds for nested structures") {
-        val schema = Schema.derived[Person]
+        val schema     = Schema.derived[Person]
         val structural = schema.structural
 
         val dynamic = DynamicValue.Record(
           Vector(
-            "name" -> strPrim("Bob"),
-            "age" -> intPrim(25),
+            "name"    -> strPrim("Bob"),
+            "age"     -> intPrim(25),
             "address" -> DynamicValue.Record(
               Vector(
                 "street" -> strPrim("456 Oak Ave"),
-                "city" -> strPrim("Shelbyville"),
-                "zip" -> intPrim(67890)
+                "city"   -> strPrim("Shelbyville"),
+                "zip"    -> intPrim(67890)
               )
             )
           )
@@ -151,10 +150,9 @@ object NestedProductSpec extends ZIOSpecDefault {
     ),
     suite("Nested Type Conversion")(
       test("inner case class is converted to structural representation") {
-        val schema = Schema.derived[Person]
+        val schema     = Schema.derived[Person]
         val structural = schema.structural
 
-        // The address field should have a nested Record reflect, not just a primitive
         val addressField = structural.reflect match {
           case record: Reflect.Record[_, _] =>
             record.fields.find(_.name == "address").map(_.value)
@@ -167,7 +165,7 @@ object NestedProductSpec extends ZIOSpecDefault {
         )
       },
       test("deeply nested inner types are all records") {
-        val schema = Schema.derived[Outer]
+        val schema     = Schema.derived[Outer]
         val structural = schema.structural
 
         val middleField = structural.reflect match {
@@ -201,7 +199,7 @@ object NestedProductSpec extends ZIOSpecDefault {
           Contact("john@example.com", "555-1234")
         )
 
-        val schema = Schema.derived[Employee]
+        val schema     = Schema.derived[Employee]
         val structural = schema.structural
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(employee)
@@ -227,7 +225,7 @@ object NestedProductSpec extends ZIOSpecDefault {
           99.99
         )
 
-        val schema = Schema.derived[Order]
+        val schema     = Schema.derived[Order]
         val structural = schema.structural
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(order)
@@ -252,4 +250,3 @@ object NestedProductSpec extends ZIOSpecDefault {
     )
   )
 }
-

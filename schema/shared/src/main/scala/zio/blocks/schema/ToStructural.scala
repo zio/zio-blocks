@@ -24,4 +24,3 @@ trait ToStructural[A] {
 object ToStructural extends ToStructuralVersionSpecific {
   type Aux[A, S] = ToStructural[A] { type StructuralType = S }
 }
-

@@ -1,5 +1,8 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.binding.*
+import zio.blocks.schema.binding.RegisterOffset.*
+
 import scala.quoted.*
 
 trait ToStructuralVersionSpecific {
@@ -12,7 +15,6 @@ private[schema] object ToStructuralMacro {
 
     val aTpe = TypeRepr.of[A].dealias
 
-    // Check platform support
     if (!Platform.supportsReflection) {
       report.errorAndAbort(
         s"""Cannot generate ToStructural[${aTpe.show}] on ${Platform.name}.
@@ -22,7 +24,6 @@ private[schema] object ToStructuralMacro {
       )
     }
 
-    // Check for recursive types
     if (isRecursiveType(aTpe)) {
       report.errorAndAbort(
         s"""Cannot generate structural type for recursive type ${aTpe.show}.
@@ -32,7 +33,6 @@ private[schema] object ToStructuralMacro {
       )
     }
 
-    // Determine the source type structure
     if (isProductType(aTpe)) {
       deriveForProduct[A](aTpe)
     } else if (isTupleType(aTpe)) {
@@ -52,25 +52,21 @@ private[schema] object ToStructuralMacro {
     import quotes.reflect.*
     tpe.classSymbol.exists { sym =>
       val flags = sym.flags
-      // Include case objects (Module flag) and case classes
       val isCaseObject = flags.is(Flags.Module) && flags.is(Flags.Case)
-      val isCaseClass = !flags.is(Flags.Abstract) && !flags.is(Flags.Trait) && sym.primaryConstructor.exists
+      val isCaseClass  = !flags.is(Flags.Abstract) && !flags.is(Flags.Trait) && sym.primaryConstructor.exists
       isCaseObject || isCaseClass
     }
   }
 
-  private def isTupleType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
+  private def isTupleType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean =
     tpe.typeSymbol.fullName.startsWith("scala.Tuple")
-  }
 
   private def isSumType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
     import quotes.reflect.*
     tpe.classSymbol.exists { sym =>
       val flags = sym.flags
-      // Sealed traits and sealed abstract classes
-      val isSealedTrait = flags.is(Flags.Sealed) && flags.is(Flags.Trait)
+      val isSealedTrait    = flags.is(Flags.Sealed) && flags.is(Flags.Trait)
       val isSealedAbstract = flags.is(Flags.Sealed) && flags.is(Flags.Abstract)
-      // Scala 3 enums are also handled
       val isEnum = flags.is(Flags.Enum) && !flags.is(Flags.Case)
       isSealedTrait || isSealedAbstract || isEnum
     }
@@ -86,7 +82,6 @@ private[schema] object ToStructuralMacro {
 
       if (dealiased =:= searchFor.dealias) return true
 
-      // Check type arguments (for List[T], Option[T], etc.)
       val typeArgsContain = dealiased match {
         case AppliedType(_, args) if args.nonEmpty =>
           args.exists(arg => containsType(arg, searchFor, newVisited))
@@ -95,7 +90,6 @@ private[schema] object ToStructuralMacro {
 
       if (typeArgsContain) return true
 
-      // Check fields of product types (case classes)
       dealiased.classSymbol.toList.flatMap { sym =>
         sym.primaryConstructor.paramSymss.flatten.filter(!_.isTypeParam).map { param =>
           dealiased.memberType(param).dealias
@@ -103,7 +97,6 @@ private[schema] object ToStructuralMacro {
       }.exists(fieldTpe => containsType(fieldTpe, searchFor, newVisited))
     }
 
-    // Check if any field type contains the original type
     tpe.classSymbol.toList.flatMap { sym =>
       sym.primaryConstructor.paramSymss.flatten.filter(!_.isTypeParam).map { param =>
         tpe.memberType(param).dealias
@@ -118,7 +111,6 @@ private[schema] object ToStructuralMacro {
       report.errorAndAbort(s"${aTpe.show} is not a class type")
     )
 
-    // Extract fields
     val fields: List[(String, TypeRepr)] = classSymbol.primaryConstructor.paramSymss.flatten
       .filter(!_.isTypeParam)
       .map { param =>
@@ -127,7 +119,6 @@ private[schema] object ToStructuralMacro {
         (fieldName, fieldType)
       }
 
-    // Build the structural type as a refinement (or AnyRef for empty)
     val structuralTpe = buildStructuralType(fields)
 
     structuralTpe.asType match {
@@ -135,9 +126,8 @@ private[schema] object ToStructuralMacro {
         '{
           new ToStructural[A] {
             type StructuralType = s
-            def apply(schema: Schema[A]): Schema[s] = {
-              ToStructuralRuntime.transformProductSchema[A, s](schema)
-            }
+            def apply(schema: Schema[A]): Schema[s] =
+              transformProductSchema[A, s](schema)
           }
         }
     }
@@ -151,7 +141,6 @@ private[schema] object ToStructuralMacro {
       case _                    => Nil
     }
 
-    // Build fields as _1, _2, etc.
     val fields: List[(String, TypeRepr)] = typeArgs.zipWithIndex.map { case (tpe, idx) =>
       (s"_${idx + 1}", tpe)
     }
@@ -167,41 +156,37 @@ private[schema] object ToStructuralMacro {
         '{
           new ToStructural[A] {
             type StructuralType = s
-            def apply(schema: Schema[A]): Schema[s] = {
-              ToStructuralRuntime.transformTupleSchema[A, s](schema)
-            }
+            def apply(schema: Schema[A]): Schema[s] =
+              transformTupleSchema[A, s](schema)
           }
         }
     }
   }
 
-  private def buildStructuralType(using Quotes)(fields: List[(String, quotes.reflect.TypeRepr)]): quotes.reflect.TypeRepr = {
+  private def buildStructuralType(using
+    Quotes
+  )(fields: List[(String, quotes.reflect.TypeRepr)]): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
 
-    // Start with AnyRef (Object) as the base
     val baseTpe = TypeRepr.of[AnyRef]
 
-    // Build refinements for each field (as def members)
     fields.foldLeft(baseTpe) { case (parent, (fieldName, fieldTpe)) =>
-      // Create a MethodType for a no-arg method returning fieldTpe
       val methodType = MethodType(Nil)(_ => Nil, _ => fieldTpe)
       Refinement(parent, fieldName, methodType)
     }
   }
 
-  private def buildStructuralTypeWithTag(using Quotes)(tagName: String, fields: List[(String, quotes.reflect.TypeRepr)]): quotes.reflect.TypeRepr = {
+  private def buildStructuralTypeWithTag(using
+    Quotes
+  )(tagName: String, fields: List[(String, quotes.reflect.TypeRepr)]): quotes.reflect.TypeRepr = {
     import quotes.reflect.*
 
-    // Start with AnyRef (Object) as the base
     val baseTpe = TypeRepr.of[AnyRef]
 
-    // Add the Tag type member first
     val tagLiteralType = ConstantType(StringConstant(tagName))
-    val withTag = Refinement(baseTpe, "Tag", TypeBounds(tagLiteralType, tagLiteralType))
+    val withTag        = Refinement(baseTpe, "Tag", TypeBounds(tagLiteralType, tagLiteralType))
 
-    // Build refinements for each field (as def members)
     fields.foldLeft(withTag) { case (parent, (fieldName, fieldTpe)) =>
-      // Create a MethodType for a no-arg method returning fieldTpe
       val methodType = MethodType(Nil)(_ => Nil, _ => fieldTpe)
       Refinement(parent, fieldName, methodType)
     }
@@ -214,28 +199,22 @@ private[schema] object ToStructuralMacro {
       report.errorAndAbort(s"${aTpe.show} is not a class type")
     )
 
-    // Get all case classes/objects that extend this sealed trait/enum
     val children = classSymbol.children.toList.sortBy(_.name)
 
     if (children.isEmpty) {
       report.errorAndAbort(s"Sum type ${aTpe.show} has no cases")
     }
 
-    // Build structural types for each case
     val caseTypes: List[TypeRepr] = children.map { childSym =>
       val childTpe = if (childSym.flags.is(Flags.Module)) {
-        // Case object - its type is its singleton type
         childSym.termRef
       } else {
-        // Case class
         aTpe.memberType(childSym).dealias
       }
 
       val caseName = childSym.name
 
-      // Get fields for this case
       val fields: List[(String, TypeRepr)] = if (childSym.flags.is(Flags.Module)) {
-        // Case object has no fields
         Nil
       } else {
         childSym.primaryConstructor.paramSymss.flatten
@@ -250,7 +229,6 @@ private[schema] object ToStructuralMacro {
       buildStructuralTypeWithTag(caseName, fields)
     }
 
-    // Build union type from all case types
     val unionType = caseTypes.reduceLeft { (acc, tpe) =>
       OrType(acc, tpe)
     }
@@ -260,12 +238,162 @@ private[schema] object ToStructuralMacro {
         '{
           new ToStructural[A] {
             type StructuralType = s
-            def apply(schema: Schema[A]): Schema[s] = {
-              ToStructuralRuntime.transformSumTypeSchema[A, s](schema)
-            }
+            def apply(schema: Schema[A]): Schema[s] =
+              transformSumTypeSchema[A, s](schema)
           }
         }
     }
   }
-}
 
+  /**
+   * Transform a product schema (case class) to its structural equivalent.
+   */
+  def transformProductSchema[A, S](schema: Schema[A]): Schema[S] =
+    schema.reflect match {
+      case record: Reflect.Record[Binding, A] @unchecked =>
+        val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
+
+        val fieldInfos = record.fields.map { field =>
+          (field.name, field.value.asInstanceOf[Reflect.Bound[Any]])
+        }
+
+        val totalRegisters = binding.constructor.usedRegisters
+
+        val typeName = normalizeTypeName(fieldInfos.toList.map { case (name, reflect) =>
+          (name, reflect.typeName.name)
+        })
+
+        new Schema[S](
+          new Reflect.Record[Binding, S](
+            fields = record.fields.map { field =>
+              field.value.asInstanceOf[Reflect.Bound[Any]].asTerm[S](field.name)
+            },
+            typeName = new TypeName[S](new Namespace(Nil, Nil), typeName, Nil),
+            recordBinding = new Binding.Record[S](
+              constructor = new Constructor[S] {
+                def usedRegisters: RegisterOffset = totalRegisters
+
+                def construct(in: Registers, baseOffset: RegisterOffset): S = {
+                  val nominal = binding.constructor.construct(in, baseOffset)
+                  nominal.asInstanceOf[S]
+                }
+              },
+              deconstructor = new Deconstructor[S] {
+                def usedRegisters: RegisterOffset = totalRegisters
+
+                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: S): Unit =
+                  binding.deconstructor.deconstruct(out, baseOffset, in.asInstanceOf[A])
+              }
+            ),
+            doc = record.doc,
+            modifiers = record.modifiers
+          )
+        )
+
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Cannot transform non-record schema to structural type"
+        )
+    }
+
+  /**
+   * Transform a tuple schema to its structural equivalent.
+   */
+  def transformTupleSchema[A, S](schema: Schema[A]): Schema[S] =
+    schema.reflect match {
+      case _: Reflect.Record[Binding, A] @unchecked =>
+        transformProductSchema[A, S](schema)
+
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Cannot transform non-record schema to structural type"
+        )
+    }
+
+  /**
+   * Transform a sum type schema (sealed trait/enum) to its structural union
+   * type equivalent.
+   */
+  def transformSumTypeSchema[A, S](schema: Schema[A]): Schema[S] =
+    schema.reflect match {
+      case variant: Reflect.Variant[Binding, A] @unchecked =>
+        val binding = variant.variantBinding.asInstanceOf[Binding.Variant[A]]
+
+        val unionTypeName = variant.cases.map { case_ =>
+          val caseName   = case_.name
+          val caseFields = case_.value match {
+            case record: Reflect.Record[Binding, _] @unchecked =>
+              record.fields.map { field =>
+                (field.name, field.value.asInstanceOf[Reflect.Bound[Any]].typeName.name)
+              }.toList
+            case _ => Nil
+          }
+          normalizeUnionCaseTypeName(caseName, caseFields)
+        }.mkString("|")
+
+        val newMatchers = Matchers[S](
+          variant.cases.indices.map { idx =>
+            val originalMatcher = binding.matchers(idx)
+            new Matcher[S] {
+              def downcastOrNull(any: Any): S =
+                originalMatcher.downcastOrNull(any).asInstanceOf[S]
+            }
+          }: _*
+        )
+
+        new Schema[S](
+          new Reflect.Variant[Binding, S](
+            cases = variant.cases.map { case_ =>
+              case_.asInstanceOf[Term[Binding, S, ? <: S]]
+            },
+            typeName = new TypeName[S](new Namespace(Nil, Nil), unionTypeName, Nil),
+            variantBinding = new Binding.Variant[S](
+              discriminator = (s: S) => {
+                binding.discriminator.discriminate(s.asInstanceOf[A])
+              },
+              matchers = newMatchers
+            ),
+            doc = variant.doc,
+            modifiers = variant.modifiers
+          )
+        )
+
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Cannot transform non-variant schema to structural union type"
+        )
+    }
+
+  /**
+   * Generate a normalized type name for a structural type. Fields are sorted
+   * alphabetically for deterministic naming.
+   */
+  private def normalizeTypeName(fields: List[(String, String)]): String = {
+    val sorted = fields.sortBy(_._1)
+    sorted.map { case (name, typeName) =>
+      s"$name:${simplifyTypeName(typeName)}"
+    }.mkString("{", ",", "}")
+  }
+
+  /**
+   * Generate a normalized type name for a union case (includes Tag type
+   * member).
+   */
+  private def normalizeUnionCaseTypeName(tagName: String, fields: List[(String, String)]): String = {
+    val sorted     = fields.sortBy(_._1)
+    val tagPart    = s"""Tag:"$tagName""""
+    val fieldParts = sorted.map { case (name, typeName) =>
+      s"$name:${simplifyTypeName(typeName)}"
+    }
+    (tagPart :: fieldParts).mkString("{", ",", "}")
+  }
+
+  /**
+   * Simplify type names for display (e.g., "scala.Int" -> "Int")
+   */
+  private def simplifyTypeName(typeName: String): String =
+    typeName
+      .replace("scala.", "")
+      .replace("java.lang.", "")
+      .replace("Predef.", "")
+}

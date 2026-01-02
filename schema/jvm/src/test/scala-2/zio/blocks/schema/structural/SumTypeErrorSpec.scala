@@ -5,8 +5,8 @@ import zio.test._
 /**
  * Tests that sum types (sealed traits) produce compile-time errors in Scala 2.
  *
- * Sum types cannot be converted to structural types in Scala 2 because
- * they require union types, which are only available in Scala 3.
+ * Sum types cannot be converted to structural types in Scala 2 because they
+ * require union types, which are only available in Scala 3.
  */
 object SumTypeErrorSpec extends ZIOSpecDefault {
 
@@ -84,9 +84,9 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           assertTrue(
             result.isLeft,
             result.left.exists { msg =>
-              msg.contains("sum") || 
-              msg.contains("Sum") || 
-              msg.contains("union") || 
+              msg.contains("sum") ||
+              msg.contains("Sum") ||
+              msg.contains("union") ||
               msg.contains("sealed") ||
               msg.contains("Scala 3")
             }

@@ -8,8 +8,8 @@ trait SchemaVersionSpecific[A] { self: Schema[A] =>
   /**
    * Convert this schema to a structural type schema.
    *
-   * The structural type represents the "shape" of A without its nominal identity.
-   * This enables duck typing and structural validation.
+   * The structural type represents the "shape" of A without its nominal
+   * identity. This enables duck typing and structural validation.
    *
    * Example:
    * {{{
@@ -20,9 +20,10 @@ trait SchemaVersionSpecific[A] { self: Schema[A] =>
    *
    * Note: This is JVM-only due to reflection requirements for structural types.
    *
-   * @param ts Macro-generated conversion to structural representation
-   * @return Schema for the structural type corresponding to A
+   * @param ts
+   *   Macro-generated conversion to structural representation
+   * @return
+   *   Schema for the structural type corresponding to A
    */
   transparent inline def structural(using ts: ToStructural[A]): Schema[ts.StructuralType] = ts(this)
 }
-
