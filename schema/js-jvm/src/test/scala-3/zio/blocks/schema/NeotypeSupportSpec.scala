@@ -23,19 +23,13 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(Planet.name.focus.typeName)(
-        equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-        )
+        equalTo(TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name"))
       ) &&
       assert(Planet.mass.focus.typeName)(
-        equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-        )
+        equalTo(TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram"))
       ) &&
       assert(Planet.radius.focus.typeName)(
-        equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-        )
+        equalTo(TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter"))
       ) &&
       assert(Planet.distanceFromSun.focus.typeName)(
         equalTo(
@@ -181,8 +175,8 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
             SchemaError(
               errors = ::(
                 ExpectationMismatch(
-                  source = DynamicOptic(nodes =
-                    Vector(
+                  source = DynamicOptic(
+                    nodes = Vector(
                       DynamicOptic.Node.Field("responseTimes"),
                       DynamicOptic.Node.Elements,
                       DynamicOptic.Node.AtIndex(0)
@@ -199,12 +193,13 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     }
   )
 
+  inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
+    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
+
   type Name = Name.Type
 
   object Name extends Newtype[String] {
     override inline def validate(string: String): Boolean = string.length > 0
-
-    implicit val schema: Schema[Name] = Schema.derived.wrap(Name.make, _.unwrap)
   }
 
   type Kilogram = Kilogram.Type
@@ -258,9 +253,6 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     u: NUnit.Type,
     s: NString.Type
   )
-
-  inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
 
   type Id = Id.Type
 
