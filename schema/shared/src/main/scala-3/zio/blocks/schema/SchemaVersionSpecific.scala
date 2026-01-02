@@ -6,10 +6,10 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.quoted._
 import zio.blocks.schema.{Term => SchemaTerm}
+import zio.blocks.typeid._
 import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps
-import zio.blocks.schema.TypeIdOps._
 
 trait SchemaVersionSpecific {
   inline def derived[A]: Schema[A] = ${ SchemaVersionSpecificImpl.derived }
@@ -211,33 +211,87 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         }
     )
 
-  private val typeNameCache = new mutable.HashMap[TypeRepr, TypeName[?]]
 
-  private def typeName[T: Type](tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil): TypeName[T] = {
-    def calculateTypeName(tpe: TypeRepr): TypeName[?] =
-      if (tpe =:= TypeRepr.of[java.lang.String]) TypeName.string
+  private def typeIdExpr[T: Type](tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil)(using Quotes): Expr[TypeId[T]] = {
+    def calculateTypeId(tpe: TypeRepr, nested: List[TypeRepr]): Expr[TypeId[Any]] = {
+      if (tpe =:= TypeRepr.of[Int]) '{ TypeId.int.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[String]) '{ TypeId.string.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Boolean]) '{ TypeId.boolean.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Long]) '{ TypeId.long.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Double]) '{ TypeId.double.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Float]) '{ TypeId.float.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Byte]) '{ TypeId.byte.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Short]) '{ TypeId.short.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Char]) '{ TypeId.char.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[Unit]) '{ TypeId.unit.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[BigInt]) '{ TypeId.bigInt.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[BigDecimal]) '{ TypeId.bigDecimal.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.LocalDate]) '{ TypeId.localDate.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.LocalTime]) '{ TypeId.localTime.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.LocalDateTime]) '{ TypeId.localDateTime.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.Instant]) '{ TypeId.instant.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.ZoneOffset]) '{ TypeId.zoneOffset.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.ZoneId]) '{ TypeId.zoneId.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.ZonedDateTime]) '{ TypeId.zonedDateTime.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.OffsetTime]) '{ TypeId.offsetTime.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.OffsetDateTime]) '{ TypeId.offsetDateTime.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.Duration]) '{ TypeId.duration.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.Period]) '{ TypeId.period.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.MonthDay]) '{ TypeId.monthDay.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.Year]) '{ TypeId.year.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.YearMonth]) '{ TypeId.yearMonth.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.Month]) '{ TypeId.month.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.time.DayOfWeek]) '{ TypeId.dayOfWeek.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.util.UUID]) '{ TypeId.uuid.asInstanceOf[TypeId[Any]] }
+      else if (tpe =:= TypeRepr.of[java.util.Currency]) '{ TypeId.currency.asInstanceOf[TypeId[Any]] }
+      else if (isList(tpe) && typeArgs(tpe).nonEmpty) {
+         val arg = typeArgs(tpe).head
+         '{ TypeId.list(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
+      }
+      else if (isOption(tpe) && typeArgs(tpe).nonEmpty) {
+         val arg = typeArgs(tpe).head
+         '{ TypeId.option(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
+      }
+      else if (isVector(tpe) && typeArgs(tpe).nonEmpty) {
+         val arg = typeArgs(tpe).head
+         '{ TypeId.vector(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
+      }
+      else if (isSet(tpe) && typeArgs(tpe).nonEmpty) {
+         val arg = typeArgs(tpe).head
+         '{ TypeId.set(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
+      }
+      else if (isMap(tpe) && typeArgs(tpe).size == 2) {
+         val args = typeArgs(tpe)
+         val k = args.head
+         val v = args.last
+         '{ TypeId.map(${calculateTypeId(k, k :: nested)}, ${calculateTypeId(v, v :: nested)}).asInstanceOf[TypeId[Any]] }
+      }
       else {
-        var packages: List[String] = Nil
-        var values: List[String]   = Nil
-        var name: String           = null
-        val isUnionTpe             = isUnion(tpe)
+        var segments: List[Expr[Owner.Segment]] = Nil
+        var name: String                        = null
+        val isUnionTpe                          = isUnion(tpe)
         if (isUnionTpe) name = "|"
         else {
           val tpeTypeSymbol = tpe.typeSymbol
           name = tpeTypeSymbol.name
           if (isEnumValue(tpe)) {
-            values = name :: values
+            segments = '{ Owner.Term(${Expr(name)}) } :: segments
             name = tpe.termSymbol.name
           } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-          var owner = tpeTypeSymbol.owner
-          while (owner != defn.RootClass) {
-            val ownerName = owner.name
-            if (owner.flags.is(Flags.Package)) packages = ownerName :: packages
-            else if (owner.flags.is(Flags.Module)) values = ownerName.substring(0, ownerName.length - 1) :: values
-            else values = ownerName :: values
-            owner = owner.owner
+          
+          var owner = 
+            if (isEnumValue(tpe)) tpeTypeSymbol.owner // We already added the enum type as a segment
+            else tpeTypeSymbol.owner
+            
+          while (owner != defn.RootClass && owner != Symbol.noSymbol) {
+             val ownerName = owner.name
+             if (owner.flags.is(Flags.Package)) segments = '{ Owner.Package(${Expr(ownerName)}) } :: segments
+             else if (owner.flags.is(Flags.Module)) segments = '{ Owner.Term(${Expr(ownerName.stripSuffix("$"))}) } :: segments
+             else segments = '{ Owner.Term(${Expr(ownerName)}) } :: segments
+             owner = owner.owner
           }
         }
+        
         val tpeTypeArgs =
           if (isUnionTpe) allUnionTypes(tpe)
           else if (isNamedTuple(tpe)) {
@@ -261,36 +315,41 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             else typeArgs(tTpe)
           } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
           else typeArgs(tpe)
-        new TypeName(
-          new Namespace(packages, values),
-          name,
-          tpeTypeArgs.map { x =>
-            if (nestedTpes.contains(x)) typeName[Any](anyTpe)
-            else typeName(x, x :: nestedTpes)
-          }
-        )
+
+         val ownerExpr = if (segments.isEmpty) '{ Owner.Root } else '{ Owner(List(${Varargs(segments)}*)) }
+         val nameExpr = Expr(name)
+         
+         val base = '{ TypeId.nominal(${nameExpr}, ${ownerExpr}) }
+         
+         if (tpeTypeArgs.isEmpty) base.asInstanceOf[Expr[TypeId[Any]]]
+         else {
+             val argsExprs = tpeTypeArgs.map { x =>
+               if (nested.contains(x)) calculateTypeId(anyTpe, nested)
+               else calculateTypeId(x, x :: nested)
+             }
+             '{ TypeId.applied($base, List(${Varargs(argsExprs)}*)).asInstanceOf[TypeId[Any]] }
+         }
       }
-
-    typeNameCache
-      .getOrElseUpdate(
-        tpe,
-        calculateTypeName(tpe match {
-          case TypeRef(compTpe, "Type") => compTpe
-          case _                        => tpe
-        })
-      )
-      .asInstanceOf[TypeName[T]]
+    }
+    
+    val t = tpe match {
+      case TypeRef(compTpe, "Type") => compTpe
+      case _                        => tpe
+    }
+    
+    // We cannot cache Exprs globally easily without WeakHashMaps and implicit Quotes matching which is tricky.
+    // For now we re-generate. The compiler might optimize common subexpressions.
+    calculateTypeId(t, nestedTpes).asTerm.asExpr match {
+      case '{ $res: TypeId[Any] } => '{ $res.asInstanceOf[TypeId[T]] }
+    }
   }
 
-  private def toExpr[T: Type](tpeName: TypeName[T])(using Quotes): Expr[TypeName[T]] = {
-    val packages = Varargs(tpeName.namespace.packages.map(Expr(_)))
-    val vs       = tpeName.namespace.values
-    val values   = if (vs.isEmpty) '{ Nil } else Varargs(vs.map(Expr(_)))
-    val name     = Expr(tpeName.name)
-    val ps       = tpeName.params
-    val params   = if (ps.isEmpty) '{ Nil } else Varargs(ps.map(param => toExpr(param.asInstanceOf[TypeName[T]])))
-    '{ new TypeName[T](new Namespace($packages, $values), $name, $params) }
-  }
+  private def isVector(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[Vector[?]]
+  private def isSet(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[Set[?]]
+  private def isMap(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[Map[?, ?]]
+  private def isList(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[List[?]]
+
+
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
     if (isEnumValue(tpe)) tpe.termSymbol
@@ -673,13 +732,13 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           case '[et] =>
             val schema   = findImplicitOrDeriveSchema[et](eTpe)
             val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[Array[et]](tpe))
+            val tpeName  = typeIdExpr[Array[et]](tpe)
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeId = $tpeName.copy(params = List($schema.reflect.typeName)).toTypeId,
+                  typeId = $tpeName.asInstanceOf[TypeId[Array[et]]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
                       override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -697,13 +756,13 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           case '[et] =>
             val schema   = findImplicitOrDeriveSchema[et](eTpe)
             val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[IArray[et]](tpe))
+            val tpeName  = typeIdExpr[IArray[et]](tpe)
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeId = $tpeName.copy(params = List($schema.reflect.typeName)).toTypeId,
+                  typeId = $tpeName.asInstanceOf[TypeId[IArray[et]]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
                       override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -721,13 +780,13 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           case '[et] =>
             val schema   = findImplicitOrDeriveSchema[et](eTpe)
             val classTag = summonClassTag[et]
-            val tpeName  = toExpr(typeName[ArraySeq[et]](tpe))
+            val tpeName  = typeIdExpr[ArraySeq[et]](tpe)
             '{
               implicit val ct: ClassTag[et] = $classTag
               new Schema(
                 reflect = new Reflect.Sequence(
                   element = $schema.reflect,
-                  typeId = $tpeName.copy(params = List($schema.reflect.typeName)).toTypeId,
+                  typeId = $tpeName.asInstanceOf[TypeId[ArraySeq[et]]],
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
                       override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
@@ -796,12 +855,12 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
             else new ClassInfo[tt](tTpe)
           val fields  = typeInfo.fields[tt](Array.empty[String])
-          val tpeName = toExpr(typeName[tt](tTpe))
+          val tpeName = typeIdExpr[tt](tTpe)
           '{
             new Schema(
               reflect = new Reflect.Record[Binding, tt](
                 fields = Vector($fields*),
-                typeId = $tpeName.toTypeId,
+                typeId = $tpeName,
                 recordBinding = new Binding.Record(
                   constructor = new Constructor[tt] {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -866,12 +925,12 @@ private class SchemaVersionSpecificImpl(using Quotes) {
             if (isGenericTuple(tTpe)) new GenericTupleInfo[tt](tTpe)
             else new ClassInfo[tt](tTpe)
           val fields  = typeInfo.fields[T](nameOverrides)
-          val tpeName = toExpr(typeName[T](tpe))
+          val tpeName = typeIdExpr[T](tpe)
           '{
             new Schema(
               reflect = new Reflect.Record[Binding, T](
                 fields = Vector($fields*),
-                typeId = $tpeName.toTypeId,
+                typeId = $tpeName,
                 recordBinding = new Binding.Record(
                   constructor = new Constructor {
                     def usedRegisters: RegisterOffset = ${ typeInfo.usedRegisters }
@@ -903,16 +962,16 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       sTpe.asType match {
         case '[s] =>
           val schema  = findImplicitOrDeriveSchema[s](sTpe)
-          val tpeName = toExpr(typeName[T](tpe).asInstanceOf[TypeName[s]])
-          '{ new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[T]] }
+          val tpeName = typeIdExpr[T](tpe)
+          '{ new Schema($schema.reflect.typeId($tpeName.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
       }
     } else if (isZioPreludeNewtype(tpe)) {
       val sTpe = zioPreludeNewtypeDealias(tpe)
       sTpe.asType match {
         case '[s] =>
           val schema  = findImplicitOrDeriveSchema[s](sTpe)
-          val tpeName = toExpr(typeName[T](tpe).asInstanceOf[TypeName[s]])
-          '{ new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[T]] }
+          val tpeName = typeIdExpr[T](tpe)
+          '{ new Schema($schema.reflect.typeId($tpeName.asInstanceOf[TypeId[s]])).asInstanceOf[Schema[T]] }
       }
     } else if (isTypeRef(tpe)) {
       val sTpe = typeRefDealias(tpe)
@@ -921,12 +980,12 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   }.asInstanceOf[Expr[Schema[T]]]
 
   private def deriveSchemaForEnumOrModuleValue[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
-    val tpeName = toExpr(typeName(tpe))
+    val tpeName = typeIdExpr[T](tpe)
     '{
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector.empty,
-          typeId = $tpeName.toTypeId,
+          typeId = $tpeName,
           recordBinding = new Binding.Record(
             constructor = new ConstantConstructor(${
               Ref(
@@ -946,12 +1005,12 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   private def deriveSchemaForNonAbstractScalaClass[T: Type](tpe: TypeRepr)(using Quotes): Expr[Schema[T]] = {
     val classInfo = new ClassInfo(tpe)
     val fields    = classInfo.fields(Array.empty[String])
-    val tpeName   = toExpr(typeName(tpe))
+    val tpeName   = typeIdExpr[T](tpe)
     '{
       new Schema(
         reflect = new Reflect.Record[Binding, T](
           fields = Vector($fields*),
-          typeId = $tpeName.toTypeId,
+          typeId = $tpeName,
           recordBinding = new Binding.Record(
             constructor = new Constructor {
               def usedRegisters: RegisterOffset = ${ classInfo.usedRegisters }
@@ -982,7 +1041,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       if (isUnion(tpe)) allUnionTypes(tpe)
       else directSubTypes(tpe)
     if (subtypes.isEmpty) fail(s"Cannot find sub-types for ADT base '${tpe.show}'.")
-    val fullTermNames         = subtypes.map(sTpe => toFullTermName(typeName(sTpe)))
+    val fullTermNames         = subtypes.map(sTpe => toFullTermName(sTpe))
     val maxCommonPrefixLength = {
       val minFullTermName = fullTermNames.min
       val maxFullTermName = fullTermNames.max
@@ -1022,12 +1081,12 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           }.asInstanceOf[Expr[Matcher[? <: T]]]
       }
     })
-    val tpeName = toExpr(typeName(tpe))
+    val tpeName = typeIdExpr[T](tpe)
     '{
       new Schema(
         reflect = new Reflect.Variant[Binding, T](
           cases = Vector($cases*),
-          typeId = $tpeName.toTypeId,
+          typeId = $tpeName,
           variantBinding = new Binding.Variant(
             discriminator = new Discriminator {
               def discriminate(a: T): Int = ${
@@ -1052,21 +1111,37 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     }
   }
 
-  private def toFullTermName(tpeName: TypeName[?]): Array[String] = {
-    val packages     = tpeName.namespace.packages
-    val values       = tpeName.namespace.values
-    val fullTermName = new Array[String](packages.size + values.size + 1)
-    var idx          = 0
-    packages.foreach { p =>
-      fullTermName(idx) = p
-      idx += 1
+  private def toFullTermName(tpe: TypeRepr): Array[String] = {
+    var segments: List[String] = Nil
+    var name: String           = null
+    val isUnionTpe             = isUnion(tpe)
+    if (isUnionTpe) name = "|"
+    else {
+      val tpeTypeSymbol = tpe.typeSymbol
+      name = tpeTypeSymbol.name
+      if (isEnumValue(tpe)) {
+        segments = name :: segments
+        name = tpe.termSymbol.name
+      } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
+          
+      var owner = 
+        if (isEnumValue(tpe)) tpeTypeSymbol.owner 
+        else tpeTypeSymbol.owner
+            
+      while (owner != defn.RootClass && owner != Symbol.noSymbol) {
+         val ownerName = owner.name
+         if (owner.flags.is(Flags.Module)) {
+           val stripped = ownerName.stripSuffix("$")
+           if (stripped != "scala" && stripped != "Predef") segments = stripped :: segments
+         } else if (owner.flags.is(Flags.Package)) {
+             if (ownerName != "scala" && ownerName != "java" && ownerName != "lang") segments = ownerName :: segments
+         } else {
+             segments = ownerName :: segments
+         }
+         owner = owner.owner
+      }
     }
-    values.foreach { p =>
-      fullTermName(idx) = p
-      idx += 1
-    }
-    fullTermName(idx) = tpeName.name
-    fullTermName
+    (segments :+ name).toArray
   }
 
   private def toShortTermName(fullName: Array[String], from: Int): String = {
@@ -1083,7 +1158,7 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   private def cannotDeriveSchema(tpe: TypeRepr): Nothing = fail(s"Cannot derive schema for '${tpe.show}'.")
 
   def derived[A: Type]: Expr[Schema[A]] = {
-    val aTpe        = TypeRepr.of[A].dealias
+    val aTpe        = TypeRepr.of[A]
     val schema      = aTpe.asType match { case '[a] => deriveSchema[a](aTpe) }
     val schemaBlock = Block(schemaDefs.toList, schema.asTerm).asExpr.asInstanceOf[Expr[Schema[A]]]
     // report.info(s"Generated schema:\n${schemaBlock.show}", Position.ofMacroExpansion)
