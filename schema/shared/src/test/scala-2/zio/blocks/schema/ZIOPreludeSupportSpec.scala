@@ -1,4 +1,5 @@
 package zio.blocks.schema
+import zio.blocks.typeid.TypeId
 
 import zio.blocks.schema.binding.Binding
 import zio.prelude.{Newtype, Subtype}
@@ -21,26 +22,24 @@ object ZIOPreludeSupportSpec extends ZIOSpecDefault {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
+      assert(Planet.name.focus.typeId)(
         equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Name")
+          TypeId.parse("zio.blocks.schema.ZIOPreludeSupportSpec.Name")
         )
       ) &&
-      assert(Planet.mass.focus.typeName)(
+      assert(Planet.mass.focus.typeId)(
         equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Kilogram")
+          TypeId.parse("zio.blocks.schema.ZIOPreludeSupportSpec.Kilogram")
         )
       ) &&
-      assert(Planet.radius.focus.typeName)(
+      assert(Planet.radius.focus.typeId)(
         equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
+          TypeId.parse("zio.blocks.schema.ZIOPreludeSupportSpec.Meter")
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(Planet.distanceFromSun.focus.typeId)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("ZIOPreludeSupportSpec")), "Meter")
-          )
+          TypeId.parse("scala.Option[zio.blocks.schema.ZIOPreludeSupportSpec.Meter]")
         )
       )
     },

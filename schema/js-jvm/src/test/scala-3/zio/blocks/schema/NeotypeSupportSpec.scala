@@ -22,26 +22,24 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
         equalTo(new Planet(Name("Earth"), Kilogram(5.970001e24), Meter(6378000.0), Some(Meter(1.5e15))))
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
-      assert(Planet.name.focus.typeName)(
+      assert(Planet.name.focus.typeId.toString)(
         equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
+          "zio.blocks.schema.NeotypeSupportSpec.Name"
         )
       ) &&
-      assert(Planet.mass.focus.typeName)(
+      assert(Planet.mass.focus.typeId.toString)(
         equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
+          "zio.blocks.schema.NeotypeSupportSpec.Kilogram"
         )
       ) &&
-      assert(Planet.radius.focus.typeName)(
+      assert(Planet.radius.focus.typeId.toString)(
         equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
+          "zio.blocks.schema.NeotypeSupportSpec.Meter"
         )
       ) &&
-      assert(Planet.distanceFromSun.focus.typeName)(
+      assert(Planet.distanceFromSun.focus.typeId.toString)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
+          "scala.Option[neotype.Newtype.Type]"
         )
       )
     },
@@ -74,32 +72,24 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
+      assert(schema1.reflect.typeId.toString)(
         equalTo(
-          TypeName.option(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
+          "scala.Option[neotype.Newtype.Type]"
         )
       ) &&
-      assert(schema2.reflect.typeName)(
+      assert(schema2.reflect.typeId.toString)(
         equalTo(
-          TypeName.option(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-          )
+          "scala.Option[neotype.Subtype.Type]"
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(schema3.reflect.typeId.toString)(
         equalTo(
-          TypeName.option(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
+          "scala.Option[neotype.Newtype.Type]"
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(schema4.reflect.typeId.toString)(
         equalTo(
-          TypeName.option(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId")
-          )
+          "scala.Option[neotype.Subtype.Type]"
         )
       )
     },
@@ -116,33 +106,24 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       assert(schema2.fromDynamicValue(schema2.toDynamicValue(value2)))(isRight(equalTo(value2))) &&
       assert(schema3.fromDynamicValue(schema3.toDynamicValue(value3)))(isRight(equalTo(value3))) &&
       assert(schema4.fromDynamicValue(schema4.toDynamicValue(value4)))(isRight(equalTo(value4))) &&
-      assert(schema1.reflect.typeName)(
+      assert(schema1.reflect.typeId.toString)(
         equalTo(
-          TypeName.list(
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
+          "scala.collection.immutable.List[zio.blocks.schema.NeotypeSupportSpec.Name]"
         )
       ) &&
-      assert(schema2.reflect.typeName)(
+      assert(schema2.reflect.typeId.toString)(
         equalTo(
-          TypeName.vector(
-            TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-          )
+          "scala.collection.immutable.Vector[zio.blocks.schema.NeotypeSupportSpec.Kilogram]"
         )
       ) &&
-      assert(schema3.reflect.typeName)(
+      assert(schema3.reflect.typeId.toString)(
         equalTo(
-          TypeName.set(
-            TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-          )
+          "scala.collection.immutable.Set[zio.blocks.schema.NeotypeSupportSpec.Meter]"
         )
       ) &&
-      assert(schema4.reflect.typeName)(
+      assert(schema4.reflect.typeId.toString)(
         equalTo(
-          TypeName.map(
-            TypeName[EmojiDataId](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "EmojiDataId"),
-            TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-          )
+          "scala.collection.immutable.Map[zio.blocks.schema.NeotypeSupportSpec.EmojiDataId, zio.blocks.schema.NeotypeSupportSpec.Name]"
         )
       )
     },
