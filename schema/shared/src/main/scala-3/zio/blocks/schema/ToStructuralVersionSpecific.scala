@@ -37,12 +37,13 @@ private[schema] object ToStructuralMacro {
       deriveForProduct[A](aTpe)
     } else if (isTupleType(aTpe)) {
       deriveForTuple[A](aTpe)
+    } else if (isSumType(aTpe)) {
+      deriveForSumType[A](aTpe)
     } else {
       report.errorAndAbort(
         s"""Cannot generate ToStructural for ${aTpe.show}.
            |
-           |Only product types (case classes) and tuples are currently supported.
-           |Sum types (sealed traits) require Scala 3 union types.""".stripMargin
+           |Only product types (case classes), tuples, and sum types (sealed traits/enums) are supported.""".stripMargin
       )
     }
   }
@@ -62,26 +63,44 @@ private[schema] object ToStructuralMacro {
     tpe.typeSymbol.fullName.startsWith("scala.Tuple")
   }
 
+  private def isSumType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
+    import quotes.reflect.*
+    tpe.classSymbol.exists { sym =>
+      val flags = sym.flags
+      // Sealed traits and sealed abstract classes
+      val isSealedTrait = flags.is(Flags.Sealed) && flags.is(Flags.Trait)
+      val isSealedAbstract = flags.is(Flags.Sealed) && flags.is(Flags.Abstract)
+      // Scala 3 enums are also handled
+      val isEnum = flags.is(Flags.Enum) && !flags.is(Flags.Case)
+      isSealedTrait || isSealedAbstract || isEnum
+    }
+  }
+
   private def isRecursiveType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
     import quotes.reflect.*
 
     def containsType(searchIn: TypeRepr, searchFor: TypeRepr, visited: Set[TypeRepr]): Boolean = {
-      if (visited.contains(searchIn.dealias)) return false
-      val newVisited = visited + searchIn.dealias
+      val dealiased = searchIn.dealias
+      if (visited.contains(dealiased)) return false
+      val newVisited = visited + dealiased
 
-      if (searchIn.dealias =:= searchFor.dealias) return true
+      if (dealiased =:= searchFor.dealias) return true
 
-      searchIn.dealias match {
-        case AppliedType(_, args) =>
+      // Check type arguments (for List[T], Option[T], etc.)
+      val typeArgsContain = dealiased match {
+        case AppliedType(_, args) if args.nonEmpty =>
           args.exists(arg => containsType(arg, searchFor, newVisited))
-        case _ =>
-          // Check fields of product types
-          searchIn.classSymbol.toList.flatMap { sym =>
-            sym.primaryConstructor.paramSymss.flatten.filter(!_.isTypeParam).map { param =>
-              searchIn.memberType(param).dealias
-            }
-          }.exists(fieldTpe => containsType(fieldTpe, searchFor, newVisited))
+        case _ => false
       }
+
+      if (typeArgsContain) return true
+
+      // Check fields of product types (case classes)
+      dealiased.classSymbol.toList.flatMap { sym =>
+        sym.primaryConstructor.paramSymss.flatten.filter(!_.isTypeParam).map { param =>
+          dealiased.memberType(param).dealias
+        }
+      }.exists(fieldTpe => containsType(fieldTpe, searchFor, newVisited))
     }
 
     // Check if any field type contains the original type
@@ -167,6 +186,85 @@ private[schema] object ToStructuralMacro {
       // Create a MethodType for a no-arg method returning fieldTpe
       val methodType = MethodType(Nil)(_ => Nil, _ => fieldTpe)
       Refinement(parent, fieldName, methodType)
+    }
+  }
+
+  private def buildStructuralTypeWithTag(using Quotes)(tagName: String, fields: List[(String, quotes.reflect.TypeRepr)]): quotes.reflect.TypeRepr = {
+    import quotes.reflect.*
+
+    // Start with AnyRef (Object) as the base
+    val baseTpe = TypeRepr.of[AnyRef]
+
+    // Add the Tag type member first
+    val tagLiteralType = ConstantType(StringConstant(tagName))
+    val withTag = Refinement(baseTpe, "Tag", TypeBounds(tagLiteralType, tagLiteralType))
+
+    // Build refinements for each field (as def members)
+    fields.foldLeft(withTag) { case (parent, (fieldName, fieldTpe)) =>
+      // Create a MethodType for a no-arg method returning fieldTpe
+      val methodType = MethodType(Nil)(_ => Nil, _ => fieldTpe)
+      Refinement(parent, fieldName, methodType)
+    }
+  }
+
+  private def deriveForSumType[A: Type](using Quotes)(aTpe: quotes.reflect.TypeRepr): Expr[ToStructural[A]] = {
+    import quotes.reflect.*
+
+    val classSymbol = aTpe.classSymbol.getOrElse(
+      report.errorAndAbort(s"${aTpe.show} is not a class type")
+    )
+
+    // Get all case classes/objects that extend this sealed trait/enum
+    val children = classSymbol.children.toList.sortBy(_.name)
+
+    if (children.isEmpty) {
+      report.errorAndAbort(s"Sum type ${aTpe.show} has no cases")
+    }
+
+    // Build structural types for each case
+    val caseTypes: List[TypeRepr] = children.map { childSym =>
+      val childTpe = if (childSym.flags.is(Flags.Module)) {
+        // Case object - its type is its singleton type
+        childSym.termRef
+      } else {
+        // Case class
+        aTpe.memberType(childSym).dealias
+      }
+
+      val caseName = childSym.name
+
+      // Get fields for this case
+      val fields: List[(String, TypeRepr)] = if (childSym.flags.is(Flags.Module)) {
+        // Case object has no fields
+        Nil
+      } else {
+        childSym.primaryConstructor.paramSymss.flatten
+          .filter(!_.isTypeParam)
+          .map { param =>
+            val fieldName = param.name
+            val fieldType = childTpe.memberType(param).dealias
+            (fieldName, fieldType)
+          }
+      }
+
+      buildStructuralTypeWithTag(caseName, fields)
+    }
+
+    // Build union type from all case types
+    val unionType = caseTypes.reduceLeft { (acc, tpe) =>
+      OrType(acc, tpe)
+    }
+
+    unionType.asType match {
+      case '[s] =>
+        '{
+          new ToStructural[A] {
+            type StructuralType = s
+            def apply(schema: Schema[A]): Schema[s] = {
+              ToStructuralRuntime.transformSumTypeSchema[A, s](schema)
+            }
+          }
+        }
     }
   }
 }
