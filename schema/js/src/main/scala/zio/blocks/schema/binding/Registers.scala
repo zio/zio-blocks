@@ -45,12 +45,12 @@ class Registers private (userRegister: RegisterOffset) {
     val bytes = this.bytes
     (bytes(idx) & 0xff |
       (bytes(idx + 1) & 0xff) << 8 |
-      (bytes(idx + 2) & 0xff) << 16).toLong |
-      (bytes(idx + 3) & 0xff).toLong << 24 |
-      (bytes(idx + 4) & 0xff).toLong << 32 |
-      (bytes(idx + 5) & 0xff).toLong << 40 |
-      (bytes(idx + 6) & 0xff).toLong << 48 |
-      (bytes(idx + 7) & 0xff).toLong << 56
+      (bytes(idx + 2) & 0xff) << 16 |
+      bytes(idx + 3) << 24) & 0xffffffffL |
+      (bytes(idx + 4) & 0xff |
+        (bytes(idx + 5) & 0xff) << 8 |
+        (bytes(idx + 6) & 0xff) << 16 |
+        bytes(idx + 7) << 24).toLong << 32
   }
 
   @inline
@@ -69,12 +69,12 @@ class Registers private (userRegister: RegisterOffset) {
     java.lang.Double.longBitsToDouble(
       (bytes(idx) & 0xff |
         (bytes(idx + 1) & 0xff) << 8 |
-        (bytes(idx + 2) & 0xff) << 16).toLong |
-        (bytes(idx + 3) & 0xff).toLong << 24 |
-        (bytes(idx + 4) & 0xff).toLong << 32 |
-        (bytes(idx + 5) & 0xff).toLong << 40 |
-        (bytes(idx + 6) & 0xff).toLong << 48 |
-        (bytes(idx + 7) & 0xff).toLong << 56
+        (bytes(idx + 2) & 0xff) << 16 |
+        bytes(idx + 3) << 24) & 0xffffffffL |
+        (bytes(idx + 4) & 0xff |
+          (bytes(idx + 5) & 0xff) << 8 |
+          (bytes(idx + 6) & 0xff) << 16 |
+          bytes(idx + 7) << 24).toLong << 32
     )
   }
 
