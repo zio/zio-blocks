@@ -70,8 +70,8 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
         NUnit(()),
         NString("VVV")
       )
-      val schema = Schema.derived[NRecord]
-      assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      assert(NRecord.schema.fromDynamicValue(NRecord.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":null,"s":"VVV"}""")
     },
     test("derive schemas for options with newtypes and subtypes") {
       val schema1 = Schema.derived[Option[Name]]
@@ -246,23 +246,41 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     val name_wrapped: Optional[Planet, String]       = $(_.name.wrapped[String])
   }
 
-  object NInt extends Newtype[Int]
+  object NInt extends Newtype[Int] {
+    override inline def validate(value: Int): Boolean = value >= 0
+  }
 
-  object NFloat extends Newtype[Float]
+  object NFloat extends Newtype[Float] {
+    override inline def validate(value: Float): Boolean = value >= 0.0f
+  }
 
-  object NLong extends Newtype[Long]
+  object NLong extends Newtype[Long] {
+    override inline def validate(value: Long): Boolean = value >= 0L
+  }
 
-  object NDouble extends Newtype[Double]
+  object NDouble extends Newtype[Double] {
+    override inline def validate(value: Double): Boolean = value >= 0.0
+  }
 
-  object NBoolean extends Newtype[Boolean]
+  object NBoolean extends Newtype[Boolean] {
+    override inline def validate(value: Boolean): Boolean = value
+  }
 
-  object NByte extends Newtype[Byte]
+  object NByte extends Newtype[Byte] {
+    override inline def validate(value: Byte): Boolean = value >= 0
+  }
 
-  object NChar extends Newtype[Char]
+  object NChar extends Newtype[Char] {
+    override inline def validate(value: Char): Boolean = value >= ' '
+  }
 
-  object NShort extends Newtype[Short]
+  object NShort extends Newtype[Short] {
+    override inline def validate(value: Short): Boolean = value >= 0
+  }
 
-  object NUnit extends Newtype[Unit]
+  object NUnit extends Newtype[Unit] {
+    override inline def validate(value: Unit): Boolean = true
+  }
 
   object NString extends Newtype[String]
 
@@ -278,6 +296,10 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     u: NUnit.Type,
     s: NString.Type
   )
+
+  object NRecord {
+    implicit val schema: Schema[NRecord] = Schema.derived
+  }
 
   type Id = Id.Type
 
