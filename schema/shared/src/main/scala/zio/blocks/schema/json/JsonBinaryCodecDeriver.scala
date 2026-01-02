@@ -1831,7 +1831,18 @@ class JsonBinaryCodecDeriver private[json] (
       if (wrapper.wrapperBinding.isInstanceOf[Binding[?, ?]]) {
         val binding = wrapper.wrapperBinding.asInstanceOf[Binding.Wrapper[A, Wrapped]]
         val codec   = deriveCodec(wrapper.wrapped).asInstanceOf[JsonBinaryCodec[Wrapped]]
-        new JsonBinaryCodec[A]() {
+        new JsonBinaryCodec[A](wrapper.wrapperPrimitiveType.fold(JsonBinaryCodec.objectType) {
+          case _: PrimitiveType.Boolean   => JsonBinaryCodec.booleanType
+          case _: PrimitiveType.Byte      => JsonBinaryCodec.byteType
+          case _: PrimitiveType.Char      => JsonBinaryCodec.charType
+          case _: PrimitiveType.Short     => JsonBinaryCodec.shortType
+          case _: PrimitiveType.Float     => JsonBinaryCodec.floatType
+          case _: PrimitiveType.Int       => JsonBinaryCodec.intType
+          case _: PrimitiveType.Double    => JsonBinaryCodec.doubleType
+          case _: PrimitiveType.Long      => JsonBinaryCodec.longType
+          case _: PrimitiveType.Unit.type => JsonBinaryCodec.unitType
+          case _                          => JsonBinaryCodec.objectType
+        }) {
           private[this] val unwrap       = binding.unwrap
           private[this] val wrap         = binding.wrap
           private[this] val wrappedCodec = codec

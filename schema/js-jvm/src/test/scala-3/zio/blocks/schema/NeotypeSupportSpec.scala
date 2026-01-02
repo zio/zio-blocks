@@ -3,6 +3,7 @@ package zio.blocks.schema
 import neotype._
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.Binding
+import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
 import zio.test._
 
@@ -37,6 +38,19 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
             TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
           )
         )
+      ) &&
+      roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
+      decodeError[Planet](
+        """{"name":"","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
+        "Validation Failed at: .name"
+      ) &&
+      decodeError[Planet](
+        """{"name":"Earth","mass":5.97E24,"radius":-6378000.0,"distanceFromSun":1.5E15}""",
+        "Validation Failed at: .radius"
+      ) &&
+      decodeError[Planet](
+        """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":-1.5E15}""",
+        "Validation Failed at: .distanceFromSun.when[Some].value"
       )
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
@@ -208,7 +222,9 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
 
   type Meter = Meter.Type
 
-  object Meter extends Newtype[Double]
+  object Meter extends Newtype[Double] {
+    override inline def validate(value: Double): Boolean = value >= 0.0
+  }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
 
