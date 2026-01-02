@@ -373,6 +373,101 @@ private object SchemaCompanionVersionSpecific {
       })
     }
 
+    // Check if a type is a structural (refinement) type
+    def isStructuralType(tpe: Type): Boolean = tpe.dealias match {
+      case RefinedType(_, _)                                  => true
+      case t if t =:= definitions.AnyRefTpe                   => true // Empty structural type {}
+      case t if t.typeSymbol.fullName == "java.lang.Object"   => true // java.lang.Object treated as empty structural
+      case _                                                  => false
+    }
+
+    // Check if a type extends scala.Dynamic
+    def isDynamicType(tpe: Type): Boolean =
+      tpe <:< typeOf[scala.Dynamic]
+
+    // Get the Dynamic base class if any
+    def getDynamicBaseClass(tpe: Type): Option[Type] = {
+      if (isDynamicType(tpe)) {
+        tpe.dealias match {
+          case RefinedType(parents, _) =>
+            parents.find(p => p <:< typeOf[scala.Dynamic] && p.typeSymbol.isClass)
+          case t if t <:< typeOf[scala.Dynamic] =>
+            Some(t)
+          case _ =>
+            None
+        }
+      } else None
+    }
+
+    // Find a Map[String, Any] constructor or companion apply method
+    def findMapConstructorOrApply(tpe: Type): Option[(Tree, MethodSymbol, Boolean)] = {
+      val mapStringAnyType = typeOf[Map[String, Any]]
+
+      // Look for a constructor taking Map[String, Any]
+      val constructors = tpe.typeSymbol.asClass.primaryConstructor.asMethod.paramLists.flatten
+      if (constructors.length == 1 && constructors.head.typeSignature <:< mapStringAnyType) {
+        return Some((q"new ${tpe.typeSymbol}", constructors.head.asMethod, false))
+      }
+
+      // Look for companion apply taking Map[String, Any]
+      val comp = companion(tpe)
+      if (comp != NoSymbol) {
+        val applyMethods = comp.typeSignature.members.filter(m => m.isMethod && m.name.toString == "apply")
+        applyMethods.foreach { method =>
+          val params = method.asMethod.paramLists.flatten
+          if (params.length == 1 && params.head.typeSignature <:< mapStringAnyType) {
+            return Some((q"$comp", method.asMethod, true))
+          }
+        }
+      }
+
+      None
+    }
+
+    // Get structural type members (def name: Type refinements)
+    def getStructuralMembers(tpe: Type): List[(String, Type)] = tpe.dealias match {
+      case RefinedType(_, scope) =>
+        scope.collect {
+          case m: MethodSymbol if m.isAbstract && m.paramLists.isEmpty =>
+            (m.name.toString, m.returnType)
+        }.toList.sortBy(_._1)
+      case _ => Nil
+    }
+
+    // Normalize type name for structural types
+    def normalizeTypeForName(tpe: Type): String = {
+      val dealiased = tpe.dealias
+      if (dealiased =:= definitions.IntTpe) "Int"
+      else if (dealiased =:= definitions.LongTpe) "Long"
+      else if (dealiased =:= definitions.FloatTpe) "Float"
+      else if (dealiased =:= definitions.DoubleTpe) "Double"
+      else if (dealiased =:= definitions.BooleanTpe) "Boolean"
+      else if (dealiased =:= definitions.ByteTpe) "Byte"
+      else if (dealiased =:= definitions.CharTpe) "Char"
+      else if (dealiased =:= definitions.ShortTpe) "Short"
+      else if (dealiased =:= typeOf[String]) "String"
+      else if (dealiased =:= definitions.UnitTpe) "Unit"
+      else if (isStructuralType(dealiased)) {
+        val members = getStructuralMembers(dealiased)
+        val sorted = members.sortBy(_._1)
+        sorted.map { case (name, t) => s"$name:${normalizeTypeForName(t)}" }.mkString("{", ",", "}")
+      } else {
+        val tArgs = typeArgs(dealiased)
+        if (tArgs.isEmpty) dealiased.typeSymbol.name.toString
+        else s"${dealiased.typeSymbol.name}[${tArgs.map(normalizeTypeForName).mkString(",")}]"
+      }
+    }
+
+    // Create structural type name
+    def structuralTypeName(members: List[(String, Type)]): Tree = {
+      val normalized = members.sortBy(_._1)
+        .map { case (name, tpe) => s"$name:${normalizeTypeForName(tpe)}" }
+        .mkString("{", ",", "}")
+      val packages = List.empty[String]
+      val values = List.empty[String]
+      q"new TypeName(new Namespace($packages, $values), $normalized, Nil)"
+    }
+
     def deriveSchema(tpe: Type): Tree =
       if (isEnumOrModuleValue(tpe)) {
         deriveSchemaForEnumOrModuleValue(tpe)
@@ -495,6 +590,11 @@ private object SchemaCompanionVersionSpecific {
         }
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         deriveSchemaForSealedTraitOrAbstractClass(tpe)
+      } else if (isStructuralType(tpe)) {
+        // Check for structural types BEFORE isNonAbstractScalaClass
+        // because refinement types like `Record { def name: String }` would otherwise
+        // be handled as the base class `Record`
+        deriveSchemaForStructuralType(tpe)
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
@@ -502,6 +602,261 @@ private object SchemaCompanionVersionSpecific {
         val tpeName = toTree(typeName(tpe))
         q"new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[$tpe]]"
       } else cannotDeriveSchema(tpe)
+
+    def deriveSchemaForStructuralType(tpe: Type): Tree = {
+      val members = getStructuralMembers(tpe)
+
+      if (members.isEmpty) {
+        // Empty structural type - derive as an empty record
+        val tpeName = structuralTypeName(members)
+        return q"""new Schema(
+            reflect = new Reflect.Record[Binding, $tpe](
+              fields = _root_.scala.Vector.empty,
+              typeName = $tpeName,
+              recordBinding = new Binding.Record(
+                constructor = new Constructor[$tpe] {
+                  def usedRegisters: RegisterOffset = RegisterOffset.Zero
+
+                  def construct(in: Registers, baseOffset: RegisterOffset): $tpe = {
+                    import _root_.scala.language.dynamics
+                    (new _root_.scala.Dynamic {
+                      private val _fields: _root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any] =
+                        _root_.scala.collection.immutable.Map.empty[_root_.java.lang.String, _root_.scala.Any]
+                      def selectDynamic(name: _root_.java.lang.String): _root_.scala.Any = _fields(name)
+                    }).asInstanceOf[$tpe]
+                  }
+                },
+                deconstructor = new Deconstructor[$tpe] {
+                  def usedRegisters: RegisterOffset = RegisterOffset.Zero
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = ()
+                }
+              )
+            )
+          )"""
+      }
+
+      // Check if this is a Dynamic subtype with a Map constructor
+      val dynamicBaseOpt = getDynamicBaseClass(tpe)
+      dynamicBaseOpt.flatMap(findMapConstructorOrApply) match {
+        case Some((companionOrNew, _, isApply)) =>
+          // Dynamic subtype with Map constructor - use it
+          deriveSchemaForDynamicType(tpe, members, companionOrNew, isApply)
+        case None =>
+          // Pure structural type or Dynamic without Map constructor
+          // Generate an anonymous Dynamic class at compile time
+          deriveSchemaForPureStructuralType(tpe, members)
+      }
+    }
+
+    def deriveSchemaForDynamicType(
+      tpe: Type,
+      members: List[(String, Type)],
+      companionOrNew: Tree,
+      isApply: Boolean
+    ): Tree = {
+      val tpeName = structuralTypeName(members)
+
+      // Calculate register offsets for each field
+      var usedRegisters = RegisterOffset.Zero
+      val fieldInfos = members.map { case (name, fTpe) =>
+        val sTpe = dealiasOnDemand(fTpe)
+        val offset =
+          if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
+          else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
+          else if (sTpe <:< definitions.LongTpe) RegisterOffset(longs = 1)
+          else if (sTpe <:< definitions.DoubleTpe) RegisterOffset(doubles = 1)
+          else if (sTpe <:< definitions.BooleanTpe) RegisterOffset(booleans = 1)
+          else if (sTpe <:< definitions.ByteTpe) RegisterOffset(bytes = 1)
+          else if (sTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
+          else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
+          else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
+          else RegisterOffset(objects = 1)
+        val info = (name, fTpe, usedRegisters)
+        usedRegisters = RegisterOffset.add(usedRegisters, offset)
+        info
+      }
+
+      // Generate field terms
+      val fieldTerms = fieldInfos.map { case (name, fTpe, _) =>
+        val schema = findImplicitOrDeriveSchema(fTpe)
+        val isNonRec = isNonRecursive(fTpe)
+        if (isNonRec) q"$schema.reflect.asTerm[$tpe]($name)"
+        else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$tpe]($name)"
+      }
+
+      // Generate constructor - builds Map and calls constructor/apply
+      val mapEntries = fieldInfos.map { case (name, fTpe, offset) =>
+        val bytes = RegisterOffset.getBytes(offset)
+        val objects = RegisterOffset.getObjects(offset)
+        val getter =
+          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.UnitTpe) q"()"
+          else q"in.getObject(baseOffset, $objects)"
+        q"($name, $getter: _root_.scala.Any)"
+      }
+      val mapExpr = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
+      val constructExpr = if (isApply) q"$companionOrNew.apply($mapExpr).asInstanceOf[$tpe]"
+                          else q"(new ${tpe.typeSymbol}($mapExpr)).asInstanceOf[$tpe]"
+
+      // Generate deconstructor - use selectDynamic via reflection
+      val deconstructStatements = fieldInfos.map { case (name, fTpe, offset) =>
+        val bytes = RegisterOffset.getBytes(offset)
+        val objects = RegisterOffset.getObjects(offset)
+        val fieldAccessor = q"""in.getClass.getMethod($name).invoke(in)"""
+        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
+        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
+        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
+        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
+        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
+        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
+        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
+        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
+        else if (fTpe <:< definitions.UnitTpe) q"()"
+        else q"out.setObject(baseOffset, $objects, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
+      }
+
+      q"""new Schema(
+            reflect = new Reflect.Record[Binding, $tpe](
+              fields = _root_.scala.Vector(..$fieldTerms),
+              typeName = $tpeName,
+              recordBinding = new Binding.Record(
+                constructor = new Constructor[$tpe] {
+                  def usedRegisters: RegisterOffset = $usedRegisters
+
+                  def construct(in: Registers, baseOffset: RegisterOffset): $tpe = $constructExpr
+                },
+                deconstructor = new Deconstructor[$tpe] {
+                  def usedRegisters: RegisterOffset = $usedRegisters
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
+                    ..$deconstructStatements
+                  }
+                }
+              )
+            )
+          )"""
+    }
+
+    def deriveSchemaForPureStructuralType(tpe: Type, members: List[(String, Type)]): Tree = {
+      // Generate an anonymous Dynamic class at compile time
+      // This works on ALL platforms (JVM, JS, Native) without reflection!
+
+      val tpeName = structuralTypeName(members)
+
+      // Calculate register offsets for each field
+      var usedRegisters = RegisterOffset.Zero
+      val fieldInfos = members.map { case (name, fTpe) =>
+        val sTpe = dealiasOnDemand(fTpe)
+        val offset =
+          if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
+          else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
+          else if (sTpe <:< definitions.LongTpe) RegisterOffset(longs = 1)
+          else if (sTpe <:< definitions.DoubleTpe) RegisterOffset(doubles = 1)
+          else if (sTpe <:< definitions.BooleanTpe) RegisterOffset(booleans = 1)
+          else if (sTpe <:< definitions.ByteTpe) RegisterOffset(bytes = 1)
+          else if (sTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
+          else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
+          else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
+          else RegisterOffset(objects = 1)
+        val info = (name, fTpe, usedRegisters)
+        usedRegisters = RegisterOffset.add(usedRegisters, offset)
+        info
+      }
+
+      // Generate field terms
+      val fieldTerms = fieldInfos.map { case (name, fTpe, _) =>
+        val schema = findImplicitOrDeriveSchema(fTpe)
+        val isNonRec = isNonRecursive(fTpe)
+        if (isNonRec) q"$schema.reflect.asTerm[$tpe]($name)"
+        else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$tpe]($name)"
+      }
+
+      // Generate map entries for constructor
+      val mapEntries = fieldInfos.map { case (name, fTpe, offset) =>
+        val bytes = RegisterOffset.getBytes(offset)
+        val objects = RegisterOffset.getObjects(offset)
+        val getter =
+          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+          else if (fTpe =:= definitions.UnitTpe) q"()"
+          else q"in.getObject(baseOffset, $objects)"
+        q"($name, $getter: _root_.scala.Any)"
+      }
+      val mapExpr = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
+
+      // Generate method definitions for each structural member
+      val methodDefs = members.map { case (memberName, memberTpe) =>
+        val methodName = TermName(memberName)
+        q"def $methodName: $memberTpe = _fields($memberName).asInstanceOf[$memberTpe]"
+      }
+
+      // Constructor creates an anonymous Dynamic class
+      // The generated class has selectDynamic and concrete method implementations
+      val constructorExpr = q"""
+        {
+          import _root_.scala.language.dynamics
+          (new _root_.scala.Dynamic {
+            private val _fields: _root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any] = $mapExpr
+            def selectDynamic(name: _root_.java.lang.String): _root_.scala.Any = _fields(name)
+            ..$methodDefs
+          }).asInstanceOf[$tpe]
+        }
+      """
+
+      // Generate deconstructor statements
+      // We call selectDynamic directly - we know our generated class has it at runtime
+      val deconstructStatements = fieldInfos.map { case (name, fTpe, offset) =>
+        val bytes = RegisterOffset.getBytes(offset)
+        val objects = RegisterOffset.getObjects(offset)
+        // Cast to a structural type with selectDynamic and call it directly
+        val fieldAccessor = q"""in.asInstanceOf[{ def selectDynamic(name: String): Any }].selectDynamic($name)"""
+        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
+        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
+        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
+        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
+        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
+        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
+        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
+        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
+        else if (fTpe <:< definitions.UnitTpe) q"()"
+        else q"out.setObject(baseOffset, $objects, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
+      }
+
+      q"""new Schema(
+            reflect = new Reflect.Record[Binding, $tpe](
+              fields = _root_.scala.Vector(..$fieldTerms),
+              typeName = $tpeName,
+              recordBinding = new Binding.Record(
+                constructor = new Constructor[$tpe] {
+                  def usedRegisters: RegisterOffset = $usedRegisters
+
+                  def construct(in: Registers, baseOffset: RegisterOffset): $tpe = $constructorExpr
+                },
+                deconstructor = new Deconstructor[$tpe] {
+                  def usedRegisters: RegisterOffset = $usedRegisters
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
+                    ..$deconstructStatements
+                  }
+                }
+              )
+            )
+          )"""
+    }
 
     def deriveSchemaForEnumOrModuleValue(tpe: Type): Tree = {
       val tpeName = toTree(typeName(tpe))

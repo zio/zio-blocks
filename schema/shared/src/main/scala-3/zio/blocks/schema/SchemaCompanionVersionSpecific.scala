@@ -91,6 +91,80 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   private def isSelectableType(tpe: TypeRepr): Boolean =
     tpe <:< TypeRepr.of[scala.Selectable]
 
+  // Get the base Selectable class from a structural type (for construction)
+  private def getSelectableBaseClass(tpe: TypeRepr): Option[TypeRepr] = {
+    @tailrec
+    def findBase(t: TypeRepr): Option[TypeRepr] = t.dealias match {
+      case Refinement(parent, _, _)                 => findBase(parent)
+      case base if base <:< TypeRepr.of[Selectable] => Some(base)
+      case _                                        => None
+    }
+    findBase(tpe)
+  }
+
+  // Find a Map[String, Any] constructor or companion apply method
+  // Returns: Option[(baseRef, methodSymbol, isApply)]
+  private def findMapConstructorOrApply(baseTpe: TypeRepr): Option[(Term, Symbol, Boolean)] = {
+    val baseClass = baseTpe.typeSymbol
+
+    // First try companion object apply(Map[String, Any])
+    val companion = baseClass.companionModule
+    if (companion != Symbol.noSymbol) {
+      val companionRef  = Ref(companion)
+      val moduleClass   = companion.moduleClass
+      val applyMethods  = if (moduleClass != Symbol.noSymbol) {
+        moduleClass.declaredMethods.filter(_.name == "apply") ++
+          companion.methodMembers.filter(_.name == "apply")
+      } else {
+        companion.methodMembers.filter(_.name == "apply")
+      }
+
+      val mapApply = applyMethods.distinct.find { m =>
+        val memberType = companion.typeRef.memberType(m)
+        val paramTypes = memberType match {
+          case mt: MethodType                 => mt.paramTypes
+          case PolyType(_, _, mt: MethodType) => mt.paramTypes
+          case _                              => Nil
+        }
+        paramTypes.size == 1 && {
+          val paramTpe = paramTypes.head
+          paramTpe <:< TypeRepr.of[Map[String, Any]] ||
+            paramTpe <:< TypeRepr.of[collection.Map[String, Any]]
+        }
+      }
+
+      if (mapApply.isDefined) {
+        return Some((companionRef, mapApply.get, true))
+      }
+    }
+
+    // Fall back to constructor with Map[String, Any]
+    val constructors = baseClass.declarations.filter { s =>
+      (s.isClassConstructor || s.name == "<init>") &&
+        !s.flags.is(Flags.Private) && !s.flags.is(Flags.Protected)
+    }.toList
+
+    val mapCtor = constructors.find { ctor =>
+      val ctorType = baseTpe.memberType(ctor)
+      val paramTypes = ctorType match {
+        case mt: MethodType                 => mt.paramTypes
+        case PolyType(_, _, mt: MethodType) => mt.paramTypes
+        case _                              => Nil
+      }
+      paramTypes.size == 1 && {
+        val paramTpe = paramTypes.head
+        paramTpe <:< TypeRepr.of[Map[String, Any]] ||
+          paramTpe <:< TypeRepr.of[collection.Map[String, Any]]
+      }
+    }
+
+    if (mapCtor.isDefined) {
+      return Some((New(Inferred(baseTpe)), mapCtor.get, false))
+    }
+
+    None
+  }
+
   private def getStructuralMembers(tpe: TypeRepr): List[(String, TypeRepr)] = {
     def collectMembers(t: TypeRepr): List[(String, TypeRepr)] = t match {
       case Refinement(parent, name, info) =>
@@ -1016,6 +1090,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             )
           }
       }
+    } else if (isStructuralType(tpe)) {
+      deriveSchemaForStructuralType(tpe)
     } else if (isNonAbstractScalaClass(tpe)) {
       deriveSchemaForNonAbstractScalaClass(tpe)
     } else if (isOpaque(tpe)) {
@@ -1034,18 +1110,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
           val tpeName = toExpr(typeName[T](tpe).asInstanceOf[TypeName[s]])
           '{ new Schema($schema.reflect.typeName($tpeName)).asInstanceOf[Schema[T]] }
       }
-    } else if (isStructuralType(tpe)) {
-      // Structural type schema derivation (JVM only)
-      if (!Platform.supportsReflection) {
-        fail(
-          s"""Cannot derive Schema for structural type '${tpe.show}' on ${Platform.name}.
-             |
-             |Structural types require reflection which is only available on JVM.
-             |
-             |Consider using a case class instead.""".stripMargin
-        )
-      }
-      deriveSchemaForStructuralType(tpe)
     } else if (isTypeRef(tpe)) {
       val sTpe = typeRefDealias(tpe)
       sTpe.asType match { case '[s] => deriveSchema[s](sTpe) }
@@ -1284,7 +1348,56 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   }
 
   private def deriveSchemaForNonEmptyStructuralType[T: Type](tpe: TypeRepr, members: List[(String, TypeRepr)])(using Quotes): Expr[Schema[T]] = {
-    // Build field infos with proper register offsets
+    // Check if this is a Selectable subtype with a Map constructor
+    if (isSelectableType(tpe)) {
+      getSelectableBaseClass(tpe) match {
+        case Some(baseClass) =>
+          findMapConstructorOrApply(baseClass) match {
+            case Some((_, method, isApply)) =>
+              deriveSchemaForSelectableType[T](tpe, members, baseClass, method, isApply)
+            case None =>
+              fail(
+                s"""Cannot derive Schema for Selectable type '${tpe.show}'.
+                   |
+                   |The base Selectable class '${baseClass.typeSymbol.name}' does not have:
+                   |  - A constructor taking Map[String, Any]
+                   |  - A companion apply method taking Map[String, Any]
+                   |
+                   |Add one of these to enable Schema derivation:
+                   |
+                   |  case class MyRecord(fields: Map[String, Any]) extends Selectable {
+                   |    def selectDynamic(name: String): Any = fields(name)
+                   |  }""".stripMargin
+              )
+          }
+        case None =>
+          fail(s"Cannot find Selectable base class for '${tpe.show}'")
+      }
+    } else {
+      // Pure structural type (refinement without Selectable base) - use reflection (JVM only)
+      deriveSchemaForPureStructuralType[T](tpe, members)
+    }
+  }
+
+  // Schema for Selectable subtype with Map constructor (cross-platform)
+  private def deriveSchemaForSelectableType[T: Type](
+    tpe: TypeRepr,
+    members: List[(String, TypeRepr)],
+    baseClass: TypeRepr,
+    method: Symbol,
+    isApply: Boolean
+  )(using Quotes): Expr[Schema[T]] = {
+    val selectDynamicSym = {
+      val declaredMethods = baseClass.typeSymbol.declarations.filter { s =>
+        s.isDefDef && s.name == "selectDynamic"
+      }
+      declaredMethods.headOption.getOrElse {
+        baseClass.typeSymbol.methodMember("selectDynamic").headOption.getOrElse {
+          fail(s"Type ${baseClass.show} extends Selectable but has no selectDynamic method")
+        }
+      }
+    }
+
     var currentOffset = RegisterOffset.Zero
     val fieldInfos: List[(StructuralFieldInfo, RegisterOffset)] = members.map { case (name, memberTpe) =>
       val offset     = structuralFieldOffset(memberTpe)
@@ -1301,7 +1414,6 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
       )
     }
 
-    // Generate field Terms
     val fieldTerms = Varargs(fieldInfos.map { case (fi, _) =>
       fi.tpe.asType match {
         case '[ft] =>
@@ -1313,7 +1425,189 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
 
     val tpeName = toExpr(normalizeStructuralTypeName[T](members))
 
-    // Generate field info for runtime: name, type indicator (0=object, 1=int, 2=long, etc.), and offset
+    val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
+      val typeIndicator =
+        if (fi.tpe.dealias <:< intTpe) 1
+        else if (fi.tpe.dealias <:< longTpe) 2
+        else if (fi.tpe.dealias <:< floatTpe) 3
+        else if (fi.tpe.dealias <:< doubleTpe) 4
+        else if (fi.tpe.dealias <:< booleanTpe) 5
+        else if (fi.tpe.dealias <:< byteTpe) 6
+        else if (fi.tpe.dealias <:< charTpe) 7
+        else if (fi.tpe.dealias <:< shortTpe) 8
+        else 0 // object
+      (fi.name, typeIndicator, RegisterOffset.getBytes(baseOffset), RegisterOffset.getObjects(baseOffset))
+    }
+
+    val fieldNamesExpr   = Expr(fieldInfoForRuntime.map(_._1).toArray)
+    val fieldTypesExpr   = Expr(fieldInfoForRuntime.map(_._2).toArray)
+    val fieldBytesExpr   = Expr(fieldInfoForRuntime.map(_._3).toArray)
+    val fieldObjectsExpr = Expr(fieldInfoForRuntime.map(_._4).toArray)
+
+    val companionSym = method.owner.companionModule
+    baseClass.asType match {
+      case '[bc] =>
+        val applyToMap: Expr[Map[String, Any] => bc] = if (isApply && companionSym != Symbol.noSymbol) {
+          '{ (m: Map[String, Any]) =>
+            ${
+              val companionRef = Ref(companionSym)
+              val selectMethod = companionRef.select(method)
+              val call = Apply(selectMethod, List('m.asTerm))
+              call.asExprOf[bc]
+            }
+          }
+        } else {
+          '{ (m: Map[String, Any]) =>
+            ${
+              val newExpr = New(Inferred(baseClass))
+              val selectCtor = Select(newExpr, method)
+              val call = Apply(selectCtor, List('m.asTerm))
+              call.asExprOf[bc]
+            }
+          }
+        }
+
+        val deconstructFnExpr: Expr[(Registers, RegisterOffset, T) => Unit] = {
+          '{ (out: Registers, baseOffset: RegisterOffset, in: T) =>
+            ${
+              // Generate code for each field extraction at compile time
+              val stmts = fieldInfos.map { case (fi, fieldBaseOffset) =>
+                val fieldName = Expr(fi.name)
+                val bytesOffset = Expr(RegisterOffset.getBytes(fieldBaseOffset))
+                val objectsOffset = Expr(RegisterOffset.getObjects(fieldBaseOffset))
+
+                // Generate: val value = in.asInstanceOf[bc].selectDynamic(fieldName)
+                val inExpr = 'in
+                val castTerm = TypeApply(
+                  Select.unique(inExpr.asTerm, "asInstanceOf"),
+                  List(Inferred(baseClass))
+                )
+                val selectCall = Apply(
+                  Select(castTerm, selectDynamicSym),
+                  List(fieldName.asTerm)
+                )
+                val valueExpr = selectCall.asExprOf[Any]
+
+                // Generate the appropriate setter based on field type
+                if (fi.tpe.dealias <:< intTpe) {
+                  '{ out.setInt(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Integer].intValue) }
+                } else if (fi.tpe.dealias <:< longTpe) {
+                  '{ out.setLong(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Long].longValue) }
+                } else if (fi.tpe.dealias <:< floatTpe) {
+                  '{ out.setFloat(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Float].floatValue) }
+                } else if (fi.tpe.dealias <:< doubleTpe) {
+                  '{ out.setDouble(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Double].doubleValue) }
+                } else if (fi.tpe.dealias <:< booleanTpe) {
+                  '{ out.setBoolean(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Boolean].booleanValue) }
+                } else if (fi.tpe.dealias <:< byteTpe) {
+                  '{ out.setByte(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Byte].byteValue) }
+                } else if (fi.tpe.dealias <:< charTpe) {
+                  '{ out.setChar(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Character].charValue) }
+                } else if (fi.tpe.dealias <:< shortTpe) {
+                  '{ out.setShort(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Short].shortValue) }
+                } else {
+                  '{ out.setObject(baseOffset, $objectsOffset, $valueExpr.asInstanceOf[AnyRef]) }
+                }
+              }
+              // Combine all statements into a block
+              if (stmts.isEmpty) '{()}
+              else Expr.block(stmts.init, stmts.last)
+            }
+          }
+        }
+
+        '{
+          val _fieldNames: Array[String] = $fieldNamesExpr
+          val _fieldTypes: Array[Int]    = $fieldTypesExpr
+          val _fieldBytes: Array[Int]    = $fieldBytesExpr
+          val _fieldObjects: Array[Int]  = $fieldObjectsExpr
+          val _applyFn: Map[String, Any] => bc = $applyToMap
+          val _deconstructFn: (Registers, RegisterOffset, T) => Unit = $deconstructFnExpr
+
+          new Schema(
+            reflect = new Reflect.Record[Binding, T](
+              fields = Vector($fieldTerms*),
+              typeName = $tpeName,
+              recordBinding = new Binding.Record(
+                constructor = new Constructor {
+                  def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+                  def construct(in: Registers, baseOffset: RegisterOffset): T = {
+                    // Build a Map from registers and create the Selectable instance
+                    val values = new scala.collection.mutable.HashMap[String, Any]()
+                    var idx    = 0
+                    val len    = _fieldNames.length
+                    while (idx < len) {
+                      val value: Any = _fieldTypes(idx) match {
+                        case 1 => in.getInt(baseOffset, _fieldBytes(idx))
+                        case 2 => in.getLong(baseOffset, _fieldBytes(idx))
+                        case 3 => in.getFloat(baseOffset, _fieldBytes(idx))
+                        case 4 => in.getDouble(baseOffset, _fieldBytes(idx))
+                        case 5 => in.getBoolean(baseOffset, _fieldBytes(idx))
+                        case 6 => in.getByte(baseOffset, _fieldBytes(idx))
+                        case 7 => in.getChar(baseOffset, _fieldBytes(idx))
+                        case 8 => in.getShort(baseOffset, _fieldBytes(idx))
+                        case _ => in.getObject(baseOffset, _fieldObjects(idx))
+                      }
+                      values.put(_fieldNames(idx), value)
+                      idx += 1
+                    }
+                    _applyFn(values.toMap).asInstanceOf[T]
+                  }
+                },
+                deconstructor = new Deconstructor {
+                  def usedRegisters: RegisterOffset = $totalRegistersExpr
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: T): Unit = {
+                    _deconstructFn(out, baseOffset, in)
+                  }
+                }
+              )
+            )
+          )
+        }
+    }
+  }
+
+  private def deriveSchemaForPureStructuralType[T: Type](tpe: TypeRepr, members: List[(String, TypeRepr)])(using Quotes): Expr[Schema[T]] = {
+    // Pure structural types require runtime reflection for deconstruction
+    if (!Platform.supportsReflection) {
+      fail(
+        s"""Cannot derive Schema for structural type '${tpe.show}' on ${Platform.name}.
+           |
+           |Structural types require reflection which is only available on JVM.
+           |
+           |Consider using a case class instead.""".stripMargin
+      )
+    }
+
+    var currentOffset = RegisterOffset.Zero
+    val fieldInfos: List[(StructuralFieldInfo, RegisterOffset)] = members.map { case (name, memberTpe) =>
+      val offset     = structuralFieldOffset(memberTpe)
+      val baseOffset = currentOffset
+      currentOffset = currentOffset + offset
+      (new StructuralFieldInfo(name, memberTpe, offset), baseOffset)
+    }
+
+    val totalRegisters     = currentOffset
+    val totalRegistersExpr = '{
+      RegisterOffset(
+        objects = ${ Expr(RegisterOffset.getObjects(totalRegisters)) },
+        bytes = ${ Expr(RegisterOffset.getBytes(totalRegisters)) }
+      )
+    }
+
+    val fieldTerms = Varargs(fieldInfos.map { case (fi, _) =>
+      fi.tpe.asType match {
+        case '[ft] =>
+          val fieldName   = Expr(fi.name)
+          val fieldSchema = findImplicitOrDeriveSchema[ft](fi.tpe)
+          '{ $fieldSchema.reflect.asTerm[T]($fieldName).asInstanceOf[SchemaTerm[Binding, T, ?]] }
+      }
+    })
+
+    val tpeName = toExpr(normalizeStructuralTypeName[T](members))
+
     val fieldInfoForRuntime: List[(String, Int, Int, Int)] = fieldInfos.map { case (fi, baseOffset) =>
       val typeIndicator =
         if (fi.tpe.dealias <:< intTpe) 1
