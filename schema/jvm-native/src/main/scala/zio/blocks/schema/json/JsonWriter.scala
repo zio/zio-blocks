@@ -3248,13 +3248,23 @@ object JsonWriter {
   }
 
   /**
-   * Checks if a character does not require JSON escaping or encoding.
+   * Checks if a string does not require JSON escaping or encoding.
    *
-   * @param ch
-   *   the character to check
+   * @param s
+   *   the string to check
    * @return
-   *   `true` if the character is a basic ASCII character (code point less than
-   *   `0x80`) that does not need JSON escaping
+   *   `true` if the string has basic ASCII characters only (code point less
+   *   than `0x80` that does not need JSON escaping)
    */
-  final def isNonEscapedAscii(ch: Char): Boolean = ch < 0x80 && escapedChars(ch.toInt) == 0
+  final def isNonEscapedAscii(s: String): Boolean = {
+    val len = s.length
+    var idx = 0
+    while (
+      idx < len && {
+        val ch = s.charAt(idx)
+        ch < 0x80 && escapedChars(ch.toInt) == 0
+      }
+    ) idx += 1
+    idx == len
+  }
 }
