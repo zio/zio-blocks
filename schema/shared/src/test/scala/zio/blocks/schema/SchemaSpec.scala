@@ -309,9 +309,10 @@ object SchemaSpec extends ZIOSpecDefault {
         case class Record4(mx: Vector[ArraySeq[Int]], rs: List[Set[Int]])
 
         object Record4 extends CompanionOptics[Record4] {
-          implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx.each.each)
-          val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
+          implicit val schema: Schema[Record4]     = Schema.derived
+          val v: Traversal[Record4, ArraySeq[Int]] = optic(_.mx).vectorValues
+          val mx: Traversal[Record4, Int]          = optic((x: Record4) => x.mx.each.each)
+          val rs: Traversal[Record4, Int]          = optic(_.rs).listValues.setValues
         }
 
         val record = Record4.schema.reflect.asRecord

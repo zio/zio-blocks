@@ -2660,6 +2660,9 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Case6.milv.check(Case6(Map(1 -> 2L))))(isNone) &&
         assert(Variant2.c4_lr3.check(Case4(List(Record3(null, null, null)))))(isNone) &&
         assert(Variant2.c3_v1_v2_c4_lr3.check(Case3(Case4(List(Record3(null, null, null))))))(isNone) &&
+        assert(Collections.aasasi_asi.check(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3))))(isNone) &&
+        assert(Collections.aiasasi_asi.check(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3))))(isNone) &&
+        assert(Collections.asasi_aasi.check(ArraySeq(ArraySeq(1, 2, 3))))(isNone) &&
         assert(Collections.alli_li.check(List(List(1), List(2), List(3))))(isNone) &&
         assert(Collections.ailli_li.check(List(List(1), List(2), List(3))))(isNone) &&
         assert(Collections.lli_ali.check(List(List(1, 2, 3))))(isNone) &&
@@ -2702,6 +2705,27 @@ object OpticSpec extends ZIOSpecDefault {
           isSome(
             hasError(
               "During attempted access at .when[Case4].lr3.each, encountered an unexpected case at .when[Case4]: expected Case4, but got Case3"
+            )
+          )
+        ) &&
+        assert(Collections.aasasi_asi.check(ArraySeq(ArraySeq())))(
+          isSome(
+            hasError(
+              "During attempted access at .at(1).each, encountered a sequence out of bounds at .at(1): index is 1, but size is 1"
+            )
+          )
+        ) &&
+        assert(Collections.aiasasi_asi.check(ArraySeq(ArraySeq())))(
+          isSome(
+            hasError(
+              "During attempted access at .atIndices(<indices>).each, encountered a sequence out of bounds at .atIndices(<indices>)"
+            )
+          )
+        ) &&
+        assert(Collections.asasi_aasi.check(ArraySeq(ArraySeq())))(
+          isSome(
+            hasError(
+              "During attempted access at .each.at(1), encountered a sequence out of bounds at .each.at(1): index is 1, but size is 0"
             )
           )
         ) &&
@@ -2796,6 +2820,68 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Variant2.c3_v1_v2_c4_lr3.modify(Case3(Case4(List(Record3(null, null, null)))), _ => null))(
           equalTo(Case3(Case4(List(null))))
         ) &&
+        assert(Collections.aasasi_asi.modify(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)), _ + 1))(
+          equalTo(ArraySeq(ArraySeq(1), ArraySeq(3), ArraySeq(3)))
+        ) &&
+        assert(Collections.aiasasi_asi.modify(ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)), _ + 1))(
+          equalTo(ArraySeq(ArraySeq(1), ArraySeq(3), ArraySeq(4)))
+        ) &&
+        assert(Collections.asasb_aasb.modify(ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)), x => (x + 1).toByte))(
+          equalTo(ArraySeq(ArraySeq(1: Byte, 3: Byte, 3: Byte)))
+        ) &&
+        assert(Collections.asasbl_aasbl.modify(ArraySeq(ArraySeq(true, true, true)), x => !x))(
+          equalTo(ArraySeq(ArraySeq(true, false, true)))
+        ) &&
+        assert(Collections.asassh_aassh.modify(ArraySeq(ArraySeq(1: Short, 2: Short, 3: Short)), x => (x + 1).toShort))(
+          equalTo(ArraySeq(ArraySeq(1: Short, 3: Short, 3: Short)))
+        ) &&
+        assert(Collections.asasc_aasc.modify(ArraySeq(ArraySeq('a', 'b', 'c')), _.toUpper))(
+          equalTo(ArraySeq(ArraySeq('a', 'B', 'c')))
+        ) &&
+        assert(Collections.asasi_aasi.modify(ArraySeq(ArraySeq(1, 2, 3)), _ + 1))(
+          equalTo(ArraySeq(ArraySeq(1, 3, 3)))
+        ) &&
+        assert(Collections.asasf_aasf.modify(ArraySeq(ArraySeq(1.0f, 2.0f, 3.0f)), _ + 1.0f))(
+          equalTo(ArraySeq(ArraySeq(1.0f, 3.0f, 3.0f)))
+        ) &&
+        assert(Collections.asasl_aasl.modify(ArraySeq(ArraySeq(1L, 2L, 3L)), _ + 1L))(
+          equalTo(ArraySeq(ArraySeq(1L, 3L, 3L)))
+        ) &&
+        assert(Collections.asasd_aasd.modify(ArraySeq(ArraySeq(1.0, 2.0, 3.0)), _ + 1.0))(
+          equalTo(ArraySeq(ArraySeq(1.0, 3.0, 3.0)))
+        ) &&
+        assert(Collections.asass_aass.modify(ArraySeq(ArraySeq("a", "b", "c")), _ + "x"))(
+          equalTo(ArraySeq(ArraySeq("a", "bx", "c")))
+        ) &&
+        assert(Collections.asasb_aiasb.modify(ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)), x => (x + 1).toByte))(
+          equalTo(ArraySeq(ArraySeq(1: Byte, 3: Byte, 4: Byte)))
+        ) &&
+        assert(Collections.asasbl_aiasbl.modify(ArraySeq(ArraySeq(true, true, true)), x => !x))(
+          equalTo(ArraySeq(ArraySeq(true, false, false)))
+        ) &&
+        assert(
+          Collections.asassh_aiassh.modify(ArraySeq(ArraySeq(1: Short, 2: Short, 3: Short)), x => (x + 1).toShort)
+        )(
+          equalTo(ArraySeq(ArraySeq(1: Short, 3: Short, 4: Short)))
+        ) &&
+        assert(Collections.asasc_aiasc.modify(ArraySeq(ArraySeq('a', 'b', 'c')), _.toUpper))(
+          equalTo(ArraySeq(ArraySeq('a', 'B', 'C')))
+        ) &&
+        assert(Collections.asasi_aiasi.modify(ArraySeq(ArraySeq(1, 2, 3)), _ + 1))(
+          equalTo(ArraySeq(ArraySeq(1, 3, 4)))
+        ) &&
+        assert(Collections.asasf_aiasf.modify(ArraySeq(ArraySeq(1.0f, 2.0f, 3.0f)), _ + 1.0f))(
+          equalTo(ArraySeq(ArraySeq(1.0f, 3.0f, 4.0f)))
+        ) &&
+        assert(Collections.asasl_aiasl.modify(ArraySeq(ArraySeq(1L, 2L, 3L)), _ + 1L))(
+          equalTo(ArraySeq(ArraySeq(1L, 3L, 4L)))
+        ) &&
+        assert(Collections.asasd_aiasd.modify(ArraySeq(ArraySeq(1.0, 2.0, 3.0)), _ + 1.0))(
+          equalTo(ArraySeq(ArraySeq(1.0, 3.0, 4.0)))
+        ) &&
+        assert(Collections.asass_aiass.modify(ArraySeq(ArraySeq("a", "b", "c")), _ + "x"))(
+          equalTo(ArraySeq(ArraySeq("a", "bx", "cx")))
+        ) &&
         assert(Collections.alli_li.modify(List(List(1), List(2), List(3)), _ + 1))(
           equalTo(List(List(1), List(3), List(3)))
         ) &&
@@ -2876,6 +2962,10 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("doesn't modify collection values for non-matching cases and returns none") {
+        assert(Collections.aasasi_asi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
+        assert(Collections.aiasasi_asi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
+        assert(Collections.asasi_aasi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
+        assert(Collections.asasi_aiasi.modifyOption(ArraySeq(ArraySeq(1)), _ + 1))(isNone) &&
         assert(Collections.alli_li.modifyOption(List(List(1)), _ + 1))(isNone) &&
         assert(Collections.ailli_li.modifyOption(List(List(1)), _ + 1))(isNone) &&
         assert(Collections.akmill_ll.modifyOption(Map(2 -> List(2L)), _ + 1L))(isNone) &&
@@ -3033,6 +3123,55 @@ object OpticSpec extends ZIOSpecDefault {
         assert(
           Variant2.c3_v1_v2_c4_lr3.fold[Record3](Case3(Case4(List(Record3(null, null, null)))))(null, (_, x) => x)
         )(equalTo(Record3(null, null, null))) &&
+        assert(Collections.aasasi_asi.fold[Int](ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)))(0, _ + _))(
+          equalTo(2)
+        ) &&
+        assert(Collections.aiasasi_asi.fold[Int](ArraySeq(ArraySeq(1), ArraySeq(2), ArraySeq(3)))(0, _ + _))(
+          equalTo(5)
+        ) &&
+        assert(Collections.asasb_aasb.fold[Int](ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)))(0, _ + _))(equalTo(2)) &&
+        assert(Collections.asasbl_aasbl.fold[Boolean](ArraySeq(ArraySeq(true, true, true)))(false, _ || _))(
+          equalTo(true)
+        ) &&
+        assert(Collections.asassh_aassh.fold[Int](ArraySeq(ArraySeq(1: Short, 2: Short, 3: Short)))(0, _ + _))(
+          equalTo(2)
+        ) &&
+        assert(Collections.asasc_aasc.fold[String](ArraySeq(ArraySeq('1', '2', '3')))("0", _ + _.toString))(
+          equalTo("02")
+        ) &&
+        assert(Collections.asasi_aasi.fold[Int](ArraySeq(ArraySeq(1, 2, 3)))(0, _ + _))(equalTo(2)) &&
+        assert(Collections.asasf_aasf.fold[Float](ArraySeq(ArraySeq(1.0f, 2.0f, 3.0f)))(0.0f, _ + _))(equalTo(2.0f)) &&
+        assert(Collections.asasl_aasl.fold[Long](ArraySeq(ArraySeq(1L, 2L, 3L)))(0L, _ + _))(equalTo(2L)) &&
+        assert(Collections.asasd_aasd.fold[Double](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0.0, _ + _))(equalTo(2.0)) &&
+        assert(Collections.asass_aass.fold[String](ArraySeq(ArraySeq("1", "2", "3")))("0", _ + _))(equalTo("02")) &&
+        assert(Collections.asasb_aiasb.fold[Int](ArraySeq(ArraySeq(1: Byte, 2: Byte, 3: Byte)))(0, _ + _))(
+          equalTo(5)
+        ) &&
+        assert(Collections.asasbl_aiasbl.fold[Boolean](ArraySeq(ArraySeq(true, true, true)))(false, _ || _))(
+          equalTo(true)
+        ) &&
+        assert(Collections.asassh_aiassh.fold[Int](ArraySeq(ArraySeq(1: Short, 2: Short, 3: Short)))(0, _ + _))(
+          equalTo(5)
+        ) &&
+        assert(Collections.asasc_aiasc.fold[String](ArraySeq(ArraySeq('1', '2', '3')))("0", _ + _.toString))(
+          equalTo("023")
+        ) &&
+        assert(Collections.asasi_aiasi.fold[Int](ArraySeq(ArraySeq(1, 2, 3)))(0, _ + _))(equalTo(5)) &&
+        assert(Collections.asasi_aiasi.fold[Long](ArraySeq(ArraySeq(1, 2, 3)))(0L, _ + _))(equalTo(5L)) &&
+        assert(Collections.asasi_aiasi.fold[Double](ArraySeq(ArraySeq(1, 2, 3)))(0.0, _ + _))(equalTo(5.0)) &&
+        assert(Collections.asasi_aiasi.fold[String](ArraySeq(ArraySeq(1, 2, 3)))("0", _ + _))(equalTo("023")) &&
+        assert(Collections.asasl_aiasl.fold[Long](ArraySeq(ArraySeq(1L, 2L, 3L)))(0L, _ + _))(equalTo(5L)) &&
+        assert(Collections.asasl_aiasl.fold[Int](ArraySeq(ArraySeq(1L, 2L, 3L)))(0, _ + _.toInt))(equalTo(5)) &&
+        assert(Collections.asasl_aiasl.fold[Double](ArraySeq(ArraySeq(1L, 2L, 3L)))(0.0, _ + _))(equalTo(5.0)) &&
+        assert(Collections.asasl_aiasl.fold[String](ArraySeq(ArraySeq(1L, 2L, 3L)))("0", _ + _))(equalTo("023")) &&
+        assert(Collections.asasd_aiasd.fold[Double](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0.0, _ + _))(equalTo(5.0)) &&
+        assert(Collections.asasd_aiasd.fold[Int](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0, _ + _.toInt))(equalTo(5)) &&
+        assert(Collections.asasd_aiasd.fold[Long](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))(0L, _ + _.toLong))(equalTo(5L)) &&
+        assert(Collections.asasd_aiasd.fold[String](ArraySeq(ArraySeq(1.0, 2.0, 3.0)))("0", _ + _.toInt))(
+          equalTo("023")
+        ) &&
+        assert(Collections.asasf_aiasf.fold[Float](ArraySeq(ArraySeq(1.0f, 2.0f, 3.0f)))(0.0f, _ + _))(equalTo(5.0f)) &&
+        assert(Collections.asass_aiass.fold[String](ArraySeq(ArraySeq("1", "2", "3")))("0", _ + _))(equalTo("023")) &&
         assert(Collections.alli_li.fold[Int](List(List(1), List(2), List(3)))(0, _ + _))(equalTo(2)) &&
         assert(Collections.ailli_li.fold[Int](List(List(1), List(2), List(3)))(0, _ + _))(equalTo(2)) &&
         assert(Collections.lli_ali.fold[Int](List(List(1, 2, 3)))(0, _ + _))(equalTo(2)) &&
@@ -3056,6 +3195,10 @@ object OpticSpec extends ZIOSpecDefault {
         )
       },
       test("folds zero values for non-matching cases") {
+        assert(Collections.aasasi_asi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
+        assert(Collections.aiasasi_asi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
+        assert(Collections.asasi_aasi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
+        assert(Collections.asasi_aiasi.fold[Int](ArraySeq(ArraySeq()))(0, _ + _))(equalTo(0)) &&
         assert(Collections.alli_li.fold[Int](List(List()))(0, _ + _))(equalTo(0)) &&
         assert(Collections.ailli_li.fold[Int](List(List()))(0, _ + _))(equalTo(0)) &&
         assert(Collections.akmill_ll.fold[Long](Map())(0L, _ + _))(equalTo(0L)) &&
@@ -3648,6 +3791,426 @@ object OpticSpecTypes {
       Optional.atKey(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]), 'A')
     val akmc1_d: Optional[Map[Char, Case1], Double] =
       Optional.atKey(Reflect.map(Reflect.char[Binding], Case1.reflect), 'A')(Case1.d)
+    val aasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+      Optional.at(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]],
+        1
+      )(
+        Traversal.seqValues(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
+        )
+      )
+    val aiasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+      Traversal.atIndices(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]],
+        Seq(1, 2)
+      )(
+        Traversal.seqValues(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
+        )
+      )
+    val asasb_aasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Byte]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Byte], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Byte]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Byte, ArraySeq]],
+          1
+        )
+      )
+    val asasbl_aasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Boolean]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Boolean], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Boolean]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Boolean, ArraySeq]],
+          1
+        )
+      )
+    val asassh_aassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Short]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Short], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Short]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Short, ArraySeq]],
+          1
+        )
+      )
+    val asasc_aasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Char]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Char], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Char]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Char, ArraySeq]],
+          1
+        )
+      )
+    val asasi_aasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]],
+          1
+        )
+      )
+    val asasf_aasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Float]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Float], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Float]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Float, ArraySeq]],
+          1
+        )
+      )
+    val asasl_aasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Long]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Long], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Long]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Long, ArraySeq]],
+          1
+        )
+      )
+    val asasd_aasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Double]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Double], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Double]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Double, ArraySeq]],
+          1
+        )
+      )
+    val asass_aass: Traversal[ArraySeq[ArraySeq[String]], String] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[String]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[String], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[String]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, String, ArraySeq]],
+          1
+        )
+      )
+    val asasb_aiasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Byte]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Byte], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Byte]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Byte, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asasbl_aiasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Boolean]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Boolean], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Boolean]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Boolean, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asassh_aiassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Short]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Short], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Short]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Short, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asasc_aiasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Char]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Char], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Char]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Char, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asasi_aiasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asasf_aiasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Float]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Float], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Float]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Float, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asasl_aiasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Long]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Long], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Long]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Long, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asasd_aiasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Double]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Double], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Double]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Double, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
+    val asass_aiass: Traversal[ArraySeq[ArraySeq[String]], String] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[String]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[String], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[String]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, String, ArraySeq]],
+          Seq(1, 2)
+        )
+      )
     val alli_li: Traversal[List[List[Int]], Int] =
       Optional.at(Reflect.list(Reflect.list(Reflect.int[Binding])), 1)(Traversal.listValues(Reflect.int[Binding]))
     val ailli_li: Traversal[List[List[Int]], Int] =
