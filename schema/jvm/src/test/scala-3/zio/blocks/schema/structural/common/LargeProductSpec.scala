@@ -196,7 +196,6 @@ object LargeProductSpec extends ZIOSpecDefault {
         val schema = Schema.derived[MixedRecord30]
         val structural = schema.structural
 
-        // Verify field reflect types
         val fieldTypes = structural.reflect match {
           case record: Reflect.Record[_, _] =>
             record.fields.map(f => f.name -> f.value.typeName.name).toMap

@@ -183,7 +183,6 @@ object CollectionsSpec extends ZIOSpecDefault {
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(team)
 
-        // Just verify we got a Record with leader field
         dynamic match {
           case record: DynamicValue.Record =>
             val fieldMap = record.fields.toMap
@@ -202,7 +201,6 @@ object CollectionsSpec extends ZIOSpecDefault {
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(team)
 
-        // Just verify we got a Record with leader field
         dynamic match {
           case record: DynamicValue.Record =>
             val fieldMap = record.fields.toMap
@@ -230,7 +228,6 @@ object CollectionsSpec extends ZIOSpecDefault {
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(result)
 
-        // Just verify we got a Record with value field
         dynamic match {
           case record: DynamicValue.Record =>
             val fieldMap = record.fields.toMap
@@ -249,7 +246,6 @@ object CollectionsSpec extends ZIOSpecDefault {
 
         val dynamic = structural.asInstanceOf[Schema[Any]].toDynamicValue(result)
 
-        // Just verify we got a Record with value field
         dynamic match {
           case record: DynamicValue.Record =>
             val fieldMap = record.fields.toMap

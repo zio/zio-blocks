@@ -88,8 +88,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         val schema = Schema.derived[Result]
         val structural = schema.structural
         val typeName = structural.reflect.typeName.name
-
-        // Split by pipe to get individual case type names
         val caseTypes = typeName.split('|').map(_.trim).toSet
 
         assertTrue(
@@ -102,8 +100,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         val schema = Schema.derived[Result]
         val structural = schema.structural
         val typeName = structural.reflect.typeName.name
-
-        // Each case should have Tag:"CaseName" format
         val caseTypes = typeName.split('|').map(_.trim)
 
         val hasSuccessTag = caseTypes.exists(_.contains("Tag:\"Success\""))
@@ -125,7 +121,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         assertTrue(
           successCase.isDefined,
           successCase.get.contains("value:Int"),
-          // Success has 2 fields: Tag and value
           successCase.get.count(_ == ',') == 1 || successCase.get.count(_ == ':') == 2
         )
       },
@@ -140,7 +135,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         assertTrue(
           failureCase.isDefined,
           failureCase.get.contains("error:String"),
-          // Failure has 2 fields: Tag and error
           failureCase.get.count(_ == ',') == 1 || failureCase.get.count(_ == ':') == 2
         )
       },
@@ -170,15 +164,12 @@ object UnionTypesSpec extends ZIOSpecDefault {
         val birdCase = caseTypes.find(_.contains("Tag:\"Bird\""))
 
         assertTrue(
-          // Dog has: Tag, name, breed
           dogCase.isDefined,
           dogCase.get.contains("name:String"),
           dogCase.get.contains("breed:String"),
-          // Cat has: Tag, name, indoor
           catCase.isDefined,
           catCase.get.contains("name:String"),
           catCase.get.contains("indoor:Boolean"),
-          // Bird has: Tag, name, canFly
           birdCase.isDefined,
           birdCase.get.contains("name:String"),
           birdCase.get.contains("canFly:Boolean")
@@ -197,7 +188,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         assertTrue(
           activeCase.isDefined,
           inactiveCase.isDefined,
-          // Case objects only have Tag field, so only one colon for Tag:value
           activeCase.get.count(_ == ':') == 1,
           inactiveCase.get.count(_ == ':') == 1
         )
@@ -271,7 +261,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         val structural = schema.structural
         val reconstructed = structural.fromDynamicValue(dynamic)
 
-        // Verify the DynamicValue contains the correct data
         val isVariant = dynamic match {
           case DynamicValue.Variant(tag, value) =>
             tag == "Success" && (value match {
@@ -297,7 +286,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         val structural = schema.structural
         val reconstructed = structural.fromDynamicValue(dynamic)
 
-        // Verify the DynamicValue contains the correct data
         val isVariant = dynamic match {
           case DynamicValue.Variant(tag, value) =>
             tag == "Failure" && (value match {
@@ -323,7 +311,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         val structural = schema.structural
         val reconstructed = structural.fromDynamicValue(dynamic)
 
-        // Verify the DynamicValue is a Variant with correct tag
         val isActiveVariant = dynamic match {
           case DynamicValue.Variant(tag, _) => tag == "Active"
           case _ => false
@@ -430,7 +417,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
 
         val caseTypes = typeName.split('|').map(_.trim)
 
-        // Each case should have exactly one colon (for Tag:value)
         assertTrue(
           caseTypes.forall(_.count(_ == ':') == 1)
         )
@@ -463,7 +449,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
 
         assertTrue(
           circleCase.isDefined,
-          // 2 colons: Tag:value, radius:Double
           circleCase.get.count(_ == ':') == 2
         )
       },
@@ -477,7 +462,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
 
         assertTrue(
           rectangleCase.isDefined,
-          // 3 colons: Tag:value, width:Double, height:Double
           rectangleCase.get.count(_ == ':') == 3
         )
       }
@@ -500,7 +484,6 @@ object UnionTypesSpec extends ZIOSpecDefault {
         val schema = Schema.derived[Result]
         val typeName = schema.structural.reflect.typeName.name
 
-        // Both cases should be present in the type name
         val failureIdx = typeName.indexOf("Failure")
         val successIdx = typeName.indexOf("Success")
 

@@ -26,7 +26,6 @@ object AsIntegrationSpec extends ZIOSpecDefault {
       assertTrue(result.isRight)
     },
     test("nominal to structural preserves data via reflection") {
-      // Verify the data is preserved through reflection
       val person = Person("Bob", 25)
       val into = Into.derived[Person, PersonStructure]
       val result = into.into(person)
