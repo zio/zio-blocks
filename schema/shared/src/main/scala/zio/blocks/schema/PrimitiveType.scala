@@ -12,7 +12,6 @@ sealed trait PrimitiveType[A] {
 
   def toDynamicValue(value: A): DynamicValue
 
-  def typeName: TypeName[A]
 
   def typeId: TypeId[A]
 
@@ -25,7 +24,6 @@ object PrimitiveType {
 
     def toDynamicValue(value: scala.Unit): DynamicValue = new DynamicValue.Primitive(PrimitiveValue.Unit)
 
-    def typeName: TypeName[scala.Unit] = TypeName.unit
 
     def typeId: TypeId[scala.Unit] = TypeId.unit
 
@@ -43,7 +41,6 @@ object PrimitiveType {
     def toDynamicValue(value: scala.Boolean): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Boolean(value))
 
-    def typeName: TypeName[scala.Boolean] = TypeName.boolean
 
     def typeId: TypeId[scala.Boolean] = TypeId.boolean
 
@@ -60,7 +57,6 @@ object PrimitiveType {
   case class Byte(validation: Validation[scala.Byte]) extends PrimitiveType[scala.Byte] {
     def toDynamicValue(value: scala.Byte): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Byte(value))
 
-    def typeName: TypeName[scala.Byte] = TypeName.byte
 
     def typeId: TypeId[scala.Byte] = TypeId.byte
 
@@ -77,7 +73,6 @@ object PrimitiveType {
   case class Short(validation: Validation[scala.Short]) extends PrimitiveType[scala.Short] {
     def toDynamicValue(value: scala.Short): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Short(value))
 
-    def typeName: TypeName[scala.Short] = TypeName.short
 
     def typeId: TypeId[scala.Short] = TypeId.short
 
@@ -94,7 +89,6 @@ object PrimitiveType {
   case class Int(validation: Validation[scala.Int]) extends PrimitiveType[scala.Int] {
     def toDynamicValue(value: scala.Int): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Int(value))
 
-    def typeName: TypeName[scala.Int] = TypeName.int
 
     def typeId: TypeId[scala.Int] = TypeId.int
 
@@ -111,7 +105,6 @@ object PrimitiveType {
   case class Long(validation: Validation[scala.Long]) extends PrimitiveType[scala.Long] {
     def toDynamicValue(value: scala.Long): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Long(value))
 
-    def typeName: TypeName[scala.Long] = TypeName.long
 
     def typeId: TypeId[scala.Long] = TypeId.long
 
@@ -128,7 +121,6 @@ object PrimitiveType {
   case class Float(validation: Validation[scala.Float]) extends PrimitiveType[scala.Float] {
     def toDynamicValue(value: scala.Float): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Float(value))
 
-    def typeName: TypeName[scala.Float] = TypeName.float
 
     def typeId: TypeId[scala.Float] = TypeId.float
 
@@ -145,7 +137,6 @@ object PrimitiveType {
   case class Double(validation: Validation[scala.Double]) extends PrimitiveType[scala.Double] {
     def toDynamicValue(value: scala.Double): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Double(value))
 
-    def typeName: TypeName[scala.Double] = TypeName.double
 
     def typeId: TypeId[scala.Double] = TypeId.double
 
@@ -162,7 +153,6 @@ object PrimitiveType {
   case class Char(validation: Validation[scala.Char]) extends PrimitiveType[scala.Char] {
     def toDynamicValue(value: scala.Char): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Char(value))
 
-    def typeName: TypeName[scala.Char] = TypeName.char
 
     def typeId: TypeId[scala.Char] = TypeId.char
 
@@ -180,7 +170,6 @@ object PrimitiveType {
     def toDynamicValue(value: Predef.String): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.String(value))
 
-    def typeName: TypeName[Predef.String] = TypeName.string
 
     def typeId: TypeId[Predef.String] = TypeId.string
 
@@ -197,7 +186,6 @@ object PrimitiveType {
   case class BigInt(validation: Validation[scala.BigInt]) extends PrimitiveType[scala.BigInt] {
     def toDynamicValue(value: scala.BigInt): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.BigInt(value))
 
-    def typeName: TypeName[scala.BigInt] = TypeName.bigInt
 
     def typeId: TypeId[scala.BigInt] = TypeId.bigInt
 
@@ -215,7 +203,6 @@ object PrimitiveType {
     def toDynamicValue(value: scala.BigDecimal): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.BigDecimal(value))
 
-    def typeName: TypeName[scala.BigDecimal] = TypeName.bigDecimal
 
     def typeId: TypeId[scala.BigDecimal] = TypeId.bigDecimal
 
@@ -233,7 +220,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.DayOfWeek): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.DayOfWeek(value))
 
-    def typeName: TypeName[java.time.DayOfWeek] = TypeName.dayOfWeek
 
     def typeId: TypeId[java.time.DayOfWeek] = TypeId.dayOfWeek
 
@@ -250,7 +236,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Duration): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Duration(value))
 
-    def typeName: TypeName[java.time.Duration] = TypeName.duration
 
     def typeId: TypeId[java.time.Duration] = TypeId.duration
 
@@ -268,7 +253,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Instant): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Instant(value))
 
-    def typeName: TypeName[java.time.Instant] = TypeName.instant
 
     def typeId: TypeId[java.time.Instant] = TypeId.instant
 
@@ -286,7 +270,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.LocalDate): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalDate(value))
 
-    def typeName: TypeName[java.time.LocalDate] = TypeName.localDate
 
     def typeId: TypeId[java.time.LocalDate] = TypeId.localDate
 
@@ -304,7 +287,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.LocalDateTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalDateTime(value))
 
-    def typeName: TypeName[java.time.LocalDateTime] = TypeName.localDateTime
 
     def typeId: TypeId[java.time.LocalDateTime] = TypeId.localDateTime
 
@@ -322,7 +304,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.LocalTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.LocalTime(value))
 
-    def typeName: TypeName[java.time.LocalTime] = TypeName.localTime
 
     def typeId: TypeId[java.time.LocalTime] = TypeId.localTime
 
@@ -339,7 +320,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Month): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Month(value))
 
-    def typeName: TypeName[java.time.Month] = TypeName.month
 
     def typeId: TypeId[java.time.Month] = TypeId.month
 
@@ -357,7 +337,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.MonthDay): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.MonthDay(value))
 
-    def typeName: TypeName[java.time.MonthDay] = TypeName.monthDay
 
     def typeId: TypeId[java.time.MonthDay] = TypeId.monthDay
 
@@ -376,7 +355,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.OffsetDateTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.OffsetDateTime(value))
 
-    def typeName: TypeName[java.time.OffsetDateTime] = TypeName.offsetDateTime
 
     def typeId: TypeId[java.time.OffsetDateTime] = TypeId.offsetDateTime
 
@@ -394,7 +372,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.OffsetTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.OffsetTime(value))
 
-    def typeName: TypeName[java.time.OffsetTime] = TypeName.offsetTime
 
     def typeId: TypeId[java.time.OffsetTime] = TypeId.offsetTime
 
@@ -411,7 +388,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.Period): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Period(value))
 
-    def typeName: TypeName[java.time.Period] = TypeName.period
 
     def typeId: TypeId[java.time.Period] = TypeId.period
 
@@ -428,7 +404,6 @@ object PrimitiveType {
   case class Year(validation: Validation[java.time.Year]) extends PrimitiveType[java.time.Year] {
     def toDynamicValue(value: java.time.Year): DynamicValue = new DynamicValue.Primitive(new PrimitiveValue.Year(value))
 
-    def typeName: TypeName[java.time.Year] = TypeName.year
 
     def typeId: TypeId[java.time.Year] = TypeId.year
 
@@ -446,7 +421,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.YearMonth): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.YearMonth(value))
 
-    def typeName: TypeName[java.time.YearMonth] = TypeName.yearMonth
 
     def typeId: TypeId[java.time.YearMonth] = TypeId.yearMonth
 
@@ -463,7 +437,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.ZoneId): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZoneId(value))
 
-    def typeName: TypeName[java.time.ZoneId] = TypeName.zoneId
 
     def typeId: TypeId[java.time.ZoneId] = TypeId.zoneId
 
@@ -481,7 +454,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.ZoneOffset): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZoneOffset(value))
 
-    def typeName: TypeName[java.time.ZoneOffset] = TypeName.zoneOffset
 
     def typeId: TypeId[java.time.ZoneOffset] = TypeId.zoneOffset
 
@@ -499,7 +471,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.time.ZonedDateTime): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.ZonedDateTime(value))
 
-    def typeName: TypeName[java.time.ZonedDateTime] = TypeName.zonedDateTime
 
     def typeId: TypeId[java.time.ZonedDateTime] = TypeId.zonedDateTime
 
@@ -517,7 +488,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.util.UUID): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.UUID(value))
 
-    def typeName: TypeName[java.util.UUID] = TypeName.uuid
 
     def typeId: TypeId[java.util.UUID] = TypeId.uuid
 
@@ -535,7 +505,6 @@ object PrimitiveType {
     def toDynamicValue(value: java.util.Currency): DynamicValue =
       new DynamicValue.Primitive(new PrimitiveValue.Currency(value))
 
-    def typeName: TypeName[java.util.Currency] = TypeName.currency
 
     def typeId: TypeId[java.util.Currency] = TypeId.currency
 

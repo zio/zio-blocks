@@ -147,18 +147,6 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def typeId(value: TypeId[A]): Reflect[F, A]
 
-  // Backward compatibility bridge (remove in Phase 3)
-  final def typeName: TypeName[A] = {
-    import TypeIdOps._
-    typeId.toTypeName
-  }
-
-  @deprecated("Use typeId(value) instead", "Phase 2")
-  final def typeName(value: TypeName[A]): Reflect[F, A] = {
-    import TypeIdOps._
-    typeId(value.toTypeId)
-  }
-
   def updated[B](optic: Optic[A, B])(f: Reflect[F, B] => Reflect[F, B]): Option[Reflect[F, A]] =
     updated(optic.toDynamic)(new Reflect.Updater[F] {
       def update[C](reflect: Reflect[F, C]): Reflect[F, C] =
