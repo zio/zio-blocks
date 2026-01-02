@@ -45,6 +45,10 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
         "Validation Failed at: .name"
       ) &&
       decodeError[Planet](
+        """{"name":"Earth","mass":-5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
+        "Validation Failed at: .mass"
+      ) &&
+      decodeError[Planet](
         """{"name":"Earth","mass":5.97E24,"radius":-6378000.0,"distanceFromSun":1.5E15}""",
         "Validation Failed at: .radius"
       ) &&
@@ -210,6 +214,9 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
   inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
     Schema.derived[B].wrap[A](newType.make, newType.unwrap)
 
+  inline given subTypeSchema[A, B <: A](using subType: Subtype.WithType[A, B], schema: Schema[A]): Schema[B] =
+    Schema.derived[B].wrap[A](subType.make, _.asInstanceOf[A])
+
   type Name = Name.Type
 
   object Name extends Newtype[String] {
@@ -218,7 +225,9 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
 
   type Kilogram = Kilogram.Type
 
-  object Kilogram extends Subtype[Double]
+  object Kilogram extends Subtype[Double] {
+    override inline def validate(value: Double): Boolean = value >= 0.0
+  }
 
   type Meter = Meter.Type
 
