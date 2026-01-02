@@ -1876,10 +1876,10 @@ class JsonBinaryCodecDeriver private[json] (
     }
 
   private[this] def option[F[_, _], A](variant: Reflect.Variant[F, A]): Option[Reflect[F, ?]] = {
-    val typeName = variant.typeName
-    val cases    = variant.cases
+    val tid   = variant.typeId
+    val cases = variant.cases
     if (
-      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
+      tid.owner == zio.blocks.typeid.Owner.scala && tid.name == "Option" &&
       cases.length == 2 && cases(1).name == "Some"
     ) cases(1).value.asRecord.map(_.fields(0).value)
     else None
@@ -1887,10 +1887,10 @@ class JsonBinaryCodecDeriver private[json] (
 
   private[this] def isOptional[F[_, _], A](reflect: Reflect[F, A]): Boolean =
     !requireOptionFields && reflect.isVariant && {
-      val variant  = reflect.asVariant.get
-      val typeName = reflect.typeName
-      val cases    = variant.cases
-      typeName.namespace == Namespace.scala && typeName.name == "Option" &&
+      val variant = reflect.asVariant.get
+      val tid     = reflect.typeId
+      val cases   = variant.cases
+      tid.owner == zio.blocks.typeid.Owner.scala && tid.name == "Option" &&
       cases.length == 2 && cases(1).name == "Some"
     }
 
@@ -1918,8 +1918,8 @@ class JsonBinaryCodecDeriver private[json] (
       .discriminator
 
   private[this] def isTuple[F[_, _], A](reflect: Reflect[F, A]): Boolean = reflect.isRecord && {
-    val typeName = reflect.typeName
-    typeName.namespace == Namespace.scala && typeName.name.startsWith("Tuple")
+    val tid = reflect.typeId
+    tid.owner == zio.blocks.typeid.Owner.scala && tid.name.startsWith("Tuple")
   }
 }
 
