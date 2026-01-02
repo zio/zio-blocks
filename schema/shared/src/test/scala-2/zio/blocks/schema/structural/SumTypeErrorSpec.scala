@@ -18,9 +18,9 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("sum types in Scala 2") &&
-            containsString("Result") &&
-            containsString("union types") &&
-            containsString("Scala 3")
+              containsString("Result") &&
+              containsString("union types") &&
+              containsString("Scala 3")
           )
         )
       },
@@ -36,8 +36,8 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("sum types in Scala 2") &&
-            containsString("Person") &&
-            containsString("union types")
+              containsString("Person") &&
+              containsString("union types")
           )
         )
       }
@@ -55,8 +55,8 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("sum types in Scala 2") &&
-            containsString("Status") &&
-            containsString("union types")
+              containsString("Status") &&
+              containsString("union types")
           )
         )
       },
@@ -72,8 +72,8 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("sum types in Scala 2") &&
-            containsString("Color") &&
-            containsString("Scala 3")
+              containsString("Color") &&
+              containsString("Scala 3")
           )
         )
       }
@@ -90,8 +90,8 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("sum types in Scala 2") &&
-            containsString("Event") &&
-            containsString("union types")
+              containsString("Event") &&
+              containsString("union types")
           )
         )
       }
@@ -106,8 +106,8 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("Either in Scala 2") &&
-            containsString("union types") &&
-            containsString("Scala 3")
+              containsString("union types") &&
+              containsString("Scala 3")
           )
         )
       },
@@ -122,8 +122,8 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("Either in Scala 2") &&
-            containsString("union types") &&
-            containsString("Scala 3")
+              containsString("union types") &&
+              containsString("Scala 3")
           )
         )
       },
@@ -136,7 +136,7 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("Either in Scala 2") &&
-            containsString("union types")
+              containsString("union types")
           )
         )
       },
@@ -149,7 +149,7 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("Either in Scala 2") &&
-            containsString("union types")
+              containsString("union types")
           )
         )
       }
@@ -165,7 +165,7 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("Scala 3") &&
-            containsString("sum types")
+              containsString("sum types")
           )
         )
       },
@@ -179,7 +179,7 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("union types") &&
-            containsString("Scala 2")
+              containsString("Scala 2")
           )
         )
       },
@@ -192,7 +192,7 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("Scala 3") &&
-            containsString("Either")
+              containsString("Either")
           )
         )
       },
@@ -205,7 +205,7 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("union types") &&
-            containsString("Either")
+              containsString("Either")
           )
         )
       }

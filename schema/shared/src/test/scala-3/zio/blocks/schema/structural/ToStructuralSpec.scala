@@ -57,12 +57,12 @@ object ToStructuralSpec extends ZIOSpecDefault {
         case class PersonWithGender(name: String, age: Int, gender: Gender)
 
         val ts = ToStructural.derived[PersonWithGender]
-        val s  = ts.toStructural(PersonWithGender("Alice", 30, Gender.Female))
+        val s  = ts.toStructural(PersonWithGender("Alice", 30, Gender.Female)).asInstanceOf[StructuralRecord]
 
         assertTrue(
-          s.name == "Alice",
-          s.age == 30,
-          s.gender == Gender.Female
+          s.selectDynamic("name") == "Alice",
+          s.selectDynamic("age") == 30,
+          s.selectDynamic("gender").asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Female"
         )
       },
       test("large product (10 fields)") {
@@ -362,6 +362,52 @@ object ToStructuralSpec extends ZIOSpecDefault {
         val s    = ts.toStructural(WithVectorOfAddress(Vector(Address("A", "B", 1))))
         val addr = s.addresses.head.asInstanceOf[StructuralRecord]
         assertTrue(addr.selectDynamic("street") == "A")
+      }
+    ),
+    suite("StructuralSchema TypeName")(
+      test("simple case class has correct TypeName") {
+        val ts               = ToStructural.derived[Person]
+        given Schema[Person] = Schema.derived[Person]
+        val structSchema     = ts.structuralSchema
+
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,name:String}")
+      },
+      test("nested case class has correct TypeName") {
+        val ts                          = ToStructural.derived[PersonWithAddress]
+        given Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
+        val structSchema                = ts.structuralSchema
+
+        assertTrue(structSchema.reflect.typeName.name == "{address:{city:String,street:String,zip:Int},name:String}")
+      },
+      test("case class with collections has correct TypeName") {
+        val ts                 = ToStructural.derived[WithList]
+        given Schema[WithList] = Schema.derived[WithList]
+        val structSchema       = ts.structuralSchema
+
+        assertTrue(structSchema.reflect.typeName.name == "{name:String,tags:List[String]}")
+      },
+      test("case class with Option has correct TypeName") {
+        val ts                   = ToStructural.derived[WithOption]
+        given Schema[WithOption] = Schema.derived[WithOption]
+        val structSchema         = ts.structuralSchema
+
+        assertTrue(structSchema.reflect.typeName.name == "{name:String,nickname:Option[String]}")
+      },
+      test("case class with Map has correct TypeName") {
+        val ts                = ToStructural.derived[WithMap]
+        given Schema[WithMap] = Schema.derived[WithMap]
+        val structSchema      = ts.structuralSchema
+
+        assertTrue(structSchema.reflect.typeName.name == "{metadata:Map[String,Int],name:String}")
+      },
+      test("case class with Either has correct TypeName") {
+        val ts                   = ToStructural.derived[WithEither]
+        given Schema[WithEither] = Schema.derived[WithEither]
+        val structSchema         = ts.structuralSchema
+
+        assertTrue(
+          structSchema.reflect.typeName.name == """{value:({Tag:"Left",value:String}|{Tag:"Right",value:Int})}"""
+        )
       }
     )
   )

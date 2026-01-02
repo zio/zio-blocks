@@ -75,11 +75,7 @@ object StructuralSchemaTransformer {
       case v: Reflect.Variant[Binding, ?] =>
         // Only transform variants that toStructural converts to StructuralRecord
         // Option stays as Some/None at runtime - keep variant binding, but transform nested schemas
-        // Simple enums (all case objects) stay as-is completely
-        if (isSimpleEnumVariant(v)) {
-          // Simple enums: no transformation needed at all
-          v
-        } else if (isOptionVariant(v)) {
+        if (isOptionVariant(v)) {
           // Option: keep binding but transform nested element schemas
           transformOptionVariant(v, newSeen)
         } else {
@@ -117,18 +113,6 @@ object StructuralSchemaTransformer {
     caseNames == Set("Some", "None") ||
     variant.typeName.name == "Option"
   }
-
-  /**
-   * Check if this is a simple enum (all cases have no fields - case objects
-   * only).
-   */
-  private def isSimpleEnumVariant(variant: Reflect.Variant[Binding, ?]): Boolean =
-    variant.cases.forall { term =>
-      term.value.asRecord match {
-        case Some(record) => record.fields.isEmpty
-        case None         => true // Case object
-      }
-    }
 
   /**
    * Transform Option variant: keep the variant binding (Some/None
@@ -220,6 +204,17 @@ object StructuralSchemaTransformer {
 
   /**
    * Transforms a Record schema to expect StructuralRecord at runtime.
+   *
+   * EXAMPLE: Person(name: String, age: Int) schema transformation
+   *
+   * BEFORE: Constructor: Registers → new Person(reg.getString(0),
+   * reg.getInt(1)) Deconstructor: person → reg.setString(0, person.name);
+   * reg.setInt(1, person.age)
+   *
+   * AFTER: Constructor: Registers → new StructuralRecord(Map("name" ->
+   * reg.getString(0), "age" -> reg.getInt(1))) Deconstructor: record →
+   * reg.setString(0, record.selectDynamic("name")); reg.setInt(1,
+   * record.selectDynamic("age"))
    */
   private def transformRecord(
     record: Reflect.Record[Binding, ?],
@@ -227,25 +222,28 @@ object StructuralSchemaTransformer {
   ): Reflect.Bound[StructuralRecord] = {
     val fieldNames = record.fields.map(_.name)
 
-    // Transform each field's schema recursively
+    // STEP 1: Transform each field's schema recursively (handles nested case classes)
+    // If field type is Person, recursively transform Person's schema too
     val transformedFieldSchemas: IndexedSeq[Reflect.Bound[Any]] =
       record.fields.map { term =>
         transformReflect(term.value, seen).asInstanceOf[Reflect.Bound[Any]]
       }
 
-    // Create new Terms with transformed schemas
+    // STEP 2: Create new Terms pointing to StructuralRecord instead of nominal type
     val structuralFields: IndexedSeq[Term[Binding, StructuralRecord, Any]] =
       fieldNames.zip(transformedFieldSchemas).map { case (name, fieldSchema) =>
         new Term[Binding, StructuralRecord, Any](name, fieldSchema)
       }
 
-    // Create registers for the structural record
+    // STEP 3: Create registers (storage slots) for field values
     val fieldValues  = structuralFields.map(_.value.asInstanceOf[Reflect[Binding, ?]]).toArray
     val registersArr = Reflect.Record.registers(fieldValues)
     val registers    = ArraySeq.unsafeWrapArray(registersArr).asInstanceOf[IndexedSeq[Register[Any]]]
     val usedRegs     = Reflect.Record.usedRegisters(registersArr)
 
-    // Constructor: Registers → StructuralRecord
+    // STEP 4: Build NEW Constructor that creates StructuralRecord
+    // OLD: new Person(registers[0], registers[1])
+    // NEW: new StructuralRecord(Map("name" -> registers[0], "age" -> registers[1]))
     val structuralConstructor = new Constructor[StructuralRecord] {
       def usedRegisters: RegisterOffset = usedRegs
 
@@ -253,25 +251,29 @@ object StructuralSchemaTransformer {
         val fieldMap = fieldNames.zipWithIndex.map { case (name, idx) =>
           val reg   = registers(idx)
           val value = reg.get(in, baseOffset)
-          name -> value
+          name -> value // Build Map entry
         }.toMap
         new StructuralRecord(fieldMap)
       }
     }
 
-    // Deconstructor: StructuralRecord → Registers
+    // STEP 5: Build NEW Deconstructor that uses selectDynamic
+    // OLD: person.name (field accessor)
+    // NEW: record.selectDynamic("name") (dynamic field access)
     val structuralDeconstructor = new Deconstructor[StructuralRecord] {
       def usedRegisters: RegisterOffset = usedRegs
 
       def deconstruct(out: Registers, baseOffset: RegisterOffset, in: StructuralRecord): Unit =
         fieldNames.zipWithIndex.foreach { case (name, idx) =>
-          val fieldValue = in.selectDynamic(name)
+          val fieldValue = in.selectDynamic(name) // Dynamic access!
           val reg        = registers(idx)
           reg.set(out, baseOffset, fieldValue)
         }
     }
 
-    // Create TypeName
+    // STEP 6: Create TypeName for the structural type
+    // TypeName: {age:Int,name:String} (fields sorted alphabetically)
+    // This is used for schema comparison and serialization format identification
     val structuralTypeName: TypeName[StructuralRecord] =
       TypeName.structuralFromTypeNames(fieldNames.zip(transformedFieldSchemas.map(_.typeName)))
 
@@ -288,6 +290,16 @@ object StructuralSchemaTransformer {
   /**
    * Transforms a Variant schema to expect StructuralRecord at runtime. The
    * discriminator reads the "Tag" field from StructuralRecord.
+   *
+   * EXAMPLE: sealed trait Animal; case class Dog(name: String); case object Cat
+   *
+   * BEFORE: Discriminator: (a: Animal) => if (a.isInstanceOf[Dog]) 0 else if
+   * (a.isInstanceOf[Cat]) 1 else -1 Matcher[Dog]: downcast to Dog or null
+   * Matcher[Cat]: downcast to Cat or null
+   *
+   * AFTER: Discriminator: (a: StructuralRecord) => a.selectDynamic("Tag") match
+   * { "Dog" -> 0; "Cat" -> 1 } Matcher: all cases are StructuralRecord, no
+   * downcast needed
    */
   private def transformVariant(
     variant: Reflect.Variant[Binding, ?],
@@ -295,11 +307,10 @@ object StructuralSchemaTransformer {
   ): Reflect.Bound[StructuralRecord] = {
     val caseNames = variant.cases.map(_.name)
 
-    // Check if this is an Either (has Left/Right cases)
+    // STEP 1: Normalize case names for Either (use "Left"/"Right" instead of "scala.Left"/"scala.Right")
     val isEither = caseNames.toSet == Set("scala.Left", "scala.Right") ||
       caseNames.toSet == Set("Left", "Right")
 
-    // For Either, use "Left"/"Right" as Tag values; for sealed traits, use case names
     val tagNames: IndexedSeq[String] =
       if (isEither) {
         caseNames.map { name =>
@@ -309,33 +320,35 @@ object StructuralSchemaTransformer {
         }
       } else {
         caseNames.map { name =>
-          // Extract simple name from fully qualified name
+          // Extract simple name from fully qualified name: "com.example.Dog" -> "Dog"
           name.split('.').last
         }
       }
 
-    // Transform each case's schema
+    // STEP 2: Transform each case's schema to structural form
+    // Dog(name: String) → {Tag: "Dog", name: String}
+    // Cat (case object) → {Tag: "Cat"}
     val structuralCases: IndexedSeq[Term[Binding, StructuralRecord, StructuralRecord]] =
       caseNames.zip(tagNames).zipWithIndex.map { case ((caseName, tagName), idx) =>
         val originalCase = variant.cases(idx)
 
-        // Transform the case schema
         val caseSchema = originalCase.value.asRecord match {
           case Some(caseRecord) =>
-            // Case class: transform to structural record with Tag field
+            // Case class with fields: transform record + add Tag
             transformCaseWithTag(caseRecord, tagName, seen)
           case None =>
-            // Case object or primitive: just Tag field
+            // Case object with no fields: just create {Tag: "CaseName"}
             createTagOnlyRecord(tagName)
         }
 
         new Term[Binding, StructuralRecord, StructuralRecord](tagName, caseSchema)
       }
 
-    // Tag-to-index map for discriminator
+    // STEP 3: Build NEW Discriminator that reads Tag field
+    // OLD: a.isInstanceOf[Dog] → 0; a.isInstanceOf[Cat] → 1
+    // NEW: a.selectDynamic("Tag") == "Dog" → 0; == "Cat" → 1
     val tagToIndex: Map[String, Int] = tagNames.zipWithIndex.toMap
 
-    // Discriminator: read Tag field
     val structuralDiscriminator = new Discriminator[StructuralRecord] {
       def discriminate(a: StructuralRecord): Int = {
         val tag = a.selectDynamic("Tag").asInstanceOf[String]
@@ -343,7 +356,9 @@ object StructuralSchemaTransformer {
       }
     }
 
-    // Matchers: each case returns StructuralRecord as-is
+    // STEP 4: Build NEW Matchers (simplified - no downcasting needed)
+    // OLD: downcast Animal to Dog or Cat
+    // NEW: all cases are StructuralRecord already, just return as-is
     val structuralMatchers = Matchers(
       tagNames.map { _ =>
         new Matcher[StructuralRecord] {
@@ -355,8 +370,13 @@ object StructuralSchemaTransformer {
       }*
     )
 
-    // Create variant TypeName
-    val structuralTypeName: TypeName[StructuralRecord] = TypeName.variant(tagNames)
+    // STEP 5: Create TypeName for the variant (UNION TYPE)
+    // TypeName: ({Tag:"Cat"}|{Tag:"Dog",name:String})  - sorted alphabetically
+    // This represents the structural type signature for schema comparison
+    val caseTypeNameStrs                               = structuralCases.map(_.value.typeName.name).sorted
+    val variantTypeNameStr                             = "(" + caseTypeNameStrs.mkString("|") + ")"
+    val structuralTypeName: TypeName[StructuralRecord] =
+      new TypeName[StructuralRecord](Namespace.empty, variantTypeNameStr, Nil)
 
     new Reflect.Variant[Binding, StructuralRecord](
       cases = structuralCases.asInstanceOf[IndexedSeq[Term[Binding, StructuralRecord, ? <: StructuralRecord]]],
@@ -425,8 +445,20 @@ object StructuralSchemaTransformer {
         }
     }
 
-    // TypeName
-    val caseTypeName: TypeName[StructuralRecord] = TypeName.taggedCase(tagName)
+    // STEP 6: Create TypeName for this case
+    // TYPENAME USAGE: Creates a normalized, comparable representation
+    //
+    // Example: Dog(name: String) becomes {Tag:"Dog",name:String}
+    //
+    // Why sorted alphabetically? So these are equal:
+    //   {name:String,Tag:"Dog"} == {Tag:"Dog",name:String}
+    //
+    // The Tag value is a quoted STRING LITERAL in the type name:
+    //   Tag:"Dog"  not  Tag:Dog
+    val tagFieldType                             = s""""$tagName"""" // Creates "Dog" with quotes
+    val allFieldStrs                             = ("Tag" -> tagFieldType) +: fieldNames.zip(transformedFieldSchemas.map(_.typeName.toSimpleName))
+    val caseTypeName: TypeName[StructuralRecord] =
+      TypeName.structural(allFieldStrs) // Sorts alphabetically inside
 
     new Reflect.Record[Binding, StructuralRecord](
       fields = dataFields.asInstanceOf[IndexedSeq[Term[Binding, StructuralRecord, ?]]],
@@ -461,7 +493,10 @@ object StructuralSchemaTransformer {
       }
     }
 
-    val caseTypeName: TypeName[StructuralRecord] = TypeName.taggedCase(tagName)
+    // TypeName for case object: {Tag:"CaseName"}
+    val tagFieldType                             = s""""$tagName""""
+    val caseTypeName: TypeName[StructuralRecord] =
+      TypeName.structural(Seq("Tag" -> tagFieldType))
 
     new Reflect.Record[Binding, StructuralRecord](
       fields = fields.asInstanceOf[IndexedSeq[Term[Binding, StructuralRecord, ?]]],
@@ -487,11 +522,18 @@ object StructuralSchemaTransformer {
       return seq
     }
 
+    // Create new TypeName with transformed element type name
+    val newTypeName = seq.typeName
+      .copy(
+        params = Seq(transformedElement.typeName)
+      )
+      .asInstanceOf[TypeName[Any]]
+
     // Create new sequence with transformed element
     // We need to preserve the collection type and binding
     new Reflect.Sequence[Binding, Any, ({ type L[X] = Any })#L](
       element = transformedElement.asInstanceOf[Reflect.Bound[Any]],
-      typeName = seq.typeName.asInstanceOf[TypeName[Any]],
+      typeName = newTypeName,
       seqBinding = seq.seqBinding.asInstanceOf[Binding[BindingType.Seq[({ type L[X] = Any })#L], Any]]
     ).asInstanceOf[Reflect.Bound[?]]
   }
@@ -511,11 +553,18 @@ object StructuralSchemaTransformer {
       return map
     }
 
+    // Create new TypeName with transformed key/value type names
+    val newTypeName = map.typeName
+      .copy(
+        params = Seq(transformedKey.typeName, transformedValue.typeName)
+      )
+      .asInstanceOf[TypeName[Any]]
+
     // Create new map with transformed key/value
     new Reflect.Map[Binding, Any, Any, ({ type L[X, Y] = Any })#L](
       key = transformedKey.asInstanceOf[Reflect.Bound[Any]],
       value = transformedValue.asInstanceOf[Reflect.Bound[Any]],
-      typeName = map.typeName.asInstanceOf[TypeName[Any]],
+      typeName = newTypeName,
       mapBinding = map.mapBinding.asInstanceOf[Binding[BindingType.Map[({ type L[X, Y] = Any })#L], Any]]
     ).asInstanceOf[Reflect.Bound[?]]
   }

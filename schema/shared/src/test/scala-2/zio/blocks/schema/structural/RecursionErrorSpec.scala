@@ -3,7 +3,6 @@ package zio.blocks.schema.structural
 import zio.test._
 import zio.test.Assertion._
 
-
 object RecursionErrorSpec extends ZIOSpecDefault {
 
   def spec = suite("RecursionErrorSpec (Scala 2)")(
@@ -17,8 +16,8 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("recursive type detected") &&
-            containsString("Tree") &&
-            containsString("cannot represent recursive structures")
+              containsString("Tree") &&
+              containsString("cannot represent recursive structures")
           )
         )
       },
@@ -31,8 +30,8 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("recursive type detected") &&
-            containsString("Node") &&
-            containsString("cannot represent recursive structures")
+              containsString("Node") &&
+              containsString("cannot represent recursive structures")
           )
         )
       }
@@ -47,7 +46,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("recursive type detected") &&
-            containsString("TreeList")
+              containsString("TreeList")
           )
         )
       },
@@ -60,7 +59,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("recursive type detected") &&
-            containsString("TreeOption")
+              containsString("TreeOption")
           )
         )
       },
@@ -73,7 +72,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("recursive type detected") &&
-            containsString("TreeVector")
+              containsString("TreeVector")
           )
         )
       },
@@ -86,7 +85,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("recursive type detected") &&
-            containsString("TreeSet")
+              containsString("TreeSet")
           )
         )
       },
@@ -99,7 +98,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("recursive type detected") &&
-            containsString("TreeMap")
+              containsString("TreeMap")
           )
         )
       }
@@ -115,8 +114,8 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("mutually recursive types detected") &&
-            (containsString("NodeA") || containsString("NodeB")) &&
-            containsString("cyclic dependencies")
+              (containsString("NodeA") || containsString("NodeB")) &&
+              containsString("cyclic dependencies")
           )
         )
       },
@@ -130,8 +129,8 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("mutually recursive types detected") &&
-            (containsString("Parent") || containsString("Child")) &&
-            containsString("cyclic dependencies")
+              (containsString("Parent") || containsString("Child")) &&
+              containsString("cyclic dependencies")
           )
         )
       }
@@ -146,7 +145,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("only supports case classes") &&
-            containsString("Regular")
+              containsString("Regular")
           )
         )
       },
@@ -159,7 +158,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("only supports case classes") &&
-            containsString("SomeTrait")
+              containsString("SomeTrait")
           )
         )
       },
@@ -172,7 +171,7 @@ object RecursionErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("only supports case classes") &&
-            containsString("AbstractBase")
+              containsString("AbstractBase")
           )
         )
       }

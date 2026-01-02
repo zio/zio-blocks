@@ -427,7 +427,7 @@ private object SchemaVersionSpecific {
       // Check if this is a structural refinement type
       if (isStructuralRefinementType(dealt)) {
         // Recursively extract and format fields
-        val fields = extractRefinementFields(dealt)
+        val fields    = extractRefinementFields(dealt)
         val fieldStrs = fields.map { case (name, fTpe) =>
           val typeStr = structuralTypeNameString(fTpe)
           s"$name:$typeStr"
@@ -438,10 +438,10 @@ private object SchemaVersionSpecific {
         structuralTypeNameString(dealt.dealias)
       } else if (dealt.typeSymbol.fullName.startsWith("scala.Tuple")) {
         // Handle tuples: convert to structural form with _1, _2, _3, etc. fields
-        val elements = typeArgs(dealt)
+        val elements  = typeArgs(dealt)
         val fieldStrs = elements.zipWithIndex.map { case (elemTpe, idx) =>
           val fieldName = s"_${idx + 1}"
-          val typeStr = structuralTypeNameString(elemTpe)
+          val typeStr   = structuralTypeNameString(elemTpe)
           s"$fieldName:$typeStr"
         }
         s"{${fieldStrs.mkString(",")}}"

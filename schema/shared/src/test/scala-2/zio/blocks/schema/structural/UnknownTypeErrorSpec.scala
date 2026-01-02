@@ -22,8 +22,8 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("RegularClass") &&
-            containsString("ToStructural only supports")
+              containsString("RegularClass") &&
+              containsString("ToStructural only supports")
           )
         )
       },
@@ -38,8 +38,8 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("Inner") &&
-            containsString("not supported")
+              containsString("Inner") &&
+              containsString("not supported")
           )
         )
       },
@@ -53,7 +53,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("RegularClass")
+              containsString("RegularClass")
           )
         )
       },
@@ -67,7 +67,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("RegularClass")
+              containsString("RegularClass")
           )
         )
       },
@@ -81,7 +81,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("RegularClass")
+              containsString("RegularClass")
           )
         )
       }
@@ -97,8 +97,8 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("UnsealedTrait") &&
-            containsString("Case classes")
+              containsString("UnsealedTrait") &&
+              containsString("Case classes")
           )
         )
       },
@@ -112,7 +112,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("UnsealedTrait")
+              containsString("UnsealedTrait")
           )
         )
       }
@@ -128,8 +128,8 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("unsupported type") &&
-            containsString("AbstractBase") &&
-            containsString("not supported")
+              containsString("AbstractBase") &&
+              containsString("not supported")
           )
         )
       }
@@ -145,7 +145,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("MyCustomClass") &&
-            containsString("unsupported type")
+              containsString("unsupported type")
           )
         )
       },
@@ -159,7 +159,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("Case classes") &&
-            containsString("ToStructural only supports")
+              containsString("ToStructural only supports")
           )
         )
       },
@@ -173,7 +173,7 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
         assertZIO(result)(
           isLeft(
             containsString("case class") &&
-            containsString("consider converting")
+              containsString("consider converting")
           )
         )
       }

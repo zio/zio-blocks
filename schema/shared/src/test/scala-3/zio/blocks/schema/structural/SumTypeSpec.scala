@@ -1,5 +1,6 @@
 package zio.blocks.schema.structural
 
+import scala.annotation.nowarn
 import zio.test._
 import zio.blocks.schema._
 
@@ -108,19 +109,18 @@ object SumTypeSpec extends ZIOSpecDefault {
       }
     ),
     suite("Scala 3 Enums")(
-      test("simple enum (case objects only) - kept as leaf values") {
-        // Simple enums (all cases parameterless) are treated as leaf values like primitives
-        // They are NOT converted to StructuralRecord - they remain as their original enum type
+      test("simple enum (case objects only) - converted to StructuralRecord with Tag") {
+        // All enums are now converted to StructuralRecord with Tag field
         val ts: ToStructural[Color] = ToStructural.derived[Color]
 
-        val red = ts.toStructural(Color.Red)
-        assertTrue(red == Color.Red)
+        val red = ts.toStructural(Color.Red).asInstanceOf[StructuralRecord]
+        assertTrue(red.selectDynamic("Tag") == "Red")
 
-        val green = ts.toStructural(Color.Green)
-        assertTrue(green == Color.Green)
+        val green = ts.toStructural(Color.Green).asInstanceOf[StructuralRecord]
+        assertTrue(green.selectDynamic("Tag") == "Green")
 
-        val blue = ts.toStructural(Color.Blue)
-        assertTrue(blue == Color.Blue)
+        val blue = ts.toStructural(Color.Blue).asInstanceOf[StructuralRecord]
+        assertTrue(blue.selectDynamic("Tag") == "Blue")
       },
       test("enum with case class variants") {
         val ts: ToStructural[ColorWithValue] = ToStructural.derived[ColorWithValue]
@@ -149,7 +149,7 @@ object SumTypeSpec extends ZIOSpecDefault {
         assertTrue(
           s.selectDynamic("name") == "Alice",
           s.selectDynamic("age") == 30,
-          s.selectDynamic("gender") == Gender.Female
+          s.selectDynamic("gender").asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Female"
         )
       }
     ),
@@ -243,6 +243,50 @@ object SumTypeSpec extends ZIOSpecDefault {
 
         val none = ts.toStructural(MaybeResult(None)).asInstanceOf[StructuralRecord]
         assertTrue(none.selectDynamic("result") == None)
+      }
+    ),
+    suite("StructuralSchema TypeName for Sum Types")(
+      test("sealed trait has correct TypeName") {
+        val ts               = ToStructural.derived[Result]
+        given Schema[Result] = Schema.derived[Result]
+        val structSchema     = ts.structuralSchema
+
+        assertTrue(structSchema.reflect.typeName.name == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})""")
+      },
+      test("sealed trait with case object has correct TypeName") {
+        val ts               = ToStructural.derived[Status]
+        given Schema[Status] = Schema.derived[Status]
+        val structSchema     = ts.structuralSchema
+
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Active",since:String}|{Tag:"Inactive",reason:String}|{Tag:"Unknown"})"""
+        )
+      },
+      test("simple enum has correct TypeName") {
+        val ts              = ToStructural.derived[Color]
+        given Schema[Color] = Schema.derived[Color]
+        val structSchema    = ts.structuralSchema
+
+        assertTrue(structSchema.reflect.typeName.name == """({Tag:"Blue"}|{Tag:"Green"}|{Tag:"Red"})""")
+      },
+      test("complex enum has correct TypeName") {
+        val ts                       = ToStructural.derived[ColorWithValue]
+        given Schema[ColorWithValue] = Schema.derived[ColorWithValue]
+        val structSchema             = ts.structuralSchema
+
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Named",name:String}|{Tag:"RGB",b:Int,g:Int,r:Int})"""
+        )
+      },
+      test("case class containing sealed trait has correct TypeName") {
+        @nowarn("msg=unused") case class Wrapper(id: Int, result: Result)
+        val ts                = ToStructural.derived[Wrapper]
+        given Schema[Wrapper] = Schema.derived[Wrapper]
+        val structSchema      = ts.structuralSchema
+
+        assertTrue(
+          structSchema.reflect.typeName.name == """{id:Int,result:({Tag:"Failure",error:String}|{Tag:"Success",value:Int})}"""
+        )
       }
     )
   )

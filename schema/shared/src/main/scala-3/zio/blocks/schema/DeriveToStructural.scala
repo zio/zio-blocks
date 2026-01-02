@@ -105,17 +105,6 @@ object DeriveToStructural {
       else dealt
     }
 
-    // Helper: Check if a sealed type is a simple enum (all cases are parameterless)
-    def isSimpleEnum(children: List[Symbol]): Boolean = children.forall { childSym =>
-      if (childSym.isClassDef && childSym.flags.is(Flags.Case)) {
-        // Case class - check if it has no fields
-        childSym.caseFields.isEmpty
-      } else {
-        // Term symbol (case object, simple enum case) - no fields
-        true
-      }
-    }
-
     // Single categorization function
     def categorize(t: TypeRepr): TypeCategory = {
       // First dealias, then check for opaque and dealias that too
@@ -361,36 +350,48 @@ object DeriveToStructural {
           }
 
         case TypeCategory.SealedType(children) =>
-          // Simple enums (all cases parameterless) keep their original type
-          if (isSimpleEnum(children)) {
-            dealt
-          } else {
-            // sealed trait → union of structural types with Tag
-            val childStructuralTypes = children.map { childSym =>
-              val childType = if (childSym.isTerm) {
-                TypeRepr.of[StructuralRecord]
-              } else {
-                val cType      = TypeIdent(childSym).tpe
-                val typeParams =
-                  cType.typeSymbol.primaryConstructor.paramSymss.headOption.map(_.filter(_.isTypeParam)).getOrElse(Nil)
-                if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
-                  cType.appliedTo(dealt.typeArgs)
-                } else {
-                  cType
-                }
-              }
+          // sealed trait → union of structural types with Tag
+          // Example: sealed trait Animal; case class Dog(name: String); case object Cat
+          // Becomes: ({ Tag: "Dog", name: String } | { Tag: "Cat" })
 
-              val structType = buildStructuralType(childType, seen + dealt)
-              val tagName    = childSym.name
-              val tagType    = ConstantType(StringConstant(tagName))
-              Refinement(structType, "Tag", TypeBounds(tagType, tagType))
-            }
-
-            if (childStructuralTypes.isEmpty) {
-              TypeRepr.of[Nothing]
+          val childStructuralTypes = children.map { childSym =>
+            // STEP 1: Get the nominal type of this child case
+            // Case objects (isTerm) have no fields → use empty StructuralRecord as base
+            // Case classes need their actual type (with type parameters applied if needed)
+            val childType = if (childSym.isTerm) {
+              // Case object like "Cat" → no data fields, just needs Tag
+              TypeRepr.of[StructuralRecord]
             } else {
-              childStructuralTypes.reduce((a, b) => OrType(a, b))
+              // Case class like "Dog(name: String)" → needs actual type with fields
+              val cType      = TypeIdent(childSym).tpe
+              val typeParams =
+                cType.typeSymbol.primaryConstructor.paramSymss.headOption.map(_.filter(_.isTypeParam)).getOrElse(Nil)
+              // If parent is sealed trait Option[T], child is Some[T] → apply T to Some
+              if (typeParams.size == dealt.typeArgs.size && dealt.typeArgs.nonEmpty) {
+                cType.appliedTo(dealt.typeArgs)
+              } else {
+                cType
+              }
             }
+
+            // STEP 2: Recursively convert child to structural type
+            // Dog(name: String) → StructuralRecord { def name: String }
+            // Cat (case object) → StructuralRecord (empty)
+            val structType = buildStructuralType(childType, seen + dealt)
+
+            // STEP 3: Add Tag field to discriminate between cases
+            // Creates: StructuralRecord { def name: String; Tag: "Dog" }
+            val tagName = childSym.name
+            val tagType = ConstantType(StringConstant(tagName))
+            Refinement(structType, "Tag", TypeBounds(tagType, tagType))
+          }
+
+          // STEP 4: Combine all child structural types into a union type
+          // ({ Tag: "Dog", name: String } | { Tag: "Cat" })
+          if (childStructuralTypes.isEmpty) {
+            TypeRepr.of[Nothing]
+          } else {
+            childStructuralTypes.reduce((a, b) => OrType(a, b))
           }
       }
     }
@@ -425,19 +426,24 @@ object DeriveToStructural {
     def buildValueConverter(fieldTpe: TypeRepr): Expr[Any => Any] = {
       categorize(fieldTpe) match {
         case TypeCategory.PrimitiveLike | TypeCategory.Unknown =>
+          // Primitives pass through unchanged: Int stays Int, String stays String
           '{ (x: Any) => x }
 
         case TypeCategory.CaseClassType(fields) =>
+          // CASE CLASS: Person(name: String, age: Int) → StructuralRecord(Map("name" -> "Alice", "age" -> 30))
           fieldTpe.asType match {
             case '[ft] =>
+              // Build converters for each field recursively (handles nested case classes)
               val fieldConverters: List[(String, Expr[Any => Any])] = fields.map { case (fieldSym, nestedFieldTpe) =>
                 (fieldSym.name, buildValueConverter(nestedFieldTpe))
               }
+              // Generate runtime code: extract each field, convert it, build Map
               '{ (x: Any) =>
                 val v                     = x.asInstanceOf[ft]
                 val map: Map[String, Any] = Map(
                   ${
                     val entries = fieldConverters.map { case (name, converter) =>
+                      // v.name → "Alice", then apply converter (in case nested)
                       val accessor = Select.unique('v.asTerm, name).asExpr
                       '{ ${ Expr(name) } -> $converter($accessor.asInstanceOf[Any]) }
                     }
@@ -449,10 +455,15 @@ object DeriveToStructural {
           }
 
         case TypeCategory.OptionType(elem) =>
+          // OPTION: Option[T] stays as Option but contents are converted
+          // Some(Person("Alice", 30)) → Some(StructuralRecord(...))
+          // None stays None
           val elemConverter = buildValueConverter(elem)
           '{ (x: Any) => x.asInstanceOf[Option[Any]].map($elemConverter) }
 
         case TypeCategory.ListType(elem) =>
+          // COLLECTIONS: Keep the collection structure, convert elements
+          // List[Person] → List[StructuralRecord]
           val elemConverter = buildValueConverter(elem)
           '{ (x: Any) => x.asInstanceOf[List[Any]].map($elemConverter) }
 
@@ -469,12 +480,17 @@ object DeriveToStructural {
           '{ (x: Any) => x.asInstanceOf[Set[Any]].map($elemConverter) }
 
         case TypeCategory.MapType(key, value) =>
+          // MAP: Convert both keys and values
+          // Map[Person, Address] → Map[StructuralRecord, StructuralRecord]
           val keyConverter = buildValueConverter(key)
           val valConverter = buildValueConverter(value)
           '{ (x: Any) => x.asInstanceOf[Map[Any, Any]].map { case (k, v) => ($keyConverter(k), $valConverter(v)) } }
 
         case TypeCategory.EitherType(left, right) =>
-          // Either → StructuralRecord with Tag = "Left"/"Right" and value field
+          // EITHER: Pattern match and tag with "Left" or "Right"
+          // Left(42) → StructuralRecord(Map("Tag" -> "Left", "value" -> 42))
+          // Right("hi") → StructuralRecord(Map("Tag" -> "Right", "value" -> "hi"))
+          // Note: Converters handle nested transformations (e.g., Left(Person(...)))
           val leftConverter  = buildValueConverter(left)
           val rightConverter = buildValueConverter(right)
           '{ (x: Any) =>
@@ -487,7 +503,9 @@ object DeriveToStructural {
           }
 
         case TypeCategory.TupleType(elements) =>
-          // Convert tuple to StructuralRecord with _1, _2, etc. fields
+          // TUPLE: Convert to StructuralRecord with numbered fields
+          // ("Alice", 30) → StructuralRecord(Map("_1" -> "Alice", "_2" -> 30))
+          // Works like case class conversion but with _1, _2, _3... field names
           fieldTpe.asType match {
             case '[ft] =>
               val fieldConverters: List[(String, Expr[Any => Any])] = elements.zipWithIndex.map { case (elemTpe, idx) =>
@@ -498,6 +516,7 @@ object DeriveToStructural {
                 val map: Map[String, Any] = Map(
                   ${
                     val entries = fieldConverters.map { case (name, converter) =>
+                      // Access tuple._1, tuple._2, etc.
                       val accessor = Select.unique('v.asTerm, name).asExpr
                       '{ ${ Expr(name) } -> $converter($accessor.asInstanceOf[Any]) }
                     }
@@ -509,62 +528,69 @@ object DeriveToStructural {
           }
 
         case TypeCategory.SealedType(children) =>
-          // Simple enums (all cases parameterless) are kept as-is - they're leaf values like primitives
-          if (isSimpleEnum(children)) {
-            '{ (x: Any) => x }
-          } else {
-            // Sealed type with case class children → StructuralRecord with Tag field
-            // Build converters with their types stored (to avoid recomputing in foldRight)
-            val childConvertersWithTypes: List[(TypeRepr, Expr[Any => Any])] = children.map { childSym =>
-              val childTpe = if (childSym.isClassDef) {
-                TypeIdent(childSym).tpe
-              } else {
-                // Term symbol (case object, simple enum case)
-                Ref(childSym).tpe
-              }
+          // SEALED TRAIT: Dynamic dispatch based on runtime type
+          // sealed trait Animal; case class Dog(name: String); case object Cat
+          //
+          // Dog("Rex") → StructuralRecord(Map("Tag" -> "Dog", "name" -> "Rex"))
+          // Cat → StructuralRecord(Map("Tag" -> "Cat"))
+          //
+          // Strategy: Build a converter for each child, then generate isInstanceOf chain
 
-              val converter = categorize(childTpe) match {
-                case TypeCategory.CaseClassType(fields) =>
-                  // Case class child: extract fields and add Tag
-                  childTpe.asType match {
-                    case '[ct] =>
-                      val fieldConverters = fields.map { case (fieldSym, nestedFieldTpe) =>
-                        (fieldSym.name, buildValueConverter(nestedFieldTpe))
-                      }
-                      val tagName = Expr(childSym.name)
-                      '{ (x: Any) =>
-                        val v                          = x.asInstanceOf[ct]
-                        val fieldMap: Map[String, Any] = Map(
-                          ${
-                            val entries = fieldConverters.map { case (name, conv) =>
-                              val accessor = Select.unique('v.asTerm, name).asExpr
-                              '{ ${ Expr(name) } -> $conv($accessor.asInstanceOf[Any]) }
-                            }
-                            Expr.ofList(entries)
-                          }*
-                        )
-                        new StructuralRecord(fieldMap + ("Tag" -> $tagName))
-                      }
-                  }
-                case _ =>
-                  // Case object or other: just Tag, no fields
-                  val tagName = Expr(childSym.name)
-                  '{ (_: Any) => new StructuralRecord(Map("Tag" -> $tagName)) }
-              }
-              (childTpe, converter)
+          val childConvertersWithTypes: List[(TypeRepr, Expr[Any => Any])] = children.map { childSym =>
+            // STEP 1: Get the type of this child (case class or case object)
+            val childTpe = if (childSym.isClassDef) {
+              TypeIdent(childSym).tpe
+            } else {
+              // Term symbol (case object, simple enum case)
+              Ref(childSym).tpe
             }
 
-            // Generate pattern match expression using stored types
-            '{ (x: Any) =>
-              ${
-                // Build a chain of if-else checks using isInstanceOf
-                childConvertersWithTypes.foldRight('{ throw new MatchError(x) }: Expr[Any]) {
-                  case ((childTpe, converter), elseExpr) =>
-                    childTpe.asType match {
-                      case '[ct] =>
-                        '{ if (x.isInstanceOf[ct]) $converter(x) else $elseExpr }
+            // STEP 2: Build a converter for this specific child
+            val converter = categorize(childTpe) match {
+              case TypeCategory.CaseClassType(fields) =>
+                // Case class with data fields: Dog(name: String)
+                // Generate: extract all fields + add Tag
+                childTpe.asType match {
+                  case '[ct] =>
+                    val fieldConverters = fields.map { case (fieldSym, nestedFieldTpe) =>
+                      (fieldSym.name, buildValueConverter(nestedFieldTpe))
+                    }
+                    val tagName = Expr(childSym.name)
+                    '{ (x: Any) =>
+                      val v                          = x.asInstanceOf[ct]
+                      val fieldMap: Map[String, Any] = Map(
+                        ${
+                          val entries = fieldConverters.map { case (name, conv) =>
+                            val accessor = Select.unique('v.asTerm, name).asExpr
+                            '{ ${ Expr(name) } -> $conv($accessor.asInstanceOf[Any]) }
+                          }
+                          Expr.ofList(entries)
+                        }*
+                      )
+                      // Add Tag field to discriminate between cases
+                      new StructuralRecord(fieldMap + ("Tag" -> $tagName))
                     }
                 }
+              case _ =>
+                // Case object with no fields: Cat
+                // Generate: just create record with Tag
+                val tagName = Expr(childSym.name)
+                '{ (_: Any) => new StructuralRecord(Map("Tag" -> $tagName)) }
+            }
+            (childTpe, converter)
+          }
+
+          // STEP 3: Generate runtime pattern matching code
+          // Produces: if (x.isInstanceOf[Dog]) dogConverter(x) else if (x.isInstanceOf[Cat]) catConverter(x) else throw MatchError
+          '{ (x: Any) =>
+            ${
+              // Build a chain of if-else checks using isInstanceOf
+              childConvertersWithTypes.foldRight('{ throw new MatchError(x) }: Expr[Any]) {
+                case ((childTpe, converter), elseExpr) =>
+                  childTpe.asType match {
+                    case '[ct] =>
+                      '{ if (x.isInstanceOf[ct]) $converter(x) else $elseExpr }
+                  }
               }
             }
           }
@@ -624,94 +650,81 @@ object DeriveToStructural {
       // Sealed Trait/Enum Implementation
       val children = symbol.children
 
-      // Simple enums (all parameterless cases) keep their nominal type
-      if (isSimpleEnum(children)) {
-        '{
-          new ToStructural[A] {
-            type StructuralType = A
-
-            def toStructural(value: A): StructuralType = value
-
-            def structuralSchema(implicit schema: Schema[A]): Schema[StructuralType] = schema
-          }
-        }
-      } else {
-        // Complex sealed trait with case class children
-        structuralTypeRepr.asType match {
-          case '[st] =>
-            // Helper to get type for a child symbol (handles both class and term symbols)
-            def getChildType(childSym: Symbol): TypeRepr =
-              if (childSym.isClassDef) {
-                TypeIdent(childSym).tpe
-              } else {
-                // Term symbol (case object, simple enum case)
-                Ref(childSym).tpe
-              }
-
-            // Generate converters for each child type
-            val childConverters: List[(Symbol, Expr[Any => Any])] = children.map { childSym =>
-              val childTpe = getChildType(childSym)
-
-              val converter = categorize(childTpe) match {
-                case TypeCategory.CaseClassType(fields) if fields.nonEmpty =>
-                  // Case class child: extract fields and add Tag
-                  childTpe.asType match {
-                    case '[ct] =>
-                      val fieldConverters = fields.map { case (fieldSym, nestedFieldTpe) =>
-                        (fieldSym.name, buildValueConverter(nestedFieldTpe))
-                      }
-                      val tagName = Expr(childSym.name)
-                      '{ (x: Any) =>
-                        val v                          = x.asInstanceOf[ct]
-                        val fieldMap: Map[String, Any] = Map(
-                          ${
-                            val entries = fieldConverters.map { case (name, conv) =>
-                              val accessor = Select.unique('v.asTerm, name).asExpr
-                              '{ ${ Expr(name) } -> $conv($accessor.asInstanceOf[Any]) }
-                            }
-                            Expr.ofList(entries)
-                          }*
-                        )
-                        new StructuralRecord(fieldMap + ("Tag" -> $tagName))
-                      }
-                  }
-                case _ =>
-                  // Case object or other: just Tag, no fields
-                  val tagName = Expr(childSym.name)
-                  '{ (_: Any) => new StructuralRecord(Map("Tag" -> $tagName)) }
-              }
-              (childSym, converter)
+      // Complex sealed trait with case class children
+      structuralTypeRepr.asType match {
+        case '[st] =>
+          // Helper to get type for a child symbol (handles both class and term symbols)
+          def getChildType(childSym: Symbol): TypeRepr =
+            if (childSym.isClassDef) {
+              TypeIdent(childSym).tpe
+            } else {
+              // Term symbol (case object, simple enum case)
+              Ref(childSym).tpe
             }
 
-            '{
-              new ToStructural[A] {
-                type StructuralType = st
+          // Generate converters for each child type
+          val childConverters: List[(Symbol, Expr[Any => Any])] = children.map { childSym =>
+            val childTpe = getChildType(childSym)
 
-                def toStructural(value: A): StructuralType = {
-                  val result: Any = ${
-                    // Build a chain of if-else checks using isInstanceOf
-                    childConverters.foldRight('{ throw new MatchError(value) }: Expr[Any]) {
-                      case ((childSym, converter), elseExpr) =>
-                        val childTpe = getChildType(childSym)
-                        childTpe.asType match {
-                          case '[ct] =>
-                            '{ if (value.isInstanceOf[ct]) $converter(value) else $elseExpr }
-                        }
+            val converter = categorize(childTpe) match {
+              case TypeCategory.CaseClassType(fields) if fields.nonEmpty =>
+                // Case class child: extract fields and add Tag
+                childTpe.asType match {
+                  case '[ct] =>
+                    val fieldConverters = fields.map { case (fieldSym, nestedFieldTpe) =>
+                      (fieldSym.name, buildValueConverter(nestedFieldTpe))
                     }
-                  }
-                  result.asInstanceOf[StructuralType]
+                    val tagName = Expr(childSym.name)
+                    '{ (x: Any) =>
+                      val v                          = x.asInstanceOf[ct]
+                      val fieldMap: Map[String, Any] = Map(
+                        ${
+                          val entries = fieldConverters.map { case (name, conv) =>
+                            val accessor = Select.unique('v.asTerm, name).asExpr
+                            '{ ${ Expr(name) } -> $conv($accessor.asInstanceOf[Any]) }
+                          }
+                          Expr.ofList(entries)
+                        }*
+                      )
+                      new StructuralRecord(fieldMap + ("Tag" -> $tagName))
+                    }
                 }
+              case _ =>
+                // Case object or other: just Tag, no fields
+                val tagName = Expr(childSym.name)
+                '{ (_: Any) => new StructuralRecord(Map("Tag" -> $tagName)) }
+            }
+            (childSym, converter)
+          }
 
-                def structuralSchema(implicit schema: Schema[A]): Schema[StructuralType] = {
-                  // PHASE 3: Transform variant schema to use Tag-based discrimination
-                  // The nominal schema discriminates using instanceof checks (e.g., value.isInstanceOf[Left])
-                  // We transform it to read the "Tag" field from StructuralRecord
-                  val structuralReflect = StructuralSchemaTransformer.transform(schema.reflect)
-                  new Schema[StructuralType](structuralReflect.asInstanceOf[Reflect.Bound[StructuralType]])
+          '{
+            new ToStructural[A] {
+              type StructuralType = st
+
+              def toStructural(value: A): StructuralType = {
+                val result: Any = ${
+                  // Build a chain of if-else checks using isInstanceOf
+                  childConverters.foldRight('{ throw new MatchError(value) }: Expr[Any]) {
+                    case ((childSym, converter), elseExpr) =>
+                      val childTpe = getChildType(childSym)
+                      childTpe.asType match {
+                        case '[ct] =>
+                          '{ if (value.isInstanceOf[ct]) $converter(value) else $elseExpr }
+                      }
+                  }
                 }
+                result.asInstanceOf[StructuralType]
+              }
+
+              def structuralSchema(implicit schema: Schema[A]): Schema[StructuralType] = {
+                // PHASE 3: Transform variant schema to use Tag-based discrimination
+                // The nominal schema discriminates using instanceof checks (e.g., value.isInstanceOf[Left])
+                // We transform it to read the "Tag" field from StructuralRecord
+                val structuralReflect = StructuralSchemaTransformer.transform(schema.reflect)
+                new Schema[StructuralType](structuralReflect.asInstanceOf[Reflect.Bound[StructuralType]])
               }
             }
-        }
+          }
       }
     }
   }

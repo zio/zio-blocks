@@ -63,7 +63,9 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           s.unit == ()
         )
 
-        assertTrue(structSchema.reflect.typeName.name == "{bigDecimal:BigDecimal,bigInt:BigInt,currency:Currency,instant:Instant,unit:Unit,uuid:UUID}")
+        assertTrue(
+          structSchema.reflect.typeName.name == "{bigDecimal:BigDecimal,bigInt:BigInt,currency:Currency,instant:Instant,unit:Unit,uuid:UUID}"
+        )
       },
       test("BigInt field") {
         val ts                                  = ToStructural.derived[WithBigInt]

@@ -63,6 +63,18 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
   case class OptionalUserId(id: Option[UserId])
   case class UserIdMap(lookup: Map[String, UserId])
 
+  // Schema instances for all case classes
+  given Schema[User]                 = Schema.derived[User]
+  given Schema[UserWithAge]          = Schema.derived[UserWithAge]
+  given Schema[WithTimestamp]        = Schema.derived[WithTimestamp]
+  given Schema[Product]              = Schema.derived[Product]
+  given Schema[MultipleOpaqueFields] = Schema.derived[MultipleOpaqueFields]
+  given Schema[Address]              = Schema.derived[Address]
+  given Schema[UserWithAddress]      = Schema.derived[UserWithAddress]
+  given Schema[UserIds]              = Schema.derived[UserIds]
+  given Schema[OptionalUserId]       = Schema.derived[OptionalUserId]
+  given Schema[UserIdMap]            = Schema.derived[UserIdMap]
+
   def spec = suite("OpaqueTypeSpec (Scala 3)")(
     suite("Simple Opaque Types")(
       test("opaque type backed by String") {
@@ -72,6 +84,7 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
           s.id == "user123",
           s.name == "Alice"
         )
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{id:String,name:String}")
       },
       test("opaque type backed by Int") {
         val ts = ToStructural.derived[UserWithAge]
@@ -81,6 +94,7 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
           s.name == "Alice",
           s.age == 30
         )
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{age:Int,id:String,name:String}")
       },
       test("opaque type backed by Long") {
         val ts = ToStructural.derived[WithTimestamp]
@@ -89,6 +103,7 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
           s.ts == 1234567890L,
           s.value == "event"
         )
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{ts:Long,value:String}")
       },
       test("opaque type backed by Double") {
         val ts = ToStructural.derived[Product]
@@ -98,6 +113,7 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
           s.price == 19.99,
           s.active == true
         )
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{active:Boolean,name:String,price:Double}")
       },
       test("multiple opaque type fields") {
         val ts = ToStructural.derived[MultipleOpaqueFields]
@@ -107,6 +123,7 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
           s.age == 25,
           s.ts == 999L
         )
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{age:Int,ts:Long,userId:String}")
       }
     ),
     suite("Nested Types with Opaque Fields")(
@@ -119,6 +136,9 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
           s.address.street == "Main St",
           s.address.city == "NYC"
         )
+        assertTrue(
+          ts.structuralSchema.reflect.typeName.name == "{address:{city:String,street:String},id:String,name:String}"
+        )
       }
     ),
     suite("Collections of Opaque Types")(
@@ -126,21 +146,25 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
         val ts = ToStructural.derived[UserIds]
         val s  = ts.toStructural(UserIds(List(UserId("a"), UserId("b"), UserId("c"))))
         assertTrue(s.ids == List("a", "b", "c"))
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{ids:List[String]}")
       },
       test("Option of opaque type with Some") {
         val ts = ToStructural.derived[OptionalUserId]
         val s  = ts.toStructural(OptionalUserId(Some(UserId("present"))))
         assertTrue(s.id == Some("present"))
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{id:Option[String]}")
       },
       test("Option of opaque type with None") {
         val ts = ToStructural.derived[OptionalUserId]
         val s  = ts.toStructural(OptionalUserId(None))
         assertTrue(s.id == None)
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{id:Option[String]}")
       },
       test("Map with opaque type values") {
         val ts = ToStructural.derived[UserIdMap]
         val s  = ts.toStructural(UserIdMap(Map("admin" -> UserId("admin1"), "user" -> UserId("user1"))))
         assertTrue(s.lookup == Map("admin" -> "admin1", "user" -> "user1"))
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{lookup:Map[String,String]}")
       }
     ),
     suite("Field Access via selectDynamic")(
@@ -151,6 +175,7 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
           s.selectDynamic("id") == "test",
           s.selectDynamic("name") == "Test User"
         )
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{id:String,name:String}")
       }
     ),
     suite("Equality")(
@@ -159,12 +184,14 @@ object OpaqueTypeSpec extends ZIOSpecDefault {
         val s1 = ts.toStructural(User(UserId("same"), "Alice"))
         val s2 = ts.toStructural(User(UserId("same"), "Alice"))
         assertTrue(s1 == s2)
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{id:String,name:String}")
       },
       test("structural records with different opaque values are not equal") {
         val ts = ToStructural.derived[User]
         val s1 = ts.toStructural(User(UserId("id1"), "Alice"))
         val s2 = ts.toStructural(User(UserId("id2"), "Alice"))
         assertTrue(s1 != s2)
+        assertTrue(ts.structuralSchema.reflect.typeName.name == "{id:String,name:String}")
       }
     )
   )

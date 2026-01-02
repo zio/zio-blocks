@@ -23,41 +23,60 @@ object RecursionErrorSpec extends ZIOSpecDefault {
     test("direct recursion fails to compile") {
       inline def errors = typeCheckErrors("ToStructural.derived[DirectRecursive]")
       val result        = errors
+      val errorMsg      = result.headOption.map(_.message).getOrElse("")
       assertTrue(
         result.nonEmpty,
-        result.exists(_.message.toLowerCase.contains("recursive"))
+        errorMsg.contains("Cannot generate structural type"),
+        errorMsg.contains("recursive type detected"),
+        errorMsg.contains("DirectRecursive"),
+        errorMsg.contains("Structural types cannot represent recursive structures")
       )
     },
     test("list recursion fails to compile") {
       inline def errors = typeCheckErrors("ToStructural.derived[ListRecursive]")
       val result        = errors
+      val errorMsg      = result.headOption.map(_.message).getOrElse("")
       assertTrue(
         result.nonEmpty,
-        result.exists(_.message.toLowerCase.contains("recursive"))
+        errorMsg.contains("Cannot generate structural type"),
+        errorMsg.contains("recursive type detected"),
+        errorMsg.contains("ListRecursive"),
+        errorMsg.contains("Structural types cannot represent recursive structures")
       )
     },
     test("option recursion fails to compile") {
       inline def errors = typeCheckErrors("ToStructural.derived[OptionRecursive]")
       val result        = errors
+      val errorMsg      = result.headOption.map(_.message).getOrElse("")
       assertTrue(
         result.nonEmpty,
-        result.exists(_.message.toLowerCase.contains("recursive"))
+        errorMsg.contains("Cannot generate structural type"),
+        errorMsg.contains("recursive type detected"),
+        errorMsg.contains("OptionRecursive"),
+        errorMsg.contains("Structural types cannot represent recursive structures")
       )
     },
     test("mutual recursion fails to compile") {
       inline def errors = typeCheckErrors("ToStructural.derived[MutualA]")
       val result        = errors
+      val errorMsg      = result.headOption.map(_.message).getOrElse("")
       assertTrue(
         result.nonEmpty,
-        result.exists(e => e.message.toLowerCase.contains("recursive") || e.message.toLowerCase.contains("mutual"))
+        errorMsg.contains("Cannot generate structural type"),
+        errorMsg.contains("mutually recursive types detected") || errorMsg.contains("recursive type detected"),
+        errorMsg.contains("MutualA") || errorMsg.contains("MutualB"),
+        errorMsg.contains("Structural types cannot represent") &&
+          (errorMsg.contains("cyclic dependencies") || errorMsg.contains("recursive structures"))
       )
     },
     test("non-case class fails") {
       inline def errors = typeCheckErrors("ToStructural.derived[NotCaseClass]")
       val result        = errors
+      val errorMsg      = result.headOption.map(_.message).getOrElse("")
       assertTrue(
         result.nonEmpty,
-        result.exists(_.message.toLowerCase.contains("case class"))
+        errorMsg.contains("ToStructural derivation requires a case class or sealed trait"),
+        errorMsg.contains("NotCaseClass")
       )
     }
   )

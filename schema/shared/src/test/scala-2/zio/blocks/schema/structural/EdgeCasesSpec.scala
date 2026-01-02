@@ -331,7 +331,7 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
-        
+
         assertTrue(structSchema.reflect.typeName.name == "{value:{_1:{_1:Int,_2:String},_2:{_1:Boolean,_2:Double}}}")
       }
     ),
@@ -454,7 +454,9 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.map(_.option) == Right(Some(42L))
         )
 
-        assertTrue(structSchema.reflect.typeName.name == "{list:List[Int],map:Map[String,Boolean],option:Option[Long],set:Set[Double],vector:Vector[String]}")
+        assertTrue(
+          structSchema.reflect.typeName.name == "{list:List[Int],map:Map[String,Boolean],option:Option[Long],set:Set[Double],vector:Vector[String]}"
+        )
       },
       test("deeply nested structure with collections") {
         case class Level2(values: List[Int])

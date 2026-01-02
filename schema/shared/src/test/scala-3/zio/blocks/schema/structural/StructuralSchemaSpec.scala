@@ -1,26 +1,23 @@
 package zio.blocks.schema.structural
 
+import scala.annotation.nowarn
 import zio.test._
 import zio.blocks.schema._
 
 object StructuralSchemaSpec extends ZIOSpecDefault {
 
-  // Phase 1 types
   case class Person(name: String, age: Int)
   case class Point(x: Double, y: Double)
 
-  // Phase 2 types
   case class Address(city: String, zip: Int)
   case class PersonWithAddress(name: String, address: Address)
   case class WithList(items: List[String])
   case class WithOption(value: Option[Int])
   case class WithMap(data: Map[String, Int])
 
-  // Phase 3 types
   case class Empty()
   case class SingleField(value: String)
 
-  // Opaque types for Phase 5
   opaque type UserId = String
   object UserId {
     def apply(s: String): UserId             = s
@@ -59,27 +56,30 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
   )
 
   def spec = suite("StructuralSchemaSpec")(
-    suite("Phase 1: Simple Case Classes")(
+    suite("Simple Case Classes")(
       test("toDynamicValue works for simple case class") {
         val ts               = ToStructural.derived[Person]
         given Schema[Person] = Schema.derived[Person]
         val structSchema     = ts.structuralSchema
 
-        val structural = ts.toStructural(Person("Alice", 30))
-        val dv         = structSchema.toDynamicValue(structural)
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,name:String}") &&
+        {
+          val structural = ts.toStructural(Person("Alice", 30))
+          val dv         = structSchema.toDynamicValue(structural)
 
-        // Should produce a Record with name and age fields
-        dv match {
-          case DynamicValue.Record(fields) =>
-            val fieldMap = fields.toMap
-            assertTrue(
-              fieldMap.contains("name"),
-              fieldMap.contains("age"),
-              fieldMap("name") == DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-              fieldMap("age") == DynamicValue.Primitive(PrimitiveValue.Int(30))
-            )
-          case _ =>
-            assertTrue(false)
+          // Should produce a Record with name and age fields
+          dv match {
+            case DynamicValue.Record(fields) =>
+              val fieldMap = fields.toMap
+              assertTrue(
+                fieldMap.contains("name"),
+                fieldMap.contains("age"),
+                fieldMap("name") == DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+                fieldMap("age") == DynamicValue.Primitive(PrimitiveValue.Int(30))
+              )
+            case _ =>
+              assertTrue(false)
+          }
         }
       },
       test("fromDynamicValue works for simple case class") {
@@ -87,81 +87,93 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
         given Schema[Person] = Schema.derived[Person]
         val structSchema     = ts.structuralSchema
 
-        // Create a DynamicValue manually
-        val dv = DynamicValue.Record(
-          Vector(
-            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
-            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,name:String}") &&
+        {
+          // Create a DynamicValue manually
+          val dv = DynamicValue.Record(
+            Vector(
+              "name" -> DynamicValue.Primitive(PrimitiveValue.String("Bob")),
+              "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(25))
+            )
           )
-        )
 
-        val result = structSchema.fromDynamicValue(dv)
+          val result = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          result.isRight,
-          result.map(_.name) == Right("Bob"),
-          result.map(_.age) == Right(25)
-        )
+          assertTrue(
+            result.isRight,
+            result.map(_.name) == Right("Bob"),
+            result.map(_.age) == Right(25)
+          )
+        }
       },
       test("round-trip preserves data") {
         val ts               = ToStructural.derived[Person]
         given Schema[Person] = Schema.derived[Person]
         val structSchema     = ts.structuralSchema
 
-        val original   = Person("Charlie", 35)
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,name:String}") &&
+        {
+          val original   = Person("Charlie", 35)
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.name) == Right("Charlie"),
-          roundTrip.map(_.age) == Right(35)
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.name) == Right("Charlie"),
+            roundTrip.map(_.age) == Right(35)
+          )
+        }
       },
       test("works with Double fields") {
         val ts              = ToStructural.derived[Point]
         given Schema[Point] = Schema.derived[Point]
         val structSchema    = ts.structuralSchema
 
-        val structural = ts.toStructural(Point(1.5, 2.5))
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(structSchema.reflect.typeName.name == "{x:Double,y:Double}") &&
+        {
+          val structural = ts.toStructural(Point(1.5, 2.5))
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.x) == Right(1.5),
-          roundTrip.map(_.y) == Right(2.5)
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.x) == Right(1.5),
+            roundTrip.map(_.y) == Right(2.5)
+          )
+        }
       }
     ),
-    suite("Phase 2: Nested Case Classes + Collections")(
+    suite("Nested Case Classes + Collections")(
       test("nested case class round-trip") {
         val ts                          = ToStructural.derived[PersonWithAddress]
         given Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
         val structSchema                = ts.structuralSchema
 
-        val original   = PersonWithAddress("Alice", Address("NYC", 10001))
-        val structural = ts.toStructural(original)
-
-        // toStructural works - verify field access
-        assertTrue(
-          structural.name == "Alice",
-          structural.address.city == "NYC",
-          structural.address.zip == 10001
-        ) &&
-        // Now test structuralSchema round-trip
+        assertTrue(structSchema.reflect.typeName.name == "{address:{city:String,zip:Int},name:String}") &&
         {
-          val dv        = structSchema.toDynamicValue(structural)
-          val roundTrip = structSchema.fromDynamicValue(dv)
+          val original   = PersonWithAddress("Alice", Address("NYC", 10001))
+          val structural = ts.toStructural(original)
 
+          // toStructural works - verify field access
           assertTrue(
-            roundTrip.isRight,
-            roundTrip.map(_.name) == Right("Alice"),
-            roundTrip.map(_.address.city) == Right("NYC"),
-            roundTrip.map(_.address.zip) == Right(10001)
-          )
+            structural.name == "Alice",
+            structural.address.city == "NYC",
+            structural.address.zip == 10001
+          ) &&
+          // Now test structuralSchema round-trip
+          {
+            val dv        = structSchema.toDynamicValue(structural)
+            val roundTrip = structSchema.fromDynamicValue(dv)
+
+            assertTrue(
+              roundTrip.isRight,
+              roundTrip.map(_.name) == Right("Alice"),
+              roundTrip.map(_.address.city) == Right("NYC"),
+              roundTrip.map(_.address.zip) == Right(10001)
+            )
+          }
         }
       },
       test("case class with List round-trip") {
@@ -169,147 +181,175 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
         given Schema[WithList] = Schema.derived[WithList]
         val structSchema       = ts.structuralSchema
 
-        val original   = WithList(List("a", "b", "c"))
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{items:List[String]}") &&
+        {
+          val original   = WithList(List("a", "b", "c"))
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.items) == Right(List("a", "b", "c"))
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.items) == Right(List("a", "b", "c"))
+          )
+        }
       },
       test("case class with Option (Some) round-trip") {
         val ts                   = ToStructural.derived[WithOption]
         given Schema[WithOption] = Schema.derived[WithOption]
         val structSchema         = ts.structuralSchema
 
-        val original   = WithOption(Some(42))
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{value:Option[Int]}") &&
+        {
+          val original   = WithOption(Some(42))
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.value) == Right(Some(42))
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.value) == Right(Some(42))
+          )
+        }
       },
       test("case class with Option (None) round-trip") {
         val ts                   = ToStructural.derived[WithOption]
         given Schema[WithOption] = Schema.derived[WithOption]
         val structSchema         = ts.structuralSchema
 
-        val original   = WithOption(None)
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{value:Option[Int]}") &&
+        {
+          val original   = WithOption(None)
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.value) == Right(None)
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.value) == Right(None)
+          )
+        }
       },
       test("case class with Map round-trip") {
         val ts                = ToStructural.derived[WithMap]
         given Schema[WithMap] = Schema.derived[WithMap]
         val structSchema      = ts.structuralSchema
 
-        val original   = WithMap(Map("x" -> 1, "y" -> 2))
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{data:Map[String,Int]}") &&
+        {
+          val original   = WithMap(Map("x" -> 1, "y" -> 2))
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.data) == Right(Map("x" -> 1, "y" -> 2))
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.data) == Right(Map("x" -> 1, "y" -> 2))
+          )
+        }
       }
     ),
-    suite("Phase 3: Edge Cases")(
+    suite("Edge Cases")(
       test("empty case class round-trip") {
         val ts              = ToStructural.derived[Empty]
         given Schema[Empty] = Schema.derived[Empty]
         val structSchema    = ts.structuralSchema
 
-        val original   = Empty()
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{}") &&
+        {
+          val original   = Empty()
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight)
+          assertTrue(roundTrip.isRight)
+        }
       },
       test("single field case class round-trip") {
         val ts                    = ToStructural.derived[SingleField]
         given Schema[SingleField] = Schema.derived[SingleField]
         val structSchema          = ts.structuralSchema
 
-        val original   = SingleField("hello")
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{value:String}") &&
+        {
+          val original   = SingleField("hello")
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.value) == Right("hello")
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.value) == Right("hello")
+          )
+        }
       },
       test("large product (10 fields) round-trip") {
         val ts                     = ToStructural.derived[LargeProduct]
         given Schema[LargeProduct] = Schema.derived[LargeProduct]
         val structSchema           = ts.structuralSchema
 
-        val original   = LargeProduct("a", 1, true, 1.5, 100L, "b", 2, false, 2.5, 200L)
-        val structural = ts.toStructural(original)
-
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
-
         assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.f1) == Right("a"),
-          roundTrip.map(_.f5) == Right(100L),
-          roundTrip.map(_.f10) == Right(200L)
-        )
+          structSchema.reflect.typeName.name == "{f1:String,f10:Long,f2:Int,f3:Boolean,f4:Double,f5:Long,f6:String,f7:Int,f8:Boolean,f9:Double}"
+        ) &&
+        {
+          val original   = LargeProduct("a", 1, true, 1.5, 100L, "b", 2, false, 2.5, 200L)
+          val structural = ts.toStructural(original)
+
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
+
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.f1) == Right("a"),
+            roundTrip.map(_.f5) == Right(100L),
+            roundTrip.map(_.f10) == Right(200L)
+          )
+        }
       },
       test("all primitive types round-trip") {
         val ts                      = ToStructural.derived[AllPrimitives]
         given Schema[AllPrimitives] = Schema.derived[AllPrimitives]
         val structSchema            = ts.structuralSchema
 
-        val original = AllPrimitives(
-          b = true,
-          by = 42.toByte,
-          s = 1000.toShort,
-          i = 123456,
-          l = 999999999L,
-          f = 3.14f,
-          d = 2.71828,
-          c = 'X',
-          str = "test"
-        )
-        val structural = ts.toStructural(original)
-
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
-
         assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.b) == Right(true),
-          roundTrip.map(_.by) == Right(42.toByte),
-          roundTrip.map(_.i) == Right(123456),
-          roundTrip.map(_.l) == Right(999999999L),
-          roundTrip.map(_.c) == Right('X'),
-          roundTrip.map(_.str) == Right("test")
-        )
+          structSchema.reflect.typeName.name == "{b:Boolean,by:Byte,c:Char,d:Double,f:Float,i:Int,l:Long,s:Short,str:String}"
+        ) &&
+        {
+          val original = AllPrimitives(
+            b = true,
+            by = 42.toByte,
+            s = 1000.toShort,
+            i = 123456,
+            l = 999999999L,
+            f = 3.14f,
+            d = 2.71828,
+            c = 'X',
+            str = "test"
+          )
+          val structural = ts.toStructural(original)
+
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
+
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.b) == Right(true),
+            roundTrip.map(_.by) == Right(42.toByte),
+            roundTrip.map(_.i) == Right(123456),
+            roundTrip.map(_.l) == Right(999999999L),
+            roundTrip.map(_.c) == Right('X'),
+            roundTrip.map(_.str) == Right("test")
+          )
+        }
       }
     ),
-    suite("Phase 4: TypeName Normalization")(
+    suite("TypeName Normalization")(
       test("TypeName is normalized with alphabetical field order") {
         val ts               = ToStructural.derived[Person]
         given Schema[Person] = Schema.derived[Person]
@@ -335,8 +375,8 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
       },
       test("same structure produces same TypeName") {
         // Two different case classes with same fields should have same structural TypeName
-        case class PersonA(name: String, age: Int)
-        case class PersonB(age: Int, name: String) // different field order
+        @nowarn("msg=unused") case class PersonA(name: String, age: Int)
+        @nowarn("msg=unused") case class PersonB(age: Int, name: String) // different field order
 
         val tsA               = ToStructural.derived[PersonA]
         val tsB               = ToStructural.derived[PersonB]
@@ -364,81 +404,104 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
         // New convenience method
         val structSchema2 = schema.structural
 
-        // Both should work identically
-        val structural = ts.toStructural(Person("Alice", 30))
+        assertTrue(
+          structSchema1.reflect.typeName.name == "{age:Int,name:String}",
+          structSchema2.reflect.typeName.name == "{age:Int,name:String}",
+          structSchema1.reflect.typeName == structSchema2.reflect.typeName
+        ) &&
+        {
+          // Both should work identically
+          val structural = ts.toStructural(Person("Alice", 30))
 
-        val dv1 = structSchema1.toDynamicValue(structural)
-        val dv2 = structSchema2.toDynamicValue(structural)
+          val dv1 = structSchema1.toDynamicValue(structural)
+          val dv2 = structSchema2.toDynamicValue(structural)
 
-        assertTrue(dv1 == dv2)
+          assertTrue(dv1 == dv2)
+        }
       },
       test("schema.structural round-trip works") {
         given ts: ToStructural[Person] = ToStructural.derived[Person]
         given schema: Schema[Person]   = Schema.derived[Person]
 
         val structSchema = schema.structural
-        val structural   = ts.toStructural(Person("Bob", 25))
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,name:String}") &&
+        {
+          val structural = ts.toStructural(Person("Bob", 25))
 
-        // Use selectDynamic since the refined type is erased through the implicit
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.asInstanceOf[StructuralRecord].selectDynamic("name")) == Right("Bob"),
-          roundTrip.map(_.asInstanceOf[StructuralRecord].selectDynamic("age")) == Right(25)
-        )
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
+
+          // Use selectDynamic since the refined type is erased through the implicit
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.asInstanceOf[StructuralRecord].selectDynamic("name")) == Right("Bob"),
+            roundTrip.map(_.asInstanceOf[StructuralRecord].selectDynamic("age")) == Right(25)
+          )
+        }
       }
     ),
-    suite("Phase 5: Opaque Types")(
+    suite("Opaque Types")(
       test("opaque type fields are unwrapped in structural representation") {
-        val ts         = ToStructural.derived[UserWithOpaque]
-        val original   = UserWithOpaque(UserId("user123"), "Alice", Age(30))
-        val structural = ts.toStructural(original)
+        val ts                       = ToStructural.derived[UserWithOpaque]
+        given Schema[UserWithOpaque] = Schema.derived[UserWithOpaque]
+        val structSchema             = ts.structuralSchema
 
-        // Verify field access returns unwrapped values
-        assertTrue(
-          structural.id == "user123",
-          structural.name == "Alice",
-          structural.age == 30
-        )
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,id:String,name:String}") &&
+        {
+          val original   = UserWithOpaque(UserId("user123"), "Alice", Age(30))
+          val structural = ts.toStructural(original)
+
+          // Verify field access returns unwrapped values
+          assertTrue(
+            structural.id == "user123",
+            structural.name == "Alice",
+            structural.age == 30
+          )
+        }
       },
       test("opaque type round-trip works") {
         val ts                       = ToStructural.derived[UserWithOpaque]
         given Schema[UserWithOpaque] = Schema.derived[UserWithOpaque]
         val structSchema             = ts.structuralSchema
 
-        val original   = UserWithOpaque(UserId("user456"), "Bob", Age(25))
-        val structural = ts.toStructural(original)
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,id:String,name:String}") &&
+        {
+          val original   = UserWithOpaque(UserId("user456"), "Bob", Age(25))
+          val structural = ts.toStructural(original)
 
-        val dv        = structSchema.toDynamicValue(structural)
-        val roundTrip = structSchema.fromDynamicValue(dv)
+          val dv        = structSchema.toDynamicValue(structural)
+          val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.map(_.id) == Right("user456"),
-          roundTrip.map(_.name) == Right("Bob"),
-          roundTrip.map(_.age) == Right(25)
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.map(_.id) == Right("user456"),
+            roundTrip.map(_.name) == Right("Bob"),
+            roundTrip.map(_.age) == Right(25)
+          )
+        }
       },
       test("opaque type DynamicValue contains unwrapped primitive values") {
         val ts                       = ToStructural.derived[UserWithOpaque]
         given Schema[UserWithOpaque] = Schema.derived[UserWithOpaque]
         val structSchema             = ts.structuralSchema
 
-        val structural = ts.toStructural(UserWithOpaque(UserId("test"), "Test", Age(99)))
-        val dv         = structSchema.toDynamicValue(structural)
+        assertTrue(structSchema.reflect.typeName.name == "{age:Int,id:String,name:String}") &&
+        {
+          val structural = ts.toStructural(UserWithOpaque(UserId("test"), "Test", Age(99)))
+          val dv         = structSchema.toDynamicValue(structural)
 
-        dv match {
-          case DynamicValue.Record(fields) =>
-            val fieldMap = fields.toMap
-            assertTrue(
-              fieldMap("id") == DynamicValue.Primitive(PrimitiveValue.String("test")),
-              fieldMap("name") == DynamicValue.Primitive(PrimitiveValue.String("Test")),
-              fieldMap("age") == DynamicValue.Primitive(PrimitiveValue.Int(99))
-            )
-          case _ =>
-            assertTrue(false)
+          dv match {
+            case DynamicValue.Record(fields) =>
+              val fieldMap = fields.toMap
+              assertTrue(
+                fieldMap("id") == DynamicValue.Primitive(PrimitiveValue.String("test")),
+                fieldMap("name") == DynamicValue.Primitive(PrimitiveValue.String("Test")),
+                fieldMap("age") == DynamicValue.Primitive(PrimitiveValue.Int(99))
+              )
+            case _ =>
+              assertTrue(false)
+          }
         }
       },
       test("TypeName shows underlying types for opaque fields") {

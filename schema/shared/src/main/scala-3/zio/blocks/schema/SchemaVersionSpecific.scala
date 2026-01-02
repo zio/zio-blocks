@@ -717,16 +717,116 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       // Case classes are converted to StructuralRecord
       true
     } else if (isSealedTraitOrAbstractClass(dealt)) {
-      // Sealed traits with case class children are converted to StructuralRecord with Tag
-      // Simple enums (all case objects) are NOT converted
-      !directSubTypes(dealt).forall { subTpe =>
-        isEnumOrModuleValue(subTpe) ||
-        (isNonAbstractScalaClass(subTpe) && subTpe.classSymbol.get.caseFields.isEmpty)
-      }
+      // All sealed traits are converted to StructuralRecord with Tag
+      true
     } else {
       false
     }
   }
+
+  // Get TypeName string representation, recursively handling structural types
+  private def getTypeNameString(tpe: TypeRepr): String =
+    if (isRefinementType(tpe)) {
+      // Recursively build structural TypeName for nested structural types
+      val nestedFields = extractRefinementFields(tpe)
+      val nestedPairs  = nestedFields.map { case (name, fTpe) =>
+        (name, getTypeNameString(fTpe))
+      }.sortBy(_._1) // Sort alphabetically
+      "{" + nestedPairs.map { case (n, t) => s"$n:$t" }.mkString(",") + "}"
+    } else if (tpe <:< tupleTpe && (isGenericTuple(tpe) || defn.isTupleClass(tpe.typeSymbol))) {
+      // Tuples are represented structurally: (String, Int) → {_1:String,_2:Int}
+      // Handles both generic tuples (*:[...]) and regular tuple classes (Tuple2, Tuple3, etc.)
+      val tupleArgs =
+        if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
+        else typeArgs(tpe)
+      val tuplePairs = tupleArgs.zipWithIndex.map { case (argTpe, idx) =>
+        (s"_${idx + 1}", getTypeNameString(argTpe))
+      }
+      "{" + tuplePairs.map { case (n, t) => s"$n:$t" }.mkString(",") + "}"
+    } else if (tpe <:< TypeRepr.of[Either[?, ?]]) {
+      // Either[L, R] runtime: StructuralRecord with Tag and value fields
+      // Left case: {Tag:"Left", value:L}
+      // Right case: {Tag:"Right", value:R}
+      // TypeName shows union: ({Tag:"Left",value:L}|{Tag:"Right",value:R})
+      val tpeTypeArgs = typeArgs(tpe)
+      val leftType    = getTypeNameString(tpeTypeArgs.head)
+      val rightType   = getTypeNameString(tpeTypeArgs.last)
+      s"""({Tag:"Left",value:$leftType}|{Tag:"Right",value:$rightType})"""
+    } else if (isOption(tpe) && !(tpe <:< TypeRepr.of[None.type]) && !(tpe <:< TypeRepr.of[Some[?]])) {
+      // Option[T] stays as Option[T], not converted to variant form
+      val vTpe = typeArgs(tpe).head
+      s"Option[${getTypeNameString(vTpe)}]"
+    } else if (isCollection(tpe) && !isIArray(tpe) && !(tpe <:< arrayOfWildcardTpe)) {
+      // Collections: List[T], Vector[T], Set[T], Map[K,V] - keep collection name
+      if (tpe <:< TypeRepr.of[Map[?, ?]]) {
+        val tpeTypeArgs = typeArgs(tpe)
+        val kStr        = getTypeNameString(tpeTypeArgs.head)
+        val vStr        = getTypeNameString(tpeTypeArgs.last)
+        s"Map[$kStr,$vStr]"
+      } else {
+        val collectionName = tpe.typeSymbol.name
+        val eTpe           = typeArgs(tpe).head
+        s"$collectionName[${getTypeNameString(eTpe)}]"
+      }
+    } else if (tpe <:< arrayOfWildcardTpe) {
+      // Array[T]
+      val eTpe = typeArgs(tpe).head
+      s"Array[${getTypeNameString(eTpe)}]"
+    } else if (isIArray(tpe)) {
+      // IArray[T]
+      val eTpe = typeArgs(tpe).head
+      s"IArray[${getTypeNameString(eTpe)}]"
+    } else if (isSealedTraitOrAbstractClass(tpe)) {
+      // Sealed traits/abstract classes: Each case becomes a structural record with Tag field
+      val subtypes = directSubTypes(tpe)
+
+      // Generate structural representation for each case
+      val caseReprs = subtypes.map { sTpe =>
+        val caseName = typeName(sTpe).name.split('.').last
+
+        // Check if it's a case object (no fields) or case class (has fields)
+        val hasFields = sTpe.classSymbol.fold(false) { sym =>
+          sym.caseFields.nonEmpty
+        }
+
+        if (hasFields) {
+          // Case class: {Tag:"CaseName",field1:Type1,field2:Type2,...}
+          val fields     = sTpe.classSymbol.get.caseFields
+          val fieldPairs = fields.map { fieldSym =>
+            val fieldTpe = sTpe.memberType(fieldSym)
+            (fieldSym.name, getTypeNameString(fieldTpe))
+          }
+          // Add Tag field and sort all fields alphabetically
+          val allFields = (("Tag", s""""$caseName"""") :: fieldPairs.toList).sortBy(_._1)
+          "{" + allFields.map { case (n, t) => s"$n:$t" }.mkString(",") + "}"
+        } else {
+          // Case object: {Tag:"CaseName"}
+          s"""{Tag:"$caseName"}"""
+        }
+      }.sorted // Sort case representations alphabetically
+
+      // Union of all cases
+      "(" + caseReprs.mkString("|") + ")"
+    } else if (isUnion(tpe)) {
+      // Union types: similar to sealed traits
+      val unionTypes = allUnionTypes(tpe)
+      val caseReprs  = unionTypes.map { uTpe =>
+        val caseName = typeName(uTpe).name.split('.').last
+        s"""{Tag:"$caseName"}"""
+      }.sorted
+      "(" + caseReprs.mkString("|") + ")"
+    } else if (isOpaque(tpe)) {
+      // Opaque types: unwrap to actual type
+      getTypeNameString(opaqueDealias(tpe))
+    } else if (isZioPreludeNewtype(tpe)) {
+      // ZIO Prelude newtypes: unwrap to actual type
+      getTypeNameString(zioPreludeNewtypeDealias(tpe))
+    } else if (isTypeRef(tpe)) {
+      // Type aliases: unwrap to actual type
+      getTypeNameString(typeRefDealias(tpe))
+    } else {
+      typeName(tpe).toSimpleName
+    }
 
   // TypeInfo for structural refinement types (e.g., { def name: String; def age: Int })
   // Uses StructuralRecord for construction/deconstruction via selectDynamic
@@ -779,25 +879,22 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     // Constructor: Registers → StructuralRecord (wrapped as T)
     def constructor(in: Expr[Registers], baseOffset: Expr[RegisterOffset])(using Quotes): Expr[T] = {
       val fieldExprs = fieldInfos.map { fieldInfo =>
-        val fTpe    = fieldInfo.tpe
-        val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
-        val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
-        fTpe.asType match {
-          case '[ft] =>
-            val sTpe                 = dealiasOnDemand(fTpe)
-            val valueExpr: Expr[Any] =
-              if (sTpe <:< intTpe) '{ $in.getInt($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< floatTpe) '{ $in.getFloat($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< longTpe) '{ $in.getLong($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< doubleTpe) '{ $in.getDouble($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< booleanTpe) '{ $in.getBoolean($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< byteTpe) '{ $in.getByte($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< charTpe) '{ $in.getChar($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< shortTpe) '{ $in.getShort($baseOffset, ${ Expr(bytes) }) }
-              else if (sTpe <:< unitTpe) '{ () }
-              else '{ $in.getObject($baseOffset, ${ Expr(objects) }) }
-            (Expr(fieldInfo.name), valueExpr)
-        }
+        val fTpe                 = fieldInfo.tpe
+        val bytes                = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+        val objects              = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+        val sTpe                 = dealiasOnDemand(fTpe)
+        val valueExpr: Expr[Any] =
+          if (sTpe <:< intTpe) '{ $in.getInt($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< floatTpe) '{ $in.getFloat($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< longTpe) '{ $in.getLong($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< doubleTpe) '{ $in.getDouble($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< booleanTpe) '{ $in.getBoolean($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< byteTpe) '{ $in.getByte($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< charTpe) '{ $in.getChar($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< shortTpe) '{ $in.getShort($baseOffset, ${ Expr(bytes) }) }
+          else if (sTpe <:< unitTpe) '{ () }
+          else '{ $in.getObject($baseOffset, ${ Expr(objects) }) }
+        (Expr(fieldInfo.name), valueExpr)
       }
       // Build Map entries and create StructuralRecord
       val entries = fieldExprs.map { case (nameExpr, valueExpr) =>
@@ -1153,9 +1250,12 @@ private class SchemaVersionSpecificImpl(using Quotes) {
     val fields         = refinementInfo.fields[T](Array.empty[String])
 
     // Generate normalized TypeName: {age:Int,name:String} (sorted alphabetically)
+    // For nested structural types, recursively build their TypeName representation
     val fieldInfoList = refinementInfo.fieldInfos
-    val fieldPairs    = fieldInfoList.map(fi => (fi.name, typeName(fi.tpe).toSimpleName))
-    val tpeName       = '{ TypeName.structural[T](${ Expr(fieldPairs.toSeq) }) }
+    val fieldPairs    = fieldInfoList.map { fi =>
+      (fi.name, getTypeNameString(fi.tpe))
+    }
+    val tpeName = '{ TypeName.structural[T](${ Expr(fieldPairs.toSeq) }) }
 
     '{
       new Schema(

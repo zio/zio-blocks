@@ -150,7 +150,7 @@ object DeriveToStructural {
         } else {
           TypeCategory.Unknown
         }
-      } 
+      }
     }
 
     // Recursion detection
@@ -214,14 +214,14 @@ object DeriveToStructural {
           fields.foreach { case (_, fieldTpe) =>
             checkRecursive(fieldTpe, dealt :: stack)
           }
-        
+
         case TypeCategory.EitherType(_, _) =>
           fail(
             s"""Cannot generate structural type for Either in Scala 2.
                |Either structural representation requires union types,
                |which are only available in Scala 3.
                |Consider upgrading to Scala 3 or using a different approach.""".stripMargin
-          )  
+          )
 
         case TypeCategory.SealedType =>
           fail(
@@ -241,7 +241,7 @@ object DeriveToStructural {
                |  - Tuples
                |The type '${dealt.typeSymbol.fullName}' is not supported.
                |If this is a regular class, consider converting it to a case class.""".stripMargin
-          )  
+          )
       }
     }
 
@@ -328,10 +328,10 @@ object DeriveToStructural {
             q"$nameLit -> $conv"
           }
           q"new _root_.zio.blocks.schema.StructuralRecord(_root_.scala.collection.immutable.Map[String, Any](..$entries))"
-      
+
         case TypeCategory.EitherType(_, _) =>
           // Should never reach here - Either is rejected in checkRecursive
-          fail("Either types are not supported in Scala 2 structural types")    
+          fail("Either types are not supported in Scala 2 structural types")
 
         case TypeCategory.SealedType =>
           // Should never reach here - sealed types are rejected in checkRecursive
@@ -340,7 +340,7 @@ object DeriveToStructural {
         case TypeCategory.Unknown =>
           // Should never reach here - Unknown types are rejected in checkRecursive
           fail("Cannot generate structural converter for unsupported type")
-      
+
       }
     }
 

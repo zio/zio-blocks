@@ -101,21 +101,26 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
         val structSchema           = ts.structuralSchema
 
-        val structural = ts.toStructural(Success(42))
-        val dv         = structSchema.toDynamicValue(structural)
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})"""
+        ) &&
+        {
+          val structural = ts.toStructural(Success(42))
+          val dv         = structSchema.toDynamicValue(structural)
 
-        dv match {
-          case DynamicValue.Variant(tag, value) =>
-            assertTrue(
-              tag == "Success",
-              value match {
-                case DynamicValue.Record(fields) =>
-                  fields.toMap.get("value") == Some(DynamicValue.Primitive(PrimitiveValue.Int(42)))
-                case _ => false
-              }
-            )
-          case _ =>
-            assertTrue(false)
+          dv match {
+            case DynamicValue.Variant(tag, value) =>
+              assertTrue(
+                tag == "Success",
+                value match {
+                  case DynamicValue.Record(fields) =>
+                    fields.toMap.get("value") == Some(DynamicValue.Primitive(PrimitiveValue.Int(42)))
+                  case _ => false
+                }
+              )
+            case _ =>
+              assertTrue(false)
+          }
         }
       },
       // TODO STRUCT: disable until discriminator handling for sealed trait is fixed
@@ -124,21 +129,26 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
         val structSchema           = ts.structuralSchema
 
-        val structural = ts.toStructural(Failure("oops"))
-        val dv         = structSchema.toDynamicValue(structural)
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})"""
+        ) &&
+        {
+          val structural = ts.toStructural(Failure("oops"))
+          val dv         = structSchema.toDynamicValue(structural)
 
-        dv match {
-          case DynamicValue.Variant(tag, value) =>
-            assertTrue(
-              tag == "Failure",
-              value match {
-                case DynamicValue.Record(fields) =>
-                  fields.toMap.get("error") == Some(DynamicValue.Primitive(PrimitiveValue.String("oops")))
-                case _ => false
-              }
-            )
-          case _ =>
-            assertTrue(false)
+          dv match {
+            case DynamicValue.Variant(tag, value) =>
+              assertTrue(
+                tag == "Failure",
+                value match {
+                  case DynamicValue.Record(fields) =>
+                    fields.toMap.get("error") == Some(DynamicValue.Primitive(PrimitiveValue.String("oops")))
+                  case _ => false
+                }
+              )
+            case _ =>
+              assertTrue(false)
+          }
         }
       },
       // TODO STRUCT: disable until discriminator handling for sealed trait is fixed
@@ -147,18 +157,23 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
         val structSchema           = ts.structuralSchema
 
-        val dv = DynamicValue.Variant(
-          "Success",
-          DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(99))))
-        )
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})"""
+        ) &&
+        {
+          val dv = DynamicValue.Variant(
+            "Success",
+            DynamicValue.Record(Vector("value" -> DynamicValue.Primitive(PrimitiveValue.Int(99))))
+          )
 
-        val result = structSchema.fromDynamicValue(dv)
+          val result = structSchema.fromDynamicValue(dv)
 
-        assertTrue(result.isRight) &&
-        assertTrue {
-          val record = result.toOption.get.asInstanceOf[StructuralRecord]
-          record.selectDynamic("Tag") == "Success" &&
-          record.selectDynamic("value") == 99
+          assertTrue(result.isRight) &&
+          assertTrue {
+            val record = result.toOption.get.asInstanceOf[StructuralRecord]
+            record.selectDynamic("Tag") == "Success" &&
+            record.selectDynamic("value") == 99
+          }
         }
       },
       // TODO STRUCT: disable until sealed trait round-trip works
@@ -167,15 +182,20 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
         val structSchema           = ts.structuralSchema
 
-        val structural = ts.toStructural(Success(123))
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})"""
+        ) &&
+        {
+          val structural = ts.toStructural(Success(123))
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
-          record.selectDynamic("Tag") == "Success" &&
-          record.selectDynamic("value") == 123
+          assertTrue(roundTrip.isRight) &&
+          assertTrue {
+            val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
+            record.selectDynamic("Tag") == "Success" &&
+            record.selectDynamic("value") == 123
+          }
         }
       },
       // TODO STRUCT: disable until sealed trait round-trip works
@@ -184,15 +204,20 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[SimpleResult] = Schema.derived[SimpleResult]
         val structSchema           = ts.structuralSchema
 
-        val structural = ts.toStructural(Failure("error message"))
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})"""
+        ) &&
+        {
+          val structural = ts.toStructural(Failure("error message"))
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
-          record.selectDynamic("Tag") == "Failure" &&
-          record.selectDynamic("error") == "error message"
+          assertTrue(roundTrip.isRight) &&
+          assertTrue {
+            val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
+            record.selectDynamic("Tag") == "Failure" &&
+            record.selectDynamic("error") == "error message"
+          }
         }
       },
       test("TypeName for sealed trait") {
@@ -201,8 +226,8 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         val structSchema           = ts.structuralSchema
 
         val typeName = structSchema.reflect.typeName.name
-        // Sum types have different TypeName format
-        assertTrue(typeName.nonEmpty)
+        // Sum types show all variants with Tag and fields, sorted alphabetically by case name
+        assertTrue(typeName == """({Tag:"Failure",error:String}|{Tag:"Success",value:Int})""")
       },
       // TODO STRUCT: disable until case object handling is fixed
       test("sealed trait with case object - round-trip") {
@@ -210,14 +235,19 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[Status] = Schema.derived[Status]
         val structSchema     = ts.structuralSchema
 
-        val structural = ts.toStructural(Unknown)
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"Active",since:String}|{Tag:"Inactive",reason:String}|{Tag:"Unknown"})"""
+        ) &&
+        {
+          val structural = ts.toStructural(Unknown)
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
-          record.selectDynamic("Tag") == "Unknown"
+          assertTrue(roundTrip.isRight) &&
+          assertTrue {
+            val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
+            record.selectDynamic("Tag") == "Unknown"
+          }
         }
       },
       // TODO STRUCT: disable until nested sealed trait handling is fixed
@@ -226,20 +256,25 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[ComplexResult] = Schema.derived[ComplexResult]
         val structSchema            = ts.structuralSchema
 
-        val structural = ts.toStructural(ComplexFailure(ErrorDetails(404, "Not Found")))
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(
+          structSchema.reflect.typeName.name == """({Tag:"ComplexFailure",error:{code:Int,message:String}}|{Tag:"ComplexSuccess",data:String})"""
+        ) &&
+        {
+          val structural = ts.toStructural(ComplexFailure(ErrorDetails(404, "Not Found")))
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
-          record.selectDynamic("Tag") == "ComplexFailure"
-        } &&
-        assertTrue {
-          val record     = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
-          val errorField = record.selectDynamic("error").asInstanceOf[StructuralRecord]
-          errorField.selectDynamic("code") == 404 &&
-          errorField.selectDynamic("message") == "Not Found"
+          assertTrue(roundTrip.isRight) &&
+          assertTrue {
+            val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
+            record.selectDynamic("Tag") == "ComplexFailure"
+          } &&
+          assertTrue {
+            val record     = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
+            val errorField = record.selectDynamic("error").asInstanceOf[StructuralRecord]
+            errorField.selectDynamic("code") == 404 &&
+            errorField.selectDynamic("message") == "Not Found"
+          }
         }
       }
     ),
@@ -255,19 +290,24 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[SimpleEitherWrapper] = Schema.derived[SimpleEitherWrapper]
         val structSchema                  = ts.structuralSchema
 
-        val structural = ts.toStructural(SimpleEitherWrapper(Left("error")))
-        val dv         = structSchema.toDynamicValue(structural)
+        assertTrue(
+          structSchema.reflect.typeName.name == """{value:({Tag:"Left",value:String}|{Tag:"Right",value:Int})}"""
+        ) &&
+        {
+          val structural = ts.toStructural(SimpleEitherWrapper(Left("error")))
+          val dv         = structSchema.toDynamicValue(structural)
 
-        dv match {
-          case DynamicValue.Record(fields) =>
-            fields.toMap.get("value") match {
-              case Some(DynamicValue.Variant(tag, _)) =>
-                assertTrue(tag == "Left")
-              case _ =>
-                assertTrue(false)
-            }
-          case _ =>
-            assertTrue(false)
+          dv match {
+            case DynamicValue.Record(fields) =>
+              fields.toMap.get("value") match {
+                case Some(DynamicValue.Variant(tag, _)) =>
+                  assertTrue(tag == "Left")
+                case _ =>
+                  assertTrue(false)
+              }
+            case _ =>
+              assertTrue(false)
+          }
         }
       },
       // TODO STRUCT: disable until toDynamicValue for Either[String, Int] - Right is fixed
@@ -298,16 +338,21 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[WithSimpleEither] = Schema.derived[WithSimpleEither]
         val structSchema               = ts.structuralSchema
 
-        val structural = ts.toStructural(WithSimpleEither(Left("fail")))
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(
+          structSchema.reflect.typeName.name == """{value:({Tag:"Left",value:String}|{Tag:"Right",value:Int})}"""
+        ) &&
+        {
+          val structural = ts.toStructural(WithSimpleEither(Left("fail")))
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val record      = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
-          val eitherField = record.selectDynamic("value").asInstanceOf[StructuralRecord]
-          eitherField.selectDynamic("Tag") == "Left" &&
-          eitherField.selectDynamic("value") == "fail"
+          assertTrue(roundTrip.isRight) &&
+          assertTrue {
+            val record      = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
+            val eitherField = record.selectDynamic("value").asInstanceOf[StructuralRecord]
+            eitherField.selectDynamic("Tag") == "Left" &&
+            eitherField.selectDynamic("value") == "fail"
+          }
         }
       },
       // TODO STRUCT: disable until Either structural round-trip is fixed
@@ -391,12 +436,12 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
     // SIMPLE ENUM - DIRECT
     // ===========================================
     suite("Simple Enum - Direct")(
-      test("simple enum is preserved as leaf value in ToStructural") {
+      test("simple enum is converted to StructuralRecord with Tag") {
         val ts = ToStructural.derived[Color]
         assertTrue(
-          ts.toStructural(Color.Red) == Color.Red,
-          ts.toStructural(Color.Green) == Color.Green,
-          ts.toStructural(Color.Blue) == Color.Blue
+          ts.toStructural(Color.Red).asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Red",
+          ts.toStructural(Color.Green).asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Green",
+          ts.toStructural(Color.Blue).asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Blue"
         )
       },
       test("toDynamicValue for simple enum") {
@@ -404,14 +449,17 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[Color] = Schema.derived[Color]
         val structSchema    = ts.structuralSchema
 
-        val structural = ts.toStructural(Color.Red)
-        val dv         = structSchema.toDynamicValue(structural)
+        assertTrue(structSchema.reflect.typeName.name == """({Tag:"Blue"}|{Tag:"Green"}|{Tag:"Red"})""") &&
+        {
+          val structural = ts.toStructural(Color.Red)
+          val dv         = structSchema.toDynamicValue(structural)
 
-        dv match {
-          case DynamicValue.Variant(tag, _) =>
-            assertTrue(tag == "Red")
-          case _ =>
-            assertTrue(false)
+          dv match {
+            case DynamicValue.Variant(tag, _) =>
+              assertTrue(tag == "Red")
+            case _ =>
+              assertTrue(false)
+          }
         }
       },
       test("round-trip for simple enum") {
@@ -419,14 +467,17 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[Color] = Schema.derived[Color]
         val structSchema    = ts.structuralSchema
 
-        val structural = ts.toStructural(Color.Blue)
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(structSchema.reflect.typeName.name == """({Tag:"Blue"}|{Tag:"Green"}|{Tag:"Red"})""") &&
+        {
+          val structural = ts.toStructural(Color.Blue)
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(
-          roundTrip.isRight,
-          roundTrip.toOption.get == Color.Blue
-        )
+          assertTrue(
+            roundTrip.isRight,
+            roundTrip.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Blue"
+          )
+        }
       },
       test("TypeName for simple enum") {
         given Schema[Color] = Schema.derived[Color]
@@ -564,20 +615,25 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[ResultWrapper] = Schema.derived[ResultWrapper]
         val structSchema            = ts.structuralSchema
 
-        val structural = ts.toStructural(ResultWrapper("test", Success(42)))
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(
+          structSchema.reflect.typeName.name == """{name:String,result:({Tag:"Failure",error:String}|{Tag:"Success",value:Int})}"""
+        ) &&
+        {
+          val structural = ts.toStructural(ResultWrapper("test", Success(42)))
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val record = roundTrip.toOption.get
-          record.name == "test"
-        } &&
-        assertTrue {
-          val record       = roundTrip.toOption.get
-          val resultRecord = record.result.asInstanceOf[StructuralRecord]
-          resultRecord.selectDynamic("Tag") == "Success" &&
-          resultRecord.selectDynamic("value") == 42
+          assertTrue(roundTrip.isRight) &&
+          assertTrue {
+            val record = roundTrip.toOption.get
+            record.name == "test"
+          } &&
+          assertTrue {
+            val record       = roundTrip.toOption.get
+            val resultRecord = record.result.asInstanceOf[StructuralRecord]
+            resultRecord.selectDynamic("Tag") == "Success" &&
+            resultRecord.selectDynamic("value") == 42
+          }
         }
       },
       // TODO STRUCT: disable until case class + sealed trait round-trip is fixed
@@ -665,15 +721,20 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         given Schema[WithSimpleEnum] = Schema.derived[WithSimpleEnum]
         val structSchema             = ts.structuralSchema
 
-        val structural = ts.toStructural(WithSimpleEnum("item", Color.Green))
-        val dv         = structSchema.toDynamicValue(structural)
-        val roundTrip  = structSchema.fromDynamicValue(dv)
+        assertTrue(
+          structSchema.reflect.typeName.name == """{color:({Tag:"Blue"}|{Tag:"Green"}|{Tag:"Red"}),name:String}"""
+        ) &&
+        {
+          val structural = ts.toStructural(WithSimpleEnum("item", Color.Green))
+          val dv         = structSchema.toDynamicValue(structural)
+          val roundTrip  = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight) &&
-        assertTrue {
-          val record = roundTrip.toOption.get
-          record.name == "item" &&
-          record.color == Color.Green
+          assertTrue(roundTrip.isRight) &&
+          assertTrue {
+            val record = roundTrip.toOption.get.asInstanceOf[StructuralRecord]
+            record.selectDynamic("name") == "item" &&
+            record.selectDynamic("color").asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Green"
+          }
         }
       },
       // TODO STRUCT: disable until case class + complex enum round-trip is fixed
@@ -895,7 +956,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         val structSchema            = ts.structuralSchema
 
         val typeName = structSchema.reflect.typeName.name
-        assertTrue(typeName.contains("name:String"))
+        assertTrue(typeName == """{name:String,result:({Tag:"Failure",error:String}|{Tag:"Success",value:Int})}""")
       },
       test("TypeName for case class containing Either") {
         val ts                         = ToStructural.derived[WithSimpleEither]
@@ -904,9 +965,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
 
         // Structural type name shows the structural representation, not nominal type
         val typeName = structSchema.reflect.typeName.name
-        assertTrue(
-          typeName.contains("value:{Tag:Left}") || typeName.contains("value:{Tag:Right}")
-        )
+        assertTrue(typeName == """{value:({Tag:"Left",value:String}|{Tag:"Right",value:Int})}""")
       },
       test("TypeName for case class containing simple enum") {
         val ts                       = ToStructural.derived[WithSimpleEnum]
@@ -914,10 +973,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         val structSchema             = ts.structuralSchema
 
         val typeName = structSchema.reflect.typeName.name
-        assertTrue(
-          typeName.contains("name:String"),
-          typeName.contains("color:Color")
-        )
+        assertTrue(typeName == """{color:({Tag:"Blue"}|{Tag:"Green"}|{Tag:"Red"}),name:String}""")
       },
       test("TypeName for case class containing complex enum") {
         val ts                        = ToStructural.derived[WithComplexEnum]
@@ -927,8 +983,7 @@ object SumTypeSchemaSpec extends ZIOSpecDefault {
         // Structural type name shows the structural representation, not nominal type
         val typeName = structSchema.reflect.typeName.name
         assertTrue(
-          typeName.contains("name:String"),
-          typeName.contains("shape:{Tag:Circle}") || typeName.contains("shape:{Tag:Rectangle}")
+          typeName == """{name:String,shape:({Tag:"Circle",radius:Double}|{Tag:"Point"}|{Tag:"Rectangle",height:Double,width:Double})}"""
         )
       }
     ),

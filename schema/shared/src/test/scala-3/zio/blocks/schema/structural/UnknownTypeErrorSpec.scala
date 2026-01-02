@@ -39,41 +39,58 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
       test("regular class field fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithRegularClassField]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("RegularClass"),
+          errorMsg.contains("ToStructural only supports"),
+          errorMsg.contains("Case classes"),
+          errorMsg.contains("consider converting it to a case class")
         )
       },
       test("nested regular class fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[RootWithOuter]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("Inner"),
+          errorMsg.contains("ToStructural only supports")
         )
       },
       test("regular class in Option fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithOptionalRegularClass]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("RegularClass"),
+          errorMsg.contains("ToStructural only supports")
         )
       },
       test("regular class in List fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithListOfRegularClass]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("RegularClass"),
+          errorMsg.contains("ToStructural only supports")
         )
       },
       test("regular class in Map value fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithMapOfRegularClass]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("RegularClass"),
+          errorMsg.contains("ToStructural only supports")
         )
       }
     ),
@@ -81,17 +98,24 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
       test("non-sealed trait field fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithUnsealedTrait]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("UnsealedTrait"),
+          errorMsg.contains("ToStructural only supports"),
+          errorMsg.contains("Sealed traits and enums")
         )
       },
       test("non-sealed trait in collection fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithVectorOfUnsealedTrait]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("UnsealedTrait"),
+          errorMsg.contains("ToStructural only supports")
         )
       }
     ),
@@ -99,9 +123,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
       test("abstract class field fails to compile") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithAbstractClass]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("AbstractBase"),
+          errorMsg.contains("ToStructural only supports")
         )
       }
     ),
@@ -109,35 +136,48 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
       test("sealed trait with case class containing unknown type fails") {
         inline def errors = typeCheckErrors("ToStructural.derived[StatusWithUnknown]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("unsupported type"))
+          errorMsg.contains("Cannot generate structural type for unsupported type"),
+          errorMsg.contains("RegularClass"),
+          errorMsg.contains("ToStructural only supports")
         )
       }
     ),
     suite("Error Message Quality")(
-      test("error message mentions the type name") {
+      test("error message lists all supported types") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithRegularClassField]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.contains("RegularClass"))
+          errorMsg.contains("Primitive types (Int, String, Boolean, etc.)"),
+          errorMsg.contains("Case classes"),
+          errorMsg.contains("Sealed traits and enums"),
+          errorMsg.contains("Either types"),
+          errorMsg.contains("Collections (List, Vector, Set, Seq, Option, Map)"),
+          errorMsg.contains("Tuples")
         )
       },
-      test("error message mentions supported types") {
+      test("error message includes full type name") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithRegularClassField]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.contains("Case classes"))
+          errorMsg.contains("is not supported"),
+          errorMsg.contains("RegularClass")
         )
       },
-      test("error message suggests converting to case class") {
+      test("error message provides actionable suggestion") {
         inline def errors = typeCheckErrors("ToStructural.derived[WithRegularClassField]")
         val result        = errors
+        val errorMsg      = result.headOption.map(_.message).getOrElse("")
         assertTrue(
           result.nonEmpty,
-          result.exists(_.message.toLowerCase.contains("case class"))
+          errorMsg.contains("If this is a regular class"),
+          errorMsg.contains("consider converting it to a case class")
         )
       }
     )

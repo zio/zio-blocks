@@ -1,5 +1,6 @@
 package zio.blocks.schema.structural
 
+import scala.annotation.nowarn
 import zio.blocks.schema._
 import zio.test._
 
@@ -23,6 +24,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           fieldNames.contains("age"),
           record.fields.size == 2
         )
+        assertTrue(schema.reflect.typeName.name == "{age:Int,name:String}")
       },
       test("derive schema for single-field structural type") {
         type IdStructure = StructuralRecord { def value: String }
@@ -30,6 +32,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
 
         val record = schema.reflect.asRecord.get
         assertTrue(record.fields.size == 1, record.fields.head.name == "value")
+        assertTrue(schema.reflect.typeName.name == "{value:String}")
       },
       test("derive schema for multi-field structural type with different primitives") {
         type MixedStructure = StructuralRecord {
@@ -47,6 +50,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           fieldNames == Set("name", "age", "score", "active"),
           record.fields.size == 4
         )
+        assertTrue(schema.reflect.typeName.name == "{active:Boolean,age:Int,name:String,score:Double}")
       }
     ),
     suite("TypeName normalization")(
@@ -71,6 +75,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val schema = Schema.derived[PersonStructure]
 
         assertTrue(schema.reflect.typeName.namespace == Namespace.empty)
+        assertTrue(schema.reflect.typeName.name == "{age:Int,name:String}")
       },
       test("TypeName has no type parameters") {
         type PersonStructure = StructuralRecord { def name: String; def age: Int }
@@ -87,6 +92,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val schemaB = Schema.derived[PersonB]
 
         assertTrue(schemaA.reflect.typeName.name == schemaB.reflect.typeName.name)
+        assertTrue(schemaA.reflect.typeName.name == "{age:Int,name:String}")
       },
       test("TypeName with collection types shows proper format") {
         type TeamStructure = StructuralRecord { def members: List[String]; def name: String }
@@ -95,10 +101,40 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val typeName = schema.reflect.typeName.name
         // Should have alphabetical order and proper collection format
         assertTrue(
-          typeName.contains("members:List[String]"),
-          typeName.contains("name:String"),
-          typeName.startsWith("{"),
-          typeName.endsWith("}")
+          typeName == "{members:List[String],name:String}"
+        )
+      },
+      test("Nested structural types produce normalized TypeName with recursive structure") {
+        // Nested structural types should show full recursive structure in TypeName
+        type AddressStructure = StructuralRecord { def city: String; def zip: Int }
+        type PersonStructure  = StructuralRecord { def name: String; def address: AddressStructure }
+
+        given Schema[AddressStructure] = Schema.derived[AddressStructure]
+        val schema                     = Schema.derived[PersonStructure]
+
+        val typeName = schema.reflect.typeName.name
+        // Should show nested structure: {address:{city:String,zip:Int},name:String}
+        assertTrue(
+          typeName == "{address:{city:String,zip:Int},name:String}"
+        )
+      },
+      test("Nested structural types with different field order produce same TypeName") {
+        // Different field orders in nested types should normalize to same TypeName
+        type Address1 = StructuralRecord { def city: String; def zip: Int }
+        type Person1  = StructuralRecord { def name: String; def address: Address1 }
+
+        type Address2 = StructuralRecord { def zip: Int; def city: String }
+        type Person2  = StructuralRecord { def address: Address2; def name: String }
+
+        @nowarn("msg=unused") given Schema[Address1] = Schema.derived[Address1]
+        @nowarn("msg=unused") given Schema[Address2] = Schema.derived[Address2]
+        val schema1                                  = Schema.derived[Person1]
+        val schema2                                  = Schema.derived[Person2]
+
+        // Both should normalize to same TypeName
+        assertTrue(
+          schema1.reflect.typeName.name == schema2.reflect.typeName.name,
+          schema1.reflect.typeName.name == "{address:{city:String,zip:Int},name:String}"
         )
       }
     ),
@@ -151,8 +187,9 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         }
 
         val schema                 = Schema.derived[PersonStructure]
+        val genderStructural       = new StructuralRecord(Map("Tag" -> "Female"))
         val value: PersonStructure =
-          new StructuralRecord(Map("name" -> "Alice", "age" -> 30, "gender" -> Gender.Female))
+          new StructuralRecord(Map("name" -> "Alice", "age" -> 30, "gender" -> genderStructural))
             .asInstanceOf[PersonStructure]
 
         val dv     = schema.toDynamicValue(value)
@@ -163,7 +200,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           result.isRight,
           recovered.selectDynamic("name") == "Alice",
           recovered.selectDynamic("age") == 30,
-          recovered.selectDynamic("gender") == Gender.Female
+          recovered.selectDynamic("gender").asInstanceOf[StructuralRecord].selectDynamic("Tag") == "Female"
         )
       }
     ),
@@ -176,6 +213,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("name", "members"))
+        assertTrue(schema.reflect.typeName.name == "{members:List[String],name:String}")
       },
       test("derive schema for structural type with Option field") {
         type OptionalStructure = StructuralRecord { def name: String; def nickname: Option[String] }
@@ -185,6 +223,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("name", "nickname"))
+        assertTrue(schema.reflect.typeName.name == "{name:String,nickname:Option[String]}")
       },
       test("derive schema for structural type with Vector field") {
         type VectorStructure = StructuralRecord { def items: Vector[Int] }
@@ -194,6 +233,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("items"))
+        assertTrue(schema.reflect.typeName.name == "{items:Vector[Int]}")
       },
       test("derive schema for structural type with Set field") {
         type SetStructure = StructuralRecord { def tags: Set[String] }
@@ -203,6 +243,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("tags"))
+        assertTrue(schema.reflect.typeName.name == "{tags:Set[String]}")
       },
       test("derive schema for structural type with Map field") {
         type MapStructure = StructuralRecord { def data: Map[String, Int] }
@@ -212,6 +253,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("data"))
+        assertTrue(schema.reflect.typeName.name == "{data:Map[String,Int]}")
       }
     ),
     suite("Collection field round-trips")(
@@ -324,6 +366,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("name", "address"))
+        assertTrue(schema.reflect.typeName.name == "{address:{city:String,zip:Int},name:String}")
       },
       test("nested structural type round-trip") {
         type AddressStructure = StructuralRecord { def city: String; def zip: Int }
@@ -373,7 +416,8 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           val middle = outer.selectDynamic("middle").asInstanceOf[StructuralRecord]
           val inner  = middle.selectDynamic("inner").asInstanceOf[StructuralRecord]
           inner.selectDynamic("value") == "deep"
-        }
+        } &&
+        assertTrue(schema.reflect.typeName.name == "{middle:{inner:{value:String}}}")
       }
     ),
     suite("Structural types with sum types")(
@@ -385,8 +429,9 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("result"))
+        // Either is represented structurally with Tag field and value field for each case
+        assertTrue(schema.reflect.typeName.name == """{result:({Tag:"Left",value:String}|{Tag:"Right",value:Int})}""")
       },
-      // TODO STRUCT: disable until Either round-trip is fixed
       test("Either field round-trip - Left") {
         type WithEitherStructure = StructuralRecord { def result: Either[String, Int] }
         val schema = Schema.derived[WithEitherStructure]
@@ -407,7 +452,6 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           eitherField.selectDynamic("value") == "error"
         }
       },
-      // TODO STRUCT: disable until Either round-trip is fixed
       test("Either field round-trip - Right") {
         type WithEitherStructure = StructuralRecord { def result: Either[String, Int] }
         val schema = Schema.derived[WithEitherStructure]
@@ -438,8 +482,8 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("pair"))
+        assertTrue(schema.reflect.typeName.name == "{pair:{_1:String,_2:Int}}")
       },
-      // TODO STRUCT: disable until tuple round-trip is fixed
       test("tuple field round-trip") {
         type WithTupleStructure = StructuralRecord { def pair: (String, Int) }
         val schema = Schema.derived[WithTupleStructure]
@@ -458,7 +502,8 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           val tupleField = record.selectDynamic("pair").asInstanceOf[StructuralRecord]
           tupleField.selectDynamic("_1") == "hello" &&
           tupleField.selectDynamic("_2") == 42
-        }
+        } &&
+        assertTrue(schema.reflect.typeName.name == "{pair:{_1:String,_2:Int}}")
       }
     ),
     suite("Extended primitives in structural types")(
@@ -470,6 +515,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("amount"))
+        assertTrue(schema.reflect.typeName.name == "{amount:BigDecimal}")
       },
       test("BigDecimal field round-trip") {
         type WithBigDecimalStructure = StructuralRecord { def amount: BigDecimal }
@@ -486,6 +532,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           result.isRight,
           result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("amount") == BigDecimal("123456.789")
         )
+        assertTrue(schema.reflect.typeName.name == "{amount:BigDecimal}")
       },
       test("derive schema for structural type with UUID field") {
         import java.util.UUID
@@ -496,6 +543,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("id"))
+        assertTrue(schema.reflect.typeName.name == "{id:UUID}")
       },
       test("UUID field round-trip") {
         import java.util.UUID
@@ -513,6 +561,215 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         assertTrue(
           result.isRight,
           result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("id") == uuid
+        )
+        assertTrue(schema.reflect.typeName.name == "{id:UUID}")
+      }
+    ),
+    suite("Sealed traits and enums in structural types")(
+      test("derive schema for structural type with simple enum field") {
+        enum Color { case Red, Green, Blue }
+        given Schema[Color] = Schema.derived[Color]
+
+        type WithEnumStructure = StructuralRecord { def color: Color }
+        val schema = Schema.derived[WithEnumStructure]
+
+        val record     = schema.reflect.asRecord.get
+        val fieldNames = record.fields.map(_.name).toSet
+
+        assertTrue(fieldNames == Set("color"))
+        // Simple enums: each case becomes {Tag:"CaseName"}
+        assertTrue(schema.reflect.typeName.name == """{color:({Tag:"Blue"}|{Tag:"Green"}|{Tag:"Red"})}""")
+      },
+      test("simple enum field round-trip") {
+        enum Status { case Active, Inactive, Pending }
+        given Schema[Status] = Schema.derived[Status]
+
+        type WithStatusStructure = StructuralRecord { def status: Status }
+        val schema = Schema.derived[WithStatusStructure]
+
+        val statusStructural           = new StructuralRecord(Map("Tag" -> "Active"))
+        val value: WithStatusStructure = new StructuralRecord(Map("status" -> statusStructural))
+          .asInstanceOf[WithStatusStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get
+            .asInstanceOf[StructuralRecord]
+            .selectDynamic("status")
+            .asInstanceOf[StructuralRecord]
+            .selectDynamic("Tag") == "Active"
+        )
+      },
+      test("derive schema for structural type with sealed trait field (with data)") {
+        sealed trait Shape
+        @nowarn("msg=unused") case class Circle(radius: Double)                   extends Shape
+        @nowarn("msg=unused") case class Rectangle(width: Double, height: Double) extends Shape
+
+        given Schema[Shape] = Schema.derived[Shape]
+
+        type WithShapeStructure = StructuralRecord { def shape: Shape }
+        val schema = Schema.derived[WithShapeStructure]
+
+        val record     = schema.reflect.asRecord.get
+        val fieldNames = record.fields.map(_.name).toSet
+
+        assertTrue(fieldNames == Set("shape"))
+        // Sealed trait with data: each case shows Tag and all fields (sorted alphabetically)
+        assertTrue(
+          schema.reflect.typeName.name == """{shape:({Tag:"Circle",radius:Double}|{Tag:"Rectangle",height:Double,width:Double})}"""
+        )
+      },
+      test("sealed trait field round-trip") {
+        sealed trait Result
+        @nowarn("msg=unused") case class Success(value: Int)    extends Result
+        @nowarn("msg=unused") case class Failure(error: String) extends Result
+
+        given Schema[Result] = Schema.derived[Result]
+
+        type WithResultStructure = StructuralRecord { def result: Result }
+        val schema = Schema.derived[WithResultStructure]
+
+        // At runtime, sealed trait cases become StructuralRecord with Tag
+        val successValue               = new StructuralRecord(Map("Tag" -> "Success", "value" -> 42))
+        val value: WithResultStructure = new StructuralRecord(Map("result" -> successValue))
+          .asInstanceOf[WithResultStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(result.isRight) &&
+        assertTrue {
+          val record      = result.toOption.get.asInstanceOf[StructuralRecord]
+          val resultField = record.selectDynamic("result").asInstanceOf[StructuralRecord]
+          resultField.selectDynamic("Tag") == "Success" &&
+          resultField.selectDynamic("value") == 42
+        }
+      }
+    ),
+    suite("Opaque types in structural types")(
+      test("derive schema for structural type with opaque type field") {
+        object OpaqueUserId {
+          opaque type UserId = Long
+          object UserId {
+            def apply(id: Long): UserId = id
+          }
+          // For opaque types over primitives, use the underlying type's schema
+          given Schema[UserId] = Schema.long.asInstanceOf[Schema[UserId]]
+        }
+        import OpaqueUserId._
+
+        type WithUserIdStructure = StructuralRecord { def userId: UserId }
+        val schema = Schema.derived[WithUserIdStructure]
+
+        val record     = schema.reflect.asRecord.get
+        val fieldNames = record.fields.map(_.name).toSet
+
+        assertTrue(fieldNames == Set("userId"))
+        // Opaque types unwrap to their underlying type
+        assertTrue(schema.reflect.typeName.name == "{userId:Long}")
+      },
+      test("opaque type field round-trip") {
+        object OpaquePrice {
+          opaque type Price = BigDecimal
+          object Price {
+            def apply(amount: BigDecimal): Price = amount
+          }
+          // For opaque types over primitives, use the underlying type's schema
+          given Schema[Price] = Schema.bigDecimal.asInstanceOf[Schema[Price]]
+        }
+        import OpaquePrice._
+
+        type WithPriceStructure = StructuralRecord { def price: Price }
+        val schema = Schema.derived[WithPriceStructure]
+
+        val value: WithPriceStructure = new StructuralRecord(Map("price" -> BigDecimal("99.99")))
+          .asInstanceOf[WithPriceStructure]
+
+        val dv     = schema.toDynamicValue(value)
+        val result = schema.fromDynamicValue(dv)
+
+        assertTrue(
+          result.isRight,
+          result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("price") == BigDecimal("99.99")
+        )
+        assertTrue(schema.reflect.typeName.name == "{price:BigDecimal}")
+      },
+      test("nested opaque types unwrap recursively") {
+        object OpaqueNested {
+          opaque type Inner = String
+          object Inner {
+            def apply(s: String): Inner = s
+          }
+
+          opaque type Outer = Inner
+          object Outer {
+            def apply(i: Inner): Outer = i
+          }
+
+          // For opaque types over primitives, use the underlying type's schema
+          given Schema[Inner] = Schema.string.asInstanceOf[Schema[Inner]]
+          given Schema[Outer] = Schema.string.asInstanceOf[Schema[Outer]]
+        }
+        import OpaqueNested._
+
+        type WithNestedOpaqueStructure = StructuralRecord { def value: Outer }
+        val schema = Schema.derived[WithNestedOpaqueStructure]
+
+        // Both opaque layers unwrap to String
+        assertTrue(schema.reflect.typeName.name == "{value:String}")
+      }
+    ),
+    suite("Complex nested structural types")(
+      test("structural type with nested sealed trait and tuple") {
+        sealed trait Value
+        @nowarn("msg=unused") case class IntValue(n: Int)    extends Value
+        @nowarn("msg=unused") case class StrValue(s: String) extends Value
+
+        given Schema[Value] = Schema.derived[Value]
+
+        type ComplexStructure = StructuralRecord {
+          def data: (Value, String)
+        }
+        val schema = Schema.derived[ComplexStructure]
+
+        // Tuple becomes {_1:...,_2:...}, sealed trait shows Tag and fields for each case
+        assertTrue(
+          schema.reflect.typeName.name == """{data:{_1:({Tag:"IntValue",n:Int}|{Tag:"StrValue",s:String}),_2:String}}"""
+        )
+      },
+      test("structural type with Either nested in List") {
+        type NestedStructure = StructuralRecord {
+          def items: List[Either[String, Int]]
+        }
+        val schema = Schema.derived[NestedStructure]
+
+        // Either in List preserves structure with Tag and value fields
+        assertTrue(
+          schema.reflect.typeName.name == """{items:List[({Tag:"Left",value:String}|{Tag:"Right",value:Int})]}"""
+        )
+      },
+      test("structural type with Map of opaque to tuple") {
+        object OpaqueKey {
+          opaque type Key = String
+          object Key {
+            def apply(s: String): Key = s
+          }
+          // For opaque types over primitives, use the underlying type's schema
+          given Schema[Key] = Schema.string.asInstanceOf[Schema[Key]]
+        }
+        import OpaqueKey._
+
+        type MapStructure = StructuralRecord {
+          def data: Map[Key, (Int, String)]
+        }
+        val schema = Schema.derived[MapStructure]
+
+        // Opaque unwraps, tuple becomes structural
+        assertTrue(
+          schema.reflect.typeName.name == "{data:Map[String,{_1:Int,_2:String}]}"
         )
       }
     )
