@@ -34,6 +34,8 @@ lazy val root = project
     publish / skip := true
   )
   .aggregate(
+    chunk.jvm,
+    chunk.js,
     schema.jvm,
     schema.js,
     schema.native,
@@ -41,11 +43,26 @@ lazy val root = project
     streams.jvm,
     streams.js,
     streams.native,
+    chunkBenchmarks,
     scalaNextTests.jvm,
     scalaNextTests.js,
     scalaNextTests.native,
     benchmarks,
     docs
+  )
+
+lazy val chunk = crossProject(JSPlatform, JVMPlatform)
+  .crossType(CrossType.Pure)
+  .settings(stdSettings("zio-blocks-chunk"))
+  .settings(crossProjectSettings)
+  .jsSettings(jsSettings)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    ),
+    mimaPreviousArtifacts := Set()
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -146,6 +163,16 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+
+lazy val chunkBenchmarks = project
+  .in(file("chunk/benchmarks"))
+  .settings(stdSettings("zio-blocks-chunk-benchmarks"))
+  .dependsOn(chunk.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip        := true,
+    mimaPreviousArtifacts := Set()
+  )
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))

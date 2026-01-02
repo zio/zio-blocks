@@ -1,0 +1,42 @@
+name: Chunk Module CI
+
+on:
+  pull_request:
+    paths:
+      - 'chunk/**'
+      - 'build.sbt'
+      - 'project/**'
+  push:
+    branches: ['main']
+    paths:
+      - 'chunk/**'
+      - 'build.sbt'
+      - 'project/**'
+
+jobs:
+  test-chunk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        java: [11, 17]
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Scala and SBT
+        uses: coursier/setup-action@v1
+        with:
+          jvm: temurin:${{ matrix.java }}
+          apps: sbt
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v6
+      - name: Check Formatting
+        run: sbt fmtCheck
+      - name: Run Chunk JVM Tests
+        run: sbt chunkJVM/test
+      - name: Run Chunk JS Tests
+        run: sbt chunkJS/test
+      - name: Compile Benchmarks
+        run: sbt chunkBenchmarks/jmh:compile
