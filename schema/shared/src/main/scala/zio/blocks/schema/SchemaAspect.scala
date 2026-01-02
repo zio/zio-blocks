@@ -2,10 +2,10 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 
-trait SchemaAspect[-Min, +Max, F[_, _]] {
-  def apply[A >: Max <: Min](reflect: Reflect[F, A]): Reflect[F, A]
+trait SchemaAspect[-Upper, +Lower, F[_, _]] {
+  def apply[A >: Lower <: Upper](reflect: Reflect[F, A]): Reflect[F, A]
 
-  def recursive(implicit ev1: Any <:< Min, ev2: Max <:< Nothing): SchemaAspect[Min, Max, F]
+  def recursive(implicit ev1: Any <:< Upper, ev2: Lower <:< Nothing): SchemaAspect[Upper, Lower, F]
 }
 
 object SchemaAspect {
