@@ -67,7 +67,7 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
         roundTrip[Value](1, """{"Int":1}""") &&
         roundTrip[Value](true, """{"Boolean":true}""") &&
-        roundTrip[Value]("VVV", """{"String":"VVV"}""") &&
+        roundTrip[Value]("VVV", """{"java.lang.String":"VVV"}""") &&
         roundTrip[Value]((1, true), """{"Tuple2":[1,true]}""") &&
         roundTrip[Value](List(1, 2, 3), """{"collection.immutable.List":[1,2,3]}""")
       },
