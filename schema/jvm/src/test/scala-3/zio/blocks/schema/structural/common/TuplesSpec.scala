@@ -64,7 +64,6 @@ object TuplesSpec extends ZIOSpecDefault {
         // Convert tuple to DynamicValue via structural schema
         val dynamic = structuralSchema.asInstanceOf[Schema[Any]].toDynamicValue(tuple)
 
-        // Verify the dynamic value contains correct fields
         dynamic match {
           case record: DynamicValue.Record =>
             val fieldMap = record.fields.toMap
@@ -117,9 +116,7 @@ object TuplesSpec extends ZIOSpecDefault {
         val structuralSchema = tupleSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
-        
-        // The inner case class should be converted to its structural representation
-        // Type name should be: {_1:String,_2:Inner} where Inner's type name appears
+
         assertTrue(
           typeName.contains("_1"),
           typeName.contains("_2"),
