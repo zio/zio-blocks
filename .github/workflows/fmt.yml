@@ -1,0 +1,41 @@
+name: fmt
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scalafmt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Scala and sbt
+        uses: coursier/setup-action@v1
+        with:
+          jvm: temurin:11
+          apps: sbt
+
+      - name: Cache scala dependencies
+        uses: coursier/cache-action@v6
+
+      - name: Run scalafmt
+        run: sbt scalafmtAll
+
+      - name: Commit and push changes
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Run scalafmt"
+          git push
