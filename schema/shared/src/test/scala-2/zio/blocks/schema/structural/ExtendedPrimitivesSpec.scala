@@ -7,10 +7,6 @@ import zio.test.TestAspect._
 import java.time.Instant
 import java.util.{Currency, UUID}
 
-/**
- * Tests for extended primitive types in Scala 2 structural types. Covers:
- * BigInt, BigDecimal, UUID, Currency, java.time types, Unit
- */
 object ExtendedPrimitivesSpec extends ZIOSpecDefault {
 
   // Case class with all extended primitives
@@ -39,7 +35,9 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
   def spec = suite("ExtendedPrimitivesSpec (Scala 2)")(
     suite("ToStructural with Extended Primitives")(
       test("case class with all extended primitives") {
-        val ts = ToStructural.derived[ExtendedPrimitives]
+        val ts                                          = ToStructural.derived[ExtendedPrimitives]
+        implicit val schema: Schema[ExtendedPrimitives] = Schema.derived[ExtendedPrimitives]
+        val structSchema                                = ts.structuralSchema
 
         val uuid     = UUID.fromString("123e4567-e89b-12d3-a456-426614174000")
         val currency = Currency.getInstance("USD")
@@ -64,39 +62,59 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           s.instant == instant,
           s.unit == ()
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{bigDecimal:BigDecimal,bigInt:BigInt,currency:Currency,instant:Instant,unit:Unit,uuid:UUID}")
       },
       test("BigInt field") {
-        val ts = ToStructural.derived[WithBigInt]
-        val s  = ts.toStructural(WithBigInt(BigInt("999999999999999999999999")))
+        val ts                                  = ToStructural.derived[WithBigInt]
+        implicit val schema: Schema[WithBigInt] = Schema.derived[WithBigInt]
+        val structSchema                        = ts.structuralSchema
+        val s                                   = ts.toStructural(WithBigInt(BigInt("999999999999999999999999")))
         assertTrue(s.value == BigInt("999999999999999999999999"))
+        assertTrue(structSchema.reflect.typeName.name == "{value:BigInt}")
       },
       test("BigDecimal field") {
-        val ts = ToStructural.derived[WithBigDecimal]
-        val s  = ts.toStructural(WithBigDecimal(BigDecimal("3.14159265358979323846")))
+        val ts                                      = ToStructural.derived[WithBigDecimal]
+        implicit val schema: Schema[WithBigDecimal] = Schema.derived[WithBigDecimal]
+        val structSchema                            = ts.structuralSchema
+        val s                                       = ts.toStructural(WithBigDecimal(BigDecimal("3.14159265358979323846")))
         assertTrue(s.value == BigDecimal("3.14159265358979323846"))
+        assertTrue(structSchema.reflect.typeName.name == "{value:BigDecimal}")
       },
       test("UUID field") {
-        val ts   = ToStructural.derived[WithUUID]
-        val uuid = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
-        val s    = ts.toStructural(WithUUID(uuid))
+        val ts                                = ToStructural.derived[WithUUID]
+        implicit val schema: Schema[WithUUID] = Schema.derived[WithUUID]
+        val structSchema                      = ts.structuralSchema
+        val uuid                              = UUID.fromString("550e8400-e29b-41d4-a716-446655440000")
+        val s                                 = ts.toStructural(WithUUID(uuid))
         assertTrue(s.value == uuid)
+        assertTrue(structSchema.reflect.typeName.name == "{value:UUID}")
       },
       test("Currency field") {
-        val ts       = ToStructural.derived[WithCurrency]
-        val currency = Currency.getInstance("EUR")
-        val s        = ts.toStructural(WithCurrency(currency))
+        val ts                                    = ToStructural.derived[WithCurrency]
+        implicit val schema: Schema[WithCurrency] = Schema.derived[WithCurrency]
+        val structSchema                          = ts.structuralSchema
+        val currency                              = Currency.getInstance("EUR")
+        val s                                     = ts.toStructural(WithCurrency(currency))
         assertTrue(s.value == currency)
+        assertTrue(structSchema.reflect.typeName.name == "{value:Currency}")
       },
       test("Instant field") {
-        val ts      = ToStructural.derived[WithInstant]
-        val instant = Instant.parse("2024-01-15T10:30:00Z")
-        val s       = ts.toStructural(WithInstant(instant))
+        val ts                                   = ToStructural.derived[WithInstant]
+        implicit val schema: Schema[WithInstant] = Schema.derived[WithInstant]
+        val structSchema                         = ts.structuralSchema
+        val instant                              = Instant.parse("2024-01-15T10:30:00Z")
+        val s                                    = ts.toStructural(WithInstant(instant))
         assertTrue(s.value == instant)
+        assertTrue(structSchema.reflect.typeName.name == "{value:Instant}")
       },
       test("Unit field") {
-        val ts = ToStructural.derived[WithUnit]
-        val s  = ts.toStructural(WithUnit(()))
+        val ts                                = ToStructural.derived[WithUnit]
+        implicit val schema: Schema[WithUnit] = Schema.derived[WithUnit]
+        val structSchema                      = ts.structuralSchema
+        val s                                 = ts.toStructural(WithUnit(()))
         assertTrue(s.value == ())
+        assertTrue(structSchema.reflect.typeName.name == "{value:Unit}")
       }
     ),
     suite("Round-trip with Extended Primitives")(
@@ -115,6 +133,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.value) == Right(BigInt("12345678901234567890123456789"))
         )
+        assertTrue(structSchema.reflect.typeName.name == "{value:BigInt}")
       },
       test("BigDecimal round-trip") {
         val ts                                      = ToStructural.derived[WithBigDecimal]
@@ -131,6 +150,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.value) == Right(BigDecimal("999.123456789"))
         )
+        assertTrue(structSchema.reflect.typeName.name == "{value:BigDecimal}")
       },
       test("UUID round-trip") {
         val ts                                = ToStructural.derived[WithUUID]
@@ -148,6 +168,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.value) == Right(uuid)
         )
+        assertTrue(structSchema.reflect.typeName.name == "{value:UUID}")
       },
       test("Currency round-trip") {
         val ts                                    = ToStructural.derived[WithCurrency]
@@ -165,6 +186,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.value) == Right(currency)
         )
+        assertTrue(structSchema.reflect.typeName.name == "{value:Currency}")
       },
       test("Instant round-trip") {
         val ts                                   = ToStructural.derived[WithInstant]
@@ -182,6 +204,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.value) == Right(instant)
         )
+        assertTrue(structSchema.reflect.typeName.name == "{value:Instant}")
       },
       test("Unit round-trip") {
         val ts                                = ToStructural.derived[WithUnit]
@@ -238,7 +261,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
         val structSchema                        = ts.structuralSchema
 
         val typeName = structSchema.reflect.typeName.name
-        assertTrue(typeName.contains("BigInt"))
+        assertTrue(typeName == "{value:BigInt}")
       },
       test("BigDecimal shows as BigDecimal in TypeName") {
         val ts                                      = ToStructural.derived[WithBigDecimal]
@@ -246,7 +269,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
         val structSchema                            = ts.structuralSchema
 
         val typeName = structSchema.reflect.typeName.name
-        assertTrue(typeName.contains("BigDecimal"))
+        assertTrue(typeName == "{value:BigDecimal}")
       },
       test("UUID shows as UUID in TypeName") {
         val ts                                = ToStructural.derived[WithUUID]
@@ -254,7 +277,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
         val structSchema                      = ts.structuralSchema
 
         val typeName = structSchema.reflect.typeName.name
-        assertTrue(typeName.contains("UUID"))
+        assertTrue(typeName == "{value:UUID}")
       }
     ),
     suite("Extended Primitives in Collections")(
@@ -274,6 +297,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.id) == Right(Some(uuid))
         )
+        assertTrue(structSchema.reflect.typeName.name == "{id:Option[UUID]}")
       },
       test("Optional UUID with None") {
         val ts                                        = ToStructural.derived[WithOptionalUUID]
@@ -290,6 +314,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.id) == Right(None)
         )
+        assertTrue(structSchema.reflect.typeName.name == "{id:Option[UUID]}")
       },
       test("List of BigInt") {
         val ts                                        = ToStructural.derived[WithListOfBigInt]
@@ -318,6 +343,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
             )
           )
         )
+        assertTrue(structSchema.reflect.typeName.name == "{values:List[BigInt]}")
       }
     ),
     suite("DynamicValue Format for Extended Primitives")(
@@ -341,6 +367,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           case _ =>
             assertTrue(false)
         }
+        assertTrue(structSchema.reflect.typeName.name == "{value:BigInt}")
       },
       test("BigDecimal produces correct DynamicValue") {
         val ts                                      = ToStructural.derived[WithBigDecimal]
@@ -362,6 +389,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           case _ =>
             assertTrue(false)
         }
+        assertTrue(structSchema.reflect.typeName.name == "{value:BigDecimal}")
       },
       test("UUID produces correct DynamicValue") {
         val ts                                = ToStructural.derived[WithUUID]
@@ -384,6 +412,7 @@ object ExtendedPrimitivesSpec extends ZIOSpecDefault {
           case _ =>
             assertTrue(false)
         }
+        assertTrue(structSchema.reflect.typeName.name == "{value:UUID}")
       }
     ),
     suite("Equality for Extended Primitives")(

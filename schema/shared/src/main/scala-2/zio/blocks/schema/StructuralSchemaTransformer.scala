@@ -174,7 +174,7 @@ object StructuralSchemaTransformer {
           ).asInstanceOf[Reflect.Bound[_]]
         }
 
-      case seq: Reflect.Sequence[Binding, _, _] =>
+      case seq: (Reflect.Sequence[Binding, _, _] @unchecked) =>
         // Sequence (List, Vector, etc.): transform element schema
         val transformedElement = transformReflect(seq.element)
         if (transformedElement eq seq.element) {
@@ -187,7 +187,7 @@ object StructuralSchemaTransformer {
           ).asInstanceOf[Reflect.Bound[_]]
         }
 
-      case map: Reflect.Map[Binding, _, _, _] =>
+      case map: (Reflect.Map[Binding, _, _, _] @unchecked) =>
         // Map: transform key and value schemas
         val transformedKey   = transformReflect(map.key)
         val transformedValue = transformReflect(map.value)

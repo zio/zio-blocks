@@ -19,7 +19,13 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: RegularClass)
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("RegularClass") &&
+            containsString("ToStructural only supports")
+          )
+        )
       },
       test("nested regular class fails to compile") {
         val result = typeCheck("""
@@ -29,7 +35,13 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Root(outer: Outer)
           ToStructural.derived[Root]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("Inner") &&
+            containsString("not supported")
+          )
+        )
       },
       test("regular class in Option fails to compile") {
         val result = typeCheck("""
@@ -38,7 +50,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: Option[RegularClass])
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("RegularClass")
+          )
+        )
       },
       test("regular class in List fails to compile") {
         val result = typeCheck("""
@@ -47,7 +64,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: List[RegularClass])
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("RegularClass")
+          )
+        )
       },
       test("regular class in Map value fails to compile") {
         val result = typeCheck("""
@@ -56,7 +78,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: Map[String, RegularClass])
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("RegularClass")
+          )
+        )
       }
     ),
     suite("Non-Sealed Traits")(
@@ -67,7 +94,13 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: UnsealedTrait)
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("UnsealedTrait") &&
+            containsString("Case classes")
+          )
+        )
       },
       test("non-sealed trait in collection fails to compile") {
         val result = typeCheck("""
@@ -76,7 +109,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: Vector[UnsealedTrait])
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("UnsealedTrait")
+          )
+        )
       }
     ),
     suite("Abstract Classes (non-sealed)")(
@@ -87,7 +125,13 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: AbstractBase)
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("unsupported type")))
+        assertZIO(result)(
+          isLeft(
+            containsString("unsupported type") &&
+            containsString("AbstractBase") &&
+            containsString("not supported")
+          )
+        )
       }
     ),
     suite("Error Message Quality")(
@@ -98,7 +142,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: MyCustomClass)
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("MyCustomClass")))
+        assertZIO(result)(
+          isLeft(
+            containsString("MyCustomClass") &&
+            containsString("unsupported type")
+          )
+        )
       },
       test("error message mentions supported types") {
         val result = typeCheck("""
@@ -107,7 +156,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: RegularClass)
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("Case classes")))
+        assertZIO(result)(
+          isLeft(
+            containsString("Case classes") &&
+            containsString("ToStructural only supports")
+          )
+        )
       },
       test("error message suggests converting to case class") {
         val result = typeCheck("""
@@ -116,7 +170,12 @@ object UnknownTypeErrorSpec extends ZIOSpecDefault {
           case class Foo(m: RegularClass)
           ToStructural.derived[Foo]
         """)
-        assertZIO(result)(isLeft(containsString("case class")))
+        assertZIO(result)(
+          isLeft(
+            containsString("case class") &&
+            containsString("consider converting")
+          )
+        )
       }
     )
   )

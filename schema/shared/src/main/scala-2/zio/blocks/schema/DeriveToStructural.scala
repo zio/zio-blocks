@@ -92,6 +92,7 @@ object DeriveToStructural {
       case class EitherType(left: Type, right: Type)               extends TypeCategory
       case class TupleType(elements: List[Type])                   extends TypeCategory
       case class CaseClassType(fields: List[(MethodSymbol, Type)]) extends TypeCategory
+      case object SealedType                                       extends TypeCategory
       case object Unknown                                          extends TypeCategory
     }
 
@@ -139,7 +140,9 @@ object DeriveToStructural {
         TypeCategory.TupleType(dealt.typeArgs)
       } else {
         val sym = dealt.typeSymbol
-        if (sym.isClass && sym.asClass.isCaseClass && !sym.asClass.isSealed) {
+        if (sym.isClass && sym.asClass.isSealed) {
+          TypeCategory.SealedType
+        } else if (sym.isClass && sym.asClass.isCaseClass) {
           val fields = dealt.decls.collect {
             case m: MethodSymbol if m.isCaseAccessor => m
           }.toList.map(f => (f, f.returnType.asSeenFrom(dealt, sym)))
@@ -147,7 +150,7 @@ object DeriveToStructural {
         } else {
           TypeCategory.Unknown
         }
-      }
+      } 
     }
 
     // Recursion detection
@@ -185,18 +188,6 @@ object DeriveToStructural {
         case TypeCategory.PrimitiveLike =>
           ()
 
-        case TypeCategory.Unknown =>
-          fail(
-            s"""Cannot generate structural type for unsupported type: ${dealt.typeSymbol.name.decodedName.toString}.
-               |ToStructural only supports:
-               |  - Primitive types (Int, String, Boolean, etc.)
-               |  - Case classes
-               |  - Collections (List, Vector, Set, Seq, Option, Map)
-               |  - Tuples
-               |The type '${dealt.typeSymbol.fullName}' is not supported.
-               |If this is a regular class, consider converting it to a case class.""".stripMargin
-          )
-
         case TypeCategory.OptionType(elem) =>
           checkRecursive(elem, dealt :: stack)
 
@@ -216,14 +207,6 @@ object DeriveToStructural {
           checkRecursive(key, dealt :: stack)
           checkRecursive(value, dealt :: stack)
 
-        case TypeCategory.EitherType(_, _) =>
-          fail(
-            s"""Cannot generate structural type for Either in Scala 2.
-               |Either structural representation requires union types,
-               |which are only available in Scala 3.
-               |Consider upgrading to Scala 3 or using a different approach.""".stripMargin
-          )
-
         case TypeCategory.TupleType(elements) =>
           elements.foreach(elem => checkRecursive(elem, dealt :: stack))
 
@@ -231,6 +214,34 @@ object DeriveToStructural {
           fields.foreach { case (_, fieldTpe) =>
             checkRecursive(fieldTpe, dealt :: stack)
           }
+        
+        case TypeCategory.EitherType(_, _) =>
+          fail(
+            s"""Cannot generate structural type for Either in Scala 2.
+               |Either structural representation requires union types,
+               |which are only available in Scala 3.
+               |Consider upgrading to Scala 3 or using a different approach.""".stripMargin
+          )  
+
+        case TypeCategory.SealedType =>
+          fail(
+            s"""Cannot generate structural type for sum types in Scala 2 (${dealt.typeSymbol.name.decodedName.toString}).
+               |Structural representation of sum types requires union types,
+               |which are only available in Scala 3.
+               |Consider upgrading to Scala 3 or using a different approach.""".stripMargin
+          )
+
+        case TypeCategory.Unknown =>
+          fail(
+            s"""Cannot generate structural type for unsupported type: ${dealt.typeSymbol.name.decodedName.toString}.
+               |ToStructural only supports:
+               |  - Primitive types (Int, String, Boolean, etc.)
+               |  - Case classes
+               |  - Collections (List, Vector, Set, Seq, Option, Map)
+               |  - Tuples
+               |The type '${dealt.typeSymbol.fullName}' is not supported.
+               |If this is a regular class, consider converting it to a case class.""".stripMargin
+          )  
       }
     }
 
@@ -270,7 +281,7 @@ object DeriveToStructural {
       }
 
       categorize(dealt) match {
-        case TypeCategory.PrimitiveLike | TypeCategory.Unknown =>
+        case TypeCategory.PrimitiveLike =>
           expr
 
         case TypeCategory.OptionType(elem) =>
@@ -298,10 +309,6 @@ object DeriveToStructural {
           val vbody = buildValueConverter(Ident(TermName("v")), value, seen + dealt)
           q"$expr.map { case (k, v) => ($kbody, $vbody) }"
 
-        case TypeCategory.EitherType(_, _) =>
-          // Should never reach here - Either is rejected in checkRecursive
-          fail("Either types are not supported in Scala 2 structural types")
-
         case TypeCategory.TupleType(elements) =>
           // Convert tuple to StructuralRecord with _1, _2, etc. fields
           val entries = elements.zipWithIndex.map { case (argTpe, idx) =>
@@ -321,6 +328,19 @@ object DeriveToStructural {
             q"$nameLit -> $conv"
           }
           q"new _root_.zio.blocks.schema.StructuralRecord(_root_.scala.collection.immutable.Map[String, Any](..$entries))"
+      
+        case TypeCategory.EitherType(_, _) =>
+          // Should never reach here - Either is rejected in checkRecursive
+          fail("Either types are not supported in Scala 2 structural types")    
+
+        case TypeCategory.SealedType =>
+          // Should never reach here - sealed types are rejected in checkRecursive
+          fail("Sealed types are not supported in Scala 2 structural types")
+
+        case TypeCategory.Unknown =>
+          // Should never reach here - Unknown types are rejected in checkRecursive
+          fail("Cannot generate structural converter for unsupported type")
+      
       }
     }
 

@@ -3,11 +3,6 @@ package zio.blocks.schema.structural
 import zio.blocks.schema._
 import zio.test._
 
-/**
- * Tests for direct structural type derivation in Scala 2. This tests
- * Schema.derived[StructuralRecord { def name: String; def age: Int }] and
- * similar refinement types.
- */
 object DirectStructuralDerivationSpec extends ZIOSpecDefault {
 
   // Type aliases for structural types
@@ -33,6 +28,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           fieldNames.contains("age"),
           record.fields.size == 2
         )
+        assertTrue(schema.reflect.typeName.name == "{age:Int,name:String}")
       },
       test("derive schema for single-field structural type") {
         val schema = Schema.derived[IdStructure]
@@ -40,6 +36,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val record    = schema.reflect.asRecord.get
         val fieldName = record.fields.head.name
         assertTrue(record.fields.size == 1, fieldName == "value")
+        assertTrue(schema.reflect.typeName.name == "{value:String}")
       },
       test("derive schema for multi-field structural type with different primitives") {
         val schema = Schema.derived[MixedStructure]
@@ -51,6 +48,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           fieldNames == Set("name", "age", "score", "active"),
           record.fields.size == 4
         )
+        assertTrue(schema.reflect.typeName.name == "{active:Boolean,age:Int,name:String,score:Double}")
       }
     ),
     suite("TypeName normalization")(
@@ -58,13 +56,11 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val schema = Schema.derived[PersonStructure]
 
         val typeName = schema.reflect.typeName.name
-        // Should be {age:Int,name:String} - alphabetically sorted
         assertTrue(typeName == "{age:Int,name:String}")
       },
       test("TypeName format is {field:Type,...}") {
         val schema = Schema.derived[PointStructure]
 
-        // Check the .name property of TypeName, not the full toString
         val typeNameStr = schema.reflect.typeName.name
         assertTrue(typeNameStr == "{x:Int,y:Int}")
       },
@@ -79,7 +75,6 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         assertTrue(schema.reflect.typeName.params.isEmpty)
       },
       test("Same structure produces same TypeName regardless of field declaration order") {
-        // Fields declared in different order should produce same TypeName
         type PersonA = StructuralRecord { def name: String; def age: Int }
         type PersonB = StructuralRecord { def age: Int; def name: String }
 
@@ -92,13 +87,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val schema = Schema.derived[TeamStructure]
 
         val typeName = schema.reflect.typeName.name
-        // Should have alphabetical order and proper collection format
-        assertTrue(
-          typeName.contains("members:List[String]"),
-          typeName.contains("name:String"),
-          typeName.startsWith("{"),
-          typeName.endsWith("}")
-        )
+        assertTrue(typeName == "{members:List[String],name:String}")
       }
     ),
     suite("Round-trip conversion")(
@@ -146,6 +135,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("name", "members"))
+        assertTrue(schema.reflect.typeName.name == "{members:List[String],name:String}")
       },
       test("derive schema for structural type with Option field") {
         val schema = Schema.derived[OptionalStructure]
@@ -154,6 +144,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("name", "nickname"))
+        assertTrue(schema.reflect.typeName.name == "{name:String,nickname:Option[String]}")
       }
     ),
     suite("Collection field round-trips")(
@@ -258,6 +249,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("inner", "name"))
+        assertTrue(schema.reflect.typeName.name == "{inner:{value:Int},name:String}")
       },
       test("three-level nesting") {
         type Level3 = StructuralRecord { def value: String }
@@ -267,6 +259,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
 
         val record = schema.reflect.asRecord.get
         assertTrue(record.fields.size == 2)
+        assertTrue(schema.reflect.typeName.name == "{level2:{level3:{value:String}},name:String}")
       }
     ),
     suite("Structural types with tuples")(
@@ -278,6 +271,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
         val fieldNames = record.fields.map(_.name).toSet
 
         assertTrue(fieldNames == Set("pair"))
+        assertTrue(schema.reflect.typeName.name == "{pair:{_1:String,_2:Int}}")
       },
       test("Tuple3 field") {
         type TupleStructure = StructuralRecord { def triple: (String, Int, Boolean) }
@@ -285,6 +279,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
 
         val record = schema.reflect.asRecord.get
         assertTrue(record.fields.size == 1)
+        assertTrue(schema.reflect.typeName.name == "{triple:{_1:String,_2:Int,_3:Boolean}}")
       }
     ),
     suite("Extended primitives in structural types")(
@@ -302,6 +297,7 @@ object DirectStructuralDerivationSpec extends ZIOSpecDefault {
           result.isRight,
           result.toOption.get.asInstanceOf[StructuralRecord].selectDynamic("amount") == BigDecimal("123.45")
         )
+        assertTrue(schema.reflect.typeName.name == "{amount:BigDecimal}")
       },
       test("UUID field") {
         import java.util.UUID

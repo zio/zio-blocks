@@ -419,6 +419,38 @@ private object SchemaVersionSpecific {
       })
     }
 
+    // Helper function to recursively compute structural typename strings
+    // Handles nested structural types by recursively expanding them
+    def structuralTypeNameString(tpe: Type): String = {
+      val dealt = tpe.dealias
+
+      // Check if this is a structural refinement type
+      if (isStructuralRefinementType(dealt)) {
+        // Recursively extract and format fields
+        val fields = extractRefinementFields(dealt)
+        val fieldStrs = fields.map { case (name, fTpe) =>
+          val typeStr = structuralTypeNameString(fTpe)
+          s"$name:$typeStr"
+        }
+        s"{${fieldStrs.mkString(",")}}"
+      } else if (isTypeAlias(dealt)) {
+        // If it's a type alias, check what it aliases to
+        structuralTypeNameString(dealt.dealias)
+      } else if (dealt.typeSymbol.fullName.startsWith("scala.Tuple")) {
+        // Handle tuples: convert to structural form with _1, _2, _3, etc. fields
+        val elements = typeArgs(dealt)
+        val fieldStrs = elements.zipWithIndex.map { case (elemTpe, idx) =>
+          val fieldName = s"_${idx + 1}"
+          val typeStr = structuralTypeNameString(elemTpe)
+          s"$fieldName:$typeStr"
+        }
+        s"{${fieldStrs.mkString(",")}}"
+      } else {
+        // For non-structural types, use the normal typename
+        typeName(dealt).toSimpleName
+      }
+    }
+
     // RefinementInfo handles structural refinement types like:
     // StructuralRecord { def name: String; def age: Int }
     class RefinementInfo(tpe: Type) {
@@ -457,9 +489,10 @@ private object SchemaVersionSpecific {
       }
 
       // Compute field pairs for TypeName.structural
+      // Uses recursive expansion for nested structural types
       def fieldPairs: List[(String, String)] = fieldInfos.map { fieldInfo =>
         val fTpe           = fieldInfo.tpe
-        val simpleTypeName = typeName(fTpe).toSimpleName
+        val simpleTypeName = structuralTypeNameString(fTpe)
         (fieldInfo.name, simpleTypeName)
       }
 

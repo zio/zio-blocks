@@ -3,11 +3,6 @@ package zio.blocks.schema.structural
 import zio.test._
 import zio.test.Assertion._
 
-/**
- * Scala 2 specific tests verifying that sum types (sealed traits, enums)
- * produce proper compile-time errors since they require union types which are
- * only available in Scala 3.
- */
 object SumTypeErrorSpec extends ZIOSpecDefault {
 
   def spec = suite("SumTypeErrorSpec (Scala 2)")(
@@ -20,7 +15,14 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class Failure(error: String) extends Result
           ToStructural.derived[Result]
         """)
-        assertZIO(result)(isLeft(containsString("sum types")))
+        assertZIO(result)(
+          isLeft(
+            containsString("sum types in Scala 2") &&
+            containsString("Result") &&
+            containsString("union types") &&
+            containsString("Scala 3")
+          )
+        )
       },
       test("sealed trait with nested fields fails") {
         val result = typeCheck("""
@@ -31,7 +33,13 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class Contractor(company: String) extends Person
           ToStructural.derived[Person]
         """)
-        assertZIO(result)(isLeft(containsString("sum types")))
+        assertZIO(result)(
+          isLeft(
+            containsString("sum types in Scala 2") &&
+            containsString("Person") &&
+            containsString("union types")
+          )
+        )
       }
     ),
     suite("Sealed Traits with Case Objects")(
@@ -44,7 +52,13 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case object Unknown extends Status
           ToStructural.derived[Status]
         """)
-        assertZIO(result)(isLeft(containsString("sum types")))
+        assertZIO(result)(
+          isLeft(
+            containsString("sum types in Scala 2") &&
+            containsString("Status") &&
+            containsString("union types")
+          )
+        )
       },
       test("sealed trait with only case objects fails") {
         val result = typeCheck("""
@@ -55,7 +69,13 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case object Blue extends Color
           ToStructural.derived[Color]
         """)
-        assertZIO(result)(isLeft(containsString("sum types")))
+        assertZIO(result)(
+          isLeft(
+            containsString("sum types in Scala 2") &&
+            containsString("Color") &&
+            containsString("Scala 3")
+          )
+        )
       }
     ),
     suite("Sealed Abstract Class")(
@@ -67,7 +87,13 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case object Scroll extends Event
           ToStructural.derived[Event]
         """)
-        assertZIO(result)(isLeft(containsString("sum types")))
+        assertZIO(result)(
+          isLeft(
+            containsString("sum types in Scala 2") &&
+            containsString("Event") &&
+            containsString("union types")
+          )
+        )
       }
     ),
     suite("Either Type (requires union types)")(
@@ -77,7 +103,13 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class WithEither(value: Either[String, Int])
           ToStructural.derived[WithEither]
         """)
-        assertZIO(result)(isLeft(containsString("Either")))
+        assertZIO(result)(
+          isLeft(
+            containsString("Either in Scala 2") &&
+            containsString("union types") &&
+            containsString("Scala 3")
+          )
+        )
       },
       test("Either with case class types fails") {
         val result = typeCheck("""
@@ -87,7 +119,13 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class WithComplexEither(result: Either[Error, Data])
           ToStructural.derived[WithComplexEither]
         """)
-        assertZIO(result)(isLeft(containsString("Either")))
+        assertZIO(result)(
+          isLeft(
+            containsString("Either in Scala 2") &&
+            containsString("union types") &&
+            containsString("Scala 3")
+          )
+        )
       },
       test("nested Either in Option fails") {
         val result = typeCheck("""
@@ -95,7 +133,12 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class WithOptionalEither(value: Option[Either[String, Int]])
           ToStructural.derived[WithOptionalEither]
         """)
-        assertZIO(result)(isLeft(containsString("Either")))
+        assertZIO(result)(
+          isLeft(
+            containsString("Either in Scala 2") &&
+            containsString("union types")
+          )
+        )
       },
       test("Either in List fails") {
         val result = typeCheck("""
@@ -103,7 +146,12 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class WithListOfEither(values: List[Either[String, Int]])
           ToStructural.derived[WithListOfEither]
         """)
-        assertZIO(result)(isLeft(containsString("Either")))
+        assertZIO(result)(
+          isLeft(
+            containsString("Either in Scala 2") &&
+            containsString("union types")
+          )
+        )
       }
     ),
     suite("Error Message Quality")(
@@ -114,7 +162,12 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class Ok(v: Int) extends Result
           ToStructural.derived[Result]
         """)
-        assertZIO(result)(isLeft(containsString("Scala 3")))
+        assertZIO(result)(
+          isLeft(
+            containsString("Scala 3") &&
+            containsString("sum types")
+          )
+        )
       },
       test("sealed trait error mentions union types") {
         val result = typeCheck("""
@@ -123,7 +176,12 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class Ok(v: Int) extends Result
           ToStructural.derived[Result]
         """)
-        assertZIO(result)(isLeft(containsString("union types")))
+        assertZIO(result)(
+          isLeft(
+            containsString("union types") &&
+            containsString("Scala 2")
+          )
+        )
       },
       test("Either error mentions Scala 3") {
         val result = typeCheck("""
@@ -131,7 +189,12 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class WithEither(e: Either[String, Int])
           ToStructural.derived[WithEither]
         """)
-        assertZIO(result)(isLeft(containsString("Scala 3")))
+        assertZIO(result)(
+          isLeft(
+            containsString("Scala 3") &&
+            containsString("Either")
+          )
+        )
       },
       test("Either error mentions union types") {
         val result = typeCheck("""
@@ -139,7 +202,12 @@ object SumTypeErrorSpec extends ZIOSpecDefault {
           case class WithEither(e: Either[String, Int])
           ToStructural.derived[WithEither]
         """)
-        assertZIO(result)(isLeft(containsString("union types")))
+        assertZIO(result)(
+          isLeft(
+            containsString("union types") &&
+            containsString("Either")
+          )
+        )
       }
     )
   )

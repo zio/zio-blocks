@@ -3,11 +3,6 @@ package zio.blocks.schema.structural
 import zio.test._
 import zio.blocks.schema._
 
-/**
- * Edge case tests for Scala 2 structural types. Covers: nested collections,
- * non-String map keys, empty collections, large tuples. Note: Sum types (sealed
- * traits, Either) are not supported in Scala 2.
- */
 object EdgeCasesSpec extends ZIOSpecDefault {
 
   // Nested collections
@@ -52,6 +47,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.values) == Right(List(List(1, 2), List(3, 4, 5), List()))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{values:List[List[Int]]}")
       },
       test("Vector[Vector[String]]") {
         val ts                                    = ToStructural.derived[NestedVector]
@@ -70,6 +67,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.values) == Right(Vector(Vector("a", "b"), Vector("c")))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{values:Vector[Vector[String]]}")
       },
       test("Map[String, List[Int]]") {
         val ts                                  = ToStructural.derived[MapOfLists]
@@ -88,6 +87,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.data) == Right(Map("nums" -> List(1, 2, 3), "empty" -> List()))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{data:Map[String,List[Int]]}")
       },
       test("List[Map[String, String]]") {
         val ts                                  = ToStructural.derived[ListOfMaps]
@@ -106,6 +107,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.items) == Right(List(Map("a" -> "1"), Map("b" -> "2", "c" -> "3")))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{items:List[Map[String,String]]}")
       },
       test("deeply nested: List[Vector[Set[Int]]]") {
         val ts                                    = ToStructural.derived[DeeplyNested]
@@ -124,6 +127,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.data) == Right(List(Vector(Set(1, 2), Set(3)), Vector(Set(4))))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{data:List[Vector[Set[Int]]]}")
       }
     ),
     suite("Non-String Map Keys")(
@@ -144,6 +149,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.data) == Right(Map(1 -> "one", 2 -> "two", 3 -> "three"))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{data:Map[Int,String]}")
       },
       test("Map[Long, String]") {
         val ts                                  = ToStructural.derived[LongKeyMap]
@@ -162,6 +169,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.data) == Right(Map(100L -> "hundred", 1000L -> "thousand"))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{data:Map[Long,String]}")
       }
     ),
     suite("Empty Collections")(
@@ -182,6 +191,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.values) == Right(List.empty[String])
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{values:List[String]}")
       },
       test("empty Map") {
         val ts                                    = ToStructural.derived[WithEmptyMap]
@@ -200,6 +211,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.data) == Right(Map.empty[String, Int])
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{data:Map[String,Int]}")
       },
       test("None Option") {
         val ts                                       = ToStructural.derived[WithEmptyOption]
@@ -218,6 +231,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.isRight,
           roundTrip.map(_.value) == Right(None)
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{value:Option[String]}")
       }
     ),
     suite("Large Tuples")(
@@ -246,6 +261,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           rtTuple.selectDynamic("_1") == 42,
           rtTuple.selectDynamic("_2") == "hello"
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{value:{_1:Int,_2:String,_3:Boolean,_4:Double}}")
       },
       test("Tuple5") {
         val ts                                  = ToStructural.derived[WithTuple5]
@@ -265,6 +282,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
+
+        assertTrue(structSchema.reflect.typeName.name == "{value:{_1:Int,_2:String,_3:Boolean,_4:Double,_5:Long}}")
       },
       test("tuple with case class") {
         val ts                                          = ToStructural.derived[TupleWithCaseClass]
@@ -287,6 +306,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
+
+        assertTrue(structSchema.reflect.typeName.name == "{value:{_1:String,_2:{city:String,zip:Int},_3:Int}}")
       },
       test("nested tuple") {
         val ts                                   = ToStructural.derived[NestedTuple]
@@ -310,6 +331,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
+        
+        assertTrue(structSchema.reflect.typeName.name == "{value:{_1:{_1:Int,_2:String},_2:{_1:Boolean,_2:Double}}}")
       }
     ),
     suite("Nested Case Classes in Collections")(
@@ -338,6 +361,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         assertTrue(roundTrip.isRight)
         val rtInners = roundTrip.toOption.get.inners.asInstanceOf[List[StructuralRecord]]
         assertTrue(rtInners(0).value == 1)
+
+        assertTrue(structSchema.reflect.typeName.name == "{inners:List[Inner]}")
       },
       test("Map with case class values") {
         case class Value(data: String)
@@ -360,6 +385,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
+
+        assertTrue(structSchema.reflect.typeName.name == "{items:Map[String,Value]}")
       },
       test("Option of case class") {
         case class Data(name: String, count: Int)
@@ -382,6 +409,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
+
+        assertTrue(structSchema.reflect.typeName.name == "{data:Option[Data]}")
       }
     ),
     suite("Complex Combinations")(
@@ -424,6 +453,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
           roundTrip.map(_.vector) == Right(Vector("a", "b")),
           roundTrip.map(_.option) == Right(Some(42L))
         )
+
+        assertTrue(structSchema.reflect.typeName.name == "{list:List[Int],map:Map[String,Boolean],option:Option[Long],set:Set[Double],vector:Vector[String]}")
       },
       test("deeply nested structure with collections") {
         case class Level2(values: List[Int])
@@ -455,6 +486,8 @@ object EdgeCasesSpec extends ZIOSpecDefault {
         val roundTrip = structSchema.fromDynamicValue(dv)
 
         assertTrue(roundTrip.isRight)
+
+        assertTrue(structSchema.reflect.typeName.name == "{items:Vector[Level1]}")
       }
     )
   )

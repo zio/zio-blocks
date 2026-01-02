@@ -5,18 +5,15 @@ import zio.blocks.schema._
 
 object StructuralSchemaSpec extends ZIOSpecDefault {
 
-  // Phase 1 types
   case class Person(name: String, age: Int)
   case class Point(x: Double, y: Double)
 
-  // Phase 2 types
   case class Address(city: String, zip: Int)
   case class PersonWithAddress(name: String, address: Address)
   case class WithList(items: List[String])
   case class WithOption(value: Option[Int])
   case class WithMap(data: Map[String, Int])
 
-  // Phase 3 types
   case class Empty()
   case class SingleField(value: String)
   case class LargeProduct(
@@ -44,7 +41,7 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
   )
 
   def spec = suite("StructuralSchemaSpec (Scala 2)")(
-    suite("Phase 1: Simple Case Classes")(
+    suite("Simple Case Classes")(
       test("toDynamicValue works for simple case class") {
         val ts                              = ToStructural.derived[Person]
         implicit val schema: Schema[Person] = Schema.derived[Person]
@@ -121,7 +118,7 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("Phase 2: Nested Case Classes + Collections")(
+    suite("Nested Case Classes + Collections")(
       test("nested case class round-trip") {
         val ts                                         = ToStructural.derived[PersonWithAddress]
         implicit val schema: Schema[PersonWithAddress] = Schema.derived[PersonWithAddress]
@@ -214,7 +211,7 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("Phase 3: Edge Cases")(
+    suite("Edge Cases")(
       test("empty case class round-trip") {
         val ts                             = ToStructural.derived[Empty]
         implicit val schema: Schema[Empty] = Schema.derived[Empty]
@@ -226,7 +223,10 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
         val dv        = structSchema.toDynamicValue(structural)
         val roundTrip = structSchema.fromDynamicValue(dv)
 
-        assertTrue(roundTrip.isRight)
+        assertTrue(
+          roundTrip.isRight,
+          roundTrip == Right(structural)
+        )
       },
       test("single field case class round-trip") {
         val ts                                   = ToStructural.derived[SingleField]
@@ -294,7 +294,7 @@ object StructuralSchemaSpec extends ZIOSpecDefault {
         )
       }
     ),
-    suite("Phase 4: TypeName Normalization")(
+    suite("TypeName Normalization")(
       test("TypeName is normalized with alphabetical field order") {
         val ts                              = ToStructural.derived[Person]
         implicit val schema: Schema[Person] = Schema.derived[Person]
