@@ -61,21 +61,26 @@ object ToStructuralMacro {
     import c.universe._
 
     def containsType(searchIn: Type, searchFor: Type, visited: Set[Type]): Boolean = {
-      if (visited.contains(searchIn.dealias)) return false
-      val newVisited = visited + searchIn.dealias
+      val dealiased = searchIn.dealias
+      if (visited.contains(dealiased)) return false
+      val newVisited = visited + dealiased
 
-      if (searchIn.dealias =:= searchFor.dealias) return true
+      if (dealiased =:= searchFor.dealias) return true
 
-      searchIn.dealias match {
-        case TypeRef(_, _, args) =>
+      // Check type arguments (for List[T], Option[T], etc.)
+      val typeArgsContain = dealiased match {
+        case TypeRef(_, _, args) if args.nonEmpty =>
           args.exists(arg => containsType(arg, searchFor, newVisited))
-        case _ =>
-          // Check fields of product types
-          val fields = searchIn.decls.collect {
-            case m: MethodSymbol if m.isCaseAccessor => m.returnType.asSeenFrom(searchIn, searchIn.typeSymbol)
-          }
-          fields.exists(fieldTpe => containsType(fieldTpe, searchFor, newVisited))
+        case _ => false
       }
+
+      if (typeArgsContain) return true
+
+      // Check fields of product types (case classes)
+      val fields = dealiased.decls.collect {
+        case m: MethodSymbol if m.isCaseAccessor => m.returnType.asSeenFrom(dealiased, dealiased.typeSymbol)
+      }
+      fields.exists(fieldTpe => containsType(fieldTpe, searchFor, newVisited))
     }
 
     // Check if any field type contains the original type
