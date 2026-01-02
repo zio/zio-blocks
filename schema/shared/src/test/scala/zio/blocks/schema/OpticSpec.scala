@@ -4,7 +4,7 @@ import zio.blocks.schema.DynamicOptic.Node._
 import zio.blocks.schema.OpticCheck._
 import zio.ZIO
 import zio.blocks.schema.binding._
-import zio.blocks.schema.TypeIdOps._
+import zio.blocks.typeid.TypeId
 import zio.test.Assertion._
 import zio.test.TestAspect.jvmOnly
 import zio.test._
@@ -3305,7 +3305,7 @@ object OpticSpecTypes {
 
     val reflect: Reflect.Wrapper[Binding, Wrapper, Record1] = new Reflect.Wrapper(
       wrapped = Schema[Record1].reflect,
-      typeId = TypeName[Wrapper](Namespace(Seq("zio", "blocks", "schema"), Seq("OpticSpec")), "Wrapper").toTypeId,
+      typeId = TypeId.parse("zio.blocks.schema.OpticSpec.Wrapper"),
       wrapperPrimitiveType = None,
       wrapperBinding = Binding.Wrapper(
         wrap = Wrapper.apply,
