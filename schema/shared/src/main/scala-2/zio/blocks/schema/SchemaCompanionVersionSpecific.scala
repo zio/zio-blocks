@@ -375,10 +375,10 @@ private object SchemaCompanionVersionSpecific {
 
     // Check if a type is a structural (refinement) type
     def isStructuralType(tpe: Type): Boolean = tpe.dealias match {
-      case RefinedType(_, _)                                  => true
-      case t if t =:= definitions.AnyRefTpe                   => true // Empty structural type {}
-      case t if t.typeSymbol.fullName == "java.lang.Object"   => true // java.lang.Object treated as empty structural
-      case _                                                  => false
+      case RefinedType(_, _)                                => true
+      case t if t =:= definitions.AnyRefTpe                 => true // Empty structural type {}
+      case t if t.typeSymbol.fullName == "java.lang.Object" => true // java.lang.Object treated as empty structural
+      case _                                                => false
     }
 
     // Check if a type extends scala.Dynamic
@@ -386,7 +386,7 @@ private object SchemaCompanionVersionSpecific {
       tpe <:< typeOf[scala.Dynamic]
 
     // Get the Dynamic base class if any
-    def getDynamicBaseClass(tpe: Type): Option[Type] = {
+    def getDynamicBaseClass(tpe: Type): Option[Type] =
       if (isDynamicType(tpe)) {
         tpe.dealias match {
           case RefinedType(parents, _) =>
@@ -397,7 +397,6 @@ private object SchemaCompanionVersionSpecific {
             None
         }
       } else None
-    }
 
     // Find a Map[String, Any] constructor or companion apply method
     def findMapConstructorOrApply(tpe: Type): Option[(Tree, MethodSymbol, Boolean)] = {
@@ -449,7 +448,7 @@ private object SchemaCompanionVersionSpecific {
       else if (dealiased =:= definitions.UnitTpe) "Unit"
       else if (isStructuralType(dealiased)) {
         val members = getStructuralMembers(dealiased)
-        val sorted = members.sortBy(_._1)
+        val sorted  = members.sortBy(_._1)
         sorted.map { case (name, t) => s"$name:${normalizeTypeForName(t)}" }.mkString("{", ",", "}")
       } else {
         val tArgs = typeArgs(dealiased)
@@ -460,11 +459,12 @@ private object SchemaCompanionVersionSpecific {
 
     // Create structural type name
     def structuralTypeName(members: List[(String, Type)]): Tree = {
-      val normalized = members.sortBy(_._1)
+      val normalized = members
+        .sortBy(_._1)
         .map { case (name, tpe) => s"$name:${normalizeTypeForName(tpe)}" }
         .mkString("{", ",", "}")
       val packages = List.empty[String]
-      val values = List.empty[String]
+      val values   = List.empty[String]
       q"new TypeName(new Namespace($packages, $values), $normalized, Nil)"
     }
 
@@ -659,8 +659,8 @@ private object SchemaCompanionVersionSpecific {
 
       // Calculate register offsets for each field
       var usedRegisters = RegisterOffset.Zero
-      val fieldInfos = members.map { case (name, fTpe) =>
-        val sTpe = dealiasOnDemand(fTpe)
+      val fieldInfos    = members.map { case (name, fTpe) =>
+        val sTpe   = dealiasOnDemand(fTpe)
         val offset =
           if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
           else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
@@ -679,7 +679,7 @@ private object SchemaCompanionVersionSpecific {
 
       // Generate field terms
       val fieldTerms = fieldInfos.map { case (name, fTpe, _) =>
-        val schema = findImplicitOrDeriveSchema(fTpe)
+        val schema   = findImplicitOrDeriveSchema(fTpe)
         val isNonRec = isNonRecursive(fTpe)
         if (isNonRec) q"$schema.reflect.asTerm[$tpe]($name)"
         else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$tpe]($name)"
@@ -687,9 +687,9 @@ private object SchemaCompanionVersionSpecific {
 
       // Generate constructor - builds Map and calls constructor/apply
       val mapEntries = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes = RegisterOffset.getBytes(offset)
+        val bytes   = RegisterOffset.getBytes(offset)
         val objects = RegisterOffset.getObjects(offset)
-        val getter =
+        val getter  =
           if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
           else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
           else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
@@ -702,23 +702,32 @@ private object SchemaCompanionVersionSpecific {
           else q"in.getObject(baseOffset, $objects)"
         q"($name, $getter: _root_.scala.Any)"
       }
-      val mapExpr = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
-      val constructExpr = if (isApply) q"$companionOrNew.apply($mapExpr).asInstanceOf[$tpe]"
-                          else q"(new ${tpe.typeSymbol}($mapExpr)).asInstanceOf[$tpe]"
+      val mapExpr       = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
+      val constructExpr =
+        if (isApply) q"$companionOrNew.apply($mapExpr).asInstanceOf[$tpe]"
+        else q"(new ${tpe.typeSymbol}($mapExpr)).asInstanceOf[$tpe]"
 
       // Generate deconstructor - use selectDynamic via reflection
       val deconstructStatements = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes = RegisterOffset.getBytes(offset)
-        val objects = RegisterOffset.getObjects(offset)
+        val bytes         = RegisterOffset.getBytes(offset)
+        val objects       = RegisterOffset.getObjects(offset)
         val fieldAccessor = q"""in.getClass.getMethod($name).invoke(in)"""
-        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
-        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
-        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
-        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
-        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
-        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
-        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
-        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
+        if (fTpe <:< definitions.IntTpe)
+          q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
+        else if (fTpe <:< definitions.FloatTpe)
+          q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
+        else if (fTpe <:< definitions.LongTpe)
+          q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
+        else if (fTpe <:< definitions.DoubleTpe)
+          q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
+        else if (fTpe <:< definitions.BooleanTpe)
+          q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
+        else if (fTpe <:< definitions.ByteTpe)
+          q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
+        else if (fTpe <:< definitions.CharTpe)
+          q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
+        else if (fTpe <:< definitions.ShortTpe)
+          q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
         else if (fTpe <:< definitions.UnitTpe) q"()"
         else q"out.setObject(baseOffset, $objects, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
       }
@@ -753,8 +762,8 @@ private object SchemaCompanionVersionSpecific {
 
       // Calculate register offsets for each field
       var usedRegisters = RegisterOffset.Zero
-      val fieldInfos = members.map { case (name, fTpe) =>
-        val sTpe = dealiasOnDemand(fTpe)
+      val fieldInfos    = members.map { case (name, fTpe) =>
+        val sTpe   = dealiasOnDemand(fTpe)
         val offset =
           if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
           else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
@@ -773,7 +782,7 @@ private object SchemaCompanionVersionSpecific {
 
       // Generate field terms
       val fieldTerms = fieldInfos.map { case (name, fTpe, _) =>
-        val schema = findImplicitOrDeriveSchema(fTpe)
+        val schema   = findImplicitOrDeriveSchema(fTpe)
         val isNonRec = isNonRecursive(fTpe)
         if (isNonRec) q"$schema.reflect.asTerm[$tpe]($name)"
         else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$tpe]($name)"
@@ -781,9 +790,9 @@ private object SchemaCompanionVersionSpecific {
 
       // Generate map entries for constructor
       val mapEntries = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes = RegisterOffset.getBytes(offset)
+        val bytes   = RegisterOffset.getBytes(offset)
         val objects = RegisterOffset.getObjects(offset)
-        val getter =
+        val getter  =
           if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
           else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
           else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
@@ -820,18 +829,26 @@ private object SchemaCompanionVersionSpecific {
       // Generate deconstructor statements
       // We call selectDynamic directly - we know our generated class has it at runtime
       val deconstructStatements = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes = RegisterOffset.getBytes(offset)
+        val bytes   = RegisterOffset.getBytes(offset)
         val objects = RegisterOffset.getObjects(offset)
         // Cast to a structural type with selectDynamic and call it directly
         val fieldAccessor = q"""in.asInstanceOf[{ def selectDynamic(name: String): Any }].selectDynamic($name)"""
-        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
-        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
-        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
-        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
-        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
-        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
-        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
-        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
+        if (fTpe <:< definitions.IntTpe)
+          q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
+        else if (fTpe <:< definitions.FloatTpe)
+          q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
+        else if (fTpe <:< definitions.LongTpe)
+          q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
+        else if (fTpe <:< definitions.DoubleTpe)
+          q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
+        else if (fTpe <:< definitions.BooleanTpe)
+          q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
+        else if (fTpe <:< definitions.ByteTpe)
+          q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
+        else if (fTpe <:< definitions.CharTpe)
+          q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
+        else if (fTpe <:< definitions.ShortTpe)
+          q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
         else if (fTpe <:< definitions.UnitTpe) q"()"
         else q"out.setObject(baseOffset, $objects, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
       }

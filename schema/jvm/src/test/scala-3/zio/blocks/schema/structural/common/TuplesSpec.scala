@@ -10,22 +10,21 @@ object TuplesSpec extends ZIOSpecDefault {
 
   case class Inner(value: Int)
 
-  // Helper to create DynamicValue.Primitive for common types
-  private def intPrim(i: Int) = DynamicValue.Primitive(PrimitiveValue.Int(i))
-  private def strPrim(s: String) = DynamicValue.Primitive(PrimitiveValue.String(s))
+  private def intPrim(i: Int)      = DynamicValue.Primitive(PrimitiveValue.Int(i))
+  private def strPrim(s: String)   = DynamicValue.Primitive(PrimitiveValue.String(s))
   private def boolPrim(b: Boolean) = DynamicValue.Primitive(PrimitiveValue.Boolean(b))
 
   def spec = suite("TuplesSpec")(
     suite("Type Name Verification")(
       test("tuple2 schema converts to structural with correct type name") {
         val tupleSchema: Schema[(String, Int)] = Schema.derived[(String, Int)]
-        val structuralSchema = tupleSchema.structural
+        val structuralSchema                   = tupleSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
         assertTrue(typeName == "{_1:String,_2:Int}")
       },
       test("tuple3 structural has correct field names") {
-        val tupleSchema = Schema.derived[(String, Int, Boolean)]
+        val tupleSchema      = Schema.derived[(String, Int, Boolean)]
         val structuralSchema = tupleSchema.structural
 
         val fieldNames = structuralSchema.reflect match {
@@ -35,14 +34,14 @@ object TuplesSpec extends ZIOSpecDefault {
         assertTrue(fieldNames == List("_1", "_2", "_3"))
       },
       test("tuple4 converts with correct type name") {
-        val tupleSchema = Schema.derived[(Int, String, Boolean, Double)]
+        val tupleSchema      = Schema.derived[(Int, String, Boolean, Double)]
         val structuralSchema = tupleSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
         assertTrue(typeName == "{_1:Int,_2:String,_3:Boolean,_4:Double}")
       },
       test("tuple10 has correct field count") {
-        val tupleSchema = Schema.derived[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)]
+        val tupleSchema      = Schema.derived[(Int, Int, Int, Int, Int, Int, Int, Int, Int, Int)]
         val structuralSchema = tupleSchema.structural
 
         val fieldNames = structuralSchema.reflect match {
@@ -57,11 +56,10 @@ object TuplesSpec extends ZIOSpecDefault {
     ),
     suite("Construction and Destruction")(
       test("tuple2 round-trip through structural schema preserves data") {
-        val tuple = ("hello", 42)
-        val tupleSchema = Schema.derived[(String, Int)]
+        val tuple            = ("hello", 42)
+        val tupleSchema      = Schema.derived[(String, Int)]
         val structuralSchema = tupleSchema.structural
 
-        // Convert tuple to DynamicValue via structural schema
         val dynamic = structuralSchema.asInstanceOf[Schema[Any]].toDynamicValue(tuple)
 
         dynamic match {
@@ -76,8 +74,8 @@ object TuplesSpec extends ZIOSpecDefault {
         }
       },
       test("tuple3 deconstruction extracts all fields correctly") {
-        val tuple = ("a", 1, true)
-        val tupleSchema = Schema.derived[(String, Int, Boolean)]
+        val tuple            = ("a", 1, true)
+        val tupleSchema      = Schema.derived[(String, Int, Boolean)]
         val structuralSchema = tupleSchema.structural
 
         val dynamic = structuralSchema.asInstanceOf[Schema[Any]].toDynamicValue(tuple)
@@ -96,7 +94,7 @@ object TuplesSpec extends ZIOSpecDefault {
         }
       },
       test("tuple construction from DynamicValue works") {
-        val tupleSchema = Schema.derived[(String, Int)]
+        val tupleSchema      = Schema.derived[(String, Int)]
         val structuralSchema = tupleSchema.structural
 
         val dynamic = DynamicValue.Record(
@@ -112,7 +110,7 @@ object TuplesSpec extends ZIOSpecDefault {
     ),
     suite("Nested Types")(
       test("tuple with nested case class converts inner type to structural") {
-        val tupleSchema = Schema.derived[(String, Inner)]
+        val tupleSchema      = Schema.derived[(String, Inner)]
         val structuralSchema = tupleSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
@@ -124,8 +122,8 @@ object TuplesSpec extends ZIOSpecDefault {
         )
       },
       test("tuple with nested case class round-trip preserves nested data") {
-        val tuple = ("outer", Inner(42))
-        val tupleSchema = Schema.derived[(String, Inner)]
+        val tuple            = ("outer", Inner(42))
+        val tupleSchema      = Schema.derived[(String, Inner)]
         val structuralSchema = tupleSchema.structural
 
         val dynamic = structuralSchema.asInstanceOf[Schema[Any]].toDynamicValue(tuple)
@@ -148,10 +146,10 @@ object TuplesSpec extends ZIOSpecDefault {
       },
       test("tuple with multiple nested case classes") {
         case class Point(x: Int, y: Int)
-        val tupleSchema = Schema.derived[(Inner, Point)]
+        val tupleSchema      = Schema.derived[(Inner, Point)]
         val structuralSchema = tupleSchema.structural
 
-        val tuple = (Inner(1), Point(10, 20))
+        val tuple   = (Inner(1), Point(10, 20))
         val dynamic = structuralSchema.asInstanceOf[Schema[Any]].toDynamicValue(tuple)
 
         dynamic match {
@@ -178,10 +176,10 @@ object TuplesSpec extends ZIOSpecDefault {
     ),
     suite("Edge Cases")(
       test("tuple with all same types") {
-        val tupleSchema = Schema.derived[(Int, Int, Int)]
+        val tupleSchema      = Schema.derived[(Int, Int, Int)]
         val structuralSchema = tupleSchema.structural
 
-        val tuple = (1, 2, 3)
+        val tuple   = (1, 2, 3)
         val dynamic = structuralSchema.asInstanceOf[Schema[Any]].toDynamicValue(tuple)
 
         dynamic match {
@@ -198,7 +196,7 @@ object TuplesSpec extends ZIOSpecDefault {
         }
       },
       test("tuple with Option field") {
-        val tupleSchema = Schema.derived[(String, Option[Int])]
+        val tupleSchema      = Schema.derived[(String, Option[Int])]
         val structuralSchema = tupleSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
@@ -210,6 +208,3 @@ object TuplesSpec extends ZIOSpecDefault {
     )
   )
 }
-
-
-

@@ -52,13 +52,13 @@ object SimpleProductSpec extends ZIOSpecDefault {
     suite("Nominal to Structural Conversion")(
       test("case class schema can be converted to structural") {
         val nominalSchema: Schema[Person] = Schema.derived[Person]
-        val structuralSchema = nominalSchema.structural
+        val structuralSchema              = nominalSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
         assertTrue(typeName == "{age:Int,name:String}")
       },
       test("structural schema has correct field count") {
-        val nominalSchema = Schema.derived[Person]
+        val nominalSchema    = Schema.derived[Person]
         val structuralSchema = nominalSchema.structural
 
         val numFields = structuralSchema.reflect match {
@@ -68,7 +68,7 @@ object SimpleProductSpec extends ZIOSpecDefault {
         assertTrue(numFields == 2)
       },
       test("structural schema has correct field names") {
-        val nominalSchema = Schema.derived[Person]
+        val nominalSchema    = Schema.derived[Person]
         val structuralSchema = nominalSchema.structural
 
         val fieldNames = structuralSchema.reflect match {
@@ -81,14 +81,14 @@ object SimpleProductSpec extends ZIOSpecDefault {
         )
       },
       test("Point case class converts to structural") {
-        val nominalSchema = Schema.derived[Point]
+        val nominalSchema    = Schema.derived[Point]
         val structuralSchema = nominalSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
         assertTrue(typeName == "{x:Int,y:Int}")
       },
       test("single field case class converts to structural") {
-        val nominalSchema = Schema.derived[Single]
+        val nominalSchema    = Schema.derived[Single]
         val structuralSchema = nominalSchema.structural
 
         val typeName = structuralSchema.reflect.typeName.name
@@ -122,22 +122,18 @@ object SimpleProductSpec extends ZIOSpecDefault {
       test("case class can be converted through structural schema") {
         val person = Person("Alice", 30)
 
-        // Convert case class to structural type (using asInstanceOf for JVM)
         val structural: PersonLike = person.asInstanceOf[PersonLike]
 
-        // Get the structural schema
         val schema = Schema.derived[PersonLike]
 
-        // Convert to DynamicValue
         val dynamic = schema.toDynamicValue(structural)
 
-        // Convert back
         val result = schema.fromDynamicValue(dynamic)
 
         assertTrue(result.isRight)
       },
       test("structural schema preserves field information") {
-        val nominalSchema = Schema.derived[Person]
+        val nominalSchema    = Schema.derived[Person]
         val structuralSchema = nominalSchema.structural
 
         val fieldNames = structuralSchema.reflect match {
@@ -154,4 +150,3 @@ object SimpleProductSpec extends ZIOSpecDefault {
     )
   )
 }
-

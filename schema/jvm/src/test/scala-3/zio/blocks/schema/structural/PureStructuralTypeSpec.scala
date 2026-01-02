@@ -5,19 +5,19 @@ import zio.test._
 
 /**
  * Tests for pure structural type Schema derivation in Scala 3 (JVM only).
- * 
- * Pure structural types (refinement types without a Selectable base)
- * are supported via reflection-based field access. The generated schema
- * creates anonymous Selectable instances at runtime.
- * 
+ *
+ * Pure structural types (refinement types without a Selectable base) are
+ * supported via reflection-based field access. The generated schema creates
+ * anonymous Selectable instances at runtime.
+ *
  * Note: This uses JVM reflection, so pure structural types only work on JVM.
- * For cross-platform support, use a Selectable base class with a Map[String, Any] constructor.
+ * For cross-platform support, use a Selectable base class with a Map[String,
+ * Any] constructor.
  */
 object PureStructuralTypeSpec extends ZIOSpecDefault {
 
-  // Type aliases for pure structural types
-  type PersonLike = { def name: String; def age: Int }
-  type PointLike = { def x: Int; def y: Int }
+  type PersonLike  = { def name: String; def age: Int }
+  type PointLike   = { def x: Int; def y: Int }
   type SingleField = { def value: String }
 
   def spec = suite("PureStructuralTypeSpec")(
@@ -37,7 +37,7 @@ object PureStructuralTypeSpec extends ZIOSpecDefault {
     ),
     suite("Schema Structure")(
       test("pure structural type schema has correct field names") {
-        val schema = Schema.derived[PersonLike]
+        val schema     = Schema.derived[PersonLike]
         val fieldNames = schema.reflect match {
           case record: Reflect.Record[_, _] => record.fields.map(_.name).toSet
           case _                            => Set.empty[String]
@@ -45,7 +45,7 @@ object PureStructuralTypeSpec extends ZIOSpecDefault {
         assertTrue(fieldNames == Set("name", "age"))
       },
       test("pure structural type schema has correct field count") {
-        val schema = Schema.derived[PointLike]
+        val schema     = Schema.derived[PointLike]
         val fieldCount = schema.reflect match {
           case record: Reflect.Record[_, _] => record.fields.size
           case _                            => -1
@@ -55,4 +55,3 @@ object PureStructuralTypeSpec extends ZIOSpecDefault {
     )
   )
 }
-

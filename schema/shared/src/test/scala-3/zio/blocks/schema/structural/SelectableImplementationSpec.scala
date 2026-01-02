@@ -5,12 +5,12 @@ import zio.test._
 
 /**
  * Tests for Scala 3 Selectable-based structural type Schema derivation.
- * 
+ *
  * This spec tests deriving Schema instances for structural types based on
  * Selectable. A Selectable type must have:
- * 1. A constructor taking Map[String, Any], or
- * 2. A companion object with apply(Map[String, Any])
- * 
+ *   1. A constructor taking Map[String, Any], or
+ *   2. A companion object with apply(Map[String, Any])
+ *
  * These requirements enable the Schema to construct instances from DynamicValue
  * and deconstruct instances to DynamicValue.
  */
@@ -26,7 +26,7 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
   /** A Selectable class that uses companion apply instead of constructor */
   case class RecordWithApply(fields: List[(String, Any)]) extends Selectable {
     private val fieldsMap: Map[String, Any] = fields.toMap
-    def selectDynamic(name: String): Any = fieldsMap(name)
+    def selectDynamic(name: String): Any    = fieldsMap(name)
   }
 
   object RecordWithApply {
@@ -34,8 +34,8 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
   }
 
   // === Type aliases for structural types ===
-  type PersonLike = Record { def name: String; def age: Int }
-  type PointLike = Record { def x: Int; def y: Int }
+  type PersonLike      = Record { def name: String; def age: Int }
+  type PointLike       = Record { def x: Int; def y: Int }
   type PersonLikeApply = RecordWithApply { def name: String; def age: Int }
 
   // === Helper functions ===
@@ -109,8 +109,8 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
     ),
     suite("Schema toDynamicValue")(
       test("converts Record-based structural to DynamicValue") {
-        val schema = Schema.derived[PersonLike]
-        val person = makePerson("Carol", 28)
+        val schema  = Schema.derived[PersonLike]
+        val person  = makePerson("Carol", 28)
         val dynamic = schema.toDynamicValue(person)
 
         dynamic match {
@@ -125,8 +125,8 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("converts RecordWithApply-based structural to DynamicValue") {
-        val schema = Schema.derived[PersonLikeApply]
-        val person = makePersonApply("Dave", 35)
+        val schema  = Schema.derived[PersonLikeApply]
+        val person  = makePersonApply("Dave", 35)
         val dynamic = schema.toDynamicValue(person)
 
         dynamic match {
@@ -141,8 +141,8 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("converts Point structural to DynamicValue") {
-        val schema = Schema.derived[PointLike]
-        val point = makePoint(100, 200)
+        val schema  = Schema.derived[PointLike]
+        val point   = makePoint(100, 200)
         val dynamic = schema.toDynamicValue(point)
 
         dynamic match {
@@ -159,11 +159,11 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
     ),
     suite("Schema fromDynamicValue")(
       test("constructs Record-based structural from DynamicValue") {
-        val schema = Schema.derived[PersonLike]
+        val schema  = Schema.derived[PersonLike]
         val dynamic = DynamicValue.Record(
           Vector(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Eve")),
-            "age" -> DynamicValue.Primitive(PrimitiveValue.Int(40))
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(40))
           )
         )
         val result = schema.fromDynamicValue(dynamic)
@@ -179,11 +179,11 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("constructs RecordWithApply-based structural from DynamicValue") {
-        val schema = Schema.derived[PersonLikeApply]
+        val schema  = Schema.derived[PersonLikeApply]
         val dynamic = DynamicValue.Record(
           Vector(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Frank")),
-            "age" -> DynamicValue.Primitive(PrimitiveValue.Int(45))
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(45))
           )
         )
         val result = schema.fromDynamicValue(dynamic)
@@ -199,7 +199,7 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("constructs Point structural from DynamicValue") {
-        val schema = Schema.derived[PointLike]
+        val schema  = Schema.derived[PointLike]
         val dynamic = DynamicValue.Record(
           Vector(
             "x" -> DynamicValue.Primitive(PrimitiveValue.Int(50)),
@@ -221,11 +221,11 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
     ),
     suite("Round-Trip via Schema")(
       test("Record-based structural round-trips through DynamicValue") {
-        val schema = Schema.derived[PersonLike]
+        val schema   = Schema.derived[PersonLike]
         val original = makePerson("Grace", 50)
-        
+
         val dynamic = schema.toDynamicValue(original)
-        val result = schema.fromDynamicValue(dynamic)
+        val result  = schema.fromDynamicValue(dynamic)
 
         result match {
           case Right(reconstructed) =>
@@ -238,11 +238,11 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("RecordWithApply-based structural round-trips through DynamicValue") {
-        val schema = Schema.derived[PersonLikeApply]
+        val schema   = Schema.derived[PersonLikeApply]
         val original = makePersonApply("Henry", 55)
-        
+
         val dynamic = schema.toDynamicValue(original)
-        val result = schema.fromDynamicValue(dynamic)
+        val result  = schema.fromDynamicValue(dynamic)
 
         result match {
           case Right(reconstructed) =>
@@ -255,11 +255,11 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
         }
       },
       test("Point structural round-trips through DynamicValue") {
-        val schema = Schema.derived[PointLike]
+        val schema   = Schema.derived[PointLike]
         val original = makePoint(300, 400)
-        
+
         val dynamic = schema.toDynamicValue(original)
-        val result = schema.fromDynamicValue(dynamic)
+        val result  = schema.fromDynamicValue(dynamic)
 
         result match {
           case Right(reconstructed) =>
@@ -276,13 +276,14 @@ object SelectableImplementationSpec extends ZIOSpecDefault {
       test("missing field access throws NoSuchElementException") {
         val person = Record(Map("name" -> "Incomplete")).asInstanceOf[PersonLike]
 
-        val thrown = try {
-          person.age // This field doesn't exist in the map
-          false
-        } catch {
-          case _: NoSuchElementException => true
-          case _: Throwable => false
-        }
+        val thrown =
+          try {
+            person.age // This field doesn't exist in the map
+            false
+          } catch {
+            case _: NoSuchElementException => true
+            case _: Throwable              => false
+          }
 
         assertTrue(thrown)
       }

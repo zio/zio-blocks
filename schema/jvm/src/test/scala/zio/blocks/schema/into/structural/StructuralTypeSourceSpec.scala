@@ -15,14 +15,12 @@ import zio.test.Assertion._
  */
 object StructuralTypeSourceSpec extends ZIOSpecDefault {
 
-  // === Target Case Classes ===
   case class Person(name: String, age: Int)
   case class NameOnly(name: String)
   case class Employee(name: String, age: Int, department: String)
   case class PersonWithDefault(name: String, age: Int, active: Boolean = true)
   case class PersonWithOptional(name: String, age: Int, nickname: Option[String])
 
-  // === Helper to create structural type instances ===
   def makePerson(n: String, a: Int): { def name: String; def age: Int } = new {
     def name: String = n
     def age: Int     = a

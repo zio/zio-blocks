@@ -16,21 +16,21 @@ object SingleFieldSpec extends ZIOSpecDefault {
 
   def spec = suite("SingleFieldSpec")(
     test("single String field converts correctly") {
-      val schema = Schema.derived[Id]
+      val schema     = Schema.derived[Id]
       val structural = schema.structural
 
       val typeName = structural.reflect.typeName.name
       assertTrue(typeName == "{value:String}")
     },
     test("single Int field converts correctly") {
-      val schema = Schema.derived[Count]
+      val schema     = Schema.derived[Count]
       val structural = schema.structural
 
       val typeName = structural.reflect.typeName.name
       assertTrue(typeName == "{n:Int}")
     },
     test("single Boolean field converts correctly") {
-      val schema = Schema.derived[Flag]
+      val schema     = Schema.derived[Flag]
       val structural = schema.structural
 
       val typeName = structural.reflect.typeName.name
@@ -43,7 +43,7 @@ object SingleFieldSpec extends ZIOSpecDefault {
       assertTrue(typeName == "{value:String}")
     },
     test("single field structural has one field") {
-      val schema = Schema.derived[Id]
+      val schema     = Schema.derived[Id]
       val structural = schema.structural
 
       val numFields = structural.reflect match {
@@ -54,4 +54,3 @@ object SingleFieldSpec extends ZIOSpecDefault {
     }
   )
 }
-

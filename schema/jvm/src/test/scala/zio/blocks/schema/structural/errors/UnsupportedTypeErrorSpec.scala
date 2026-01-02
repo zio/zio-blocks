@@ -14,8 +14,8 @@ import zio.test._
  *   - Large products (> 22 fields)
  *
  * ==Sum Types (Scala 2 vs Scala 3)==
- * Sum type error tests are in scala-2 specific: SumTypeErrorSpec.scala
- * In Scala 3, sealed traits/enums are supported via union types.
+ * Sum type error tests are in scala-2 specific: SumTypeErrorSpec.scala In Scala
+ * 3, sealed traits/enums are supported via union types.
  *
  * ==Expected Error Format for Scala 2 Sum Types==
  * {{{
@@ -333,4 +333,3 @@ object UnsupportedTypeErrorSpec extends ZIOSpecDefault {
     )
   )
 }
-

@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
 /**
- * Scala 2 version-specific methods for Schema instances.
+ * Scala 3 version-specific methods for Schema instances.
  */
 trait SchemaVersionSpecific[A] { self: Schema[A] =>
 
@@ -25,5 +25,5 @@ trait SchemaVersionSpecific[A] { self: Schema[A] =>
    * @return
    *   Schema for the structural type corresponding to A
    */
-  def structural(implicit ts: ToStructural[A]): Schema[ts.StructuralType] = ts(this)
+  transparent inline def structural(using ts: ToStructural[A]): Schema[ts.StructuralType] = ts(this)
 }

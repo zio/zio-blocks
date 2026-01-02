@@ -3,11 +3,12 @@ package zio.blocks.schema.structural.errors
 import zio.test._
 
 /**
- * Tests that recursive types produce compile-time errors when converting to structural types.
+ * Tests that recursive types produce compile-time errors when converting to
+ * structural types.
  *
  * ==Overview==
- * Recursive types cannot be represented as structural types because Scala does not
- * support infinite types. The error message should clearly indicate:
+ * Recursive types cannot be represented as structural types because Scala does
+ * not support infinite types. The error message should clearly indicate:
  *   - What type is recursive
  *   - Why it cannot be converted
  *
@@ -39,8 +40,8 @@ object RecursiveTypeErrorSpec extends ZIOSpecDefault {
             // Accept either our custom error message OR Scala 3's generic macro failure message
             result.left.exists(msg =>
               msg.toLowerCase.contains("recursive") ||
-              msg.toLowerCase.contains("infinite") ||
-              msg.toLowerCase.contains("macro expansion was stopped")
+                msg.toLowerCase.contains("infinite") ||
+                msg.toLowerCase.contains("macro expansion was stopped")
             )
           )
         }
@@ -77,8 +78,8 @@ object RecursiveTypeErrorSpec extends ZIOSpecDefault {
             // Accept either our custom error message OR Scala 3's generic macro failure message
             result.left.exists(msg =>
               msg.toLowerCase.contains("recursive") ||
-              msg.toLowerCase.contains("infinite") ||
-              msg.toLowerCase.contains("macro expansion was stopped")
+                msg.toLowerCase.contains("infinite") ||
+                msg.toLowerCase.contains("macro expansion was stopped")
             )
           )
         }
@@ -214,4 +215,3 @@ object RecursiveTypeErrorSpec extends ZIOSpecDefault {
     )
   )
 }
-

@@ -1,5 +1,8 @@
 package zio.blocks.schema
 
+import zio.blocks.schema.binding._
+import zio.blocks.schema.binding.RegisterOffset._
+
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
@@ -13,7 +16,6 @@ object ToStructuralMacro {
 
     val aTpe = weakTypeOf[A].dealias
 
-    // Check platform support
     if (!Platform.supportsReflection) {
       c.abort(
         c.enclosingPosition,
@@ -24,7 +26,6 @@ object ToStructuralMacro {
       )
     }
 
-    // Check for recursive types
     if (isRecursiveType(c)(aTpe)) {
       c.abort(
         c.enclosingPosition,
@@ -35,7 +36,6 @@ object ToStructuralMacro {
       )
     }
 
-    // Determine the source type structure
     if (isProductType(c)(aTpe)) {
       deriveForProduct[A](c)(aTpe)
     } else if (isTupleType(c)(aTpe)) {
@@ -67,7 +67,6 @@ object ToStructuralMacro {
 
       if (dealiased =:= searchFor.dealias) return true
 
-      // Check type arguments (for List[T], Option[T], etc.)
       val typeArgsContain = dealiased match {
         case TypeRef(_, _, args) if args.nonEmpty =>
           args.exists(arg => containsType(arg, searchFor, newVisited))
@@ -76,24 +75,23 @@ object ToStructuralMacro {
 
       if (typeArgsContain) return true
 
-      // Check fields of product types (case classes)
       val fields = dealiased.decls.collect {
         case m: MethodSymbol if m.isCaseAccessor => m.returnType.asSeenFrom(dealiased, dealiased.typeSymbol)
       }
       fields.exists(fieldTpe => containsType(fieldTpe, searchFor, newVisited))
     }
 
-    // Check if any field type contains the original type
     val fields = tpe.decls.collect {
       case m: MethodSymbol if m.isCaseAccessor => m.returnType.asSeenFrom(tpe, tpe.typeSymbol)
     }
     fields.exists(fieldTpe => containsType(fieldTpe, tpe, Set.empty))
   }
 
-  private def deriveForProduct[A: c.WeakTypeTag](c: blackbox.Context)(aTpe: c.universe.Type): c.Expr[ToStructural[A]] = {
+  private def deriveForProduct[A: c.WeakTypeTag](
+    c: blackbox.Context
+  )(aTpe: c.universe.Type): c.Expr[ToStructural[A]] = {
     import c.universe._
 
-    // Extract fields
     val fields: List[(String, Type)] = aTpe.decls.collect {
       case m: MethodSymbol if m.isCaseAccessor =>
         (m.name.toString, m.returnType.asSeenFrom(aTpe, aTpe.typeSymbol))
@@ -106,7 +104,7 @@ object ToStructuralMacro {
         new _root_.zio.blocks.schema.ToStructural[$aTpe] {
           type StructuralType = $structuralTpe
           def apply(schema: _root_.zio.blocks.schema.Schema[$aTpe]): _root_.zio.blocks.schema.Schema[$structuralTpe] = {
-            _root_.zio.blocks.schema.ToStructuralRuntime.transformProductSchema[$aTpe, $structuralTpe](schema)
+            _root_.zio.blocks.schema.ToStructuralMacro.transformProductSchema[$aTpe, $structuralTpe](schema)
           }
         }
       """
@@ -118,7 +116,6 @@ object ToStructuralMacro {
 
     val typeArgs = aTpe.typeArgs
 
-    // Build fields as _1, _2, etc.
     val fields: List[(String, Type)] = typeArgs.zipWithIndex.map { case (tpe, idx) =>
       (s"_${idx + 1}", tpe)
     }
@@ -134,7 +131,7 @@ object ToStructuralMacro {
         new _root_.zio.blocks.schema.ToStructural[$aTpe] {
           type StructuralType = $structuralTpe
           def apply(schema: _root_.zio.blocks.schema.Schema[$aTpe]): _root_.zio.blocks.schema.Schema[$structuralTpe] = {
-            _root_.zio.blocks.schema.ToStructuralRuntime.transformTupleSchema[$aTpe, $structuralTpe](schema)
+            _root_.zio.blocks.schema.ToStructuralMacro.transformTupleSchema[$aTpe, $structuralTpe](schema)
           }
         }
       """
@@ -144,26 +141,105 @@ object ToStructuralMacro {
   private def buildStructuralType(c: blackbox.Context)(fields: List[(String, c.universe.Type)]): c.universe.Type = {
     import c.universe._
 
-    // Handle empty structural types - return AnyRef (equivalent to {})
     if (fields.isEmpty) {
       return definitions.AnyRefTpe
     }
 
-    // Build refinement type for structural type
-    // { def field1: Type1; def field2: Type2; ... }
-
-    // Sort fields alphabetically to match Scala 3 behavior
     val sortedFields = fields.sortBy(_._1)
 
-    // Build refinement type using RefinedType
-    // We construct it by creating a type tree and then getting its type
     val refinedTypeTree = sortedFields.foldLeft(tq"AnyRef": Tree) { case (parent, (name, tpe)) =>
       val methodName = TermName(name)
       tq"$parent { def $methodName: $tpe }"
     }
 
-    // Get the type from the tree
     c.typecheck(refinedTypeTree, c.TYPEmode).tpe.dealias
   }
-}
 
+  /**
+   * Transform a product schema (case class) to its structural equivalent. This
+   * is called at runtime from the generated code.
+   */
+  def transformProductSchema[A, S](schema: Schema[A]): Schema[S] =
+    schema.reflect match {
+      case record: Reflect.Record[Binding, A] @unchecked =>
+        val binding = record.recordBinding.asInstanceOf[Binding.Record[A]]
+
+        val fieldInfos = record.fields.map { field =>
+          (field.name, field.value.asInstanceOf[Reflect.Bound[Any]])
+        }
+
+        val totalRegisters = binding.constructor.usedRegisters
+
+        val typeName = normalizeTypeName(fieldInfos.toList.map { case (name, reflect) =>
+          (name, reflect.typeName.name)
+          (name, reflect.typeName.name)
+        })
+
+        new Schema[S](
+          new Reflect.Record[Binding, S](
+            fields = record.fields.map { field =>
+              field.value.asInstanceOf[Reflect.Bound[Any]].asTerm[S](field.name)
+            },
+            typeName = new TypeName[S](new Namespace(Nil, Nil), typeName, Nil),
+            recordBinding = new Binding.Record[S](
+              constructor = new Constructor[S] {
+                def usedRegisters: RegisterOffset = totalRegisters
+
+                def construct(in: Registers, baseOffset: RegisterOffset): S = {
+                  val nominal = binding.constructor.construct(in, baseOffset)
+                  nominal.asInstanceOf[S]
+                }
+              },
+              deconstructor = new Deconstructor[S] {
+                def usedRegisters: RegisterOffset = totalRegisters
+
+                def deconstruct(out: Registers, baseOffset: RegisterOffset, in: S): Unit =
+                  binding.deconstructor.deconstruct(out, baseOffset, in.asInstanceOf[A])
+              }
+            ),
+            doc = record.doc,
+            modifiers = record.modifiers
+          )
+        )
+
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Cannot transform non-record schema to structural type"
+        )
+    }
+
+  /**
+   * Transform a tuple schema to its structural equivalent. This is called at
+   * runtime from the generated code.
+   */
+  def transformTupleSchema[A, S](schema: Schema[A]): Schema[S] =
+    schema.reflect match {
+      case _: Reflect.Record[Binding, A] @unchecked =>
+        transformProductSchema[A, S](schema)
+
+      case _ =>
+        throw new IllegalArgumentException(
+          s"Cannot transform non-record schema to structural type"
+        )
+    }
+
+  /**
+   * Generate a normalized type name for a structural type. Fields are sorted
+   * alphabetically for deterministic naming.
+   */
+  private def normalizeTypeName(fields: List[(String, String)]): String = {
+    val sorted = fields.sortBy(_._1)
+    sorted.map { case (name, typeName) =>
+      s"$name:${simplifyTypeName(typeName)}"
+    }.mkString("{", ",", "}")
+  }
+
+  /**
+   * Simplify type names for display (e.g., "scala.Int" -> "Int")
+   */
+  private def simplifyTypeName(typeName: String): String =
+    typeName
+      .replace("scala.", "")
+      .replace("java.lang.", "")
+      .replace("Predef.", "")
+}
