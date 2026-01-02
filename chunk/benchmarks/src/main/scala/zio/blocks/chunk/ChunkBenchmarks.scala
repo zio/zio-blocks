@@ -10,7 +10,7 @@ class ChunkBenchmarks {
   @Param(Array("16", "1024", "16384"))
   var size: Int = _
 
-  private var ints: Chunk[Int]          = _
+  private var ints: Chunk[Int] = _
   private var chunkOfChunks: Chunk[Chunk[Int]] = _
 
   @Setup(Level.Trial)
