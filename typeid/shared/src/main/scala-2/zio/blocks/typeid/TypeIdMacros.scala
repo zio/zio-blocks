@@ -15,37 +15,70 @@ object TypeIdMacros {
     val symbol = tpe.typeSymbol
     val name = symbol.name.decodedName.toString
     
-    // Build owner path
-    val ownerSegments = buildOwnerSegments(c)(symbol.owner)
-    val ownerExpr = buildOwnerExpr(c)(ownerSegments)
+    // Check for applied type FIRST (e.g., List[Int], Map[String, Int])
+    val typeArgs = tpe.typeArgs
     
-    // Build type parameters
-    val typeParamsExpr = buildTypeParamsExpr(c)(tpe.typeArgs, symbol.asType.typeParams)
-    
-    // Determine if this is an alias (typeAlias in Scala 2)
-    val isAlias = symbol.isType && symbol.asType.isAliasType
-    
-    if (isAlias) {
-      // Type alias: type Age = Int
-      val aliasedType = tpe.dealias
-      val aliasedExpr = buildTypeReprExpr(c)(aliasedType, tpe.typeArgs, symbol.asType.typeParams)
+    if (typeArgs.nonEmpty) {
+      // Applied type: List[Int], Map[String, Int], etc.
+      val tyconSymbol = symbol
+      val tyconName = tyconSymbol.name.decodedName.toString
+      val tyconOwnerExpr = buildOwnerExpr(c)(buildOwnerSegments(c)(tyconSymbol.owner))
+      val tyconTypeParamsExpr = buildTypeParamsExpr(c)(typeArgs, tyconSymbol.asType.typeParams)
+      
+      // Build the type constructor (e.g., TypeId for List, not List[Int])
+      val tyconExpr = q"""
+        _root_.zio.blocks.typeid.TypeId.nominal[Any](
+          $tyconName,
+          $tyconOwnerExpr,
+          $tyconTypeParamsExpr
+        )
+      """
+      
+      // Build TypeId for each argument (recursive derivation)
+      val argExprs = typeArgs.map { argTpe =>
+        q"_root_.zio.blocks.typeid.TypeId.derive[$argTpe]"
+      }
+      
       c.Expr[TypeId[A]](q"""
-        _root_.zio.blocks.typeid.TypeId.alias[$tpe](
-          $name,
-          $ownerExpr,
-          $typeParamsExpr,
-          $aliasedExpr
+        _root_.zio.blocks.typeid.TypeId.applied[$tpe](
+          $tyconExpr,
+          _root_.scala.List(..$argExprs)
         )
       """)
     } else {
-      // Nominal type: class, trait, object
-      c.Expr[TypeId[A]](q"""
-        _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
-          $name,
-          $ownerExpr,
-          $typeParamsExpr
-        )
-      """)
+      // Non-applied type (Nominal or Alias)
+      // Build owner path
+      val ownerSegments = buildOwnerSegments(c)(symbol.owner)
+      val ownerExpr = buildOwnerExpr(c)(ownerSegments)
+      
+      // Build type parameters
+      val typeParamsExpr = buildTypeParamsExpr(c)(typeArgs, symbol.asType.typeParams)
+      
+      // Determine if this is an alias (typeAlias in Scala 2)
+      val isAlias = symbol.isType && symbol.asType.isAliasType
+      
+      if (isAlias) {
+        // Type alias: type Age = Int
+        val aliasedType = tpe.dealias
+        val aliasedExpr = buildTypeReprExpr(c)(aliasedType, typeArgs, symbol.asType.typeParams)
+        c.Expr[TypeId[A]](q"""
+          _root_.zio.blocks.typeid.TypeId.alias[$tpe](
+            $name,
+            $ownerExpr,
+            $typeParamsExpr,
+            $aliasedExpr
+          )
+        """)
+      } else {
+        // Nominal type: class, trait, object
+        c.Expr[TypeId[A]](q"""
+          _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
+            $name,
+            $ownerExpr,
+            $typeParamsExpr
+          )
+        """)
+      }
     }
   }
   

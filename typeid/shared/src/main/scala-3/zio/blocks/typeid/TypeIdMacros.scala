@@ -14,59 +14,92 @@ object TypeIdMacros {
     import quotes.reflect._
     
     val tpe = TypeRepr.of[A]
-    val symbol = tpe.typeSymbol
-    val name = symbol.name
     
-    // Build owner path
-    val ownerSegments = buildOwnerSegments(symbol.owner)
-    val ownerExpr = buildOwnerExpr(ownerSegments)
-    
-    // Build type parameters
-    val typeParamsExpr = buildTypeParamsExpr(symbol.typeMembers.filter(_.isTypeParam))
-    
-    // Detect opaque types (Scala 3 specific)
-    val isOpaque = symbol.flags.is(Flags.Opaque)
-    val isAlias = tpe match {
-      case TypeRef(_, _) => false
-      case TypeBounds(_, _) => false
-      case _ => 
-        // Check if dealiased type is different
-        tpe.dealias != tpe && !isOpaque
-    }
-    
-    if (isOpaque) {
-      // Opaque type: opaque type Email = String
-      val reprType = tpe.dealias
-      val reprExpr = buildZTypeReprExpr(reprType)
-      '{
-        TypeId.opaque[A](
-          ${Expr(name)},
-          ${ownerExpr},
-          ${typeParamsExpr},
-          ${reprExpr}
-        )
-      }
-    } else if (isAlias) {
-      // Type alias
-      val aliasedType = tpe.dealias
-      val aliasedExpr = buildZTypeReprExpr(aliasedType)
-      '{
-        TypeId.alias[A](
-          ${Expr(name)},
-          ${ownerExpr},
-          ${typeParamsExpr},
-          ${aliasedExpr}
-        )
-      }
-    } else {
-      // Nominal type
-      '{
-        TypeId.nominal[A](
-          ${Expr(name)},
-          ${ownerExpr},
-          ${typeParamsExpr}
-        )
-      }
+    // Check for applied type FIRST (e.g., List[Int])
+    tpe match {
+      case AppliedType(tycon, args) if args.nonEmpty =>
+        // Applied type: List[Int], Map[String, Int], etc.
+        val tyconSymbol = tycon.typeSymbol
+        val tyconName = tyconSymbol.name
+        val tyconOwnerSegments = buildOwnerSegments(tyconSymbol.owner)
+        val tyconOwnerExpr = buildOwnerExpr(tyconOwnerSegments)
+        val tyconTypeParamsExpr = buildTypeParamsExpr(tyconSymbol.typeMembers.filter(_.isTypeParam))
+        
+        // Build the type constructor (e.g., TypeId for List, not List[Int])
+        val tyconExpr = '{
+          TypeId.nominal[Any](
+            ${Expr(tyconName)},
+            ${tyconOwnerExpr},
+            ${tyconTypeParamsExpr}
+          )
+        }
+        
+        // Build TypeId for each argument
+        val argExprs: List[Expr[TypeId[?]]] = args.map { arg =>
+          arg.asType match {
+            case '[argType] =>
+              '{ TypeId.derive[argType] }
+          }
+        }
+        
+        '{ TypeId.applied[A](${tyconExpr}, ${Expr.ofList(argExprs)}) }
+        
+      case _ =>
+        // Original logic for non-applied types
+        val symbol = tpe.typeSymbol
+        val name = symbol.name
+        
+        // Build owner path
+        val ownerSegments = buildOwnerSegments(symbol.owner)
+        val ownerExpr = buildOwnerExpr(ownerSegments)
+        
+        // Build type parameters
+        val typeParamsExpr = buildTypeParamsExpr(symbol.typeMembers.filter(_.isTypeParam))
+        
+        // Detect opaque types (Scala 3 specific)
+        val isOpaque = symbol.flags.is(Flags.Opaque)
+        val isAlias = tpe match {
+          case TypeRef(_, _) => false
+          case TypeBounds(_, _) => false
+          case _ => 
+            // Check if dealiased type is different
+            tpe.dealias != tpe && !isOpaque
+        }
+        
+        if (isOpaque) {
+          // Opaque type: opaque type Email = String
+          val reprType = tpe.dealias
+          val reprExpr = buildZTypeReprExpr(reprType)
+          '{
+            TypeId.opaque[A](
+              ${Expr(name)},
+              ${ownerExpr},
+              ${typeParamsExpr},
+              ${reprExpr}
+            )
+          }
+        } else if (isAlias) {
+          // Type alias
+          val aliasedType = tpe.dealias
+          val aliasedExpr = buildZTypeReprExpr(aliasedType)
+          '{
+            TypeId.alias[A](
+              ${Expr(name)},
+              ${ownerExpr},
+              ${typeParamsExpr},
+              ${aliasedExpr}
+            )
+          }
+        } else {
+          // Nominal type
+          '{
+            TypeId.nominal[A](
+              ${Expr(name)},
+              ${ownerExpr},
+              ${typeParamsExpr}
+            )
+          }
+        }
     }
   }
   
