@@ -74,7 +74,6 @@ lazy val typeid = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     })
   )
 
-
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .crossType(CrossType.Full)
   .dependsOn(typeid)
