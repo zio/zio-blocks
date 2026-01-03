@@ -82,7 +82,7 @@ object SchemaError {
     details: String,
     cause: Option[SchemaError] = None
   ) extends IntoError {
-    override def message: String = {
+    override def message: String =
       cause match {
         case Some(causeErr) =>
           val causeMessages =
@@ -90,9 +90,8 @@ object SchemaError {
             else if (causeErr.errors.length == 1) s"  Caused by: ${causeErr.errors.head.message}"
             else "Caused by:\n" + causeErr.errors.map(e => s"  - ${e.message}").mkString("\n")
           s"$details\n$causeMessages"
-        case None =>details
+        case None => details
       }
-    }
   }
 
   case class MissingField(source: DynamicOptic, fieldName: String) extends Single {
