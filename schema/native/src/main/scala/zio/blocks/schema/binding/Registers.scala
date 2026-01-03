@@ -112,6 +112,9 @@ class Registers private (userRegister: RegisterOffset) {
     System.arraycopy(objects, 0, this.objects, objectIndex, objectsLength)
   }
 
+  def clearObjects(topOffset: RegisterOffset): Unit =
+    java.util.Arrays.fill(objects, 0, Math.min(RegisterOffset.getObjects(topOffset), objects.length), null)
+
   private def getBytes: Array[Byte] = bytes
 
   private def getObjects: Array[AnyRef] = objects
