@@ -161,7 +161,7 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.7",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
       "dev.zio"                               %% "zio-json"              % "0.7.45",
       "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",
