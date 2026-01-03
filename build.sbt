@@ -45,7 +45,8 @@ lazy val root = project
     scalaNextTests.js,
     scalaNextTests.native,
     benchmarks,
-    docs
+    docs,
+    examples
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -153,6 +154,15 @@ lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
   .jsSettings(jsSettings)
   .nativeSettings(nativeSettings)
+
+lazy val examples = project
+  .settings(stdSettings("zio-blocks-examples"))
+  .dependsOn(schema.jvm)
+  .dependsOn(streams.jvm)
+  .dependsOn(`schema-avro`)
+  .settings(
+    publish / skip := true
+  )
 
 lazy val benchmarks = project
   .settings(stdSettings("zio-blocks-benchmarks", Seq("3.7.4")))
