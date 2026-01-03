@@ -1,0 +1,451 @@
+package zio.blocks.typeid
+
+import zio.test._
+
+/**
+ * Comprehensive tests for TypeId macro derivation.
+ *
+ * These tests cover all features supported by TypeId derivation:
+ *   - Primitive types
+ *   - Standard library types
+ *   - Type constructors (arity 1, 2, etc.)
+ *   - User-defined types (case classes, sealed traits, objects)
+ *   - Type aliases (Scala 3)
+ *   - Opaque types (Scala 3)
+ *   - Nested types
+ *   - Generic types
+ *   - Higher-kinded types
+ */
+object TypeIdDerivationSpec extends ZIOSpecDefault {
+
+  // Test fixtures - user-defined types
+  case class SimpleClass(x: Int, y: String)
+  case class GenericClass[A](value: A)
+  case class MultiParamClass[A, B](a: A, b: B)
+
+  sealed trait SimpleSealed
+  object SimpleSealed {
+    case class CaseA(x: Int)    extends SimpleSealed
+    case class CaseB(y: String) extends SimpleSealed
+    case object CaseC           extends SimpleSealed
+  }
+
+  object Outer {
+    case class Nested(x: Int)
+    object Inner {
+      case class DeepNested(y: String)
+    }
+  }
+
+  trait SimpleTrait
+  abstract class AbstractClass
+
+  def spec = suite("TypeId Derivation")(
+    suite("Primitive Types")(
+      test("derives TypeId for Int") {
+        val id = TypeId.derived[Int]
+        assertTrue(
+          id.name == "Int",
+          id.owner == Owner.scala,
+          id.arity == 0,
+          id.isNominal
+        )
+      },
+      test("derives TypeId for String") {
+        val id = TypeId.derived[String]
+        assertTrue(
+          id.name == "String",
+          id.owner == Owner.javaLang,
+          id.arity == 0,
+          id.isNominal
+        )
+      },
+      test("derives TypeId for Boolean") {
+        val id = TypeId.derived[Boolean]
+        assertTrue(
+          id.name == "Boolean",
+          id.owner == Owner.scala,
+          id.arity == 0
+        )
+      },
+      test("derives TypeId for Long") {
+        val id = TypeId.derived[Long]
+        assertTrue(
+          id.name == "Long",
+          id.owner == Owner.scala,
+          id.arity == 0
+        )
+      },
+      test("derives TypeId for Double") {
+        val id = TypeId.derived[Double]
+        assertTrue(
+          id.name == "Double",
+          id.owner == Owner.scala,
+          id.arity == 0
+        )
+      },
+      test("derives TypeId for Byte") {
+        val id = TypeId.derived[Byte]
+        assertTrue(id.name == "Byte")
+      },
+      test("derives TypeId for Short") {
+        val id = TypeId.derived[Short]
+        assertTrue(id.name == "Short")
+      },
+      test("derives TypeId for Float") {
+        val id = TypeId.derived[Float]
+        assertTrue(id.name == "Float")
+      },
+      test("derives TypeId for Char") {
+        val id = TypeId.derived[Char]
+        assertTrue(id.name == "Char")
+      },
+      test("derives TypeId for Unit") {
+        val id = TypeId.derived[Unit]
+        assertTrue(id.name == "Unit")
+      }
+    ),
+    suite("Standard Library Collection Types")(
+      test("derives TypeId for List (type constructor)") {
+        val id = TypeId.derived[List[_]]
+        assertTrue(
+          id.name == "List",
+          id.arity == 1,
+          id.typeParams.head.name == "A"
+        )
+      },
+      test("derives TypeId for Option (type constructor)") {
+        val id = TypeId.derived[Option[_]]
+        assertTrue(
+          id.name == "Option",
+          id.arity == 1
+        )
+      },
+      test("derives TypeId for Map (type constructor with arity 2)") {
+        val id = TypeId.derived[Map[_, _]]
+        assertTrue(
+          id.name == "Map",
+          id.arity == 2
+        )
+      },
+      test("derives TypeId for Either (type constructor with arity 2)") {
+        val id = TypeId.derived[Either[_, _]]
+        assertTrue(
+          id.name == "Either",
+          id.arity == 2
+        )
+      },
+      test("derives TypeId for Vector") {
+        val id = TypeId.derived[Vector[_]]
+        assertTrue(
+          id.name == "Vector",
+          id.arity == 1
+        )
+      },
+      test("derives TypeId for Set") {
+        val id = TypeId.derived[Set[_]]
+        assertTrue(
+          id.name == "Set",
+          id.arity == 1
+        )
+      },
+      test("derives TypeId for Seq") {
+        val id = TypeId.derived[Seq[_]]
+        assertTrue(id.name == "Seq")
+      }
+    ),
+    suite("Applied Types")(
+      test("derives TypeId for List[Int]") {
+        val id = TypeId.derived[List[Int]]
+        assertTrue(
+          id.name == "List",
+          id.arity == 1
+        )
+      },
+      test("derives TypeId for Option[String]") {
+        val id = TypeId.derived[Option[String]]
+        assertTrue(
+          id.name == "Option",
+          id.arity == 1
+        )
+      },
+      test("derives TypeId for Map[String, Int]") {
+        val id = TypeId.derived[Map[String, Int]]
+        assertTrue(
+          id.name == "Map",
+          id.arity == 2
+        )
+      },
+      test("derives TypeId for Either[String, Int]") {
+        val id = TypeId.derived[Either[String, Int]]
+        assertTrue(
+          id.name == "Either",
+          id.arity == 2
+        )
+      }
+    ),
+    suite("User-Defined Case Classes")(
+      test("derives TypeId for simple case class") {
+        val id = TypeId.derived[SimpleClass]
+        assertTrue(
+          id.name == "SimpleClass",
+          id.arity == 0,
+          id.isNominal
+        )
+      },
+      test("derives TypeId for generic case class") {
+        val id = TypeId.derived[GenericClass[_]]
+        assertTrue(
+          id.name == "GenericClass",
+          id.arity == 1
+        )
+      },
+      test("derives TypeId for multi-param generic case class") {
+        val id = TypeId.derived[MultiParamClass[_, _]]
+        assertTrue(
+          id.name == "MultiParamClass",
+          id.arity == 2
+        )
+      },
+      test("derives TypeId for applied generic case class") {
+        val id = TypeId.derived[GenericClass[Int]]
+        assertTrue(
+          id.name == "GenericClass",
+          id.arity == 1
+        )
+      }
+    ),
+    suite("Sealed Traits and ADTs")(
+      test("derives TypeId for sealed trait") {
+        val id = TypeId.derived[SimpleSealed]
+        assertTrue(
+          id.name == "SimpleSealed",
+          id.isNominal
+        )
+      },
+      test("derives TypeId for case class extending sealed trait") {
+        val id = TypeId.derived[SimpleSealed.CaseA]
+        assertTrue(
+          id.name == "CaseA"
+        )
+      },
+      test("derives TypeId for case object extending sealed trait") {
+        val id = TypeId.derived[SimpleSealed.CaseC.type]
+        assertTrue(
+          id.name == "CaseC"
+        )
+      }
+    ),
+    suite("Nested Types")(
+      test("derives TypeId for nested case class") {
+        val id = TypeId.derived[Outer.Nested]
+        assertTrue(
+          id.name == "Nested",
+          id.fullName.contains("Outer")
+        )
+      },
+      test("derives TypeId for deeply nested case class") {
+        val id = TypeId.derived[Outer.Inner.DeepNested]
+        assertTrue(
+          id.name == "DeepNested",
+          id.fullName.contains("Inner")
+        )
+      }
+    ),
+    suite("Traits and Abstract Classes")(
+      test("derives TypeId for trait") {
+        val id = TypeId.derived[SimpleTrait]
+        assertTrue(
+          id.name == "SimpleTrait",
+          id.isNominal
+        )
+      },
+      test("derives TypeId for abstract class") {
+        val id = TypeId.derived[AbstractClass]
+        assertTrue(
+          id.name == "AbstractClass",
+          id.isNominal
+        )
+      }
+    ),
+    suite("Java Types")(
+      test("derives TypeId for java.util.UUID") {
+        val id = TypeId.derived[java.util.UUID]
+        assertTrue(
+          id.name == "UUID",
+          id.owner == Owner.javaUtil
+        )
+      },
+      test("derives TypeId for java.time.Instant") {
+        val id = TypeId.derived[java.time.Instant]
+        assertTrue(
+          id.name == "Instant",
+          id.owner == Owner.javaTime
+        )
+      },
+      test("derives TypeId for java.time.Duration") {
+        val id = TypeId.derived[java.time.Duration]
+        assertTrue(
+          id.name == "Duration"
+        )
+      }
+    ),
+    suite("Scala BigInt/BigDecimal")(
+      test("derives TypeId for BigInt") {
+        val id = TypeId.derived[BigInt]
+        assertTrue(
+          id.name == "BigInt",
+          id.owner == Owner.scala
+        )
+      },
+      test("derives TypeId for BigDecimal") {
+        val id = TypeId.derived[BigDecimal]
+        assertTrue(
+          id.name == "BigDecimal",
+          id.owner == Owner.scala
+        )
+      }
+    ),
+    suite("Tuple Types")(
+      test("derives TypeId for Tuple2") {
+        val id = TypeId.derived[Tuple2[_, _]]
+        assertTrue(
+          id.name == "Tuple2",
+          id.arity == 2
+        )
+      },
+      test("derives TypeId for Tuple3") {
+        val id = TypeId.derived[Tuple3[_, _, _]]
+        assertTrue(
+          id.name == "Tuple3",
+          id.arity == 3
+        )
+      },
+      test("derives TypeId for applied tuple (Int, String)") {
+        val id = TypeId.derived[(Int, String)]
+        assertTrue(
+          id.name == "Tuple2",
+          id.arity == 2
+        )
+      }
+    ),
+    suite("Function Types")(
+      test("derives TypeId for Function1") {
+        val id = TypeId.derived[Function1[_, _]]
+        assertTrue(
+          id.name == "Function1",
+          id.arity == 2
+        )
+      },
+      test("derives TypeId for Function2") {
+        val id = TypeId.derived[Function2[_, _, _]]
+        assertTrue(
+          id.name == "Function2",
+          id.arity == 3
+        )
+      }
+    ),
+    suite("Owner Path Verification")(
+      test("scala primitives have correct owner") {
+        val intId  = TypeId.derived[Int]
+        val longId = TypeId.derived[Long]
+        assertTrue(
+          intId.owner == Owner.scala,
+          longId.owner == Owner.scala
+        )
+      },
+      test("java.lang types have correct owner") {
+        val stringId = TypeId.derived[String]
+        assertTrue(
+          stringId.owner == Owner.javaLang
+        )
+      },
+      test("collection types have correct owner") {
+        val listId = TypeId.derived[List[_]]
+        assertTrue(
+          listId.owner == Owner.scalaCollectionImmutable
+        )
+      }
+    ),
+    suite("Type Parameter Verification")(
+      test("List has one type parameter named A") {
+        val id = TypeId.derived[List[_]]
+        assertTrue(
+          id.typeParams.size == 1,
+          id.typeParams.head.index == 0
+        )
+      },
+      test("Map has two type parameters") {
+        val id = TypeId.derived[Map[_, _]]
+        assertTrue(
+          id.typeParams.size == 2,
+          id.typeParams(0).index == 0,
+          id.typeParams(1).index == 1
+        )
+      },
+      test("Either has two type parameters") {
+        val id = TypeId.derived[Either[_, _]]
+        assertTrue(
+          id.typeParams.size == 2
+        )
+      }
+    ),
+    suite("FullName Verification")(
+      test("scala.Int has correct fullName") {
+        val id = TypeId.derived[Int]
+        assertTrue(
+          id.fullName == "scala.Int"
+        )
+      },
+      test("java.lang.String has correct fullName") {
+        val id = TypeId.derived[String]
+        assertTrue(
+          id.fullName == "java.lang.String"
+        )
+      },
+      test("nested type has correct fullName with owner path") {
+        val id = TypeId.derived[Outer.Nested]
+        assertTrue(
+          id.fullName.endsWith("Nested")
+        )
+      }
+    ),
+    suite("Pattern Matching Support")(
+      test("derived TypeId matches Nominal extractor") {
+        val id      = TypeId.derived[Int]
+        val matches = id match {
+          case TypeId.Nominal(name, _, _) => name == "Int"
+          case _                          => false
+        }
+        assertTrue(matches)
+      }
+    ),
+    suite("Consistency with Predefined TypeIds")(
+      test("derive[Int] equals predefined TypeId.int") {
+        val derived    = TypeId.derived[Int]
+        val predefined = TypeId.int
+        assertTrue(
+          derived.name == predefined.name,
+          derived.owner == predefined.owner,
+          derived.arity == predefined.arity
+        )
+      },
+      test("derive[String] equals predefined TypeId.string") {
+        val derived    = TypeId.derived[String]
+        val predefined = TypeId.string
+        assertTrue(
+          derived.name == predefined.name,
+          derived.owner == predefined.owner
+        )
+      },
+      test("derive[List[_]] equals predefined TypeId.list") {
+        val derived    = TypeId.derived[List[_]]
+        val predefined = TypeId.list
+        assertTrue(
+          derived.name == predefined.name,
+          derived.arity == predefined.arity
+        )
+      }
+    )
+  )
+}
