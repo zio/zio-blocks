@@ -83,12 +83,14 @@ object SchemaError {
     cause: Option[SchemaError] = None
   ) extends IntoError {
     override def message: String = {
-      val baseMsg = s"Conversion failed: $details"
       cause match {
         case Some(causeErr) =>
-          val causeMessages = causeErr.errors.map(e => s"  - ${e.message}").mkString("\n")
-          s"$baseMsg\n  Caused by:\n$causeMessages"
-        case None => baseMsg
+          val causeMessages =
+            if (causeErr.errors.isEmpty) " <no further details>"
+            else if (causeErr.errors.length == 1) s"  Caused by: ${causeErr.errors.head.message}"
+            else "Caused by:\n" + causeErr.errors.map(e => s"  - ${e.message}").mkString("\n")
+          s"$details\n$causeMessages"
+        case None =>details
       }
     }
   }
