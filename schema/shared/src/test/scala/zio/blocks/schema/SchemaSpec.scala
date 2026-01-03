@@ -7,6 +7,7 @@ import zio.blocks.schema.SchemaError.{ExpectationMismatch, MissingField}
 import zio.blocks.schema.binding._
 import zio.blocks.schema.codec.{TextCodec, TextFormat}
 import zio.blocks.schema.derive.Deriver
+import zio.blocks.typeid.TypeId
 import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
@@ -162,11 +163,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Int].reflect.asTerm("_3"),
                   Schema[Long].reflect.asTerm("_4")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("scala")),
-                  name = "Tuple4",
-                  params = Seq(TypeName.byte, TypeName.short, TypeName.int, TypeName.long)
-                ),
+                typeId = TypeId.parse("scala.Tuple4").applied(TypeId.byte, TypeId.short, TypeId.int, TypeId.long),
                 recordBinding = null
               )
             )
@@ -219,10 +216,7 @@ object SchemaSpec extends ZIOSpecDefault {
                     ),
                   Schema[Float].reflect.asTerm("f-2").copy(modifiers = Seq(Modifier.transient()))
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-1"
-                ),
+                typeId = TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Record-1"),
                 recordBinding = null,
                 modifiers = Seq(
                   Modifier.config("record-key", "record-value-1"),
@@ -268,11 +262,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Byte].reflect.asTerm("b"),
                   Schema[Int].reflect.asTerm("i")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record-2",
-                  params = Seq(TypeName.byte, TypeName.int)
-                ),
+                typeId = TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Record-2").applied(TypeId.byte, TypeId.int),
                 recordBinding = null
               )
             )
@@ -308,10 +298,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Short].reflect.asTerm("s"),
                   Schema[Long].reflect.asTerm("l")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record3"
-                ),
+                typeId = TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Record3"),
                 recordBinding = null
               )
             )
@@ -357,10 +344,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema.derived[Vector[ArraySeq[Int]]].reflect.asTerm("mx"),
                   Schema[List[Set[Int]]].reflect.asTerm("rs")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record4"
-                ),
+                typeId = TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Record4"),
                 recordBinding = null
               )
             )
@@ -421,10 +405,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Unit].reflect.asTerm("u"),
                   Schema[Seq[Unit]].reflect.asTerm("su")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record5"
-                ),
+                typeId = TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Record5"),
                 recordBinding = null
               )
             )
@@ -560,10 +541,7 @@ object SchemaSpec extends ZIOSpecDefault {
                   Schema[Option[DynamicValue]].reflect.asTerm("od"),
                   Schema[IndexedSeq[DynamicValue]].reflect.asTerm("isd")
                 ),
-                typeName = TypeName(
-                  namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                  name = "Record7"
-                ),
+                typeId = TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Record7"),
                 recordBinding = null
               )
             )
@@ -578,14 +556,10 @@ object SchemaSpec extends ZIOSpecDefault {
         val value  = Record8[Option](Some(1), Some(Record8[Option](Some(2), None)))
         assert(record.map(_.constructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
         assert(record.map(_.deconstructor.usedRegisters))(isSome(equalTo(RegisterOffset(objects = 2)))) &&
-        assert(record.map(_.typeName))(
+        assert(record.map(_.typeId.toString))(
           isSome(
             equalTo(
-              TypeName[Record8[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Record8",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
+              "zio.blocks.schema.SchemaSpec.spec.Record8[scala.Option]"
             )
           )
         ) &&
@@ -692,7 +666,7 @@ object SchemaSpec extends ZIOSpecDefault {
           new Schema(
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
-              TypeName(Namespace(Seq("zio")), "Chunk"),
+              TypeId.parse("zio.Chunk").applied(Schema[V].reflect.typeId),
               None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
             )
@@ -939,13 +913,10 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(`Case-3`))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2", "Case-3")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[`Variant-1`](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-1"
-              )
+              TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Variant-1")
             )
           )
         ) &&
@@ -995,14 +966,10 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(Value[String]("WWW")))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("MissingValue", "NullValue", "Value")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[`Variant-2`[String]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-2",
-                params = Seq(TypeName.string)
-              )
+              TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Variant-2[scala.Predef.String]")
             )
           )
         )
@@ -1049,21 +1016,18 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A1)))(isRight(equalTo(B.A1))) &&
         assert(schema1.fromDynamicValue(schema1.toDynamicValue(B.A2)))(isRight(equalTo(B.A2))) &&
         assert(variant1.map(_.cases.map(_.name)))(isSome(equalTo(Vector("A1", "A2")))) &&
-        assert(variant1.map(_.typeName))(
-          isSome(equalTo(TypeName[A](Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec")), "A")))
+        assert(variant1.map(_.typeId))(
+          isSome(equalTo(TypeId.parse("zio.blocks.schema.SchemaSpec.A")))
         ) &&
         assert(Level1_MultiLevel.c.getOption(Case))(isSome(equalTo(Case))) &&
         assert(Level1_MultiLevel.l1_c.getOption(Level1.Case))(isSome(equalTo(Level1.Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Case)))(isRight(equalTo(Case))) &&
         assert(schema2.fromDynamicValue(schema2.toDynamicValue(Level1.Case)))(isRight(equalTo(Level1.Case))) &&
         assert(variant2.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Level1.Case", "Case")))) &&
-        assert(variant2.map(_.typeName))(
+        assert(variant2.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[Level1.MultiLevel](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "Level1")),
-                name = "MultiLevel"
-              )
+              TypeId.parse("zio.blocks.schema.SchemaSpec.Level1.MultiLevel")
             )
           )
         )
@@ -1095,14 +1059,10 @@ object SchemaSpec extends ZIOSpecDefault {
           isRight(equalTo(`Case-2`[Option](None)))
         ) &&
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Case-1", "Case-2")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId.toString))(
           isSome(
             equalTo(
-              TypeName[`Variant-3`[Option]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant-3",
-                params = Seq(TypeName(Namespace.scala, "Option"))
-              )
+              "zio.blocks.schema.SchemaSpec.spec.Variant-3[scala.Option]"
             )
           )
         )
@@ -1121,14 +1081,10 @@ object SchemaSpec extends ZIOSpecDefault {
         val schema  = Schema.derived[Variant4[String, Int]]
         val variant = schema.reflect.asVariant
         assert(variant.map(_.cases.map(_.name)))(isSome(equalTo(Vector("Error", "Fatal", "Success", "Timeout")))) &&
-        assert(variant.map(_.typeName))(
+        assert(variant.map(_.typeId))(
           isSome(
             equalTo(
-              TypeName[Variant4[String, Int]](
-                namespace = Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaSpec", "spec")),
-                name = "Variant4",
-                params = Seq(TypeName.string, TypeName.int)
-              )
+              TypeId.parse("zio.blocks.schema.SchemaSpec.spec.Variant4[scala.Predef.String, scala.Int]")
             )
           )
         ) &&
@@ -1385,7 +1341,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val map1 = Reflect.Map[Binding, Int, Long, Map](
           key = Reflect.int,
           value = Reflect.long,
-          typeName = TypeName.map(TypeName.int, TypeName.long),
+          typeId = TypeId.parse("scala.collection.immutable.Map").applied(TypeId.int, TypeId.long),
           mapBinding = Binding.Map[Map, Int, Long](
             constructor = MapConstructor.map,
             deconstructor = MapDeconstructor.map,
@@ -1526,7 +1482,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred2 = Reflect.Deferred[Binding, Int](() => Reflect.int)
         val deferred3 = Reflect.int[Binding]
-        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeName.int, Binding.Primitive.int)
+        val deferred4 = Primitive(PrimitiveType.Int(Validation.Numeric.Positive), TypeId.int, Binding.Primitive.int)
         val deferred5 = Reflect.Deferred[Binding, Int](() => deferred4)
         assert(Schema(deferred1))(equalTo(Schema(deferred1))) &&
         assert(Schema(deferred1).hashCode)(equalTo(Schema(deferred1).hashCode)) &&
@@ -1551,7 +1507,7 @@ object SchemaSpec extends ZIOSpecDefault {
         val deferred1 = Reflect.Deferred[Binding, Int] { () =>
           Primitive(
             PrimitiveType.Int(Validation.Numeric.Positive),
-            TypeName.int,
+            TypeId.int,
             Binding.Primitive(examples = Seq(1, 2, 3))
           )
         }
@@ -1895,7 +1851,7 @@ object SchemaSpec extends ZIOSpecDefault {
         new Deriver[TextCodec] {
           override def derivePrimitive[F[_, _], A](
             primitiveType: PrimitiveType[A],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             binding: Binding[BindingType.Primitive, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1908,7 +1864,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
           override def deriveRecord[F[_, _], A](
             fields: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             binding: Binding[BindingType.Record, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1921,7 +1877,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
           override def deriveVariant[F[_, _], A](
             cases: IndexedSeq[Term[F, A, ?]],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             binding: Binding[BindingType.Variant, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1934,7 +1890,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
           override def deriveSequence[F[_, _], C[_], A](
             element: Reflect[F, A],
-            typeName: TypeName[C[A]],
+            typeId: TypeId[C[A]],
             binding: Binding[BindingType.Seq[C], C[A]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1948,7 +1904,7 @@ object SchemaSpec extends ZIOSpecDefault {
           override def deriveMap[F[_, _], M[_, _], K, V](
             key: Reflect[F, K],
             value: Reflect[F, V],
-            typeName: TypeName[M[K, V]],
+            typeId: TypeId[M[K, V]],
             binding: Binding[BindingType.Map[M], M[K, V]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
@@ -1975,7 +1931,7 @@ object SchemaSpec extends ZIOSpecDefault {
 
           override def deriveWrapper[F[_, _], A, B](
             wrapped: Reflect[F, B],
-            typeName: TypeName[A],
+            typeId: TypeId[A],
             wrapperPrimitiveType: Option[PrimitiveType[A]],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
