@@ -1,9 +1,10 @@
-package zio.blocks.schema
+package zio.blocks.schema.into
 
+import zio.blocks.schema.Into
 import zio.test.*
 import zio.test.Assertion.*
 
-object IntoScala3Spec extends ZIOSpecDefault {
+object IntoEnumSpec extends ZIOSpecDefault {
 
   enum Status {
     case Active, Inactive, Suspended
