@@ -93,6 +93,9 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  def structural(implicit ts: ToStructural[A]): Schema[ts.StructuralType] =
+    ts.structuralSchema(this)
 }
 
 object Schema extends SchemaVersionSpecific {

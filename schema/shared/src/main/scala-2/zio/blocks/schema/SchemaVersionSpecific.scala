@@ -56,6 +56,30 @@ private object SchemaVersionSpecific {
     def isCollection(tpe: Type): Boolean =
       tpe <:< typeOf[Iterable[?]] || tpe <:< typeOf[Iterator[?]] || tpe <:< typeOf[Array[?]]
 
+    def isStructuralRefinementType(tpe: Type): Boolean = tpe.dealias match {
+      case RefinedType(parents, scope) =>
+        // Accept refinements with non-empty scope (method declarations)
+        // Parents should be AnyRef/Object or StructuralRecord
+        scope.nonEmpty && scope.exists(_.isMethod) && parents.forall { p =>
+          p <:< typeOf[StructuralRecord] || p =:= typeOf[AnyRef] || p =:= definitions.ObjectTpe
+        }
+      case _ => false
+    }
+
+    def isTypeAlias(tpe: Type): Boolean = {
+      val symbol = tpe.typeSymbol
+      symbol.isType && symbol.asType.isAliasType && !(tpe.dealias =:= tpe)
+    }
+
+    def extractRefinementFields(tpe: Type): List[(String, Type)] = tpe.dealias match {
+      case RefinedType(_, scope) =>
+        scope.toList.collect {
+          case m: MethodSymbol if m.isMethod && m.paramLists.isEmpty =>
+            (m.name.decodedName.toString, m.returnType)
+        }.sortBy(_._1)
+      case _ => Nil
+    }
+
     def isZioPreludeNewtype(tpe: Type): Boolean = tpe match {
       case TypeRef(compTpe, typeSym, Nil) if typeSym.name.toString == "Type" =>
         compTpe.baseClasses.exists(_.fullName == "zio.prelude.Newtype")
@@ -110,7 +134,13 @@ private object SchemaVersionSpecific {
           if (isOption(tpe) || tpe <:< typeOf[Either[?, ?]] || isCollection(tpe)) {
             typeArgs(tpe).forall(isNonRecursive(_, nestedTpes_))
           } else if (isSealedTraitOrAbstractClass(tpe)) directSubTypes(tpe).forall(isNonRecursive(_, nestedTpes_))
-          else if (isNonAbstractScalaClass(tpe)) {
+          else if (isStructuralRefinementType(tpe)) {
+            // Structural refinement types: check if all field types are non-recursive
+            extractRefinementFields(tpe).forall { case (_, fTpe) => isNonRecursive(fTpe, nestedTpes_) }
+          } else if (isTypeAlias(tpe)) {
+            // Handle type aliases (like AddressStructure) by dealiasing and recursing
+            isNonRecursive(tpe.dealias, nestedTpes_)
+          } else if (isNonAbstractScalaClass(tpe)) {
             val tpeParams     = primaryConstructor(tpe).paramLists
             val tpeTypeArgs   = typeArgs(tpe)
             val tpeTypeParams =
@@ -289,18 +319,22 @@ private object SchemaVersionSpecific {
         fieldInfo.defaultValue match {
           case Some(dv) =>
             if (ms eq Nil) {
-              if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name)"
-              else q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name)"
-            } else if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              if (isNonRec) q"$schema.reflect.defaultValue($dv).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+              else
+                q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+            } else if (isNonRec)
+              q"($schema.reflect.defaultValue($dv).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
             else {
-              q"new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              q"(new Reflect.Deferred(() => $schema.reflect.defaultValue($dv)).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
             }
           case _ =>
             if (ms eq Nil) {
-              if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name)"
-              else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name)"
-            } else if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name).copy(modifiers = $ms)"
-            else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name).copy(modifiers = $ms)"
+              if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+              else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+            } else if (isNonRec)
+              q"($schema.reflect.asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
+            else
+              q"(new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]).copy(modifiers = $ms)"
         }
       })
 
@@ -374,6 +408,128 @@ private object SchemaVersionSpecific {
           }
         }
       })
+    }
+
+    // Helper - Handle nested structural types by recursively expanding them
+    def structuralTypeNameString(tpe: Type): String = {
+      val dealt = tpe.dealias
+
+      // Check if this is a structural refinement type
+      if (isStructuralRefinementType(dealt)) {
+        // Recursively extract and format fields
+        val fields     = extractRefinementFields(dealt)
+        val fieldPairs = fields.map { case (name, fTpe) =>
+          (name, structuralTypeNameString(fTpe))
+        }
+        SchemaTypeName.formatStructuralRecord(fieldPairs)
+      } else if (isTypeAlias(dealt)) {
+        // If it's a type alias, check what it aliases to
+        structuralTypeNameString(dealt.dealias)
+      } else if (dealt.typeSymbol.fullName.startsWith("scala.Tuple")) {
+        // Handle tuples: convert to structural form with _1, _2, _3, etc. fields
+        val elements   = typeArgs(dealt)
+        val tuplePairs = elements.zipWithIndex.map { case (elemTpe, idx) =>
+          (s"_${idx + 1}", structuralTypeNameString(elemTpe))
+        }
+        SchemaTypeName.formatStructuralRecord(tuplePairs)
+      } else {
+        // For non-structural types, use the normal typename
+        typeName(dealt).toSimpleName
+      }
+    }
+
+    class RefinementInfo(tpe: Type) {
+      val refinementFields: List[(String, Type)]                       = extractRefinementFields(tpe)
+      val (fieldInfos: List[FieldInfo], usedRegisters: RegisterOffset) = {
+        var usedRegisters = RegisterOffset.Zero
+        (
+          refinementFields.map { case (name, fTpe) =>
+            val sTpe   = dealiasOnDemand(fTpe)
+            val offset =
+              if (sTpe <:< definitions.IntTpe) RegisterOffset(ints = 1)
+              else if (sTpe <:< definitions.FloatTpe) RegisterOffset(floats = 1)
+              else if (sTpe <:< definitions.LongTpe) RegisterOffset(longs = 1)
+              else if (sTpe <:< definitions.DoubleTpe) RegisterOffset(doubles = 1)
+              else if (sTpe <:< definitions.BooleanTpe) RegisterOffset(booleans = 1)
+              else if (sTpe <:< definitions.ByteTpe) RegisterOffset(bytes = 1)
+              else if (sTpe <:< definitions.CharTpe) RegisterOffset(chars = 1)
+              else if (sTpe <:< definitions.ShortTpe) RegisterOffset(shorts = 1)
+              else if (sTpe <:< definitions.UnitTpe) RegisterOffset.Zero
+              else RegisterOffset(objects = 1)
+            val fieldInfo = new FieldInfo(name, fTpe, None, null, usedRegisters, Nil)
+            usedRegisters = RegisterOffset.add(usedRegisters, offset)
+            fieldInfo
+          },
+          usedRegisters
+        )
+      }
+
+      def fields(sTpe: Type): List[Tree] = fieldInfos.map { fieldInfo =>
+        val fTpe     = fieldInfo.tpe
+        val schema   = findImplicitOrDeriveSchema(fTpe)
+        val isNonRec = isNonRecursive(fTpe)
+        val name     = fieldInfo.name
+        if (isNonRec) q"$schema.reflect.asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+        else q"new Reflect.Deferred(() => $schema.reflect).asTerm[$sTpe]($name): Term[Binding, $sTpe, _]"
+      }
+
+      // Uses recursive expansion for nested structural types
+      def fieldPairs: List[(String, String)] = fieldInfos.map { fieldInfo =>
+        val fTpe           = fieldInfo.tpe
+        val simpleTypeName = structuralTypeNameString(fTpe)
+        (fieldInfo.name, simpleTypeName)
+      }
+
+      // Constructor: Registers → StructuralRecord (wrapped as T)
+      def constructor: Tree = {
+        val entries = fieldInfos.map { fieldInfo =>
+          val fTpe      = fieldInfo.tpe
+          val bytes     = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+          val objects   = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+          val name      = fieldInfo.name
+          val sTpe      = dealiasOnDemand(fTpe)
+          val valueExpr =
+            if (sTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+            else if (sTpe <:< definitions.UnitTpe) q"()"
+            else q"in.getObject(baseOffset, $objects)"
+          q"($name, $valueExpr)"
+        }
+        q"new _root_.zio.blocks.schema.StructuralRecord(_root_.scala.collection.immutable.Map(..$entries)).asInstanceOf[$tpe]"
+      }
+
+      // Deconstructor: StructuralRecord → Registers (extract via selectDynamic)
+      def deconstructor: List[Tree] = fieldInfos.map { fieldInfo =>
+        val fTpe    = fieldInfo.tpe
+        val name    = fieldInfo.name
+        val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
+        val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
+        val sTpe    = dealiasOnDemand(fTpe)
+        val getter  = q"in.asInstanceOf[_root_.zio.blocks.schema.StructuralRecord].selectDynamic($name)"
+        if (sTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Int])"
+        else if (sTpe <:< definitions.FloatTpe) {
+          q"out.setFloat(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Float])"
+        } else if (sTpe <:< definitions.LongTpe) {
+          q"out.setLong(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Long])"
+        } else if (sTpe <:< definitions.DoubleTpe) {
+          q"out.setDouble(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Double])"
+        } else if (sTpe <:< definitions.BooleanTpe) {
+          q"out.setBoolean(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Boolean])"
+        } else if (sTpe <:< definitions.ByteTpe) {
+          q"out.setByte(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Byte])"
+        } else if (sTpe <:< definitions.CharTpe) {
+          q"out.setChar(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Char])"
+        } else if (sTpe <:< definitions.ShortTpe) {
+          q"out.setShort(baseOffset, $bytes, $getter.asInstanceOf[_root_.scala.Short])"
+        } else if (sTpe <:< definitions.UnitTpe) q"()"
+        else q"out.setObject(baseOffset, $objects, $getter.asInstanceOf[_root_.scala.AnyRef])"
+      }
     }
 
     def deriveSchema(tpe: Type): Tree =
@@ -456,6 +612,11 @@ private object SchemaVersionSpecific {
         }
       } else if (isSealedTraitOrAbstractClass(tpe)) {
         deriveSchemaForSealedTraitOrAbstractClass(tpe)
+      } else if (isStructuralRefinementType(tpe)) {
+        deriveSchemaForRefinementType(tpe)
+      } else if (isTypeAlias(tpe)) {
+        // Handle type aliases (like AddressStructure) by dealiasing and recursively deriving
+        deriveSchema(tpe.dealias)
       } else if (isNonAbstractScalaClass(tpe)) {
         deriveSchemaForNonAbstractScalaClass(tpe)
       } else if (isZioPreludeNewtype(tpe)) {
@@ -501,6 +662,33 @@ private object SchemaVersionSpecific {
                 }
               ),
               modifiers = ${modifiers(tpe)},
+            )
+          )"""
+    }
+
+    // Derive schema for structural refinement types like:
+    // StructuralRecord { def name: String; def age: Int }
+    def deriveSchemaForRefinementType(tpe: Type): Tree = {
+      val refinementInfo = new RefinementInfo(tpe)
+      val fieldPairs     = refinementInfo.fieldPairs
+      q"""new Schema(
+            reflect = new Reflect.Record[Binding, $tpe](
+              fields = _root_.scala.Vector(..${refinementInfo.fields(tpe)}),
+              typeName = TypeName.structural[$tpe]($fieldPairs),
+              recordBinding = new Binding.Record(
+                constructor = new Constructor[$tpe] {
+                  def usedRegisters: RegisterOffset = ${refinementInfo.usedRegisters}
+
+                  def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${refinementInfo.constructor}
+                },
+                deconstructor = new Deconstructor[$tpe] {
+                  def usedRegisters: RegisterOffset = ${refinementInfo.usedRegisters}
+
+                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
+                    ..${refinementInfo.deconstructor}
+                  }
+                }
+              )
             )
           )"""
     }

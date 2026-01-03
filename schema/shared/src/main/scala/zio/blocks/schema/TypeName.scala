@@ -2,9 +2,53 @@ package zio.blocks.schema
 
 import scala.collection.immutable.ArraySeq
 
-final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil)
+final case class TypeName[A](namespace: Namespace, name: String, params: Seq[TypeName[?]] = Nil) {
+
+  def toSimpleName: String =
+    if (params.isEmpty) name
+    else s"$name[${params.map(_.toSimpleName).mkString(",")}]"
+}
 
 object TypeName {
+
+// Low-level helper: Format structural record type name from field pairs.
+
+  def formatStructuralRecord(fields: Seq[(String, String)]): String = {
+    val sortedFieldStrs = fields.sortBy(_._1).map { case (n, t) => s"$n:$t" }.mkString(",")
+    s"{$sortedFieldStrs}"
+  }
+
+  // Low-level helper: Format variant union type name from case type names.
+  def formatVariantUnion(caseTypeNames: Seq[String]): String =
+    "(" + caseTypeNames.sorted.mkString("|") + ")"
+
+  // Low-level helper: Format a tagged case type name.
+  def formatTaggedCase(caseName: String): String =
+    s"{Tag:$caseName}"
+
+  // Low-level helper: Format a tagged case with data fields.
+  def formatTaggedCaseWithFields(tagName: String, dataFields: Seq[(String, String)]): String = {
+    val tagField = "Tag" -> s""""$tagName"""" // Quote the tag value
+    formatStructuralRecord(tagField +: dataFields)
+  }
+
+  def structural[A](fields: Seq[(String, String)]): TypeName[A] =
+    new TypeName[A](Namespace.empty, formatStructuralRecord(fields), Nil)
+
+  def structuralFromTypeNames[A](fields: Seq[(String, TypeName[?])]): TypeName[A] =
+    structural(fields.map { case (n, tn) => (n, tn.toSimpleName) })
+
+  def variant[A](cases: Seq[String]): TypeName[A] = {
+    val caseNames = cases.map(formatTaggedCase)
+    new TypeName[A](Namespace.empty, formatVariantUnion(caseNames), Nil)
+  }
+
+  def taggedCase[A](name: String): TypeName[A] =
+    new TypeName[A](Namespace.empty, formatTaggedCase(name), Nil)
+
+  def emptyStructural[A]: TypeName[A] =
+    new TypeName[A](Namespace.empty, "{}", Nil)
+
   val unit: TypeName[Unit] = new TypeName(Namespace.scala, "Unit")
 
   val boolean: TypeName[Boolean] = new TypeName(Namespace.scala, "Boolean")
