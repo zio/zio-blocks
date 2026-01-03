@@ -122,7 +122,7 @@ object ErrorAccumulationSpec extends ZIOSpecDefault {
             messages.forall { msg =>
               msg.contains("converting field") &&
               msg.contains("SourceWithMultipleLongs") &&
-              msg.contains("→") &&
+              msg.contains("to") &&
               msg.contains("TargetWithMultipleInts") &&
               msg.contains("out of range for Int")
             }
