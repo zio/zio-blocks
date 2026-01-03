@@ -590,9 +590,9 @@ private object IntoVersionSpecificImpl {
           // Build error collection with field name enhancement
           val errorCollection = valNames.zip(namePairs).map { case (name, (srcField, tgtField)) =>
             val fieldDesc =
-              if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField"
+              if (srcField.nonEmpty) s"$sourceTypeName.$srcField to $targetTypeName.$tgtField"
               else s"$targetTypeName.$tgtField"
-            val contextMsg = s"converting field '$fieldDesc'"
+            val contextMsg = s"converting field $fieldDesc failed"
             q"""
               if ($name.isLeft) {
                 _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.swap.toOption.get))
@@ -1027,9 +1027,9 @@ private object IntoVersionSpecificImpl {
           // Build error collection with field name enhancement
           val errorCollection = valNames.zip(namePairs).map { case (name, (srcField, tgtField)) =>
             val fieldDesc =
-              if (srcField.nonEmpty) s"$sourceTypeName.$srcField → $targetTypeName.$tgtField"
+              if (srcField.nonEmpty) s"$sourceTypeName.$srcField to $targetTypeName.$tgtField"
               else s"$targetTypeName.$tgtField"
-            val contextMsg = s"converting field '$fieldDesc'"
+            val contextMsg = s"converting field $fieldDesc failed"
             q"""
               if ($name.isLeft) {
                 _root_.scala.Some(_root_.zio.blocks.schema.SchemaError.conversionFailed($contextMsg, $name.swap.toOption.get))

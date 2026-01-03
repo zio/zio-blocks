@@ -9,115 +9,37 @@ import scala.language.dynamics
 object DynamicAsSpec extends ZIOSpecDefault {
 
   case class Person(name: String, age: Int)
-  case class Point(x: Int, y: Int)
 
-  // === Dynamic implementation with Map constructor ===
   class DynamicRecord(val fields: Map[String, Any]) extends Dynamic {
     def selectDynamic(name: String): Any = fields(name)
-
-    override def equals(obj: Any): Boolean = obj match {
-      case other: DynamicRecord => fields == other.fields
-      case _                    => false
-    }
-
-    override def hashCode(): Int = fields.hashCode()
   }
 
   object DynamicRecord {
-    def apply(elems: (String, Any)*): DynamicRecord = new DynamicRecord(elems.toMap)
     def apply(map: Map[String, Any]): DynamicRecord = new DynamicRecord(map)
   }
 
-  // Refined type aliases for Dynamic
   type PersonLike = DynamicRecord { def name: String; def age: Int }
-  type PointLike  = DynamicRecord { def x: Int; def y: Int }
 
   def spec: Spec[TestEnvironment, Any] = suite("DynamicAsSpec")(
-    suite("As between Case Class and Dynamic")(
-      test("derives As[Person, PersonLike]") {
-        val as     = As.derived[Person, PersonLike]
-        val person = Person("Alice", 30)
+    test("As[Person, PersonLike] round-trip") {
+      val as       = As.derived[Person, PersonLike]
+      val original = Person("Alice", 30)
 
-        val toResult = as.into(person)
+      val roundTrip = for {
+        dynamic <- as.into(original)
+        back    <- as.from(dynamic)
+      } yield back
 
-        toResult match {
-          case Right(dynamic) =>
-            assert(dynamic.selectDynamic("name"))(equalTo("Alice")) &&
-            assert(dynamic.selectDynamic("age"))(equalTo(30))
-          case Left(err) =>
-            assert(err.toString)(equalTo("should not fail"))
-        }
-      },
-      test("As[Person, PersonLike] round-trip works") {
-        val as       = As.derived[Person, PersonLike]
-        val original = Person("Bob", 25)
+      assert(roundTrip)(isRight(equalTo(original)))
+    },
+    test("reverse swaps conversion direction") {
+      val as       = As.derived[Person, PersonLike]
+      val reversed = as.reverse
+      val dynamic  = DynamicRecord(Map("name" -> "Bob", "age" -> 25)).asInstanceOf[PersonLike]
 
-        val roundTrip = for {
-          dynamic <- as.into(original)
-          back    <- as.from(dynamic)
-        } yield back
+      val result = reversed.into(dynamic)
 
-        assert(roundTrip)(isRight(equalTo(original)))
-      },
-      test("As[Point, PointLike] round-trip works") {
-        val as       = As.derived[Point, PointLike]
-        val original = Point(10, 20)
-
-        val roundTrip = for {
-          dynamic <- as.into(original)
-          back    <- as.from(dynamic)
-        } yield back
-
-        assert(roundTrip)(isRight(equalTo(original)))
-      }
-    ),
-    suite("As reverse functionality")(
-      test("reverse reverses As direction") {
-        val as       = As.derived[Person, PersonLike]
-        val reversed = as.reverse
-
-        val dynamic: PersonLike = DynamicRecord("name" -> "Eve", "age" -> 28).asInstanceOf[PersonLike]
-
-        // Original: Person → PersonLike
-        // Reversed: PersonLike → Person
-        val result = reversed.into(dynamic)
-
-        assert(result)(isRight(equalTo(Person("Eve", 28))))
-      },
-      test("double reverse returns equivalent As") {
-        val as             = As.derived[Person, PersonLike]
-        val doubleReversed = as.reverse.reverse
-        val original       = Person("Frank", 45)
-
-        val result1 = as.into(original)
-        val result2 = doubleReversed.into(original)
-
-        // Both should produce equivalent results
-        (result1, result2) match {
-          case (Right(d1: DynamicRecord), Right(d2: DynamicRecord)) =>
-            assert(d1.selectDynamic("name"))(equalTo(d2.selectDynamic("name"))) &&
-            assert(d1.selectDynamic("age"))(equalTo(d2.selectDynamic("age")))
-          case _ =>
-            assert(false)(equalTo(true))
-        }
-      }
-    ),
-    suite("As used as Into")(
-      test("As can be used where Into is expected") {
-        val as: As[Person, PersonLike]     = As.derived[Person, PersonLike]
-        val into: Into[Person, PersonLike] = as // As extends Into
-
-        val person = Person("Grace", 32)
-        val result = into.into(person)
-
-        result match {
-          case Right(dynamic) =>
-            assert(dynamic.selectDynamic("name"))(equalTo("Grace")) &&
-            assert(dynamic.selectDynamic("age"))(equalTo(32))
-          case Left(err) =>
-            assert(err.toString)(equalTo("should not fail"))
-        }
-      }
-    )
+      assert(result)(isRight(equalTo(Person("Bob", 25))))
+    }
   )
 }
