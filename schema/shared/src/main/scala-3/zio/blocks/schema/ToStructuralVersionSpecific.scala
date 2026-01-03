@@ -51,7 +51,7 @@ private[schema] object ToStructuralMacro {
   private def isProductType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
     import quotes.reflect.*
     tpe.classSymbol.exists { sym =>
-      val flags = sym.flags
+      val flags        = sym.flags
       val isCaseObject = flags.is(Flags.Module) && flags.is(Flags.Case)
       val isCaseClass  = !flags.is(Flags.Abstract) && !flags.is(Flags.Trait) && sym.primaryConstructor.exists
       isCaseObject || isCaseClass
@@ -64,10 +64,10 @@ private[schema] object ToStructuralMacro {
   private def isSumType(using Quotes)(tpe: quotes.reflect.TypeRepr): Boolean = {
     import quotes.reflect.*
     tpe.classSymbol.exists { sym =>
-      val flags = sym.flags
+      val flags            = sym.flags
       val isSealedTrait    = flags.is(Flags.Sealed) && flags.is(Flags.Trait)
       val isSealedAbstract = flags.is(Flags.Sealed) && flags.is(Flags.Abstract)
-      val isEnum = flags.is(Flags.Enum) && !flags.is(Flags.Case)
+      val isEnum           = flags.is(Flags.Enum) && !flags.is(Flags.Case)
       isSealedTrait || isSealedAbstract || isEnum
     }
   }
