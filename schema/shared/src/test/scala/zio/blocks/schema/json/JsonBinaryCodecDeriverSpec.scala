@@ -9,6 +9,7 @@ import zio.test._
 import zio.test.Assertion._
 import zio.test.TestAspect._
 import java.math.MathContext
+import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 import java.time._
 import java.util.{Currency, UUID}
@@ -3027,6 +3028,44 @@ object JsonBinaryCodecDeriverSpec extends ZIOSpecDefault {
       }
     )
   ) @@ exceptNative
+  suite("String and CharBuffer methods")(
+    test("decode String") {
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val input    = """{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}"""
+      val expected = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
+      assert(codec.decode(input))(isRight(equalTo(expected)))
+    },
+    test("encode String") {
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val value    = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
+      val expected = """{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}"""
+      assert(codec.encodeString(value))(equalTo(expected))
+    },
+    test("decode CharBuffer") {
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val input    = CharBuffer.wrap("""{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}""")
+      val expected = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
+      assert(codec.decode(input))(isRight(equalTo(expected)))
+    },
+    test("encode CharBuffer") {
+      val codec    = Schema[Record1].derive(JsonBinaryCodecDeriver)
+      val value    = Record1(true, 1.toByte, 2.toShort, 3, 4L, 5.0f, 6.0, 'X', "hello")
+      val expected = CharBuffer.wrap("""{"bl":true,"b":1,"sh":2,"i":3,"l":4,"f":5.0,"d":6.0,"c":"X","s":"hello"}""")
+      val output   = CharBuffer.allocate(100)
+      codec.encodeToCharBuffer(value, output)
+      assert(output.flip())(equalTo(expected))
+    },
+    test("decode String with trailing characters") {
+      val codec = Schema[Int].derive(JsonBinaryCodecDeriver)
+      val input = "123extra"
+      assert(codec.decode(input, ReaderConfig.withCheckForEndOfInput(true)))(isLeft(anything))
+    },
+    test("decode CharBuffer with trailing characters") {
+      val codec = Schema[Int].derive(JsonBinaryCodecDeriver)
+      val input = CharBuffer.wrap("123extra")
+      assert(codec.decode(input, ReaderConfig.withCheckForEndOfInput(true)))(isLeft(anything))
+    }
+  )
 
   private[this] def toISO8601(year: Year): String = {
     val x = year.getValue
