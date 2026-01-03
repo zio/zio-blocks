@@ -26,9 +26,6 @@ package zio.blocks.schema.json
  * @param preferredCharBufSize
  *   a preferred size (in chars) of an internal char buffer for parsing of
  *   string values
- * @param maxMarkNum
- *   a max number of `setMark()` calls without calls of `resetMark()` or
- *   `rollbackToMark()`
  * @param checkForEndOfInput
  *   a flag to check and raise an error if some non-whitespace bytes are
  *   detected after successful parsing of the value
@@ -38,7 +35,6 @@ class ReaderConfig private (
   val preferredCharBufSize: Int,
   val maxBufSize: Int,
   val maxCharBufSize: Int,
-  val maxMarkNum: Int,
   val checkForEndOfInput: Boolean
 ) extends Serializable {
   def withMaxBufSize(maxBufSize: Int): ReaderConfig = {
@@ -71,11 +67,6 @@ class ReaderConfig private (
     copy(preferredCharBufSize = preferredCharBufSize)
   }
 
-  def withMaxMarkNum(maxMarkNum: Int): ReaderConfig = {
-    if (maxMarkNum < 1) throw new IllegalArgumentException("'maxMarkNum' should be not less than 1")
-    copy(maxMarkNum = maxMarkNum)
-  }
-
   def withCheckForEndOfInput(checkForEndOfInput: Boolean): ReaderConfig =
     copy(checkForEndOfInput = checkForEndOfInput)
 
@@ -84,7 +75,6 @@ class ReaderConfig private (
     preferredCharBufSize: Int = preferredCharBufSize,
     maxBufSize: Int = maxBufSize,
     maxCharBufSize: Int = maxCharBufSize,
-    maxMarkNum: Int = maxMarkNum,
     checkForEndOfInput: Boolean = checkForEndOfInput
   ): ReaderConfig =
     new ReaderConfig(
@@ -92,7 +82,6 @@ class ReaderConfig private (
       maxCharBufSize = maxCharBufSize,
       preferredBufSize = preferredBufSize,
       preferredCharBufSize = preferredCharBufSize,
-      maxMarkNum = maxMarkNum,
       checkForEndOfInput = checkForEndOfInput
     )
 }
@@ -103,6 +92,5 @@ object ReaderConfig
       preferredCharBufSize = 4096,
       maxBufSize = 33554432,
       maxCharBufSize = 4194304,
-      maxMarkNum = 512,
       checkForEndOfInput = true
     )

@@ -7,6 +7,8 @@ import java.time._
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import zio.blocks.schema.DynamicOptic
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonReader._
 import scala.annotation.{switch, tailrec}
 
@@ -21,33 +23,39 @@ import scala.annotation.{switch, tailrec}
  *   the tail position in the internal buffer
  * @param charBuf
  *   the internal char buffer for parsed strings
- * @param bbuf
- *   the byte buffer with JSON input
- * @param in
- *   the input stream with JSON input
- * @param totalRead
- *   the total number of read bytes
+ * @param stack
+ *   a pre-allocated stack of registers
+ * @param top
+ *   an offset of the stack top
+ * @param maxTop
+ *   a maximum offset of the stack top
  * @param config
  *   the JSON reader configuration
  * @param markNum
  *   the number of mark positions in the stack
  * @param marks
  *   the stack of mark positions
- * @param inUse
- *   a flag that indicates whether the reader is currently in use
+ * @param bbuf
+ *   the byte buffer with JSON input
+ * @param in
+ *   the input stream with JSON input
+ * @param totalRead
+ *   the total number of read bytes
  */
 final class JsonReader private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
   private[this] var head: Int = 0,
   private[this] var tail: Int = 0,
   private[this] var charBuf: Array[Char] = new Array[Char](4096),
-  private[this] var bbuf: ByteBuffer = null,
-  private[this] var in: InputStream = null,
-  private[this] var totalRead: Long = 0,
+  private[this] val stack: Registers = Registers(0),
+  private[this] var top: RegisterOffset = -1,
+  private[this] var maxTop: RegisterOffset = 0,
   private[this] var config: ReaderConfig = null,
   private[this] var markNum: Int = 0,
   private[this] var marks: Array[Int] = Array.empty,
-  private[this] var inUse: Boolean = false
+  private[this] var bbuf: ByteBuffer = null,
+  private[this] var in: InputStream = null,
+  private[this] var totalRead: Long = 0
 ) {
   private[this] var magnitude: Array[Byte] = null
   private[this] var zoneIdKey: Key         = null
@@ -1199,7 +1207,7 @@ final class JsonReader private[json] (
    *   a `Byte` value of the parsed JSON value.
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding capacity of `Byte`
+   *   exceeding the capacity of `Byte`
    */
   def readStringAsByte(): Byte = {
     nextTokenOrError('"', head)
@@ -1215,7 +1223,7 @@ final class JsonReader private[json] (
    *   a `Short` value of the parsed JSON value.
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding capacity of `Short`
+   *   exceeding the capacity of `Short`
    */
   def readStringAsShort(): Short = {
     nextTokenOrError('"', head)
@@ -1247,7 +1255,7 @@ final class JsonReader private[json] (
    *   a `Long` value of the parsed JSON value.
    * @throws JsonBinaryCodecError
    *   in cases of reaching the end of input or illegal format of JSON value or
-   *   exceeding capacity of `Long`
+   *   exceeding the capacity of `Long`
    */
   def readStringAsLong(): Long = {
     nextTokenOrError('"', head)
@@ -1604,6 +1612,17 @@ final class JsonReader private[json] (
     head = pos
   }
 
+  def push(offset: RegisterOffset): RegisterOffset = {
+    val top = this.top
+    this.top = top + offset
+    maxTop = Math.max(maxTop, this.top)
+    top
+  }
+
+  def pop(offset: RegisterOffset): Unit = top -= offset
+
+  def registers: Registers = this.stack
+
   /**
    * Throws a [[JsonBinaryCodecError]] with the message `expected ','`.
    *
@@ -1708,7 +1727,7 @@ final class JsonReader private[json] (
    * @return
    *   true if the reader is in use, false otherwise
    */
-  private[json] def isInUse: Boolean = inUse
+  private[json] def isInUse: Boolean = top >= 0
 
   /**
    * Reads a JSON value from the given byte array slice into an instance of type
@@ -1740,22 +1759,24 @@ final class JsonReader private[json] (
     to: Int,
     config: ReaderConfig
   ): A = {
-    inUse = true
+    top = 0
+    maxTop = 0
+    totalRead = 0
+    markNum = 0
     val currBuf = this.buf
     try {
       this.buf = buf
       this.config = config
       head = from
       tail = to
-      totalRead = 0
-      markNum = 0
       val x = codec.decodeValue(this, codec.nullValue)
       if (head != to && config.checkForEndOfInput) endOfInputOrError()
       x
     } finally {
       this.buf = currBuf
       if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
-      inUse = false
+      stack.clearObjects(maxTop)
+      top = -1
     }
   }
 
@@ -1780,13 +1801,14 @@ final class JsonReader private[json] (
    */
   private[json] def read[A](codec: JsonBinaryCodec[A], in: InputStream, config: ReaderConfig): A =
     try {
-      inUse = true
-      this.config = config
-      this.in = in
+      top = 0
+      maxTop = 0
       head = 0
       tail = 0
       totalRead = 0
       markNum = 0
+      this.config = config
+      this.in = in
       if (buf.length < config.preferredBufSize) reallocateBufToPreferredSize()
       val x = codec.decodeValue(this, codec.nullValue)
       if (config.checkForEndOfInput) endOfInputOrError()
@@ -1795,7 +1817,8 @@ final class JsonReader private[json] (
       this.in = null
       if (buf.length > config.preferredBufSize) reallocateBufToPreferredSize()
       if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
-      inUse = false
+      stack.clearObjects(maxTop)
+      top = -1
     }
 
   /**
@@ -1818,7 +1841,10 @@ final class JsonReader private[json] (
    *   the end of input doesn't pass after reading of the whole JSON value
    */
   private[json] def read[A](codec: JsonBinaryCodec[A], bbuf: ByteBuffer, config: ReaderConfig): A = {
-    inUse = true
+    top = 0
+    maxTop = 0
+    markNum = 0
+    totalRead = 0
     if (bbuf.hasArray) {
       val offset  = bbuf.arrayOffset
       val to      = offset + bbuf.limit()
@@ -1828,8 +1854,6 @@ final class JsonReader private[json] (
         this.config = config
         head = offset + bbuf.position()
         tail = to
-        totalRead = 0
-        markNum = 0
         val x = codec.decodeValue(this, codec.nullValue)
         if (head != to && config.checkForEndOfInput) endOfInputOrError()
         x
@@ -1837,7 +1861,8 @@ final class JsonReader private[json] (
         this.buf = currBuf
         if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
         bbuf.position(head - offset)
-        inUse = false
+        stack.clearObjects(maxTop)
+        top = -1
       }
     } else {
       val position = bbuf.position()
@@ -1846,8 +1871,6 @@ final class JsonReader private[json] (
         this.bbuf = bbuf
         head = 0
         tail = 0
-        totalRead = 0
-        markNum = 0
         if (buf.length < config.preferredBufSize) reallocateBufToPreferredSize()
         val x = codec.decodeValue(this, codec.nullValue)
         if (config.checkForEndOfInput) endOfInputOrError()
@@ -1857,7 +1880,8 @@ final class JsonReader private[json] (
         if (buf.length > config.preferredBufSize) reallocateBufToPreferredSize()
         if (charBuf.length > config.preferredCharBufSize) reallocateCharBufToPreferredSize()
         bbuf.position(totalRead.toInt - tail + head + position)
-        inUse = false
+        stack.clearObjects(maxTop)
+        top = -1
       }
     }
   }
@@ -1935,12 +1959,7 @@ final class JsonReader private[json] (
     markNum = i + 1
   }
 
-  private[this] def growMarks(): Unit = {
-    val len        = marks.length
-    val maxMarkNum = config.maxMarkNum
-    if (len >= maxMarkNum) decodeError("too many marks")
-    marks = java.util.Arrays.copyOf(marks, Math.min((len | 1) << 1, maxMarkNum))
-  }
+  private[this] def growMarks(): Unit = marks = java.util.Arrays.copyOf(marks, (marks.length | 1) << 1)
 
   @tailrec
   private[this] def nextByte(pos: Int): Byte =
