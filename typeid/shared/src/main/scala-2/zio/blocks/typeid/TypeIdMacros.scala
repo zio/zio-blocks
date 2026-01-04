@@ -8,12 +8,13 @@ object TypeIdMacros {
   /**
    * Derives a TypeId for any type or type constructor.
    *
-   * This macro first searches for an existing implicit TypeId instance.
-   * If found, it uses that instance. Otherwise, it derives a new one by extracting:
-   * - The type's simple name
-   * - The owner path (packages, enclosing objects/classes)
-   * - Type parameters (for type constructors)
-   * - Classification (nominal or alias - opaque types don't exist in Scala 2)
+   * This macro first searches for an existing implicit TypeId instance. If
+   * found, it uses that instance. Otherwise, it derives a new one by
+   * extracting:
+   *   - The type's simple name
+   *   - The owner path (packages, enclosing objects/classes)
+   *   - Type parameters (for type constructors)
+   *   - Classification (nominal or alias - opaque types don't exist in Scala 2)
    */
   def derived[A]: TypeId[A] = macro derivedImpl[A]
 
@@ -21,17 +22,17 @@ object TypeIdMacros {
     import c.universe._
 
     val tpe = weakTypeOf[A]
-    
+
     // Check if this is an applied type (e.g., List[Int], Map[String, Int])
     tpe.dealias match {
       case TypeRef(_, sym, args) if args.nonEmpty =>
         // For applied types, try to find an implicit for the type constructor with wildcards
         // e.g., for List[Int], look for TypeId[List[_]]
-        val wildcardArgs = args.map(_ => WildcardType)
+        val wildcardArgs    = args.map(_ => WildcardType)
         val existentialType = appliedType(sym, wildcardArgs)
-        val typeIdType = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
-        val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
-        
+        val typeIdType      = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
+        val implicitSearch  = c.inferImplicitValue(typeIdType, silent = true)
+
         if (implicitSearch != EmptyTree) {
           // Found an existing implicit instance for the type constructor
           // Cast it to the expected type since TypeId is invariant
@@ -51,7 +52,7 @@ object TypeIdMacros {
     val tpe = weakTypeOf[A]
 
     // First, try to find an existing implicit TypeId[A]
-    val typeIdType = appliedType(typeOf[TypeId[_]].typeConstructor, tpe)
+    val typeIdType     = appliedType(typeOf[TypeId[_]].typeConstructor, tpe)
     val implicitSearch = c.inferImplicitValue(typeIdType, silent = true)
 
     if (implicitSearch != EmptyTree) {
@@ -66,7 +67,7 @@ object TypeIdMacros {
   private def deriveNew[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] = {
     import c.universe._
 
-    val tpe = weakTypeOf[A]
+    val tpe        = weakTypeOf[A]
     val typeSymbol = tpe.typeSymbol
 
     // Extract the simple name
@@ -111,7 +112,7 @@ object TypeIdMacros {
   private def buildOwner(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
     import c.universe._
 
-    def loop(s: Symbol, acc: List[c.Tree]): List[c.Tree] = {
+    def loop(s: Symbol, acc: List[c.Tree]): List[c.Tree] =
       if (s == NoSymbol || s.isPackageClass && s.fullName == "<root>" || s.fullName == "<empty>") {
         acc
       } else if (s.isPackage || s.isPackageClass) {
@@ -129,7 +130,6 @@ object TypeIdMacros {
       } else {
         loop(s.owner, acc)
       }
-    }
 
     val segments = loop(sym, Nil)
     q"_root_.zio.blocks.typeid.Owner(_root_.scala.List(..$segments))"
@@ -146,4 +146,3 @@ object TypeIdMacros {
     q"_root_.scala.List(..$params)"
   }
 }
-

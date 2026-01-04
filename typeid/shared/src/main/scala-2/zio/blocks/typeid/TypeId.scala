@@ -6,15 +6,17 @@ import scala.language.experimental.macros
  * Represents the identity of a type or type constructor.
  *
  * TypeId provides rich type identity information including:
- * - The type's name
- * - The owner (package/class/object where it's defined)
- * - Type parameters (for type constructors)
- * - Classification (nominal, alias, or opaque)
+ *   - The type's name
+ *   - The owner (package/class/object where it's defined)
+ *   - Type parameters (for type constructors)
+ *   - Classification (nominal, alias, or opaque)
  *
- * The phantom type parameter `A` ensures type safety when working with TypeId values.
- * In Scala 2, use existential types like `List[_]` or `Map[_, _]` for type constructors.
+ * The phantom type parameter `A` ensures type safety when working with TypeId
+ * values. In Scala 2, use existential types like `List[_]` or `Map[_, _]` for
+ * type constructors.
  *
- * @tparam A The type (or type constructor) this TypeId represents
+ * @tparam A
+ *   The type (or type constructor) this TypeId represents
  */
 sealed trait TypeId[A] {
 
@@ -24,7 +26,10 @@ sealed trait TypeId[A] {
   /** The owner of this type (package, object, class, etc.). */
   def owner: Owner
 
-  /** The type parameters of this type (empty for proper types, non-empty for type constructors). */
+  /**
+   * The type parameters of this type (empty for proper types, non-empty for
+   * type constructors).
+   */
   def typeParams: List[TypeParam]
 
   /** The arity of this type (number of type parameters). */
@@ -59,7 +64,10 @@ sealed trait TypeId[A] {
     case _                      => None
   }
 
-  /** If this is an opaque type, returns the underlying representation; otherwise None. */
+  /**
+   * If this is an opaque type, returns the underlying representation; otherwise
+   * None.
+   */
   final def opaqueRepresentation: Option[TypeRepr] = this match {
     case impl: TypeId.OpaqueImpl => Some(impl.representation)
     case _                       => None
@@ -67,7 +75,7 @@ sealed trait TypeId[A] {
 
   override def toString: String = {
     val paramStr = if (typeParams.isEmpty) "" else typeParams.map(_.name).mkString("[", ", ", "]")
-    val kindStr = this match {
+    val kindStr  = this match {
       case _: TypeId.NominalImpl => "nominal"
       case _: TypeId.AliasImpl   => "alias"
       case _: TypeId.OpaqueImpl  => "opaque"
@@ -173,35 +181,40 @@ object TypeId {
   implicit val bigDecimal: TypeId[BigDecimal] = nominal[BigDecimal]("BigDecimal", Owner.scala)
 
   // Type constructors - use existential types for Scala 2 compatibility
-  implicit val option: TypeId[Option[_]]     = nominal[Option[_]]("Option", Owner.scala, List(TypeParam.A))
-  implicit val some: TypeId[Some[_]]         = nominal[Some[_]]("Some", Owner.scala, List(TypeParam.A))
-  implicit val none: TypeId[None.type]       = nominal[None.type]("None", Owner.scala)
-  implicit val list: TypeId[List[_]]         = nominal[List[_]]("List", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  implicit val vector: TypeId[Vector[_]]     = nominal[Vector[_]]("Vector", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  implicit val set: TypeId[Set[_]]           = nominal[Set[_]]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
-  implicit val map: TypeId[Map[_, _]]        = nominal[Map[_, _]]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
-  implicit val either: TypeId[Either[_, _]]  = nominal[Either[_, _]]("Either", Owner.scala, List(TypeParam.A, TypeParam.B))
+  implicit val option: TypeId[Option[_]] = nominal[Option[_]]("Option", Owner.scala, List(TypeParam.A))
+  implicit val some: TypeId[Some[_]]     = nominal[Some[_]]("Some", Owner.scala, List(TypeParam.A))
+  implicit val none: TypeId[None.type]   = nominal[None.type]("None", Owner.scala)
+  implicit val list: TypeId[List[_]]     = nominal[List[_]]("List", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  implicit val vector: TypeId[Vector[_]] =
+    nominal[Vector[_]]("Vector", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  implicit val set: TypeId[Set[_]]    = nominal[Set[_]]("Set", Owner.scalaCollectionImmutable, List(TypeParam.A))
+  implicit val map: TypeId[Map[_, _]] =
+    nominal[Map[_, _]]("Map", Owner.scalaCollectionImmutable, List(TypeParam.K, TypeParam.V))
+  implicit val either: TypeId[Either[_, _]] =
+    nominal[Either[_, _]]("Either", Owner.scala, List(TypeParam.A, TypeParam.B))
 
   // Java time types
-  implicit val dayOfWeek: TypeId[java.time.DayOfWeek]           = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
-  implicit val duration: TypeId[java.time.Duration]             = nominal[java.time.Duration]("Duration", Owner.javaTime)
-  implicit val instant: TypeId[java.time.Instant]               = nominal[java.time.Instant]("Instant", Owner.javaTime)
-  implicit val localDate: TypeId[java.time.LocalDate]           = nominal[java.time.LocalDate]("LocalDate", Owner.javaTime)
-  implicit val localDateTime: TypeId[java.time.LocalDateTime]   = nominal[java.time.LocalDateTime]("LocalDateTime", Owner.javaTime)
+  implicit val dayOfWeek: TypeId[java.time.DayOfWeek]         = nominal[java.time.DayOfWeek]("DayOfWeek", Owner.javaTime)
+  implicit val duration: TypeId[java.time.Duration]           = nominal[java.time.Duration]("Duration", Owner.javaTime)
+  implicit val instant: TypeId[java.time.Instant]             = nominal[java.time.Instant]("Instant", Owner.javaTime)
+  implicit val localDate: TypeId[java.time.LocalDate]         = nominal[java.time.LocalDate]("LocalDate", Owner.javaTime)
+  implicit val localDateTime: TypeId[java.time.LocalDateTime] =
+    nominal[java.time.LocalDateTime]("LocalDateTime", Owner.javaTime)
   implicit val localTime: TypeId[java.time.LocalTime]           = nominal[java.time.LocalTime]("LocalTime", Owner.javaTime)
   implicit val month: TypeId[java.time.Month]                   = nominal[java.time.Month]("Month", Owner.javaTime)
   implicit val monthDay: TypeId[java.time.MonthDay]             = nominal[java.time.MonthDay]("MonthDay", Owner.javaTime)
-  implicit val offsetDateTime: TypeId[java.time.OffsetDateTime] = nominal[java.time.OffsetDateTime]("OffsetDateTime", Owner.javaTime)
-  implicit val offsetTime: TypeId[java.time.OffsetTime]         = nominal[java.time.OffsetTime]("OffsetTime", Owner.javaTime)
-  implicit val period: TypeId[java.time.Period]                 = nominal[java.time.Period]("Period", Owner.javaTime)
-  implicit val year: TypeId[java.time.Year]                     = nominal[java.time.Year]("Year", Owner.javaTime)
-  implicit val yearMonth: TypeId[java.time.YearMonth]           = nominal[java.time.YearMonth]("YearMonth", Owner.javaTime)
-  implicit val zoneId: TypeId[java.time.ZoneId]                 = nominal[java.time.ZoneId]("ZoneId", Owner.javaTime)
-  implicit val zoneOffset: TypeId[java.time.ZoneOffset]         = nominal[java.time.ZoneOffset]("ZoneOffset", Owner.javaTime)
-  implicit val zonedDateTime: TypeId[java.time.ZonedDateTime]   = nominal[java.time.ZonedDateTime]("ZonedDateTime", Owner.javaTime)
+  implicit val offsetDateTime: TypeId[java.time.OffsetDateTime] =
+    nominal[java.time.OffsetDateTime]("OffsetDateTime", Owner.javaTime)
+  implicit val offsetTime: TypeId[java.time.OffsetTime]       = nominal[java.time.OffsetTime]("OffsetTime", Owner.javaTime)
+  implicit val period: TypeId[java.time.Period]               = nominal[java.time.Period]("Period", Owner.javaTime)
+  implicit val year: TypeId[java.time.Year]                   = nominal[java.time.Year]("Year", Owner.javaTime)
+  implicit val yearMonth: TypeId[java.time.YearMonth]         = nominal[java.time.YearMonth]("YearMonth", Owner.javaTime)
+  implicit val zoneId: TypeId[java.time.ZoneId]               = nominal[java.time.ZoneId]("ZoneId", Owner.javaTime)
+  implicit val zoneOffset: TypeId[java.time.ZoneOffset]       = nominal[java.time.ZoneOffset]("ZoneOffset", Owner.javaTime)
+  implicit val zonedDateTime: TypeId[java.time.ZonedDateTime] =
+    nominal[java.time.ZonedDateTime]("ZonedDateTime", Owner.javaTime)
 
   // Java util types
   implicit val currency: TypeId[java.util.Currency] = nominal[java.util.Currency]("Currency", Owner.javaUtil)
   implicit val uuid: TypeId[java.util.UUID]         = nominal[java.util.UUID]("UUID", Owner.javaUtil)
 }
-
