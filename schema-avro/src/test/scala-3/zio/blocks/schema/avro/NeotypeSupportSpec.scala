@@ -11,7 +11,7 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     test("derive schemas for cases classes with subtype and newtype fields") {
       val value = new Planet(Name("Earth"), Kilogram(5.97e24), Meter(6378000.0), Some(Meter(1.5e15)))
       avroSchema[Planet](
-        "{\"type\":\"record\",\"name\":\"Planet\",\"namespace\":\"zio.blocks.schema.avro.NeotypeSupportSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"mass\",\"type\":\"double\"},{\"name\":\"radius\",\"type\":\"double\"},{\"name\":\"distanceFromSun\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"double\"}]}]}]}"
+        "{\"type\":\"record\",\"name\":\"Planet\",\"namespace\":\"zio.blocks.schema.avro.NeotypeSupportSpec\",\"fields\":[{\"name\":\"name\",\"type\":\"string\"},{\"name\":\"mass\",\"type\":\"double\"},{\"name\":\"radius\",\"type\":\"double\"},{\"name\":\"distanceFromSun\",\"type\":[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Option\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"double\"}]}]}]}"
       ) &&
       roundTrip[Planet](value, 31)
     }

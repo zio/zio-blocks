@@ -26,6 +26,18 @@ final case class DerivationBuilder[TC[_], A](
   instanceOverrides: IndexedSeq[InstanceOverride],
   modifierOverrides: IndexedSeq[ModifierOverride]
 ) {
+  implicit val bindingHasInstance: zio.blocks.schema.derive.HasInstance[Binding, TC] =
+    new zio.blocks.schema.derive.HasInstance[Binding, TC] {
+      def instance[T, A](fa: Binding[T, A]): Lazy[TC[A]] =
+        Lazy.fail(new RuntimeException("Binding HasInstance should not be called"))
+    }
+
+  implicit val bindingHasBinding: zio.blocks.schema.binding.HasBinding[Binding] =
+    new zio.blocks.schema.binding.HasBinding[Binding] {
+      def binding[T, A](fa: Binding[T, A]): Binding[T, A]                                          = fa
+      def updateBinding[T, A](fa: Binding[T, A], f: Binding[T, A] => Binding[T, A]): Binding[T, A] = f(fa)
+    }
+
   def instance[B](optic: Optic[A, B], instance: => TC[B]): DerivationBuilder[TC, A] =
     copy(instanceOverrides = instanceOverrides :+ new InstanceOverrideByOptic(optic.toDynamic, Lazy(instance)))
 
@@ -124,7 +136,7 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Record[G, A0]] = Lazy {
-            val instance = getCustomInstance[A0](path, typeId).getOrElse {
+            val instance = getCustomInstance[A0](path, typeId).getOrElse[Lazy[TC[A0]]] {
               val modifiersToPrepend = combineModifiers(path, typeId)
               val updatedFields      =
                 if (modifiersToPrepend.isEmpty) fields
@@ -137,14 +149,15 @@ final case class DerivationBuilder[TC[_], A](
                     else field.copy(modifiers = fieldModifiersToPrepend ++ field.modifiers).asInstanceOf[Term[G, A0, ?]]
                   }
                 }
-              deriver
+              val derivationResult: Lazy[TC[A0]] = deriver
                 .deriveRecord(
-                  updatedFields,
+                  updatedFields.asInstanceOf[IndexedSeq[Term[F, A0, ?]]],
                   typeId,
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId)
-                )
+                )(bindingHasBinding, bindingHasInstance)
+              derivationResult
             }
             new Reflect.Record(fields, typeId, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -173,14 +186,15 @@ final case class DerivationBuilder[TC[_], A](
                         .asInstanceOf[Term[G, A0, ? <: A0]]
                   }
                 }
-              deriver
+              val derivationResult: Lazy[TC[A0]] = deriver
                 .deriveVariant(
-                  updatedCases,
+                  updatedCases.asInstanceOf[IndexedSeq[Term[F, A0, ?]]],
                   typeId,
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId)
-                )
+                )(bindingHasBinding, bindingHasInstance)
+              derivationResult
             }
             new Reflect.Variant(cases, typeId, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -195,7 +209,13 @@ final case class DerivationBuilder[TC[_], A](
           ): Lazy[Reflect.Sequence[G, A0, C]] = Lazy {
             val instance = getCustomInstance[C[A0]](path, typeId).getOrElse(
               deriver
-                .deriveSequence(element, typeId, metadata, doc, prependCombinedModifiers(modifiers, path, typeId))
+                .deriveSequence(
+                  element.asInstanceOf[Reflect[F, A0]],
+                  typeId,
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeId)
+                )(bindingHasBinding, bindingHasInstance)
             )
             new Reflect.Sequence(element, typeId, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -211,7 +231,14 @@ final case class DerivationBuilder[TC[_], A](
           ): Lazy[Reflect.Map[G, Key, Value, M]] = Lazy {
             val instance = getCustomInstance[M[Key, Value]](path, typeId).getOrElse(
               deriver
-                .deriveMap(key, value, typeId, metadata, doc, prependCombinedModifiers(modifiers, path, typeId))
+                .deriveMap(
+                  key.asInstanceOf[Reflect[F, Key]],
+                  value.asInstanceOf[Reflect[F, Value]],
+                  typeId,
+                  metadata,
+                  doc,
+                  prependCombinedModifiers(modifiers, path, typeId)
+                )(bindingHasBinding, bindingHasInstance)
             )
             new Reflect.Map(key, value, typeId, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -226,7 +253,12 @@ final case class DerivationBuilder[TC[_], A](
             val dynamicTypeId =
               zio.blocks.typeid.TypeId.nominal[DynamicValue]("DynamicValue", zio.blocks.typeid.Owner.zioBlocksSchema)
             val instance = getCustomInstance[DynamicValue](path, dynamicTypeId)
-              .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeId)))
+              .getOrElse(
+                deriver.deriveDynamic[F](metadata, doc, prependCombinedModifiers(modifiers, path, typeId))(
+                  bindingHasBinding,
+                  bindingHasInstance
+                )
+              )
             new Reflect.Dynamic(new BindingInstance(metadata, instance), typeId, doc, modifiers)
           }
 
@@ -246,7 +278,7 @@ final case class DerivationBuilder[TC[_], A](
                   metadata,
                   doc,
                   prependCombinedModifiers(modifiers, path, typeId)
-                )
+                )(bindingHasBinding, bindingHasInstance)
             )
             new Reflect.Primitive(primitiveType, typeId, new BindingInstance(metadata, instance), doc, modifiers)
           }
@@ -260,17 +292,17 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Wrapper[G, A0, B]] = Lazy {
-            val instance = getCustomInstance[A0](path, typeId)
-              .getOrElse(
-                deriver.deriveWrapper(
-                  wrapped,
-                  typeId,
-                  wrapperPrimitiveType,
-                  metadata,
-                  doc,
-                  prependCombinedModifiers(modifiers, path, typeId)
-                )
-              )
+            val instance = getCustomInstance[A0](path, typeId).getOrElse {
+              val derivationResult: Lazy[TC[A0]] = deriver.deriveWrapper(
+                wrapped.asInstanceOf[Reflect[F, B]],
+                typeId,
+                wrapperPrimitiveType,
+                metadata,
+                doc,
+                prependCombinedModifiers(modifiers, path, typeId)
+              )(bindingHasBinding, bindingHasInstance)
+              derivationResult
+            }
             new Reflect.Wrapper(
               wrapped,
               typeId,

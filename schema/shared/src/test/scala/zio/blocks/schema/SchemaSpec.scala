@@ -1852,10 +1852,10 @@ object SchemaSpec extends ZIOSpecDefault {
           override def derivePrimitive[F[_, _], A](
             primitiveType: PrimitiveType[A],
             typeId: TypeId[A],
-            binding: Binding[BindingType.Primitive, A],
+            binding: F[BindingType.Primitive, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
-          ): Lazy[TextCodec[A]] =
+          )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
             Lazy(new TextCodec[A] {
               override def encode(value: A, output: CharBuffer): Unit = output.append(value.toString)
 
@@ -1865,7 +1865,7 @@ object SchemaSpec extends ZIOSpecDefault {
           override def deriveRecord[F[_, _], A](
             fields: IndexedSeq[Term[F, A, ?]],
             typeId: TypeId[A],
-            binding: Binding[BindingType.Record, A],
+            binding: F[BindingType.Record, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
@@ -1878,7 +1878,7 @@ object SchemaSpec extends ZIOSpecDefault {
           override def deriveVariant[F[_, _], A](
             cases: IndexedSeq[Term[F, A, ?]],
             typeId: TypeId[A],
-            binding: Binding[BindingType.Variant, A],
+            binding: F[BindingType.Variant, A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =
@@ -1891,7 +1891,7 @@ object SchemaSpec extends ZIOSpecDefault {
           override def deriveSequence[F[_, _], C[_], A](
             element: Reflect[F, A],
             typeId: TypeId[C[A]],
-            binding: Binding[BindingType.Seq[C], C[A]],
+            binding: F[BindingType.Seq[C], C[A]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[C[A]]] =
@@ -1905,7 +1905,7 @@ object SchemaSpec extends ZIOSpecDefault {
             key: Reflect[F, K],
             value: Reflect[F, V],
             typeId: TypeId[M[K, V]],
-            binding: Binding[BindingType.Map[M], M[K, V]],
+            binding: F[BindingType.Map[M], M[K, V]],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[M[K, V]]] =
@@ -1916,7 +1916,7 @@ object SchemaSpec extends ZIOSpecDefault {
             })
 
           override def deriveDynamic[F[_, _]](
-            binding: Binding[BindingType.Dynamic, DynamicValue],
+            binding: F[BindingType.Dynamic, DynamicValue],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           )(implicit
@@ -1933,7 +1933,7 @@ object SchemaSpec extends ZIOSpecDefault {
             wrapped: Reflect[F, B],
             typeId: TypeId[A],
             wrapperPrimitiveType: Option[PrimitiveType[A]],
-            binding: Binding[BindingType.Wrapper[A, B], A],
+            binding: F[BindingType.Wrapper[A, B], A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TextCodec[A]] =

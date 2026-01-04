@@ -22,49 +22,52 @@ object AvroFormat
         override def derivePrimitive[F[_, _], A](
           primitiveType: PrimitiveType[A],
           typeId: TypeId[A],
-          binding: Binding[BindingType.Primitive, A],
+          binding: F[BindingType.Primitive, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
-        ): Lazy[AvroBinaryCodec[A]] =
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] =
           Lazy(deriveCodec(new Reflect.Primitive(primitiveType, typeId, binding, doc, modifiers)))
 
         override def deriveRecord[F[_, _], A](
           fields: IndexedSeq[Term[F, A, ?]],
           typeId: TypeId[A],
-          binding: Binding[BindingType.Record, A],
+          binding: F[BindingType.Record, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] =
           Lazy {
-            val boundFields = fields.map(_.transform(DynamicOptic.root, Term.Type.Record, F).force)
-            deriveCodec(new Reflect.Record(boundFields, typeId, binding, doc, modifiers))
+            deriveCodec(new Reflect.Record(fields, typeId, binding, doc, modifiers))
           }
 
         override def deriveVariant[F[_, _], A](
           cases: IndexedSeq[Term[F, A, ?]],
           typeId: TypeId[A],
-          binding: Binding[BindingType.Variant, A],
+          binding: F[BindingType.Variant, A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] =
           Lazy {
-            val boundCases = cases
-              .map(_.transform(DynamicOptic.root, Term.Type.Variant, F).force)
-              .asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]]
-            deriveCodec(new Reflect.Variant(boundCases, typeId, binding, doc, modifiers))
+            deriveCodec(
+              new Reflect.Variant(
+                cases.asInstanceOf[IndexedSeq[Term[F, A, ? <: A]]],
+                typeId,
+                binding,
+                doc,
+                modifiers
+              )
+            )
           }
 
         override def deriveSequence[F[_, _], C[_], A](
           element: Reflect[F, A],
           typeId: TypeId[C[A]],
-          binding: Binding[BindingType.Seq[C], C[A]],
+          binding: F[BindingType.Seq[C], C[A]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[C[A]]] =
           Lazy {
-            val boundElement = element.transform(DynamicOptic.root, F).force
             deriveCodec(
-              new Reflect.Sequence(boundElement, typeId, binding, doc, modifiers)
+              new Reflect.Sequence(element, typeId, binding, doc, modifiers)
             )
           }
 
@@ -72,18 +75,16 @@ object AvroFormat
           key: Reflect[F, K],
           value: Reflect[F, V],
           typeId: TypeId[M[K, V]],
-          binding: Binding[BindingType.Map[M], M[K, V]],
+          binding: F[BindingType.Map[M], M[K, V]],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[M[K, V]]] =
           Lazy {
-            val boundKey   = key.transform(DynamicOptic.mapKeys, F).force
-            val boundValue = value.transform(DynamicOptic.mapValues, F).force
-            deriveCodec(new Reflect.Map(boundKey, boundValue, typeId, binding, doc, modifiers))
+            deriveCodec(new Reflect.Map(key, value, typeId, binding, doc, modifiers))
           }
 
         override def deriveDynamic[F[_, _]](
-          binding: Binding[BindingType.Dynamic, DynamicValue],
+          binding: F[BindingType.Dynamic, DynamicValue],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[DynamicValue]] =
@@ -102,14 +103,13 @@ object AvroFormat
           wrapped: Reflect[F, B],
           typeId: TypeId[A],
           wrapperPrimitiveType: Option[PrimitiveType[A]],
-          binding: Binding[BindingType.Wrapper[A, B], A],
+          binding: F[BindingType.Wrapper[A, B], A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] =
           Lazy {
-            val boundWrapped = wrapped.transform(DynamicOptic.root, F).force
             deriveCodec(
-              new Reflect.Wrapper(boundWrapped, typeId, wrapperPrimitiveType, binding, doc, modifiers)
+              new Reflect.Wrapper(wrapped, typeId, wrapperPrimitiveType, binding, doc, modifiers)
             )
           }
 

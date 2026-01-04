@@ -14,15 +14,15 @@ trait Deriver[TC[_]] { self =>
   def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Primitive, A],
+    binding: F[BindingType.Primitive, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
-  ): Lazy[TC[A]]
+  )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
 
   def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Record, A],
+    binding: F[BindingType.Record, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
@@ -30,7 +30,7 @@ trait Deriver[TC[_]] { self =>
   def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     typeId: TypeId[A],
-    binding: Binding[BindingType.Variant, A],
+    binding: F[BindingType.Variant, A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
@@ -38,7 +38,7 @@ trait Deriver[TC[_]] { self =>
   def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeId: TypeId[C[A]],
-    binding: Binding[BindingType.Seq[C], C[A]],
+    binding: F[BindingType.Seq[C], C[A]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[C[A]]]
@@ -47,13 +47,13 @@ trait Deriver[TC[_]] { self =>
     key: Reflect[F, K],
     value: Reflect[F, V],
     typeId: TypeId[M[K, V]],
-    binding: Binding[BindingType.Map[M], M[K, V]],
+    binding: F[BindingType.Map[M], M[K, V]],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[M[K, V]]]
 
   def deriveDynamic[F[_, _]](
-    binding: Binding[BindingType.Dynamic, DynamicValue],
+    binding: F[BindingType.Dynamic, DynamicValue],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[DynamicValue]]
@@ -62,7 +62,7 @@ trait Deriver[TC[_]] { self =>
     wrapped: Reflect[F, B],
     typeId: TypeId[A],
     wrapperPrimitiveType: Option[PrimitiveType[A]],
-    binding: Binding[BindingType.Wrapper[A, B], A],
+    binding: F[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[TC[A]]
