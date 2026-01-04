@@ -90,7 +90,7 @@ object BuildHelper {
       case Some((3, minor)) =>
         Seq(
           "-release",
-          if (minor < 8) "11" else "17",
+          "8",
           "-rewrite",
           "-no-indent",
           "-explain",

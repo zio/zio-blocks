@@ -2,15 +2,17 @@ package zio.blocks.chunk
 
 /*
  * Copyright 2018-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
+
+
+
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
 
 import java.nio._
 import java.nio.charset.Charset
@@ -53,7 +55,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
         self ++ chunk ++ end
       case (self, Chunk.Empty) => self
       case (Chunk.Empty, that) => that
-      case (self, that) =>
+      case (self, that)        =>
         val diff = that.concatDepth - self.concatDepth
         if (math.abs(diff) <= 1) Chunk.Concat(self, that)
         else if (diff < -1) {
@@ -228,7 +230,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   def collectWhile[B](pf: PartialFunction[A, B]): Chunk[B] =
     if (isEmpty) Chunk.empty else self.materialize.collectWhile(pf)
 
-
   /**
    * Determines whether this chunk and the specified chunk have the same length
    * and every pair of corresponding elements of this chunk and the specified
@@ -284,7 +285,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, l) => Chunk.Slice(c, o + n, l - n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > l.length) r.drop(n - l.length)
           else Chunk.Concat(l.drop(n), r)
         case _ =>
@@ -304,7 +305,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, l) => Chunk.Slice(c, o, l - n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > r.length) l.dropRight(n - r.length)
           else Chunk.Concat(l, r.dropRight(n))
         case _ =>
@@ -672,7 +673,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, _) => Chunk.Slice(c, o, n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > l.length) Chunk.Concat(l, r.take(n - l.length))
           else l.take(n)
         case _ =>
@@ -689,7 +690,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, l) => Chunk.Slice(c, o + l - n, n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > r.length) Chunk.Concat(l.takeRight(n - r.length), r)
           else r.takeRight(n)
         case _ =>
@@ -714,15 +715,14 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     }
     take(i)
   }
+
   /**
    * Converts the chunk into an array.
    */
   override def toArray[A1 >: A: ClassTag]: Array[A1] = {
     val dest = Array.ofDim[A1](self.length)
-
-    val builder = new scala.collection.mutable.StringBuilder
-    bits.foreach(bit => if (bit) builder.append("1") else builder.append("0"))
-    builder.toString
+    self.copyToArray(dest)
+    dest
   }
 
   override final def toList: List[A] = {
@@ -736,18 +736,16 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   }
 
   override final def toString: String =
-    toArrayOrNull match {
-      case null  => "Chunk()"
-      case array => array.mkString("Chunk(", ",", ")")
-    }
+    if (isEmpty) "Chunk()"
+    else mkString("Chunk(", ",", ")")
 
   /**
    * Zips this chunk with the specified chunk to produce a new chunk with pairs
    * of elements from each chunk. The returned chunk will have the length of the
    * shorter chunk.
    */
-  final def zip[B](that: Chunk[B])(implicit zippable: Zippable[A, B]): Chunk[zippable.Out] =
-    zipWith(that)(zippable.zip(_, _))
+  final def zip[B](that: Chunk[B]): Chunk[(A, B)] =
+    zipWith(that)((_, _))
 
   /**
    * Zips this chunk with the specified chunk to produce a new chunk with pairs
@@ -931,7 +929,12 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    */
   private final def toArrayOrNull[A1 >: A]: Array[A1] =
     if (self eq Chunk.Empty) null
-    else self.toArray(Chunk.classTagOf(self))
+    else {
+      // Supply the ClassTag explicitly to satisfy Scala 3's contextual requirement
+      given ClassTag[A1] = Chunk.classTagOf(self).asInstanceOf[ClassTag[A1]]
+      self.toArray[A1]
+    }
+
 }
 
 object Chunk extends ChunkFactory with ChunkPlatformSpecific {
@@ -953,7 +956,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     val bits      = left.length min right.length
     val fullBytes = bits >> 3
     val remBits   = bits & 7
-    val arr = Array.ofDim[Byte](
+    val arr       = Array.ofDim[Byte](
       if (remBits == 0) fullBytes else fullBytes + 1
     )
     var i    = 0
@@ -1096,7 +1099,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       case iterable if iterable.isEmpty => Empty
       case vector: Vector[A]            => VectorChunk(vector)
       case arrSeq: mutable.ArraySeq[A]  => fromArraySeq(arrSeq)
-      case iterable =>
+      case iterable                     =>
         val builder = ChunkBuilder.make[A]()
         builder.sizeHint(iterable)
         builder ++= iterable
@@ -1671,7 +1674,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
   private[chunk] object BitOps {
     def apply[T](implicit ops: BitOps[T]): BitOps[T] = ops
-    implicit val ByteOps: BitOps[Byte] = new BitOps[Byte] {
+    implicit val ByteOps: BitOps[Byte]               = new BitOps[Byte] {
       def zero: Byte                = 0
       def one: Byte                 = 1
       def reverse(a: Byte): Byte    = throw new UnsupportedOperationException
@@ -1840,7 +1843,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     override protected def elementAt(n: Int): Byte = bytes(n)
 
     override protected def newBitChunk(bytes: Chunk[Byte], min: Int, max: Int): BitChunk[Byte] =
-      BitChunkByte(bytes, min, max)
+      Chunk.BitChunkByte(bytes, min, max)
 
     override protected def foreachElement[A](f: Boolean => A, byte: Byte): Unit = {
       f((byte & 128) != 0)
@@ -1887,7 +1890,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       val bits      = self.length min that.length
       val bytes     = bits >> 3
       val leftovers = bits - bytes * 8
-      val arr = Array.ofDim[Byte](
+      val arr       = Array.ofDim[Byte](
         if (leftovers == 0) bytes else bytes + 1
       )
 
@@ -1909,7 +1912,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
         arr(bytes) = last
       }
 
-      BitChunkByte(Chunk.fromArray(arr), 0, bits)
+      Chunk.BitChunkByte(Chunk.fromArray(arr), 0, bits)
     }
 
     def and(that: BitChunkByte): BitChunkByte =
@@ -1957,7 +1960,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
         arr(bytes) = last
       }
 
-      BitChunkByte(Chunk.fromArray(arr), 0, bits)
+      Chunk.BitChunkByte(Chunk.fromArray(arr), 0, bits)
     }
   }
 
@@ -2162,7 +2165,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     override val length: Int       = unpacked.length / bits + (if (unpacked.length % bits == 0) 0 else 1)
     private def bitOr0(index: Int) = if (index < unpacked.length && unpacked(index)) one else zero
-    override def apply(n: Int): T =
+    override def apply(n: Int): T  =
       if (n < 0 || n >= length)
         throw new IndexOutOfBoundsException(s"Packed boolean chunk index $n out of bounds [0, $length)")
       else {
@@ -2981,22 +2984,31 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 }
 /*
  * Copyright 2018-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
+
+
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
+
+
+
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
+
+
+
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
-
 
 import scala.collection.immutable.{IndexedSeq, IndexedSeqOps, StrictOptimizedSeqOps}
 import scala.collection.{IterableFactoryDefaults, SeqFactory}
@@ -3159,22 +3171,31 @@ trait ChunkLike[+A]
 }
 /*
  * Copyright 2020-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
+
+
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
+
+
+
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
+
+
+
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
-
 
 import scala.collection.{IterableOnce, StrictOptimizedSeqFactory, mutable}
 
@@ -3183,7 +3204,7 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
   final def from[A](source: IterableOnce[A]): Chunk[A] =
     source match {
       case iterable: Iterable[A] => Chunk.fromIterable(iterable)
-      case iterableOnce =>
+      case iterableOnce          =>
         val chunkBuilder = ChunkBuilder.make[A]()
         iterableOnce.iterator.foreach(chunkBuilder.addOne)
         chunkBuilder.result()
@@ -3196,22 +3217,31 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
 }
 /*
  * Copyright 2020-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
+
+
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
+
+
+
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
+
+
+
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
-
 
 import scala.collection.mutable.{ArrayBuilder, Builder}
 import scala.{
@@ -3241,14 +3271,25 @@ object ChunkBuilder {
   def make[A](): ChunkBuilder[A] =
     new ChunkBuilder[A] {
       var arrayBuilder: ArrayBuilder[A] = null
+      var elemTag: ClassTag[A]          = null
       var size: SInt                    = -1
-      def addOne(a: A): this.type = {
+      def addOne(a: A): this.type       = {
         if (arrayBuilder eq null) {
           implicit val tag = Chunk.Tags.fromValue(a)
+          elemTag = tag
           arrayBuilder = ArrayBuilder.make
           if (size != -1) {
             arrayBuilder.sizeHint(size)
           }
+        } else if ((elemTag ne null) && !elemTag.runtimeClass.isInstance(a.asInstanceOf[AnyRef])) {
+          val as = arrayBuilder.result()
+          arrayBuilder = ArrayBuilder.make[AnyRef].asInstanceOf[ArrayBuilder[A]]
+          implicit val tag = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
+          elemTag = tag
+          if (size != -1) {
+            arrayBuilder.sizeHint(size)
+          }
+          arrayBuilder.addAll(as)
         }
         try {
           arrayBuilder.addOne(a)
@@ -3256,6 +3297,8 @@ object ChunkBuilder {
           case _: ClassCastException =>
             val as = arrayBuilder.result()
             arrayBuilder = ArrayBuilder.make[AnyRef].asInstanceOf[ArrayBuilder[A]]
+            implicit val tag = ClassTag.AnyRef.asInstanceOf[ClassTag[A]]
+            elemTag = tag
             if (size != -1) {
               arrayBuilder.sizeHint(size)
             }
@@ -3349,7 +3392,7 @@ object ChunkBuilder {
       }
     def result(): Chunk[SBoolean] = {
       val bytes: Chunk[SByte] = Chunk.fromArray(arrayBuilder.result() :+ lastByte)
-      BitChunkByte(bytes, 0, 8 * (bytes.length - 1) + maxBitIndex)
+      Chunk.BitChunkByte(bytes, 0, 8 * (bytes.length - 1) + maxBitIndex)
     }
     override def sizeHint(n: SInt): Unit = {
       val hint = if (n == 0) 0 else n / 8 + 1
@@ -3573,13 +3616,25 @@ object ChunkBuilder {
 }
 /*
  * Copyright 2020-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
+
+
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
+
+
+
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
+
+
+
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -3597,7 +3652,9 @@ import scala.reflect.ClassTag
  * `NonEmptyChunk`. Operations on `NonEmptyChunk` which could potentially return
  * an empty chunk will return a `Chunk` instead.
  */
-final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iterable[A] with Serializable { self =>
+final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
+    extends NonEmptySeq[A, NonEmptyChunk, Chunk]
+    with Serializable { self =>
 
   /**
    * A symbolic alias for `prepended`.
@@ -3621,31 +3678,31 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
    * A named alias for `++`.
    */
   def append[A1 >: A](that: Chunk[A1]): NonEmptyChunk[A1] =
-    nonEmpty(chunk ++ that)
+    NonEmptyChunk.nonEmpty(chunk ++ that)
 
   /**
    * Appends a single element to the end of this `NonEmptyChunk`.
    */
   override def appended[A1 >: A](a: A1): NonEmptyChunk[A1] =
-    nonEmpty(chunk :+ a)
+    NonEmptyChunk.nonEmpty(chunk :+ a)
 
   /**
    * Converts this `NonEmptyChunk` of ints to a `NonEmptyChunk` of bits.
    */
   def asBitsInt(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Int): NonEmptyChunk[Boolean] =
-    nonEmpty(chunk.asBitsInt(endianness))
+    NonEmptyChunk.nonEmpty(chunk.asBitsInt(endianness))
 
   /**
    * Converts this `NonEmptyChunk` of longs to a `NonEmptyChunk` of bits.
    */
   def asBitsLong(endianness: Chunk.BitChunk.Endianness)(implicit ev: A <:< Long): NonEmptyChunk[Boolean] =
-    nonEmpty(chunk.asBitsLong(endianness))
+    NonEmptyChunk.nonEmpty(chunk.asBitsLong(endianness))
 
   /**
    * Converts this `NonEmptyChunk` of bytes to a `NonEmptyChunk` of bits.
    */
   def asBits(implicit ev: A <:< Byte): NonEmptyChunk[Boolean] =
-    nonEmpty(chunk.asBitsByte)
+    NonEmptyChunk.nonEmpty(chunk.asBitsByte)
 
   override def collect[B](pf: PartialFunction[A, B]): Chunk[B] =
     chunk.collect(pf)
@@ -3654,7 +3711,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
     chunk.collectFirst(pf)
 
   override def distinct: NonEmptyChunk[A] =
-    nonEmpty(chunk.distinct)
+    NonEmptyChunk.nonEmpty(chunk.distinct)
 
   /**
    * Returns whether this `NonEmptyChunk` and the specified `NonEmptyChunk` are
@@ -3687,7 +3744,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
    * concatenates them together.
    */
   def flatMap[B](f: A => NonEmptyChunk[B]): NonEmptyChunk[B] =
-    nonEmpty(chunk.flatMap(a => f(a).chunk))
+    NonEmptyChunk.nonEmpty(chunk.flatMap(a => f(a).chunk))
 
   /**
    * Flattens a `NonEmptyChunk` of `NonEmptyChunk` values to a single
@@ -3703,7 +3760,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
     chunk.forall(p)
 
   override def grouped(size: Int): Iterator[NonEmptyChunk[A]] =
-    chunk.grouped(size).map(nonEmpty)
+    chunk.grouped(size).map(NonEmptyChunk.nonEmpty)
 
   /**
    * Groups the values in this `NonEmptyChunk` using the specified function.
@@ -3724,7 +3781,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
     }
     var result = collection.immutable.Map.empty[K, NonEmptyChunk[V]]
     m.foreach { case (k, v) =>
-      result = result + ((k, nonEmpty(v.result())))
+      result = result + ((k, NonEmptyChunk.nonEmpty(v.result())))
     }
     result
   }
@@ -3752,33 +3809,33 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
    * function.
    */
   def map[B](f: A => B): NonEmptyChunk[B] =
-    nonEmpty(chunk.map(f))
+    NonEmptyChunk.nonEmpty(chunk.map(f))
 
   /**
    * Maps over the elements of this `NonEmptyChunk`, maintaining some state
    * along the way.
    */
   def mapAccum[S, B](s: S)(f: (S, A) => (S, B)): (S, NonEmptyChunk[B]) =
-    chunk.mapAccum(s)(f) match { case (s, chunk) => (s, nonEmpty(chunk)) }
+    chunk.mapAccum(s)(f) match { case (s, chunk) => (s, NonEmptyChunk.nonEmpty(chunk)) }
 
   /**
    * Materialize the elements of this `NonEmptyChunk` into a `NonEmptyChunk`
    * backed by an array.
    */
   def materialize[A1 >: A]: NonEmptyChunk[A1] =
-    nonEmpty(chunk.materialize)
+    NonEmptyChunk.nonEmpty(chunk.materialize)
 
   /**
    * Prepends the specified `Chunk` to the beginning of this `NonEmptyChunk`.
    */
   def prepend[A1 >: A](that: Chunk[A1]): NonEmptyChunk[A1] =
-    nonEmpty(that ++ chunk)
+    NonEmptyChunk.nonEmpty(that ++ chunk)
 
   /**
    * Prepends a single element to the beginning of this `NonEmptyChunk`.
    */
   def prepended[A1 >: A](a: A1): NonEmptyChunk[A1] =
-    nonEmpty(a +: chunk)
+    NonEmptyChunk.nonEmpty(a +: chunk)
 
   override def reduce[B >: A](op: (B, B) => B): B =
     chunk.reduce(op)
@@ -3814,16 +3871,16 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
   }
 
   override def reverse: NonEmptyChunk[A] =
-    nonEmpty(chunk.reverse)
+    NonEmptyChunk.nonEmpty(chunk.reverse)
 
   override def size: Int =
     chunk.size
 
   override def sortBy[B](f: A => B)(implicit ord: Ordering[B]): NonEmptyChunk[A] =
-    nonEmpty(chunk.sortBy(f))
+    NonEmptyChunk.nonEmpty(chunk.sortBy(f))
 
   override def sorted[B >: A](implicit ord: Ordering[B]): NonEmptyChunk[B] =
-    nonEmpty(chunk.sorted[B])
+    NonEmptyChunk.nonEmpty(chunk.sorted[B])
 
   override def tail: Chunk[A] =
     chunk.tail
@@ -3850,9 +3907,6 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
   /**
    * Converts this `NonEmptyChunk` to an `Iterable`.
    */
-  override def toIterable: Iterable[A] =
-    chunk
-
   /**
    * Converts this `NonEmptyChunk` to a `List`.
    */
@@ -3869,8 +3923,8 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
    * Zips this `NonEmptyChunk` with the specified `NonEmptyChunk`, only keeping
    * as many elements as are in the smaller chunk.
    */
-  def zip[B](that: NonEmptyChunk[B])(implicit zippable: Zippable[A, B]): NonEmptyChunk[zippable.Out] =
-    zipWith(that)(zippable.zip(_, _))
+  override def zip[B](that: NonEmptyChunk[B]): NonEmptyChunk[(A, B)] =
+    zipWith(that)((_, _))
 
   /**
    * Zips this `NonEmptyChunk` with the specified `Chunk`, using `None` to "fill
@@ -3887,27 +3941,27 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Iter
   def zipAllWith[B, C](
     that: Chunk[B]
   )(left: A => C, right: B => C)(both: (A, B) => C): NonEmptyChunk[C] =
-    nonEmpty(chunk.zipAllWith(that)(left, right)(both))
+    NonEmptyChunk.nonEmpty(chunk.zipAllWith(that)(left, right)(both))
 
   /**
    * Zips this `NonEmptyChunk` with the specified `NonEmptyChunk`, only keeping
    * as many elements as are in the smaller chunk.
    */
   def zipWith[B, C](that: NonEmptyChunk[B])(f: (A, B) => C): NonEmptyChunk[C] =
-    nonEmpty(chunk.zipWith(that.chunk)(f))
+    NonEmptyChunk.nonEmpty(chunk.zipWith(that.chunk)(f))
 
   /**
    * Annotates each element of this `NonEmptyChunk` with its index.
    */
   override def zipWithIndex: NonEmptyChunk[(A, Int)] =
-    nonEmpty(chunk.zipWithIndex)
+    NonEmptyChunk.nonEmpty(chunk.zipWithIndex)
 
   /**
    * Annotates each element of this `NonEmptyChunk` with its index, with the
    * specified offset.
    */
   final def zipWithIndexFrom(indexOffset: Int): NonEmptyChunk[(A, Int)] =
-    nonEmpty(chunk.zipWithIndexFrom(indexOffset))
+    NonEmptyChunk.nonEmpty(chunk.zipWithIndexFrom(indexOffset))
 
 }
 
@@ -3949,13 +4003,13 @@ object NonEmptyChunk {
    * Constructs a `NonEmptyChunk` from an `Iterable` or `None` otherwise.
    */
   def fromIterableOption[A](as: Iterable[A]): Option[NonEmptyChunk[A]] =
-    if (as.isEmpty) None else Some(nonEmpty(Chunk.fromIterable(as)))
+    if (as.isEmpty) None else Some(NonEmptyChunk.nonEmpty(Chunk.fromIterable(as)))
 
   /**
    * Constructs a `NonEmptyChunk` from a single value.
    */
   def single[A](a: A): NonEmptyChunk[A] =
-    nonEmpty(Chunk.single(a))
+    NonEmptyChunk.nonEmpty(Chunk.single(a))
 
   /**
    * Extracts the elements from a `Chunk`.
@@ -3993,22 +4047,31 @@ object NonEmptyChunk {
 }
 /*
  * Copyright 2018-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
+
+
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
+
+
+
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
+
+
+
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
-
 
 import scala.reflect.{ClassTag, classTag}
 
@@ -4018,7 +4081,7 @@ private[chunk] trait ChunkPlatformSpecific {
     def fromValue[A](a: A): ClassTag[A] =
       if (a == null) classTag[AnyRef].asInstanceOf[ClassTag[A]]
       else {
-        val c = a.getClass
+        val c            = a.getClass
         val unboxedClass =
           if (isBoolean(c)) BooleanClass.asInstanceOf[Class[A]]
           else if (isByte(c)) ByteClass.asInstanceOf[Class[A]]

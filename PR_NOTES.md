@@ -38,6 +38,9 @@ To verify the changes, run the following commands (requires SBT):
     ```bash
     sbt chunkBenchmarks/jmh:run
     ```
+Tests run locally:
+  - `sbt scalafmtAll`
+  - `sbt clean chunkJVM/test chunkJS/test chunkBenchmarks/jmh:compile`
 
 ## Migration Notes
 - The package has changed from `zio` to `zio.blocks.chunk`.

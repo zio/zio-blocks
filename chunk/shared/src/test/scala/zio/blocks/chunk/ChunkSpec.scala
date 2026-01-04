@@ -2,8 +2,18 @@ package zio.blocks.chunk
 
 import zio.test.Assertion._
 import zio.test._
+import zio.{Chunk => ZChunk, NonEmptyChunk => ZNonEmptyChunk, Scope}
+import scala.language.implicitConversions
 
-object ChunkSpec extends ZIOBaseSpec {
+private given [A]: Conversion[ZChunk[A], Chunk[A]]                 = zc => Chunk.fromIterable(zc)
+private given [A]: Conversion[ZNonEmptyChunk[A], NonEmptyChunk[A]] = zc =>
+  NonEmptyChunk.nonEmpty(Chunk.fromIterable(zc))
+private given [R, A]: Conversion[Gen[R, ZChunk[A]], Gen[R, Chunk[A]]] = gen => gen.map(Chunk.fromIterable(_))
+@scala.annotation.targetName("givenConversionGenNonEmpty")
+private given [R, A]: Conversion[Gen[R, ZNonEmptyChunk[A]], Gen[R, NonEmptyChunk[A]]] = gen =>
+  gen.map(ch => NonEmptyChunk.nonEmpty(Chunk.fromIterable(ch)))
+
+object ChunkSpec extends ZIOSpecDefault {
 
   case class Value(i: Int) extends AnyVal
 
@@ -12,19 +22,28 @@ object ChunkSpec extends ZIOBaseSpec {
   def toBoolFn[R, A]: Gen[R, A => Boolean] =
     Gen.function(Gen.boolean)
 
+  def genChunk[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
+    Gen.chunkOf(a).map(Chunk.fromIterable(_))
+
+  def genChunk1[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
+    Gen.chunkOf1(a).map(ch => Chunk.fromIterable(ch))
+
+  def genNonEmptyChunk[R, A](a: Gen[R, A]): Gen[R, NonEmptyChunk[A]] =
+    Gen.chunkOf1(a).map(ch => NonEmptyChunk.nonEmpty(Chunk.fromIterable(ch)))
+
   def tinyChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
-    Gen.chunkOfBounded(0, 3)(a)
+    Gen.chunkOfBounded(0, 3)(a).map(Chunk.fromIterable(_))
 
   def smallChunks[R, A](a: Gen[R, A]): Gen[R, Chunk[A]] =
-    Gen.small(Gen.chunkOfN(_)(a))
+    Gen.small(Gen.chunkOfN(_)(a)).map(Chunk.fromIterable(_))
 
   def chunkWithIndex[R, A](a: Gen[R, A]): Gen[R, (Chunk[A], Int)] =
     for {
-      chunk <- Gen.chunkOf1(a)
+      chunk <- genChunk1(a)
       idx   <- Gen.int(0, chunk.length - 1)
     } yield (chunk, idx)
 
-  override def spec: Spec[TestEnvironment with Scope, Any] = suite("ChunkSpec")(
+  override def spec: Spec[TestEnvironment & Scope, Any] = suite("ChunkSpec")(
     suite("size/length")(
       test("concatenated size must match length") {
         val chunk = Chunk.empty ++ Chunk.fromArray(Array(1, 2)) ++ Chunk(3, 4, 5) ++ Chunk.single(6)
@@ -52,8 +71,8 @@ object ChunkSpec extends ZIOBaseSpec {
         val chunksWithIndex: Gen[Any, (Chunk[Int], Chunk[Int], Int)] =
           for {
             p  <- Gen.boolean
-            as <- Gen.chunkOf(Gen.int)
-            bs <- Gen.chunkOf1(Gen.int)
+            as <- genChunk(Gen.int)
+            bs <- genChunk1(Gen.int)
             n  <- Gen.int(0, as.length + bs.length - 1)
           } yield if (p) (as, bs, n) else (bs, as, n)
         check(chunksWithIndex) { case (as, bs, n) =>
@@ -63,7 +82,7 @@ object ChunkSpec extends ZIOBaseSpec {
         }
       },
       test("buffer full") {
-        check(Gen.chunkOf(Gen.int), Gen.chunkOf(Gen.int)) { (as, bs) =>
+        check(genChunk(Gen.int), genChunk(Gen.int)) { (as, bs) =>
           def addAll[A](l: Chunk[A], r: Chunk[A]): Chunk[A] = r.foldLeft(l)(_ :+ _)
           val actual                                        = List.fill(100)(bs).foldLeft(as)(addAll)
           val expected                                      = List.fill(100)(bs).foldLeft(as)(_ ++ _)
@@ -71,14 +90,14 @@ object ChunkSpec extends ZIOBaseSpec {
         }
       },
       test("equals") {
-        check(Gen.chunkOf(Gen.int), Gen.chunkOf(Gen.int)) { (as, bs) =>
+        check(genChunk(Gen.int), genChunk(Gen.int)) { (as, bs) =>
           val actual   = bs.foldLeft(as)(_ :+ _)
           val expected = as ++ bs
           assert(actual)(equalTo(expected))
         }
       },
       test("length") {
-        check(Gen.chunkOf(Gen.int), smallChunks(Gen.int)) { (as, bs) =>
+        check(genChunk(Gen.int), smallChunks(Gen.int)) { (as, bs) =>
           val actual   = bs.foldLeft(as)(_ :+ _).length
           val expected = (as ++ bs).length
           assert(actual)(equalTo(expected))
@@ -100,8 +119,8 @@ object ChunkSpec extends ZIOBaseSpec {
         val chunksWithIndex: Gen[Any, (Chunk[Int], Chunk[Int], Int)] =
           for {
             p  <- Gen.boolean
-            as <- Gen.chunkOf(Gen.int)
-            bs <- Gen.chunkOf1(Gen.int)
+            as <- genChunk(Gen.int)
+            bs <- genChunk1(Gen.int)
             n  <- Gen.int(0, as.length + bs.length - 1)
           } yield if (p) (as, bs, n) else (bs, as, n)
         check(chunksWithIndex) { case (as, bs, n) =>
@@ -111,7 +130,7 @@ object ChunkSpec extends ZIOBaseSpec {
         }
       },
       test("buffer full") {
-        check(Gen.chunkOf(Gen.int), Gen.chunkOf(Gen.int)) { (as, bs) =>
+        check(genChunk(Gen.int), genChunk(Gen.int)) { (as, bs) =>
           def addAll[A](l: Chunk[A], r: Chunk[A]): Chunk[A] = l.foldRight(r)(_ +: _)
           val actual                                        = List.fill(100)(as).foldRight(bs)(addAll)
           val expected                                      = List.fill(100)(as).foldRight(bs)(_ ++ _)
@@ -119,14 +138,14 @@ object ChunkSpec extends ZIOBaseSpec {
         }
       },
       test("equals") {
-        check(Gen.chunkOf(Gen.int), Gen.chunkOf(Gen.int)) { (as, bs) =>
+        check(genChunk(Gen.int), genChunk(Gen.int)) { (as, bs) =>
           val actual   = as.foldRight(bs)(_ +: _)
           val expected = as ++ bs
           assert(actual)(equalTo(expected))
         }
       },
       test("length") {
-        check(Gen.chunkOf(Gen.int), smallChunks(Gen.int)) { (as, bs) =>
+        check(genChunk(Gen.int), smallChunks(Gen.int)) { (as, bs) =>
           val actual   = as.foldRight(bs)(_ +: _).length
           val expected = (as ++ bs).length
           assert(actual)(equalTo(expected))
@@ -190,7 +209,7 @@ object ChunkSpec extends ZIOBaseSpec {
       }
     ),
     test("corresponds") {
-      val genChunk = smallChunks(intGen)
+      val genChunk    = smallChunks(intGen)
       val genFunction =
         Gen.function[Any, (Int, Int), Boolean](Gen.boolean).map(Function.untupled(_))
       check(genChunk, genChunk, genFunction) { (as, bs, f) =>
@@ -434,7 +453,7 @@ object ChunkSpec extends ZIOBaseSpec {
     },
     test("toArrayOnConcatOfSlice") {
       val onlyOdd: Int => Boolean = _ % 2 != 0
-      val concat = Chunk(1, 1, 1).filter(onlyOdd) ++
+      val concat                  = Chunk(1, 1, 1).filter(onlyOdd) ++
         Chunk(2, 2, 2).filter(onlyOdd) ++
         Chunk(3, 3, 3).filter(onlyOdd)
 
@@ -515,14 +534,14 @@ object ChunkSpec extends ZIOBaseSpec {
       assert(as.toArray)(equalTo(Array.range(0, n)))
     },
     test("stack safety concat and append") {
-      val n = 100000
+      val n  = 100000
       val as = List.range(0, n).foldRight[Chunk[Int]](Chunk.empty) { (a, as) =>
         if (a % 2 == 0) as :+ a else as ++ Chunk(a)
       }
       assert(as.toArray)(equalTo(Array.range(0, n).reverse))
     },
     test("stack safety concat and prepend") {
-      val n = 100000
+      val n  = 100000
       val as = List.range(0, n).foldRight[Chunk[Int]](Chunk.empty) { (a, as) =>
         if (a % 2 == 0) a +: as else Chunk(a) ++ as
       }
@@ -583,8 +602,8 @@ object ChunkSpec extends ZIOBaseSpec {
     },
     suite("unapplySeq")(
       test("matches a nonempty chunk") {
-        val chunk = Chunk(1, 2, 3)
-        val actual = chunk match {
+        val chunk  = Chunk(1, 2, 3)
+        val actual = (chunk: @unchecked) match {
           case Chunk(x, y, z) => Some((x, y, z))
           case _              => None
         }
@@ -592,8 +611,8 @@ object ChunkSpec extends ZIOBaseSpec {
         assert(actual)(equalTo(expected))
       },
       test("matches an empty chunk") {
-        val chunk = Chunk.empty
-        val actual = chunk match {
+        val chunk  = Chunk.empty
+        val actual = (chunk: @unchecked) match {
           case Chunk() => Some(())
           case _       => None
         }
