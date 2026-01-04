@@ -358,7 +358,7 @@ object LCSAlgorithmSpec extends ZIOSpecDefault {
         )
         val ops    = DynamicPatch.MapOp.diff(a, b)
         val result = applyMapOps(a, ops)
-        assertTrue(result.isRight && result.toOption.get.toSet == b.toSet)
+        assertTrue(result.isRight && result.toOption.get.toSet == (b.toSet: Set[(DynamicValue, DynamicValue)]))
       },
       test("diff(a,b) applied to a equals b - non-empty to empty") {
         val a = Vector(
@@ -379,7 +379,7 @@ object LCSAlgorithmSpec extends ZIOSpecDefault {
         )
         val ops    = DynamicPatch.MapOp.diff(a, b)
         val result = applyMapOps(a, ops)
-        assertTrue(result.isRight && result.toOption.get.toSet == b.toSet)
+        assertTrue(result.isRight && result.toOption.get.toSet == (b.toSet: Set[(DynamicValue, DynamicValue)]))
       },
       test("diff(a,b) applied to a equals b - remove key") {
         val a = Vector(
@@ -391,7 +391,7 @@ object LCSAlgorithmSpec extends ZIOSpecDefault {
         )
         val ops    = DynamicPatch.MapOp.diff(a, b)
         val result = applyMapOps(a, ops)
-        assertTrue(result.isRight && result.toOption.get.toSet == b.toSet)
+        assertTrue(result.isRight && result.toOption.get.toSet == (b.toSet: Set[(DynamicValue, DynamicValue)]))
       },
       test("diff(a,b) applied to a equals b - modify value") {
         val a = Vector(
@@ -402,7 +402,7 @@ object LCSAlgorithmSpec extends ZIOSpecDefault {
         )
         val ops    = DynamicPatch.MapOp.diff(a, b)
         val result = applyMapOps(a, ops)
-        assertTrue(result.isRight && result.toOption.get.toSet == b.toSet)
+        assertTrue(result.isRight && result.toOption.get.toSet == (b.toSet: Set[(DynamicValue, DynamicValue)]))
       },
       test("diff(a,b) applied to a equals b - complex transformation") {
         val a = Vector(
@@ -417,7 +417,7 @@ object LCSAlgorithmSpec extends ZIOSpecDefault {
         )
         val ops    = DynamicPatch.MapOp.diff(a, b)
         val result = applyMapOps(a, ops)
-        assertTrue(result.isRight && result.toOption.get.toSet == b.toSet)
+        assertTrue(result.isRight && result.toOption.get.toSet == (b.toSet: Set[(DynamicValue, DynamicValue)]))
       },
       test("diff(a,b) applied to a equals b - replace all keys") {
         val a = Vector(
@@ -430,7 +430,7 @@ object LCSAlgorithmSpec extends ZIOSpecDefault {
         )
         val ops    = DynamicPatch.MapOp.diff(a, b)
         val result = applyMapOps(a, ops)
-        assertTrue(result.isRight && result.toOption.get.toSet == b.toSet)
+        assertTrue(result.isRight && result.toOption.get.toSet == (b.toSet: Set[(DynamicValue, DynamicValue)]))
       }
     )
   )
