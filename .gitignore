@@ -25,3 +25,4 @@ TAGS
 .metals
 .vscode/settings.json
 project/metals.sbt
+VIDEO_GUIDE.md
