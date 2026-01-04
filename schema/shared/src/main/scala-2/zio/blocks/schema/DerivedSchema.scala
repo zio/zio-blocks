@@ -4,7 +4,8 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 /**
- * A trait that can be extended by companion objects to automatically derive a Schema for the type.
+ * A trait that can be extended by companion objects to automatically derive
+ * a Schema for the type.
  *
  * Usage:
  * {{{
@@ -17,8 +18,8 @@ import scala.reflect.macros.blackbox
 trait DerivedSchema[A] {
 
   /**
-   * Derives a Schema for the type A. The schema derivation uses macro expansion which generates
-   * cached schema code at the call site.
+   * Derives a Schema for the type A. The schema derivation uses macro
+   * expansion which generates cached schema code at the call site.
    */
   implicit def schema: Schema[A] = macro DerivedSchemaMacro.impl[A]
 }
