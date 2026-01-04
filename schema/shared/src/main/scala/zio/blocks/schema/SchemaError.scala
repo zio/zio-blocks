@@ -72,4 +72,68 @@ object SchemaError {
   case class UnknownCase(source: DynamicOptic, caseName: String) extends Single {
     override def message: String = s"Unknown case '$caseName' at: $source"
   }
+
+  // Patch-specific error types
+  case class FieldNotFoundError(source: DynamicOptic, fieldName: String, availableFields: List[String]) extends Single {
+    override def message: String =
+      s"Field '$fieldName' not found at: $source. Available fields: ${availableFields.mkString(", ")}"
+  }
+
+  case class TypeMismatchError(source: DynamicOptic, expected: String, actual: String) extends Single {
+    override def message: String = s"Type mismatch at: $source. Expected $expected, got $actual"
+  }
+
+  case class CaseMismatchError(source: DynamicOptic, expected: String, actual: String) extends Single {
+    override def message: String = s"Case mismatch at: $source. Expected $expected, got $actual"
+  }
+
+  case class IndexOutOfBoundsError(source: DynamicOptic, index: Int, size: Int) extends Single {
+    override def message: String = s"Index $index out of bounds (size: $size) at: $source"
+  }
+
+  case class KeyNotFoundError(source: DynamicOptic, key: String) extends Single {
+    override def message: String = s"Key '$key' not found at: $source"
+  }
+
+  case class KeyAlreadyExistsError(source: DynamicOptic, key: String) extends Single {
+    override def message: String = s"Key '$key' already exists at: $source"
+  }
+
+  // Factory methods for patch operations with full optic paths
+  def FieldNotFound(optic: DynamicOptic, fieldName: String, availableFields: List[String]): SchemaError =
+    new SchemaError(new ::(FieldNotFoundError(optic, fieldName, availableFields), Nil))
+
+  def TypeMismatch(optic: DynamicOptic, expected: String, actual: String): SchemaError =
+    new SchemaError(new ::(TypeMismatchError(optic, expected, actual), Nil))
+
+  def CaseMismatch(optic: DynamicOptic, expected: String, actual: String): SchemaError =
+    new SchemaError(new ::(CaseMismatchError(optic, expected, actual), Nil))
+
+  def IndexOutOfBounds(optic: DynamicOptic, index: Int, size: Int): SchemaError =
+    new SchemaError(new ::(IndexOutOfBoundsError(optic, index, size), Nil))
+
+  def KeyNotFound(optic: DynamicOptic, key: String): SchemaError =
+    new SchemaError(new ::(KeyNotFoundError(optic, key), Nil))
+
+  def KeyAlreadyExists(optic: DynamicOptic, key: String): SchemaError =
+    new SchemaError(new ::(KeyAlreadyExistsError(optic, key), Nil))
+
+  // Convenience overloads defaulting to root optic (backward compatible)
+  def FieldNotFound(fieldName: String, availableFields: List[String]): SchemaError =
+    FieldNotFound(DynamicOptic.root, fieldName, availableFields)
+
+  def TypeMismatch(expected: String, actual: String): SchemaError =
+    TypeMismatch(DynamicOptic.root, expected, actual)
+
+  def CaseMismatch(expected: String, actual: String): SchemaError =
+    CaseMismatch(DynamicOptic.root, expected, actual)
+
+  def IndexOutOfBounds(index: Int, size: Int): SchemaError =
+    IndexOutOfBounds(DynamicOptic.root, index, size)
+
+  def KeyNotFound(key: String): SchemaError =
+    KeyNotFound(DynamicOptic.root, key)
+
+  def KeyAlreadyExists(key: String): SchemaError =
+    KeyAlreadyExists(DynamicOptic.root, key)
 }

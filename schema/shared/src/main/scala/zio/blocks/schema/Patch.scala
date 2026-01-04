@@ -2,143 +2,199 @@ package zio.blocks.schema
 
 /**
  * A Patch is a sequence of operations that can be applied to a value to produce
- * a new value. Because patches are described by reflective optics, finite
- * operations on specific types of optics, and values that can be serialized,
- * patches themselves can be serialized.
+ * a new value. Patches are serializable and can be computed via diffing.
  *
  * {{{
- * val patch1 = Patch.replace(Person.name, "John")
- * val patch2 = Patch.replace(Person.age, 30)
+ * val patch1 = Patch.set(Person.name, "John")
+ * val patch2 = Patch.set(Person.age, 30)
  *
  * val patch3 = patch1 ++ patch2
  *
  * patch3(Person("Jane", 25)) // Person("John", 30)
  * }}}
+ *
+ * Patches can also be created by diffing two values:
+ * {{{
+ * val person1 = Person("Jane", 25)
+ * val person2 = Person("John", 30)
+ * val patch = Schema[Person].diff(person1, person2)
+ * patch(person1) // Person("John", 30)
+ * }}}
  */
-final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
-  import Patch._
+final case class Patch[S](
+  dynamicPatch: DynamicPatch,
+  source: Schema[S]
+) {
 
-  def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source)
+  /** Compose patches sequentially (monoid operation) */
+  def ++(that: Patch[S]): Patch[S] =
+    Patch(this.dynamicPatch ++ that.dynamicPatch, this.source)
 
-  def apply(s: S): S =
-    ops.foldLeft[S](s) { (s, single) =>
-      single match {
-        case LensPair(optic, LensOp.Replace(a))           => optic.replace(s, a)
-        case PrismPair(optic, PrismOp.Replace(a))         => optic.replace(s, a)
-        case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replace(s, a)
-        case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modify(s, _ => a)
-      }
-    }
+  /**
+   * Apply patch with default Strict mode. On error, returns the original value
+   * unchanged.
+   */
+  def apply(s: S): S = applyOrFail(s).getOrElse(s)
 
-  def applyOption(s: S): Option[S] = {
-    var x   = s
-    val len = ops.length
-    var idx = 0
-    while (idx < len) {
-      ops(idx) match {
-        case LensPair(optic, LensOp.Replace(a)) =>
-          x = optic.replace(x, a)
-        case PrismPair(optic, PrismOp.Replace(a)) =>
-          optic.replaceOption(x, a) match {
-            case Some(r) => x = r
-            case _       => return None
-          }
-        case OptionalPair(optic, OptionalOp.Replace(a)) =>
-          optic.replaceOption(x, a) match {
-            case Some(r) => x = r
-            case _       => return None
-          }
-        case TraversalPair(optic, TraversalOp.Replace(a)) =>
-          optic.modifyOption(x, _ => a) match {
-            case Some(r) => x = r
-            case _       => return None
-          }
-      }
-      idx += 1
-    }
-    new Some(x)
+  /**
+   * Apply patch, returning None on failure.
+   */
+  def applyOption(s: S): Option[S] =
+    applyOrFail(s).toOption
+
+  /**
+   * Apply patch with Strict mode, returning Either[SchemaError, S].
+   */
+  def applyOrFail(s: S): Either[SchemaError, S] =
+    applyWithMode(s, DynamicPatch.PatchMode.Strict)
+
+  /**
+   * Apply this patch with explicit control over the patch mode. Returns
+   * Left(SchemaError) on failure, Right(result) on success.
+   */
+  def applyWithMode(s: S, mode: DynamicPatch.PatchMode): Either[SchemaError, S] = {
+    val dv = source.toDynamicValue(s)
+    dynamicPatch.apply(dv, mode).flatMap(newDv => source.fromDynamicValue(newDv))
   }
 
-  def applyOrFail(s: S): Either[OpticCheck, S] = {
-    var x   = s
-    val len = ops.length
-    var idx = 0
-    while (idx < len) {
-      ops(idx) match {
-        case LensPair(optic, LensOp.Replace(a)) =>
-          x = optic.replace(x, a)
-        case PrismPair(optic, PrismOp.Replace(a)) =>
-          optic.replaceOrFail(x, a) match {
-            case Right(r) => x = r
-            case left     => return left
-          }
-        case OptionalPair(optic, OptionalOp.Replace(a)) =>
-          optic.replaceOrFail(x, a) match {
-            case Right(r) => x = r
-            case left     => return left
-          }
-        case TraversalPair(optic, TraversalOp.Replace(a)) =>
-          optic.modifyOrFail(x, _ => a) match {
-            case Right(r) => x = r
-            case left     => return left
-          }
-      }
-      idx += 1
-    }
-    new Right(x)
-  }
+  /**
+   * Check if this patch has any operations.
+   */
+  def isEmpty: Boolean = dynamicPatch.ops.isEmpty
+
+  /**
+   * Check if this patch has operations.
+   */
+  def nonEmpty: Boolean = !isEmpty
+
+  /**
+   * Get the underlying dynamic patch.
+   */
+  def toDynamicPatch: DynamicPatch = dynamicPatch
 }
 
 object Patch {
-  def replace[S, A](lens: Lens[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(LensPair(lens, LensOp.Replace(a))), source)
 
-  def replace[S, A](optional: Optional[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(OptionalPair(optional, OptionalOp.Replace(a))), source)
+  /**
+   * Create a Patch from a DynamicPatch.
+   */
+  def apply[S](dynamicPatch: DynamicPatch, schema: Schema[S]): Patch[S] =
+    new Patch(dynamicPatch, schema)
 
-  def replace[S, A](traversal: Traversal[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(TraversalPair(traversal, TraversalOp.Replace(a))), source)
+  /**
+   * Create an empty patch that does nothing.
+   */
+  def empty[S](implicit schema: Schema[S]): Patch[S] =
+    new Patch(DynamicPatch.empty, schema)
 
-  def replace[S, A <: S](prism: Prism[S, A], a: A)(implicit source: Schema[S]): Patch[S] =
-    Patch(Vector(PrismPair(prism, PrismOp.Replace(a))), source)
-
-  sealed trait Op[A]
-
-  sealed trait LensOp[A] extends Op[A]
-
-  object LensOp {
-    case class Replace[A](a: A) extends LensOp[A]
+  /**
+   * Set a field to a value using a Lens. The value is automatically converted
+   * to DynamicValue via its Schema.
+   */
+  def set[S, A](lens: Lens[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = {
+    val optic        = lens.toDynamic
+    val dynamicValue = valueSchema.toDynamicValue(value)
+    Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
 
-  sealed trait PrismOp[A] extends Op[A]
-
-  object PrismOp {
-    case class Replace[A](a: A) extends PrismOp[A]
+  /**
+   * Set a value through an Optional optic.
+   */
+  def set[S, A](optional: Optional[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = {
+    val optic        = optional.toDynamic
+    val dynamicValue = valueSchema.toDynamicValue(value)
+    Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
 
-  sealed trait OptionalOp[A] extends Op[A]
-
-  object OptionalOp {
-    case class Replace[A](a: A) extends OptionalOp[A]
+  /**
+   * Set a value through a Traversal (applies to all targets).
+   */
+  def set[S, A](traversal: Traversal[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = {
+    val optic        = traversal.toDynamic
+    val dynamicValue = valueSchema.toDynamicValue(value)
+    Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
 
-  sealed trait TraversalOp[A] extends Op[A]
-
-  object TraversalOp {
-    case class Replace[A](a: A) extends TraversalOp[A]
+  /**
+   * Set a case value through a Prism.
+   */
+  def set[S, A <: S](prism: Prism[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = {
+    val optic        = prism.toDynamic
+    val dynamicValue = valueSchema.toDynamicValue(value)
+    Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
 
-  sealed trait Pair[S, A] {
-    def optic: Optic[S, A]
+  /**
+   * Add an integer delta to a field.
+   */
+  def addInt[S](lens: Lens[S, Int], delta: Int)(implicit schema: Schema[S]): Patch[S] =
+    Patch(DynamicPatch.intDeltaAt(lens.toDynamic, delta), schema)
 
-    def op: Op[A]
-  }
+  /**
+   * Add a long delta to a field.
+   */
+  def addLong[S](lens: Lens[S, Long], delta: Long)(implicit schema: Schema[S]): Patch[S] =
+    Patch(DynamicPatch.longDeltaAt(lens.toDynamic, delta), schema)
 
-  case class LensPair[S, A](optic: Lens[S, A], op: LensOp[A]) extends Pair[S, A]
+  /**
+   * Add a double delta to a field.
+   */
+  def addDouble[S](lens: Lens[S, Double], delta: Double)(implicit schema: Schema[S]): Patch[S] =
+    Patch(DynamicPatch.doubleDeltaAt(lens.toDynamic, delta), schema)
 
-  case class PrismPair[S, A <: S](optic: Prism[S, A], op: PrismOp[A]) extends Pair[S, A]
+  /**
+   * Replace a field value using a Lens.
+   * @deprecated
+   *   Use Patch.set instead
+   */
+  @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
+  def replace[S, A](lens: Lens[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = set(lens, value)
 
-  case class OptionalPair[S, A](optic: Optional[S, A], op: OptionalOp[A]) extends Pair[S, A]
+  /**
+   * Replace a value through an Optional optic.
+   * @deprecated
+   *   Use Patch.set instead
+   */
+  @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
+  def replace[S, A](optional: Optional[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = set(optional, value)
 
-  case class TraversalPair[S, A](optic: Traversal[S, A], op: TraversalOp[A]) extends Pair[S, A]
+  /**
+   * Replace a value through a Traversal.
+   * @deprecated
+   *   Use Patch.set instead
+   */
+  @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
+  def replace[S, A](traversal: Traversal[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = set(traversal, value)
+
+  /**
+   * Replace a case value through a Prism.
+   * @deprecated
+   *   Use Patch.set instead
+   */
+  @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
+  def replace[S, A <: S](prism: Prism[S, A], value: A)(implicit
+    sourceSchema: Schema[S],
+    valueSchema: Schema[A]
+  ): Patch[S] = set(prism, value)
 }

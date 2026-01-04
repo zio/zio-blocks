@@ -173,4 +173,162 @@ object DynamicValue {
   implicit val ordering: Ordering[DynamicValue] = new Ordering[DynamicValue] {
     def compare(x: DynamicValue, y: DynamicValue): Int = x.compare(y)
   }
+
+  /**
+   * Compute the difference between two DynamicValues as a DynamicPatch. The
+   * resulting patch, when applied to `oldValue`, produces `newValue`.
+   */
+  def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
+    if (oldValue == newValue) {
+      DynamicPatch.empty
+    } else {
+      diffInternal(DynamicOptic.root, oldValue, newValue)
+    }
+
+  private def diffInternal(
+    optic: DynamicOptic,
+    oldValue: DynamicValue,
+    newValue: DynamicValue
+  ): DynamicPatch = {
+    if (oldValue == newValue) return DynamicPatch.empty
+
+    (oldValue, newValue) match {
+      // Same structural type - diff recursively
+      case (Primitive(oldPrim), Primitive(newPrim)) =>
+        diffPrimitives(optic, oldPrim, newPrim)
+
+      case (Record(oldFields), Record(newFields)) =>
+        diffRecords(optic, oldFields, newFields)
+
+      case (Variant(oldCase, oldInner), Variant(newCase, newInner)) =>
+        if (oldCase == newCase) {
+          diffInternal(optic.caseOf(oldCase), oldInner, newInner)
+        } else {
+          // Different case - replace entirely
+          DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.Set(newValue)))
+        }
+
+      case (Sequence(oldElems), Sequence(newElems)) =>
+        DynamicPatch.single(
+          DynamicPatch.Op(optic, DynamicPatch.Operation.SequenceEdit(DynamicPatch.SeqOp.diff(oldElems, newElems)))
+        )
+
+      case (Map(oldEntries), Map(newEntries)) =>
+        DynamicPatch.single(
+          DynamicPatch.Op(optic, DynamicPatch.Operation.MapEdit(DynamicPatch.MapOp.diff(oldEntries, newEntries)))
+        )
+
+      // Different structural types - replace entirely
+      case _ =>
+        DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.Set(newValue)))
+    }
+  }
+
+  private def diffPrimitives(optic: DynamicOptic, oldPrim: PrimitiveValue, newPrim: PrimitiveValue): DynamicPatch =
+    (oldPrim, newPrim) match {
+      // Numeric deltas
+      case (PrimitiveValue.Int(old), PrimitiveValue.Int(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.IntDelta(n - old)))
+          )
+
+      case (PrimitiveValue.Long(old), PrimitiveValue.Long(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.LongDelta(n - old)))
+          )
+
+      case (PrimitiveValue.Double(old), PrimitiveValue.Double(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.DoubleDelta(n - old)))
+          )
+
+      case (PrimitiveValue.Float(old), PrimitiveValue.Float(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.FloatDelta(n - old)))
+          )
+
+      case (PrimitiveValue.Short(old), PrimitiveValue.Short(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch
+              .Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ShortDelta((n - old).toShort)))
+          )
+
+      case (PrimitiveValue.Byte(old), PrimitiveValue.Byte(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch
+              .Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.ByteDelta((n - old).toByte)))
+          )
+
+      case (PrimitiveValue.BigInt(old), PrimitiveValue.BigInt(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigIntDelta(n - old)))
+          )
+
+      case (PrimitiveValue.BigDecimal(old), PrimitiveValue.BigDecimal(n)) =>
+        if (old == n) DynamicPatch.empty
+        else
+          DynamicPatch.single(
+            DynamicPatch
+              .Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.BigDecimalDelta(n - old)))
+          )
+
+      // String diff
+      case (PrimitiveValue.String(old), PrimitiveValue.String(n)) =>
+        if (old == n) DynamicPatch.empty
+        else {
+          val ops = DynamicPatch.StringOp.diff(old, n)
+          if (ops.isEmpty) DynamicPatch.empty
+          else
+            DynamicPatch.single(
+              DynamicPatch.Op(optic, DynamicPatch.Operation.PrimitiveDelta(DynamicPatch.PrimitiveOp.StringEdit(ops)))
+            )
+        }
+
+      // Different primitive types or non-diffable - replace
+      case _ =>
+        DynamicPatch.single(DynamicPatch.Op(optic, DynamicPatch.Operation.Set(Primitive(newPrim))))
+    }
+
+  private def diffRecords(
+    optic: DynamicOptic,
+    oldFields: Vector[(String, DynamicValue)],
+    newFields: Vector[(String, DynamicValue)]
+  ): DynamicPatch = {
+    var ops    = Vector.empty[DynamicPatch.Op]
+    val oldMap = oldFields.toMap
+    val newMap = newFields.toMap
+
+    // First, handle fields in the order they appear in newFields (preserves target order)
+    for ((key, newVal) <- newFields) {
+      val fieldOptic = optic.field(key)
+      oldMap.get(key) match {
+        case Some(oldVal) =>
+          val fieldPatch = diffInternal(fieldOptic, oldVal, newVal)
+          ops = ops ++ fieldPatch.ops
+        case None =>
+          ops = ops :+ DynamicPatch.Op(fieldOptic, DynamicPatch.Operation.Set(newVal))
+      }
+    }
+
+    // Then, handle removed fields (fields in old but not in new)
+    for ((key, _) <- oldFields if !newMap.contains(key)) {
+      ops = ops :+ DynamicPatch.Op(optic, DynamicPatch.Operation.DeleteField(key))
+    }
+
+    DynamicPatch(ops)
+  }
 }

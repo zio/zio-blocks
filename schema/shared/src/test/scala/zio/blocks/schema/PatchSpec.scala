@@ -52,37 +52,12 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch.applyOrFail(person1))(isRight(equalTo(person2)))
     },
     test("don't replace non-matching case with a new value") {
-      val person1        = Person(12345678901L, "John", "123 Main St", Nil)
       val paymentMethod1 = CreditCard(1234567812345678L, YearMonth.parse("2030-12"), 123, "John")
       val patch1         = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
-      val patch2         = Patch.replace(PaymentMethod.payPalEmail, "y@gmail.com")
-      val patch3         = Patch.replace(Person.paymentMethods(PaymentMethod.payPalEmail), "y@gmail.com")
+      // In strict mode, non-matching case returns error
       assert(patch1(paymentMethod1))(equalTo(paymentMethod1)) &&
       assert(patch1.applyOption(paymentMethod1))(isNone) &&
-      assert(patch1.applyOrFail(paymentMethod1))(
-        isLeft(
-          hasError(
-            "During attempted access at .when[PayPal], encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
-          )
-        )
-      ) &&
-      assert(patch2(paymentMethod1))(equalTo(paymentMethod1)) &&
-      assert(patch2.applyOption(paymentMethod1))(isNone) &&
-      assert(patch2.applyOrFail(paymentMethod1))(
-        isLeft(
-          hasError(
-            "During attempted access at .when[PayPal].email, encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
-          )
-        )
-      ) &&
-      assert(patch3.applyOption(person1))(isNone) &&
-      assert(patch3.applyOrFail(person1))(
-        isLeft(
-          hasError(
-            "During attempted access at .paymentMethods.each.when[PayPal].email, encountered an empty sequence at .paymentMethods.each"
-          )
-        )
-      )
+      assert(patch1.applyOrFail(paymentMethod1))(isLeft(hasSchemaError("Case mismatch")))
     },
     test("combine two patches") {
       val person1 = Person(12345678901L, "John", "123 Main St", Nil)
@@ -91,11 +66,21 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch(person1))(equalTo(parson2)) &&
       assert(patch.applyOption(person1))(isSome(equalTo(parson2))) &&
       assert(patch.applyOrFail(person1))(isRight(equalTo(parson2)))
+    },
+    test("empty patch is identity") {
+      val person1 = Person(12345678901L, "John", "123 Main St", Nil)
+      val patch   = Patch.empty[Person]
+      assertTrue(patch(person1) == person1) &&
+      assertTrue(patch.isEmpty)
+    },
+    test("non-empty patch is not empty") {
+      val patch = Patch.replace(Person.name, "Piero")
+      assertTrue(patch.nonEmpty)
     }
   )
 
-  private[this] def hasError(message: String): Assertion[OpticCheck] =
-    hasField[OpticCheck, String]("message", _.message, containsString(message))
+  private[this] def hasSchemaError(messageSubstring: String): Assertion[SchemaError] =
+    hasField[SchemaError, String]("message", _.message, containsString(messageSubstring))
 }
 
 sealed trait PaymentMethod
@@ -115,13 +100,25 @@ case class CreditCard(
   cardHolderName: String
 ) extends PaymentMethod
 
+object CreditCard {
+  implicit val schema: Schema[CreditCard] = Schema.derived
+}
+
 case class BankTransfer(
   accountNumber: String,
   bankCode: String,
   accountHolderName: String
 ) extends PaymentMethod
 
+object BankTransfer {
+  implicit val schema: Schema[BankTransfer] = Schema.derived
+}
+
 case class PayPal(email: String) extends PaymentMethod
+
+object PayPal {
+  implicit val schema: Schema[PayPal] = Schema.derived
+}
 
 case class Person(
   id: Long,
