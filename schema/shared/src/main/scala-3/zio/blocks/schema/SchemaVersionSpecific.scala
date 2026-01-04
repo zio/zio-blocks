@@ -211,7 +211,6 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         }
     )
 
-
   private def typeIdExpr[T: Type](tpe: TypeRepr, nestedTpes: List[TypeRepr] = Nil)(using Quotes): Expr[TypeId[T]] = {
     def calculateTypeId(tpe: TypeRepr, nested: List[TypeRepr]): Expr[TypeId[Any]] = {
       if (tpe =:= TypeRepr.of[Int]) '{ TypeId.int.asInstanceOf[TypeId[Any]] }
@@ -245,28 +244,27 @@ private class SchemaVersionSpecificImpl(using Quotes) {
       else if (tpe =:= TypeRepr.of[java.util.UUID]) '{ TypeId.uuid.asInstanceOf[TypeId[Any]] }
       else if (tpe =:= TypeRepr.of[java.util.Currency]) '{ TypeId.currency.asInstanceOf[TypeId[Any]] }
       else if (isList(tpe) && typeArgs(tpe).nonEmpty) {
-         val arg = typeArgs(tpe).head
-         '{ TypeId.list(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
-      }
-      else if (isOption(tpe) && typeArgs(tpe).nonEmpty) {
-         val arg = typeArgs(tpe).head
-         '{ TypeId.option(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
-      }
-      else if (isVector(tpe) && typeArgs(tpe).nonEmpty) {
-         val arg = typeArgs(tpe).head
-         '{ TypeId.vector(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
-      }
-      else if (isSet(tpe) && typeArgs(tpe).nonEmpty) {
-         val arg = typeArgs(tpe).head
-         '{ TypeId.set(${calculateTypeId(arg, arg :: nested)}).asInstanceOf[TypeId[Any]] }
-      }
-      else if (isMap(tpe) && typeArgs(tpe).size == 2) {
-         val args = typeArgs(tpe)
-         val k = args.head
-         val v = args.last
-         '{ TypeId.map(${calculateTypeId(k, k :: nested)}, ${calculateTypeId(v, v :: nested)}).asInstanceOf[TypeId[Any]] }
-      }
-      else {
+        val arg = typeArgs(tpe).head
+        '{ TypeId.list(${ calculateTypeId(arg, arg :: nested) }).asInstanceOf[TypeId[Any]] }
+      } else if (isOption(tpe) && typeArgs(tpe).nonEmpty) {
+        val arg = typeArgs(tpe).head
+        '{ TypeId.option(${ calculateTypeId(arg, arg :: nested) }).asInstanceOf[TypeId[Any]] }
+      } else if (isVector(tpe) && typeArgs(tpe).nonEmpty) {
+        val arg = typeArgs(tpe).head
+        '{ TypeId.vector(${ calculateTypeId(arg, arg :: nested) }).asInstanceOf[TypeId[Any]] }
+      } else if (isSet(tpe) && typeArgs(tpe).nonEmpty) {
+        val arg = typeArgs(tpe).head
+        '{ TypeId.set(${ calculateTypeId(arg, arg :: nested) }).asInstanceOf[TypeId[Any]] }
+      } else if (isMap(tpe) && typeArgs(tpe).size == 2) {
+        val args = typeArgs(tpe)
+        val k    = args.head
+        val v    = args.last
+        '{
+          TypeId
+            .map(${ calculateTypeId(k, k :: nested) }, ${ calculateTypeId(v, v :: nested) })
+            .asInstanceOf[TypeId[Any]]
+        }
+      } else {
         var segments: List[Expr[Owner.Segment]] = Nil
         var name: String                        = null
         val isUnionTpe                          = isUnion(tpe)
@@ -275,23 +273,25 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           val tpeTypeSymbol = tpe.typeSymbol
           name = tpeTypeSymbol.name
           if (isEnumValue(tpe)) {
-            segments = '{ Owner.Term(${Expr(name)}) } :: segments
+            segments = '{ Owner.Term(${ Expr(name) }) } :: segments
             name = tpe.termSymbol.name
           } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-          
-          var owner = 
+
+          var owner =
             if (isEnumValue(tpe)) tpeTypeSymbol.owner // We already added the enum type as a segment
             else tpeTypeSymbol.owner
-            
+
           while (owner != defn.RootClass && owner != Symbol.noSymbol) {
-             val ownerName = owner.name
-             if (owner.flags.is(Flags.Package)) segments = '{ Owner.Package(${Expr(ownerName)}) } :: segments
-             else if (owner.flags.is(Flags.Module)) segments = '{ Owner.Term(${Expr(ownerName.stripSuffix("$"))}) } :: segments
-             else segments = '{ Owner.Term(${Expr(ownerName)}) } :: segments
-             owner = owner.owner
+            val ownerName = owner.name
+            if (owner.flags.is(Flags.Package)) segments = '{ Owner.Package(${ Expr(ownerName) }) } :: segments
+            else if (owner.flags.is(Flags.Module)) segments = '{
+              Owner.Term(${ Expr(ownerName.stripSuffix("$")) })
+            } :: segments
+            else segments = '{ Owner.Term(${ Expr(ownerName) }) } :: segments
+            owner = owner.owner
           }
         }
-        
+
         val tpeTypeArgs =
           if (isUnionTpe) allUnionTypes(tpe)
           else if (isNamedTuple(tpe)) {
@@ -316,27 +316,27 @@ private class SchemaVersionSpecificImpl(using Quotes) {
           } else if (isGenericTuple(tpe)) genericTupleTypeArgs(tpe)
           else typeArgs(tpe)
 
-         val ownerExpr = if (segments.isEmpty) '{ Owner.Root } else '{ Owner(List(${Varargs(segments)}*)) }
-         val nameExpr = Expr(name)
-         
-         val base = '{ TypeId.nominal(${nameExpr}, ${ownerExpr}) }
-         
-         if (tpeTypeArgs.isEmpty) base.asInstanceOf[Expr[TypeId[Any]]]
-         else {
-             val argsExprs = tpeTypeArgs.map { x =>
-               if (nested.contains(x)) calculateTypeId(anyTpe, nested)
-               else calculateTypeId(x, x :: nested)
-             }
-             '{ TypeId.applied($base, List(${Varargs(argsExprs)}*)).asInstanceOf[TypeId[Any]] }
-         }
+        val ownerExpr = if (segments.isEmpty) '{ Owner.Root } else '{ Owner(List(${ Varargs(segments) }*)) }
+        val nameExpr  = Expr(name)
+
+        val base = '{ TypeId.nominal(${ nameExpr }, ${ ownerExpr }) }
+
+        if (tpeTypeArgs.isEmpty) base.asInstanceOf[Expr[TypeId[Any]]]
+        else {
+          val argsExprs = tpeTypeArgs.map { x =>
+            if (nested.contains(x)) calculateTypeId(anyTpe, nested)
+            else calculateTypeId(x, x :: nested)
+          }
+          '{ TypeId.applied($base, List(${ Varargs(argsExprs) }*)).asInstanceOf[TypeId[Any]] }
+        }
       }
     }
-    
+
     val t = tpe match {
       case TypeRef(compTpe, "Type") => compTpe
       case _                        => tpe
     }
-    
+
     // We cannot cache Exprs globally easily without WeakHashMaps and implicit Quotes matching which is tricky.
     // For now we re-generate. The compiler might optimize common subexpressions.
     calculateTypeId(t, nestedTpes).asTerm.asExpr match {
@@ -345,11 +345,9 @@ private class SchemaVersionSpecificImpl(using Quotes) {
   }
 
   private def isVector(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[Vector[?]]
-  private def isSet(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[Set[?]]
-  private def isMap(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[Map[?, ?]]
-  private def isList(tpe: TypeRepr)(using Quotes): Boolean = tpe <:< TypeRepr.of[List[?]]
-
-
+  private def isSet(tpe: TypeRepr)(using Quotes): Boolean    = tpe <:< TypeRepr.of[Set[?]]
+  private def isMap(tpe: TypeRepr)(using Quotes): Boolean    = tpe <:< TypeRepr.of[Map[?, ?]]
+  private def isList(tpe: TypeRepr)(using Quotes): Boolean   = tpe <:< TypeRepr.of[List[?]]
 
   private def doc(tpe: TypeRepr)(using Quotes): Expr[Doc] = {
     if (isEnumValue(tpe)) tpe.termSymbol
@@ -1123,22 +1121,22 @@ private class SchemaVersionSpecificImpl(using Quotes) {
         segments = name :: segments
         name = tpe.termSymbol.name
       } else if (tpeTypeSymbol.flags.is(Flags.Module)) name = name.substring(0, name.length - 1)
-          
-      var owner = 
-        if (isEnumValue(tpe)) tpeTypeSymbol.owner 
+
+      var owner =
+        if (isEnumValue(tpe)) tpeTypeSymbol.owner
         else tpeTypeSymbol.owner
-            
+
       while (owner != defn.RootClass && owner != Symbol.noSymbol) {
-         val ownerName = owner.name
-         if (owner.flags.is(Flags.Module)) {
-           val stripped = ownerName.stripSuffix("$")
-           if (stripped != "scala" && stripped != "Predef") segments = stripped :: segments
-         } else if (owner.flags.is(Flags.Package)) {
-             if (ownerName != "scala" && ownerName != "java" && ownerName != "lang") segments = ownerName :: segments
-         } else {
-             segments = ownerName :: segments
-         }
-         owner = owner.owner
+        val ownerName = owner.name
+        if (owner.flags.is(Flags.Module)) {
+          val stripped = ownerName.stripSuffix("$")
+          if (stripped != "scala" && stripped != "Predef") segments = stripped :: segments
+        } else if (owner.flags.is(Flags.Package)) {
+          if (ownerName != "scala" && ownerName != "java" && ownerName != "lang") segments = ownerName :: segments
+        } else {
+          segments = ownerName :: segments
+        }
+        owner = owner.owner
       }
     }
     (segments :+ name).toArray

@@ -272,7 +272,7 @@ object ReflectSpec extends ZIOSpecDefault {
           )
         ) &&
         assert(
-            tuple4Reflect
+          tuple4Reflect
             .typeId(TypeId.parse("zio.blocks.schema.ReflectSpec.Tuple4Wrapper"))
             .typeId
         )(
@@ -651,7 +651,7 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(dynamic1.typeId)(equalTo(TypeId.parse("zio.blocks.schema.DynamicValue"))) &&
         assert(
           dynamic1
-             .typeId(TypeId.parse("zio.blocks.schema.ReflectSpec.DynamicWrapper"))
+            .typeId(TypeId.parse("zio.blocks.schema.ReflectSpec.DynamicWrapper"))
             .typeId
         )(
           equalTo(
@@ -811,8 +811,14 @@ object ReflectSpec extends ZIOSpecDefault {
         )(equalTo(Seq(Modifier.config("key", "value"))))
       },
       test("avoids stack overflow for circulary dependent structures") {
-        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred2, Some(zio.blocks.typeid.TypeId.nominal[Any]("Deferred1", zio.blocks.typeid.Owner.zioBlocksSchema)))
-        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(() => deferred1, Some(zio.blocks.typeid.TypeId.nominal[Any]("Deferred2", zio.blocks.typeid.Owner.zioBlocksSchema)))
+        lazy val deferred1: Reflect.Deferred[Binding, Any] = Reflect.Deferred(
+          () => deferred2,
+          Some(zio.blocks.typeid.TypeId.nominal[Any]("Deferred1", zio.blocks.typeid.Owner.zioBlocksSchema))
+        )
+        lazy val deferred2: Reflect.Deferred[Binding, Any] = Reflect.Deferred(
+          () => deferred1,
+          Some(zio.blocks.typeid.TypeId.nominal[Any]("Deferred2", zio.blocks.typeid.Owner.zioBlocksSchema))
+        )
         assert(deferred1.asDynamic)(isNone) &&
         assert(deferred1.isDynamic)(equalTo(false)) &&
         assert(deferred1.asRecord)(isNone) &&
@@ -829,9 +835,11 @@ object ReflectSpec extends ZIOSpecDefault {
         assert(deferred1.isMap)(equalTo(false)) &&
         assert(deferred1.asWrapperUnknown)(isNone) &&
         assert(deferred1.isWrapper)(equalTo(false)) &&
-        assert(deferred1.typeId)(equalTo(
-          TypeId.parse("zio.blocks.schema.Deferred1")
-        ))
+        assert(deferred1.typeId)(
+          equalTo(
+            TypeId.parse("zio.blocks.schema.Deferred1")
+          )
+        )
       }
     )
   )

@@ -2,62 +2,67 @@ package zio.blocks.typeid
 
 /**
  * Identity of a type or type constructor.
- * 
+ *
  * TypeId captures the full identity of a Scala type, including:
- * - Its name and where it's defined (owner)
- * - Its type parameters (for type constructors)
- * - Whether it's a nominal type, type alias, or opaque type
- * 
- * TypeId is phantom-typed by the type it represents, providing compile-time safety.
- * 
- * @tparam A The type this TypeId represents (can be a type constructor like `List`)
+ *   - Its name and where it's defined (owner)
+ *   - Its type parameters (for type constructors)
+ *   - Whether it's a nominal type, type alias, or opaque type
+ *
+ * TypeId is phantom-typed by the type it represents, providing compile-time
+ * safety.
+ *
+ * @tparam A
+ *   The type this TypeId represents (can be a type constructor like `List`)
  */
 sealed trait TypeId[+A] {
+
   /** The simple name of the type (e.g., "Int", "List", "Person") */
   def name: String
-  
+
   /** Where this type is defined (package path and enclosing types/objects) */
   def owner: Owner
-  
+
   /** Type parameters for type constructors (empty for proper types) */
   def typeParams: List[TypeParam]
-  
-  /** Number of type parameters (0 for proper types, 1+ for type constructors) */
+
+  /**
+   * Number of type parameters (0 for proper types, 1+ for type constructors)
+   */
   final def arity: Int = typeParams.size
-  
+
   /** Fully qualified name (e.g., "scala.Int", "zio.blocks.schema.Person") */
   final def fullName: String =
     if (owner.isEmpty) name
     else owner.asString + "." + name
-  
+
   /** Check if this is a proper type (arity == 0) */
   final def isProperType: Boolean = arity == 0
-  
+
   /** Check if this is a type constructor (arity > 0) */
   final def isTypeConstructor: Boolean = arity > 0
-  
+
   override def toString: String = fullName
 }
 
 object TypeId extends TypeIdVersionSpecific {
-  
+
   // ============================================================================
   // Private implementations
   // ============================================================================
-  
+
   private final case class NominalImpl[+A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam]
   ) extends TypeId[A]
-  
+
   private final case class AliasImpl[+A](
     name: String,
     owner: Owner,
     typeParams: List[TypeParam],
     aliased: TypeRepr
   ) extends TypeId[A]
-  
+
   private final case class OpaqueImpl[+A](
     name: String,
     owner: Owner,
@@ -69,24 +74,24 @@ object TypeId extends TypeIdVersionSpecific {
     ctor: TypeId[_],
     args: List[TypeId[_]]
   ) extends TypeId[A] {
-    def name: String = ctor.name
-    def owner: Owner = ctor.owner
+    def name: String                = ctor.name
+    def owner: Owner                = ctor.owner
     def typeParams: List[TypeParam] = ctor.typeParams
-    override def toString: String = s"${ctor.fullName}[${args.mkString(", ")}]"
+    override def toString: String   = s"${ctor.fullName}[${args.mkString(", ")}]"
   }
-  
+
   // ============================================================================
   // Constructors
   // ============================================================================
-  
+
   /** Create a TypeId for a nominal type (class, trait, object) */
   def nominal[A](name: String, owner: Owner, typeParams: List[TypeParam] = Nil): TypeId[A] =
     NominalImpl(name, owner, typeParams)
-  
+
   /** Create a TypeId for a type alias */
   def alias[A](name: String, owner: Owner, typeParams: List[TypeParam], aliased: TypeRepr): TypeId[A] =
     AliasImpl(name, owner, typeParams, aliased)
-  
+
   /** Create a TypeId for an opaque type */
   def opaque[A](name: String, owner: Owner, typeParams: List[TypeParam], representation: TypeRepr): TypeId[A] =
     OpaqueImpl(name, owner, typeParams, representation)
@@ -94,115 +99,122 @@ object TypeId extends TypeIdVersionSpecific {
   /** Create a TypeId for an applied type (generic instantiation) */
   def applied[A](ctor: TypeId[_], args: List[TypeId[_]]): TypeId[A] =
     AppliedImpl(ctor, args)
-    
 
-
-  /** 
-   * Parse a fully qualified name into a TypeId.
-   * Supports generic types in the format "Pkg.Name[Arg1, Arg2]".
-   * NOTE: This assumes all owner segments follow the heuristic: Lowercase=Package, Uppercase=Term.
+  /**
+   * Parse a fully qualified name into a TypeId. Supports generic types in the
+   * format "Pkg.Name[Arg1, Arg2]". NOTE: This assumes all owner segments follow
+   * the heuristic: Lowercase=Package, Uppercase=Term.
    */
-  def parse[A](fullName: String): TypeId[A] = {
+  def parse[A](fullName: String): TypeId[A] =
     if (fullName.contains("[")) {
-      val openIdx = fullName.indexOf('[')
+      val openIdx  = fullName.indexOf('[')
       val closeIdx = fullName.lastIndexOf(']')
       if (closeIdx != fullName.length - 1) {
-         parseNominal[A](fullName)
+        parseNominal[A](fullName)
       } else {
-         val ctorName = fullName.substring(0, openIdx)
-         val argsStr = fullName.substring(openIdx + 1, closeIdx)
-         
-         val args = parseArgs(argsStr)
-         val ctor = parseNominal[Any](ctorName)
-         // applied returns TypeId[Nothing] which conforms to TypeId[A] due to covariance
-         TypeId.applied(ctor, args)
+        val ctorName = fullName.substring(0, openIdx)
+        val argsStr  = fullName.substring(openIdx + 1, closeIdx)
+
+        val args = parseArgs(argsStr)
+        val ctor = parseNominal[Any](ctorName)
+        // applied returns TypeId[Nothing] which conforms to TypeId[A] due to covariance
+        TypeId.applied(ctor, args)
       }
     } else {
       parseNominal[A](fullName)
     }
-  }
-  
-  private def parseNominal[A](fullName: String): TypeId[A] = {
+
+  private def parseNominal[A](fullName: String): TypeId[A] =
     knownTypes.get(fullName).map(_.asInstanceOf[TypeId[A]]).getOrElse {
       val parts = fullName.split("\\.").toList
       if (parts.isEmpty) nominal[A](fullName, Owner.Root)
       else {
-        val name = parts.last
+        val name       = parts.last
         val ownerParts = parts.init
-        val owner = ownerParts.foldLeft(Owner.Root) { (owner, part) =>
-           val isPackageContext = owner.segments.isEmpty || owner.segments.last.isInstanceOf[Owner.Package]
-           if (isPackageContext && part.headOption.exists(_.isLower)) owner / part
-           else owner.term(part)
+        val owner      = ownerParts.foldLeft(Owner.Root) { (owner, part) =>
+          val isPackageContext = owner.segments.isEmpty || owner.segments.last.isInstanceOf[Owner.Package]
+          if (isPackageContext && part.headOption.exists(_.isLower)) owner / part
+          else owner.term(part)
         }
         nominal[A](name, owner)
       }
     }
-  }
 
   private lazy val knownTypes: Map[String, TypeId[_]] = {
     val prims = List(
-      "Int" -> int, "scala.Int" -> int,
-      "Long" -> long, "scala.Long" -> long,
-      "Boolean" -> boolean, "scala.Boolean" -> boolean,
-      "String" -> string, "scala.Predef.String" -> string, "java.lang.String" -> string,
-      "Byte" -> byte, "scala.Byte" -> byte,
-      "Short" -> short, "scala.Short" -> short,
-      "Char" -> char, "scala.Char" -> char,
-      "Float" -> float, "scala.Float" -> float,
-      "Double" -> double, "scala.Double" -> double,
-      "Unit" -> unit, "scala.Unit" -> unit
+      "Int"                 -> int,
+      "scala.Int"           -> int,
+      "Long"                -> long,
+      "scala.Long"          -> long,
+      "Boolean"             -> boolean,
+      "scala.Boolean"       -> boolean,
+      "String"              -> string,
+      "scala.Predef.String" -> string,
+      "java.lang.String"    -> string,
+      "Byte"                -> byte,
+      "scala.Byte"          -> byte,
+      "Short"               -> short,
+      "scala.Short"         -> short,
+      "Char"                -> char,
+      "scala.Char"          -> char,
+      "Float"               -> float,
+      "scala.Float"         -> float,
+      "Double"              -> double,
+      "scala.Double"        -> double,
+      "Unit"                -> unit,
+      "scala.Unit"          -> unit
     )
     val colls = List(
-      "scala.Option" -> option,
-      "scala.Some" -> some,
-      "scala.None" -> none,
-      "scala.collection.immutable.List" -> list,
-      "scala.collection.immutable.Set" -> set,
-      "scala.collection.immutable.Map" -> map,
-      "scala.collection.immutable.Vector" -> vector,
-      "scala.collection.immutable.Seq" -> seq,
+      "scala.Option"                          -> option,
+      "scala.Some"                            -> some,
+      "scala.None"                            -> none,
+      "scala.collection.immutable.List"       -> list,
+      "scala.collection.immutable.Set"        -> set,
+      "scala.collection.immutable.Map"        -> map,
+      "scala.collection.immutable.Vector"     -> vector,
+      "scala.collection.immutable.Seq"        -> seq,
       "scala.collection.immutable.IndexedSeq" -> indexedSeq,
-      "scala.IArray" -> nominal("IArray", Owner(List(Owner.Package("scala"), Owner.Term("IArray$package"))), List()),
-      "zio.Chunk" -> nominal("Chunk", Owner("zio"), List(TypeParam("A", 0)))
+      "scala.IArray"                          -> nominal("IArray", Owner(List(Owner.Package("scala"), Owner.Term("IArray$package"))), List()),
+      "zio.Chunk"                             -> nominal("Chunk", Owner("zio"), List(TypeParam("A", 0)))
     )
     (prims ++ colls).toMap
   }
 
   private def parseArgs(argsStr: String): List[TypeId[_]] = {
-      val args = scala.collection.mutable.ListBuffer[String]()
-      var depth = 0
-      var current = new StringBuilder
-      for (c <- argsStr) {
-         if (c == '[') depth += 1
-         else if (c == ']') depth -= 1
-         
-         if (c == ',' && depth == 0) {
-            args += current.toString.trim
-            current.clear()
-         } else {
-            current.append(c)
-         }
+    val args    = scala.collection.mutable.ListBuffer[String]()
+    var depth   = 0
+    var current = new StringBuilder
+    for (c <- argsStr) {
+      if (c == '[') depth += 1
+      else if (c == ']') depth -= 1
+
+      if (c == ',' && depth == 0) {
+        args += current.toString.trim
+        current.clear()
+      } else {
+        current.append(c)
       }
-      if (current.nonEmpty) args += current.toString.trim
-      
-      args.toList.map(parse[Any])
+    }
+    if (current.nonEmpty) args += current.toString.trim
+
+    args.toList.map(parse[Any])
   }
-  
+
   implicit class TypeIdSyntax[A](private val self: TypeId[A]) extends AnyVal {
     def applied(args: TypeId[_]*): TypeId[Nothing] = TypeId.applied(self, args.toList)
   }
-  
+
   // ============================================================================
   // Pattern matching support
   // ============================================================================
-  
+
   object Nominal {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam])] = id match {
       case impl: NominalImpl[_] => Some((impl.name, impl.owner, impl.typeParams))
       case _                    => None
     }
   }
-  
+
   object Alias {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id match {
       case impl: AliasImpl[_] => Some((impl.name, impl.owner, impl.typeParams, impl.aliased))
@@ -216,31 +228,31 @@ object TypeId extends TypeIdVersionSpecific {
       case _                    => None
     }
   }
-  
+
   object Opaque {
     def unapply(id: TypeId[_]): Option[(String, Owner, List[TypeParam], TypeRepr)] = id match {
       case impl: OpaqueImpl[_] => Some((impl.name, impl.owner, impl.typeParams, impl.representation))
       case _                   => None
     }
   }
-  
+
   // ============================================================================
   // Primitive TypeIds
   // ============================================================================
-  
-  val unit: TypeId[Unit]           = nominal("Unit", Owner.scala)
-  val boolean: TypeId[Boolean]     = nominal("Boolean", Owner.scala)
-  val byte: TypeId[Byte]           = nominal("Byte", Owner.scala)
-  val short: TypeId[Short]         = nominal("Short", Owner.scala)
-  val int: TypeId[Int]             = nominal("Int", Owner.scala)
-  val long: TypeId[Long]           = nominal("Long", Owner.scala)
-  val float: TypeId[Float]         = nominal("Float", Owner.scala)
-  val double: TypeId[Double]       = nominal("Double", Owner.scala)
-  val char: TypeId[Char]           = nominal("Char", Owner.scala)
-  val string: TypeId[String]       = nominal("String", Owner.scala)
-  val bigInt: TypeId[BigInt]       = nominal("BigInt", Owner.scala)
+
+  val unit: TypeId[Unit]             = nominal("Unit", Owner.scala)
+  val boolean: TypeId[Boolean]       = nominal("Boolean", Owner.scala)
+  val byte: TypeId[Byte]             = nominal("Byte", Owner.scala)
+  val short: TypeId[Short]           = nominal("Short", Owner.scala)
+  val int: TypeId[Int]               = nominal("Int", Owner.scala)
+  val long: TypeId[Long]             = nominal("Long", Owner.scala)
+  val float: TypeId[Float]           = nominal("Float", Owner.scala)
+  val double: TypeId[Double]         = nominal("Double", Owner.scala)
+  val char: TypeId[Char]             = nominal("Char", Owner.scala)
+  val string: TypeId[String]         = nominal("String", Owner.scala)
+  val bigInt: TypeId[BigInt]         = nominal("BigInt", Owner.scala)
   val bigDecimal: TypeId[BigDecimal] = nominal("BigDecimal", Owner.scala)
-  
+
   // Java time types
   val dayOfWeek: TypeId[java.time.DayOfWeek]           = nominal("DayOfWeek", Owner.javaTime)
   val duration: TypeId[java.time.Duration]             = nominal("Duration", Owner.javaTime)
@@ -258,58 +270,58 @@ object TypeId extends TypeIdVersionSpecific {
   val zoneId: TypeId[java.time.ZoneId]                 = nominal("ZoneId", Owner.javaTime)
   val zoneOffset: TypeId[java.time.ZoneOffset]         = nominal("ZoneOffset", Owner.javaTime)
   val zonedDateTime: TypeId[java.time.ZonedDateTime]   = nominal("ZonedDateTime", Owner.javaTime)
-  
+
   // Java util types
   val currency: TypeId[java.util.Currency] = nominal("Currency", Owner.javaUtil)
   val uuid: TypeId[java.util.UUID]         = nominal("UUID", Owner.javaUtil)
-  
+
   // Collection type constructors (arity > 0)
   private val A = TypeParam("A", 0)
   private val K = TypeParam("K", 0)
   private val V = TypeParam("V", 1)
-  
-  val option: TypeId[Option[_]]          = nominal("Option", Owner.scala, List(A))
-  val some: TypeId[Some[_]]              = nominal("Some", Owner.scala, List(A))
-  val none: TypeId[None.type]            = nominal("None", Owner.scala)
-  val list: TypeId[List[_]]              = nominal("List", Owner.scalaCollectionImmutable, List(A))
-  val vector: TypeId[Vector[_]]          = nominal("Vector", Owner.scalaCollectionImmutable, List(A))
-  val set: TypeId[Set[_]]                = nominal("Set", Owner.scalaCollectionImmutable, List(A))
-  val map: TypeId[Map[_, _]]             = nominal("Map", Owner.scalaCollectionImmutable, List(K, V))
-  val indexedSeq: TypeId[IndexedSeq[_]]  = nominal("IndexedSeq", Owner.scalaCollectionImmutable, List(A))
-  val seq: TypeId[Seq[_]]                = nominal("Seq", Owner.scalaCollectionImmutable, List(A))
+
+  val option: TypeId[Option[_]]         = nominal("Option", Owner.scala, List(A))
+  val some: TypeId[Some[_]]             = nominal("Some", Owner.scala, List(A))
+  val none: TypeId[None.type]           = nominal("None", Owner.scala)
+  val list: TypeId[List[_]]             = nominal("List", Owner.scalaCollectionImmutable, List(A))
+  val vector: TypeId[Vector[_]]         = nominal("Vector", Owner.scalaCollectionImmutable, List(A))
+  val set: TypeId[Set[_]]               = nominal("Set", Owner.scalaCollectionImmutable, List(A))
+  val map: TypeId[Map[_, _]]            = nominal("Map", Owner.scalaCollectionImmutable, List(K, V))
+  val indexedSeq: TypeId[IndexedSeq[_]] = nominal("IndexedSeq", Owner.scalaCollectionImmutable, List(A))
+  val seq: TypeId[Seq[_]]               = nominal("Seq", Owner.scalaCollectionImmutable, List(A))
 
   // ============================================================================
   // Applied type constructors - create TypeId for parameterized types
   // ============================================================================
-  
+
   /** Create a TypeId for Option[A] from a TypeId[A] */
   def option[A](element: TypeId[A]): TypeId[Option[A]] =
     applied(option, List(element))
-  
+
   /** Create a TypeId for Some[A] from a TypeId[A] */
   def some[A](element: TypeId[A]): TypeId[Some[A]] =
     applied(some, List(element))
-  
+
   /** Create a TypeId for List[A] from a TypeId[A] */
   def list[A](element: TypeId[A]): TypeId[List[A]] =
     applied(list, List(element))
-  
+
   /** Create a TypeId for Vector[A] from a TypeId[A] */
   def vector[A](element: TypeId[A]): TypeId[Vector[A]] =
     applied(vector, List(element))
-  
+
   /** Create a TypeId for Set[A] from a TypeId[A] */
   def set[A](element: TypeId[A]): TypeId[Set[A]] =
     applied(set, List(element))
-  
+
   /** Create a TypeId for IndexedSeq[A] from a TypeId[A] */
   def indexedSeq[A](element: TypeId[A]): TypeId[IndexedSeq[A]] =
     applied(indexedSeq, List(element))
-  
+
   /** Create a TypeId for Seq[A] from a TypeId[A] */
   def seq[A](element: TypeId[A]): TypeId[Seq[A]] =
     applied(seq, List(element))
-  
+
   /** Create a TypeId for Map[K, V] from TypeId[K] and TypeId[V] */
   def map[K, V](key: TypeId[K], value: TypeId[V]): TypeId[Map[K, V]] =
     applied(map, List(key, value))

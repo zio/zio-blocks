@@ -201,7 +201,9 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
                   Schema.derived[(Int, Long)].reflect.asTerm("_1"),
                   Schema.derived[(String, String)].reflect.asTerm("_2")
                 ),
-                typeId = TypeId.parse("scala.Tuple2[scala.Tuple2[scala.Int, scala.Long], scala.Tuple2[scala.Predef.String, scala.Predef.String]]"),
+                typeId = TypeId.parse(
+                  "scala.Tuple2[scala.Tuple2[scala.Int, scala.Long], scala.Tuple2[scala.Predef.String, scala.Predef.String]]"
+                ),
                 recordBinding = null
               )
             )

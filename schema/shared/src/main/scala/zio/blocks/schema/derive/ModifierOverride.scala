@@ -14,4 +14,3 @@ case class ModifierTermOverrideByType[A](typeId: TypeId[A], termName: String, mo
 
 case class ModifierTermOverrideByOptic[A](optic: DynamicOptic, termName: String, modifier: Modifier.Term)
     extends ModifierOverride
-

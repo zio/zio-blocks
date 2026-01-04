@@ -347,7 +347,16 @@ class JsonBinaryCodecDeriver private[json] (
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
   )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[JsonBinaryCodec[DynamicValue]] =
-    Lazy(deriveCodec(new Reflect.Dynamic(binding, TypeId.nominal[DynamicValue]("DynamicValue", zio.blocks.typeid.Owner.zioBlocksSchema), doc, modifiers)))
+    Lazy(
+      deriveCodec(
+        new Reflect.Dynamic(
+          binding,
+          TypeId.nominal[DynamicValue]("DynamicValue", zio.blocks.typeid.Owner.zioBlocksSchema),
+          doc,
+          modifiers
+        )
+      )
+    )
 
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
@@ -1674,9 +1683,9 @@ class JsonBinaryCodecDeriver private[json] (
             }
           }
         } else {
-          val isRecursive = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
+          val isRecursive  = fields.exists(_.value.isInstanceOf[Reflect.Deferred[F, ?]])
           val recordTypeId = record.typeId
-          var infos       =
+          var infos        =
             if (isRecursive) recursiveRecordCache.get.get(recordTypeId)
             else null
           val deriveCodecs = infos eq null

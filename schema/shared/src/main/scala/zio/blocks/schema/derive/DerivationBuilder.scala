@@ -223,7 +223,8 @@ final case class DerivationBuilder[TC[_], A](
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]
           ): Lazy[Reflect.Dynamic[G]] = Lazy {
-            val dynamicTypeId = zio.blocks.typeid.TypeId.nominal[DynamicValue]("DynamicValue", zio.blocks.typeid.Owner.zioBlocksSchema)
+            val dynamicTypeId =
+              zio.blocks.typeid.TypeId.nominal[DynamicValue]("DynamicValue", zio.blocks.typeid.Owner.zioBlocksSchema)
             val instance = getCustomInstance[DynamicValue](path, dynamicTypeId)
               .getOrElse(deriver.deriveDynamic[G](metadata, doc, prependCombinedModifiers(modifiers, path, typeId)))
             new Reflect.Dynamic(new BindingInstance(metadata, instance), typeId, doc, modifiers)
