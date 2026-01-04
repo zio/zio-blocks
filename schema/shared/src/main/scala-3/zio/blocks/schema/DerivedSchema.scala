@@ -1,7 +1,7 @@
 package zio.blocks.schema
 
-import scala.quoted.*
 import java.util.concurrent.ConcurrentHashMap
+import scala.quoted.*
 
 /**
  * A trait that can be extended by companion objects to automatically derive a
