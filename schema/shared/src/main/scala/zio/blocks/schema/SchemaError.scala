@@ -75,7 +75,8 @@ object SchemaError {
 
   // Patch-specific error types
   case class FieldNotFoundError(source: DynamicOptic, fieldName: String, availableFields: List[String]) extends Single {
-    override def message: String = s"Field '$fieldName' not found at: $source. Available fields: ${availableFields.mkString(", ")}"
+    override def message: String =
+      s"Field '$fieldName' not found at: $source. Available fields: ${availableFields.mkString(", ")}"
   }
 
   case class TypeMismatchError(source: DynamicOptic, expected: String, actual: String) extends Single {

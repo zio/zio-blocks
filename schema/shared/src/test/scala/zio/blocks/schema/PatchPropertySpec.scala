@@ -8,18 +8,18 @@ import DynamicValueGen._
  * Property-based tests for the Patch and DynamicPatch systems.
  *
  * These tests verify:
- * - The fundamental diff-apply law: diff(a, b).apply(a) == b
- * - Monoid laws for patch composition
- * - DeleteField operation correctness
- * - Error path information in SchemaError
+ *   - The fundamental diff-apply law: diff(a, b).apply(a) == b
+ *   - Monoid laws for patch composition
+ *   - DeleteField operation correctness
+ *   - Error path information in SchemaError
  */
 object PatchPropertySpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] = suite("PatchPropertySpec")(
     suite("Diff-Apply Law: diff(a, b).apply(a) == b")(
       test("primitive values") {
         check(genPrimitiveValue, genPrimitiveValue) { (prim1, prim2) =>
-          val a = DynamicValue.Primitive(prim1)
-          val b = DynamicValue.Primitive(prim2)
+          val a     = DynamicValue.Primitive(prim1)
+          val b     = DynamicValue.Primitive(prim2)
           val patch = DynamicValue.diff(a, b)
           // Use Clobber mode to handle type changes (e.g., Int -> String)
           val result = patch.apply(a, DynamicPatch.PatchMode.Clobber)
@@ -44,14 +44,14 @@ object PatchPropertySpec extends ZIOSpecDefault {
       },
       test("sequence values") {
         check(genSequence, genSequence) { (a, b) =>
-          val patch = DynamicValue.diff(a, b)
+          val patch  = DynamicValue.diff(a, b)
           val result = patch.apply(a, DynamicPatch.PatchMode.Clobber)
           assert(result)(isRight(equalTo(b)))
         }
       },
       test("map values") {
         check(genMap, genMap) { (a, b) =>
-          val patch = DynamicValue.diff(a, b)
+          val patch  = DynamicValue.diff(a, b)
           val result = patch.apply(a, DynamicPatch.PatchMode.Clobber)
           assert(result)(isRight(equalTo(b)))
         }
@@ -101,123 +101,165 @@ object PatchPropertySpec extends ZIOSpecDefault {
     ),
     suite("DeleteField Operation")(
       test("removes field from record") {
-        val record = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
-          "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
-        ))
-        val patch = DynamicPatch.deleteField("age")
-        val result = patch.apply(record, DynamicPatch.PatchMode.Strict)
-        assert(result)(isRight(equalTo(
-          DynamicValue.Record(Vector(
+        val record = DynamicValue.Record(
+          Vector(
             "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
             "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
-          ))
-        )))
+          )
+        )
+        val patch  = DynamicPatch.deleteField("age")
+        val result = patch.apply(record, DynamicPatch.PatchMode.Strict)
+        assert(result)(
+          isRight(
+            equalTo(
+              DynamicValue.Record(
+                Vector(
+                  "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+                  "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+                )
+              )
+            )
+          )
+        )
       },
       test("removes first field correctly") {
-        val record = DynamicValue.Record(Vector(
-          "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
-          "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3))
-        ))
-        val patch = DynamicPatch.deleteField("a")
-        val result = patch.apply(record, DynamicPatch.PatchMode.Strict)
-        assert(result)(isRight(equalTo(
-          DynamicValue.Record(Vector(
+        val record = DynamicValue.Record(
+          Vector(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
             "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
             "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3))
-          ))
-        )))
+          )
+        )
+        val patch  = DynamicPatch.deleteField("a")
+        val result = patch.apply(record, DynamicPatch.PatchMode.Strict)
+        assert(result)(
+          isRight(
+            equalTo(
+              DynamicValue.Record(
+                Vector(
+                  "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+                  "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3))
+                )
+              )
+            )
+          )
+        )
       },
       test("removes last field correctly") {
-        val record = DynamicValue.Record(Vector(
-          "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
-          "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3))
-        ))
-        val patch = DynamicPatch.deleteField("c")
-        val result = patch.apply(record, DynamicPatch.PatchMode.Strict)
-        assert(result)(isRight(equalTo(
-          DynamicValue.Record(Vector(
+        val record = DynamicValue.Record(
+          Vector(
             "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
-            "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
-          ))
-        )))
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3))
+          )
+        )
+        val patch  = DynamicPatch.deleteField("c")
+        val result = patch.apply(record, DynamicPatch.PatchMode.Strict)
+        assert(result)(
+          isRight(
+            equalTo(
+              DynamicValue.Record(
+                Vector(
+                  "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                  "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+                )
+              )
+            )
+          )
+        )
       },
       test("strict mode fails when field not found") {
-        val record = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
-        ))
-        val patch = DynamicPatch.deleteField("missing")
+        val record = DynamicValue.Record(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+          )
+        )
+        val patch  = DynamicPatch.deleteField("missing")
         val result = patch.apply(record, DynamicPatch.PatchMode.Strict)
         assertTrue(result.isLeft) &&
         assertTrue(result.swap.toOption.get.message.contains("not found"))
       },
       test("lenient mode ignores missing field") {
-        val record = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
-        ))
-        val patch = DynamicPatch.deleteField("missing")
+        val record = DynamicValue.Record(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+          )
+        )
+        val patch  = DynamicPatch.deleteField("missing")
         val result = patch.apply(record, DynamicPatch.PatchMode.Lenient)
         assert(result)(isRight(equalTo(record)))
       },
       test("clobber mode ignores missing field") {
-        val record = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
-        ))
-        val patch = DynamicPatch.deleteField("missing")
+        val record = DynamicValue.Record(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice"))
+          )
+        )
+        val patch  = DynamicPatch.deleteField("missing")
         val result = patch.apply(record, DynamicPatch.PatchMode.Clobber)
         assert(result)(isRight(equalTo(record)))
       },
       test("fails on non-record value") {
         val primitive = DynamicValue.Primitive(PrimitiveValue.Int(42))
-        val patch = DynamicPatch.deleteField("field")
-        val result = patch.apply(primitive, DynamicPatch.PatchMode.Strict)
+        val patch     = DynamicPatch.deleteField("field")
+        val result    = patch.apply(primitive, DynamicPatch.PatchMode.Strict)
         assertTrue(result.isLeft) &&
         assertTrue(result.swap.toOption.get.message.contains("Type mismatch"))
       },
       test("diffRecords emits DeleteField for removed fields") {
-        val oldRecord = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "age" -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
-          "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
-        ))
-        val newRecord = DynamicValue.Record(Vector(
-          "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
-          "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
-        ))
+        val oldRecord = DynamicValue.Record(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "age"  -> DynamicValue.Primitive(PrimitiveValue.Int(30)),
+            "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+          )
+        )
+        val newRecord = DynamicValue.Record(
+          Vector(
+            "name" -> DynamicValue.Primitive(PrimitiveValue.String("Alice")),
+            "city" -> DynamicValue.Primitive(PrimitiveValue.String("NYC"))
+          )
+        )
         val patch = DynamicValue.diff(oldRecord, newRecord)
         // Verify the patch contains a DeleteField operation
         val hasDeleteFieldOp = patch.ops.exists {
           case DynamicPatch.Op(_, DynamicPatch.Operation.DeleteField("age")) => true
-          case _ => false
+          case _                                                             => false
         }
         assertTrue(hasDeleteFieldOp) &&
         assert(patch.apply(oldRecord, DynamicPatch.PatchMode.Strict))(isRight(equalTo(newRecord)))
       },
       test("diffRecords handles multiple field deletions") {
-        val oldRecord = DynamicValue.Record(Vector(
-          "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
-          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
-          "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
-          "d" -> DynamicValue.Primitive(PrimitiveValue.Int(4))
-        ))
-        val newRecord = DynamicValue.Record(Vector(
-          "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
-          "d" -> DynamicValue.Primitive(PrimitiveValue.Int(4))
-        ))
+        val oldRecord = DynamicValue.Record(
+          Vector(
+            "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            "c" -> DynamicValue.Primitive(PrimitiveValue.Int(3)),
+            "d" -> DynamicValue.Primitive(PrimitiveValue.Int(4))
+          )
+        )
+        val newRecord = DynamicValue.Record(
+          Vector(
+            "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2)),
+            "d" -> DynamicValue.Primitive(PrimitiveValue.Int(4))
+          )
+        )
         val patch = DynamicValue.diff(oldRecord, newRecord)
         assert(patch.apply(oldRecord, DynamicPatch.PatchMode.Strict))(isRight(equalTo(newRecord)))
       }
     ),
     suite("Error Path Information")(
       test("nested field error includes full path") {
-        val record = DynamicValue.Record(Vector(
-          "outer" -> DynamicValue.Record(Vector(
-            "inner" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
-          ))
-        ))
+        val record = DynamicValue.Record(
+          Vector(
+            "outer" -> DynamicValue.Record(
+              Vector(
+                "inner" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+              )
+            )
+          )
+        )
         val patch = DynamicPatch.single(
           DynamicPatch.Op(
             DynamicOptic.root.field("outer").field("missing"),
@@ -231,7 +273,7 @@ object PatchPropertySpec extends ZIOSpecDefault {
       },
       test("variant case mismatch includes path") {
         val variant = DynamicValue.Variant("Left", DynamicValue.Primitive(PrimitiveValue.Int(42)))
-        val patch = DynamicPatch.single(
+        val patch   = DynamicPatch.single(
           DynamicPatch.Op(
             DynamicOptic.root.caseOf("Right"),
             DynamicPatch.Operation.Set(DynamicValue.Primitive(PrimitiveValue.String("value")))
@@ -242,13 +284,19 @@ object PatchPropertySpec extends ZIOSpecDefault {
         assertTrue(result.swap.toOption.get.message.contains("Case mismatch"))
       },
       test("deeply nested error preserves full optic path") {
-        val record = DynamicValue.Record(Vector(
-          "level1" -> DynamicValue.Record(Vector(
-            "level2" -> DynamicValue.Record(Vector(
-              "level3" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
-            ))
-          ))
-        ))
+        val record = DynamicValue.Record(
+          Vector(
+            "level1" -> DynamicValue.Record(
+              Vector(
+                "level2" -> DynamicValue.Record(
+                  Vector(
+                    "level3" -> DynamicValue.Primitive(PrimitiveValue.Int(42))
+                  )
+                )
+              )
+            )
+          )
+        )
         val patch = DynamicPatch.single(
           DynamicPatch.Op(
             DynamicOptic.root.field("level1").field("level2").field("missing"),
@@ -264,13 +312,13 @@ object PatchPropertySpec extends ZIOSpecDefault {
         case class Person(name: String, age: Int)
         object Person extends CompanionOptics[Person] {
           implicit val schema: Schema[Person] = Schema.derived
-          val name: Lens[Person, String] = optic(_.name)
-          val age: Lens[Person, Int] = optic(_.age)
+          val name: Lens[Person, String]      = optic(_.name)
+          val age: Lens[Person, Int]          = optic(_.age)
         }
 
-        val patch = Patch.set(Person.name, "Bob")
+        val patch   = Patch.set(Person.name, "Bob")
         val person1 = Person("Alice", 30)
-        val result = patch.applyOrFail(person1)
+        val result  = patch.applyOrFail(person1)
 
         assert(result)(isRight(equalTo(Person("Bob", 30))))
       },
@@ -278,12 +326,12 @@ object PatchPropertySpec extends ZIOSpecDefault {
         case class Counter(value: Int)
         object Counter extends CompanionOptics[Counter] {
           implicit val schema: Schema[Counter] = Schema.derived
-          val value: Lens[Counter, Int] = optic(_.value)
+          val value: Lens[Counter, Int]        = optic(_.value)
         }
 
-        val patch = Patch.addInt(Counter.value, 10)
+        val patch   = Patch.addInt(Counter.value, 10)
         val counter = Counter(5)
-        val result = patch.applyOrFail(counter)
+        val result  = patch.applyOrFail(counter)
 
         assert(result)(isRight(equalTo(Counter(15))))
       },
@@ -291,11 +339,11 @@ object PatchPropertySpec extends ZIOSpecDefault {
         case class Person(name: String, age: Int)
         object Person extends CompanionOptics[Person] {
           implicit val schema: Schema[Person] = Schema.derived
-          val name: Lens[Person, String] = optic(_.name)
-          val age: Lens[Person, Int] = optic(_.age)
+          val name: Lens[Person, String]      = optic(_.name)
+          val age: Lens[Person, Int]          = optic(_.age)
         }
 
-        val patch = Patch.set(Person.name, "Bob") ++ Patch.addInt(Person.age, 1)
+        val patch  = Patch.set(Person.name, "Bob") ++ Patch.addInt(Person.age, 1)
         val person = Person("Alice", 30)
         val result = patch.applyOrFail(person)
 
@@ -306,7 +354,7 @@ object PatchPropertySpec extends ZIOSpecDefault {
         implicit val schema: Schema[Data] = Schema.derived
 
         val patch = Patch.empty[Data]
-        val data = Data(42)
+        val data  = Data(42)
         assertTrue(patch(data) == data) &&
         assertTrue(patch.isEmpty)
       }

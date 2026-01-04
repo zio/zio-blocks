@@ -31,8 +31,8 @@ final case class Patch[S](
     Patch(this.dynamicPatch ++ that.dynamicPatch, this.source)
 
   /**
-   * Apply patch with default Strict mode.
-   * On error, returns the original value unchanged.
+   * Apply patch with default Strict mode. On error, returns the original value
+   * unchanged.
    */
   def apply(s: S): S = applyOrFail(s).getOrElse(s)
 
@@ -49,8 +49,8 @@ final case class Patch[S](
     applyWithMode(s, DynamicPatch.PatchMode.Strict)
 
   /**
-   * Apply this patch with explicit control over the patch mode.
-   * Returns Left(SchemaError) on failure, Right(result) on success.
+   * Apply this patch with explicit control over the patch mode. Returns
+   * Left(SchemaError) on failure, Right(result) on success.
    */
   def applyWithMode(s: S, mode: DynamicPatch.PatchMode): Either[SchemaError, S] = {
     val dv = source.toDynamicValue(s)
@@ -74,6 +74,7 @@ final case class Patch[S](
 }
 
 object Patch {
+
   /**
    * Create a Patch from a DynamicPatch.
    */
@@ -91,14 +92,14 @@ object Patch {
   // ============================================================
 
   /**
-   * Set a field to a value using a Lens.
-   * The value is automatically converted to DynamicValue via its Schema.
+   * Set a field to a value using a Lens. The value is automatically converted
+   * to DynamicValue via its Schema.
    */
   def set[S, A](lens: Lens[S, A], value: A)(implicit
     sourceSchema: Schema[S],
     valueSchema: Schema[A]
   ): Patch[S] = {
-    val optic = lens.toDynamic
+    val optic        = lens.toDynamic
     val dynamicValue = valueSchema.toDynamicValue(value)
     Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
@@ -110,7 +111,7 @@ object Patch {
     sourceSchema: Schema[S],
     valueSchema: Schema[A]
   ): Patch[S] = {
-    val optic = optional.toDynamic
+    val optic        = optional.toDynamic
     val dynamicValue = valueSchema.toDynamicValue(value)
     Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
@@ -122,7 +123,7 @@ object Patch {
     sourceSchema: Schema[S],
     valueSchema: Schema[A]
   ): Patch[S] = {
-    val optic = traversal.toDynamic
+    val optic        = traversal.toDynamic
     val dynamicValue = valueSchema.toDynamicValue(value)
     Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
@@ -134,7 +135,7 @@ object Patch {
     sourceSchema: Schema[S],
     valueSchema: Schema[A]
   ): Patch[S] = {
-    val optic = prism.toDynamic
+    val optic        = prism.toDynamic
     val dynamicValue = valueSchema.toDynamicValue(value)
     Patch(DynamicPatch.setAt(optic, dynamicValue), sourceSchema)
   }
@@ -167,7 +168,8 @@ object Patch {
 
   /**
    * Replace a field value using a Lens.
-   * @deprecated Use Patch.set instead
+   * @deprecated
+   *   Use Patch.set instead
    */
   @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
   def replace[S, A](lens: Lens[S, A], value: A)(implicit
@@ -177,7 +179,8 @@ object Patch {
 
   /**
    * Replace a value through an Optional optic.
-   * @deprecated Use Patch.set instead
+   * @deprecated
+   *   Use Patch.set instead
    */
   @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
   def replace[S, A](optional: Optional[S, A], value: A)(implicit
@@ -187,7 +190,8 @@ object Patch {
 
   /**
    * Replace a value through a Traversal.
-   * @deprecated Use Patch.set instead
+   * @deprecated
+   *   Use Patch.set instead
    */
   @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
   def replace[S, A](traversal: Traversal[S, A], value: A)(implicit
@@ -197,7 +201,8 @@ object Patch {
 
   /**
    * Replace a case value through a Prism.
-   * @deprecated Use Patch.set instead
+   * @deprecated
+   *   Use Patch.set instead
    */
   @deprecated("Use Patch.set instead of Patch.replace", "2.0.0")
   def replace[S, A <: S](prism: Prism[S, A], value: A)(implicit

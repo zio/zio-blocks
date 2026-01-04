@@ -15,12 +15,12 @@ final case class DynamicPatch(ops: Vector[DynamicPatch.Op]) {
   /** Apply patch to a DynamicValue with the specified mode */
   def apply(value: DynamicValue, mode: DynamicPatch.PatchMode): Either[SchemaError, DynamicValue] = {
     var current = value
-    var idx = 0
-    val len = ops.length
+    var idx     = 0
+    val len     = ops.length
 
     while (idx < len) {
       ops(idx).applyTo(current, mode) match {
-        case Right(next) => current = next
+        case Right(next)    => current = next
         case left @ Left(_) => return left
       }
       idx += 1
@@ -34,6 +34,7 @@ final case class DynamicPatch(ops: Vector[DynamicPatch.Op]) {
 }
 
 object DynamicPatch {
+
   /** Empty patch (monoid identity) */
   val empty: DynamicPatch = DynamicPatch(Vector.empty)
 
@@ -134,7 +135,7 @@ object DynamicPatch {
   final case class Op(optic: DynamicOptic, operation: Operation) {
 
     /** Apply this operation to a DynamicValue */
-    def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+    def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
       if (optic.nodes.isEmpty) {
         // Root operation - apply directly to value
         operation.applyTo(value, mode)
@@ -142,7 +143,6 @@ object DynamicPatch {
         // Navigate to target and apply
         navigateAndApply(value, optic.nodes.toList, mode)
       }
-    }
 
     /** Build optic representing the current position (visited nodes) */
     private def currentOptic(remainingPath: List[DynamicOptic.Node]): DynamicOptic = {
@@ -241,7 +241,7 @@ object DynamicPatch {
           value match {
             case DynamicValue.Map(entries) =>
               val keyDv = key.asInstanceOf[DynamicValue]
-              val idx = entries.indexWhere(_._1 == keyDv)
+              val idx   = entries.indexWhere(_._1 == keyDv)
               if (idx >= 0) {
                 navigateAndApply(entries(idx)._2, rest, mode).map { newValue =>
                   DynamicValue.Map(entries.updated(idx, (keyDv, newValue)))
@@ -265,7 +265,7 @@ object DynamicPatch {
         case DynamicOptic.Node.Elements :: rest =>
           value match {
             case DynamicValue.Sequence(elements) =>
-              var idx = 0
+              var idx    = 0
               var result = Vector.empty[DynamicValue]
               while (idx < elements.length) {
                 navigateAndApply(elements(idx), rest, mode) match {
@@ -280,7 +280,7 @@ object DynamicPatch {
                       result = result :+ elements(idx)
                     } else {
                       mode match {
-                        case PatchMode.Strict => return Left(err)
+                        case PatchMode.Strict  => return Left(err)
                         case PatchMode.Lenient => result = result :+ elements(idx)
                         case PatchMode.Clobber => result = result :+ elements(idx)
                       }
@@ -296,7 +296,7 @@ object DynamicPatch {
         case DynamicOptic.Node.MapValues :: rest =>
           value match {
             case DynamicValue.Map(entries) =>
-              var idx = 0
+              var idx    = 0
               var result = Vector.empty[(DynamicValue, DynamicValue)]
               while (idx < entries.length) {
                 val (k, v) = entries(idx)
@@ -305,7 +305,7 @@ object DynamicPatch {
                     result = result :+ (k -> newValue)
                   case Left(err) =>
                     mode match {
-                      case PatchMode.Strict => return Left(err)
+                      case PatchMode.Strict  => return Left(err)
                       case PatchMode.Lenient => result = result :+ entries(idx)
                       case PatchMode.Clobber => result = result :+ entries(idx)
                     }
@@ -336,6 +336,7 @@ object DynamicPatch {
   }
 
   object Operation {
+
     /** Replace the value entirely */
     final case class Set(newValue: DynamicValue) extends Operation {
       def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
@@ -350,14 +351,14 @@ object DynamicPatch {
 
     /** Apply sequence edit operations */
     final case class SequenceEdit(ops: Vector[SeqOp]) extends Operation {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Sequence(elements) =>
             var current = elements
-            var idx = 0
+            var idx     = 0
             while (idx < ops.length) {
               ops(idx).applyTo(current, mode) match {
-                case Right(next) => current = next
+                case Right(next)    => current = next
                 case left @ Left(_) => return left.asInstanceOf[Either[SchemaError, DynamicValue]]
               }
               idx += 1
@@ -366,19 +367,18 @@ object DynamicPatch {
           case other =>
             Left(SchemaError.TypeMismatch("Sequence", other.getClass.getSimpleName))
         }
-      }
     }
 
     /** Apply map edit operations */
     final case class MapEdit(ops: Vector[MapOp]) extends Operation {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Map(entries) =>
             var current = entries
-            var idx = 0
+            var idx     = 0
             while (idx < ops.length) {
               ops(idx).applyTo(current, mode) match {
-                case Right(next) => current = next
+                case Right(next)    => current = next
                 case left @ Left(_) => return left.asInstanceOf[Either[SchemaError, DynamicValue]]
               }
               idx += 1
@@ -387,12 +387,11 @@ object DynamicPatch {
           case other =>
             Left(SchemaError.TypeMismatch("Map", other.getClass.getSimpleName))
         }
-      }
     }
 
     /** Delete a field from a record */
     final case class DeleteField(fieldName: String) extends Operation {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Record(fields) =>
             val idx = fields.indexWhere(_._1 == fieldName)
@@ -409,7 +408,6 @@ object DynamicPatch {
           case other =>
             Left(SchemaError.TypeMismatch("Record", other.getClass.getSimpleName))
         }
-      }
     }
   }
 
@@ -422,100 +420,92 @@ object DynamicPatch {
 
   object PrimitiveOp {
     final case class IntDelta(delta: Int) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.Int(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Int(n + delta)))
           case other =>
             mode match {
-              case PatchMode.Strict => Left(SchemaError.TypeMismatch("Int", other.getClass.getSimpleName))
-              case PatchMode.Lenient => Right(value) // Ignore type mismatch
+              case PatchMode.Strict  => Left(SchemaError.TypeMismatch("Int", other.getClass.getSimpleName))
+              case PatchMode.Lenient => Right(value)                                             // Ignore type mismatch
               case PatchMode.Clobber => Right(DynamicValue.Primitive(PrimitiveValue.Int(delta))) // Replace with delta
             }
         }
-      }
     }
 
     final case class LongDelta(delta: Long) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.Long(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Long(n + delta)))
           case other =>
             Left(SchemaError.TypeMismatch("Long", other.getClass.getSimpleName))
         }
-      }
     }
 
     final case class DoubleDelta(delta: Double) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.Double(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Double(n + delta)))
           case other =>
             Left(SchemaError.TypeMismatch("Double", other.getClass.getSimpleName))
         }
-      }
     }
 
     final case class FloatDelta(delta: Float) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.Float(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Float(n + delta)))
           case other =>
             Left(SchemaError.TypeMismatch("Float", other.getClass.getSimpleName))
         }
-      }
     }
 
     final case class ShortDelta(delta: Short) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.Short(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Short((n + delta).toShort)))
           case other =>
             Left(SchemaError.TypeMismatch("Short", other.getClass.getSimpleName))
         }
-      }
     }
 
     final case class ByteDelta(delta: Byte) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.Byte(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.Byte((n + delta).toByte)))
           case other =>
             Left(SchemaError.TypeMismatch("Byte", other.getClass.getSimpleName))
         }
-      }
     }
 
     final case class BigIntDelta(delta: BigInt) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.BigInt(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.BigInt(n + delta)))
           case other =>
             Left(SchemaError.TypeMismatch("BigInt", other.getClass.getSimpleName))
         }
-      }
     }
 
     final case class BigDecimalDelta(delta: BigDecimal) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.BigDecimal(n)) =>
             Right(DynamicValue.Primitive(PrimitiveValue.BigDecimal(n + delta)))
           case other =>
             Left(SchemaError.TypeMismatch("BigDecimal", other.getClass.getSimpleName))
         }
-      }
     }
 
     /** String edit operations (LCS-based) */
     final case class StringEdit(ops: Vector[StringOp]) extends PrimitiveOp {
-      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
+      def applyTo(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] =
         value match {
           case DynamicValue.Primitive(PrimitiveValue.String(s)) =>
             StringOp.apply(s, ops) match {
@@ -527,7 +517,6 @@ object DynamicPatch {
           case other =>
             Left(SchemaError.TypeMismatch("String", other.getClass.getSimpleName))
         }
-      }
     }
   }
 
@@ -538,7 +527,7 @@ object DynamicPatch {
 
   object StringOp {
     final case class Insert(index: Int, text: String) extends StringOp
-    final case class Delete(index: Int, length: Int) extends StringOp
+    final case class Delete(index: Int, length: Int)  extends StringOp
 
     /** Apply a sequence of string operations */
     def apply(s: String, ops: Vector[StringOp]): Either[SchemaError, String] = {
@@ -564,9 +553,9 @@ object DynamicPatch {
     /**
      * Compute LCS-based string diff operations.
      *
-     * Algorithm: Wagner-Fischer algorithm for computing edit distance
-     * Time complexity: O(n * m) where n and m are string lengths
-     * Space complexity: O(n * m) for the DP table
+     * Algorithm: Wagner-Fischer algorithm for computing edit distance Time
+     * complexity: O(n * m) where n and m are string lengths Space complexity:
+     * O(n * m) for the DP table
      *
      * Reference: Wagner, R.A. and Fischer, M.J. (1974). "The String-to-String
      * Correction Problem". Journal of the ACM, 21(1), pp.168-173.
@@ -589,13 +578,12 @@ object DynamicPatch {
     /**
      * Compute longest common subsequence of two strings.
      *
-     * Algorithm: Dynamic programming approach
-     * Time complexity: O(n * m)
-     * Space complexity: O(n * m)
+     * Algorithm: Dynamic programming approach Time complexity: O(n * m) Space
+     * complexity: O(n * m)
      */
     private[schema] def longestCommonSubsequence(a: String, b: String): String = {
-      val m = a.length
-      val n = b.length
+      val m  = a.length
+      val n  = b.length
       val dp = Array.ofDim[Int](m + 1, n + 1)
 
       for (i <- 1 to m; j <- 1 to n) {
@@ -608,8 +596,8 @@ object DynamicPatch {
 
       // Backtrack to find the LCS string
       val sb = new StringBuilder
-      var i = m
-      var j = n
+      var i  = m
+      var j  = n
       while (i > 0 && j > 0) {
         if (a(i - 1) == b(j - 1)) {
           sb.insert(0, a(i - 1))
@@ -625,7 +613,7 @@ object DynamicPatch {
     }
 
     private def computeEditOps(oldStr: String, newStr: String, lcs: String): Vector[StringOp] = {
-      val ops = Vector.newBuilder[StringOp]
+      val ops    = Vector.newBuilder[StringOp]
       var oldIdx = 0
       var newIdx = 0
       var lcsIdx = 0
@@ -678,7 +666,7 @@ object DynamicPatch {
 
   object SeqOp {
     final case class Insert(index: Int, values: Vector[DynamicValue]) extends SeqOp {
-      def applyTo(elements: Vector[DynamicValue], mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] = {
+      def applyTo(elements: Vector[DynamicValue], mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] =
         if (index >= 0 && index <= elements.length) {
           val (before, after) = elements.splitAt(index)
           Right(before ++ values ++ after)
@@ -692,7 +680,6 @@ object DynamicPatch {
               Right(elements ++ values)
           }
         }
-      }
     }
 
     final case class Append(values: Vector[DynamicValue]) extends SeqOp {
@@ -701,7 +688,7 @@ object DynamicPatch {
     }
 
     final case class Delete(index: Int, count: Int) extends SeqOp {
-      def applyTo(elements: Vector[DynamicValue], mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] = {
+      def applyTo(elements: Vector[DynamicValue], mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] =
         if (index >= 0 && index + count <= elements.length) {
           Right(elements.take(index) ++ elements.drop(index + count))
         } else {
@@ -712,15 +699,14 @@ object DynamicPatch {
               Right(elements)
             case PatchMode.Clobber =>
               val safeIndex = Math.max(0, Math.min(index, elements.length))
-              val safeEnd = Math.min(safeIndex + count, elements.length)
+              val safeEnd   = Math.min(safeIndex + count, elements.length)
               Right(elements.take(safeIndex) ++ elements.drop(safeEnd))
           }
         }
-      }
     }
 
     final case class Modify(index: Int, op: Operation) extends SeqOp {
-      def applyTo(elements: Vector[DynamicValue], mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] = {
+      def applyTo(elements: Vector[DynamicValue], mode: PatchMode): Either[SchemaError, Vector[DynamicValue]] =
         if (index >= 0 && index < elements.length) {
           op.applyTo(elements(index), mode).map { newValue =>
             elements.updated(index, newValue)
@@ -735,15 +721,14 @@ object DynamicPatch {
               Right(elements)
           }
         }
-      }
     }
 
     /**
      * Compute LCS-based sequence diff operations.
      *
-     * Algorithm: Wagner-Fischer variant for sequence edit distance
-     * Time complexity: O(n * m) where n and m are sequence lengths
-     * Space complexity: O(n * m) for the DP table
+     * Algorithm: Wagner-Fischer variant for sequence edit distance Time
+     * complexity: O(n * m) where n and m are sequence lengths Space complexity:
+     * O(n * m) for the DP table
      *
      * Reference: Wagner, R.A. and Fischer, M.J. (1974). "The String-to-String
      * Correction Problem". Journal of the ACM, 21(1), pp.168-173.
@@ -761,15 +746,14 @@ object DynamicPatch {
     /**
      * Compute longest common subsequence of two sequences.
      *
-     * Time complexity: O(n * m)
-     * Space complexity: O(n * m)
+     * Time complexity: O(n * m) Space complexity: O(n * m)
      */
     private[schema] def longestCommonSubsequence(
       a: Vector[DynamicValue],
       b: Vector[DynamicValue]
     ): Vector[DynamicValue] = {
-      val m = a.length
-      val n = b.length
+      val m  = a.length
+      val n  = b.length
       val dp = Array.ofDim[Int](m + 1, n + 1)
 
       for (i <- 1 to m; j <- 1 to n) {
@@ -782,8 +766,8 @@ object DynamicPatch {
 
       // Backtrack
       val result = Vector.newBuilder[DynamicValue]
-      var i = m
-      var j = n
+      var i      = m
+      var j      = n
       while (i > 0 && j > 0) {
         if (a(i - 1) == b(j - 1)) {
           result += a(i - 1)
@@ -803,7 +787,7 @@ object DynamicPatch {
       newSeq: Vector[DynamicValue],
       lcs: Vector[DynamicValue]
     ): Vector[SeqOp] = {
-      val ops = Vector.newBuilder[SeqOp]
+      val ops    = Vector.newBuilder[SeqOp]
       var oldIdx = 0
       var newIdx = 0
       var lcsIdx = 0
@@ -857,12 +841,18 @@ object DynamicPatch {
    * Map edit operations.
    */
   sealed trait MapOp {
-    def applyTo(entries: Vector[(DynamicValue, DynamicValue)], mode: PatchMode): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]]
+    def applyTo(
+      entries: Vector[(DynamicValue, DynamicValue)],
+      mode: PatchMode
+    ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]]
   }
 
   object MapOp {
     final case class Add(key: DynamicValue, value: DynamicValue) extends MapOp {
-      def applyTo(entries: Vector[(DynamicValue, DynamicValue)], mode: PatchMode): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
+      def applyTo(
+        entries: Vector[(DynamicValue, DynamicValue)],
+        mode: PatchMode
+      ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
         val existingIdx = entries.indexWhere(_._1 == key)
         if (existingIdx >= 0) {
           mode match {
@@ -880,7 +870,10 @@ object DynamicPatch {
     }
 
     final case class Remove(key: DynamicValue) extends MapOp {
-      def applyTo(entries: Vector[(DynamicValue, DynamicValue)], mode: PatchMode): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
+      def applyTo(
+        entries: Vector[(DynamicValue, DynamicValue)],
+        mode: PatchMode
+      ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
         val existingIdx = entries.indexWhere(_._1 == key)
         if (existingIdx >= 0) {
           Right(entries.take(existingIdx) ++ entries.drop(existingIdx + 1))
@@ -898,7 +891,10 @@ object DynamicPatch {
     }
 
     final case class Modify(key: DynamicValue, op: Operation) extends MapOp {
-      def applyTo(entries: Vector[(DynamicValue, DynamicValue)], mode: PatchMode): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
+      def applyTo(
+        entries: Vector[(DynamicValue, DynamicValue)],
+        mode: PatchMode
+      ): Either[SchemaError, Vector[(DynamicValue, DynamicValue)]] = {
         val existingIdx = entries.indexWhere(_._1 == key)
         if (existingIdx >= 0) {
           op.applyTo(entries(existingIdx)._2, mode).map { newValue =>
@@ -920,14 +916,14 @@ object DynamicPatch {
     /**
      * Compute diff operations between two maps.
      *
-     * Time complexity: O(n + m) where n and m are the number of entries
-     * Space complexity: O(n + m) for key sets
+     * Time complexity: O(n + m) where n and m are the number of entries Space
+     * complexity: O(n + m) for key sets
      */
     private[schema] def diff(
       oldMap: Vector[(DynamicValue, DynamicValue)],
       newMap: Vector[(DynamicValue, DynamicValue)]
     ): Vector[MapOp] = {
-      val ops = Vector.newBuilder[MapOp]
+      val ops     = Vector.newBuilder[MapOp]
       val oldKeys = oldMap.map(_._1).toSet
       val newKeys = newMap.map(_._1).toSet
 
@@ -947,7 +943,7 @@ object DynamicPatch {
             // New key
             ops += Add(k, v)
           case _ =>
-            // No change
+          // No change
         }
       }
 
@@ -961,6 +957,7 @@ object DynamicPatch {
   sealed trait PatchMode
 
   object PatchMode {
+
     /** Fail on precondition violations (e.g. modifying non-existent key) */
     case object Strict extends PatchMode
 

@@ -63,12 +63,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   def toDynamicValue(value: A): DynamicValue = reflect.toDynamicValue(value)
 
   /**
-   * Compute the difference between two values as a Patch.
-   * The resulting patch, when applied to `oldValue`, produces `newValue`.
+   * Compute the difference between two values as a Patch. The resulting patch,
+   * when applied to `oldValue`, produces `newValue`.
    */
   def diff(oldValue: A, newValue: A): Patch[A] = {
-    val oldDv = toDynamicValue(oldValue)
-    val newDv = toDynamicValue(newValue)
+    val oldDv        = toDynamicValue(oldValue)
+    val newDv        = toDynamicValue(newValue)
     val dynamicPatch = DynamicValue.diff(oldDv, newDv)
     Patch(dynamicPatch, this)
   }
