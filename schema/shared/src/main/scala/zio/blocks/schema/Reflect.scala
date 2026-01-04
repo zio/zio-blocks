@@ -1105,7 +1105,8 @@ object Reflect {
     }
   }
 
-  case class Deferred[F[_, _], A](_value: () => Reflect[F, A], explicitTypeId: Option[TypeId[A]] = None) extends Reflect[F, A] { self =>
+  case class Deferred[F[_, _], A](_value: () => Reflect[F, A], explicitTypeId: Option[TypeId[A]] = None)
+      extends Reflect[F, A] { self =>
     protected def inner: Any = value.inner
 
     final lazy val value: Reflect[F, A] = _value()

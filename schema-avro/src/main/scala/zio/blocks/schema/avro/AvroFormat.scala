@@ -6,15 +6,14 @@ import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers}
 import zio.blocks.schema.binding.SeqDeconstructor._
 import zio.blocks.schema._
 import zio.blocks.schema.codec.BinaryFormat
-import zio.blocks.schema.Schema.Primitive
+
 import zio.blocks.schema.derive.{BindingInstance, Deriver, InstanceOverride}
 import zio.blocks.typeid.TypeId
 import zio.blocks.typeid.Owner
-import zio.blocks.typeid.Owner.Package
-import zio.blocks.typeid.Owner.Term
 import java.math.{BigInteger, MathContext}
 import java.nio.ByteBuffer
 import scala.util.control.NonFatal
+import zio.blocks.schema.DynamicOptic
 
 object AvroFormat
     extends BinaryFormat(
@@ -36,7 +35,10 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] =
-          Lazy(deriveCodec(new Reflect.Record(fields, typeId, binding, doc, modifiers)))
+          Lazy {
+            val boundFields = fields.map(_.transform(DynamicOptic.root, Term.Type.Record, F).force)
+            deriveCodec(new Reflect.Record(boundFields, typeId, binding, doc, modifiers))
+          }
 
         override def deriveVariant[F[_, _], A](
           cases: IndexedSeq[Term[F, A, ?]],
@@ -45,7 +47,12 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] =
-          Lazy(deriveCodec(new Reflect.Variant(cases, typeId, binding, doc, modifiers)))
+          Lazy {
+            val boundCases = cases
+              .map(_.transform(DynamicOptic.root, Term.Type.Variant, F).force)
+              .asInstanceOf[IndexedSeq[Term[Binding, A, ? <: A]]]
+            deriveCodec(new Reflect.Variant(boundCases, typeId, binding, doc, modifiers))
+          }
 
         override def deriveSequence[F[_, _], C[_], A](
           element: Reflect[F, A],
@@ -54,7 +61,12 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[C[A]]] =
-          Lazy(deriveCodec(new Reflect.Sequence(element, typeId, binding, doc, modifiers)))
+          Lazy {
+            val boundElement = element.transform(DynamicOptic.root, F).force
+            deriveCodec(
+              new Reflect.Sequence(boundElement, typeId, binding, doc, modifiers)
+            )
+          }
 
         override def deriveMap[F[_, _], M[_, _], K, V](
           key: Reflect[F, K],
@@ -64,7 +76,11 @@ object AvroFormat
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
         )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[M[K, V]]] =
-          Lazy(deriveCodec(new Reflect.Map(key, value, typeId, binding, doc, modifiers)))
+          Lazy {
+            val boundKey   = key.transform(DynamicOptic.mapKeys, F).force
+            val boundValue = value.transform(DynamicOptic.mapValues, F).force
+            deriveCodec(new Reflect.Map(boundKey, boundValue, typeId, binding, doc, modifiers))
+          }
 
         override def deriveDynamic[F[_, _]](
           binding: Binding[BindingType.Dynamic, DynamicValue],
@@ -89,9 +105,13 @@ object AvroFormat
           binding: Binding[BindingType.Wrapper[A, B], A],
           doc: Doc,
           modifiers: Seq[Modifier.Reflect]
+        )(implicit F: HasBinding[F], D: HasInstance[F]): Lazy[AvroBinaryCodec[A]] =
+          Lazy {
+            val boundWrapped = wrapped.transform(DynamicOptic.root, F).force
+            deriveCodec(
+              new Reflect.Wrapper(boundWrapped, typeId, wrapperPrimitiveType, binding, doc, modifiers)
             )
-          )
-        }
+          }
 
         override def instanceOverrides: IndexedSeq[InstanceOverride] = {
           recursiveRecordCache.remove()
@@ -1197,26 +1217,28 @@ object AvroFormat
                 val namespaceBuilder = new java.lang.StringBuilder()
                 val owner            = typeId.owner
                 owner.segments.foreach {
-                  case Package(element) =>
+                  case Owner.Package(element) =>
                     if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
                     namespaceBuilder.append(element)
-                  case Term(element) =>
+                  case Owner.Term(element) =>
                     if (namespaceBuilder.length > 0) namespaceBuilder.append('.')
                     namespaceBuilder.append(element)
-                  case Type(_) => // Skip types in namespace or handle? TypeName namespace includes values (terms) but likely not enclosing types usually.
-                    // Assuming old Namespace.values mapped to Term segments.
+                  case Owner.Type(
+                        _
+                      ) => // Skip types in namespace or handle? TypeName namespace includes values (terms) but likely not enclosing types usually.
+                  // Assuming old Namespace.values mapped to Term segments.
                 }
                 // Check if TypeName.namespace.values included types? Namespace definition: packages: Seq[String], values: Seq[String].
-                // Usually values are object names (Terms). 
+                // Usually values are object names (Terms).
                 // Let's assume Type segments should ideally be part of namespace in Avro if they are objects?
-                // But Avro namespace is usually just package. 
+                // But Avro namespace is usually just package.
                 // Let's stick strictly to Package and Term for now to match old behavior logic if possible.
                 // Or safely include all segments
-                
+
                 // Re-implementation based on matching old logic:
                 // namespace.packages -> Package
                 // namespace.values -> Term
-                
+
                 val avroSchema = createAvroRecord(namespaceBuilder.toString, typeId.name)
                 val len        = fields.length
                 val codecs     = new Array[AvroBinaryCodec[?]](len)
