@@ -18,7 +18,7 @@ object Register {
 
     def set(registers: Registers, base: RegisterOffset, boxed: scala.Unit): Unit = ()
 
-    def usedRegisters: RegisterOffset = 0
+    def usedRegisters: RegisterOffset = 0L
   }
 
   case class Boolean(offset: RegisterOffset) extends Register[scala.Boolean] {

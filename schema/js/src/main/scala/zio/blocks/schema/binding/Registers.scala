@@ -200,12 +200,12 @@ class Registers private (userRegister: RegisterOffset) {
   private def getObjects: Array[AnyRef] = objects
 
   @noinline
-  private[this] def growBytes(absoluteIndex: RegisterOffset): Unit =
-    bytes = util.Arrays.copyOf(bytes, Math.max(bytes.length << 1, absoluteIndex + 8))
+  private[this] def growBytes(idx: Int): Unit =
+    bytes = util.Arrays.copyOf(bytes, Math.max(bytes.length << 1, idx + 8))
 
   @noinline
-  private[this] def growObjects(absoluteIndex: RegisterOffset): Unit =
-    objects = util.Arrays.copyOf(objects, Math.max(objects.length << 1, absoluteIndex + 1))
+  private[this] def growObjects(idx: Int): Unit =
+    objects = util.Arrays.copyOf(objects, Math.max(objects.length << 1, idx + 1))
 }
 
 object Registers {
