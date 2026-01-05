@@ -52,7 +52,7 @@ class ChunkBenchmarks {
   @Benchmark
   def chunkConcatMany(): Chunk[Int] = {
     var result = Chunk.empty[Int]
-    var i = 0
+    var i      = 0
     while (i < 100) { result = result ++ chunk; i += 1 }
     result
   }

@@ -1,12 +1,12 @@
 /*
  * Copyright 2018-2024 John A. De Goes and the ZIO Contributors
- *
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -57,7 +57,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
         self ++ chunk ++ end
       case (self, Chunk.Empty) => self
       case (Chunk.Empty, that) => that
-      case (self, that) =>
+      case (self, that)        =>
         val diff = that.concatDepth - self.concatDepth
         if (math.abs(diff) <= 1) Chunk.Concat(self, that)
         else if (diff < -1) {
@@ -232,13 +232,10 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   def collectWhile[B](pf: PartialFunction[A, B]): Chunk[B] =
     if (isEmpty) Chunk.empty else self.materialize.collectWhile(pf)
 
-
-
   /**
    * Returns a filtered, mapped subset of the elements of this chunk based on a
    * .
    */
-
 
   /**
    * Determines whether this chunk and the specified chunk have the same length
@@ -295,7 +292,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, l) => Chunk.Slice(c, o + n, l - n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > l.length) r.drop(n - l.length)
           else Chunk.Concat(l.drop(n), r)
         case _ =>
@@ -315,7 +312,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, l) => Chunk.Slice(c, o, l - n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > r.length) l.dropRight(n - r.length)
           else Chunk.Concat(l, r.dropRight(n))
         case _ =>
@@ -343,7 +340,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * Drops all elements until the effectful predicate returns true.
    */
 
-
   /**
    * Drops all elements so long as the predicate returns true.
    */
@@ -365,7 +361,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   /**
    * Drops all elements so long as the effectful predicate returns true.
    */
-
 
   override def equals(that: Any): Boolean =
     (self eq that.asInstanceOf[AnyRef]) || (that match {
@@ -412,7 +407,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * elements for which the predicate evaluates to true.
    */
 
-
   /**
    * Returns the first element that satisfies the predicate.
    */
@@ -433,7 +427,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   /**
    * Returns the first element that satisfies the effectful predicate.
    */
-
 
   /**
    * Get the element at the specified index.
@@ -459,7 +452,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   /**
    * Effectfully folds over the elements in this chunk from the left.
    */
-
 
   /**
    * Folds over the elements in this chunk from the right.
@@ -491,8 +483,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     }
     s
   }
-
-
 
   /**
    * Determines whether a predicate is satisfied for all elements of this chunk.
@@ -597,27 +587,22 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
    * new elements.
    */
 
-
   /**
    * Effectfully maps the elements of this chunk.
    */
-
 
   /**
    * Effectfully maps the elements of this chunk purely for the effects.
    */
 
-
   /**
    * Effectfully maps the elements of this chunk in parallel.
    */
-
 
   /**
    * Effectfully maps the elements of this chunk in parallel purely for the
    * effects.
    */
-
 
   /**
    * Materializes a chunk into a chunk backed by an array. This method can
@@ -738,7 +723,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, _) => Chunk.Slice(c, o, n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > l.length) Chunk.Concat(l, r.take(n - l.length))
           else l.take(n)
         case _ =>
@@ -755,7 +740,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else
       self match {
         case Chunk.Slice(c, o, l) => Chunk.Slice(c, o + l - n, n)
-        case Chunk.Concat(l, r) =>
+        case Chunk.Concat(l, r)   =>
           if (n > r.length) Chunk.Concat(l.takeRight(n - r.length), r)
           else r.takeRight(n)
         case _ =>
@@ -784,7 +769,6 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   /**
    * Takes all elements so long as the effectual predicate returns true.
    */
-
 
   /**
    * Converts the chunk into an array.
@@ -1041,7 +1025,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     val bits      = left.length min right.length
     val fullBytes = bits >> 3
     val remBits   = bits & 7
-    val arr = Array.ofDim[Byte](
+    val arr       = Array.ofDim[Byte](
       if (remBits == 0) fullBytes else fullBytes + 1
     )
     var i    = 0
@@ -1184,7 +1168,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       case iterable if iterable.isEmpty => Empty
       case vector: Vector[A]            => VectorChunk(vector)
       case arrSeq: mutable.ArraySeq[A]  => fromArraySeq(arrSeq)
-      case iterable =>
+      case iterable                     =>
         val builder = ChunkBuilder.make[A]()
         builder.sizeHint(iterable)
         builder ++= iterable
@@ -1293,7 +1277,6 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
    * Constructs a `Chunk` by repeatedly applying the effectual function `f` as
    * long as it returns `Some`.
    */
-
 
   /**
    * The unit chunk
@@ -1491,8 +1474,6 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
     implicit val classTag: ClassTag[A] =
       ClassTag(array.getClass.getComponentType)
 
-
-
     override def collectWhile[B](pf: PartialFunction[A, B]): Chunk[B] = {
       val self    = array
       val len     = self.length
@@ -1515,8 +1496,6 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
       builder.result()
     }
-
-
 
     override def dropWhile(f: A => Boolean): Chunk[A] = {
       val self = array
@@ -1769,7 +1748,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
   private[chunk] object BitOps {
     def apply[T](implicit ops: BitOps[T]): BitOps[T] = ops
-    implicit val ByteOps: BitOps[Byte] = new BitOps[Byte] {
+    implicit val ByteOps: BitOps[Byte]               = new BitOps[Byte] {
       def zero: Byte                = 0
       def one: Byte                 = 1
       def reverse(a: Byte): Byte    = throw new UnsupportedOperationException
@@ -1985,7 +1964,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
       val bits      = self.length min that.length
       val bytes     = bits >> 3
       val leftovers = bits - bytes * 8
-      val arr = Array.ofDim[Byte](
+      val arr       = Array.ofDim[Byte](
         if (leftovers == 0) bytes else bytes + 1
       )
 
@@ -2260,7 +2239,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 
     override val length: Int       = unpacked.length / bits + (if (unpacked.length % bits == 0) 0 else 1)
     private def bitOr0(index: Int) = if (index < unpacked.length && unpacked(index)) one else zero
-    override def apply(n: Int): T =
+    override def apply(n: Int): T  =
       if (n < 0 || n >= length)
         throw new IndexOutOfBoundsException(s"Packed boolean chunk index $n out of bounds [0, $length)")
       else {

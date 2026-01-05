@@ -6,10 +6,10 @@ object ChunkSpec extends ZIOSpecDefault {
 
   def spec = suite("ChunkSpec")(
     test("size equals length") {
-      val empty   = Chunk.empty[Int]
-      val single  = Chunk.single(1)
-      val array   = Chunk.fromArray(Array(1, 2, 3))
-      val concat  = Chunk(1, 2) ++ Chunk(3, 4)
+      val empty  = Chunk.empty[Int]
+      val single = Chunk.single(1)
+      val array  = Chunk.fromArray(Array(1, 2, 3))
+      val concat = Chunk(1, 2) ++ Chunk(3, 4)
       assertTrue(
         empty.size == empty.length,
         single.size == single.length,
