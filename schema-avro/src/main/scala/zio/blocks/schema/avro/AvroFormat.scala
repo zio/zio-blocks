@@ -1218,7 +1218,7 @@ object AvroFormat
               var codecsWithAvroSchema =
                 if (isRecursive) recursiveRecordCache.get.get(typeName)
                 else null
-              var offset = 0
+              var offset = 0L
               if (codecsWithAvroSchema eq null) {
                 val namespaceBuilder = new java.lang.StringBuilder()
                 val namespace        = typeName.namespace
@@ -1257,7 +1257,7 @@ object AvroFormat
 
                 def decodeUnsafe(decoder: BinaryDecoder): A = {
                   val regs   = Registers(usedRegisters)
-                  var offset = 0
+                  var offset = 0L
                   val len    = fieldCodecs.length
                   var idx    = 0
                   try {
@@ -1295,7 +1295,7 @@ object AvroFormat
 
                 def encode(value: A, encoder: BinaryEncoder): Unit = {
                   val regs   = Registers(usedRegisters)
-                  var offset = 0
+                  var offset = 0L
                   deconstructor.deconstruct(regs, offset, value)
                   val len = fieldCodecs.length
                   var idx = 0

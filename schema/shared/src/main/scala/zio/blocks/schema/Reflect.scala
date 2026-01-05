@@ -430,8 +430,9 @@ object Reflect {
     type Bound[A] = Record[Binding, A]
 
     def registers[F[_, _]](reflects: Array[Reflect[F, ?]]): Array[Register[Any]] = {
-      val registers   = new Array[Register[?]](reflects.length)
-      var offset, idx = 0
+      var offset    = 0L
+      val registers = new Array[Register[?]](reflects.length)
+      var idx       = 0
       reflects.foreach { fieldValue =>
         unwrapToPrimitiveTypeOption(fieldValue) match {
           case Some(primitiveType) =>
@@ -476,7 +477,8 @@ object Reflect {
     }
 
     def usedRegisters(registers: Array[Register[Any]]): RegisterOffset = {
-      var offset, idx = 0
+      var offset = 0L
+      var idx    = 0
       while (idx < registers.length) {
         offset = RegisterOffset.add(registers(idx).usedRegisters, offset)
         idx += 1
