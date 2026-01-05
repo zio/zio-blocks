@@ -34,6 +34,9 @@ lazy val root = project
     publish / skip := true
   )
   .aggregate(
+    chunk.jvm,
+    chunk.js,
+    chunk.native,
     schema.jvm,
     schema.js,
     schema.native,
@@ -45,7 +48,36 @@ lazy val root = project
     scalaNextTests.js,
     scalaNextTests.native,
     benchmarks,
+    `chunk-benchmarks`,
     docs
+  )
+
+// Chunk module - standalone, zero-dependency collection type
+lazy val chunk = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .crossType(CrossType.Full)
+  .settings(stdSettings("zio-blocks-chunk"))
+  .settings(crossProjectSettings)
+  .settings(buildInfoSettings("zio.blocks.chunk"))
+  .enablePlugins(BuildInfoPlugin)
+  .jvmSettings(mimaSettings(failOnProblem = false))
+  .jsSettings(jsSettings)
+  .nativeSettings(nativeSettings)
+  .settings(
+    libraryDependencies ++= Seq(
+      "dev.zio" %%% "zio-test"     % "2.1.24" % Test,
+      "dev.zio" %%% "zio-test-sbt" % "2.1.24" % Test
+    )
+  )
+
+// Chunk benchmarks (JVM only)
+lazy val `chunk-benchmarks` = project
+  .in(file("chunk-benchmarks"))
+  .settings(stdSettings("zio-blocks-chunk-benchmarks", Seq("3.7.4")))
+  .dependsOn(chunk.jvm)
+  .enablePlugins(JmhPlugin)
+  .settings(
+    publish / skip        := true,
+    mimaPreviousArtifacts := Set()
   )
 
 lazy val schema = crossProject(JSPlatform, JVMPlatform, NativePlatform)
