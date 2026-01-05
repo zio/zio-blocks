@@ -23,22 +23,26 @@ object TypeIdMacros {
 
     val tpe = weakTypeOf[A]
 
-    // Check if this is an applied type (e.g., List[Int], Map[String, Int])
-    tpe.dealias match {
-      case TypeRef(_, sym, args) if args.nonEmpty =>
-        // For applied types, try to find an implicit for the type constructor with wildcards
-        // e.g., for List[Int], look for TypeId[List[_]]
-        val wildcardArgs    = args.map(_ => WildcardType)
-        val existentialType = appliedType(sym, wildcardArgs)
-        val typeIdType      = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
-        val implicitSearch  = c.inferImplicitValue(typeIdType, silent = true)
+    // Check if this is a type alias by pattern matching on TypeRef
+    tpe match {
+      case TypeRef(pre, sym, args) =>
+        if (sym.isType && sym.asType.isAliasType && isUserDefinedAlias(c)(sym)) {
+          // This is a user-defined type alias - derive it directly
+          deriveNew[A](c)
+        } else if (args.nonEmpty) {
+          // Applied type (e.g., List[Int], Map[String, Int]) - try wildcard search
+          val wildcardArgs    = args.map(_ => WildcardType)
+          val existentialType = appliedType(sym, wildcardArgs)
+          val typeIdType      = appliedType(typeOf[TypeId[_]].typeConstructor, existentialType)
+          val implicitSearch  = c.inferImplicitValue(typeIdType, silent = true)
 
-        if (implicitSearch != EmptyTree) {
-          // Found an existing implicit instance for the type constructor
-          // Cast it to the expected type since TypeId is invariant
-          c.Expr[TypeId[A]](q"$implicitSearch.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]")
+          if (implicitSearch != EmptyTree) {
+            // Found an existing implicit instance for the type constructor
+            c.Expr[TypeId[A]](q"$implicitSearch.asInstanceOf[_root_.zio.blocks.typeid.TypeId[$tpe]]")
+          } else {
+            searchOrDerive[A](c)
+          }
         } else {
-          // Fall back to searching for exact type or deriving
           searchOrDerive[A](c)
         }
       case _ =>
@@ -64,49 +68,108 @@ object TypeIdMacros {
     }
   }
 
+  private def isUserDefinedAlias(c: blackbox.Context)(sym: c.Symbol): Boolean = {
+    import c.universe._
+
+    // Built-in aliases are in scala.Predef or scala package object
+    val ownerFullName = sym.owner.fullName
+    val isBuiltIn = ownerFullName.contains("scala.Predef") ||
+                   (ownerFullName.contains("scala") && sym.owner.name.toString.contains("package"))
+
+    !isBuiltIn // User-defined if it's NOT built-in
+  }
+
   private def deriveNew[A: c.WeakTypeTag](c: blackbox.Context): c.Expr[TypeId[A]] = {
     import c.universe._
 
-    val tpe        = weakTypeOf[A]
-    val typeSymbol = tpe.typeSymbol
+    val tpe = weakTypeOf[A]
 
-    // Extract the simple name
-    val name = typeSymbol.name.decodedName.toString
+    // Check if this is a type alias using proper TypeRef pattern matching
+    tpe match {
+      case TypeRef(pre, sym, args) if sym.isType && sym.asType.isAliasType =>
+        // This is a type alias - extract alias information
+        val aliasName = sym.name.decodedName.toString
+        val ownerExpr = buildOwner(c)(sym.owner)
+        val typeParamsExpr = buildTypeParams(c)(sym)
 
-    // Build the owner path
-    val ownerExpr = buildOwner(c)(typeSymbol.owner)
+        // Get the aliased (underlying) type
+        val aliasedType = tpe.dealias
+        val aliasedExpr = buildTypeReprFromType(c)(aliasedType)
 
-    // Extract type parameters
-    val typeParamsExpr = buildTypeParams(c)(typeSymbol)
+        c.Expr[TypeId[A]](
+          q"""
+            _root_.zio.blocks.typeid.TypeId.alias[$tpe](
+              $aliasName,
+              $ownerExpr,
+              $typeParamsExpr,
+              $aliasedExpr
+            )
+          """
+        )
+      case _ =>
+        // Not a type alias - create nominal type
+        val typeSymbol = tpe.typeSymbol
+        val name = typeSymbol.name.decodedName.toString
+        val ownerExpr = buildOwner(c)(typeSymbol.owner)
+        val typeParamsExpr = buildTypeParams(c)(typeSymbol)
 
-    // Determine if this is an alias or nominal type
-    val isAlias = typeSymbol.isType && typeSymbol.asType.isAliasType
-
-    if (isAlias) {
-      // Type alias
-      val aliasedExpr = q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.int)"
-      c.Expr[TypeId[A]](
-        q"""
-          _root_.zio.blocks.typeid.TypeId.alias[$tpe](
-            $name,
-            $ownerExpr,
-            $typeParamsExpr,
-            $aliasedExpr
-          )
-        """
-      )
-    } else {
-      // Nominal type (class, trait, object)
-      c.Expr[TypeId[A]](
-        q"""
-          _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
-            $name,
-            $ownerExpr,
-            $typeParamsExpr
-          )
-        """
-      )
+        c.Expr[TypeId[A]](
+          q"""
+            _root_.zio.blocks.typeid.TypeId.nominal[$tpe](
+              $name,
+              $ownerExpr,
+              $typeParamsExpr
+            )
+          """
+        )
     }
+  }
+
+  private def buildTypeReprFromType(c: blackbox.Context)(tpe: c.Type): c.Tree = {
+    import c.universe._
+
+    tpe match {
+      case TypeRef(_, sym, args) if args.nonEmpty =>
+        // Applied type (e.g., List[Int], Map[String, Int])
+        val tyconRepr = buildTypeReprFromSymbol(c)(sym)
+        val argsRepr = args.map(buildTypeReprFromType(c)(_))
+        q"_root_.zio.blocks.typeid.TypeRepr.Applied($tyconRepr, _root_.scala.List(..$argsRepr))"
+      case TypeRef(_, sym, _) =>
+        // Simple type reference
+        buildTypeReprFromSymbol(c)(sym)
+      case _ =>
+        // Fallback for other types
+        q"_root_.zio.blocks.typeid.TypeRepr.Ref(_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing](${tpe.typeSymbol.name.toString}, _root_.zio.blocks.typeid.Owner.Root, _root_.scala.Nil))"
+    }
+  }
+
+  private def buildTypeReprFromSymbol(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
+    import c.universe._
+
+    val name = sym.name.decodedName.toString
+    val typeIdExpr = name match {
+      case "Int"     => q"_root_.zio.blocks.typeid.TypeId.int"
+      case "String"  => q"_root_.zio.blocks.typeid.TypeId.string"
+      case "Long"    => q"_root_.zio.blocks.typeid.TypeId.long"
+      case "Boolean" => q"_root_.zio.blocks.typeid.TypeId.boolean"
+      case "Double"  => q"_root_.zio.blocks.typeid.TypeId.double"
+      case "Float"   => q"_root_.zio.blocks.typeid.TypeId.float"
+      case "Byte"    => q"_root_.zio.blocks.typeid.TypeId.byte"
+      case "Short"   => q"_root_.zio.blocks.typeid.TypeId.short"
+      case "Char"    => q"_root_.zio.blocks.typeid.TypeId.char"
+      case "Unit"    => q"_root_.zio.blocks.typeid.TypeId.unit"
+      case "List"    => q"_root_.zio.blocks.typeid.TypeId.list"
+      case "Option"  => q"_root_.zio.blocks.typeid.TypeId.option"
+      case "Map"     => q"_root_.zio.blocks.typeid.TypeId.map"
+      case "Either"  => q"_root_.zio.blocks.typeid.TypeId.either"
+      case "Set"     => q"_root_.zio.blocks.typeid.TypeId.set"
+      case "Vector"  => q"_root_.zio.blocks.typeid.TypeId.vector"
+      case _ =>
+        // Create a nominal type reference
+        val ownerExpr = buildOwner(c)(sym.owner)
+        q"_root_.zio.blocks.typeid.TypeId.nominal[_root_.scala.Nothing]($name, $ownerExpr, _root_.scala.Nil)"
+    }
+    q"_root_.zio.blocks.typeid.TypeRepr.Ref($typeIdExpr)"
   }
 
   private def buildOwner(c: blackbox.Context)(sym: c.Symbol): c.Tree = {
