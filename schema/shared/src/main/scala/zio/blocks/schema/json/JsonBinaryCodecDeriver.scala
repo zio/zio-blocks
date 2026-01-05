@@ -1494,8 +1494,9 @@ class JsonBinaryCodecDeriver private[json] (
         val fields  = record.fields
         val len     = fields.length
         if (isTuple(reflect)) {
-          val codecs      = new Array[JsonBinaryCodec[?]](len)
-          var offset, idx = 0
+          var offset = 0L
+          val codecs = new Array[JsonBinaryCodec[?]](len)
+          var idx    = 0
           while (idx < len) {
             val codec = deriveCodec(fields(idx).value)
             codecs(idx) = codec
@@ -1702,8 +1703,9 @@ class JsonBinaryCodecDeriver private[json] (
             if (isRecursive) recursiveRecordCache.get.put(typeName, infos)
             discriminatorFields.set(null :: discriminatorFields.get)
           }
-          val map         = new StringMap[FieldInfo](len)
-          var offset, idx = 0
+          var offset = 0L
+          val map    = new StringMap[FieldInfo](len)
+          var idx    = 0
           while (idx < len) {
             val field     = fields(idx)
             val fieldInfo = infos(idx)
