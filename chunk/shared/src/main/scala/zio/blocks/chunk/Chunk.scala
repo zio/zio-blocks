@@ -2,11 +2,13 @@ package zio.blocks.chunk
 
 /*
  * Copyright 2018-2024 John A. De Goes and the ZIO Contributors
- *
-
-
-
-
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -146,7 +148,7 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
   }
 
   /**
-   * Crates a base64 encoded string based on the chunk's data.
+   * Creates a base64 encoded string based on the chunk's data.
    */
   def asBase64String(implicit ev: Chunk.IsText[A]): String = {
     val encoder = java.util.Base64.getEncoder
@@ -192,12 +194,12 @@ sealed abstract class Chunk[+A] extends ChunkLike[A] with Serializable { self =>
     else Chunk.ChunkPackedBoolean[Long](self.asInstanceOf[Chunk[Boolean]], 64, endianness)
 
   /**
-   * Crates a new String based on this chunks data.
+   * Creates a new String based on this chunks data.
    */
   final def asString(implicit ev: Chunk.IsText[A]): String = ev.convert(self)
 
   /**
-   * Crates a new String based on this chunk of bytes and using the given
+   * Creates a new String based on this chunk of bytes and using the given
    * charset.
    */
   final def asString(charset: Charset)(implicit ev: A <:< Byte): String = {
@@ -2984,7 +2986,8 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
 }
 /*
  * Copyright 2018-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
 
 
 
@@ -2992,13 +2995,15 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
 
 
 
 
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
 
 
 
@@ -3171,7 +3176,8 @@ trait ChunkLike[+A]
 }
 /*
  * Copyright 2020-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
 
 
 
@@ -3179,13 +3185,15 @@ trait ChunkLike[+A]
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
 
 
 
 
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
 
 
 
@@ -3217,7 +3225,8 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
 }
 /*
  * Copyright 2020-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
 
 
 
@@ -3225,13 +3234,15 @@ private[chunk] trait ChunkFactory extends StrictOptimizedSeqFactory[Chunk] {
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
 
 
 
 
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
 
 
 
@@ -3616,7 +3627,8 @@ object ChunkBuilder {
 }
 /*
  * Copyright 2020-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
 
 
 
@@ -3624,13 +3636,15 @@ object ChunkBuilder {
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
 
 
 
 
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
 
 
 
@@ -4047,7 +4061,8 @@ object NonEmptyChunk {
 }
 /*
  * Copyright 2018-2024 John A. De Goes and the ZIO Contributors
- *
+ *
+
 
 
 
@@ -4055,13 +4070,15 @@ object NonEmptyChunk {
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ *
+
 
 
 
 
  *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ *
+
 
 
 
@@ -4132,3 +4149,4 @@ private[chunk] trait ChunkPlatformSpecific {
     private val CharClassBox    = classOf[java.lang.Character]
   }
 }
+
