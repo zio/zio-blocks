@@ -10,12 +10,12 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps
 
-trait SchemaVersionSpecific {
-  inline def derived[A]: Schema[A] = ${ SchemaVersionSpecificImpl.derived }
+trait SchemaCompanionVersionSpecific {
+  inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
 }
 
-private object SchemaVersionSpecificImpl {
-  def derived[A: Type](using Quotes): Expr[Schema[A]] = new SchemaVersionSpecificImpl().derived[A]
+private object SchemaCompanionVersionSpecificImpl {
+  def derived[A: Type](using Quotes): Expr[Schema[A]] = new SchemaCompanionVersionSpecificImpl().derived[A]
 
   private implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
@@ -31,9 +31,9 @@ private object SchemaVersionSpecificImpl {
   }
 }
 
-private class SchemaVersionSpecificImpl(using Quotes) {
+private class SchemaCompanionVersionSpecificImpl(using Quotes) {
   import quotes.reflect._
-  import zio.blocks.schema.SchemaVersionSpecificImpl.fullTermNameOrdering
+  import zio.blocks.schema.SchemaCompanionVersionSpecificImpl.fullTermNameOrdering
 
   private val intTpe                = defn.IntClass.typeRef
   private val floatTpe              = defn.FloatClass.typeRef
