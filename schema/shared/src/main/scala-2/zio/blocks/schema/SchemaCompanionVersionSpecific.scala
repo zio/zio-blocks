@@ -10,11 +10,11 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
-trait SchemaVersionSpecific {
-  def derived[A]: Schema[A] = macro SchemaVersionSpecific.derived[A]
+trait SchemaCompanionVersionSpecific {
+  def derived[A]: Schema[A] = macro SchemaCompanionVersionSpecific.derived[A]
 }
 
-private object SchemaVersionSpecific {
+private object SchemaCompanionVersionSpecific {
   private[this] implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
