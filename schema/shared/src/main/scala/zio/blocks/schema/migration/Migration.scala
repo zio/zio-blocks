@@ -1,0 +1,130 @@
+package zio.blocks.schema.migration
+
+import zio.blocks.schema.Schema
+
+/**
+ * A typed migration that transforms values from type `A` to type `B`.
+ *
+ * `Migration[A, B]` provides a type-safe wrapper around `DynamicMigration`,
+ * handling the conversion between typed values and `DynamicValue` automatically.
+ *
+ * The migration process:
+ * 1. Convert input `A` to `DynamicValue` using `sourceSchema`
+ * 2. Apply the `dynamicMigration` to transform the dynamic value
+ * 3. Convert the result back to `B` using `targetSchema`
+ *
+ * @tparam A The source type
+ * @tparam B The target type
+ * @param sourceSchema Schema for the source type (used to convert A to DynamicValue)
+ * @param targetSchema Schema for the target type (used to convert DynamicValue to B)
+ * @param dynamicMigration The underlying untyped migration
+ */
+final case class Migration[A, B](
+  sourceSchema: Schema[A],
+  targetSchema: Schema[B],
+  dynamicMigration: DynamicMigration
+) {
+
+  /**
+   * Apply this migration to transform a value from type `A` to type `B`.
+   *
+   * @param value The input value to migrate
+   * @return Either a `MigrationError` or the migrated value
+   */
+  def apply(value: A): Either[MigrationError, B] = {
+    val dynamicValue = sourceSchema.toDynamicValue(value)
+    dynamicMigration(dynamicValue).flatMap { result =>
+      targetSchema.fromDynamicValue(result) match {
+        case Right(b)    => Right(b)
+        case Left(error) => Left(MigrationError.fromSchemaError(error))
+      }
+    }
+  }
+
+  /**
+   * Compose this migration with another, applying this migration first,
+   * then the other.
+   *
+   * @param that The migration to apply after this one
+   * @return A new migration that applies both in sequence
+   */
+  def ++[C](that: Migration[B, C]): Migration[A, C] =
+    new Migration(sourceSchema, that.targetSchema, dynamicMigration ++ that.dynamicMigration)
+
+  /**
+   * Alias for `++`.
+   */
+  def andThen[C](that: Migration[B, C]): Migration[A, C] = this ++ that
+
+  /**
+   * Returns the structural reverse of this migration.
+   *
+   * Note: Runtime execution of the reverse migration is best-effort.
+   * It may fail if information was lost during the forward migration.
+   */
+  def reverse: Migration[B, A] =
+    new Migration(targetSchema, sourceSchema, dynamicMigration.reverse)
+
+  /**
+   * Returns true if this migration has no actions (identity migration).
+   */
+  def isEmpty: Boolean = dynamicMigration.isEmpty
+
+  /**
+   * Returns the number of actions in this migration.
+   */
+  def size: Int = dynamicMigration.size
+
+  /**
+   * Get the list of actions in this migration.
+   */
+  def actions: Vector[MigrationAction] = dynamicMigration.actions
+}
+
+object Migration {
+
+  /**
+   * Create an identity migration that performs no transformations.
+   * The input value is simply re-encoded using the schema.
+   */
+  def identity[A](implicit schema: Schema[A]): Migration[A, A] =
+    new Migration(schema, schema, DynamicMigration.empty)
+
+  /**
+   * Create a new migration builder for constructing migrations
+   * from type `A` to type `B`.
+   */
+  def newBuilder[A, B](implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): MigrationBuilder[A, B] =
+    new MigrationBuilder(sourceSchema, targetSchema, Vector.empty)
+
+  /**
+   * Create a migration from a single action.
+   */
+  def fromAction[A, B](action: MigrationAction)(implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): Migration[A, B] =
+    new Migration(sourceSchema, targetSchema, DynamicMigration.single(action))
+
+  /**
+   * Create a migration from multiple actions.
+   */
+  def fromActions[A, B](actions: MigrationAction*)(implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): Migration[A, B] =
+    new Migration(sourceSchema, targetSchema, new DynamicMigration(actions.toVector))
+
+  /**
+   * Create a migration from a `DynamicMigration`.
+   */
+  def fromDynamic[A, B](dynamicMigration: DynamicMigration)(implicit
+    sourceSchema: Schema[A],
+    targetSchema: Schema[B]
+  ): Migration[A, B] =
+    new Migration(sourceSchema, targetSchema, dynamicMigration)
+}
+
