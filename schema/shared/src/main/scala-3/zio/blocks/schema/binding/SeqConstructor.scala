@@ -188,17 +188,6 @@ object SeqConstructor {
 
     def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
       var buf = builder.buffer
       val idx = builder.size
@@ -285,13 +274,6 @@ object SeqConstructor {
       }
       buf(idx) = a
       builder.size = idx + 1
-    }
-
-    def resultObject[A](builder: ObjectBuilder[A]): ArraySeq[A] = ArraySeq.unsafeWrapArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
     def resultBoolean(builder: BooleanBuilder): ArraySeq[Boolean] = ArraySeq.unsafeWrapArray {
@@ -400,17 +382,6 @@ object SeqConstructor {
 
     def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
       var buf = builder.buffer
       val idx = builder.size
@@ -497,13 +468,6 @@ object SeqConstructor {
       }
       buf(idx) = a
       builder.size = idx + 1
-    }
-
-    def resultObject[A](builder: ObjectBuilder[A]): Array[A] = {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
     def resultBoolean(builder: BooleanBuilder): Array[Boolean] = {
@@ -592,17 +556,6 @@ object SeqConstructor {
 
     def newCharBuilder(sizeHint: Int): CharBuilder = new Builder(new Array[Char](Math.max(sizeHint, 1)), 0)
 
-    def addObject[A](builder: ObjectBuilder[A], a: A): Unit = {
-      var buf = builder.buffer
-      val idx = builder.size
-      if (buf.length == idx) {
-        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], idx << 1).asInstanceOf[Array[A]]
-        builder.buffer = buf
-      }
-      buf(idx) = a
-      builder.size = idx + 1
-    }
-
     def addBoolean(builder: BooleanBuilder, a: Boolean): Unit = {
       var buf = builder.buffer
       val idx = builder.size
@@ -689,13 +642,6 @@ object SeqConstructor {
       }
       buf(idx) = a
       builder.size = idx + 1
-    }
-
-    def resultObject[A](builder: ObjectBuilder[A]): IArray[A] = IArray.unsafeFromArray {
-      val buf  = builder.buffer
-      val size = builder.size
-      if (buf.length == size) buf
-      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[AnyRef]], size).asInstanceOf[Array[A]]
     }
 
     def resultBoolean(builder: BooleanBuilder): IArray[Boolean] = IArray.unsafeFromArray {
