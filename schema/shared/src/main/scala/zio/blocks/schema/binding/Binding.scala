@@ -120,14 +120,12 @@ object Binding {
       constructor = new Constructor[Some[A]] {
         def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[A] =
-          new Some(in.getObject(baseOffset, 0).asInstanceOf[A])
+        def construct(in: Registers, offset: RegisterOffset): Some[A] = new Some(in.getObject(offset).asInstanceOf[A])
       },
       deconstructor = new Deconstructor[Some[A]] {
         def usedRegisters: RegisterOffset = RegisterOffset(objects = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[A]): Unit =
-          out.setObject(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[A]): Unit = out.setObject(offset, in.get)
       }
     )
 
@@ -135,14 +133,12 @@ object Binding {
       constructor = new Constructor[Some[Double]] {
         def usedRegisters: RegisterOffset = RegisterOffset(doubles = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Double] =
-          new Some(in.getDouble(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Double] = new Some(in.getDouble(offset))
       },
       deconstructor = new Deconstructor[Some[Double]] {
         def usedRegisters: RegisterOffset = RegisterOffset(doubles = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Double]): Unit =
-          out.setDouble(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Double]): Unit = out.setDouble(offset, in.get)
       }
     )
 
@@ -150,14 +146,12 @@ object Binding {
       constructor = new Constructor[Some[Long]] {
         def usedRegisters: RegisterOffset = RegisterOffset(longs = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Long] =
-          new Some(in.getLong(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Long] = new Some(in.getLong(offset))
       },
       deconstructor = new Deconstructor[Some[Long]] {
         def usedRegisters: RegisterOffset = RegisterOffset(longs = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Long]): Unit =
-          out.setLong(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Long]): Unit = out.setLong(offset, in.get)
       }
     )
 
@@ -165,14 +159,12 @@ object Binding {
       constructor = new Constructor[Some[Float]] {
         def usedRegisters: RegisterOffset = RegisterOffset(floats = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Float] =
-          new Some(in.getFloat(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Float] = new Some(in.getFloat(offset))
       },
       deconstructor = new Deconstructor[Some[Float]] {
         def usedRegisters: RegisterOffset = RegisterOffset(floats = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Float]): Unit =
-          out.setFloat(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Float]): Unit = out.setFloat(offset, in.get)
       }
     )
 
@@ -180,14 +172,12 @@ object Binding {
       constructor = new Constructor[Some[Int]] {
         def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Int] =
-          new Some(in.getInt(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Int] = new Some(in.getInt(offset))
       },
       deconstructor = new Deconstructor[Some[Int]] {
         def usedRegisters: RegisterOffset = RegisterOffset(ints = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Int]): Unit =
-          out.setInt(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Int]): Unit = out.setInt(offset, in.get)
       }
     )
 
@@ -195,14 +185,12 @@ object Binding {
       constructor = new Constructor[Some[Char]] {
         def usedRegisters: RegisterOffset = RegisterOffset(chars = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Char] =
-          new Some(in.getChar(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Char] = new Some(in.getChar(offset))
       },
       deconstructor = new Deconstructor[Some[Char]] {
         def usedRegisters: RegisterOffset = RegisterOffset(chars = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Char]): Unit =
-          out.setChar(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Char]): Unit = out.setChar(offset, in.get)
       }
     )
 
@@ -210,14 +198,12 @@ object Binding {
       constructor = new Constructor[Some[Short]] {
         def usedRegisters: RegisterOffset = RegisterOffset(shorts = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Short] =
-          new Some(in.getShort(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Short] = new Some(in.getShort(offset))
       },
       deconstructor = new Deconstructor[Some[Short]] {
         def usedRegisters: RegisterOffset = RegisterOffset(shorts = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Short]): Unit =
-          out.setShort(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Short]): Unit = out.setShort(offset, in.get)
       }
     )
 
@@ -225,14 +211,13 @@ object Binding {
       constructor = new Constructor[Some[Boolean]] {
         def usedRegisters: RegisterOffset = RegisterOffset(booleans = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Boolean] =
-          new Some(in.getBoolean(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Boolean] = new Some(in.getBoolean(offset))
       },
       deconstructor = new Deconstructor[Some[Boolean]] {
         def usedRegisters: RegisterOffset = RegisterOffset(booleans = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Boolean]): Unit =
-          out.setBoolean(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Boolean]): Unit =
+          out.setBoolean(offset, in.get)
       }
     )
 
@@ -240,40 +225,38 @@ object Binding {
       constructor = new Constructor[Some[Byte]] {
         def usedRegisters: RegisterOffset = RegisterOffset(bytes = 1)
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Byte] =
-          new Some(in.getByte(baseOffset, 0))
+        def construct(in: Registers, offset: RegisterOffset): Some[Byte] = new Some(in.getByte(offset))
       },
       deconstructor = new Deconstructor[Some[Byte]] {
         def usedRegisters: RegisterOffset = RegisterOffset(bytes = 1)
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Byte]): Unit =
-          out.setByte(baseOffset, 0, in.get)
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Byte]): Unit = out.setByte(offset, in.get)
       }
     )
 
     val someUnit: Record[Some[Unit]] = new Record(
       constructor = new Constructor[Some[Unit]] {
-        def usedRegisters: RegisterOffset = 0
+        def usedRegisters: RegisterOffset = 0L
 
-        def construct(in: Registers, baseOffset: RegisterOffset): Some[Unit] = new Some(())
+        def construct(in: Registers, offset: RegisterOffset): Some[Unit] = new Some(())
       },
       deconstructor = new Deconstructor[Some[Unit]] {
-        def usedRegisters: RegisterOffset = 0
+        def usedRegisters: RegisterOffset = 0L
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Some[Unit]): Unit = ()
+        def deconstruct(out: Registers, offset: RegisterOffset, in: Some[Unit]): Unit = ()
       }
     )
 
     val none: Record[None.type] = new Record(
       constructor = new Constructor[None.type] {
-        def usedRegisters: RegisterOffset = 0
+        def usedRegisters: RegisterOffset = 0L
 
-        def construct(in: Registers, baseOffset: RegisterOffset): None.type = None
+        def construct(in: Registers, offset: RegisterOffset): None.type = None
       },
       deconstructor = new Deconstructor[None.type] {
-        def usedRegisters: RegisterOffset = 0
+        def usedRegisters: RegisterOffset = 0L
 
-        def deconstruct(out: Registers, baseOffset: RegisterOffset, in: None.type): Unit = ()
+        def deconstruct(out: Registers, offset: RegisterOffset, in: None.type): Unit = ()
       }
     )
   }

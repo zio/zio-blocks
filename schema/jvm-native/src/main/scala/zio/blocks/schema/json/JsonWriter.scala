@@ -5,6 +5,8 @@ import java.math.BigInteger
 import java.nio.{BufferOverflowException, ByteBuffer}
 import java.time._
 import java.util.UUID
+import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
+import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonWriter._
 import scala.annotation.tailrec
 import java.lang.Long.compareUnsigned
@@ -18,32 +20,38 @@ import java.lang.Long.compareUnsigned
  *   the current position in the internal buffer
  * @param limit
  *   the last position in the internal buffer
+ * @param stack
+ *   a pre-allocated stack of registers
+ * @param top
+ *   an offset of the stack top
+ * @param maxTop
+ *   a maximum offset of the stack top
+ * @param config
+ *   a writer configuration
  * @param indention
  *   the current indention level
  * @param comma
- *   a flag indicating if the next element should be preceded by comma
+ *   a flag indicating if comma should precede the next element
  * @param disableBufGrowing
  *   a flag indicating if growing of the internal buffer is disabled
  * @param bbuf
  *   a byte buffer for writing JSON data
  * @param out
  *   the output stream for writing JSON data
- * @param config
- *   a writer configuration
- * @param inUse
- *   a flag that indicates whether the writer is currently in use
  */
 final class JsonWriter private[json] (
   private[this] var buf: Array[Byte] = new Array[Byte](32768),
   private[this] var count: Int = 0,
   private[this] var limit: Int = 32768,
+  private[this] val stack: Registers = Registers(0),
+  private[this] var top: RegisterOffset = -1L,
+  private[this] var maxTop: RegisterOffset = 0L,
+  private[this] var config: WriterConfig = null,
   private[this] var indention: Int = 0,
   private[this] var comma: Boolean = false,
   private[this] var disableBufGrowing: Boolean = false,
   private[this] var bbuf: ByteBuffer = null,
-  private[this] var out: OutputStream = null,
-  private[this] var config: WriterConfig = null,
-  private[this] var inUse: Boolean = false
+  private[this] var out: OutputStream = null
 ) {
 
   /**
@@ -426,6 +434,17 @@ final class JsonWriter private[json] (
     writeZoneOffset(x)
     writeColon()
   }
+
+  def push(offset: RegisterOffset): RegisterOffset = {
+    val top = this.top
+    this.top = top + offset
+    maxTop = Math.max(maxTop, this.top)
+    top
+  }
+
+  def pop(offset: RegisterOffset): Unit = top -= offset
+
+  def registers: Registers = this.stack
 
   /**
    * Throws a [[JsonBinaryCodecError]] with the given error message.
@@ -948,7 +967,7 @@ final class JsonWriter private[json] (
    * @return
    *   true if the writer is in use, false otherwise
    */
-  private[json] def isInUse: Boolean = inUse
+  private[json] def isInUse: Boolean = top >= 0
 
   /**
    * Writes JSON-encoded value of type `A` to an output stream.
@@ -964,20 +983,22 @@ final class JsonWriter private[json] (
    */
   private[json] def write[A](codec: JsonBinaryCodec[A], x: A, out: OutputStream, config: WriterConfig): Unit =
     try {
-      inUse = true
-      this.out = out
-      this.config = config
+      top = 0
+      maxTop = 0
       count = 0
       indention = 0
       comma = false
       disableBufGrowing = false
+      this.out = out
+      this.config = config
       if (limit < config.preferredBufSize) reallocateBufToPreferredSize()
       codec.encodeValue(x, this)
       out.write(buf, 0, count)
     } finally {
       this.out = null // don't close output stream
       if (limit > config.preferredBufSize) reallocateBufToPreferredSize()
-      inUse = false
+      stack.clearObjects(maxTop)
+      top = -1
     }
 
   /**
@@ -994,17 +1015,19 @@ final class JsonWriter private[json] (
    */
   private[json] def write[A](codec: JsonBinaryCodec[A], x: A, config: WriterConfig): Array[Byte] =
     try {
-      inUse = true
-      this.config = config
+      top = 0
+      maxTop = 0
       count = 0
       indention = 0
       comma = false
       disableBufGrowing = false
+      this.config = config
       codec.encodeValue(x, this)
       java.util.Arrays.copyOf(buf, count)
     } finally {
       if (limit > config.preferredBufSize) reallocateBufToPreferredSize()
-      inUse = false
+      stack.clearObjects(maxTop)
+      top = -1
     }
 
   /**
@@ -1020,7 +1043,10 @@ final class JsonWriter private[json] (
    *   the writer configuration
    */
   private[json] def write[A](codec: JsonBinaryCodec[A], x: A, bbuf: ByteBuffer, config: WriterConfig): Unit = {
-    inUse = true
+    top = 0
+    maxTop = 0
+    indention = 0
+    comma = false
     if (bbuf.hasArray) {
       val offset  = bbuf.arrayOffset
       val currBuf = this.buf
@@ -1029,8 +1055,6 @@ final class JsonWriter private[json] (
         this.config = config
         count = bbuf.position() + offset
         limit = bbuf.limit() + offset
-        indention = 0
-        comma = false
         disableBufGrowing = true
         codec.encodeValue(x, this)
       } catch {
@@ -1038,15 +1062,14 @@ final class JsonWriter private[json] (
       } finally {
         setBuf(currBuf)
         bbuf.position(count - offset)
-        inUse = false
+        stack.clearObjects(maxTop)
+        top = -1
       }
     } else {
       try {
         this.bbuf = bbuf
         this.config = config
         count = 0
-        indention = 0
-        comma = false
         disableBufGrowing = false
         if (limit < config.preferredBufSize) reallocateBufToPreferredSize()
         codec.encodeValue(x, this)
@@ -1054,7 +1077,8 @@ final class JsonWriter private[json] (
       } finally {
         this.bbuf = null
         if (limit > config.preferredBufSize) reallocateBufToPreferredSize()
-        inUse = false
+        stack.clearObjects(maxTop)
+        top = -1
       }
     }
   }

@@ -16,11 +16,11 @@ abstract class Constructor[+A] { self =>
   /**
    * Constructs a value of type `A` from the registers.
    */
-  def construct(in: Registers, baseOffset: RegisterOffset): A
+  def construct(in: Registers, offset: RegisterOffset): A
 }
 
 class ConstantConstructor[A](constant: A) extends Constructor[A] {
-  def usedRegisters: RegisterOffset = 0
+  def usedRegisters: RegisterOffset = 0L
 
-  def construct(in: Registers, baseOffset: RegisterOffset): A = constant
+  def construct(in: Registers, offset: RegisterOffset): A = constant
 }
