@@ -257,7 +257,7 @@ object ReflectSpec extends ZIOSpecDefault {
           isSome(equalTo(PrimitiveType.Long(Validation.None)))
         ) &&
         assert(record1.registers(3).usedRegisters)(equalTo(RegisterOffset(longs = 1))) &&
-        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0)(_ + _.usedRegisters)))
+        assert(record1.usedRegisters)(equalTo(record1.registers.foldLeft(0L)(_ + _.usedRegisters)))
       },
       test("has consistent fromDynamicValue and toDynamicValue") {
         assert(tuple4Reflect.fromDynamicValue(tuple4Reflect.toDynamicValue((1: Byte, 2: Short, 3, 4L))))(
