@@ -10,11 +10,11 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
-trait SchemaVersionSpecific {
-  def derived[A]: Schema[A] = macro SchemaVersionSpecific.derived[A]
+trait SchemaCompanionVersionSpecific {
+  def derived[A]: Schema[A] = macro SchemaCompanionVersionSpecific.derived[A]
 }
 
-private object SchemaVersionSpecific {
+private object SchemaCompanionVersionSpecific {
   private[this] implicit val fullTermNameOrdering: Ordering[Array[String]] = new Ordering[Array[String]] {
     override def compare(x: Array[String], y: Array[String]): Int = {
       val minLen = Math.min(x.length, y.length)
@@ -306,72 +306,68 @@ private object SchemaVersionSpecific {
 
       def constructor: Tree = {
         val argss = fieldInfos.map(_.map { fieldInfo =>
-          val fTpe    = fieldInfo.tpe
-          val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
-          val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
-          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+          val fTpe          = fieldInfo.tpe
+          val usedRegisters = fieldInfo.usedRegisters
+          if (fTpe =:= definitions.IntTpe) q"in.getInt(offset + $usedRegisters)"
+          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters)"
+          else if (fTpe =:= definitions.LongTpe) q"in.getLong(offset + $usedRegisters)"
+          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters)"
+          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters)"
+          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(offset + $usedRegisters)"
+          else if (fTpe =:= definitions.CharTpe) q"in.getChar(offset + $usedRegisters)"
+          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(offset + $usedRegisters)"
           else if (fTpe =:= definitions.UnitTpe) q"()"
           else {
             val sTpe = dealiasOnDemand(fTpe)
-            if (sTpe <:< definitions.IntTpe) q"in.getInt(baseOffset, $bytes).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.LongTpe) q"in.getLong(baseOffset, $bytes).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.ByteTpe) q"in.getByte(baseOffset, $bytes).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.CharTpe) q"in.getChar(baseOffset, $bytes).asInstanceOf[$fTpe]"
-            else if (sTpe <:< definitions.ShortTpe) q"in.getShort(baseOffset, $bytes).asInstanceOf[$fTpe]"
+            if (sTpe <:< definitions.IntTpe) q"in.getInt(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.FloatTpe) q"in.getFloat(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.LongTpe) q"in.getLong(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.DoubleTpe) q"in.getDouble(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.BooleanTpe) q"in.getBoolean(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.ByteTpe) q"in.getByte(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.CharTpe) q"in.getChar(offset + $usedRegisters).asInstanceOf[$fTpe]"
+            else if (sTpe <:< definitions.ShortTpe) q"in.getShort(offset + $usedRegisters).asInstanceOf[$fTpe]"
             else if (sTpe <:< definitions.UnitTpe) q"().asInstanceOf[$fTpe]"
-            else q"in.getObject(baseOffset, $objects).asInstanceOf[$fTpe]"
+            else q"in.getObject(offset + $usedRegisters).asInstanceOf[$fTpe]"
           }
         })
         q"new $tpe(...$argss)"
       }
 
       def deconstructor: List[Tree] = fieldInfos.flatMap(_.map { fieldInfo =>
-        val fTpe    = fieldInfo.tpe
-        val getter  = fieldInfo.getter
-        val bytes   = RegisterOffset.getBytes(fieldInfo.usedRegisters)
-        val objects = RegisterOffset.getObjects(fieldInfo.usedRegisters)
-        if (fTpe <:< definitions.IntTpe) q"out.setInt(baseOffset, $bytes, in.$getter)"
-        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(baseOffset, $bytes, in.$getter)"
-        else if (fTpe <:< definitions.LongTpe) q"out.setLong(baseOffset, $bytes, in.$getter)"
-        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(baseOffset, $bytes, in.$getter)"
-        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(baseOffset, $bytes, in.$getter)"
-        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(baseOffset, $bytes, in.$getter)"
-        else if (fTpe <:< definitions.CharTpe) q"out.setChar(baseOffset, $bytes, in.$getter)"
-        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(baseOffset, $bytes, in.$getter)"
+        val fTpe          = fieldInfo.tpe
+        val getter        = fieldInfo.getter
+        val usedRegisters = fieldInfo.usedRegisters
+        if (fTpe <:< definitions.IntTpe) q"out.setInt(offset + $usedRegisters, in.$getter)"
+        else if (fTpe <:< definitions.FloatTpe) q"out.setFloat(offset + $usedRegisters, in.$getter)"
+        else if (fTpe <:< definitions.LongTpe) q"out.setLong(offset + $usedRegisters, in.$getter)"
+        else if (fTpe <:< definitions.DoubleTpe) q"out.setDouble(offset + $usedRegisters, in.$getter)"
+        else if (fTpe <:< definitions.BooleanTpe) q"out.setBoolean(offset + $usedRegisters, in.$getter)"
+        else if (fTpe <:< definitions.ByteTpe) q"out.setByte(offset + $usedRegisters, in.$getter)"
+        else if (fTpe <:< definitions.CharTpe) q"out.setChar(offset + $usedRegisters, in.$getter)"
+        else if (fTpe <:< definitions.ShortTpe) q"out.setShort(offset + $usedRegisters, in.$getter)"
         else if (fTpe <:< definitions.UnitTpe) q"()"
-        else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(baseOffset, $objects, in.$getter)"
+        else if (fTpe <:< definitions.AnyRefTpe) q"out.setObject(offset + $usedRegisters, in.$getter)"
         else {
           val sTpe = dealiasOnDemand(fTpe)
           if (sTpe <:< definitions.IntTpe) {
-            q"out.setInt(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Int])"
+            q"out.setInt(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Int])"
           } else if (sTpe <:< definitions.FloatTpe) {
-            q"out.setFloat(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Float])"
+            q"out.setFloat(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Float])"
           } else if (sTpe <:< definitions.LongTpe) {
-            q"out.setLong(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Long])"
+            q"out.setLong(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Long])"
           } else if (sTpe <:< definitions.DoubleTpe) {
-            q"out.setDouble(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Double])"
+            q"out.setDouble(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Double])"
           } else if (sTpe <:< definitions.BooleanTpe) {
-            q"out.setBoolean(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Boolean])"
+            q"out.setBoolean(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Boolean])"
           } else if (sTpe <:< definitions.ByteTpe) {
-            q"out.setByte(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Byte])"
+            q"out.setByte(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Byte])"
           } else if (sTpe <:< definitions.CharTpe) {
-            q"out.setChar(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Char])"
+            q"out.setChar(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Char])"
           } else if (sTpe <:< definitions.ShortTpe) {
-            q"out.setShort(baseOffset, $bytes, in.$getter.asInstanceOf[_root_.scala.Short])"
+            q"out.setShort(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.Short])"
           } else if (sTpe <:< definitions.UnitTpe) q"()"
-          else {
-            q"out.setObject(baseOffset, $objects, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
-          }
+          else q"out.setObject(offset + $usedRegisters, in.$getter.asInstanceOf[_root_.scala.AnyRef])"
         }
       })
     }
@@ -382,16 +378,37 @@ private object SchemaVersionSpecific {
       } else if (isCollection(tpe)) {
         if (tpe <:< typeOf[Array[?]]) {
           val elementTpe = typeArgs(tpe).head
-          val schema     = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName    = toTree(typeName(tpe))
+          val copyOfTpe  =
+            if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
+            else elementTpe
+          val schema  = findImplicitOrDeriveSchema(elementTpe)
+          val tpeName = toTree(typeName(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
                 typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArrayConstructor {
-                    override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                    def newObjectBuilder[B](sizeHint: Int): Builder[B] =
                       new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+
+                    def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      var buf = builder.buffer
+                      val idx = builder.size
+                      if (buf.length == idx) {
+                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                        builder.buffer = buf
+                      }
+                      buf(idx) = a
+                      builder.size = idx + 1
+                    }
+
+                    def resultObject[B](builder: ObjectBuilder[B]): Array[B] = {
+                      val buf  = builder.buffer
+                      val size = builder.size
+                      if (buf.length == size) buf
+                      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                    }
                   },
                   deconstructor = SeqDeconstructor.arrayDeconstructor
                 )
@@ -399,16 +416,37 @@ private object SchemaVersionSpecific {
             )"""
         } else if (tpe <:< typeOf[ArraySeq[?]]) {
           val elementTpe = typeArgs(tpe).head
-          val schema     = findImplicitOrDeriveSchema(elementTpe)
-          val tpeName    = toTree(typeName(tpe))
+          val copyOfTpe  =
+            if (elementTpe <:< definitions.UnitTpe) definitions.AnyRefTpe
+            else elementTpe
+          val schema  = findImplicitOrDeriveSchema(elementTpe)
+          val tpeName = toTree(typeName(tpe))
           q"""new Schema(
               reflect = new Reflect.Sequence(
                 element = $schema.reflect,
                 typeName = $tpeName.copy(params = List($schema.reflect.typeName)),
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArraySeqConstructor {
-                    override def newObjectBuilder[B](sizeHint: Int): Builder[B] =
+                    def newObjectBuilder[B](sizeHint: Int): Builder[B] =
                       new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+
+                    def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
+                      var buf = builder.buffer
+                      val idx = builder.size
+                      if (buf.length == idx) {
+                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                        builder.buffer = buf
+                      }
+                      buf(idx) = a
+                      builder.size = idx + 1
+                    }
+
+                    def resultObject[B](builder: ObjectBuilder[B]): ArraySeq[B] = ArraySeq.unsafeWrapArray {
+                      val buf  = builder.buffer
+                      val size = builder.size
+                      if (buf.length == size) buf
+                      else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
+                    }
                   },
                   deconstructor = SeqDeconstructor.arraySeqDeconstructor
                 )
@@ -490,12 +528,12 @@ private object SchemaVersionSpecific {
                 constructor = new Constructor[$tpe] {
                   def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
 
-                  def construct(in: Registers, baseOffset: RegisterOffset): $tpe = ${classInfo.constructor}
+                  def construct(in: Registers, offset: RegisterOffset): $tpe = ${classInfo.constructor}
                 },
                 deconstructor = new Deconstructor[$tpe] {
                   def usedRegisters: RegisterOffset = ${classInfo.usedRegisters}
 
-                  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
+                  def deconstruct(out: Registers, offset: RegisterOffset, in: $tpe): _root_.scala.Unit = {
                     ..${classInfo.deconstructor}
                   }
                 }

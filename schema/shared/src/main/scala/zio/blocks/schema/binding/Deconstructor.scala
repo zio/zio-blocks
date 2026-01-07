@@ -16,11 +16,11 @@ abstract class Deconstructor[-A] { self =>
   /**
    * Deconstructs a value of type `A` into the registers.
    */
-  def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit
+  def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit
 }
 
 class ConstantDeconstructor[A] extends Deconstructor[A] {
-  override def usedRegisters: RegisterOffset = 0
+  override def usedRegisters: RegisterOffset = 0L
 
-  override def deconstruct(out: Registers, baseOffset: RegisterOffset, in: A): Unit = {}
+  override def deconstruct(out: Registers, offset: RegisterOffset, in: A): Unit = {}
 }
