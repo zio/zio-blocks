@@ -2,7 +2,10 @@ package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{DerivationBuilder, Deriver}
+import zio.blocks.schema.json.JsonBinaryCodec
 import zio.blocks.schema.registry.{RebindError, TypeRegistry}
+
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -79,7 +82,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def serialize: DynamicValue = reflect.toJsonSchema
 
-  def toJsonSchema: String = serialize.toJson
+  def toJsonSchema: String =
+    new String(JsonBinaryCodec.dynamicValueCodec.encode(serialize), StandardCharsets.UTF_8)
 
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
@@ -107,7 +111,10 @@ object Schema extends SchemaCompanionVersionSpecific {
     Reflect.fromJsonSchema[F, A](value).rebind(typeRegistry).map(reflect => new Schema[A](reflect))
 
   def fromJsonSchema[F[_, _], A](typeRegistry: TypeRegistry, json: String): Either[RebindError, Schema[A]] =
-    deserialize[F, A](typeRegistry, DynamicValue.fromJson(json))
+    JsonBinaryCodec.dynamicValueCodec.decode(json.getBytes(StandardCharsets.UTF_8)) match {
+      case Right(value) => deserialize[F, A](typeRegistry, value)
+      case Left(error) => new Left(new RebindError(error.getMessage))
+    }
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
 
