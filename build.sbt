@@ -129,7 +129,14 @@ lazy val `schema-avro` = project
       "org.apache.avro" % "avro"         % "1.12.1",
       "dev.zio"        %% "zio-test"     % "2.1.24" % Test,
       "dev.zio"        %% "zio-test-sbt" % "2.1.24" % Test
-    )
+    ) ++ (CrossVersion.partialVersion(scalaVersion.value) match {
+      case Some((2, _)) =>
+        Seq()
+      case _ =>
+        Seq(
+          "io.github.kitlangton" %% "neotype" % "0.3.37" % Test
+        )
+    })
   )
 
 lazy val scalaNextTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
@@ -164,7 +171,7 @@ lazy val benchmarks = project
   .enablePlugins(JmhPlugin)
   .settings(
     libraryDependencies ++= Seq(
-      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.7",
+      "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.38.8",
       "com.sksamuel.avro4s"                   %% "avro4s-core"           % "5.0.14",
       "dev.zio"                               %% "zio-json"              % "0.7.45",
       "dev.zio"                               %% "zio-schema-avro"       % "1.7.5",

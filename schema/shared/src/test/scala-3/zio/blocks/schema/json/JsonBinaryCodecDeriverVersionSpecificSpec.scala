@@ -50,7 +50,6 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
         val schema1 = Schema.derived[LinkedList[Int]]
         val schema2 = Schema.derived[LinkedList[Option[String]]]
-
         roundTrip(
           Node(1, Node(2, End)),
           """{"::":{"val":1,"nxt":{"::":{"val":2,"nxt":{"End":{}}}}}}"""
@@ -59,6 +58,14 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
           Node(Some("VVV"), Node(None, End)),
           """{"::":{"val":"VVV","nxt":{"::":{"nxt":{"End":{}}}}}}"""
         )(schema2)
+      },
+      test("complex recursive values without discriminator") {
+        import LinkedList._
+
+        val codec = Schema
+          .derived[LinkedList[Double]]
+          .derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+        roundTrip(Node(1.0, Node(2.0, End)), """{"val":1.0,"nxt":{"val":2.0,"nxt":{}}}""", codec)
       },
       test("union type with key discriminator") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
@@ -126,13 +133,13 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
   }
 
   enum LinkedList[+T] {
-    case End
-
     @Modifier.rename("::")
     case Node(
       @Modifier.rename("val") value: T,
       @Modifier.rename("nxt") next: LinkedList[T]
     )
+
+    case End
   }
 
   sealed trait Foo derives Schema

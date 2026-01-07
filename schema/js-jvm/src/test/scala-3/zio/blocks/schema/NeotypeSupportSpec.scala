@@ -3,6 +3,7 @@ package zio.blocks.schema
 import neotype._
 import zio.blocks.schema.SchemaError.ExpectationMismatch
 import zio.blocks.schema.binding.Binding
+import zio.blocks.schema.json.JsonTestUtils._
 import zio.test.Assertion._
 import zio.test._
 
@@ -23,19 +24,13 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
       ) &&
       assert(Planet.schema.fromDynamicValue(Planet.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
       assert(Planet.name.focus.typeName)(
-        equalTo(
-          TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name")
-        )
+        equalTo(TypeName[Name](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Name"))
       ) &&
       assert(Planet.mass.focus.typeName)(
-        equalTo(
-          TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram")
-        )
+        equalTo(TypeName[Kilogram](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Kilogram"))
       ) &&
       assert(Planet.radius.focus.typeName)(
-        equalTo(
-          TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
-        )
+        equalTo(TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter"))
       ) &&
       assert(Planet.distanceFromSun.focus.typeName)(
         equalTo(
@@ -43,6 +38,23 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
             TypeName[Meter](Namespace(Seq("zio", "blocks", "schema"), Seq("NeotypeSupportSpec")), "Meter")
           )
         )
+      ) &&
+      roundTrip[Planet](value, """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""") &&
+      decodeError[Planet](
+        """{"name":"","mass":5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
+        "Validation Failed at: .name"
+      ) &&
+      decodeError[Planet](
+        """{"name":"Earth","mass":-5.97E24,"radius":6378000.0,"distanceFromSun":1.5E15}""",
+        "Validation Failed at: .mass"
+      ) &&
+      decodeError[Planet](
+        """{"name":"Earth","mass":5.97E24,"radius":-6378000.0,"distanceFromSun":1.5E15}""",
+        "Validation Failed at: .radius"
+      ) &&
+      decodeError[Planet](
+        """{"name":"Earth","mass":5.97E24,"radius":6378000.0,"distanceFromSun":-1.5E15}""",
+        "Validation Failed at: .distanceFromSun.when[Some].value"
       )
     },
     test("derive schemas for cases classes and generic tuples with newtypes") {
@@ -58,8 +70,8 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
         NUnit(()),
         NString("VVV")
       )
-      val schema = Schema.derived[NRecord]
-      assert(schema.fromDynamicValue(schema.toDynamicValue(value)))(isRight(equalTo(value)))
+      assert(NRecord.schema.fromDynamicValue(NRecord.schema.toDynamicValue(value)))(isRight(equalTo(value))) &&
+      roundTrip[NRecord](value, """{"i":1,"f":2.0,"l":3,"d":4.0,"bl":true,"b":6,"c":"7","sh":8,"u":null,"s":"VVV"}""")
     },
     test("derive schemas for options with newtypes and subtypes") {
       val schema1 = Schema.derived[Option[Name]]
@@ -181,8 +193,8 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
             SchemaError(
               errors = ::(
                 ExpectationMismatch(
-                  source = DynamicOptic(nodes =
-                    Vector(
+                  source = DynamicOptic(
+                    nodes = Vector(
                       DynamicOptic.Node.Field("responseTimes"),
                       DynamicOptic.Node.Elements,
                       DynamicOptic.Node.AtIndex(0)
@@ -199,21 +211,29 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     }
   )
 
+  inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
+    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
+
+  inline given subTypeSchema[A, B <: A](using subType: Subtype.WithType[A, B], schema: Schema[A]): Schema[B] =
+    Schema.derived[B].wrap[A](subType.make, _.asInstanceOf[A])
+
   type Name = Name.Type
 
   object Name extends Newtype[String] {
     override inline def validate(string: String): Boolean = string.length > 0
-
-    implicit val schema: Schema[Name] = Schema.derived.wrap(Name.make, _.unwrap)
   }
 
   type Kilogram = Kilogram.Type
 
-  object Kilogram extends Subtype[Double]
+  object Kilogram extends Subtype[Double] {
+    override inline def validate(value: Double): Boolean = value >= 0.0
+  }
 
   type Meter = Meter.Type
 
-  object Meter extends Newtype[Double]
+  object Meter extends Newtype[Double] {
+    override inline def validate(value: Double): Boolean = value >= 0.0
+  }
 
   case class Planet(name: Name, mass: Kilogram, radius: Meter, distanceFromSun: Option[Meter])
 
@@ -226,23 +246,41 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     val name_wrapped: Optional[Planet, String]       = $(_.name.wrapped[String])
   }
 
-  object NInt extends Newtype[Int]
+  object NInt extends Newtype[Int] {
+    override inline def validate(value: Int): Boolean = value >= 0
+  }
 
-  object NFloat extends Newtype[Float]
+  object NFloat extends Newtype[Float] {
+    override inline def validate(value: Float): Boolean = value >= 0.0f
+  }
 
-  object NLong extends Newtype[Long]
+  object NLong extends Newtype[Long] {
+    override inline def validate(value: Long): Boolean = value >= 0L
+  }
 
-  object NDouble extends Newtype[Double]
+  object NDouble extends Newtype[Double] {
+    override inline def validate(value: Double): Boolean = value >= 0.0
+  }
 
-  object NBoolean extends Newtype[Boolean]
+  object NBoolean extends Newtype[Boolean] {
+    override inline def validate(value: Boolean): Boolean = value
+  }
 
-  object NByte extends Newtype[Byte]
+  object NByte extends Newtype[Byte] {
+    override inline def validate(value: Byte): Boolean = value >= 0
+  }
 
-  object NChar extends Newtype[Char]
+  object NChar extends Newtype[Char] {
+    override inline def validate(value: Char): Boolean = value >= ' '
+  }
 
-  object NShort extends Newtype[Short]
+  object NShort extends Newtype[Short] {
+    override inline def validate(value: Short): Boolean = value >= 0
+  }
 
-  object NUnit extends Newtype[Unit]
+  object NUnit extends Newtype[Unit] {
+    override inline def validate(value: Unit): Boolean = true
+  }
 
   object NString extends Newtype[String]
 
@@ -259,8 +297,9 @@ object NeotypeSupportSpec extends ZIOSpecDefault {
     s: NString.Type
   )
 
-  inline given newTypeSchema[A, B](using newType: Newtype.WithType[A, B], schema: Schema[A]): Schema[B] =
-    Schema.derived[B].wrap[A](newType.make, newType.unwrap)
+  object NRecord {
+    implicit val schema: Schema[NRecord] = Schema.derived
+  }
 
   type Id = Id.Type
 

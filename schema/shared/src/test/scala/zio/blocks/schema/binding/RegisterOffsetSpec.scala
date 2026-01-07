@@ -19,7 +19,7 @@ object RegisterOffsetSpec extends ZIOSpecDefault {
             longs = 8,
             objects = 9
           )
-        )(equalTo(((1 + 2 + (3 + 4) * 2 + (5 + 6) * 4 + (7 + 8) * 8) << 16) | 9))
+        )(equalTo(((1 + 2 + (3 + 4) * 2 + (5 + 6) * 4 + (7 + 8) * 8).toLong << 32) | 9))
       },
       test("throws IllegalArgumentException in case of overflow") {
         assert(
@@ -30,21 +30,8 @@ object RegisterOffsetSpec extends ZIOSpecDefault {
             shorts = 4,
             floats = 5,
             ints = 6,
-            doubles = 7,
-            longs = 8,
-            objects = 65536
-          )
-        )(throwsA[IllegalArgumentException]) &&
-        assert(
-          RegisterOffset(
-            booleans = 1,
-            bytes = 2,
-            chars = 3,
-            shorts = 4,
-            floats = 5,
-            ints = 6,
-            doubles = 4096,
-            longs = 4096,
+            doubles = Int.MaxValue / 16,
+            longs = Int.MaxValue / 16,
             objects = 9
           )
         )(throwsA[IllegalArgumentException])
@@ -89,7 +76,7 @@ object RegisterOffsetSpec extends ZIOSpecDefault {
           ints = 6,
           doubles = 7,
           longs = 8,
-          objects = 32768
+          objects = Int.MaxValue
         )
         val offset2 = RegisterOffset(
           booleans = 1,
@@ -98,8 +85,8 @@ object RegisterOffsetSpec extends ZIOSpecDefault {
           shorts = 4,
           floats = 5,
           ints = 6,
-          doubles = 2048,
-          longs = 2048,
+          doubles = Int.MaxValue / 32,
+          longs = Int.MaxValue / 32,
           objects = 9
         )
         assert(RegisterOffset.add(offset1, offset1))(throwsA[IllegalArgumentException]) &&

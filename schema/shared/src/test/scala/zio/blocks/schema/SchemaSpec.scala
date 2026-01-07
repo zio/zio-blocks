@@ -322,9 +322,10 @@ object SchemaSpec extends ZIOSpecDefault {
         case class Record4(mx: Vector[ArraySeq[Int]], rs: List[Set[Int]])
 
         object Record4 extends CompanionOptics[Record4] {
-          implicit val schema: Schema[Record4] = Schema.derived
-          val mx: Traversal[Record4, Int]      = optic((x: Record4) => x.mx.each.each)
-          val rs: Traversal[Record4, Int]      = optic(_.rs).listValues.setValues
+          implicit val schema: Schema[Record4]     = Schema.derived
+          val v: Traversal[Record4, ArraySeq[Int]] = optic(_.mx).vectorValues
+          val mx: Traversal[Record4, Int]          = optic((x: Record4) => x.mx.each.each)
+          val rs: Traversal[Record4, Int]          = optic(_.rs).listValues.setValues
         }
 
         val record = Record4.schema.reflect.asRecord
@@ -1198,7 +1199,7 @@ object SchemaSpec extends ZIOSpecDefault {
       },
       test("gets and updates sequence documentation") {
         assert(Schema[List[Double]].doc)(equalTo(Doc.Empty)) &&
-        assert(Schema[Seq[Int]].doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
+        assert(Schema.derived[Seq[Int]].doc("Seq (updated)").doc)(equalTo(Doc("Seq (updated)")))
       },
       test("gets and updates sequence examples") {
         assert(Schema[List[Double]].examples)(equalTo(Seq.empty)) &&
@@ -1229,6 +1230,13 @@ object SchemaSpec extends ZIOSpecDefault {
         assert(
           schema2.modifiers(Seq(Modifier.config("key2", "value2"))).reflect.modifiers
         )(equalTo(Seq(Modifier.config("key1", "value1"), Modifier.config("key2", "value2"))))
+      },
+      test("has consistent newObjectBuilder, addObject and resultObject") {
+        val schema      = Schema.derived[Array[Int]]
+        val constructor = schema.reflect.asSequence.get.seqBinding.asInstanceOf[Binding.Seq[Array, Int]].constructor
+        val xs          = constructor.newObjectBuilder[Int]()
+        constructor.addObject(xs, 2)
+        assert(constructor.resultObject(xs))(equalTo(Array(2)))
       },
       test("has consistent toDynamicValue and fromDynamicValue") {
         assert(Schema[Seq[Int]].fromDynamicValue(Schema[Seq[Int]].toDynamicValue(Seq(1, 2, 3))))(

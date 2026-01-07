@@ -1,12 +1,14 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.SchemaError.ExpectationMismatch
-import zio.blocks.schema.{DynamicOptic, SchemaError}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaError, PrimitiveValue}
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
 import java.nio.ByteBuffer
+import java.time._
+import java.util.{Currency, UUID}
 import scala.annotation.switch
-import scala.collection.immutable.ArraySeq
+import scala.collection.immutable.{ArraySeq, VectorBuilder}
 import scala.util.control.NonFatal
 
 /**
@@ -340,11 +342,484 @@ object JsonBinaryCodec {
   val shortType   = 8
   val unitType    = 9
 
-  private final val readerPool: ThreadLocal[JsonReader] = new ThreadLocal[JsonReader] {
+  private val readerPool: ThreadLocal[JsonReader] = new ThreadLocal[JsonReader] {
     override def initialValue(): JsonReader = new JsonReader
   }
-  private final val writerPool: ThreadLocal[JsonWriter] = new ThreadLocal[JsonWriter] {
+  private val writerPool: ThreadLocal[JsonWriter] = new ThreadLocal[JsonWriter] {
     override def initialValue(): JsonWriter = new JsonWriter
+  }
+
+  val unitCodec: JsonBinaryCodec[Unit] = new JsonBinaryCodec[Unit](JsonBinaryCodec.unitType) {
+    def decodeValue(in: JsonReader, default: Unit): Unit =
+      if (in.isNextToken('n')) {
+        in.rollbackToken()
+        in.readNullOrError((), "expected null")
+      } else in.decodeError("expected null")
+
+    def encodeValue(x: Unit, out: JsonWriter): Unit = out.writeNull()
+  }
+  val booleanCodec: JsonBinaryCodec[Boolean] = new JsonBinaryCodec[Boolean](JsonBinaryCodec.booleanType) {
+    def decodeValue(in: JsonReader, default: Boolean): Boolean = in.readBoolean()
+
+    def encodeValue(x: Boolean, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Boolean = in.readKeyAsBoolean()
+
+    override def encodeKey(x: Boolean, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val byteCodec: JsonBinaryCodec[Byte] = new JsonBinaryCodec[Byte](JsonBinaryCodec.byteType) {
+    def decodeValue(in: JsonReader, default: Byte): Byte = in.readByte()
+
+    def encodeValue(x: Byte, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Byte = in.readKeyAsByte()
+
+    override def encodeKey(x: Byte, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val shortCodec: JsonBinaryCodec[Short] = new JsonBinaryCodec[Short](JsonBinaryCodec.shortType) {
+    def decodeValue(in: JsonReader, default: Short): Short = in.readShort()
+
+    def encodeValue(x: Short, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Short = in.readKeyAsShort()
+
+    override def encodeKey(x: Short, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val intCodec: JsonBinaryCodec[Int] = new JsonBinaryCodec[Int](JsonBinaryCodec.intType) {
+    def decodeValue(in: JsonReader, default: Int): Int = in.readInt()
+
+    def encodeValue(x: Int, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Int = in.readKeyAsInt()
+
+    override def encodeKey(x: Int, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val longCodec: JsonBinaryCodec[Long] = new JsonBinaryCodec[Long](JsonBinaryCodec.longType) {
+    def decodeValue(in: JsonReader, default: Long): Long = in.readLong()
+
+    def encodeValue(x: Long, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Long = in.readKeyAsLong()
+
+    override def encodeKey(x: Long, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val floatCodec: JsonBinaryCodec[Float] = new JsonBinaryCodec[Float](JsonBinaryCodec.floatType) {
+    def decodeValue(in: JsonReader, default: Float): Float = in.readFloat()
+
+    def encodeValue(x: Float, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Float = in.readKeyAsFloat()
+
+    override def encodeKey(x: Float, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val doubleCodec: JsonBinaryCodec[Double] = new JsonBinaryCodec[Double](JsonBinaryCodec.doubleType) {
+    def decodeValue(in: JsonReader, default: Double): Double = in.readDouble()
+
+    def encodeValue(x: Double, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Double = in.readKeyAsDouble()
+
+    override def encodeKey(x: Double, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val charCodec: JsonBinaryCodec[Char] = new JsonBinaryCodec[Char](JsonBinaryCodec.charType) {
+    def decodeValue(in: JsonReader, default: Char): Char = in.readChar()
+
+    def encodeValue(x: Char, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): Char = in.readKeyAsChar()
+
+    override def encodeKey(x: Char, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val stringCodec: JsonBinaryCodec[String] = new JsonBinaryCodec[String]() {
+    def decodeValue(in: JsonReader, default: String): String = in.readString(default)
+
+    def encodeValue(x: String, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): String = in.readKeyAsString()
+
+    override def encodeKey(x: String, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val bigIntCodec: JsonBinaryCodec[BigInt] = new JsonBinaryCodec[BigInt]() {
+    def decodeValue(in: JsonReader, default: BigInt): BigInt = in.readBigInt(default)
+
+    def encodeValue(x: BigInt, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): BigInt = in.readKeyAsBigInt()
+
+    override def encodeKey(x: BigInt, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val bigDecimalCodec: JsonBinaryCodec[BigDecimal] = new JsonBinaryCodec[BigDecimal]() {
+    def decodeValue(in: JsonReader, default: BigDecimal): BigDecimal = in.readBigDecimal(default)
+
+    def encodeValue(x: BigDecimal, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): BigDecimal = in.readKeyAsBigDecimal()
+
+    override def encodeKey(x: BigDecimal, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val dayOfWeekCodec: JsonBinaryCodec[DayOfWeek] = new JsonBinaryCodec[java.time.DayOfWeek]() {
+    def decodeValue(in: JsonReader, default: java.time.DayOfWeek): java.time.DayOfWeek = {
+      val code = in.readString(if (default eq null) null else default.toString)
+      try java.time.DayOfWeek.valueOf(code)
+      catch {
+        case error if NonFatal(error) => in.decodeError("illegal day of week value")
+      }
+    }
+
+    def encodeValue(x: java.time.DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
+
+    override def decodeKey(in: JsonReader): java.time.DayOfWeek = {
+      val code = in.readKeyAsString()
+      try java.time.DayOfWeek.valueOf(code)
+      catch {
+        case error if NonFatal(error) => in.decodeError("illegal day of week value")
+      }
+    }
+
+    override def encodeKey(x: java.time.DayOfWeek, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
+  }
+  val durationCodec: JsonBinaryCodec[Duration] = new JsonBinaryCodec[java.time.Duration]() {
+    def decodeValue(in: JsonReader, default: java.time.Duration): java.time.Duration = in.readDuration(default)
+
+    def encodeValue(x: java.time.Duration, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.Duration = in.readKeyAsDuration()
+
+    override def encodeKey(x: java.time.Duration, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val instantCodec: JsonBinaryCodec[Instant] = new JsonBinaryCodec[java.time.Instant]() {
+    def decodeValue(in: JsonReader, default: java.time.Instant): java.time.Instant = in.readInstant(default)
+
+    def encodeValue(x: java.time.Instant, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.Instant = in.readKeyAsInstant()
+
+    override def encodeKey(x: java.time.Instant, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val localDateCodec: JsonBinaryCodec[LocalDate] = new JsonBinaryCodec[java.time.LocalDate]() {
+    def decodeValue(in: JsonReader, default: java.time.LocalDate): java.time.LocalDate = in.readLocalDate(default)
+
+    def encodeValue(x: java.time.LocalDate, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.LocalDate = in.readKeyAsLocalDate()
+
+    override def encodeKey(x: java.time.LocalDate, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val localDateTimeCodec: JsonBinaryCodec[LocalDateTime] = new JsonBinaryCodec[java.time.LocalDateTime]() {
+    def decodeValue(in: JsonReader, default: java.time.LocalDateTime): java.time.LocalDateTime =
+      in.readLocalDateTime(default)
+
+    def encodeValue(x: java.time.LocalDateTime, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.LocalDateTime = in.readKeyAsLocalDateTime()
+
+    override def encodeKey(x: java.time.LocalDateTime, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val localTimeCodec: JsonBinaryCodec[LocalTime] = new JsonBinaryCodec[java.time.LocalTime]() {
+    def decodeValue(in: JsonReader, default: java.time.LocalTime): java.time.LocalTime = in.readLocalTime(default)
+
+    def encodeValue(x: java.time.LocalTime, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.LocalTime = in.readKeyAsLocalTime()
+
+    override def encodeKey(x: java.time.LocalTime, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val monthCodec: JsonBinaryCodec[Month] = new JsonBinaryCodec[java.time.Month]() {
+    def decodeValue(in: JsonReader, default: java.time.Month): java.time.Month = {
+      val code = in.readString(if (default eq null) null else default.toString)
+      try java.time.Month.valueOf(code)
+      catch {
+        case error if NonFatal(error) => in.decodeError("illegal month value")
+      }
+    }
+
+    def encodeValue(x: java.time.Month, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
+
+    override def decodeKey(in: JsonReader): java.time.Month = {
+      val code = in.readKeyAsString()
+      try java.time.Month.valueOf(code)
+      catch {
+        case error if NonFatal(error) => in.decodeError("illegal month value")
+      }
+    }
+
+    override def encodeKey(x: java.time.Month, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
+  }
+  val monthDayCodec: JsonBinaryCodec[MonthDay] = new JsonBinaryCodec[java.time.MonthDay]() {
+    def decodeValue(in: JsonReader, default: java.time.MonthDay): java.time.MonthDay = in.readMonthDay(default)
+
+    def encodeValue(x: java.time.MonthDay, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.MonthDay = in.readKeyAsMonthDay()
+
+    override def encodeKey(x: java.time.MonthDay, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val offsetDateTimeCodec: JsonBinaryCodec[OffsetDateTime] = new JsonBinaryCodec[java.time.OffsetDateTime]() {
+    def decodeValue(in: JsonReader, default: java.time.OffsetDateTime): java.time.OffsetDateTime =
+      in.readOffsetDateTime(default)
+
+    def encodeValue(x: java.time.OffsetDateTime, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.OffsetDateTime = in.readKeyAsOffsetDateTime()
+
+    override def encodeKey(x: java.time.OffsetDateTime, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val offsetTimeCodec: JsonBinaryCodec[OffsetTime] = new JsonBinaryCodec[java.time.OffsetTime]() {
+    def decodeValue(in: JsonReader, default: java.time.OffsetTime): java.time.OffsetTime = in.readOffsetTime(default)
+
+    def encodeValue(x: java.time.OffsetTime, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.OffsetTime = in.readKeyAsOffsetTime()
+
+    override def encodeKey(x: java.time.OffsetTime, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val periodCodec: JsonBinaryCodec[Period] = new JsonBinaryCodec[java.time.Period]() {
+    def decodeValue(in: JsonReader, default: java.time.Period): java.time.Period = in.readPeriod(default)
+
+    def encodeValue(x: java.time.Period, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.Period = in.readKeyAsPeriod()
+
+    override def encodeKey(x: java.time.Period, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val yearCodec: JsonBinaryCodec[Year] = new JsonBinaryCodec[java.time.Year]() {
+    def decodeValue(in: JsonReader, default: java.time.Year): java.time.Year = in.readYear(default)
+
+    def encodeValue(x: java.time.Year, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.Year = in.readKeyAsYear()
+
+    override def encodeKey(x: java.time.Year, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val yearMonthCodec: JsonBinaryCodec[YearMonth] = new JsonBinaryCodec[java.time.YearMonth]() {
+    def decodeValue(in: JsonReader, default: java.time.YearMonth): java.time.YearMonth = in.readYearMonth(default)
+
+    def encodeValue(x: java.time.YearMonth, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.YearMonth = in.readKeyAsYearMonth()
+
+    override def encodeKey(x: java.time.YearMonth, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val zoneIdCodec: JsonBinaryCodec[ZoneId] = new JsonBinaryCodec[java.time.ZoneId]() {
+    def decodeValue(in: JsonReader, default: java.time.ZoneId): java.time.ZoneId = in.readZoneId(default)
+
+    def encodeValue(x: java.time.ZoneId, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.ZoneId = in.readKeyAsZoneId()
+
+    override def encodeKey(x: java.time.ZoneId, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val zoneOffsetCodec: JsonBinaryCodec[ZoneOffset] = new JsonBinaryCodec[java.time.ZoneOffset]() {
+    def decodeValue(in: JsonReader, default: java.time.ZoneOffset): java.time.ZoneOffset = in.readZoneOffset(default)
+
+    def encodeValue(x: java.time.ZoneOffset, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.ZoneOffset = in.readKeyAsZoneOffset()
+
+    override def encodeKey(x: java.time.ZoneOffset, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val zonedDateTimeCodec: JsonBinaryCodec[ZonedDateTime] = new JsonBinaryCodec[java.time.ZonedDateTime]() {
+    def decodeValue(in: JsonReader, default: java.time.ZonedDateTime): java.time.ZonedDateTime =
+      in.readZonedDateTime(default)
+
+    def encodeValue(x: java.time.ZonedDateTime, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.time.ZonedDateTime = in.readKeyAsZonedDateTime()
+
+    override def encodeKey(x: java.time.ZonedDateTime, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val currencyCodec: JsonBinaryCodec[Currency] = new JsonBinaryCodec[java.util.Currency]() {
+    def decodeValue(in: JsonReader, default: java.util.Currency): java.util.Currency = {
+      val code = in.readString(if (default eq null) null else default.toString)
+      try java.util.Currency.getInstance(code)
+      catch {
+        case error if NonFatal(error) => in.decodeError("illegal currency value")
+      }
+    }
+
+    def encodeValue(x: java.util.Currency, out: JsonWriter): Unit = out.writeNonEscapedAsciiVal(x.toString)
+
+    override def decodeKey(in: JsonReader): java.util.Currency = {
+      val code = in.readKeyAsString()
+      try java.util.Currency.getInstance(code)
+      catch {
+        case error if NonFatal(error) => in.decodeError("illegal currency value")
+      }
+    }
+
+    override def encodeKey(x: java.util.Currency, out: JsonWriter): Unit = out.writeNonEscapedAsciiKey(x.toString)
+  }
+  val uuidCodec: JsonBinaryCodec[UUID] = new JsonBinaryCodec[java.util.UUID]() {
+    def decodeValue(in: JsonReader, default: java.util.UUID): java.util.UUID = in.readUUID(default)
+
+    def encodeValue(x: java.util.UUID, out: JsonWriter): Unit = out.writeVal(x)
+
+    override def decodeKey(in: JsonReader): java.util.UUID = in.readKeyAsUUID()
+
+    override def encodeKey(x: java.util.UUID, out: JsonWriter): Unit = out.writeKey(x)
+  }
+  val dynamicValueCodec: JsonBinaryCodec[DynamicValue] = new JsonBinaryCodec[DynamicValue]() {
+    private[this] val falseValue       = new DynamicValue.Primitive(new PrimitiveValue.Boolean(false))
+    private[this] val trueValue        = new DynamicValue.Primitive(new PrimitiveValue.Boolean(true))
+    private[this] val emptyArrayValue  = new DynamicValue.Sequence(Vector.empty)
+    private[this] val emptyObjectValue = new DynamicValue.Map(Vector.empty)
+    private[this] val unitValue        = new DynamicValue.Primitive(PrimitiveValue.Unit)
+
+    def decodeValue(in: JsonReader, default: DynamicValue): DynamicValue = {
+      val b = in.nextToken()
+      if (b == '"') {
+        in.rollbackToken()
+        new DynamicValue.Primitive(new PrimitiveValue.String(in.readString(null)))
+      } else if (b == 'f' || b == 't') {
+        in.rollbackToken()
+        if (in.readBoolean()) trueValue
+        else falseValue
+      } else if (b >= '0' && b <= '9' || b == '-') {
+        in.rollbackToken()
+        val n = in.readBigDecimal(null)
+        new DynamicValue.Primitive({
+          val longValue = n.bigDecimal.longValue
+          if (n == BigDecimal(longValue)) {
+            val intValue = longValue.toInt
+            if (longValue == intValue) new PrimitiveValue.Int(intValue)
+            else new PrimitiveValue.Long(longValue)
+          } else new PrimitiveValue.BigDecimal(n)
+        })
+      } else if (b == '[') {
+        if (in.isNextToken(']')) emptyArrayValue
+        else {
+          in.rollbackToken()
+          val builder = new VectorBuilder[DynamicValue]
+          while ({
+            builder.addOne(decodeValue(in, default))
+            in.isNextToken(',')
+          }) ()
+          if (in.isCurrentToken(']')) new DynamicValue.Sequence(builder.result())
+          else in.arrayEndOrCommaError()
+        }
+      } else if (b == '{') {
+        if (in.isNextToken('}')) emptyObjectValue
+        else {
+          in.rollbackToken()
+          val builder = new VectorBuilder[(String, DynamicValue)]
+          while ({
+            builder.addOne((in.readKeyAsString(), decodeValue(in, default)))
+            in.isNextToken(',')
+          }) ()
+          if (in.isCurrentToken('}')) new DynamicValue.Record(builder.result())
+          else in.objectEndOrCommaError()
+        }
+      } else {
+        in.rollbackToken()
+        in.readNullOrError(unitValue, "expected JSON value")
+      }
+    }
+
+    def encodeValue(x: DynamicValue, out: JsonWriter): Unit = x match {
+      case primitive: DynamicValue.Primitive =>
+        primitive.value match {
+          case _: PrimitiveValue.Unit.type      => out.writeNull()
+          case v: PrimitiveValue.Boolean        => out.writeVal(v.value)
+          case v: PrimitiveValue.Byte           => out.writeVal(v.value)
+          case v: PrimitiveValue.Short          => out.writeVal(v.value)
+          case v: PrimitiveValue.Int            => out.writeVal(v.value)
+          case v: PrimitiveValue.Long           => out.writeVal(v.value)
+          case v: PrimitiveValue.Float          => out.writeVal(v.value)
+          case v: PrimitiveValue.Double         => out.writeVal(v.value)
+          case v: PrimitiveValue.Char           => out.writeVal(v.value)
+          case v: PrimitiveValue.String         => out.writeVal(v.value)
+          case v: PrimitiveValue.BigInt         => out.writeVal(v.value)
+          case v: PrimitiveValue.BigDecimal     => out.writeVal(v.value)
+          case v: PrimitiveValue.DayOfWeek      => out.writeNonEscapedAsciiVal(v.value.toString)
+          case v: PrimitiveValue.Duration       => out.writeVal(v.value)
+          case v: PrimitiveValue.Instant        => out.writeVal(v.value)
+          case v: PrimitiveValue.LocalDate      => out.writeVal(v.value)
+          case v: PrimitiveValue.LocalDateTime  => out.writeVal(v.value)
+          case v: PrimitiveValue.LocalTime      => out.writeVal(v.value)
+          case v: PrimitiveValue.Month          => out.writeNonEscapedAsciiVal(v.value.toString)
+          case v: PrimitiveValue.MonthDay       => out.writeVal(v.value)
+          case v: PrimitiveValue.OffsetDateTime => out.writeVal(v.value)
+          case v: PrimitiveValue.OffsetTime     => out.writeVal(v.value)
+          case v: PrimitiveValue.Period         => out.writeVal(v.value)
+          case v: PrimitiveValue.Year           => out.writeVal(v.value)
+          case v: PrimitiveValue.YearMonth      => out.writeVal(v.value)
+          case v: PrimitiveValue.ZoneId         => out.writeVal(v.value)
+          case v: PrimitiveValue.ZoneOffset     => out.writeVal(v.value)
+          case v: PrimitiveValue.ZonedDateTime  => out.writeVal(v.value)
+          case v: PrimitiveValue.Currency       => out.writeNonEscapedAsciiVal(v.value.toString)
+          case v: PrimitiveValue.UUID           => out.writeVal(v.value)
+        }
+      case record: DynamicValue.Record =>
+        out.writeObjectStart()
+        val fields = record.fields
+        val it     = fields.iterator
+        while (it.hasNext) {
+          val kv = it.next()
+          out.writeKey(kv._1)
+          encodeValue(kv._2, out)
+        }
+        out.writeObjectEnd()
+      case variant: DynamicValue.Variant =>
+        out.writeObjectStart()
+        out.writeKey(variant.caseName)
+        encodeValue(variant.value, out)
+        out.writeObjectEnd()
+      case sequence: DynamicValue.Sequence =>
+        out.writeArrayStart()
+        val elements = sequence.elements
+        val it       = elements.iterator
+        while (it.hasNext) {
+          encodeValue(it.next(), out)
+        }
+        out.writeArrayEnd()
+      case map: DynamicValue.Map =>
+        out.writeObjectStart()
+        val entries = map.entries
+        val it      = entries.iterator
+        while (it.hasNext) {
+          val kv = it.next()
+          encodeKey(kv._1, out)
+          encodeValue(kv._2, out)
+        }
+        out.writeObjectEnd()
+    }
+
+    override def encodeKey(x: DynamicValue, out: JsonWriter): Unit = x match {
+      case primitive: DynamicValue.Primitive =>
+        primitive.value match {
+          case _: PrimitiveValue.Unit.type      => out.encodeError("encoding as JSON key is not supported")
+          case v: PrimitiveValue.Boolean        => out.writeKey(v.value)
+          case v: PrimitiveValue.Byte           => out.writeKey(v.value)
+          case v: PrimitiveValue.Short          => out.writeKey(v.value)
+          case v: PrimitiveValue.Int            => out.writeKey(v.value)
+          case v: PrimitiveValue.Long           => out.writeKey(v.value)
+          case v: PrimitiveValue.Float          => out.writeKey(v.value)
+          case v: PrimitiveValue.Double         => out.writeKey(v.value)
+          case v: PrimitiveValue.Char           => out.writeKey(v.value)
+          case v: PrimitiveValue.String         => out.writeKey(v.value)
+          case v: PrimitiveValue.BigInt         => out.writeKey(v.value)
+          case v: PrimitiveValue.BigDecimal     => out.writeKey(v.value)
+          case v: PrimitiveValue.DayOfWeek      => out.writeNonEscapedAsciiKey(v.value.toString)
+          case v: PrimitiveValue.Duration       => out.writeKey(v.value)
+          case v: PrimitiveValue.Instant        => out.writeKey(v.value)
+          case v: PrimitiveValue.LocalDate      => out.writeKey(v.value)
+          case v: PrimitiveValue.LocalDateTime  => out.writeKey(v.value)
+          case v: PrimitiveValue.LocalTime      => out.writeKey(v.value)
+          case v: PrimitiveValue.Month          => out.writeNonEscapedAsciiKey(v.value.toString)
+          case v: PrimitiveValue.MonthDay       => out.writeKey(v.value)
+          case v: PrimitiveValue.OffsetDateTime => out.writeKey(v.value)
+          case v: PrimitiveValue.OffsetTime     => out.writeKey(v.value)
+          case v: PrimitiveValue.Period         => out.writeKey(v.value)
+          case v: PrimitiveValue.Year           => out.writeKey(v.value)
+          case v: PrimitiveValue.YearMonth      => out.writeKey(v.value)
+          case v: PrimitiveValue.ZoneId         => out.writeKey(v.value)
+          case v: PrimitiveValue.ZoneOffset     => out.writeKey(v.value)
+          case v: PrimitiveValue.ZonedDateTime  => out.writeKey(v.value)
+          case v: PrimitiveValue.Currency       => out.writeNonEscapedAsciiKey(v.value.toString)
+          case v: PrimitiveValue.UUID           => out.writeKey(v.value)
+        }
+      case _ => out.encodeError("encoding as JSON key is not supported")
+    }
   }
 }
 

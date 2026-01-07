@@ -21,58 +21,48 @@ object AvroFormatSpec extends ZIOSpecDefault {
       test("Boolean") {
         avroSchema[Boolean]("\"boolean\"") &&
         roundTrip(true, 1) &&
-        roundTrip(false, 1)
-      },
-      test("Boolean (decode error)") {
+        roundTrip(false, 1) &&
         decodeError[Boolean](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Byte") {
+        val intCodec = Schema[Int].derive(AvroFormat.deriver)
         avroSchema[Byte]("\"int\"") &&
         roundTrip(1: Byte, 1) &&
         roundTrip(Byte.MinValue, 2) &&
-        roundTrip(Byte.MaxValue, 2)
-      },
-      test("Byte (decode error)") {
-        val intCodec = Schema[Int].derive(AvroFormat.deriver)
+        roundTrip(Byte.MaxValue, 2) &&
         decodeError[Byte](intCodec.encode(Byte.MinValue - 1), "Expected Byte at: .") &&
         decodeError[Byte](intCodec.encode(Byte.MaxValue + 1), "Expected Byte at: .") &&
         decodeError[Byte](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Short") {
+        val intCodec = Schema[Int].derive(AvroFormat.deriver)
         avroSchema[Short]("\"int\"") &&
         roundTrip(1: Short, 1) &&
         roundTrip(Short.MinValue, 3) &&
-        roundTrip(Short.MaxValue, 3)
-      },
-      test("Short (decode error)") {
-        val intCodec = Schema[Int].derive(AvroFormat.deriver)
+        roundTrip(Short.MaxValue, 3) &&
         decodeError[Short](intCodec.encode(Short.MinValue - 1), "Expected Short at: .") &&
         decodeError[Short](intCodec.encode(Short.MaxValue + 1), "Expected Short at: .") &&
         decodeError[Short](Array.empty[Byte], "Unexpected end of input at: .")
       },
       test("Int") {
-        avroSchema[Int]("\"int\"") &&
-        roundTrip(1, 1) &&
-        roundTrip(Int.MinValue, 5) &&
-        roundTrip(Int.MaxValue, 5)
-      },
-      test("Int (decode error)") {
         val intCodec = Schema[Int].derive(AvroFormat.deriver)
         val bytes    = intCodec.encode(Int.MaxValue)
         bytes(4) = 0xff.toByte
+        avroSchema[Int]("\"int\"") &&
+        roundTrip(1, 1) &&
+        roundTrip(Int.MinValue, 5) &&
+        roundTrip(Int.MaxValue, 5) &&
         decodeError(bytes, intCodec, "Invalid int encoding at: .") &&
         decodeError(Array.empty[Byte], intCodec, "Unexpected end of input at: .")
       },
       test("Long") {
-        avroSchema[Long]("\"long\"") &&
-        roundTrip(1L, 1) &&
-        roundTrip(Long.MinValue, 10) &&
-        roundTrip(Long.MaxValue, 10)
-      },
-      test("Long (decode error)") {
         val longCodec = Schema[Long].derive(AvroFormat.deriver)
         val bytes     = longCodec.encode(Long.MaxValue)
         bytes(9) = 0xff.toByte
+        avroSchema[Long]("\"long\"") &&
+        roundTrip(1L, 1) &&
+        roundTrip(Long.MinValue, 10) &&
+        roundTrip(Long.MaxValue, 10) &&
         decodeError(bytes, longCodec, "Invalid long encoding at: .") &&
         decodeError(Array.empty[Byte], longCodec, "Unexpected end of input at: .")
       },
@@ -80,37 +70,29 @@ object AvroFormatSpec extends ZIOSpecDefault {
         avroSchema[Float]("\"float\"") &&
         roundTrip(42.0f, 4) &&
         roundTrip(Float.MinValue, 4) &&
-        roundTrip(Float.MaxValue, 4)
-      },
-      test("Float (decode error)") {
+        roundTrip(Float.MaxValue, 4) &&
         decodeError[Float](new Array[Byte](3), "Unexpected end of input at: .")
       },
       test("Double") {
         avroSchema[Double]("\"double\"") &&
         roundTrip(42.0, 8) &&
         roundTrip(Double.MinValue, 8) &&
-        roundTrip(Double.MaxValue, 8)
-      },
-      test("Double (decode error)") {
+        roundTrip(Double.MaxValue, 8) &&
         decodeError[Double](new Array[Byte](7), "Unexpected end of input at: .")
       },
       test("Char") {
+        val intCodec = Schema[Int].derive(AvroFormat.deriver)
         avroSchema[Char]("\"int\"") &&
         roundTrip('7', 1) &&
         roundTrip(Char.MinValue, 1) &&
-        roundTrip(Char.MaxValue, 3)
-      },
-      test("Char (decode error)") {
-        val intCodec = Schema[Int].derive(AvroFormat.deriver)
+        roundTrip(Char.MaxValue, 3) &&
         decodeError[Char](intCodec.encode(Char.MinValue - 1), "Expected Char at: .") &&
         decodeError[Char](intCodec.encode(Char.MaxValue + 1), "Expected Char at: .")
       },
       test("String") {
         avroSchema[String]("\"string\"") &&
         roundTrip("Hello", 6) &&
-        roundTrip("★\uD83C\uDFB8\uD83C\uDFA7⋆｡ °⋆", 24)
-      },
-      test("String (decode error)") {
+        roundTrip("★\uD83C\uDFB8\uD83C\uDFA7⋆｡ °⋆", 24) &&
         decodeError[String](Array.empty[Byte], "Unexpected end of input at: .") &&
         decodeError[String](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: .")
       },
@@ -228,9 +210,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         avroSchema[Record1](
           "{\"type\":\"record\",\"name\":\"Record1\",\"namespace\":\"zio.blocks.schema.avro.AvroFormatSpec\",\"fields\":[{\"name\":\"bl\",\"type\":\"boolean\"},{\"name\":\"b\",\"type\":\"int\"},{\"name\":\"sh\",\"type\":\"int\"},{\"name\":\"i\",\"type\":\"int\"},{\"name\":\"l\",\"type\":\"long\"},{\"name\":\"f\",\"type\":\"float\"},{\"name\":\"d\",\"type\":\"double\"},{\"name\":\"c\",\"type\":\"int\"},{\"name\":\"s\",\"type\":\"string\"}]}"
         ) &&
-        roundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 22)
-      },
-      test("simple record (decode error)") {
+        roundTrip(Record1(true, 1: Byte, 2: Short, 3, 4L, 5.0f, 6.0, '7', "VVV"), 22) &&
         decodeError[Record1](Array.empty[Byte], "Unexpected end of input at: .bl") &&
         decodeError[Record1](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: .l")
       },
@@ -534,9 +514,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         avroSchema[List[java.util.UUID]](
           "{\"type\":\"array\",\"items\":{\"type\":\"fixed\",\"name\":\"UUID\",\"namespace\":\"java.util\",\"size\":16}}"
         ) &&
-        roundTrip((1 to 32).map(x => new java.util.UUID(x, x)).toList, 514)
-      },
-      test("primitive values (decode error)") {
+        roundTrip((1 to 32).map(x => new java.util.UUID(x, x)).toList, 514) &&
         decodeError[List[Int]](Array.empty[Byte], "Unexpected end of input at: .") &&
         decodeError[List[Int]](Array[Byte](100, 42, 42, 42), "Unexpected end of input at: .at(3)") &&
         decodeError[List[Int]](Array(0x01.toByte), "Expected positive collection part size, got -1 at: .") &&
@@ -596,9 +574,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip(Map("VVV" -> BigInt(1), "WWW" -> BigInt(2)), 14) &&
         roundTrip(Map("VVV" -> BigDecimal(1.0), "WWW" -> BigDecimal(2.0)), 20) &&
         roundTrip(Map("VVV" -> java.time.LocalDate.of(2025, 1, 1), "WWW" -> java.time.LocalDate.of(2025, 1, 2)), 18) &&
-        roundTrip(Map("VVV" -> new java.util.UUID(1L, 1L), "WWW" -> new java.util.UUID(2L, 2L)), 42)
-      },
-      test("string keys and primitive values (decode error)") {
+        roundTrip(Map("VVV" -> new java.util.UUID(1L, 1L), "WWW" -> new java.util.UUID(2L, 2L)), 42) &&
         decodeError[Map[String, Int]](Array.empty[Byte], "Unexpected end of input at: .") &&
         decodeError[Map[String, Int]](Array[Byte](100), "Unexpected end of input at: .at(0)") &&
         decodeError[Map[String, Int]](Array(0x01.toByte), "Expected positive map part size, got -1 at: .") &&
@@ -635,19 +611,15 @@ object AvroFormatSpec extends ZIOSpecDefault {
         avroSchema[Map[Int, Long]](
           "{\"type\":\"array\",\"items\":{\"type\":\"record\",\"name\":\"Tuple2\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"_1\",\"type\":\"int\"},{\"name\":\"_2\",\"type\":\"long\"}]}}"
         ) &&
-        roundTrip(Map(1 -> 1L, 2 -> 2L), 6)
-      },
-      test("non string key map (decode error)") {
-        val intToLongMapCodec = Schema[Map[Int, Long]].derive(AvroFormat.deriver)
-        decodeError(Array.empty[Byte], intToLongMapCodec, "Unexpected end of input at: .") &&
-        decodeError(Array[Byte](100), intToLongMapCodec, "Unexpected end of input at: .at(0)") &&
-        decodeError(Array(0x01.toByte), intToLongMapCodec, "Expected positive map part size, got -1 at: .") &&
-        decodeError(
+        roundTrip(Map(1 -> 1L, 2 -> 2L), 6) &&
+        decodeError[Map[Int, Long]](Array.empty[Byte], "Unexpected end of input at: .") &&
+        decodeError[Map[Int, Long]](Array[Byte](100), "Unexpected end of input at: .at(0)") &&
+        decodeError[Map[Int, Long]](Array(0x01.toByte), "Expected positive map part size, got -1 at: .") &&
+        decodeError[Map[Int, Long]](
           Array(0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          intToLongMapCodec,
           "Expected map size not greater than 2147483639, got 2147483647 at: ."
         ) &&
-        decodeError(Array[Byte](2, 2, 0xff.toByte), intToLongMapCodec, "Unexpected end of input at: .atKey(<key>)")
+        decodeError[Map[Int, Long]](Array[Byte](2, 2, 0xff.toByte), "Unexpected end of input at: .atKey(<key>)")
       },
       test("non string key with recursive values") {
         avroSchema[Map[Recursive, Int]](
@@ -680,22 +652,16 @@ object AvroFormatSpec extends ZIOSpecDefault {
         roundTrip[TrafficLight](TrafficLight.Green, 1) &&
         roundTrip[TrafficLight](TrafficLight.Yellow, 1) &&
         roundTrip[TrafficLight](TrafficLight.Red, 1)
-      },
-      test("constant values (decode error)") {
-        val trafficLightCodec = Schema[TrafficLight].derive(AvroFormat.deriver)
-        decodeError(Array[Byte](6), trafficLightCodec, "Expected enum index from 0 to 2, got 3 at: .")
+        decodeError[TrafficLight](Array[Byte](6), "Expected enum index from 0 to 2, got 3 at: .")
       },
       test("option") {
         avroSchema[Option[Int]](
           "[{\"type\":\"record\",\"name\":\"None\",\"namespace\":\"scala\",\"fields\":[]},{\"type\":\"record\",\"name\":\"Some\",\"namespace\":\"scala\",\"fields\":[{\"name\":\"value\",\"type\":\"int\"}]}]"
         ) &&
         roundTrip(Option(42), 2) &&
-        roundTrip[Option[Int]](None, 1)
-      },
-      test("option (decode error)") {
-        val intOptionCodec = Schema[Option[Int]].derive(AvroFormat.deriver)
-        decodeError(Array[Byte](4), intOptionCodec, "Expected enum index from 0 to 1, got 2 at: .") &&
-        decodeError(Array[Byte](2, 0xff.toByte), intOptionCodec, "Unexpected end of input at: .when[Some].value")
+        roundTrip[Option[Int]](None, 1) &&
+        decodeError[Option[Int]](Array[Byte](4), "Expected enum index from 0 to 1, got 2 at: .") &&
+        decodeError[Option[Int]](Array[Byte](2, 0xff.toByte), "Unexpected end of input at: .when[Some].value")
       },
       test("either") {
         avroSchema[Either[String, Int]](
@@ -707,17 +673,15 @@ object AvroFormatSpec extends ZIOSpecDefault {
     ),
     suite("wrapper")(
       test("top-level") {
-        avroSchema[UserId]("\"long\"") &&
-        roundTrip[UserId](UserId(1234567890123456789L), 9) &&
-        avroSchema[Email]("\"string\"") &&
-        roundTrip[Email](Email("john@gmail.com"), 15)
-      },
-      test("top-level (decode error)") {
         val emailCodec = Schema[Email].derive(AvroFormat.deriver)
         val bytes      = emailCodec.encode(Email("test@gmail.com"))
         bytes(5) = 42
-        decodeError(bytes, emailCodec, "Expected Email at: .") &&
-        decodeError(Array[Byte](100), emailCodec, "Unexpected end of input at: .wrapped")
+        avroSchema[UserId]("\"long\"") &&
+        roundTrip[UserId](UserId(1234567890123456789L), 9) &&
+        avroSchema[Email]("\"string\"") &&
+        roundTrip[Email](Email("john@gmail.com"), 15) &&
+        decodeError[Email](bytes, "Expected Email at: .") &&
+        decodeError[Email](Array[Byte](100), "Unexpected end of input at: .wrapped")
       },
       test("as a record field") {
         avroSchema[Record3](
@@ -793,83 +757,66 @@ object AvroFormatSpec extends ZIOSpecDefault {
             )
           ),
           18
-        )
-      },
-      test("top-level (decode error)") {
-        val dynamicValueCodec = Schema[DynamicValue].derive(AvroFormat.deriver)
-        decodeError(Array[Byte](10), dynamicValueCodec, "Expected enum index from 0 to 4, got 5 at: .") &&
-        decodeError(Array.empty[Byte], dynamicValueCodec, "Unexpected end of input at: .") &&
-        decodeError(Array[Byte](0), dynamicValueCodec, "Unexpected end of input at: .when[Primitive]") &&
-        decodeError(
+        ) &&
+        decodeError[DynamicValue](Array[Byte](10), "Expected enum index from 0 to 4, got 5 at: .") &&
+        decodeError[DynamicValue](Array.empty[Byte], "Unexpected end of input at: .") &&
+        decodeError[DynamicValue](Array[Byte](0), "Unexpected end of input at: .when[Primitive]") &&
+        decodeError[DynamicValue](
           Array[Byte](0, 60),
-          dynamicValueCodec,
           "Expected enum index from 0 to 29, got 30 at: .when[Primitive]"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](0, 8, 0xff.toByte),
-          dynamicValueCodec,
           "Unexpected end of input at: .when[Primitive].value"
         ) &&
-        decodeError(Array[Byte](2), dynamicValueCodec, "Unexpected end of input at: .when[Record].fields") &&
-        decodeError(
+        decodeError[DynamicValue](Array[Byte](2), "Unexpected end of input at: .when[Record].fields") &&
+        decodeError[DynamicValue](
           Array[Byte](2, 1),
-          dynamicValueCodec,
           "Expected positive collection part size, got -1 at: .when[Record].fields"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](2, 2, 2),
-          dynamicValueCodec,
           "Unexpected end of input at: .when[Record].fields.at(0)._1"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](2, 2, 0, 10),
-          dynamicValueCodec,
           "Expected enum index from 0 to 4, got 5 at: .when[Record].fields.at(0)._2"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](2, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          dynamicValueCodec,
           "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Record].fields"
         ) &&
-        decodeError(Array[Byte](4, 2), dynamicValueCodec, "Unexpected end of input at: .when[Variant].caseName") &&
-        decodeError(
+        decodeError[DynamicValue](Array[Byte](4, 2), "Unexpected end of input at: .when[Variant].caseName") &&
+        decodeError[DynamicValue](
           Array[Byte](4, 0, 10),
-          dynamicValueCodec,
           "Expected enum index from 0 to 4, got 5 at: .when[Variant].value"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](6, 1),
-          dynamicValueCodec,
           "Expected positive collection part size, got -1 at: .when[Sequence].elements"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](6, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          dynamicValueCodec,
           "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Sequence].elements"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](6, 2, 10),
-          dynamicValueCodec,
           "Expected enum index from 0 to 4, got 5 at: .when[Sequence].elements.at(0)"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](8, 1),
-          dynamicValueCodec,
           "Expected positive collection part size, got -1 at: .when[Map].entries"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](8, 0xfe.toByte, 0xff.toByte, 0xff.toByte, 0xff.toByte, 0x0f.toByte),
-          dynamicValueCodec,
           "Expected collection size not greater than 2147483639, got 2147483647 at: .when[Map].entries"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](8, 2, 10),
-          dynamicValueCodec,
           "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._1"
         ) &&
-        decodeError(
+        decodeError[DynamicValue](
           Array[Byte](8, 2, 0, 0, 10),
-          dynamicValueCodec,
           "Expected enum index from 0 to 4, got 5 at: .when[Map].entries.at(0)._2"
         )
       },
