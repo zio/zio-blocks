@@ -90,15 +90,15 @@ class Registers {
   private var objects: Array[AnyRef] = new Array[AnyRef](objectArrayLength)
 
   // Methods to get/set primitive values in byte array (getInt/setInt, getBoolean/setBoolean, etc.)
-  def getInt(baseOffset: RegisterOffset, relativeIndex: Int): Int = ???
-  def setInt(baseOffset: RegisterOffset, relativeIndex: Int, value: Int): Unit = ???
+  def getInt(offset: RegisterOffset): Int = ???
+  def setInt(offset: RegisterOffset, value: Int): Unit = ???
   
-  def setBoolean(baseOffset: RegisterOffset, relativeIndex: Int, value: Boolean): Unit = ???
-  def getBoolean(baseOffset: RegisterOffset, relativeIndex: Int): Boolean = ???
+  def setBoolean(offset: RegisterOffset, value: Boolean): Unit = ???
+  def getBoolean(offset: RegisterOffset): Boolean = ???
 
   // Two methods to get/set object references in object array
-  def getObject(baseOffset: RegisterOffset, relativeIndex: Int): AnyRef = ???
-  def setObject(baseOffset: RegisterOffset, relativeIndex: Int, value: AnyRef): Unit = ???
+  def getObject(offset: RegisterOffset): AnyRef = ???
+  def setObject(offset: RegisterOffset, value: AnyRef): Unit = ???
 }
 ```
 
@@ -175,15 +175,15 @@ class Registers {
   private var objects: Array[AnyRef] = new Array[AnyRef](objectArrayLength)
 
   // Methods to get/set primitive values in byte array (getInt/setInt, getBoolean/setBoolean, etc.)
-  def getInt(baseOffset: RegisterOffset, relativeIndex: Int): Int = ???
-  def setInt(baseOffset: RegisterOffset, relativeIndex: Int, value: Int): Unit = ???
+  def getInt(offset: RegisterOffset): Int = ???
+  def setInt(offset: RegisterOffset, value: Int): Unit = ???
 
-  def setBoolean(baseOffset: RegisterOffset, relativeIndex: Int, value: Boolean): Unit = ???
-  def getBoolean(baseOffset: RegisterOffset, relativeIndex: Int): Boolean = ???
+  def setBoolean(offset: RegisterOffset, value: Boolean): Unit = ???
+  def getBoolean(offset: RegisterOffset): Boolean = ???
 
   // Two methods to get/set object references in object array
-  def getObject(baseOffset: RegisterOffset, relativeIndex: Int): AnyRef = ???
-  def setObject(baseOffset: RegisterOffset, relativeIndex: Int, value: AnyRef): Unit = ???
+  def getObject(offset: RegisterOffset): AnyRef = ???
+  def setObject(offset: RegisterOffset, value: AnyRef): Unit = ???
 }
 ```
 
@@ -198,11 +198,10 @@ Here are all the available methods:
 - `setChar` / `getChar`
 - `setObject` / `getObject`
 
-When setting or getting a value, you are required to provide two or three of the following parameters:
+When setting or getting a value, you are required to provide one or two of the following parameters:
 
-1. `baseOffset`: The base `RegisterOffset` indicating where the record starts in the `Registers`. It can be used to handle nested structures to point to where inner record starts, or for multiple records to point to each record's starting position, or for variant types to anchor the position of different cases.
-2. `relativeIndex`: The index relative to the base offset for the specific field. For objects, this is the object index; for primitives, this is the byte index. So if we have two objects, the first object is at relative index 0, the second at index 1, etc.; and also if we have several primitives, the first primitive is at relative byte index 0, the second is at byte index of the size of the previous primitive, etc.
-3. `value`: The actual value to set. For the primitives, this value is a typed primitive (e.g. `Int`, `Double`); for objects, this is an `AnyRef`.
+1. `offset`: The `RegisterOffset` indicating where the specific field starts in the `Registers`. It can be used to handle nested structures to point to where inner record starts, or for multiple records to point to each record's starting position, or for variant types to anchor the position of different cases.
+2. `value`: The actual value to set. For the primitives, this value is a typed primitive (e.g. `Int`, `Double`); for objects, this is an `AnyRef`.
 
 ## Example: Encoding/Decoding a Record Data Type
 
@@ -228,32 +227,27 @@ import zio.blocks.schema.binding.RegisterOffset._
 val registers = Registers(RegisterOffset(objects = 2, ints = 1, doubles = 2))
 
 registers.setObject(
-  RegisterOffset.Zero,                            // 0
-  RegisterOffset.getObjects(RegisterOffset.Zero), // 0
+  RegisterOffset.Zero, // Object index: 0
   "John"
 )
 
 registers.setObject(
-  RegisterOffset.Zero,                                    // 0
-  RegisterOffset.getObjects(RegisterOffset(objects = 1)), // 1
+  RegisterOffset(objects = 1), // Object index: 1
   "john@example.com"
 )
 
 registers.setInt(
-  RegisterOffset.Zero,                                  // 0
-  RegisterOffset.getBytes(RegisterOffset(objects = 2)), // 0
+  RegisterOffset(objects = 2), // Byte index: 0
   42
 )
 
 registers.setDouble(
-  RegisterOffset.Zero,                                             // 0
-  RegisterOffset.getBytes(RegisterOffset(objects = 2, ints = 1)),  // (1 * 4) = 4
+  RegisterOffset(objects = 2, ints = 1), // Byte index: (1 * 4) = 4
   180.0
 )
 
 registers.setDouble(
-  RegisterOffset.Zero,                                                         // 0
-  RegisterOffset.getBytes(RegisterOffset(objects = 2, ints = 1, doubles = 1)), // (1 * 4) + (1 * 8) = 12
+  RegisterOffset(objects = 2, ints = 1, doubles = 1), // Byte index: (1 * 4) + (1 * 8) = 12
   67.0
 )
 ```
@@ -265,28 +259,23 @@ import zio.blocks.schema.binding._
 import zio.blocks.schema.binding.RegisterOffset._
 // Decode Person from registers
 val name = registers.getObject(
-  RegisterOffset.Zero,                            // 0
-  RegisterOffset.getObjects(RegisterOffset.Zero)  // 0
+  RegisterOffset.Zero, // Object index: 0
 ).asInstanceOf[String]
 
 val email = registers.getObject(
-  RegisterOffset.Zero,                                    // 0
-  RegisterOffset.getObjects(RegisterOffset(objects = 1))  // 1
+  RegisterOffset(objects = 1) // Object index: 1
 ).asInstanceOf[String]
 
 val age = registers.getInt(
-  RegisterOffset.Zero,                                  // 0
-  RegisterOffset.getBytes(RegisterOffset(objects = 2))  // 0
+  RegisterOffset(objects = 2) // Object index: 2
 )
 
 val height = registers.getDouble(
-  RegisterOffset.Zero,                                             // 0
-  RegisterOffset.getBytes(RegisterOffset(objects = 2, ints = 1))  // (1 * 4) = 4
+  RegisterOffset(objects = 2, ints = 1) // Byte index: (1 * 4) = 4
 )
 
 val weight = registers.getDouble(
-  RegisterOffset.Zero,                                                         // 0
-  RegisterOffset.getBytes(RegisterOffset(objects = 2, ints = 1, doubles = 1)) // (1 * 4) + (1 * 8) = 12
+  RegisterOffset(objects = 2, ints = 1, doubles = 1) // Byte index: (1 * 4) + (1 * 8) = 12
 )
 
 val person = Person(name, email, age, height, weight)
