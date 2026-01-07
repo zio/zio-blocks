@@ -430,8 +430,9 @@ object Reflect {
     type Bound[A] = Record[Binding, A]
 
     def registers[F[_, _]](reflects: Array[Reflect[F, ?]]): Array[Register[Any]] = {
-      val registers   = new Array[Register[?]](reflects.length)
-      var offset, idx = 0
+      var offset    = 0L
+      val registers = new Array[Register[?]](reflects.length)
+      var idx       = 0
       reflects.foreach { fieldValue =>
         unwrapToPrimitiveTypeOption(fieldValue) match {
           case Some(primitiveType) =>
@@ -439,35 +440,35 @@ object Reflect {
               case PrimitiveType.Unit =>
                 registers(idx) = Register.Unit
               case _: PrimitiveType.Boolean =>
-                registers(idx) = new Register.Boolean(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Boolean(offset)
                 offset = RegisterOffset.incrementBooleansAndBytes(offset)
               case _: PrimitiveType.Byte =>
-                registers(idx) = new Register.Byte(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Byte(offset)
                 offset = RegisterOffset.incrementBooleansAndBytes(offset)
               case _: PrimitiveType.Char =>
-                registers(idx) = new Register.Char(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Char(offset)
                 offset = RegisterOffset.incrementCharsAndShorts(offset)
               case _: PrimitiveType.Short =>
-                registers(idx) = new Register.Short(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Short(offset)
                 offset = RegisterOffset.incrementCharsAndShorts(offset)
               case _: PrimitiveType.Float =>
-                registers(idx) = new Register.Float(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Float(offset)
                 offset = RegisterOffset.incrementFloatsAndInts(offset)
               case _: PrimitiveType.Int =>
-                registers(idx) = new Register.Int(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Int(offset)
                 offset = RegisterOffset.incrementFloatsAndInts(offset)
               case _: PrimitiveType.Double =>
-                registers(idx) = new Register.Double(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Double(offset)
                 offset = RegisterOffset.incrementDoublesAndLongs(offset)
               case _: PrimitiveType.Long =>
-                registers(idx) = new Register.Long(RegisterOffset.getBytes(offset))
+                registers(idx) = new Register.Long(offset)
                 offset = RegisterOffset.incrementDoublesAndLongs(offset)
               case _ =>
-                registers(idx) = new Register.Object(RegisterOffset.getObjects(offset))
+                registers(idx) = new Register.Object(offset)
                 offset = RegisterOffset.incrementObjects(offset)
             }
           case _ =>
-            registers(idx) = new Register.Object(RegisterOffset.getObjects(offset))
+            registers(idx) = new Register.Object(offset)
             offset = RegisterOffset.incrementObjects(offset)
         }
         idx += 1
@@ -476,7 +477,8 @@ object Reflect {
     }
 
     def usedRegisters(registers: Array[Register[Any]]): RegisterOffset = {
-      var offset, idx = 0
+      var offset = 0L
+      var idx    = 0
       while (idx < registers.length) {
         offset = RegisterOffset.add(registers(idx).usedRegisters, offset)
         idx += 1
@@ -1619,9 +1621,6 @@ object Reflect {
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
     new Sequence(element, TypeName.vector(element.typeName), F.fromBinding(Binding.Seq.vector))
 
-  def arraySeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, ArraySeq] =
-    new Sequence(element, TypeName.arraySeq(element.typeName), F.fromBinding(Binding.Seq.arraySeq))
-
   def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] =
     new Sequence(element, TypeName.indexedSeq(element.typeName), F.fromBinding(Binding.Seq.indexedSeq))
 
@@ -1656,14 +1655,6 @@ object Reflect {
       def unapply[F[_, _], A](reflect: Reflect[F, Set[A]]): Option[Reflect[F, A]] =
         reflect.asSequenceUnknown.collect {
           case x if x.sequence.typeName == TypeName.set(x.sequence.element.typeName) =>
-            x.sequence.element.asInstanceOf[Reflect[F, A]]
-        }
-    }
-
-    object ArraySeq {
-      def unapply[F[_, _], A](reflect: Reflect[F, ArraySeq[A]]): Option[Reflect[F, A]] =
-        reflect.asSequenceUnknown.collect {
-          case x if x.sequence.typeName == TypeName.arraySeq(x.sequence.element.typeName) =>
             x.sequence.element.asInstanceOf[Reflect[F, A]]
         }
     }

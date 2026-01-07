@@ -2484,15 +2484,7 @@ object OpticSpec extends ZIOSpecDefault {
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
-          .attempt(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq()))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
           .attempt(Traversal.atKeys(Reflect.map(Reflect.int[Binding], Reflect.long[Binding]), Seq()))
-          .flip
-          .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
-        ZIO
-          .attempt(Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq(1, 1)))
           .flip
           .map(e => assertTrue(e.isInstanceOf[Throwable])) &&
         ZIO
@@ -3698,21 +3690,102 @@ object OpticSpecTypes {
           .sequence
           .asInstanceOf[Reflect.Sequence[Binding, BigDecimal, Array]]
       )
-    val asbl: Traversal[ArraySeq[Boolean], Boolean] = Traversal.arraySeqValues(Reflect.boolean)
-    val asb: Traversal[ArraySeq[Byte], Byte]        = Traversal.arraySeqValues(Reflect.byte)
-    val assh: Traversal[ArraySeq[Short], Short]     = Traversal.arraySeqValues(Reflect.short)
-    val asi: Traversal[ArraySeq[Int], Int]          = Traversal.arraySeqValues(Reflect.int)
-    val asl: Traversal[ArraySeq[Long], Long]        = Traversal.arraySeqValues(Reflect.long)
-    val asd: Traversal[ArraySeq[Double], Double]    = Traversal.arraySeqValues(Reflect.double)
-    val asf: Traversal[ArraySeq[Float], Float]      = Traversal.arraySeqValues(Reflect.float)
-    val asc: Traversal[ArraySeq[Char], Char]        = Traversal.arraySeqValues(Reflect.char)
-    val ass: Traversal[ArraySeq[String], String]    = Traversal.arraySeqValues(Reflect.string)
-    val sf: Traversal[Set[Float], Float]            = Traversal.setValues(Reflect.float)
-    val lr1: Traversal[List[Record1], Boolean]      = Traversal.listValues(Record1.reflect)(Record1.b)
-    val lc4_lr3: Traversal[List[Case4], Record3]    = Traversal.listValues(Case4.reflect)(Case4.lr3)
-    val lc1: Traversal[List[Variant1], Case1]       = Traversal.listValues(Variant1.reflect)(Variant1.c1)
-    val lc1_d: Traversal[List[Variant1], Double]    = Traversal.listValues(Variant1.reflect)(Variant1.c1_d)
-    val mkc: Traversal[Map[Char, String], Char]     =
+    val asbl: Traversal[ArraySeq[Boolean], Boolean] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Boolean]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Boolean, ArraySeq]]
+      )
+    val asb: Traversal[ArraySeq[Byte], Byte] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Byte]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Byte, ArraySeq]]
+      )
+    val assh: Traversal[ArraySeq[Short], Short] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Short]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Short, ArraySeq]]
+      )
+    val asi: Traversal[ArraySeq[Int], Int] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Int]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
+      )
+    val asl: Traversal[ArraySeq[Long], Long] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Long]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Long, ArraySeq]]
+      )
+    val asd: Traversal[ArraySeq[Double], Double] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Double]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Double, ArraySeq]]
+      )
+    val asf: Traversal[ArraySeq[Float], Float] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Float]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Float, ArraySeq]]
+      )
+    val asc: Traversal[ArraySeq[Char], Char] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[Char]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, Char, ArraySeq]]
+      )
+    val ass: Traversal[ArraySeq[String], String] =
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[String]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, String, ArraySeq]]
+      )
+    val sf: Traversal[Set[Float], Float]         = Traversal.setValues(Reflect.float)
+    val lr1: Traversal[List[Record1], Boolean]   = Traversal.listValues(Record1.reflect)(Record1.b)
+    val lc4_lr3: Traversal[List[Case4], Record3] = Traversal.listValues(Case4.reflect)(Case4.lr3)
+    val lc1: Traversal[List[Variant1], Case1]    = Traversal.listValues(Variant1.reflect)(Variant1.c1)
+    val lc1_d: Traversal[List[Variant1], Double] = Traversal.listValues(Variant1.reflect)(Variant1.c1_d)
+    val mkc: Traversal[Map[Char, String], Char]  =
       Traversal.mapKeys(Reflect.map(Reflect.char, Reflect.string))
     val mvs: Traversal[Map[Char, String], String] =
       Traversal.mapValues(Reflect.map(Reflect.char, Reflect.string))
@@ -3725,84 +3798,424 @@ object OpticSpecTypes {
     val akmc1_d: Optional[Map[Char, Case1], Double] =
       Optional.atKey(Reflect.map(Reflect.char[Binding], Case1.reflect), 'A')(Case1.d)
     val aasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
-      Optional.at(Reflect.arraySeq(Reflect.arraySeq(Reflect.int[Binding])), 1)(
-        Traversal.arraySeqValues(Reflect.int[Binding])
+      Optional.at(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]],
+        1
+      )(
+        Traversal.seqValues(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
+        )
       )
     val aiasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
-      Traversal.atIndices(Reflect.arraySeq(Reflect.arraySeq(Reflect.int[Binding])), Seq(1, 2))(
-        Traversal.arraySeqValues(Reflect.int[Binding])
+      Traversal.atIndices(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]],
+        Seq(1, 2)
+      )(
+        Traversal.seqValues(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]]
+        )
       )
     val asasb_aasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.byte[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.byte[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Byte]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Byte], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Byte]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Byte, ArraySeq]],
+          1
+        )
       )
     val asasbl_aasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.boolean[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.boolean[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Boolean]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Boolean], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Boolean]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Boolean, ArraySeq]],
+          1
+        )
       )
     val asassh_aassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.short[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.short[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Short]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Short], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Short]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Short, ArraySeq]],
+          1
+        )
       )
     val asasc_aasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.char[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.char[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Char]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Char], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Char]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Char, ArraySeq]],
+          1
+        )
       )
     val asasi_aasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.int[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.int[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]],
+          1
+        )
       )
     val asasf_aasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.float[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.float[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Float]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Float], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Float]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Float, ArraySeq]],
+          1
+        )
       )
     val asasl_aasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.long[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.long[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Long]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Long], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Long]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Long, ArraySeq]],
+          1
+        )
       )
     val asasd_aasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.double[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.double[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Double]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Double], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[Double]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Double, ArraySeq]],
+          1
+        )
       )
     val asass_aass: Traversal[ArraySeq[ArraySeq[String]], String] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.string[Binding]))(
-        Optional.at(Reflect.arraySeq(Reflect.string[Binding]), 1)
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[String]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[String], ArraySeq]]
+      )(
+        Optional.at(
+          Schema
+            .derived[ArraySeq[String]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, String, ArraySeq]],
+          1
+        )
       )
     val asasb_aiasb: Traversal[ArraySeq[ArraySeq[Byte]], Byte] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.byte[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.byte[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Byte]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Byte], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Byte]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Byte, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asasbl_aiasbl: Traversal[ArraySeq[ArraySeq[Boolean]], Boolean] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.boolean[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.boolean[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Boolean]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Boolean], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Boolean]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Boolean, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asassh_aiassh: Traversal[ArraySeq[ArraySeq[Short]], Short] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.short[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.short[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Short]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Short], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Short]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Short, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asasc_aiasc: Traversal[ArraySeq[ArraySeq[Char]], Char] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.char[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.char[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Char]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Char], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Char]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Char, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asasi_aiasi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.int[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.int[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Int]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Int], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Int]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Int, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asasf_aiasf: Traversal[ArraySeq[ArraySeq[Float]], Float] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.float[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.float[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Float]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Float], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Float]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Float, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asasl_aiasl: Traversal[ArraySeq[ArraySeq[Long]], Long] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.long[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.long[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Long]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Long], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Long]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Long, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asasd_aiasd: Traversal[ArraySeq[ArraySeq[Double]], Double] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.double[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.double[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[Double]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[Double], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[Double]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, Double, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val asass_aiass: Traversal[ArraySeq[ArraySeq[String]], String] =
-      Traversal.arraySeqValues(Reflect.arraySeq(Reflect.string[Binding]))(
-        Traversal.atIndices(Reflect.arraySeq(Reflect.string[Binding]), Seq(1, 2))
+      Traversal.seqValues(
+        Schema
+          .derived[ArraySeq[ArraySeq[String]]]
+          .reflect
+          .asSequenceUnknown
+          .get
+          .sequence
+          .asInstanceOf[Reflect.Sequence[Binding, ArraySeq[String], ArraySeq]]
+      )(
+        Traversal.atIndices(
+          Schema
+            .derived[ArraySeq[String]]
+            .reflect
+            .asSequenceUnknown
+            .get
+            .sequence
+            .asInstanceOf[Reflect.Sequence[Binding, String, ArraySeq]],
+          Seq(1, 2)
+        )
       )
     val alli_li: Traversal[List[List[Int]], Int] =
       Optional.at(Reflect.list(Reflect.list(Reflect.int[Binding])), 1)(Traversal.listValues(Reflect.int[Binding]))

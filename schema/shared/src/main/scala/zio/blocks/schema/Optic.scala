@@ -74,16 +74,6 @@ sealed trait Optic[S, A] { self =>
     }
   }
 
-  final def arraySeqValues[B](implicit ev: A =:= ArraySeq[B]): Traversal[S, B] = {
-    import Reflect.Extractors.ArraySeq
-
-    val arraySeq = self.asEquivalent[ArraySeq[B]]
-    arraySeq.focus match {
-      case ArraySeq(element) => arraySeq(Traversal.arraySeqValues(element))
-      case _                 => sys.error("Expected ArraySeq")
-    }
-  }
-
   final def ===(that: A)(implicit schema: Schema[A]): SchemaExpr[S, Boolean] =
     SchemaExpr.Relational(SchemaExpr.Optic(this), SchemaExpr.Literal(that, schema), SchemaExpr.RelationalOperator.Equal)
 
@@ -232,12 +222,13 @@ object Lens {
     focusTerms: Array[Term.Bound[?, ?]]
   ) extends Lens[S, A] {
     private[this] var bindings: Array[LensBinding]  = null
-    private[this] var usedRegisters: RegisterOffset = 0
+    private[this] var usedRegisters: RegisterOffset = 0L
 
     private[this] def init(): Unit = {
-      val len         = sources.length
-      val bindings    = new Array[LensBinding](len)
-      var offset, idx = 0
+      var offset   = 0L
+      val len      = sources.length
+      val bindings = new Array[LensBinding](len)
+      var idx      = 0
       while (idx < len) {
         val source        = sources(idx)
         val focusTermName = focusTerms(idx).name
@@ -634,7 +625,7 @@ object Optional {
     params: Array[Any]
   ) extends Optional[S, A] {
     private[this] var bindings: Array[OpticBinding] = null
-    private[this] var usedRegisters: RegisterOffset = 0
+    private[this] var usedRegisters: RegisterOffset = 0L
 
     type Key
     type Value
@@ -645,9 +636,10 @@ object Optional {
     type Wrapped
 
     private[this] def init(): Unit = {
-      val len         = sources.length
-      val bindings    = new Array[OpticBinding](len)
-      var offset, idx = 0
+      var offset   = 0L
+      val len      = sources.length
+      val bindings = new Array[OpticBinding](len)
+      var idx      = 0
       while (idx < len) {
         val focusTermName = focusTerms(idx).name
         sources(idx) match {
@@ -1315,8 +1307,6 @@ object Traversal {
     )
   }
 
-  def arraySeqValues[A](reflect: Reflect.Bound[A]): Traversal[ArraySeq[A], A] = seqValues(Reflect.arraySeq(reflect))
-
   def listValues[A](reflect: Reflect.Bound[A]): Traversal[List[A], A] = seqValues(Reflect.list(reflect))
 
   def mapKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], K] =
@@ -1338,7 +1328,7 @@ object Traversal {
     params: Array[Any]
   ) extends Traversal[S, A] {
     private[this] var bindings: Array[OpticBinding] = null
-    private[this] var usedRegisters: RegisterOffset = 0
+    private[this] var usedRegisters: RegisterOffset = 0L
 
     type Key
     type Value
@@ -1349,9 +1339,10 @@ object Traversal {
     type Wrapped
 
     private[this] def init(): Unit = {
-      val len         = sources.length
-      val bindings    = new Array[OpticBinding](len)
-      var offset, idx = 0
+      var offset   = 0L
+      val len      = sources.length
+      val bindings = new Array[OpticBinding](len)
+      var idx      = 0
       while (idx < len) {
         val focusTermName = focusTerms(idx).name
         sources(idx) match {

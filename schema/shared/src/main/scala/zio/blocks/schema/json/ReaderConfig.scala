@@ -10,9 +10,9 @@ package zio.blocks.schema.json
  * [[java.io.InputStream]] or [[java.nio.DirectByteBuffer]] to reduce allocation
  * rate of grown and then reduced buffers during parsing of large (>32Kb)
  * numbers (including stringified), raw values, or ADT instances with the
- * discriminator field doesn't appear in the beginning of the JSON object</li>
- * <li>increase preferred size of an internal char buffer to reduce allocation
- * rate of grown and then reduced buffers when large (>4Kb) string
+ * discriminator field doesn't appear at the beginning of the JSON object</li>
+ * <li>increase the preferred size of an internal char buffer to reduce the
+ * allocation rate of grown and then reduced buffers when large (>4Kb) string
  * instances</li> </ul>
  * @param maxBufSize
  *   a max size (in bytes) of an internal byte buffer when parsing from
@@ -27,7 +27,7 @@ package zio.blocks.schema.json
  *   a preferred size (in chars) of an internal char buffer for parsing of
  *   string values
  * @param checkForEndOfInput
- *   a flag to check and raise an error if some non whitespace bytes will be
+ *   a flag to check and raise an error if some non-whitespace bytes are
  *   detected after successful parsing of the value
  */
 class ReaderConfig private (

@@ -1,9 +1,9 @@
 package zio.blocks.schema.binding
 
 object RegisterOffset {
-  type RegisterOffset = Int
+  type RegisterOffset = Long
 
-  val Zero: RegisterOffset = 0
+  val Zero: RegisterOffset = 0L
 
   def apply(
     booleans: Int = 0,
@@ -16,31 +16,29 @@ object RegisterOffset {
     chars: Int = 0,
     objects: Int = 0
   ): RegisterOffset = {
-    val primitives = booleans + bytes + ((chars + shorts) << 1) + ((floats + ints) << 2) + ((doubles + longs) << 3)
-    if ((primitives | objects) >> 16 != 0) {
-      throw new IllegalArgumentException("offset overflow")
-    }
-    primitives << 16 | objects
+    val primitives =
+      booleans.toLong + bytes.toLong + ((chars.toLong + shorts.toLong) << 1) + ((floats.toLong + ints.toLong) << 2) + ((doubles.toLong + longs.toLong) << 3)
+    if (((primitives | objects.toLong) >> 31) != 0) throw new IllegalArgumentException("offset overflow")
+    primitives << 32 | objects.toLong
   }
 
-  def add(left: RegisterOffset, right: RegisterOffset): RegisterOffset = {
-    if ((getBytes(left) + getBytes(right) | getObjects(left) + getObjects(right)) >> 16 != 0) {
-      throw new IllegalArgumentException("offset sum overflow")
-    }
-    left + right
+  inline def add(left: RegisterOffset, right: RegisterOffset): RegisterOffset = {
+    val result = left + right
+    if (((left.toInt + right.toInt).toLong | result) < 0) throw new IllegalArgumentException("offset overflow")
+    result
   }
 
-  inline private[schema] def getObjects(offset: RegisterOffset): Int = offset & 0xffff
+  inline def getObjects(offset: RegisterOffset): Int = offset.toInt
 
-  inline private[schema] def getBytes(offset: RegisterOffset): Int = offset >>> 16
+  inline def getBytes(offset: RegisterOffset): Int = (offset >>> 32).toInt
 
-  inline private[schema] def incrementObjects(offset: RegisterOffset): RegisterOffset = offset + 1
+  inline def incrementObjects(offset: RegisterOffset): RegisterOffset = offset + 1L
 
-  inline private[schema] def incrementBooleansAndBytes(offset: RegisterOffset): RegisterOffset = offset + 0x10000
+  inline def incrementBooleansAndBytes(offset: RegisterOffset): RegisterOffset = offset + 0x100000000L
 
-  inline private[schema] def incrementCharsAndShorts(offset: RegisterOffset): RegisterOffset = offset + 0x20000
+  inline def incrementCharsAndShorts(offset: RegisterOffset): RegisterOffset = offset + 0x200000000L
 
-  inline private[schema] def incrementFloatsAndInts(offset: RegisterOffset): RegisterOffset = offset + 0x40000
+  inline def incrementFloatsAndInts(offset: RegisterOffset): RegisterOffset = offset + 0x400000000L
 
-  inline private[schema] def incrementDoublesAndLongs(offset: RegisterOffset): RegisterOffset = offset + 0x80000
+  inline def incrementDoublesAndLongs(offset: RegisterOffset): RegisterOffset = offset + 0x800000000L
 }
