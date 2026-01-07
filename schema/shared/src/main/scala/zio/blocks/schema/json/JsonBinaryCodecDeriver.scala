@@ -350,7 +350,6 @@ class JsonBinaryCodecDeriver private[json] (
   def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeName: TypeName[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     binding: Binding[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -359,7 +358,6 @@ class JsonBinaryCodecDeriver private[json] (
       new Reflect.Wrapper(
         wrapped.asInstanceOf[Reflect[Binding, B]],
         typeName,
-        wrapperPrimitiveType,
         binding,
         doc,
         modifiers

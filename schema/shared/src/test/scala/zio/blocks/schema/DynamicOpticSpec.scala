@@ -114,6 +114,6 @@ object DynamicOpticSpec extends ZIOSpecDefault {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    implicit val schema: Schema[PosInt] = Schema.derived.reflect.typeName.wrap(PosInt.apply, _.value)
   }
 }

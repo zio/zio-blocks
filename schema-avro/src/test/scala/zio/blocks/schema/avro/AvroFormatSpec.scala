@@ -936,7 +936,7 @@ object AvroFormatSpec extends ZIOSpecDefault {
   case class UserId(value: Long)
 
   object UserId {
-    implicit val schema: Schema[UserId] = Schema.derived.wrapTotal(x => new UserId(x), _.value)
+    implicit val schema: Schema[UserId] = Schema.derived.reflect.typeName.wrapTotal(x => new UserId(x), _.value)
   }
 
   case class Email(value: String)
@@ -948,7 +948,6 @@ object AvroFormatSpec extends ZIOSpecDefault {
       new Reflect.Wrapper[Binding, Email, String](
         Schema[String].reflect,
         TypeName(Namespace(Seq("zio", "blocks", "avro"), Seq("AvroFormatSpec")), "Email"),
-        None,
         new Binding.Wrapper(
           {
             case x @ EmailRegex(_*) => new Right(new Email(x))

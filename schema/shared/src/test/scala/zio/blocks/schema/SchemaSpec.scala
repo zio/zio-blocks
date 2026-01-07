@@ -693,7 +693,6 @@ object SchemaSpec extends ZIOSpecDefault {
             new Reflect.Wrapper[Binding, Chunk[V], List[V]](
               Schema.list[V].reflect,
               TypeName(Namespace(Seq("zio")), "Chunk"),
-              None,
               new Binding.Wrapper(x => new Right(Chunk.fromIterable(x)), _.toList)
             )
           )
@@ -1879,14 +1878,14 @@ object SchemaSpec extends ZIOSpecDefault {
       if (value >= 0) new PosInt(value)
       else throw new IllegalArgumentException("Expected positive value")
 
-    implicit val schema: Schema[PosInt] = Schema.derived.wrap(PosInt.apply, _.value)
+    implicit val schema: Schema[PosInt] = Schema.derived.reflect.typeName.wrap(PosInt.apply, _.value)
     val wrapped: Optional[PosInt, Int]  = $(_.wrapped[Int])
   }
 
   case class Email(value: String)
 
   object Email extends CompanionOptics[Email] {
-    implicit val schema: Schema[Email]   = Schema.derived.wrapTotal(x => new Email(x), _.value)
+    implicit val schema: Schema[Email]   = Schema.derived.reflect.typeName.wrapTotal(x => new Email(x), _.value)
     val wrapped: Optional[Email, String] = $(_.wrapped[String])
   }
 
@@ -1983,7 +1982,6 @@ object SchemaSpec extends ZIOSpecDefault {
           override def deriveWrapper[F[_, _], A, B](
             wrapped: Reflect[F, B],
             typeName: TypeName[A],
-            wrapperPrimitiveType: Option[PrimitiveType[A]],
             binding: Binding[BindingType.Wrapper[A, B], A],
             doc: Doc,
             modifiers: Seq[Modifier.Reflect]

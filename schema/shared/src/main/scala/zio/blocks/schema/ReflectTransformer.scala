@@ -61,7 +61,6 @@ trait ReflectTransformer[-F[_, _], G[_, _]] {
     path: DynamicOptic,
     wrapped: Reflect[G, B],
     typeName: TypeName[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     metadata: F[BindingType.Wrapper[A, B], A],
     doc: Doc,
     modifiers: Seq[Modifier.Reflect]
@@ -148,14 +147,13 @@ object ReflectTransformer {
       path: DynamicOptic,
       wrapped: Reflect[G, B],
       typeName: TypeName[A],
-      wrapperPrimitiveType: Option[PrimitiveType[A]],
       metadata: F[BindingType.Wrapper[A, B], A],
       doc: Doc,
       modifiers: Seq[Modifier.Reflect]
     ): Lazy[Reflect.Wrapper[G, A, B]] =
       for {
         binding <- transformMetadata(metadata)
-      } yield new Reflect.Wrapper(wrapped, typeName, wrapperPrimitiveType, binding, doc, modifiers)
+      } yield new Reflect.Wrapper(wrapped, typeName, binding, doc, modifiers)
   }
 
   private type Any2[_, _] = Any

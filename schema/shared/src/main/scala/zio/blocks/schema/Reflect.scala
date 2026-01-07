@@ -1032,12 +1032,13 @@ object Reflect {
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeName: TypeName[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, A] { self =>
-    protected def inner: Any = (wrapped, typeName, wrapperPrimitiveType, doc, modifiers)
+    protected def inner: Any = (wrapped, typeName, doc, modifiers)
+
+    def wrapperPrimitiveType: Option[PrimitiveType[A]] = typeName.primitiveType
 
     type NodeBinding = BindingType.Wrapper[A, B]
 
@@ -1080,7 +1081,7 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
         wrapped <- wrapped.transform(path, f)
-        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
+        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperBinding, doc, modifiers)
       } yield wrapper
 
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)

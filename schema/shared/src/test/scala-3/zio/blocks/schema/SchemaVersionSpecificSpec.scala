@@ -982,7 +982,6 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
       Reflect.Wrapper(
         wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
         typeName = TypeName(Namespace(Seq("zio", "blocks", "schema"), Seq("SchemaVersionSpecificSpec")), "InnerId"),
-        wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
         wrapperBinding = Binding.Wrapper(s => InnerId(s), identity)
       )
     )
@@ -1028,7 +1027,6 @@ object Id {
     Reflect.Wrapper(
       wrapped = Reflect.string[Binding], // Cannot use `Schema[String].reflect` here
       typeName = TypeName(Namespace.zioBlocksSchema, "Id"),
-      wrapperPrimitiveType = Some(PrimitiveType.String(Validation.None)),
       wrapperBinding = Binding.Wrapper(s => Id(s), identity)
     )
   )
