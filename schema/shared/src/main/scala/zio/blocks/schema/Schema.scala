@@ -1,7 +1,8 @@
 package zio.blocks.schema
 
 import zio.blocks.schema.binding.Binding
-import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
+import zio.blocks.schema.derive.{DerivationBuilder, Deriver}
+import zio.blocks.schema.registry.{RebindError, TypeRegistry}
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -76,6 +77,10 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
+  def serialize: DynamicValue = reflect.toJsonSchema
+
+  def toJsonSchema: String = serialize.toJson
+
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
@@ -97,6 +102,12 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
 
 object Schema extends SchemaCompanionVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
+
+  def deserialize[F[_, _], A](typeRegistry: TypeRegistry, value: DynamicValue): Either[RebindError, Schema[A]] =
+    Reflect.fromJsonSchema[F, A](value).rebind(typeRegistry).map(reflect => new Schema[A](reflect))
+
+  def fromJsonSchema[F[_, _], A](typeRegistry: TypeRegistry, json: String): Either[RebindError, Schema[A]] =
+    deserialize[F, A](typeRegistry, DynamicValue.fromJson(json))
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
 

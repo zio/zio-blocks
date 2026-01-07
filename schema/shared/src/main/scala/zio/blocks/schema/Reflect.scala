@@ -3,6 +3,7 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.binding._
+import zio.blocks.schema.registry.{RebindError, TypeRegistry}
 import scala.annotation.tailrec
 import scala.collection.immutable.ArraySeq
 
@@ -136,6 +137,10 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def nodeType: Reflect.Type { type NodeBinding = self.NodeBinding }
 
   lazy val noBinding: Reflect[NoBinding, A] = transform(DynamicOptic.root, ReflectTransformer.noBinding()).force
+
+  def rebind(typeRegistry: TypeRegistry): Either[RebindError, Reflect.Bound[A]] = ???
+
+  def toJsonSchema: DynamicValue = ???
 
   def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue
 
@@ -342,8 +347,10 @@ object Reflect {
               if (fieldValue ne null) {
                 fieldValues(idx) = null
                 fieldValue.fromDynamicValue(kv._2, new DynamicOptic.Node.Field(name) :: trace) match {
-                  case Right(value) => this.registers(idx).set(registers, 0, value)
-                  case Left(error)  => addError(error)
+                  case Right(value) =>
+                    this.registers(idx).set(registers, RegisterOffset.Zero, value)
+                  case Left(error) =>
+                    addError(error)
                 }
               } else addError(SchemaError.duplicatedField(trace, name))
             }
@@ -355,8 +362,9 @@ object Reflect {
             idx += 1
           }
           if (error.isDefined) new Left(error.get)
-          else new Right(constructor.construct(registers, 0))
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a record"))
+          else new Right(constructor.construct(registers, RegisterOffset.Zero))
+        case _ =>
+          new Left(SchemaError.invalidType(trace, "Expected a record"))
       }
 
     def lensByName[B](name: String): Option[Lens[A, B]] = lensByIndex(fieldIndexByName.get(name))
@@ -385,9 +393,9 @@ object Reflect {
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
       val deconstructor = this.deconstructor
       val registers     = Registers(deconstructor.usedRegisters)
-      deconstructor.deconstruct(registers, 0, value)
-      val fields = Vector.newBuilder[(String, DynamicValue)]
+      deconstructor.deconstruct(registers, RegisterOffset.Zero, value)
       val len    = this.registers.length
+      val fields = Vector.newBuilder[(String, DynamicValue)]
       var idx    = 0
       while (idx < len) {
         val field    = this.fields(idx)
@@ -397,7 +405,7 @@ object Reflect {
             field.name,
             field.value
               .asInstanceOf[Reflect[F, field.Focus]]
-              .toDynamicValue(register.get(registers, 0).asInstanceOf[field.Focus])
+              .toDynamicValue(register.get(registers, RegisterOffset.Zero).asInstanceOf[field.Focus])
           )
         )
         idx += 1
@@ -430,46 +438,46 @@ object Reflect {
     type Bound[A] = Record[Binding, A]
 
     def registers[F[_, _]](reflects: Array[Reflect[F, ?]]): Array[Register[Any]] = {
-      var offset    = 0L
-      val registers = new Array[Register[?]](reflects.length)
-      var idx       = 0
+      val registers      = new Array[Register[?]](reflects.length)
+      var registerOffset = RegisterOffset.Zero
+      var idx            = 0
       reflects.foreach { fieldValue =>
-        unwrapToPrimitiveTypeOption(fieldValue) match {
-          case Some(primitiveType) =>
-            primitiveType match {
+        fieldValue.asPrimitive match {
+          case Some(primitive) =>
+            primitive.primitiveType match {
               case PrimitiveType.Unit =>
                 registers(idx) = Register.Unit
               case _: PrimitiveType.Boolean =>
-                registers(idx) = new Register.Boolean(offset)
-                offset = RegisterOffset.incrementBooleansAndBytes(offset)
+                registers(idx) = Register.Boolean(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
               case _: PrimitiveType.Byte =>
-                registers(idx) = new Register.Byte(offset)
-                offset = RegisterOffset.incrementBooleansAndBytes(offset)
+                registers(idx) = Register.Byte(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementBooleansAndBytes(registerOffset)
               case _: PrimitiveType.Char =>
-                registers(idx) = new Register.Char(offset)
-                offset = RegisterOffset.incrementCharsAndShorts(offset)
+                registers(idx) = Register.Char(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
               case _: PrimitiveType.Short =>
-                registers(idx) = new Register.Short(offset)
-                offset = RegisterOffset.incrementCharsAndShorts(offset)
+                registers(idx) = Register.Short(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementCharsAndShorts(registerOffset)
               case _: PrimitiveType.Float =>
-                registers(idx) = new Register.Float(offset)
-                offset = RegisterOffset.incrementFloatsAndInts(offset)
+                registers(idx) = Register.Float(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
               case _: PrimitiveType.Int =>
-                registers(idx) = new Register.Int(offset)
-                offset = RegisterOffset.incrementFloatsAndInts(offset)
+                registers(idx) = Register.Int(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementFloatsAndInts(registerOffset)
               case _: PrimitiveType.Double =>
-                registers(idx) = new Register.Double(offset)
-                offset = RegisterOffset.incrementDoublesAndLongs(offset)
+                registers(idx) = Register.Double(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
               case _: PrimitiveType.Long =>
-                registers(idx) = new Register.Long(offset)
-                offset = RegisterOffset.incrementDoublesAndLongs(offset)
+                registers(idx) = Register.Long(RegisterOffset.getBytes(registerOffset))
+                registerOffset = RegisterOffset.incrementDoublesAndLongs(registerOffset)
               case _ =>
-                registers(idx) = new Register.Object(offset)
-                offset = RegisterOffset.incrementObjects(offset)
+                registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
+                registerOffset = RegisterOffset.incrementObjects(registerOffset)
             }
           case _ =>
-            registers(idx) = new Register.Object(offset)
-            offset = RegisterOffset.incrementObjects(offset)
+            registers(idx) = Register.Object(RegisterOffset.getObjects(registerOffset))
+            registerOffset = RegisterOffset.incrementObjects(registerOffset)
         }
         idx += 1
       }
@@ -477,13 +485,13 @@ object Reflect {
     }
 
     def usedRegisters(registers: Array[Register[Any]]): RegisterOffset = {
-      var offset = 0L
-      var idx    = 0
+      var usedRegisters = RegisterOffset.Zero
+      var idx           = 0
       while (idx < registers.length) {
-        offset = RegisterOffset.add(registers(idx).usedRegisters, offset)
+        usedRegisters = RegisterOffset.add(registers(idx).usedRegisters, usedRegisters)
         idx += 1
       }
-      offset
+      usedRegisters
     }
   }
 
@@ -543,7 +551,7 @@ object Reflect {
               .asInstanceOf[Reflect[F, A]]
               .fromDynamicValue(value, new DynamicOptic.Node.Case(case_.name) :: trace)
           } else new Left(SchemaError.unknownCase(trace, discriminator))
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a variant"))
+        case _ => new Left(SchemaError.invalidType(trace, "Expected a variant"))
       }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
@@ -633,15 +641,13 @@ object Reflect {
         case DynamicValue.Sequence(elements) =>
           val seqTrace    = DynamicOptic.Node.Elements :: trace
           val constructor = seqConstructor
-          var idx         = -1
-          unwrapToPrimitiveTypeOption(element) match {
-            case Some(primitiveType) =>
-              primitiveType match {
+          element.asPrimitive match {
+            case Some(primitive) =>
+              primitive.primitiveType match {
                 case _: PrimitiveType.Boolean =>
                   val builder = constructor.newBooleanBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addBoolean(builder, value.asInstanceOf[Boolean])
                       case Left(error)  => addError(error)
                     }
@@ -651,8 +657,7 @@ object Reflect {
                 case _: PrimitiveType.Byte =>
                   val builder = constructor.newByteBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addByte(builder, value.asInstanceOf[Byte])
                       case Left(error)  => addError(error)
                     }
@@ -662,8 +667,7 @@ object Reflect {
                 case _: PrimitiveType.Char =>
                   val builder = constructor.newCharBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addChar(builder, value.asInstanceOf[Char])
                       case Left(error)  => addError(error)
                     }
@@ -673,8 +677,7 @@ object Reflect {
                 case _: PrimitiveType.Short =>
                   val builder = constructor.newShortBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addShort(builder, value.asInstanceOf[Short])
                       case Left(error)  => addError(error)
                     }
@@ -684,8 +687,7 @@ object Reflect {
                 case _: PrimitiveType.Int =>
                   val builder = constructor.newIntBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addInt(builder, value.asInstanceOf[Int])
                       case Left(error)  => addError(error)
                     }
@@ -695,8 +697,7 @@ object Reflect {
                 case _: PrimitiveType.Long =>
                   val builder = constructor.newLongBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addLong(builder, value.asInstanceOf[Long])
                       case Left(error)  => addError(error)
                     }
@@ -706,8 +707,7 @@ object Reflect {
                 case _: PrimitiveType.Float =>
                   val builder = constructor.newFloatBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addFloat(builder, value.asInstanceOf[Float])
                       case Left(error)  => addError(error)
                     }
@@ -717,8 +717,7 @@ object Reflect {
                 case _: PrimitiveType.Double =>
                   val builder = constructor.newDoubleBuilder(elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addDouble(builder, value.asInstanceOf[Double])
                       case Left(error)  => addError(error)
                     }
@@ -728,8 +727,7 @@ object Reflect {
                 case _ =>
                   val builder = constructor.newObjectBuilder[A](elements.size)
                   elements.foreach { elem =>
-                    idx += 1
-                    element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                    element.fromDynamicValue(elem, seqTrace) match {
                       case Right(value) => constructor.addObject(builder, value)
                       case Left(error)  => addError(error)
                     }
@@ -740,8 +738,7 @@ object Reflect {
             case _ =>
               val builder = constructor.newObjectBuilder[A](elements.size)
               elements.foreach { elem =>
-                idx += 1
-                element.fromDynamicValue(elem, new DynamicOptic.Node.AtIndex(idx) :: seqTrace) match {
+                element.fromDynamicValue(elem, seqTrace) match {
                   case Right(value) => constructor.addObject(builder, value)
                   case Left(error)  => addError(error)
                 }
@@ -749,7 +746,8 @@ object Reflect {
               if (error.isDefined) new Left(error.get)
               else new Right(constructor.resultObject(builder))
           }
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a sequence"))
+        case _ =>
+          new Left(SchemaError.invalidType(trace, "Expected a sequence"))
       }
     }
 
@@ -847,7 +845,7 @@ object Reflect {
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key, keyTrace) match {
               case Right(keyValue) =>
-                this.value.fromDynamicValue(value, new DynamicOptic.Node.AtMapKey(keyValue) :: valueTrace) match {
+                this.value.fromDynamicValue(value, valueTrace) match {
                   case Right(valueValue) => constructor.addObject(builder, keyValue, valueValue)
                   case Left(error)       => addError(error)
                 }
@@ -856,7 +854,8 @@ object Reflect {
           }
           if (error.isDefined) new Left(error.get)
           else new Right(constructor.resultObject(builder))
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a map"))
+        case _ =>
+          new Left(SchemaError.invalidType(trace, "Expected a map"))
       }
     }
 
@@ -1032,12 +1031,11 @@ object Reflect {
   case class Wrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeName: TypeName[A],
-    wrapperPrimitiveType: Option[PrimitiveType[A]],
     wrapperBinding: F[BindingType.Wrapper[A, B], A],
     doc: Doc = Doc.Empty,
     modifiers: Seq[Modifier.Reflect] = Nil
   ) extends Reflect[F, A] { self =>
-    protected def inner: Any = (wrapped, typeName, wrapperPrimitiveType, doc, modifiers)
+    protected def inner: Any = (wrapped, typeName, doc, modifiers)
 
     type NodeBinding = BindingType.Wrapper[A, B]
 
@@ -1061,7 +1059,7 @@ object Reflect {
       (wrapped.fromDynamicValue(value) match {
         case Right(unwrapped) =>
           binding.wrap(unwrapped) match {
-            case Left(error) => new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeName.name}: $error"))
+            case Left(error) => new Left(SchemaError.invalidType(trace, s"Expected ${typeName.name}: $error"))
             case right       => right
           }
         case left => left
@@ -1080,7 +1078,7 @@ object Reflect {
     def transform[G[_, _]](path: DynamicOptic, f: ReflectTransformer[F, G]): Lazy[Wrapper[G, A, B]] =
       for {
         wrapped <- wrapped.transform(path, f)
-        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperPrimitiveType, wrapperBinding, doc, modifiers)
+        wrapper <- f.transformWrapper(path, wrapped, typeName, wrapperBinding, doc, modifiers)
       } yield wrapper
 
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
@@ -1621,11 +1619,8 @@ object Reflect {
   def vector[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Vector] =
     new Sequence(element, TypeName.vector(element.typeName), F.fromBinding(Binding.Seq.vector))
 
-  def indexedSeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, IndexedSeq] =
-    new Sequence(element, TypeName.indexedSeq(element.typeName), F.fromBinding(Binding.Seq.indexedSeq))
-
-  def seq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, Seq] =
-    new Sequence(element, TypeName.seq(element.typeName), F.fromBinding(Binding.Seq.seq))
+  def arraySeq[F[_, _], A](element: Reflect[F, A])(implicit F: FromBinding[F]): Sequence[F, A, ArraySeq] =
+    new Sequence(element, TypeName.arraySeq(element.typeName), F.fromBinding(Binding.Seq.arraySeq))
 
   def map[F[_, _], K, V](key: Reflect[F, K], value: Reflect[F, V])(implicit
     F: FromBinding[F]
@@ -1659,6 +1654,8 @@ object Reflect {
         }
     }
   }
+
+  def fromJsonSchema[F[_, _], A](value: DynamicValue): Reflect[F, A] = ???
 
   private[schema] def unwrapToPrimitiveTypeOption[F[_, _], A](reflect: Reflect[F, A]): Option[PrimitiveType[A]] =
     if (reflect.isWrapper) {
