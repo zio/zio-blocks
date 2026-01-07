@@ -1,10 +1,11 @@
 package zio.blocks.schema.json
 
 import zio.blocks.schema.SchemaError.ExpectationMismatch
-import zio.blocks.schema.{DynamicOptic, DynamicValue, SchemaError, PrimitiveValue}
+import zio.blocks.schema.{DynamicOptic, DynamicValue, PrimitiveValue, SchemaError}
 import zio.blocks.schema.binding.RegisterOffset
 import zio.blocks.schema.codec.BinaryCodec
 import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets.UTF_8
 import java.time._
 import java.util.{Currency, UUID}
 import scala.annotation.switch
@@ -294,6 +295,71 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
     var writer = JsonBinaryCodec.writerPool.get
     if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
     writer.write(this, value, output, config)
+  }
+
+  /**
+   * Decodes a value of type `A` from the given string using the default
+   * `ReaderConfig`. If decoding fails, a `SchemaError` is returned.
+   *
+   * @param input
+   *   the string containing the data to be decoded
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
+  def decode(input: String): Either[SchemaError, A] = decode(input, ReaderConfig)
+
+  /**
+   * Encodes the specified value of type `A` into a string using the default
+   * `WriterConfig`.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into a string
+   * @return
+   *   a string representing the encoded data
+   */
+  def encodeToString(value: A): String = encodeToString(value, WriterConfig)
+
+  /**
+   * Decodes a value of type `A` from the provided string using the specified
+   * `ReaderConfig`. If decoding fails, an error of type `SchemaError` is
+   * returned.
+   *
+   * @param input
+   *   a string containing the data to be decoded
+   * @param config
+   *   the `ReaderConfig` instance used to configure the decoding process
+   * @return
+   *   `Either` where the `Left` contains a `SchemaError` if decoding fails, or
+   *   the `Right` contains the successfully decoded value of type `A`
+   */
+  def decode(input: String, config: ReaderConfig): Either[SchemaError, A] =
+    try {
+      val buf    = input.getBytes(UTF_8)
+      var reader = JsonBinaryCodec.readerPool.get
+      if (reader.isInUse) {
+        reader = new JsonReader(buf = buf, charBuf = new Array[Char](config.preferredCharBufSize))
+      }
+      new Right(reader.read(this, buf, 0, buf.length, config))
+    } catch {
+      case error if NonFatal(error) => new Left(toError(error))
+    }
+
+  /**
+   * Encodes the specified value of type `A` into a string using the provided
+   * `WriterConfig`.
+   *
+   * @param value
+   *   the value of type `A` to be serialized into a string
+   * @param config
+   *   the `WriterConfig` instance used to configure the encoding process
+   * @return
+   *   a string representing the encoded data
+   */
+  def encodeToString(value: A, config: WriterConfig): String = {
+    var writer = JsonBinaryCodec.writerPool.get
+    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    writer.writeToString(this, value, config)
   }
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
