@@ -1472,9 +1472,7 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
             ${
               // Generate code for each field extraction at compile time
               val stmts = fieldInfos.map { case (fi, fieldBaseOffset) =>
-                val fieldName     = Expr(fi.name)
-                val bytesOffset   = Expr(RegisterOffset.getBytes(fieldBaseOffset))
-                val objectsOffset = Expr(RegisterOffset.getObjects(fieldBaseOffset))
+                val fieldName = Expr(fi.name)
 
                 // Generate: val value = in.asInstanceOf[bc].selectDynamic(fieldName)
                 val inExpr   = 'in
@@ -1489,24 +1487,39 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                 val valueExpr = selectCall.asExprOf[Any]
 
                 // Generate the appropriate setter based on field type
+                val fieldOffsetExpr = '{
+                  RegisterOffset(
+                    objects = ${ Expr(RegisterOffset.getObjects(fieldBaseOffset)) },
+                    bytes = ${ Expr(RegisterOffset.getBytes(fieldBaseOffset)) }
+                  )
+                }
                 if (fi.tpe.dealias <:< intTpe) {
-                  '{ out.setInt(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Integer].intValue) }
+                  '{ out.setInt(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[java.lang.Integer].intValue) }
                 } else if (fi.tpe.dealias <:< longTpe) {
-                  '{ out.setLong(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Long].longValue) }
+                  '{ out.setLong(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[java.lang.Long].longValue) }
                 } else if (fi.tpe.dealias <:< floatTpe) {
-                  '{ out.setFloat(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Float].floatValue) }
+                  '{ out.setFloat(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[java.lang.Float].floatValue) }
                 } else if (fi.tpe.dealias <:< doubleTpe) {
-                  '{ out.setDouble(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Double].doubleValue) }
+                  '{
+                    out.setDouble(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[java.lang.Double].doubleValue)
+                  }
                 } else if (fi.tpe.dealias <:< booleanTpe) {
-                  '{ out.setBoolean(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Boolean].booleanValue) }
+                  '{
+                    out.setBoolean(
+                      baseOffset + $fieldOffsetExpr,
+                      $valueExpr.asInstanceOf[java.lang.Boolean].booleanValue
+                    )
+                  }
                 } else if (fi.tpe.dealias <:< byteTpe) {
-                  '{ out.setByte(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Byte].byteValue) }
+                  '{ out.setByte(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[java.lang.Byte].byteValue) }
                 } else if (fi.tpe.dealias <:< charTpe) {
-                  '{ out.setChar(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Character].charValue) }
+                  '{
+                    out.setChar(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[java.lang.Character].charValue)
+                  }
                 } else if (fi.tpe.dealias <:< shortTpe) {
-                  '{ out.setShort(baseOffset, $bytesOffset, $valueExpr.asInstanceOf[java.lang.Short].shortValue) }
+                  '{ out.setShort(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[java.lang.Short].shortValue) }
                 } else {
-                  '{ out.setObject(baseOffset, $objectsOffset, $valueExpr.asInstanceOf[AnyRef]) }
+                  '{ out.setObject(baseOffset + $fieldOffsetExpr, $valueExpr.asInstanceOf[AnyRef]) }
                 }
               }
               // Combine all statements into a block
@@ -1536,16 +1549,17 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                     var idx    = 0
                     val len    = _fieldNames.length
                     while (idx < len) {
-                      val value: Any = _fieldTypes(idx) match {
-                        case 1 => in.getInt(baseOffset, _fieldBytes(idx))
-                        case 2 => in.getLong(baseOffset, _fieldBytes(idx))
-                        case 3 => in.getFloat(baseOffset, _fieldBytes(idx))
-                        case 4 => in.getDouble(baseOffset, _fieldBytes(idx))
-                        case 5 => in.getBoolean(baseOffset, _fieldBytes(idx))
-                        case 6 => in.getByte(baseOffset, _fieldBytes(idx))
-                        case 7 => in.getChar(baseOffset, _fieldBytes(idx))
-                        case 8 => in.getShort(baseOffset, _fieldBytes(idx))
-                        case _ => in.getObject(baseOffset, _fieldObjects(idx))
+                      val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                      val value: Any  = _fieldTypes(idx) match {
+                        case 1 => in.getInt(baseOffset + fieldOffset)
+                        case 2 => in.getLong(baseOffset + fieldOffset)
+                        case 3 => in.getFloat(baseOffset + fieldOffset)
+                        case 4 => in.getDouble(baseOffset + fieldOffset)
+                        case 5 => in.getBoolean(baseOffset + fieldOffset)
+                        case 6 => in.getByte(baseOffset + fieldOffset)
+                        case 7 => in.getChar(baseOffset + fieldOffset)
+                        case 8 => in.getShort(baseOffset + fieldOffset)
+                        case _ => in.getObject(baseOffset + fieldOffset)
                       }
                       values.put(_fieldNames(idx), value)
                       idx += 1
@@ -1646,16 +1660,17 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                 var idx    = 0
                 val len    = _fieldNames.length
                 while (idx < len) {
-                  val value: Any = _fieldTypes(idx) match {
-                    case 1 => in.getInt(baseOffset, _fieldBytes(idx))
-                    case 2 => in.getLong(baseOffset, _fieldBytes(idx))
-                    case 3 => in.getFloat(baseOffset, _fieldBytes(idx))
-                    case 4 => in.getDouble(baseOffset, _fieldBytes(idx))
-                    case 5 => in.getBoolean(baseOffset, _fieldBytes(idx))
-                    case 6 => in.getByte(baseOffset, _fieldBytes(idx))
-                    case 7 => in.getChar(baseOffset, _fieldBytes(idx))
-                    case 8 => in.getShort(baseOffset, _fieldBytes(idx))
-                    case _ => in.getObject(baseOffset, _fieldObjects(idx))
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
+                  val value: Any  = _fieldTypes(idx) match {
+                    case 1 => in.getInt(baseOffset + fieldOffset)
+                    case 2 => in.getLong(baseOffset + fieldOffset)
+                    case 3 => in.getFloat(baseOffset + fieldOffset)
+                    case 4 => in.getDouble(baseOffset + fieldOffset)
+                    case 5 => in.getBoolean(baseOffset + fieldOffset)
+                    case 6 => in.getByte(baseOffset + fieldOffset)
+                    case 7 => in.getChar(baseOffset + fieldOffset)
+                    case 8 => in.getShort(baseOffset + fieldOffset)
+                    case _ => in.getObject(baseOffset + fieldOffset)
                   }
                   values.put(_fieldNames(idx), value)
                   idx += 1
@@ -1674,21 +1689,22 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                 var idx = 0
                 val len = _fieldNames.length
                 while (idx < len) {
-                  val method = in.getClass.getMethod(_fieldNames(idx))
-                  val value  = method.invoke(in)
+                  val method      = in.getClass.getMethod(_fieldNames(idx))
+                  val value       = method.invoke(in)
+                  val fieldOffset = RegisterOffset(objects = _fieldObjects(idx), bytes = _fieldBytes(idx))
                   _fieldTypes(idx) match {
-                    case 1 => out.setInt(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Integer].intValue)
-                    case 2 => out.setLong(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Long].longValue)
-                    case 3 => out.setFloat(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Float].floatValue)
+                    case 1 => out.setInt(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Integer].intValue)
+                    case 2 => out.setLong(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Long].longValue)
+                    case 3 => out.setFloat(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Float].floatValue)
                     case 4 =>
-                      out.setDouble(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Double].doubleValue)
+                      out.setDouble(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Double].doubleValue)
                     case 5 =>
-                      out.setBoolean(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Boolean].booleanValue)
-                    case 6 => out.setByte(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Byte].byteValue)
+                      out.setBoolean(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Boolean].booleanValue)
+                    case 6 => out.setByte(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Byte].byteValue)
                     case 7 =>
-                      out.setChar(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Character].charValue)
-                    case 8 => out.setShort(baseOffset, _fieldBytes(idx), value.asInstanceOf[java.lang.Short].shortValue)
-                    case _ => out.setObject(baseOffset, _fieldObjects(idx), value.asInstanceOf[AnyRef])
+                      out.setChar(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Character].charValue)
+                    case 8 => out.setShort(baseOffset + fieldOffset, value.asInstanceOf[java.lang.Short].shortValue)
+                    case _ => out.setObject(baseOffset + fieldOffset, value.asInstanceOf[AnyRef])
                   }
                   idx += 1
                 }
@@ -1724,26 +1740,3 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
     schemaBlock
   }
 }
-========
-  /**
-   * Convert this schema to a structural type schema.
-   *
-   * The structural type represents the "shape" of A without its nominal identity.
-   * This enables duck typing and structural validation.
-   *
-   * Example:
-   * {{{
-   * case class Person(name: String, age: Int)
-   * val structuralSchema: Schema[{ def name: String; def age: Int }] =
-   *   Schema.derived[Person].structural
-   * }}}
-   *
-   * Note: This is JVM-only due to reflection requirements for structural types.
-   *
-   * @param ts Macro-generated conversion to structural representation
-   * @return Schema for the structural type corresponding to A
-   */
-  transparent inline def structural(using ts: ToStructural[A]): Schema[ts.StructuralType] = ts(this)
-}
-
->>>>>>>> 6f40d59 (Add structural Schema basic impl and test structure (#517)):schema/shared/src/main/scala-3/zio/blocks/schema/SchemaVersionSpecific.scala

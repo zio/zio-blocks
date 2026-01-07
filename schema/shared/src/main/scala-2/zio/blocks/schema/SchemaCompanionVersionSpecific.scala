@@ -10,7 +10,6 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 import scala.reflect.NameTransformer
 
-<<<<<<<< HEAD:schema/shared/src/main/scala-2/zio/blocks/schema/SchemaCompanionVersionSpecific.scala
 trait SchemaCompanionVersionSpecific {
   def derived[A]: Schema[A] = macro SchemaCompanionVersionSpecific.derived[A]
 }
@@ -687,19 +686,17 @@ private object SchemaCompanionVersionSpecific {
 
       // Generate constructor - builds Map and calls constructor/apply
       val mapEntries = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes   = RegisterOffset.getBytes(offset)
-        val objects = RegisterOffset.getObjects(offset)
-        val getter  =
-          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+        val getter =
+          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset + $offset)"
+          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset + $offset)"
+          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset + $offset)"
+          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset + $offset)"
+          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset + $offset)"
+          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset + $offset)"
+          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset + $offset)"
+          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset + $offset)"
           else if (fTpe =:= definitions.UnitTpe) q"()"
-          else q"in.getObject(baseOffset, $objects)"
+          else q"in.getObject(baseOffset + $offset)"
         q"($name, $getter: _root_.scala.Any)"
       }
       val mapExpr       = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
@@ -709,27 +706,25 @@ private object SchemaCompanionVersionSpecific {
 
       // Generate deconstructor - use selectDynamic via reflection
       val deconstructStatements = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes         = RegisterOffset.getBytes(offset)
-        val objects       = RegisterOffset.getObjects(offset)
         val fieldAccessor = q"""in.getClass.getMethod($name).invoke(in)"""
         if (fTpe <:< definitions.IntTpe)
-          q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
+          q"out.setInt(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
         else if (fTpe <:< definitions.FloatTpe)
-          q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
+          q"out.setFloat(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
         else if (fTpe <:< definitions.LongTpe)
-          q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
+          q"out.setLong(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
         else if (fTpe <:< definitions.DoubleTpe)
-          q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
+          q"out.setDouble(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
         else if (fTpe <:< definitions.BooleanTpe)
-          q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
+          q"out.setBoolean(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
         else if (fTpe <:< definitions.ByteTpe)
-          q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
+          q"out.setByte(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
         else if (fTpe <:< definitions.CharTpe)
-          q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
+          q"out.setChar(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
         else if (fTpe <:< definitions.ShortTpe)
-          q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
+          q"out.setShort(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
         else if (fTpe <:< definitions.UnitTpe) q"()"
-        else q"out.setObject(baseOffset, $objects, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
+        else q"out.setObject(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
       }
 
       q"""new Schema(
@@ -790,19 +785,17 @@ private object SchemaCompanionVersionSpecific {
 
       // Generate map entries for constructor
       val mapEntries = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes   = RegisterOffset.getBytes(offset)
-        val objects = RegisterOffset.getObjects(offset)
-        val getter  =
-          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset, $bytes)"
-          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset, $bytes)"
+        val getter =
+          if (fTpe =:= definitions.IntTpe) q"in.getInt(baseOffset + $offset)"
+          else if (fTpe =:= definitions.FloatTpe) q"in.getFloat(baseOffset + $offset)"
+          else if (fTpe =:= definitions.LongTpe) q"in.getLong(baseOffset + $offset)"
+          else if (fTpe =:= definitions.DoubleTpe) q"in.getDouble(baseOffset + $offset)"
+          else if (fTpe =:= definitions.BooleanTpe) q"in.getBoolean(baseOffset + $offset)"
+          else if (fTpe =:= definitions.ByteTpe) q"in.getByte(baseOffset + $offset)"
+          else if (fTpe =:= definitions.CharTpe) q"in.getChar(baseOffset + $offset)"
+          else if (fTpe =:= definitions.ShortTpe) q"in.getShort(baseOffset + $offset)"
           else if (fTpe =:= definitions.UnitTpe) q"()"
-          else q"in.getObject(baseOffset, $objects)"
+          else q"in.getObject(baseOffset + $offset)"
         q"($name, $getter: _root_.scala.Any)"
       }
       val mapExpr = q"_root_.scala.collection.immutable.Map[_root_.java.lang.String, _root_.scala.Any](..$mapEntries)"
@@ -829,28 +822,26 @@ private object SchemaCompanionVersionSpecific {
       // Generate deconstructor statements
       // We call selectDynamic directly - we know our generated class has it at runtime
       val deconstructStatements = fieldInfos.map { case (name, fTpe, offset) =>
-        val bytes   = RegisterOffset.getBytes(offset)
-        val objects = RegisterOffset.getObjects(offset)
         // Cast to a structural type with selectDynamic and call it directly
         val fieldAccessor = q"""in.asInstanceOf[{ def selectDynamic(name: String): Any }].selectDynamic($name)"""
         if (fTpe <:< definitions.IntTpe)
-          q"out.setInt(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
+          q"out.setInt(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Integer].intValue)"
         else if (fTpe <:< definitions.FloatTpe)
-          q"out.setFloat(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
+          q"out.setFloat(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Float].floatValue)"
         else if (fTpe <:< definitions.LongTpe)
-          q"out.setLong(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
+          q"out.setLong(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Long].longValue)"
         else if (fTpe <:< definitions.DoubleTpe)
-          q"out.setDouble(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
+          q"out.setDouble(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Double].doubleValue)"
         else if (fTpe <:< definitions.BooleanTpe)
-          q"out.setBoolean(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
+          q"out.setBoolean(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Boolean].booleanValue)"
         else if (fTpe <:< definitions.ByteTpe)
-          q"out.setByte(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
+          q"out.setByte(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Byte].byteValue)"
         else if (fTpe <:< definitions.CharTpe)
-          q"out.setChar(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
+          q"out.setChar(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Character].charValue)"
         else if (fTpe <:< definitions.ShortTpe)
-          q"out.setShort(baseOffset, $bytes, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
+          q"out.setShort(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.java.lang.Short].shortValue)"
         else if (fTpe <:< definitions.UnitTpe) q"()"
-        else q"out.setObject(baseOffset, $objects, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
+        else q"out.setObject(baseOffset + $offset, $fieldAccessor.asInstanceOf[_root_.scala.AnyRef])"
       }
 
       q"""new Schema(
@@ -1014,31 +1005,3 @@ private object SchemaCompanionVersionSpecific {
     c.Expr[Schema[A]](schemaBlock)
   }
 }
-========
-/**
- * Scala 2 version-specific methods for Schema instances.
- */
-trait SchemaVersionSpecific[A] { self: Schema[A] =>
-
-  /**
-   * Convert this schema to a structural type schema.
-   *
-   * The structural type represents the "shape" of A without its nominal identity.
-   * This enables duck typing and structural validation.
-   *
-   * Example:
-   * {{{
-   * case class Person(name: String, age: Int)
-   * val structuralSchema: Schema[{ def name: String; def age: Int }] =
-   *   Schema.derived[Person].structural
-   * }}}
-   *
-   * Note: This is JVM-only due to reflection requirements for structural types.
-   *
-   * @param ts Macro-generated conversion to structural representation
-   * @return Schema for the structural type corresponding to A
-   */
-  def structural(implicit ts: ToStructural[A]): Schema[ts.StructuralType] = ts(this)
-}
-
->>>>>>>> 6f40d59 (Add structural Schema basic impl and test structure (#517)):schema/shared/src/main/scala-2/zio/blocks/schema/SchemaVersionSpecific.scala
