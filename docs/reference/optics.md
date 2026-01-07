@@ -1,0 +1,1055 @@
+---
+id: optics
+title: "Optics"
+---
+
+Optics are a fundamental feature of ZIO Blocks that enable type-safe, composable access and modification of nested data structures. What sets ZIO Blocks apart is its implementation of **reflective optics** — a novel construct that combines the operational capabilities of traditional optics with embedded structural metadata, enabling both data manipulation AND introspection.
+
+## What Are Optics?
+
+Optics are abstractions that allow you to focus on a specific part of a data structure. They provide a way to **view**, **update**, and **traverse** nested fields in immutable data types without boilerplate code:
+
+
+Every optic has two type parameters:
+
+```
+Optic[S, A]
+      │  │
+      │  └── Focus: The "little thing" being accessed
+      └───── Source: The "big thing" containing the focus
+```
+
+The `S` is the source type from which data accessed or modified. The `A` is the focus type or the target type of the optic.
+
+The terminology comes from physical optics — like using a magnifying glass to focus on a small part of something larger.
+
+## Reflective Optics
+
+[//]: # (Optics are **reified fields, cases, and for-loops**.)
+
+Traditional optics are defined purely by functions — they give you **capabilities** (get/set) but no **knowledge** about the structure being accessed. ZIO Blocks introduces **reflective optics** which embed the structure of both the source and focus as first-class reified schemas:
+
+```
+sealed trait Optic[S, A] {
+  def source: Reflect.Bound[S]
+  def focus: Reflect.Bound[A]
+  
+  // Other common operations
+}
+```
+
+The `source` and `focus` methods return `Reflect.Bound` instances that describe the schema of the source and focus types, respectively. This means that every optic carries with it detailed information about the data shapes it operates on.
+
+This enables capabilities that ordinary optics have never had before:
+
+- **Amazing Error Messages** — Know exactly where and why an optic operation failed, because you know which part of the structure was being accessed during the failure
+- **DSL Integration** — Optics as first-class values enables us to write query DSLs that can introspect the data model being queried. So we can integrate that DSL with underlying storage systems (SQL, NoSQL, etc.) without losing type safety.
+
+The `OpticCheck` data type is an error reporting mechanism for reflective optics. It captures detailed diagnostic information when optic operations fail, solving a long-standing pain point in traditional optics libraries where failures silently return `None` without explanation. It provides detailed context about where and why the replacement failed. It includes the expected and actual cases, the full optic path, and the actual value encountered.
+
+## The Optic Type Hierarchy
+
+ZIO Blocks provides four primary optic types, each designed for a specific data shape:
+
+1. **`Lens[S, A]`** — Focuses on a single field within a record (case class)
+2. **`Prism[S, A <: S]`** — Focuses on a specific case within a sum type (sealed trait/enum)
+3. **`Optional[S, A]`** — It behaves like a combination of `Lens` and `Prism`; focuses on a value that may or may not exist. Like a `Lens`, it can focus on a part of a larger structure and (if present) get and set it. Like a `Prism`, the focus may or may not exist.
+4. **`Traversal[S, A]`** — Focuses on zero or more elements within a collection (List, Vector, Set, Map, etc.)
+
+```text
+                              ┌─────────────────┐ 
+                              │   Optic[S, A]   │
+                              │   (abstract)    │
+                              └────────┬────────┘
+                                       │
+         ┌───────────────────┬───────────────────┬───────────────────┐
+         │                   │                   │                   │         
+         ▼                   ▼                   ▼                   ▼         
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│   Lens[S, A]    │ │  Prism[S, A]    │ │ Optional[S, A]  │ │Traversal[S, A]  │
+│                 │ │   (A <: S)      │ │                 │ │                 │
+│ Fields in       │ │ Cases in        │ │ Combinations of │ │ Elements in     │
+│ Records         │ │ Enums/Variants  │ │ Lens + Prism    │ │ Collections     │
+└─────────────────┘ └─────────────────┘ └─────────────────┘ └─────────────────┘
+```
+
+## Lens
+
+A **Lens** focuses on a single field within a record (case class). It always succeeds because records always have all their fields.
+
+Lens has two primary operations: 
+
+| Method    | Signature     | Description                             |
+|-----------|---------------|-----------------------------------------|
+| `get`     | `S => A`      | Extract the field value                 |
+| `replace` | `(S, A) => S` | Create new structure with updated field |
+
+```scala
+sealed trait Lens[S, A] extends Optic[S, A] {
+  def get(s: S): A
+  def replace(s: S, a: A): S
+}
+```
+
+Once you have a lens, you can use it to extract or replace the focused field immutably. There are two main approaches to creating lenses: manual construction and automatic macro-based derivation. Let's explore each.
+
+### Manual Lens Construction
+
+To create a lens manually for a field, you can use the following constructor:
+
+```scala
+object Lens {
+  def apply[S, A](
+    source   : Reflect.Record.Bound[S],
+    focusTerm: Term.Bound[S, A]
+  ): Lens[S, A] = ???
+}
+```
+
+It takes a `Reflect.Record.Bound[S]` representing the schema of the source type `S`, and a `Term.Bound[S, A]` representing the specific field within `S` that the lens will focus on, and finally returns a lens of type from `S` to `A`.
+
+Assume you have an `Address` case class like this with the schema derived:
+
+```scala
+case class Address(street: String, city: String, zipCode: String)
+object Address {
+  implicit val schema: Schema[Address] = Schema.derived[Address]
+}
+```
+
+You can create a lens to focus on the `street` field like this:
+
+```scala
+object Address {
+  implicit val schema: Schema[Address] = Schema.derived[Address]
+  
+  val street: Lens[Address, String] =
+    Lens[Address, String](
+      Schema[Address].reflect.asRecord.get,
+      Schema[String].reflect.asTerm("street")
+    )
+}
+```
+
+Now you can use the lens to get or replace the `street` field:
+
+```scala
+val address = Address("123 Main St", "Springfield", "12345")
+val streetName: String = Address.street.get(address) // "123 Main St"
+val updatedAddress: Address = Address.street.replace(address, "456 Elm St")
+// Address("456 Elm St", "Springfield", "12345")
+```
+
+### Automatic Macro-Based Lens Derivation
+
+While manual lens construction gives you fine-grained control, ZIO Blocks provides macro-based derivation as the **preferred approach** for creating lenses.
+
+The `optic` macro inside the `CompanionOptics` trait creates a lens using intuitive selector syntax that mirrors standard Scala field access:
+
+```scala
+import zio.blocks.schema.optic
+
+case class Person(name: String, age: Int)
+
+object Person extends CompanionOptics[Person] {
+  implicit val schema: Schema[Person] = Schema.derived
+  
+  val name: Lens[Person, String] = optic(_.name)
+  val age : Lens[Person, Int   ] = optic(_.age)
+}
+```
+
+The macro inspects the selector expression `_.name`, validates that it corresponds to a valid field path, and generates the appropriate lens. This approach is type-safe—the compiler verifies that the field exists and has the correct type.
+
+For nested structures, the `optic` macro can create composed lenses by chaining field accesses:
+
+```scala
+case class Address(street: String, city: String)
+case class Person(name: String, address: Address)
+
+object Person {
+  implicit val schema: Schema[Person] = Schema.derived[Person]
+  
+  // Lens directly to the nested street field
+  val street: Lens[Person, String] = optic(_.address.street)
+}
+```
+
+Now you can use the `street` lens to access the nested `street` field directly and update it:
+
+```scala
+val person = Person("John", Address("123 Main St", "Springfield"))
+val street = Person.street.get(person)
+val updatedPerson = Person.street.replace(person, "456 Elm St")
+// => Person("John", Address("456 Elm St", "Springfield"))
+```
+
+## Prism
+
+A **`Prism[S, A <: S]`** focuses on a specific case within a sum type (sealed trait/enum). It may fail if the value is a different case.
+
+The key operations of a prism are summarized in the table below:
+
+| Method          | Signature                         | Description                                                    |
+|-----------------|-----------------------------------|----------------------------------------------------------------|
+| `getOption`     | `(S)    => Option[A]`             | Extracts if value matches subtype `A`, otherwise `None`        |
+| `getOrFail`     | `(S)    => Either[OpticCheck, A]` | Extracts with detailed error info on type mismatch             |
+| `reverseGet`    | `(A)    => S`                     | Upcasts subtype `A` back to supertype `S`                      |
+| `replace`       | `(S, A) => S`                     | Replaces if value matches subtype, otherwise returns unchanged |
+| `replaceOption` | `(S, A) => Option[S]`             | Replaces if value matches subtype, otherwise `None`            |
+| `replaceOrFail` | `(S, A) => Either[OpticCheck, S]` | Replaces with detailed error info on type mismatch             |
+
+Before discussing about these operations, let's explore how we can create prisms. Similar to the lenses, we have two approaches: manual construction and automatic macro-based derivation.
+
+### Manual Prism Construction
+
+To create a prism for a case, you can use the following constructor:
+
+```scala
+object Prism {
+  def apply[S, A <: S](
+    source   : Reflect.Variant.Bound[S],
+    focusTerm: Term.Bound[S, A]
+  ): Prism[S, A] = ???
+}
+```
+
+It takes a `Reflect.Variant.Bound[S]` representing the schema of the sum type `S`, and a `Term.Bound[S, A]` representing the specific case within `S` that the prism will focus on. The result is a prism from `S` to `A`.
+
+Assume you have a `Notification` sealed trait representing different notification types:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+sealed trait Notification
+
+object Notification {
+  case class Email(to: String, subject: String, body: String)                    extends Notification
+  case class SMS(phoneNumber: String, message: String)                           extends Notification
+  case class Push(deviceId: String, title: String, payload: Map[String, String]) extends Notification
+
+  implicit val schema: Schema[Notification] = Schema.derived
+}
+```
+
+First, we need to define schemas for each case class and then write a prism for each case (here we define a prism for the `Email` case):
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+sealed trait Notification
+
+object Notification {
+  case class Email(to: String, subject: String, body: String) extends Notification
+  object Email {
+    implicit val schema: Schema[Email] = Schema.derived
+  }
+  
+  case class SMS(phoneNumber: String, message: String) extends Notification
+  object SMS {
+    implicit val schema: Schema[SMS] = Schema.derived
+  }
+  
+  case class Push(deviceId: String, title: String, payload: Map[String, String]) extends Notification
+  object Push {
+    implicit val schema: Schema[Push] = Schema.derived
+  }
+
+  implicit val schema: Schema[Notification] = Schema.derived
+
+  val email: Prism[Notification, Email] =
+    Prism[Notification, Email](
+      Schema[Notification].reflect.asVariant.get,
+      Schema[Email].reflect.asTerm("Email")
+    )
+  
+  val sms: Prism[Notification, SMS] =
+    Prism[Notification, SMS](
+      Schema[Notification].reflect.asVariant.get,
+      Schema[SMS].reflect.asTerm("SMS")
+    )
+  
+  val push: Prism[Notification, Push] =
+    Prism[Notification, Push](
+      Schema[Notification].reflect.asVariant.get,
+      Schema[Push].reflect.asTerm("Push")
+    )
+}
+```
+
+### Automatic Macro-Based Prism Derivation
+
+The `optic` macro inside the `CompanionOptics` trait creates a prism using intuitive selector syntax with the `when[CaseType]` method:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+sealed trait Notification
+
+object Notification extends CompanionOptics[Notification] {
+  case class Email(to: String, subject: String, body: String)                    extends Notification
+  case class SMS(phoneNumber: String, message: String)                           extends Notification
+  case class Push(deviceId: String, title: String, payload: Map[String, String]) extends Notification
+
+  implicit val schema: Schema[Notification] = Schema.derived
+
+  // Macro-derived prisms using when[CaseType] syntax
+  val email: Prism[Notification, Email] = optic(_.when[Email])
+  val sms  : Prism[Notification, SMS]   = optic(_.when[SMS])
+  val push : Prism[Notification, Push]  = optic(_.when[Push])
+}
+```
+
+The macro inspects the selector expression `_.when[Email]`, validates that `Email` is a valid case of the sum type `Notification`, and generates the appropriate prism. This approach is type-safe—the compiler verifies that the case type exists and is a subtype of the sum type.
+
+For nested structures, the `optic` macro can compose prisms with lenses by chaining case selection with field access:
+
+```scala mdoc:silent
+sealed trait Response
+object Response extends CompanionOptics[Response] {
+  case class Success(data: Data)    extends Response
+  case class Failure(error: String) extends Response
+  
+  case class Data(id: Int, value: String)
+  
+  implicit val schema: Schema[Response] = Schema.derived
+  
+  // Prism to the Success case
+  val success: Prism[Response, Success] = optic(_.when[Success])
+  
+  // Composed optic: Prism + Lens = Optional
+  // Focus on the 'value' field inside the Success case
+  val successValue: Optional[Response, String] = optic(_.when[Success].data.value)
+}
+```
+
+When you compose a prism with a lens using the `optic` macro, the result is an `Optional`—an optic that may fail to focus (because the sum type might be a different case) but if it succeeds, always finds the field:
+
+```scala mdoc:compile-only
+val response = Response.Success(Response.Data(1, "hello"))
+
+Response.successValue.getOption(response)
+// => Some("hello")
+
+Response.successValue.getOption(Response.Failure("error"))
+// => None (response is Failure, not Success)
+```
+
+### Operations
+
+Now let's explore prism operations. Assume we have some sample notifications:
+
+```scala mdoc
+// Sample notifications
+val emailNotif: Notification = Notification.Email("user@example.com", "Hello", "Welcome!")
+val smsNotif: Notification   = Notification.SMS("+1234567890", "Your code is 1234")
+val pushNotif: Notification  = Notification.Push("device-abc", "Alert", Map("action" -> "open"))
+```
+
+1. **`Prism#getOption`** — Extract the case if it matches, otherwise None
+
+```scala
+// getOption: Extract the case if it matches, otherwise None
+Notification.email.getOption(emailNotif)
+// => Some(Email(to = "user@example.com", subject = "Hello", body = "Welcome!"))
+
+Notification.email.getOption(smsNotif)
+// => None (smsNotif is an SMS, not an Email)
+
+Notification.sms.getOption(smsNotif)
+// Option[SMS] = Some(SMS(phoneNumber = "+1234567890", message = "Your code is 1234"))
+```
+
+2. **`Prism#getOrFail`** — Extract with detailed error information on failure:
+
+```text
+trait Prism[S, A <: S] {
+  def getOrFail(s: S): Either[OpticCheck, A]
+}
+```
+
+It returns `Right(a)` if the source `s` matches the expected case `A`, or `Left(opticCheck)` containing detailed error information if it does not:
+
+```scala
+Notification.email.getOrFail(emailNotif)
+// => Right(Email(to = "user@example.com", subject = "Hello", body = "Welcome!"))
+
+Notification.email.getOrFail(pushNotif)
+// res5: Either[OpticCheck, Email] = Left(
+//   OpticCheck(
+//     List(
+//       UnexpectedCase(
+//         expectedCase = "Email",
+//         actualCase = "Push",
+//         full = DynamicOptic(ArraySeq(Case("Email"))),
+//         prefix = DynamicOptic(ArraySeq(Case("Email"))),
+//         actualValue = Push(
+//           deviceId = "device-abc",
+//           title = "Alert",
+//           payload = Map("action" -> "open")
+//         )
+//       )
+//     )
+//   )
+// )
+```
+
+3. **`Prism#reverseGet`** — Upcast a specific case back to the parent sum type:
+
+```text
+trait Prism[S, A <: S] {
+  def reverseGet(a: A): S
+}
+```
+
+An example of upcasting an `Email` back to `Notification`:
+
+```scala
+val email = Notification.Email("alice@example.com", "Meeting", "See you at 3pm")
+val notification: Notification = Notification.email.reverseGet(email)
+// => Email("alice@example.com", "Meeting", "See you at 3pm") as Notification
+```
+
+4. **`Prism#replace`** — Replace the value if it matches the case:
+
+```scala
+trait Prism[S, A <: S] {
+  def replace(s: S, a: A): S
+}
+```
+
+In the following example, we are replacing an existing `Email` notification with a new one:
+
+```scala
+val newEmail = Notification.Email("new@example.com", "Updated", "New content")
+
+Notification.email.replace(emailNotif, newEmail)
+// => Email("new@example.com", "Updated", "New content")
+```
+
+If the original value is NOT the expected case, replace returns unchanged:
+```scala
+Notification.email.replace(smsNotif, newEmail)
+// res7: Notification = SMS(
+//   phoneNumber = "+1234567890",
+//   message = "Your code is 1234"
+// )
+// => SMS("+1234567890", "Your code is 1234") (unchanged, it was an SMS)
+```
+
+5. **`Prism#replaceOption`** — Replace returning Some on success, None on mismatch:
+
+```scala
+trait Prism[S, A <: S] {
+  def replaceOption(s: S, a: A): Option[S]
+}
+```
+
+The following example shows replacing an `Email` notification with a new one, returning `Some` on success and `None` if the original value is not an `Email`:
+
+```scala
+Notification.email.replaceOption(emailNotif, newEmail)
+// => Some(Email("new@example.com", "Updated", "New content"))
+
+Notification.email.replaceOption(smsNotif, newEmail)
+// => None (cannot replace, smsNotif is not an Email)
+```
+
+6. **`Prism#replaceOrFail`** — Replace with detailed error on mismatch:
+
+```scala
+trait Prism[S, A <: S] {
+  def replaceOrFail(s: S, a: A): Either[OpticCheck, S]
+}
+```
+
+The following example shows replacing an `Email` notification with a new one, returning `Right(newValue)` on success and `Left(opticCheck)` with detailed error information if the original value is not an `Email`:
+
+```scala
+Notification.email.replaceOrFail(emailNotif, newEmail)
+// => Right(Email("new@example.com", "Updated", "New content"))
+
+Notification.email.replaceOrFail(pushNotif, newEmail)
+// res11: Either[OpticCheck, Notification] = Left(
+//   OpticCheck(
+//     List(
+//       UnexpectedCase(
+//         expectedCase = "Email",
+//         actualCase = "Push",
+//         full = DynamicOptic(ArraySeq(Case("Email"))),
+//         prefix = DynamicOptic(ArraySeq(Case("Email"))),
+//         actualValue = Push(
+//           deviceId = "device-abc",
+//           title = "Alert",
+//           payload = Map("action" -> "open")
+//         )
+//       )
+//     )
+//   )
+// )
+```
+
+## Optional
+
+You can think of **`Optional[S, A]`** as the composition of lenses and prisms — it focuses on a value that may or may not exist. Used for accessing fields through variant types, optional fields, or elements at specific indices.
+
+```scala
+sealed trait Optional[S, A] extends Optic[S, A] {
+  def getOption(s: S): Option[A]
+  def getOrFail(s: S): Either[OpticCheck, A]
+  def replace(s: S, a: A): S
+  def replaceOption(s: S, a: A): Option[S]
+  def replaceOrFail(s: S, a: A): Either[OpticCheck, S]
+}
+```
+
+| Method          | Signature                         | Description                                                  |
+|-----------------|-----------------------------------|--------------------------------------------------------------|
+| `getOption`     | `(S)    => Option[A]`             | Extracts the focused value if accessible, otherwise `None`   |
+| `getOrFail`     | `(S)    => Either[OpticCheck, A]` | Extracts with detailed error info on failure                 |
+| `replace`       | `(S, A) => S`                     | Replaces if accessible, otherwise returns original unchanged |
+| `replaceOption` | `(S, A) => Option[S]`             | Replaces if accessible, otherwise `None`                     |
+| `replaceOrFail` | `(S, A) => Either[OpticCheck, S]` | Replaces with detailed error info on failure                 |
+
+### Manual Optional Construction
+
+Unlike `Lens` and `Prism` which have direct constructors, `Optional` is primarily constructed through **composition** of other optics, mainly from `Lens` and `Prism`:
+
+```scala
+object Optional {
+  // Compose Lens with Prism (yields Optional)
+  def apply[S, T, A <: T](first: Lens[S, T], second: Prism[T, A]): Optional[S, A]
+
+  // Compose Prism with Lens (yields Optional)
+  def apply[S, T <: S, A](first: Prism[S, T], second: Lens[T, A]): Optional[S, A]
+}
+```
+
+| First         | Second        | Output           |
+|---------------|---------------|------------------|
+| `Lens[S, T]`  | `Prism[T, A]` | `Optional[S, A]` |
+| `Prism[S, T]` | `Lens[T, A]`  | `Optional[S, A]` |
+
+
+These two basic compositions allow you to build `Optional` optics by combining lenses and prisms in either order. 
+
+In addition, `Optional` can also be composed with other optics to create more complex optionals, all these composition methods are supported via the `Optional.apply` method overloads:
+
+| First              | Second             | Output           |
+|--------------------|--------------------|------------------|
+| `Lens[S, T]`       | `Optional[T, A]`   | `Optional[S, A]` |
+| `Optional[S, T]`   | `Lens[T, A]`       | `Optional[S, A]` |
+| ------------------ | ------------------ | ---------------- |
+| `Prism[S, T]`      | `Optional[T, A]`   | `Optional[S, A]` |
+| `Optional[S, T]`   | `Prism[T, A]`      | `Optional[S, A]` |
+| --------------     | ---------------    | ---------------- |
+| `Optional[S, T]`   | `Optional[T, A]`   | `Optional[S, A]` |
+
+Beside the above composition methods, `Optional` provides specialized constructors for common patterns such as index-based access in sequences, key-based access in maps, and accessing wrapped types:
+
+| Constructor        | Signature                                                  | Description                             |
+|--------------------|------------------------------------------------------------|-----------------------------------------|
+| `Optional.at`      | `(Reflect.Sequence.Bound[A, C], Int) => Optional[C[A], A]` | Accesses element at index in a sequence |
+| `Optional.atKey`   | `(Reflect.Map.Bound[K, V, M], K) => Optional[M[K, V], V]`  | Accesses value at key in a map          |
+| `Optional.wrapped` | `(Reflect.Wrapper.Bound[A, B]) => Optional[A, B]`          | Accesses inner value of a wrapper type  |
+
+#### Example: Composing Lens and Prism
+
+The most common way to manually construct an `Optional` is by composing a `Lens` with a `Prism`. Assume you have a `PaymentMethod` sum type which has multiple cases, and we have written a prism for one of its cases, e.g., `CreditCard`:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+sealed trait PaymentMethod
+object PaymentMethod extends CompanionOptics[PaymentMethod] {
+  case class CreditCard(number: String, expiry: String) extends PaymentMethod
+  case class Cryptocurrency(walletAddress: String) extends PaymentMethod
+  
+  implicit val schema: Schema[PaymentMethod] = Schema.derived
+  
+  val creditCard     : Prism[PaymentMethod, CreditCard]     = optic(_.when[CreditCard])
+  val cryptocurrency : Prism[PaymentMethod, Cryptocurrency] = optic(_.when[Cryptocurrency])
+}
+```
+
+And also assume we have a `Customer` record that has a `payment` field of type `PaymentMethod` and we have written a lens for that field:
+
+```scala mdoc:silent
+case class Customer(name: String, payment: PaymentMethod)
+object Customer extends CompanionOptics[Customer] {
+  implicit val schema: Schema[Customer] = Schema.derived
+  
+  val name   : Lens[Customer, String       ] = optic(_.name)
+  val payment: Lens[Customer, PaymentMethod] = optic(_.payment)
+}
+```
+
+We can now compose the `payment` lens with the `creditCard` prism to create an `Optional` that focuses on the `CreditCard` details within a `Customer`:
+
+```scala mdoc:compile-only
+// Compose lens and prism manually to get Optional
+val creditCard: Optional[Customer, PaymentMethod.CreditCard] =
+  Optional(Customer.payment, PaymentMethod.creditCard)
+```
+
+#### Example: Index-Based Access
+
+For accessing elements at specific indices in sequences:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Order(id: String, items: List[String])
+object Order extends CompanionOptics[Order] {
+  implicit val schema: Schema[Order] = Schema.derived[Order]
+  
+  val items: Lens[Order, List[String]] = optic(_.items)
+  
+  // Manual Optional for first item
+  val firstItem: Optional[Order, String] = {
+    val atFirst = Optional.at(
+      Schema[List[String]].reflect.asSequence.get,
+      index = 0
+    )
+    Optional(items, atFirst)
+  }
+}
+```
+
+### Automatic Macro-Based Optional Derivation
+
+The `optic` macro inside the `CompanionOptics` trait creates optionals automatically through several syntactic patterns. The macro intelligently determines when an `Optional` is needed based on the path expression.
+
+#### Accessing Inner Values of ADTs
+
+By combining the `.when[Case]` (prism) and `.field-name` (lens) syntax of optic macro, you can create optionals that focus on the inner values of ADTs:
+
+```scala mdoc:silent:nest
+import zio.blocks.schema._
+
+case class ApiResponse(
+  requestId: String,
+  timestamp: Option[Long],
+  result: Either[String, Int] // Left = error message, Right = status code
+)
+object ApiResponse extends CompanionOptics[ApiResponse] {
+  implicit val schema: Schema[ApiResponse] = Schema.derived[ApiResponse]
+
+  // Optional to the inner Long value (may not exist if None)
+  val timestamp: Optional[ApiResponse, Long] = optic(_.timestamp.when[Some[Long]].value)
+
+  // Optional to the Left value (may not exist if Right)
+  val errorMessage: Optional[ApiResponse, String] = optic(_.result.when[Left[String, Int]].value)
+
+  // Optional to the Right value (may not exist if Left)
+  val statusCode: Optional[ApiResponse, Int] = optic(_.result.when[Right[String, Int]].value)
+}
+```
+
+Here is another example focusing on sum types:
+
+```scala
+import zio.blocks.schema._
+
+sealed trait Response
+object Response extends CompanionOptics[Response] {
+  case class Success(data: String, code: Int) extends Response
+  case class Failure(error: String)           extends Response
+  
+  implicit val schema: Schema[Response] = Schema.derived
+  
+  // Prism to the Success case
+  val success: Prism[Response, Success] = optic(_.when[Success])
+  
+  // Optional: Prism + Lens = Optional
+  // Focuses on the 'data' field inside Success case
+  val successData : Optional[Response, String] = optic(_.when[Success].data)
+  val successCode : Optional[Response, Int   ] = optic(_.when[Success].code)
+  val failureError: Optional[Response, String] = optic(_.when[Failure].error)
+}
+```
+
+#### Index-based Access with `.at(index)` Syntax
+
+We can access elements at specific indices in sequences using `.at(index)` syntax in `optic` macro:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+case class OrderItem(sku: String, quantity: Int)
+object OrderItem {
+  implicit val schema: Schema[OrderItem] = Schema.derived
+}
+
+case class Order(id: String, items: List[OrderItem])
+object Order extends CompanionOptics[Order] {
+  implicit val schema: Schema[Order] = Schema.derived
+  
+  // Optional for specific indices
+  val firstItem : Optional[Order, OrderItem] = optic(_.items.at(0))
+  val secondItem: Optional[Order, OrderItem] = optic(_.items.at(1))
+  
+  // Chain with field access
+  val firstItemSku     : Optional[Order, String] = optic(_.items.at(0).sku)
+  val firstItemQuantity: Optional[Order, Int   ] = optic(_.items.at(0).quantity)
+}
+```
+
+Usage:
+
+```scala mdoc:compile-only
+val order = Order("ord-1", List(
+  OrderItem("SKU-A", 2),
+  OrderItem("SKU-B", 1)
+))
+val emptyOrder = Order("ord-2", List.empty)
+
+Order.firstItem.getOption(order)       // => Some(OrderItem("SKU-A", 2))
+Order.secondItem.getOption(order)      // => Some(OrderItem("SKU-B", 1))
+Order.firstItem.getOption(emptyOrder)  // => None (empty list)
+
+Order.firstItemSku.getOption(order)    // => Some("SKU-A")
+```
+
+#### Key-based Access with `.atKey(key)`
+
+To access values at specific key, we can use `.atKey(key)` syntax in `optic` macro:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+case class Config(settings: Map[String, String])
+object Config extends CompanionOptics[Config] {
+  implicit val schema: Schema[Config] = Schema.derived
+  
+  // Optional for specific keys
+  def setting(key: String): Optional[Config, String] = optic(_.settings.atKey(key))
+  
+  // Pre-defined optionals for common keys
+  val hostSetting: Optional[Config, String] = optic(_.settings.atKey("host"))
+  val portSetting: Optional[Config, String] = optic(_.settings.atKey("port"))
+}
+```
+
+Here is how you can use these optionals:
+
+```scala mdoc:compile-only
+val config = Config(Map("host" -> "localhost", "port" -> "8080"))
+
+Config.hostSetting.getOption(config)        // => Some("localhost")
+Config.setting("timeout").getOption(config) // => None (key not present)
+```
+
+#### Wrapper Type Access with `.wrapped[T]` Syntax
+
+To access the inner value of wrapper types (newtypes, opaque types) you can use the `.wrapped[T]` syntax in `optic` macro:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+// Assume Email is a wrapper around String with validation
+case class Email private (value: String)
+object Email {
+  implicit val schema: Schema[Email] = Schema.derived
+  
+  def apply(s: String): Either[String, Email] =
+    if (s.contains("@")) Right(new Email(s)) else Left("Invalid email")
+}
+
+case class Contact(name: String, email: Email)
+object Contact extends CompanionOptics[Contact] {
+  implicit val schema: Schema[Contact] = Schema.derived
+  
+  // Optional to access the wrapped String inside Email
+  val emailString: Optional[Contact, String] = optic(_.email.wrapped[String])
+}
+```
+
+## Traversal
+
+A **`Traversal[S, A]`** focuses on zero or more elements within a collection (List, Vector, Set, Map, etc.). Unlike `Lens` (exactly one element) or `Optional` (zero or one element), a `Traversal` can target any number of elements simultaneously.
+
+The key methods of `Traversal` are:
+
+| Method         | Signature                                   | Description                                      |
+|----------------|---------------------------------------------|--------------------------------------------------|
+| `fold`         | `(S)(Z, (Z, A) => Z) => Z`                  | Aggregates all focused values                    |
+| `reduceOrFail` | `(S)((A, A) => A) => Either[OpticCheck, A]` | Reduces with error handling                      |
+| `modify`       | `(S, A => A)      => S`                     | Applies function to all focused values           |
+| `modifyOption` | `(S, A => A)      => Option[S]`             | Modifies if any elements exist, otherwise `None` |
+| `modifyOrFail` | `(S, A => A)      => Either[OpticCheck, S]` | Modifies with detailed error info on failure     |
+
+### Manual Traversal Construction
+
+Traversals are primarily constructed through the `Traversal` companion object which provides specialized constructors for different collection types:
+
+#### Sequence Traversals
+
+The two basic constructors for creating traversals over sequences are `seqValues` and `atIndices`:
+
+```scala
+object Traversal {
+  // Traverse all elements in a sequence (List, Vector, Set, ArraySeq, etc.)
+  def seqValues[A, C[_]](seq: Reflect.Sequence.Bound[A, C]): Traversal[C[A], A]
+
+  // Traverse specific indices
+  def atIndices[A, C[_]](seq: Reflect.Sequence.Bound[A, C], indices: Seq[Int]): Traversal[C[A], A]
+}
+```
+
+The `seqValues` method creates a traversal that focuses on all elements in a sequence, while `atIndices` creates a traversal that focuses only on elements at the specified indices. 
+
+There are also convenience methods for common collection types:
+
+```scala
+object Traversal {
+  def listValues[A]    (reflect: Reflect.Bound[A]): Traversal[List[A],     A]
+  def vectorValues[A]  (reflect: Reflect.Bound[A]): Traversal[Vector[A],   A]
+  def setValues[A]     (reflect: Reflect.Bound[A]): Traversal[Set[A],      A]
+  def arraySeqValues[A](reflect: Reflect.Bound[A]): Traversal[ArraySeq[A], A]
+}
+```
+
+For example, to create a traversal over all items in a shopping cart represented as a list and quantities as a vector, you can do the following:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class ShoppingCart(items: List[String], quantities: Vector[Int])
+object ShoppingCart {
+  implicit val schema: Schema[ShoppingCart] = Schema.derived
+
+  // Manual traversal for all items in the cart
+  val allItems: Traversal[List[String], String] =
+    Traversal.listValues(Schema[String].reflect)
+
+  // Manual traversal for all quantities
+  val allQuantities: Traversal[Vector[Int], Int] =
+    Traversal.vectorValues(Schema[Int].reflect)
+}
+```
+
+#### Map Traversals
+
+To create traversals over keys or values in a map you can use the following constructors:
+
+```scala
+object Traversal {
+  // Traverse all keys in a map
+  def mapKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], K]
+  
+  // Traverse all values in a map
+  def mapValues[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M]): Traversal[M[K, V], V]
+  
+  // Traverse values at specific keys
+  def atKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], keys: Seq[K]): Traversal[M[K, V], V]
+}
+```
+
+Let's say you have an inventory represented as a map of product names to stock counts. You can create traversals for both keys and values as follows:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Inventory(stock: Map[String, Int])
+object Inventory {
+  implicit val schema: Schema[Inventory] = Schema.derived
+  
+  // Manual traversal for all product names (keys)
+  val productNames: Traversal[Map[String, Int], String] =
+    Traversal.mapKeys(Schema[Map[String, Int]].reflect.asMap.get)
+  
+  // Manual traversal for all stock counts (values)
+  val stockCounts: Traversal[Map[String, Int], Int] =
+    Traversal.mapValues(Schema[Map[String, Int]].reflect.asMap.get)
+}
+```
+
+### Automatic Macro-Based Traversal Derivation
+
+The `optic` macro inside the `CompanionOptics` trait creates traversals using intuitive selector syntax with the `.each`, `.eachKey`, and `.eachValue` methods.
+
+1. Use `.each` to traverse all elements in a sequence (List, Vector, Set, ArraySeq):
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Order(id: String, items: List[String], prices: Vector[Double])
+object Order extends CompanionOptics[Order] {
+  implicit val schema: Schema[Order] = Schema.derived
+  
+  // Traversal over all items
+  val allItems: Traversal[Order, String] = optic(_.items.each)
+  
+  // Traversal over all prices
+  val allPrices: Traversal[Order, Double] = optic(_.prices.each)
+}
+```
+
+2. Use `.eachKey` to traverse all keys and `.eachValue` to traverse all values in a map:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class UserScores(scores: Map[String, Int])
+object UserScores extends CompanionOptics[UserScores] {
+  implicit val schema: Schema[UserScores] = Schema.derived
+  
+  // Traversal over all user names (keys)
+  val allUserNames: Traversal[UserScores, String] = optic(_.scores.eachKey)
+  
+  // Traversal over all scores (values)
+  val allScores: Traversal[UserScores, Int] = optic(_.scores.eachValue)
+}
+```
+
+3. Use `.atIndices(indices)` to traverse elements at specific indices:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class Matrix(rows: Vector[Vector[Int]])
+object Matrix extends CompanionOptics[Matrix] {
+  implicit val schema: Schema[Matrix] = Schema.derived
+  
+  // Traverse elements at indices 0, 2, and 4
+  val selectedRows: Traversal[Matrix, Vector[Int]] = optic(_.rows.atIndices(0, 2, 4))
+}
+```
+
+4. Use `.atKeys(keys)` to traverse values at specific keys:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+case class Environment(variables: Map[String, String])
+object Environment extends CompanionOptics[Environment] {
+  implicit val schema: Schema[Environment] = Schema.derived
+  
+  // Traverse values for specific environment variables
+  val criticalVars: Traversal[Environment, String] = optic(_.variables.atKeys("PATH", "HOME", "USER"))
+}
+```
+
+Please note that the `optic` macro supports chaining traversals with field access for deep navigation:
+
+```scala mdoc:compile-only
+import zio.blocks.schema._
+
+case class LineItem(sku: String, price: Double, quantity: Int)
+object LineItem {
+  implicit val schema: Schema[LineItem] = Schema.derived
+}
+
+case class Invoice(id: String, items: List[LineItem])
+object Invoice extends CompanionOptics[Invoice] {
+  implicit val schema: Schema[Invoice] = Schema.derived
+  
+  // Traverse to get all SKUs from all items
+  val allSkus: Traversal[Invoice, String] = optic(_.items.each.sku)
+  
+  // Traverse to get all prices from all items
+  val allPrices: Traversal[Invoice, Double] = optic(_.items.each.price)
+  
+  // Traverse to get all quantities from all items
+  val allQuantities: Traversal[Invoice, Int] = optic(_.items.each.quantity)
+}
+```
+
+### Operations
+
+Let's explore traversal operations with a practical example. Assume we have a `Team` case class with a list of members and a map of scores:
+
+```scala mdoc:silent
+import zio.blocks.schema._
+
+case class Team(name: String, members: List[String], scores: Map[String, Int])
+object Team extends CompanionOptics[Team] {
+  implicit val schema: Schema[Team] = Schema.derived[Team]
+  
+  val allMembers    : Traversal[Team, String] = optic(_.members.each)
+  val allScores     : Traversal[Team, Int   ] = optic(_.scores.eachValue)
+  val allPlayerNames: Traversal[Team, String] = optic(_.scores.eachKey)
+}
+
+val team = Team(
+  "Alpha",
+  List("Alice", "Bob", "Charlie"),
+  Map("Alice" -> 100, "Bob" -> 85, "Charlie" -> 92)
+)
+```
+
+1. `Traversal#fold` aggregates all focused values:
+
+```scala mdoc:compile-only
+// Count all members
+Team.allMembers.fold(team)(0, (count, _) => count + 1)
+// => 3
+
+// Sum all scores
+Team.allScores.fold(team)(0, _ + _)
+// => 277
+
+// Concatenate all member names
+Team.allMembers.fold(team)("", (acc, name) => if (acc.isEmpty) name else s"$acc, $name")
+// => "Alice, Bob, Charlie"
+```
+
+2. `Traversal#reduceOrFail` reduces with error handling:
+
+```scala mdoc:compile-only
+// Find the maximum score
+Team.allScores.reduceOrFail(team)(math.max)
+// => Right(100)
+
+// Find the minimum score
+Team.allScores.reduceOrFail(team)(math.min)
+// => Right(85)
+
+// Attempt to reduce an empty collection
+val emptyTeam = Team("Empty", Nil, Map.empty)
+Team.allMembers.reduceOrFail(emptyTeam)(_ + _)
+// => Left(OpticCheck(...)) with EmptySequence error
+```
+
+3. `Traversal#modify` — Apply function to all focused values:
+
+```scala
+// Convert all member names to uppercase
+Team.allMembers.modify(team, _.toUpperCase)
+// => Team("Alpha", List("ALICE", "BOB", "CHARLIE"), Map(...))
+
+// Double all scores
+Team.allScores.modify(team, _ * 2)
+// => Team("Alpha", List(...), Map("Alice" -> 200, "Bob" -> 170, "Charlie" -> 184))
+
+// Add prefix to all player names (keys)
+Team.allPlayerNames.modify(team, name => s"Player: $name")
+// => Team("Alpha", List(...), Map("Player: Alice" -> 100, ...))
+```
+
+4. `Traversal#modifyOption` — Modify returning Option
+
+```scala mdoc:compile-only
+// Modify non-empty collection
+Team.allMembers.modifyOption(team, _.toUpperCase)
+// => Some(Team("Alpha", List("ALICE", "BOB", "CHARLIE"), Map(...)))
+
+// Modify empty collection
+val emptyTeam = Team("Empty", Nil, Map.empty)
+Team.allMembers.modifyOption(emptyTeam, _.toUpperCase)
+// => None
+```
+
+5. `Traversal#modifyOrFail` — Modify with detailed error on failure
+
+```scala mdoc:compile-only
+// Successful modification
+Team.allMembers.modifyOrFail(team, _.toUpperCase)
+// => Right(Team("Alpha", List("ALICE", "BOB", "CHARLIE"), Map(...)))
+
+// Failed modification (empty collection)
+val emptyTeam = Team("Empty", Nil, Map.empty)
+Team.allMembers.modifyOrFail(emptyTeam, _.toUpperCase)
+// => Left(OpticCheck(List(EmptySequence(...))))
+```
