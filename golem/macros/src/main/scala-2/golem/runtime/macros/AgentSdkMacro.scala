@@ -1,0 +1,68 @@
+package golem.runtime.macros
+
+// Macro annotations live in a separate module; do not depend on them here.
+
+import scala.language.experimental.macros
+import scala.reflect.macros.blackbox
+
+object AgentSdkMacro {
+  def derived[Trait]: _root_.golem.AgentApi[Trait] = macro
+    AgentSdkMacroImpl.derivedImpl[Trait]
+}
+
+object AgentSdkMacroImpl {
+  def derivedImpl[Trait: c.WeakTypeTag](c: blackbox.Context): c.Expr[_root_.golem.AgentApi[Trait]] = {
+    import c.universe._
+
+    val traitTpe = weakTypeOf[Trait]
+    val traitSym = traitTpe.typeSymbol
+
+    def defaultTypeNameFromTrait(sym: Symbol): String = {
+      val raw = sym.name.decodedName.toString
+      raw
+        .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+        .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
+        .toLowerCase
+    }
+
+    val agentDefinitionType = typeOf[_root_.golem.runtime.annotations.agentDefinition]
+    val typeName: String    =
+      traitSym.annotations.collectFirst {
+        case ann if ann.tree.tpe != null && ann.tree.tpe =:= agentDefinitionType =>
+          ann.tree.children.tail.collectFirst { case Literal(Constant(s: String)) => s }.getOrElse("")
+      }
+        .map(_.trim)
+        .filter(_.nonEmpty)
+        .getOrElse {
+          val hasAnn = traitSym.annotations.exists(a => a.tree.tpe != null && a.tree.tpe =:= agentDefinitionType)
+          if (!hasAnn)
+            c.abort(c.enclosingPosition, s"Missing @agentDefinition(...) on agent trait: ${traitSym.fullName}")
+          defaultTypeNameFromTrait(traitSym)
+        }
+
+    val ctorTpe: Type = {
+      val member = traitTpe.member(TypeName("AgentInput"))
+      if (member == NoSymbol) typeOf[Unit]
+      else {
+        val sig = member.typeSignatureIn(traitTpe)
+        sig match {
+          case TypeBounds(_, hi) => hi.dealias
+          case other             => other.dealias
+        }
+      }
+    }
+
+    c.Expr[_root_.golem.AgentApi[Trait]](
+      q"""
+      new _root_.golem.AgentApi[$traitTpe] {
+        override type Constructor = $ctorTpe
+        override val typeName: String = $typeName
+        override val plan: _root_.golem.runtime.plan.AgentClientPlan[$traitTpe, $ctorTpe] =
+          _root_.golem.runtime.macros.AgentClientMacro
+            .plan[$traitTpe]
+            .asInstanceOf[_root_.golem.runtime.plan.AgentClientPlan[$traitTpe, $ctorTpe]]
+      }
+      """
+    )
+  }
+}

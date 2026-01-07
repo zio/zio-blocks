@@ -1,6 +1,6 @@
 # WIT-Friendly Result Helpers
 
-When defining agent methods that surface `result<ok, err>` types, ZIO-Golem provides `cloud.golem.runtime.wit.WitResult`.
+When defining agent methods that surface `result<ok, err>` types, ZIO-Golem provides `golem.runtime.wit.WitResult`.
 
 ## Table of Contents
 
@@ -19,7 +19,7 @@ When defining agent methods that surface `result<ok, err>` types, ZIO-Golem prov
 ### Success Values
 
 ```scala
-import cloud.golem.runtime.wit.WitResult
+import golem.runtime.wit.WitResult
 
 val success: WitResult[Int, Nothing] = WitResult.ok(42)
 ```
@@ -199,7 +199,7 @@ A sealed trait representing either success (`Ok`) or failure (`Err`).
 ## Complete Example
 
 ```scala
-import cloud.golem.runtime.wit.WitResult
+import golem.runtime.wit.WitResult
 import scala.concurrent.Future
 
 // Define operations that return WitResult

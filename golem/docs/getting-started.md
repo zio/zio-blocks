@@ -34,7 +34,7 @@ ThisBuild / scalaVersion := "3.7.4"
 
 lazy val root = project
   .in(file("."))
-  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, cloud.golem.sbt.GolemPlugin)
+  .enablePlugins(org.scalajs.sbtplugin.ScalaJSPlugin, golem.sbt.GolemPlugin)
   .settings(
     scalaJSUseMainModuleInitializer := false,
     Compile / scalaJSLinkerConfig ~= (_.withModuleKind(ModuleKind.ESModule)),
@@ -44,8 +44,8 @@ lazy val root = project
       "dev.zio" %%% "zio-golem-model" % "<SDK_VERSION>",
       "dev.zio" %% "zio-golem-macros" % "<SDK_VERSION>"
     ),
-    cloud.golem.sbt.GolemPlugin.autoImport.golemBundleFileName := "scala.js",
-    cloud.golem.sbt.GolemPlugin.autoImport.golemAgentGuestWasmFile :=
+    golem.sbt.GolemPlugin.autoImport.golemBundleFileName := "scala.js",
+    golem.sbt.GolemPlugin.autoImport.golemAgentGuestWasmFile :=
       (baseDirectory.value / ".." / "app" / "wasm" / "agent_guest.wasm").getCanonicalFile
   )
 ```
@@ -57,8 +57,8 @@ Create `scala/src/main/scala/demo/CounterAgent.scala` with the following content
 ```scala
 package demo
 
-import cloud.golem.runtime.annotations.{agentDefinition, description, prompt}
-import cloud.golem.sdk.{AgentCompanion, BaseAgent}
+import golem.runtime.annotations.{agentDefinition, description, prompt}
+import golem.{AgentCompanion, BaseAgent}
 
 import scala.concurrent.Future
 
@@ -79,7 +79,7 @@ Create `scala/src/main/scala/demo/CounterAgentImpl.scala` with the following con
 ```scala
 package demo
 
-import cloud.golem.runtime.annotations.agentImplementation
+import golem.runtime.annotations.agentImplementation
 
 import scala.annotation.unused
 import scala.concurrent.Future

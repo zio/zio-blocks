@@ -1,6 +1,6 @@
 # Multimodal Helpers
 
-The `cloud.golem.data` package provides building blocks for describing multimodal payloads; data structures that
+The `golem.data` package provides building blocks for describing multimodal payloads; data structures that
 combine different content types like text and binary segments with compile-time type constraints.
 
 ## Table of Contents
@@ -39,8 +39,8 @@ Use enums with annotations to define the allowed content types at compile time.
 ### Language Constraints
 
 ```scala
-import cloud.golem.runtime.annotations.languageCode
-import cloud.golem.data.unstructured.AllowedLanguages
+import golem.runtime.annotations.languageCode
+import golem.data.unstructured.AllowedLanguages
 
 enum TranscriptLang:
   @languageCode("en")
@@ -54,14 +54,14 @@ enum TranscriptLang:
 
 object TranscriptLang:
   given AllowedLanguages[TranscriptLang] =
-    cloud.golem.runtime.macros.AllowedLanguagesDerivation.derived
+    golem.runtime.macros.AllowedLanguagesDerivation.derived
 ```
 
 ### MIME Type Constraints
 
 ```scala
-import cloud.golem.runtime.annotations.mimeType
-import cloud.golem.data.unstructured.AllowedMimeTypes
+import golem.runtime.annotations.mimeType
+import golem.data.unstructured.AllowedMimeTypes
 
 enum ImageMime:
   @mimeType("image/png")
@@ -75,7 +75,7 @@ enum ImageMime:
 
 object ImageMime:
   given AllowedMimeTypes[ImageMime] =
-    cloud.golem.runtime.macros.AllowedMimeTypesDerivation.derived
+    golem.runtime.macros.AllowedMimeTypesDerivation.derived
 ```
 
 ### Unconstrained Content
@@ -83,7 +83,7 @@ object ImageMime:
 For content that accepts any language or MIME type, use the `Any` marker:
 
 ```scala
-import cloud.golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes}
+import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes}
 
 // Accept any language
 val text = TextSegment.inline[AllowedLanguages.Any]("Hello!", None)
@@ -101,7 +101,7 @@ val binary = BinarySegment.inline[AllowedMimeTypes.Any](bytes, "application/octe
 Create segments with data embedded directly:
 
 ```scala
-import cloud.golem.data.unstructured.{TextSegment, BinarySegment}
+import golem.data.unstructured.{TextSegment, BinarySegment}
 
 // Text with language code
 val transcript = TextSegment.inline[TranscriptLang](
@@ -141,8 +141,8 @@ val remoteImage = BinarySegment.url[ImageMime](
 Use the `Multimodal` wrapper to convert a case class into a multimodal schema:
 
 ```scala
-import cloud.golem.data.multimodal.Multimodal
-import cloud.golem.data.unstructured.{TextSegment, BinarySegment}
+import golem.data.multimodal.Multimodal
+import golem.data.unstructured.{TextSegment, BinarySegment}
 
 // Define a bundle combining text and binary
 final case class MediaBundle(
@@ -168,7 +168,7 @@ Because everything is described via `GolemSchema`, the macro-generated agent met
 propagate modality descriptors to the host:
 
 ```scala
-import cloud.golem.data.GolemSchema
+import golem.data.GolemSchema
 
 // Schema is automatically derived
 val schema: GolemSchema[MediaPayload] = summon[GolemSchema[MediaPayload]]
@@ -187,10 +187,10 @@ val schema: GolemSchema[MediaPayload] = summon[GolemSchema[MediaPayload]]
 Here's a complete working example combining all the concepts:
 
 ```scala
-import cloud.golem.data.GolemSchema
-import cloud.golem.data.multimodal.Multimodal
-import cloud.golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
-import cloud.golem.runtime.annotations.{description, languageCode, mimeType}
+import golem.data.GolemSchema
+import golem.data.multimodal.Multimodal
+import golem.data.unstructured.{AllowedLanguages, AllowedMimeTypes, BinarySegment, TextSegment}
+import golem.runtime.annotations.{description, languageCode, mimeType}
 
 // Define allowed languages
 enum SupportedLang:
@@ -201,7 +201,7 @@ enum SupportedLang:
 
 object SupportedLang:
     given AllowedLanguages[SupportedLang] =
-      cloud.golem.runtime.macros.AllowedLanguagesDerivation.derived
+      golem.runtime.macros.AllowedLanguagesDerivation.derived
     
 // Define allowed MIME types
 enum DocumentMime:
@@ -212,7 +212,7 @@ enum DocumentMime:
 
 object DocumentMime:
     given AllowedMimeTypes[DocumentMime] =
-      cloud.golem.runtime.macros.AllowedMimeTypesDerivation.derived
+      golem.runtime.macros.AllowedMimeTypesDerivation.derived
 
 // Define the multimodal bundle
 final case class DocumentPackage(summary: TextSegment[SupportedLang],

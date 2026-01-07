@@ -7,8 +7,8 @@ This quickstart lives **in-repo** as the `zioGolemQuickstart` cross-project:
 
 ### What you write (Scala)
 
-- **Agent trait + annotations**: `golem/quickstart/shared/src/main/scala/cloud/golem/quickstart/counter/CounterAgent.scala`
-- **Agent implementation**: `golem/quickstart/js/src/main/scala/cloud/golem/quickstart/counter/CounterAgentImpl.scala`
+- **Agent trait + annotations**: `golem/quickstart/shared/src/main/scala/golem/quickstart/counter/CounterAgent.scala`
+- **Agent implementation**: `golem/quickstart/js/src/main/scala/golem/quickstart/counter/CounterAgentImpl.scala`
 
 ### What you configure (sbt)
 
@@ -28,8 +28,8 @@ Other supported shapes (repo-internal bridge support):
 For example, a multi-arg constructor agent trait would look like:
 
 ```scala
-import cloud.golem.runtime.annotations.{DurabilityMode, agentDefinition}
-import cloud.golem.sdk.BaseAgent
+import golem.runtime.annotations.{DurabilityMode, agentDefinition}
+import golem.BaseAgent
 import scala.concurrent.Future
 
 @agentDefinition("shard-agent", mode = DurabilityMode.Durable)

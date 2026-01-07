@@ -1,6 +1,6 @@
 # Transaction Helpers
 
-ZIO-Golem provides transaction helpers under `cloud.golem.sdk.Transactions`.
+ZIO-Golem provides transaction helpers under `golem.Transactions`.
 
 ## Table of Contents
 
@@ -38,7 +38,7 @@ Use `infallibleTransaction` when operations must eventually succeed. On failure,
 transaction retries automatically.
 
 ```scala
-import cloud.golem.sdk.Transactions
+import golem.Transactions
 
 val result: Int = Transactions.infallibleTransaction { tx =>
   // Define an operation with its compensation
@@ -78,8 +78,8 @@ val result: Int = Transactions.infallibleTransaction { tx =>
 Use `fallibleTransaction` when you want to handle failures explicitly without automatic retry.
 
 ```scala
-import cloud.golem.sdk.Transactions
-import cloud.golem.sdk.Transactions.TransactionFailure
+import golem.Transactions
+import golem.Transactions.TransactionFailure
 
 val result: Either[TransactionFailure[String], Int] =
   Transactions.fallibleTransaction[String, Int] { tx =>

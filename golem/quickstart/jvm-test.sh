@@ -34,4 +34,4 @@ app_dir="$PWD/golem/quickstart/app"
   env -u ARGV0 golem-cli "${flags[@]}" --yes app deploy scala:quickstart-counter
 )
 
-sbt -batch -no-colors -Dsbt.supershell=false 'zioGolemQuickstartJVM/runMain cloud.golem.quickstart.QuickstartClient'
+sbt -batch -no-colors -Dsbt.supershell=false 'zioGolemQuickstartJVM/runMain golem.quickstart.QuickstartClient'

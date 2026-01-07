@@ -33,8 +33,8 @@ automatically derive all the serialization, RPC bindings, and metadata generatio
 Create a trait describing your agent's interface:
 
 ```scala
-import cloud.golem.runtime.annotations.{DurabilityMode, agentDefinition, description}
-import cloud.golem.sdk.BaseAgent
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, description}
+import golem.BaseAgent
 import zio.blocks.schema.Schema
 
 import scala.concurrent.Future
@@ -60,7 +60,7 @@ trait NameAgent extends BaseAgent {
 ### Implement and Register
 
 ```scala
-import cloud.golem.runtime.autowire._
+import golem.runtime.autowire._
 
 object NameAgentModule {
   private class NameAgentImpl extends NameAgent {
@@ -79,7 +79,7 @@ object NameAgentModule {
 From another component, connect to a remote agent:
 
 ```scala
-import cloud.golem.runtime.rpc.AgentClient
+import golem.runtime.rpc.AgentClient
 import scala.concurrent.Future
 
 val plan = AgentClient.plan[NameAgent] // uses @agentDefinition + NameAgent.AgentInput
@@ -94,9 +94,9 @@ If you want `Shard.get(...)` / `Shard.getPhantom(...)` style ergonomics, Scala r
 Today this is a one-liner:
 
 ```scala
-import cloud.golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description}
-import cloud.golem.runtime.autowire.{AgentDefinition, AgentImplementation}
-import cloud.golem.sdk.{AgentCompanion, BaseAgent, Uuid}
+import golem.runtime.annotations.{DurabilityMode, agentDefinition, agentImplementation, description}
+import golem.runtime.autowire.{AgentDefinition, AgentImplementation}
+import golem.{AgentCompanion, BaseAgent, Uuid}
 
 import scala.concurrent.Future
 
@@ -189,7 +189,7 @@ ZIO-Golem uses a structured schema system that maps Scala types to WIT (WebAssem
 Decorate your traits and methods with metadata:
 
 ```scala
-import cloud.golem.runtime.annotations.DurabilityMode
+import golem.runtime.annotations.DurabilityMode
 
 @description("Human-readable description")
 @prompt("LLM prompt for AI-driven invocation")

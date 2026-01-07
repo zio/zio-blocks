@@ -22,7 +22,7 @@ this wiring.
 Call `SnapshotExports.configure` once during module initialization to install your save/load handlers:
 
 ```scala
-import cloud.golem.runtime.snapshot.SnapshotExports
+import golem.runtime.snapshot.SnapshotExports
 import scala.concurrent.Future
 import scala.scalajs.js.typedarray.Uint8Array
 
@@ -82,8 +82,8 @@ For typed data instead of raw byte arrays, leverage the existing data codecs:
 Use `BinarySegment` with `AllowedMimeTypes` for binary payloads with MIME type enforcement:
 
 ```scala
-import cloud.golem.data.unstructured.{BinarySegment, AllowedMimeTypes}
-import cloud.golem.runtime.annotations.mimeType
+import golem.data.unstructured.{BinarySegment, AllowedMimeTypes}
+import golem.runtime.annotations.mimeType
 
 enum SnapshotMime:
   @mimeType("application/octet-stream")
@@ -91,7 +91,7 @@ enum SnapshotMime:
 
 object SnapshotMime:
   given AllowedMimeTypes[SnapshotMime] =
-    cloud.golem.runtime.macros.AllowedMimeTypesDerivation.derived
+    golem.runtime.macros.AllowedMimeTypesDerivation.derived
 
 // Create a typed binary segment
 val snapshot = BinarySegment.inline[SnapshotMime](stateBytes, "application/octet-stream")
@@ -102,7 +102,7 @@ val snapshot = BinarySegment.inline[SnapshotMime](stateBytes, "application/octet
 Use `TextSegment` with `AllowedLanguages` for text-based snapshots:
 
 ```scala
-import cloud.golem.data.unstructured.{TextSegment, AllowedLanguages}
+import golem.data.unstructured.{TextSegment, AllowedLanguages}
 
 val jsonSnapshot = TextSegment.inline[AllowedLanguages.Any](
   stateJson,
@@ -115,7 +115,7 @@ val jsonSnapshot = TextSegment.inline[AllowedLanguages.Any](
 For structured data, use `GolemSchema` derivation:
 
 ```scala
-import cloud.golem.data.GolemSchema
+import golem.data.GolemSchema
 import zio.blocks.schema.Schema
 
 final case class MyState(counter: Int, name: String)
@@ -141,7 +141,7 @@ The snapshot helper is used throughout the codebase:
 ### Complete Example
 
 ```scala
-import cloud.golem.runtime.snapshot.SnapshotExports
+import golem.runtime.snapshot.SnapshotExports
 import scala.concurrent.Future
 import scala.scalajs.js.typedarray.Uint8Array
 import java.nio.charset.StandardCharsets
