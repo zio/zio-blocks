@@ -675,7 +675,7 @@ object Reflect {
       copy(seqBinding = F.updateBinding(seqBinding, _.examples(value, values: _*)))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
-                                                                                              F: HasBinding[F]
+      F: HasBinding[F]
     ): Either[SchemaError, C[A]] = {
       var error: Option[SchemaError] = None
 
@@ -886,7 +886,7 @@ object Reflect {
       copy(mapBinding = F.updateBinding(mapBinding, _.examples(value, values: _*)))
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
-                                                                                              F: HasBinding[F]
+      F: HasBinding[F]
     ): Either[SchemaError, M[K, V]] = {
       var error: Option[SchemaError] = None
 
@@ -894,16 +894,16 @@ object Reflect {
 
       value match {
         case DynamicValue.Map(elements) =>
-          val keyTrace = DynamicOptic.Node.MapKeys :: trace
-          val valueTrace = DynamicOptic.Node.MapValues :: trace
+          val keyTrace    = DynamicOptic.Node.MapKeys :: trace
+          val valueTrace  = DynamicOptic.Node.MapValues :: trace
           val constructor = mapConstructor
-          val builder = constructor.newObjectBuilder[K, V](elements.size)
+          val builder     = constructor.newObjectBuilder[K, V](elements.size)
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key, keyTrace) match {
               case Right(keyValue) =>
                 this.value.fromDynamicValue(value, new DynamicOptic.Node.AtMapKey(keyValue) :: valueTrace) match {
                   case Right(valueValue) => constructor.addObject(builder, keyValue, valueValue)
-                  case Left(error) => addError(error)
+                  case Left(error)       => addError(error)
                 }
               case Left(error) => addError(error)
             }
@@ -1109,13 +1109,13 @@ object Reflect {
   }
 
   case class Wrapper[F[_, _], A, B](
-                                     wrapped: Reflect[F, B],
-                                     typeName: TypeName[A],
-                                     wrapperPrimitiveType: Option[PrimitiveType[A]],
-                                     wrapperBinding: F[BindingType.Wrapper[A, B], A],
-                                     doc: Doc = Doc.Empty,
-                                     modifiers: Seq[Modifier.Reflect] = Nil
-                                   ) extends Reflect[F, A] { self =>
+    wrapped: Reflect[F, B],
+    typeName: TypeName[A],
+    wrapperPrimitiveType: Option[PrimitiveType[A]],
+    wrapperBinding: F[BindingType.Wrapper[A, B], A],
+    doc: Doc = Doc.Empty,
+    modifiers: Seq[Modifier.Reflect] = Nil
+  ) extends Reflect[F, A] { self =>
     protected def inner: Any = (wrapped, typeName, wrapperPrimitiveType, doc, modifiers)
 
     type NodeBinding = BindingType.Wrapper[A, B]

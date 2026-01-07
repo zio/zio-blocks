@@ -113,7 +113,7 @@ object Schema extends SchemaCompanionVersionSpecific {
   def fromJsonSchema[F[_, _], A](typeRegistry: TypeRegistry, json: String): Either[RebindError, Schema[A]] =
     JsonBinaryCodec.dynamicValueCodec.decode(json.getBytes(StandardCharsets.UTF_8)) match {
       case Right(value) => deserialize[F, A](typeRegistry, value)
-      case Left(error) => new Left(new RebindError(error.getMessage))
+      case Left(error)  => new Left(new RebindError(error.getMessage))
     }
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
