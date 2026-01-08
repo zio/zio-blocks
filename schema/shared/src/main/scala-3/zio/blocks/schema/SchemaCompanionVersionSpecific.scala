@@ -685,8 +685,9 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
-                          val xs = buf.asInstanceOf[Array[et]]
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'idx) }.asInstanceOf[Array[B]]
+                          val xs     = buf.asInstanceOf[Array[et]]
+                          val newLen = Math.max(idx << 1, 1)
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
@@ -731,8 +732,9 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
-                          val xs = buf.asInstanceOf[Array[et]]
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'idx) }.asInstanceOf[Array[B]]
+                          val xs     = buf.asInstanceOf[Array[et]]
+                          val newLen = Math.max(idx << 1, 1)
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
@@ -777,8 +779,9 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
-                          val xs = buf.asInstanceOf[Array[et]]
-                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'idx) }.asInstanceOf[Array[B]]
+                          val xs     = buf.asInstanceOf[Array[et]]
+                          val newLen = Math.max(idx << 1, 1)
+                          buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
                           builder.buffer = buf
                         }
                         buf(idx) = a
