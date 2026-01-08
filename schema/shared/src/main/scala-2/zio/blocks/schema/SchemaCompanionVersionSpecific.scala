@@ -410,6 +410,8 @@ private object SchemaCompanionVersionSpecific {
                       if (buf.length == size) buf
                       else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
                     }
+
+                    def emptyObject[B]: Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
                   },
                   deconstructor = SeqDeconstructor.arrayDeconstructor
                 )
@@ -449,6 +451,8 @@ private object SchemaCompanionVersionSpecific {
                       if (buf.length == size) buf
                       else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
                     }
+
+                    def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
                   },
                   deconstructor = SeqDeconstructor.arraySeqDeconstructor
                 )
