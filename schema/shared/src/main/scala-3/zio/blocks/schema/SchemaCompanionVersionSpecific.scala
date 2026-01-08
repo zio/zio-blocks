@@ -703,6 +703,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                           ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
                         }
                       }
+
+                      def emptyObject[B]: Array[B] = Array.empty[et].asInstanceOf[Array[B]]
                     },
                     deconstructor = SeqDeconstructor.arrayDeconstructor
                   )
@@ -750,6 +752,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                           ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
                         }
                       }
+
+                      def emptyObject[B]: IArray[B] = IArray.empty[et].asInstanceOf[IArray[B]]
                     },
                     deconstructor = SeqDeconstructor.iArrayDeconstructor
                   )
@@ -797,6 +801,8 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                           ${ genArraysCopyOf[et](eTpe, 'xs, 'size) }.asInstanceOf[Array[B]]
                         }
                       }
+
+                      def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[et].asInstanceOf[ArraySeq[B]]
                     },
                     deconstructor = SeqDeconstructor.arraySeqDeconstructor
                   )
