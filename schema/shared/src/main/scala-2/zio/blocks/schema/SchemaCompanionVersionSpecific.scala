@@ -396,7 +396,8 @@ private object SchemaCompanionVersionSpecific {
                       var buf = builder.buffer
                       val idx = builder.size
                       if (buf.length == idx) {
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                        val newLen = Math.max(idx << 1, 1) 
+                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], newLen).asInstanceOf[Array[B]]
                         builder.buffer = buf
                       }
                       buf(idx) = a
@@ -434,7 +435,8 @@ private object SchemaCompanionVersionSpecific {
                       var buf = builder.buffer
                       val idx = builder.size
                       if (buf.length == idx) {
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
+                        val newLen = Math.max(idx << 1, 1) 
+                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], newLen).asInstanceOf[Array[B]]
                         builder.buffer = buf
                       }
                       buf(idx) = a
