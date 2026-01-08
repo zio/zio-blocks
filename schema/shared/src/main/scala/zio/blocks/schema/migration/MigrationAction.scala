@@ -1,22 +1,22 @@
 package zio.blocks.schema.migration
 
 import zio.schema.DynamicValue
-// আমরা আমাদের নতুন তৈরি করা অপটিক ইমপোর্ট করছি
 import zio.blocks.schema.migration.optic.DynamicOptic
 
 /**
  * Represents a purely data-driven migration step.
- * Refactored to use DynamicOptic for precise path navigation.
+ * Uses DynamicOptic for paths and SchemaExpr for transformation logic.
  */
 sealed trait MigrationAction {
-  // প্রতিটি অ্যাকশনের একটি নির্দিষ্ট লোকেশন (at) থাকবে
   def at: DynamicOptic
 }
 
 object MigrationAction {
   
+  // --- Simple Actions ---
+
   final case class AddField(
-    at: DynamicOptic, // আগে ছিল path: Vector[String], এখন আপগ্রেড হলো
+    at: DynamicOptic,
     defaultValue: DynamicValue
   ) extends MigrationAction
 
@@ -26,20 +26,51 @@ object MigrationAction {
   ) extends MigrationAction
 
   final case class DeleteField(
-    at: DynamicOptic
+    at: DynamicOptic,
+    defaultForReverse: SchemaExpr = SchemaExpr.DefaultValue // রিভার্স করার জন্য ব্যাকআপ
   ) extends MigrationAction
 
   final case class ChangeType(
     at: DynamicOptic,
     targetType: String 
   ) extends MigrationAction
+
+  // --- Complex Actions (New additions) ---
+
+  // ১. ভ্যালু ট্রান্সফর্ম করা (যেমন: স্যালারি ১০% বাড়ানো)
+  final case class TransformValue(
+    at: DynamicOptic,
+    transform: SchemaExpr // ফাংশনের বদলে আমরা SchemaExpr ব্যবহার করছি
+  ) extends MigrationAction
+
+  // ২. অপশনাল ফিল্ডকে ম্যান্ডেটরি করা (Option[T] -> T)
+  final case class MandateField(
+    at: DynamicOptic,
+    default: SchemaExpr // যদি নাল থাকে, তবে কী বসবে?
+  ) extends MigrationAction
+
+  // ৩. ম্যান্ডেটরি ফিল্ডকে অপশনাল করা (T -> Option[T])
+  final case class OptionalizeField(
+    at: DynamicOptic
+  ) extends MigrationAction
+
+  // ৪. একাধিক ফিল্ড জোড়া লাগানো (যেমন: first + last = fullName)
+  final case class JoinFields(
+    at: DynamicOptic, // যেখানে রেজাল্ট বসবে
+    sourcePaths: Vector[DynamicOptic], // যেখান থেকে ডাটা আসবে
+    combiner: SchemaExpr // কিভাবে জোড়া লাগবে সেই লজিক
+  ) extends MigrationAction
+
+  // ৫. একটি ফিল্ড ভেঙে একাধিক করা (যেমন: fullName -> first, last)
+  final case class SplitField(
+    at: DynamicOptic, // যে ফিল্ডটা ভাঙব
+    targetPaths: Vector[DynamicOptic], // যেখানে টুকরোগুলো যাবে
+    splitter: SchemaExpr // কিভাবে ভাঙব সেই লজিক
+  ) extends MigrationAction
 }
 
-// এই ক্লাসের কালেকশন লজিকও আপডেট করা হলো
 final case class DynamicMigration(actions: Vector[MigrationAction]) {
   
   def ++(that: DynamicMigration): DynamicMigration =
     DynamicMigration(this.actions ++ that.actions)
-    
-  // TODO: Implement reverse logic in future steps
 }
