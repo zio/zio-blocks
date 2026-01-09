@@ -1,9 +1,12 @@
-package zio.blocks.schema
+package zio.blocks.schema.patch
 
-import zio.blocks.schema.patch._
+import zio.blocks.schema.{DynamicPatch, PatchMode, Schema}
 
-// These are defined in a separate compilation unit to avoid Scala 2 macro issues where Schema.derived
-// cannot be used in the same compilation unit as the Schema definition.
+// Schema instances for patch types.
+// Note: These schemas are in test code due to Scala 2 macro limitations.
+// In Scala 2, Schema.derived macro calls cannot be used in the same compilation run
+// as the type definitions.
+
 object PatchSchemas {
 
   implicit val stringOpSchema: Schema[StringOp] = Schema.derived
