@@ -2,16 +2,11 @@ package zio.blocks.schema.patch
 
 import zio.blocks.schema._
 
-/**
- * Differ computes minimal patches between two DynamicValues. Uses smart
- * heuristics to choose between delta operations and set operations.
- */
+//Differ computes minimal patches between two DynamicValues.
 object Differ {
 
-  /**
-   * Compute the diff between two DynamicValues. Returns a DynamicPatch that
-   * transforms oldValue into newValue.
-   */
+  // Compute the diff between two DynamicValues. Returns a DynamicPatch that
+  // transforms oldValue into newValue.
   def diff(oldValue: DynamicValue, newValue: DynamicValue): DynamicPatch =
     if (oldValue == newValue) {
       DynamicPatch.empty
@@ -38,10 +33,8 @@ object Differ {
       }
     }
 
-  /**
-   * Diff two primitive values. Uses delta operations for numerics, temporal
-   * types, and strings. Falls back to Set for other types.
-   */
+  // Diff two primitive values. Uses delta operations for numerics, temporal
+  // types, and strings. Falls back to Set for other types.
   private def diffPrimitive(oldPrim: PrimitiveValue, newPrim: PrimitiveValue): DynamicPatch =
     (oldPrim, newPrim) match {
       // Numeric types - use delta operations
@@ -130,10 +123,8 @@ object Differ {
         DynamicPatch(Operation.Set(DynamicValue.Primitive(newPrim)))
     }
 
-  /**
-   * Diff two strings using LCS algorithm. Uses StringEdit if the edit
-   * operations are more compact than replacing the entire string.
-   */
+  // Diff two strings using LCS algorithm. Uses StringEdit if the edit
+  // operations are more compact than replacing the entire string.
   private def diffString(oldStr: String, newStr: String): DynamicPatch =
     if (oldStr == newStr) {
       DynamicPatch.empty
@@ -154,11 +145,9 @@ object Differ {
       }
     }
 
-  /**
-   * Compute string edit operations using LCS algorithm. Returns a sequence of
-   * Insert/Delete operations with indices adjusted for previously applied
-   * edits.
-   */
+  // String edit operations using LCS algorithm. Returns a sequence of
+  // Insert/Delete operations with indices adjusted for previously applied
+  // edits.
   private def computeStringEdits(oldStr: String, newStr: String): Vector[StringOp] = {
     if (oldStr == newStr) return Vector.empty
     if (oldStr.isEmpty) return Vector(StringOp.Insert(0, newStr))
@@ -264,10 +253,8 @@ object Differ {
     result.toString
   }
 
-  /**
-   * Diff two records by comparing fields. Only includes patches for fields that
-   * have changed.
-   */
+  // Diff two records by comparing fields. Only includes patches for fields that
+  // have changed.
   private def diffRecord(
     oldFields: Vector[(String, DynamicValue)],
     newFields: Vector[(String, DynamicValue)]
@@ -302,10 +289,8 @@ object Differ {
     DynamicPatch(ops.result())
   }
 
-  /**
-   * Diff two variants. Case changes always replace the whole variant, but
-   * identical cases reuse inner diffs.
-   */
+  // Diff two variants. Case changes always replace the whole variant, but
+  // identical cases reuse inner diffs.
   private def diffVariant(
     oldCase: String,
     oldValue: DynamicValue,
@@ -328,11 +313,9 @@ object Differ {
       }
     }
 
-  /**
-   * Diff two sequences using an LCS-based alignment. Produces
-   * SeqOp.Insert/Delete/Append operations that describe how to transform the
-   * old elements into the new ones without replacing the entire collection.
-   */
+  // Diff two sequences using an LCS-based alignment. Produces
+  // SeqOp.Insert/Delete/Append operations that describe how to transform the
+  // old elements into the new ones without replacing the entire collection.
   private def diffSequence(
     oldElems: Vector[DynamicValue],
     newElems: Vector[DynamicValue]
@@ -349,10 +332,8 @@ object Differ {
       else DynamicPatch(Operation.SequenceEdit(seqOps))
     }
 
-  /**
-   * Convert the difference between two sequences into SeqOps using LCS
-   * alignment.
-   */
+  // Convert the difference between two sequences into SeqOps using LCS
+  // alignment.
   private def computeSequenceOps(
     oldElems: Vector[DynamicValue],
     newElems: Vector[DynamicValue]
@@ -394,9 +375,7 @@ object Differ {
     ops.result()
   }
 
-  /**
-   * LCS helper that returns the indices of aligned elements.
-   */
+  // LCS helper that returns the indices of aligned elements.
   private def longestCommonSubsequenceIndices(
     oldElems: Vector[DynamicValue],
     newElems: Vector[DynamicValue]
@@ -437,10 +416,8 @@ object Differ {
     builder.result().reverse
   }
 
-  /**
-   * Diff two maps by comparing keys and values. Produces Add, Remove, and
-   * Modify operations.
-   */
+  // Diff two maps by comparing keys and values. Produces Add, Remove, and
+  // Modify operations.
   private def diffMap(
     oldEntries: Vector[(DynamicValue, DynamicValue)],
     newEntries: Vector[(DynamicValue, DynamicValue)]

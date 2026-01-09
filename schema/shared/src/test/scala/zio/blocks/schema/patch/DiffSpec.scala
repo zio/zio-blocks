@@ -779,6 +779,247 @@ object DiffSpec extends ZIOSpecDefault {
 
         val patch = Schema[Person].diff(old, updated)
         assertTrue(patch(old, PatchMode.Strict) == Right(updated))
+      },
+      test("diff handles NaN to NaN (Double)") {
+        val schema = Schema[Double]
+        val patch  = schema.diff(Double.NaN, Double.NaN)
+        assertTrue(patch.isEmpty)
+      },
+      test("diff handles NaN to number (Double)") {
+        val schema = Schema[Double]
+        val patch  = schema.diff(Double.NaN, 42.0)
+
+        val usesSet = patch.dynamicPatch.ops.headOption match {
+          case Some(op) =>
+            op.operation match {
+              case Operation.Set(DynamicValue.Primitive(PrimitiveValue.Double(42.0))) => true
+              case _                                                                  => false
+            }
+          case None => false
+        }
+
+        val result = patch(Double.NaN, PatchMode.Strict)
+        assertTrue(usesSet) && assertTrue(result == Right(42.0))
+      },
+      test("diff handles number to NaN (Double)") {
+        val schema = Schema[Double]
+        val patch  = schema.diff(42.0, Double.NaN)
+
+        val usesSet = patch.dynamicPatch.ops.headOption match {
+          case Some(op) =>
+            op.operation match {
+              case Operation.Set(DynamicValue.Primitive(PrimitiveValue.Double(value))) =>
+                java.lang.Double.isNaN(value)
+              case _ => false
+            }
+          case None => false
+        }
+
+        val result = patch(42.0, PatchMode.Strict)
+        assertTrue(usesSet) && assertTrue(result.exists(v => java.lang.Double.isNaN(v)))
+      },
+      test("diff handles NaN to NaN (Float)") {
+        val schema = Schema[Float]
+        val patch  = schema.diff(Float.NaN, Float.NaN)
+        assertTrue(patch.isEmpty)
+      },
+      test("diff handles NaN to number (Float)") {
+        val schema = Schema[Float]
+        val patch  = schema.diff(Float.NaN, 42.0f)
+
+        val result = patch(Float.NaN, PatchMode.Strict)
+        assertTrue(result == Right(42.0f))
+      },
+      test("diff handles number to NaN (Float)") {
+        val schema = Schema[Float]
+        val patch  = schema.diff(42.0f, Float.NaN)
+
+        val result = patch(42.0f, PatchMode.Strict)
+        assertTrue(result.exists(v => java.lang.Float.isNaN(v)))
+      }
+    ),
+    suite("Sequences of records")(
+      test("diff sequences of records with nested changes") {
+        case class Item(id: Int, name: String, price: Double)
+        implicit val itemSchema: Schema[Item] = Schema.derived
+
+        val old = Vector(
+          Item(1, "Apple", 1.0),
+          Item(2, "Banana", 2.0),
+          Item(3, "Cherry", 3.0)
+        )
+
+        val updated = Vector(
+          Item(1, "Apple", 1.5),  // price changed
+          Item(2, "Banana", 2.0), // unchanged
+          Item(3, "Cherry", 3.0)  // unchanged
+        )
+
+        val schema = Schema[Vector[Item]]
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      },
+      test("diff sequences of records with additions") {
+        case class Person(name: String, age: Int)
+        implicit val personSchema: Schema[Person] = Schema.derived
+
+        val old     = Vector(Person("Alice", 30), Person("Bob", 25))
+        val updated = Vector(Person("Alice", 30), Person("Bob", 25), Person("Charlie", 35))
+
+        val schema = Schema[Vector[Person]]
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      },
+      test("diff sequences of records with deletions") {
+        case class Person(name: String, age: Int)
+        implicit val personSchema: Schema[Person] = Schema.derived
+
+        val old     = Vector(Person("Alice", 30), Person("Bob", 25), Person("Charlie", 35))
+        val updated = Vector(Person("Alice", 30), Person("Charlie", 35))
+
+        val schema = Schema[Vector[Person]]
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      },
+      test("diff sequences of records with reordering") {
+        case class Tag(id: Int, label: String)
+        implicit val tagSchema: Schema[Tag] = Schema.derived
+
+        val old     = Vector(Tag(1, "urgent"), Tag(2, "bug"), Tag(3, "feature"))
+        val updated = Vector(Tag(1, "urgent"), Tag(3, "feature"), Tag(2, "bug"))
+
+        val schema = Schema[Vector[Tag]]
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      }
+    ),
+    suite("Maps with deeply nested values")(
+      test("diff maps with nested records") {
+        case class Address(street: String, city: String, zip: String)
+        case class Person(name: String, age: Int, address: Address)
+        implicit val addressSchema: Schema[Address] = Schema.derived
+        implicit val personSchema: Schema[Person]   = Schema.derived
+
+        val old = Map(
+          "user1" -> Person("Alice", 30, Address("123 Main St", "NYC", "10001")),
+          "user2" -> Person("Bob", 25, Address("456 Elm St", "LA", "90001"))
+        )
+
+        val updated = Map(
+          "user1" -> Person("Alice", 31, Address("123 Main St", "NYC", "10001")), // age changed
+          "user2" -> Person("Bob", 25, Address("456 Elm St", "LA", "90002"))      // zip changed
+        )
+
+        val schema = Schema[Map[String, Person]]
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      },
+      test("diff maps with deeply nested structures (3+ levels)") {
+        case class Coordinate(lat: Double, lon: Double)
+        case class Location(name: String, coord: Coordinate)
+        case class Store(id: Int, location: Location, inventory: Vector[String])
+        implicit val coordSchema: Schema[Coordinate] = Schema.derived
+        implicit val locSchema: Schema[Location]     = Schema.derived
+        implicit val storeSchema: Schema[Store]      = Schema.derived
+
+        val old = Map(
+          "store1" -> Store(1, Location("Downtown", Coordinate(40.7, -74.0)), Vector("apple", "banana")),
+          "store2" -> Store(2, Location("Uptown", Coordinate(40.8, -73.9)), Vector("cherry"))
+        )
+
+        val updated = Map(
+          "store1" -> Store(1, Location("Downtown", Coordinate(40.7, -74.0)), Vector("apple", "banana")),
+          "store2" -> Store(
+            2,
+            Location("Uptown", Coordinate(40.8, -73.95)),
+            Vector("cherry", "date")
+          ) // coord.lon and inventory changed
+        )
+
+        val schema = Schema[Map[String, Store]]
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      },
+      test("diff maps with nested maps") {
+        val schema = Schema[Map[String, Map[String, Int]]]
+
+        val old = Map(
+          "group1" -> Map("a" -> 1, "b" -> 2),
+          "group2" -> Map("c" -> 3, "d" -> 4)
+        )
+
+        val updated = Map(
+          "group1" -> Map("a" -> 1, "b" -> 5),          // value changed
+          "group2" -> Map("c" -> 3, "d" -> 4, "e" -> 6) // key added
+        )
+
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      },
+      test("diff maps with vectors of nested records") {
+        case class Task(id: Int, desc: String, done: Boolean)
+        implicit val taskSchema: Schema[Task] = Schema.derived
+
+        val schema = Schema[Map[String, Vector[Task]]]
+
+        val old = Map(
+          "project1" -> Vector(Task(1, "Design", false), Task(2, "Implement", false)),
+          "project2" -> Vector(Task(3, "Test", false))
+        )
+
+        val updated = Map(
+          "project1" -> Vector(Task(1, "Design", true), Task(2, "Implement", false)), // done changed
+          "project2" -> Vector(Task(3, "Test", false), Task(4, "Deploy", false))      // task added
+        )
+
+        val patch  = schema.diff(old, updated)
+        val result = patch(old, PatchMode.Strict)
+
+        assertTrue(result == Right(updated))
+      }
+    ),
+    suite("Empty-to-empty diffs")(
+      test("empty-to-empty for String") {
+        val schema = Schema[String]
+        val patch  = schema.diff("", "")
+        assertTrue(patch.isEmpty)
+      },
+      test("empty-to-empty for Vector") {
+        val schema = Schema[Vector[Int]]
+        val patch  = schema.diff(Vector.empty, Vector.empty)
+        assertTrue(patch.isEmpty)
+      },
+      test("empty-to-empty for Map") {
+        val schema = Schema[Map[String, Int]]
+        val patch  = schema.diff(Map.empty, Map.empty)
+        assertTrue(patch.isEmpty)
+      },
+      test("empty-to-empty for Option (None)") {
+        val schema = Schema[Option[String]]
+        val patch  = schema.diff(None, None)
+        assertTrue(patch.isEmpty)
+      },
+      test("empty-to-empty for nested structures") {
+        case class Container(items: Vector[String], metadata: Map[String, Int])
+        implicit val containerSchema: Schema[Container] = Schema.derived
+
+        val empty = Container(Vector.empty, Map.empty)
+        val patch = Schema[Container].diff(empty, empty)
+        assertTrue(patch.isEmpty)
       }
     )
   )
