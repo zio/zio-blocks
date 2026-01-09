@@ -390,14 +390,13 @@ private object SchemaCompanionVersionSpecific {
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArrayConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                     def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                       var buf = builder.buffer
                       val idx = builder.size
                       if (buf.length == idx) {
-                        val newLen = Math.max(idx << 1, 1) 
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], newLen).asInstanceOf[Array[B]]
+                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
                         builder.buffer = buf
                       }
                       buf(idx) = a
@@ -431,14 +430,13 @@ private object SchemaCompanionVersionSpecific {
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArraySeqConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                     def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                       var buf = builder.buffer
                       val idx = builder.size
                       if (buf.length == idx) {
-                        val newLen = Math.max(idx << 1, 1) 
-                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], newLen).asInstanceOf[Array[B]]
+                        buf = java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], idx << 1).asInstanceOf[Array[B]]
                         builder.buffer = buf
                       }
                       buf(idx) = a
