@@ -47,30 +47,6 @@ trait DerivedOptics[S] {
   def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImpl[S]
 }
 
-/**
- * A variant of DerivedOptics that prefixes all accessor names with underscore.
- * This is useful when you want to avoid name collisions with existing methods
- * in the companion object.
- *
- * Usage:
- * {{{
- * case class Person(name: String, age: Int)
- * object Person extends DerivedOptics_[Person]
- *
- * // Access optics with underscore prefix:
- * val nameLens: Lens[Person, String] = Person.optics._name
- * val ageLens: Lens[Person, Int] = Person.optics._age
- * }}}
- */
-trait DerivedOptics_[S] {
-
-  /**
-   * Provides access to the derived optics for type S with underscore-prefixed
-   * accessor names.
-   */
-  def optics(implicit schema: Schema[S]): Any = macro DerivedOpticsMacros.opticsImplUnderscore[S]
-}
-
 object DerivedOptics {
   private[schema] final class OpticsHolder(members: Map[String, Any]) extends scala.Dynamic {
     def selectDynamic(name: String): Any =
@@ -210,9 +186,6 @@ private[schema] object DerivedOpticsMacros {
 
   def opticsImpl[S: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[S]]): c.Tree =
     opticsImplWithPrefix[S](c)(schema, prefixUnderscore = false)
-
-  def opticsImplUnderscore[S: c.WeakTypeTag](c: whitebox.Context)(schema: c.Expr[Schema[S]]): c.Tree =
-    opticsImplWithPrefix[S](c)(schema, prefixUnderscore = true)
 
   private def opticsImplWithPrefix[S: c.WeakTypeTag](c: whitebox.Context)(
     schema: c.Expr[Schema[S]],

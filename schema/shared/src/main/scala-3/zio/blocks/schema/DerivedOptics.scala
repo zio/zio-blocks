@@ -74,30 +74,6 @@ trait DerivedOptics[S] {
   transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, false) }
 }
 
-/**
- * A variant of DerivedOptics that prefixes all accessor names with underscore.
- * This is useful when you want to avoid name collisions with existing methods
- * in the companion object.
- *
- * Usage:
- * {{{
- * case class Person(name: String, age: Int)
- * object Person extends DerivedOptics_[Person]
- *
- * // Access optics with underscore prefix:
- * val nameLens: Lens[Person, String] = Person.optics._name
- * val ageLens: Lens[Person, Int] = Person.optics._age
- * }}}
- */
-trait DerivedOptics_[S] {
-
-  /**
-   * Provides access to the derived optics for type S with underscore-prefixed
-   * accessor names.
-   */
-  transparent inline def optics(using schema: Schema[S]): Any = ${ DerivedOpticsMacros.opticsImpl[S]('schema, true) }
-}
-
 object DerivedOptics {
   // Adapter to treat a Wrapper as a Record with one field named "value".
   // This allows reusing the optimized LensImpl logic without modifying Optic.scala.
