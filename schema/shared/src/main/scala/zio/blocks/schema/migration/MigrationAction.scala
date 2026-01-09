@@ -69,4 +69,10 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
   
   def ++(that: DynamicMigration): DynamicMigration =
     DynamicMigration(this.actions ++ that.actions)
+
+
+    // 🔥 নতুন যোগ করা অংশ: ইঞ্জিন কল করা
+  def apply(value: DynamicValue): Either[String, DynamicValue] =
+    MigrationEngine.run(value, this)
 }
+
