@@ -272,7 +272,6 @@ object DerivedOpticsSpec extends ZIOSpecDefault {
     given schema: Schema[Email]            = Schema.string.wrapTotal(Email.apply, _.value)
   }
 
-
   // ===== Test Suites =====
 
   def spec: Spec[TestEnvironment, Any] = suite("DerivedOpticsSpec")(

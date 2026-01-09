@@ -79,83 +79,90 @@ object DerivedOptics {
   // This allows reusing the optimized LensImpl logic without modifying Optic.scala.
   private[schema] def wrapperAsRecord[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Reflect.Record.Bound[A] = {
     import zio.blocks.schema.binding._
+    import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 
     val fieldTerm = new Term[Binding, A, B]("value", wrapper.wrapped)
 
     // Determine primitive type components
-    val (usedRegs, reader, writer) = Reflect.unwrapToPrimitiveTypeOption(wrapper.wrapped) match {
-      case Some(pt) =>
-        pt match {
-          case _: PrimitiveType.Boolean =>
-            (
-              RegisterOffset(booleans = 1),
-              (r: Registers, o: Int) => r.getBoolean(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setBoolean(o, 0, v.asInstanceOf[Boolean])
-            )
-          case _: PrimitiveType.Byte =>
-            (
-              RegisterOffset(bytes = 1),
-              (r: Registers, o: Int) => r.getByte(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setByte(o, 0, v.asInstanceOf[Byte])
-            )
-          case _: PrimitiveType.Short =>
-            (
-              RegisterOffset(shorts = 1),
-              (r: Registers, o: Int) => r.getShort(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setShort(o, 0, v.asInstanceOf[Short])
-            )
-          case _: PrimitiveType.Int =>
-            (
-              RegisterOffset(ints = 1),
-              (r: Registers, o: Int) => r.getInt(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setInt(o, 0, v.asInstanceOf[Int])
-            )
-          case _: PrimitiveType.Long =>
-            (
-              RegisterOffset(longs = 1),
-              (r: Registers, o: Int) => r.getLong(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setLong(o, 0, v.asInstanceOf[Long])
-            )
-          case _: PrimitiveType.Float =>
-            (
-              RegisterOffset(floats = 1),
-              (r: Registers, o: Int) => r.getFloat(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setFloat(o, 0, v.asInstanceOf[Float])
-            )
-          case _: PrimitiveType.Double =>
-            (
-              RegisterOffset(doubles = 1),
-              (r: Registers, o: Int) => r.getDouble(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setDouble(o, 0, v.asInstanceOf[Double])
-            )
-          case _: PrimitiveType.Char =>
-            (
-              RegisterOffset(chars = 1),
-              (r: Registers, o: Int) => r.getChar(o, 0),
-              (r: Registers, o: Int, v: Any) => r.setChar(o, 0, v.asInstanceOf[Char])
-            )
-          case PrimitiveType.Unit =>
-            (RegisterOffset(0), (_: Registers, _: Int) => (), (_: Registers, _: Int, _: Any) => ())
-          case _ =>
-            (
-              RegisterOffset(objects = 1),
-              (r: Registers, o: Int) => r.getObject(o, 0).asInstanceOf[B],
-              (r: Registers, o: Int, v: Any) => r.setObject(o, 0, v.asInstanceOf[AnyRef])
-            )
-        }
-      case None =>
-        (
-          RegisterOffset(objects = 1),
-          (r: Registers, o: Int) => r.getObject(o, 0).asInstanceOf[B],
-          (r: Registers, o: Int, v: Any) => r.setObject(o, 0, v.asInstanceOf[AnyRef])
-        )
-    }
+    val (usedRegs, reader, writer)
+      : (RegisterOffset, (Registers, RegisterOffset) => Any, (Registers, RegisterOffset, Any) => Unit) =
+      Reflect.unwrapToPrimitiveTypeOption(wrapper.wrapped) match {
+        case Some(pt) =>
+          pt match {
+            case _: PrimitiveType.Boolean =>
+              (
+                RegisterOffset(booleans = 1),
+                (r: Registers, o: RegisterOffset) => r.getBoolean(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setBoolean(o, v.asInstanceOf[Boolean])
+              )
+            case _: PrimitiveType.Byte =>
+              (
+                RegisterOffset(bytes = 1),
+                (r: Registers, o: RegisterOffset) => r.getByte(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setByte(o, v.asInstanceOf[Byte])
+              )
+            case _: PrimitiveType.Short =>
+              (
+                RegisterOffset(shorts = 1),
+                (r: Registers, o: RegisterOffset) => r.getShort(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setShort(o, v.asInstanceOf[Short])
+              )
+            case _: PrimitiveType.Int =>
+              (
+                RegisterOffset(ints = 1),
+                (r: Registers, o: RegisterOffset) => r.getInt(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setInt(o, v.asInstanceOf[Int])
+              )
+            case _: PrimitiveType.Long =>
+              (
+                RegisterOffset(longs = 1),
+                (r: Registers, o: RegisterOffset) => r.getLong(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setLong(o, v.asInstanceOf[Long])
+              )
+            case _: PrimitiveType.Float =>
+              (
+                RegisterOffset(floats = 1),
+                (r: Registers, o: RegisterOffset) => r.getFloat(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setFloat(o, v.asInstanceOf[Float])
+              )
+            case _: PrimitiveType.Double =>
+              (
+                RegisterOffset(doubles = 1),
+                (r: Registers, o: RegisterOffset) => r.getDouble(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setDouble(o, v.asInstanceOf[Double])
+              )
+            case _: PrimitiveType.Char =>
+              (
+                RegisterOffset(chars = 1),
+                (r: Registers, o: RegisterOffset) => r.getChar(o),
+                (r: Registers, o: RegisterOffset, v: Any) => r.setChar(o, v.asInstanceOf[Char])
+              )
+            case PrimitiveType.Unit =>
+              (
+                RegisterOffset(0),
+                (_: Registers, _: RegisterOffset) => (),
+                (_: Registers, _: RegisterOffset, _: Any) => ()
+              )
+            case _ =>
+              (
+                RegisterOffset(objects = 1),
+                (r: Registers, o: RegisterOffset) => r.getObject(o).asInstanceOf[B],
+                (r: Registers, o: RegisterOffset, v: Any) => r.setObject(o, v.asInstanceOf[AnyRef])
+              )
+          }
+        case None =>
+          (
+            RegisterOffset(objects = 1),
+            (r: Registers, o: RegisterOffset) => r.getObject(o).asInstanceOf[B],
+            (r: Registers, o: RegisterOffset, v: Any) => r.setObject(o, v.asInstanceOf[AnyRef])
+          )
+      }
 
     val syntheticBinding = new Binding.Record[A](
       constructor = new Constructor[A] {
-        override def usedRegisters: Int = usedRegs
+        override def usedRegisters: RegisterOffset = usedRegs
 
-        override def construct(registers: Registers, offset: Int): A = {
+        override def construct(registers: Registers, offset: RegisterOffset): A = {
           val b = reader(registers, offset).asInstanceOf[B]
           wrapper.binding.wrap(b) match {
             case Right(a)  => a
@@ -164,9 +171,9 @@ object DerivedOptics {
         }
       },
       deconstructor = new Deconstructor[A] {
-        override def usedRegisters: Int = usedRegs
+        override def usedRegisters: RegisterOffset = usedRegs
 
-        override def deconstruct(registers: Registers, offset: Int, value: A): Unit = {
+        override def deconstruct(registers: Registers, offset: RegisterOffset, value: A): Unit = {
           val b = wrapper.binding.unwrap(value)
           writer(registers, offset, b)
         }
