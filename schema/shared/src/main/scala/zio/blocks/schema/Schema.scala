@@ -3,7 +3,6 @@ package zio.blocks.schema
 import zio.blocks.schema.binding.Binding
 import zio.blocks.schema.derive.{Deriver, DerivationBuilder}
 import java.util.concurrent.ConcurrentHashMap
-import scala.collection.immutable.ArraySeq
 
 /**
  * A `Schema` is a data type that contains reified information on the structure
@@ -96,7 +95,7 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   )
 }
 
-object Schema extends SchemaVersionSpecific {
+object Schema extends SchemaCompanionVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
@@ -187,9 +186,6 @@ object Schema extends SchemaVersionSpecific {
   implicit def list[A](implicit element: Schema[A]): Schema[List[A]] = new Schema(Reflect.list(element.reflect))
 
   implicit def vector[A](implicit element: Schema[A]): Schema[Vector[A]] = new Schema(Reflect.vector(element.reflect))
-
-  implicit def arraySeq[A](implicit element: Schema[A]): Schema[ArraySeq[A]] =
-    new Schema(Reflect.arraySeq(element.reflect))
 
   implicit def indexedSeq[A](implicit element: Schema[A]): Schema[IndexedSeq[A]] =
     new Schema(Reflect.indexedSeq(element.reflect))

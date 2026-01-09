@@ -29,6 +29,10 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
         roundTrip[Parent](Parent(Child(MySealedTrait.Foo(1))), """{"child":{"test":{"Foo":{"foo":1}}}}""") &&
         roundTrip[Parent](Parent(Child(MySealedTrait.Bar("WWW"))), """{"child":{"test":{"Bar":{"bar":"WWW"}}}}""")
+      },
+      test("record with array field") {
+        roundTrip(Arrays(IArray()), """{}""") &&
+        roundTrip(Arrays(IArray("VVV", "WWW")), """{"xs":["VVV","WWW"]}""")
       }
     ),
     suite("variants")(
@@ -46,7 +50,6 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
 
         val schema1 = Schema.derived[LinkedList[Int]]
         val schema2 = Schema.derived[LinkedList[Option[String]]]
-
         roundTrip(
           Node(1, Node(2, End)),
           """{"::":{"val":1,"nxt":{"::":{"val":2,"nxt":{"End":{}}}}}}"""
@@ -55,6 +58,14 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
           Node(Some("VVV"), Node(None, End)),
           """{"::":{"val":"VVV","nxt":{"::":{"nxt":{"End":{}}}}}}"""
         )(schema2)
+      },
+      test("complex recursive values without discriminator") {
+        import LinkedList._
+
+        val codec = Schema
+          .derived[LinkedList[Double]]
+          .derive(JsonBinaryCodecDeriver.withDiscriminatorKind(DiscriminatorKind.None))
+        roundTrip(Node(1.0, Node(2.0, End)), """{"val":1.0,"nxt":{"val":2.0,"nxt":{}}}""", codec)
       },
       test("union type with key discriminator") {
         type Value = Int | Boolean | String | (Int, Boolean) | List[Int]
@@ -122,13 +133,13 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
   }
 
   enum LinkedList[+T] {
-    case End
-
     @Modifier.rename("::")
     case Node(
       @Modifier.rename("val") value: T,
       @Modifier.rename("nxt") next: LinkedList[T]
     )
+
+    case End
   }
 
   sealed trait Foo derives Schema
@@ -138,4 +149,17 @@ object JsonBinaryCodecDeriverVersionSpecificSpec extends ZIOSpecDefault {
   sealed trait Bar extends Foo
 
   case object Bar1 extends Bar
+
+  case class Arrays(xs: IArray[String]) {
+    override def hashCode(): Int = java.util.Arrays.hashCode(xs.asInstanceOf[Array[AnyRef]])
+
+    override def equals(obj: Any): Boolean = obj match {
+      case that: Arrays => java.util.Arrays.equals(xs.asInstanceOf[Array[AnyRef]], that.xs.asInstanceOf[Array[AnyRef]])
+      case _            => false
+    }
+  }
+
+  object Arrays {
+    implicit val schema: Schema[Arrays] = Schema.derived
+  }
 }

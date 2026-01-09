@@ -84,11 +84,27 @@ object JsonTestUtils {
   def decodeError[A](invalidJson: String, error: String, codec: JsonBinaryCodec[A]): TestResult =
     decodeError(invalidJson.getBytes(UTF_8), error, codec)
 
+  def decodeError[A](
+    invalidJson: String,
+    error: String,
+    codec: JsonBinaryCodec[A],
+    readerConfig: ReaderConfig
+  ): TestResult =
+    decodeError(invalidJson.getBytes(UTF_8), error, codec, readerConfig)
+
   def decodeError[A](invalidJson: Array[Byte], error: String, codec: JsonBinaryCodec[A]): TestResult =
-    assert(codec.decode(invalidJson))(isLeft(hasError(error))) &&
-      assert(codec.decode(toInputStream(invalidJson)))(isLeft(hasError(error))) &&
-      assert(codec.decode(toHeapByteBuffer(invalidJson)))(isLeft(hasError(error))) &&
-      assert(codec.decode(toDirectByteBuffer(invalidJson)))(isLeft(hasError(error)))
+    decodeError(invalidJson, error, codec, ReaderConfig)
+
+  def decodeError[A](
+    invalidJson: Array[Byte],
+    error: String,
+    codec: JsonBinaryCodec[A],
+    readerConfig: ReaderConfig
+  ): TestResult =
+    assert(codec.decode(invalidJson, readerConfig))(isLeft(hasError(error))) &&
+      assert(codec.decode(toInputStream(invalidJson), readerConfig))(isLeft(hasError(error))) &&
+      assert(codec.decode(toHeapByteBuffer(invalidJson), readerConfig))(isLeft(hasError(error))) &&
+      assert(codec.decode(toDirectByteBuffer(invalidJson), readerConfig))(isLeft(hasError(error)))
 
   def encode[A](value: A, expectedJson: String)(implicit schema: Schema[A]): TestResult =
     encode(value, expectedJson, getOrDeriveCodec(schema))
