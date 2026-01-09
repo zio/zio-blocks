@@ -1,11 +1,11 @@
 package zio.blocks.schema.migration
 
-import zio.schema.DynamicValue
 import zio.blocks.schema.migration.optic.DynamicOptic
 
 /**
  * Represents a purely data-driven migration step.
  * Uses DynamicOptic for paths and SchemaExpr for transformation logic.
+ * STRICTLY ALGEBRAIC: Uses SchemaExpr instead of raw values where possible.
  */
 sealed trait MigrationAction {
   def at: DynamicOptic
@@ -17,7 +17,7 @@ object MigrationAction {
 
   final case class AddField(
     at: DynamicOptic,
-    defaultValue: DynamicValue
+    defaultValue: SchemaExpr // UPDATED: DynamicValue থেকে SchemaExpr এ পরিবর্তন করা হলো
   ) extends MigrationAction
 
   final case class RenameField(
@@ -35,18 +35,18 @@ object MigrationAction {
     targetType: String 
   ) extends MigrationAction
 
-  // --- Complex Actions (New additions) ---
+  // --- Complex Actions ---
 
   // ১. ভ্যালু ট্রান্সফর্ম করা (যেমন: স্যালারি ১০% বাড়ানো)
   final case class TransformValue(
     at: DynamicOptic,
-    transform: SchemaExpr // ফাংশনের বদলে আমরা SchemaExpr ব্যবহার করছি
+    transform: SchemaExpr 
   ) extends MigrationAction
 
   // ২. অপশনাল ফিল্ডকে ম্যান্ডেটরি করা (Option[T] -> T)
   final case class MandateField(
     at: DynamicOptic,
-    default: SchemaExpr // যদি নাল থাকে, তবে কী বসবে?
+    default: SchemaExpr 
   ) extends MigrationAction
 
   // ৩. ম্যান্ডেটরি ফিল্ডকে অপশনাল করা (T -> Option[T])
