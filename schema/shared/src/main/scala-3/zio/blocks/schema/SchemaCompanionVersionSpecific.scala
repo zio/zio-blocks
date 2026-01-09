@@ -679,14 +679,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
+                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
-                          val newLen = Math.max(idx << 1, 1)
+                          val newLen = idx << 1
                           buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
                           builder.buffer = buf
                         }
@@ -728,14 +728,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.IArrayConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
+                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
-                          val newLen = Math.max(idx << 1, 1)
+                          val newLen = idx << 1
                           buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
                           builder.buffer = buf
                         }
@@ -777,14 +777,14 @@ private class SchemaCompanionVersionSpecificImpl(using Quotes) {
                   seqBinding = new Binding.Seq(
                     constructor = new SeqConstructor.ArraySeqConstructor {
                       def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                        new Builder(new Array[et](sizeHint).asInstanceOf[Array[B]], 0)
+                        new Builder(new Array[et](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                       def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                         var buf = builder.buffer
                         val idx = builder.size
                         if (buf.length == idx) {
                           val xs     = buf.asInstanceOf[Array[et]]
-                          val newLen = Math.max(idx << 1, 1)
+                          val newLen = idx << 1
                           buf = ${ genArraysCopyOf[et](eTpe, 'xs, 'newLen) }.asInstanceOf[Array[B]]
                           builder.buffer = buf
                         }
