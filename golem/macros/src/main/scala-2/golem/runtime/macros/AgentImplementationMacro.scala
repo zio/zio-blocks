@@ -6,14 +6,14 @@ import golem.runtime.plan.AgentImplementationPlan
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
+// format: off
 object AgentImplementationMacro {
-  def plan[Trait](build: => Trait): AgentImplementationPlan[Trait, Unit] = macro
-    AgentImplementationMacroImpl.planImpl[Trait]
+  def plan[Trait](build: => Trait): AgentImplementationPlan[Trait, Unit] =
+    macro AgentImplementationMacroImpl.planImpl[Trait]
 
   def planWithCtor[Trait <: AnyRef { type AgentInput }, Ctor](
     build: Ctor => Trait
-  ): AgentImplementationPlan[Trait, Ctor] = macro
-    AgentImplementationMacroImpl.planWithCtorImpl[Trait, Ctor]
+  ): AgentImplementationPlan[Trait, Ctor] = macro AgentImplementationMacroImpl.planWithCtorImpl[Trait, Ctor]
 }
 
 object AgentImplementationMacroImpl {

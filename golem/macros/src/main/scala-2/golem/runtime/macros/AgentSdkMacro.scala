@@ -6,8 +6,7 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 object AgentSdkMacro {
-  def derived[Trait]: _root_.golem.AgentApi[Trait] = macro
-    AgentSdkMacroImpl.derivedImpl[Trait]
+  def derived[Trait]: _root_.golem.AgentApi[Trait] = macro AgentSdkMacroImpl.derivedImpl[Trait]
 }
 
 object AgentSdkMacroImpl {

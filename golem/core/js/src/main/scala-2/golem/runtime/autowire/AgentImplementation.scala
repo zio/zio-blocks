@@ -40,6 +40,7 @@ import scala.reflect.macros.blackbox
  * @see
  *   [[AgentMode]] for available agent modes
  */
+// format: off
 object AgentImplementation {
   // ---------------------------------------------------------------------------
   // Internal hooks used by macro expansions
@@ -76,15 +77,15 @@ object AgentImplementation {
    * @return
    *   The registered agent definition
    */
-  def register[Trait](typeName: String)(build: => Trait): AgentDefinition[Trait] = macro
-    AgentImplementationMacroFacade.registerImpl[Trait]
+  def register[Trait](typeName: String)(build: => Trait): AgentDefinition[Trait] =
+    macro AgentImplementationMacroFacade.registerImpl[Trait]
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait.
    */
-  def register[Trait](build: => Trait): AgentDefinition[Trait] = macro
-    AgentImplementationMacroFacade.registerImplCustomAgentTypeName[Trait]
+  def register[Trait](build: => Trait): AgentDefinition[Trait] =
+    macro AgentImplementationMacroFacade.registerImplCustomAgentTypeName[Trait]
 
   /**
    * Registers an agent implementation using constructor input, as defined by
@@ -93,8 +94,8 @@ object AgentImplementation {
    * The agent mode is taken from the trait annotations (e.g.
    * `@mode(DurabilityMode.Durable)`) or defaults to Durable when not specified.
    */
-  def register[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentDefinition[Trait] = macro
-    AgentImplementationMacroFacade.registerFromAnnotationCtorImpl[Trait, Ctor]
+  def register[Trait <: AnyRef { type AgentInput }, Ctor](build: Ctor => Trait): AgentDefinition[Trait] =
+    macro AgentImplementationMacroFacade.registerFromAnnotationCtorImpl[Trait, Ctor]
 
   /**
    * Registers an agent implementation with a specific mode.
@@ -110,15 +111,15 @@ object AgentImplementation {
    * @return
    *   The registered agent definition
    */
-  def registerWithMode[Trait](typeName: String, mode: AgentMode)(build: => Trait): AgentDefinition[Trait] = macro
-    AgentImplementationMacroFacade.registerWithModeImpl[Trait]
+  def registerWithMode[Trait](typeName: String, mode: AgentMode)(build: => Trait): AgentDefinition[Trait] =
+    macro AgentImplementationMacroFacade.registerWithModeImpl[Trait]
 
   /**
    * Registers an agent implementation using the agent type name from
    * `@agentDefinition("...")` on the trait, with a mode override.
    */
-  def register[Trait](mode: AgentMode)(build: => Trait): AgentDefinition[Trait] = macro
-    AgentImplementationMacroFacade.registerFromAnnotationWithModeImpl[Trait]
+  def register[Trait](mode: AgentMode)(build: => Trait): AgentDefinition[Trait] =
+    macro AgentImplementationMacroFacade.registerFromAnnotationWithModeImpl[Trait]
 }
 
 object AgentImplementationMacroFacade {
