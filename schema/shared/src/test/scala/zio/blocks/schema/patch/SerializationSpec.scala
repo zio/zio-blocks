@@ -2,7 +2,7 @@ package zio.blocks.schema.patch
 
 import zio.blocks.schema._
 import zio.blocks.schema.json.JsonTestUtils._
-import zio.blocks.schema.patch.PatchSchemas._
+import zio.blocks.schema.PatchSchemas._
 import zio.test._
 
 object SerializationSpec extends ZIOSpecDefault {
