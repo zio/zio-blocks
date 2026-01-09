@@ -2,6 +2,7 @@ package zio.blocks.schema.patch
 
 import zio.blocks.schema._
 import zio.test._
+import zio.Random
 import java.time._
 
 object DiffSpec extends ZIOSpecDefault {
@@ -43,12 +44,13 @@ object DiffSpec extends ZIOSpecDefault {
         assertTrue(result == Right(false))
       },
       test("diff on UUID uses Set") {
-        val schema = Schema[java.util.UUID]
-        val uuid1  = java.util.UUID.randomUUID()
-        val uuid2  = java.util.UUID.randomUUID()
-        val patch  = schema.diff(uuid1, uuid2)
-        val result = patch(uuid1, PatchMode.Strict)
-        assertTrue(result == Right(uuid2))
+        for {
+          uuid1 <- Random.nextUUID
+          uuid2 <- Random.nextUUID
+          schema = Schema[java.util.UUID]
+          patch  = schema.diff(uuid1, uuid2)
+          result = patch(uuid1, PatchMode.Strict)
+        } yield assertTrue(result == Right(uuid2))
       }
     ),
     suite("Numeric diffing")(
