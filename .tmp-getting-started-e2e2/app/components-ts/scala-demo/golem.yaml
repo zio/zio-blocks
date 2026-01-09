@@ -1,0 +1,6 @@
+components:
+  scala:demo:
+    template: scala.js
+
+dependencies:
+  scala:demo:

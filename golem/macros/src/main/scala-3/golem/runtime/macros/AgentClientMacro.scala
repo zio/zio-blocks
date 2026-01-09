@@ -1,0 +1,490 @@
+package golem.runtime.macros
+
+import golem.data.{ElementSchema, GolemSchema, NamedElementSchema, StructuredSchema}
+import golem.runtime.MethodMetadata
+import golem.runtime.plan.{AgentClientPlan, ClientInvocation, ClientMethodPlan, ConstructorPlan}
+// Macro annotations live in a separate module; do not depend on them here.
+
+import scala.quoted.*
+
+object AgentClientMacro {
+  transparent inline def plan[Trait]: AgentClientPlan[Trait, ?] =
+    ${ planImpl[Trait] }
+
+  private def planImpl[Trait: Type](using Quotes): Expr[AgentClientPlan[Trait, ?]] = {
+    import quotes.reflect.*
+
+    val traitRepr   = TypeRepr.of[Trait]
+    val traitSymbol = traitRepr.typeSymbol
+
+    if !traitSymbol.flags.is(Flags.Trait) then
+      report.errorAndAbort(s"Agent client target must be a trait, found: ${traitSymbol.fullName}")
+
+    val (constructorType, constructorPlanExpr) = buildConstructorPlan(traitRepr, traitSymbol)
+    val agentTypeName                          = agentTypeNameOrDefault(traitSymbol)
+
+    val methods = traitSymbol.methodMembers.collect {
+      case method if method.flags.is(Flags.Deferred) && method.isDefDef && method.name != "new" =>
+        buildMethodPlan[Trait](method)
+    }
+
+    val traitNameExpr   = Expr(agentTypeName)
+    val methodPlansExpr = Expr.ofList(methods)
+
+    constructorType.asType match {
+      case '[ctor] =>
+        val traitClassNameExpr = Expr(traitSymbol.fullName)
+        '{
+          AgentClientPlan[Trait, ctor](
+            traitClassName = $traitClassNameExpr,
+            traitName = $traitNameExpr,
+            constructor = $constructorPlanExpr.asInstanceOf[ConstructorPlan[ctor]],
+            methods = $methodPlansExpr
+          )
+        }
+    }
+  }
+
+  private def buildConstructorPlan(using
+    Quotes
+  )(
+    traitRepr: quotes.reflect.TypeRepr,
+    traitSymbol: quotes.reflect.Symbol
+  ): (quotes.reflect.TypeRepr, Expr[ConstructorPlan[?]]) = {
+    import quotes.reflect.*
+
+    val inputType  = agentInputType(traitRepr, traitSymbol)
+    val accessMode =
+      if inputType =:= TypeRepr.of[Unit] then MethodParamAccess.NoArgs
+      else MethodParamAccess.SingleArg
+    val parameters =
+      if accessMode == MethodParamAccess.SingleArg then List(("args", inputType)) else Nil
+
+    val planExpr =
+      inputType.asType match {
+        case '[input] =>
+          val schemaExpr: Expr[GolemSchema[input]] = accessMode match {
+            case MethodParamAccess.MultiArgs =>
+              multiParamSchemaExpr("new", parameters).asExprOf[GolemSchema[input]]
+            case _ =>
+              summonSchema[input]("new", "input")
+          }
+          '{ ConstructorPlan[input]($schemaExpr) }
+      }
+
+    (inputType, planExpr)
+  }
+
+  private def agentTypeNameOrDefault(using Quotes)(traitSymbol: quotes.reflect.Symbol): String = {
+    import quotes.reflect.*
+    def defaultTypeNameFromTrait(sym: Symbol): String =
+      kebabCase(sym.name)
+
+    def extractTypeName(args: List[Term]): Option[String] =
+      args.collectFirst {
+        case Literal(StringConstant(value))                   => value
+        case NamedArg("typeName", Literal(StringConstant(v))) => v
+      }
+
+    val annArgsOpt =
+      traitSymbol.annotations.collectFirst {
+        case Apply(Select(New(tpt), _), args)
+            if tpt.tpe.typeSymbol.fullName == "golem.runtime.annotations.agentDefinition" =>
+          args
+      }
+
+    annArgsOpt match {
+      case None =>
+        // Keep agent clients consistent with AgentNameMacro: require an explicit marker annotation.
+        report.errorAndAbort(s"Missing @agentDefinition(...) on agent trait: ${traitSymbol.fullName}")
+      case Some(args) =>
+        extractTypeName(args) match {
+          case Some(value) if value.trim.nonEmpty => value
+          case _                                  => defaultTypeNameFromTrait(traitSymbol)
+        }
+    }
+  }
+
+  private def agentInputType(using
+    Quotes
+  )(
+    traitRepr: quotes.reflect.TypeRepr,
+    traitSymbol: quotes.reflect.Symbol
+  ): quotes.reflect.TypeRepr = {
+    import quotes.reflect.*
+    traitSymbol.typeMembers.find(_.name == "AgentInput") match {
+      case Some(typeSym) =>
+        // If it's an abstract type with bounds, prefer the upper bound.
+        traitRepr.memberType(typeSym) match {
+          case TypeBounds(_, hi) => hi
+          case other             => other
+        }
+      case None =>
+        TypeRepr.of[Unit]
+    }
+  }
+
+  private def buildMethodPlan[Trait: Type](using
+    Quotes
+  )(
+    method: quotes.reflect.Symbol
+  ): Expr[ClientMethodPlan[Trait, ?, ?]] = {
+
+    val metadataExpr = methodMetadata(method)
+    val agentType    = agentTypeNameOrDefault(method.owner)
+    val kebabName    = kebabCase(method.name)
+    val functionName = Expr(s"$agentType.{$kebabName}")
+
+    val parameters                   = extractParameters(method)
+    val accessMode                   = methodAccess(parameters)
+    val inputType                    = inputTypeFor(accessMode, parameters)
+    val (invocationKind, outputType) = methodInvocationInfo(method)
+    val invocationExpr               = invocationKind match {
+      case InvocationKind.Awaitable     => '{ ClientInvocation.Awaitable }
+      case InvocationKind.FireAndForget => '{ ClientInvocation.FireAndForget }
+    }
+
+    inputType.asType match {
+      case '[input] =>
+        val inputSchemaExpr: Expr[GolemSchema[input]] =
+          accessMode match {
+            case MethodParamAccess.MultiArgs =>
+              multiParamSchemaExpr(method.name, parameters).asExprOf[GolemSchema[input]]
+            case _ =>
+              summonSchema[input](method.name, "input")
+          }
+
+        outputType.asType match {
+          case '[output] =>
+            val outputSchemaExpr: Expr[GolemSchema[output]] =
+              invocationKind match {
+                case InvocationKind.Awaitable =>
+                  summonSchema[output](method.name, "output")
+                case InvocationKind.FireAndForget =>
+                  summonSchema[output](method.name, "output")
+              }
+
+            '{
+              ClientMethodPlan[Trait, input, output](
+                metadata = $metadataExpr,
+                functionName = $functionName,
+                inputSchema = $inputSchemaExpr,
+                outputSchema = $outputSchemaExpr,
+                invocation = $invocationExpr
+              )
+            }
+        }
+    }
+  }
+
+  private def methodMetadata(using Quotes)(method: quotes.reflect.Symbol): Expr[MethodMetadata] = {
+
+    val methodName   = Expr(method.name)
+    val inputSchema  = methodInputSchema(method)
+    val outputSchema = methodOutputSchema(method)
+
+    '{
+      MethodMetadata(
+        name = $methodName,
+        description = None,
+        prompt = None,
+        mode = None,
+        input = $inputSchema,
+        output = $outputSchema
+      )
+    }
+  }
+
+  private def methodInputSchema(using Quotes)(method: quotes.reflect.Symbol): Expr[StructuredSchema] = {
+
+    val params = extractParameters(method)
+
+    if params.isEmpty then '{ StructuredSchema.Tuple(Nil) }
+    else if params.length == 1 then {
+      val (_, paramType) = params.head
+      structuredSchemaExpr(paramType)
+    } else {
+      val elements = params.map { case (name, tpe) =>
+        val schemaExpr = elementSchemaExpr(name, tpe)
+        '{ NamedElementSchema(${ Expr(name) }, $schemaExpr) }
+      }
+      val listExpr = Expr.ofList(elements)
+      '{ StructuredSchema.Tuple($listExpr) }
+    }
+  }
+
+  private def elementSchemaExpr(using Quotes)(paramName: String, tpe: quotes.reflect.TypeRepr): Expr[ElementSchema] = {
+    import quotes.reflect.*
+
+    tpe.asType match {
+      case '[t] =>
+        Expr.summon[GolemSchema[t]] match {
+          case Some(schemaExpr) =>
+            '{
+              $schemaExpr.schema match {
+                case StructuredSchema.Tuple(elements) if elements.length == 1 =>
+                  elements.head.schema
+                case StructuredSchema.Tuple(_) =>
+                  throw new IllegalArgumentException(
+                    s"Parameter ${${ Expr(paramName) }} expands to multiple elements; wrap it in a case class"
+                  )
+                case StructuredSchema.Multimodal(_) =>
+                  throw new IllegalArgumentException(
+                    s"Parameter ${${ Expr(paramName) }} is multimodal; use a single multimodal wrapper parameter"
+                  )
+              }
+            }
+          case None =>
+            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}")
+        }
+    }
+  }
+
+  private def methodOutputSchema(using Quotes)(method: quotes.reflect.Symbol): Expr[StructuredSchema] = {
+    import quotes.reflect.*
+    method.tree match {
+      case d: DefDef =>
+        val outputType = unwrapAsyncType(d.returnTpt.tpe)
+        structuredSchemaExpr(outputType)
+      case other =>
+        report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")
+    }
+  }
+
+  private def structuredSchemaExpr(using Quotes)(tpe: quotes.reflect.TypeRepr): Expr[StructuredSchema] = {
+    import quotes.reflect.*
+    tpe.asType match {
+      case '[t] =>
+        Expr.summon[GolemSchema[t]] match {
+          case Some(schemaExpr) =>
+            '{ $schemaExpr.schema }
+          case None =>
+            report.errorAndAbort(s"No implicit GolemSchema available for type ${Type.show[t]}")
+        }
+    }
+  }
+
+  private def unwrapAsyncType(using Quotes)(tpe: quotes.reflect.TypeRepr): quotes.reflect.TypeRepr = {
+    import quotes.reflect.*
+    tpe match {
+      case AppliedType(constructor, args) if isAsyncReturn(constructor) && args.nonEmpty =>
+        args.head
+      case other =>
+        other
+    }
+  }
+
+  private def isAsyncReturn(using Quotes)(constructor: quotes.reflect.TypeRepr): Boolean = {
+    val name = constructor.typeSymbol.fullName
+    name == "scala.concurrent.Future" || name == "scala.scalajs.js.Promise"
+  }
+
+  private def extractParameters(using
+    Quotes
+  )(method: quotes.reflect.Symbol): List[(String, quotes.reflect.TypeRepr)] = {
+    import quotes.reflect.*
+    method.paramSymss.collectFirst {
+      case params if params.forall(_.isTerm) =>
+        params.collect {
+          case sym if sym.isTerm =>
+            sym.tree match {
+              case v: ValDef => (sym.name, v.tpt.tpe)
+              case other     => report.errorAndAbort(s"Unsupported parameter declaration in ${method.name}: $other")
+            }
+        }
+    }.getOrElse(Nil)
+  }
+
+  private def methodAccess(using Quotes)(parameters: List[(String, quotes.reflect.TypeRepr)]): MethodParamAccess =
+    parameters match {
+      case Nil      => MethodParamAccess.NoArgs
+      case _ :: Nil => MethodParamAccess.SingleArg
+      case _        => MethodParamAccess.MultiArgs
+    }
+
+  private def inputTypeFor(using
+    Quotes
+  )(
+    access: MethodParamAccess,
+    parameters: List[(String, quotes.reflect.TypeRepr)]
+  ): quotes.reflect.TypeRepr =
+    access match {
+      case MethodParamAccess.NoArgs    => quotes.reflect.TypeRepr.of[Unit]
+      case MethodParamAccess.SingleArg => parameters.head._2
+      case MethodParamAccess.MultiArgs => quotes.reflect.TypeRepr.of[Vector[Any]]
+    }
+
+  private def methodInvocationInfo(using
+    Quotes
+  )(
+    method: quotes.reflect.Symbol
+  ): (InvocationKind, quotes.reflect.TypeRepr) = {
+    import quotes.reflect.*
+    method.tree match {
+      case d: DefDef =>
+        val returnType = d.returnTpt.tpe
+        returnType match {
+          case AppliedType(constructor, args) if isAsyncReturn(constructor) && args.nonEmpty =>
+            (InvocationKind.Awaitable, args.head)
+          case _ =>
+            if returnType =:= TypeRepr.of[Unit] then (InvocationKind.FireAndForget, TypeRepr.of[Unit])
+            else {
+              report.errorAndAbort(
+                s"Agent client method ${method.name} must return scala.concurrent.Future[...] or Unit, found: ${returnType.show}"
+              )
+            }
+        }
+      case other =>
+        report.errorAndAbort(s"Unable to read return type for ${method.name}: $other")
+    }
+  }
+
+  private def kebabCase(name: String): String = {
+    val builder = new StringBuilder
+    name.zipWithIndex.foreach { case (ch, idx) =>
+      if (ch.isUpper) {
+        if (idx != 0) builder.append('-')
+        builder.append(ch.toLower)
+      } else {
+        builder.append(ch)
+      }
+    }
+    builder.toString
+  }
+
+  private def summonSchema[A: Type](methodName: String, position: String)(using Quotes): Expr[GolemSchema[A]] =
+    Expr.summon[GolemSchema[A]].getOrElse {
+      import quotes.reflect.*
+      report.errorAndAbort(
+        s"Unable to summon GolemSchema for $position of method $methodName with type ${Type.show[A]}"
+      )
+    }
+
+  private def multiParamSchemaExpr(using
+    Quotes
+  )(
+    methodName: String,
+    params: List[(String, quotes.reflect.TypeRepr)]
+  ): Expr[GolemSchema[Vector[Any]]] = {
+
+    val methodNameExpr    = Expr(methodName)
+    val expectedCountExpr = Expr(params.length)
+
+    val paramEntries: Seq[Expr[(String, GolemSchema[Any])]] =
+      params.map { case (name, tpe) =>
+        tpe.asType match {
+          case '[p] =>
+            val codecExpr = summonSchema[p](methodName, s"parameter '$name'")
+            '{ (${ Expr(name) }, $codecExpr.asInstanceOf[GolemSchema[Any]]) }
+        }
+      }
+
+    val paramsArrayExpr =
+      '{ Array[(String, GolemSchema[Any])](${ Varargs(paramEntries) }*) }
+
+    '{
+      new GolemSchema[Vector[Any]] {
+        private val params = $paramsArrayExpr
+
+        override val schema: _root_.golem.data.StructuredSchema = {
+          val builder = List.newBuilder[_root_.golem.data.NamedElementSchema]
+          var idx     = 0
+          while (idx < params.length) {
+            val (paramName, codec) = params(idx)
+            codec.schema match {
+              case _root_.golem.data.StructuredSchema.Tuple(elements) if elements.length == 1 =>
+                builder += _root_.golem.data.NamedElementSchema(paramName, elements.head.schema)
+              case other =>
+                throw new IllegalArgumentException(
+                  s"Parameter '$paramName' in method '${$methodNameExpr}' must encode to a single element, found: $other"
+                )
+            }
+            idx += 1
+          }
+          _root_.golem.data.StructuredSchema.Tuple(builder.result())
+        }
+
+        override def encode(value: Vector[Any]): Either[String, _root_.golem.data.StructuredValue] =
+          if (value.length != params.length)
+            Left(
+              s"Parameter count mismatch for method '${$methodNameExpr}'. Expected ${$expectedCountExpr}, found ${value.length}"
+            )
+          else {
+            val builder = List.newBuilder[_root_.golem.data.NamedElementValue]
+            var idx     = 0
+            while (idx < params.length) {
+              val (paramName, codec) = params(idx)
+              codec.encode(value(idx)) match {
+                case Left(err) =>
+                  return Left(s"Failed to encode parameter '$paramName' in method '${$methodNameExpr}': $err")
+                case Right(_root_.golem.data.StructuredValue.Tuple(elements)) =>
+                  elements match {
+                    case _root_.golem.data.NamedElementValue(_, elementValue) :: Nil =>
+                      builder += _root_.golem.data.NamedElementValue(paramName, elementValue)
+                    case _ =>
+                      return Left(
+                        s"Parameter '$paramName' in method '${$methodNameExpr}' must encode to a single element value"
+                      )
+                  }
+                case Right(other) =>
+                  return Left(
+                    s"Parameter '$paramName' in method '${$methodNameExpr}' produced unexpected structured value: $other"
+                  )
+              }
+              idx += 1
+            }
+            Right(_root_.golem.data.StructuredValue.Tuple(builder.result()))
+          }
+
+        override def decode(
+          value: _root_.golem.data.StructuredValue
+        ): Either[String, Vector[Any]] =
+          value match {
+            case _root_.golem.data.StructuredValue.Tuple(elements) =>
+              if (elements.length != params.length)
+                Left(
+                  s"Structured element count mismatch for method '${$methodNameExpr}'. Expected ${$expectedCountExpr}, found ${elements.length}"
+                )
+              else {
+                var idx     = 0
+                var failure = Option.empty[String]
+                val buffer  = Vector.newBuilder[Any]
+
+                while (idx < params.length && failure.isEmpty) {
+                  val (paramName, codec) = params(idx)
+                  val element            = elements(idx)
+                  if (element.name != paramName)
+                    failure = Some(
+                      s"Structured element name mismatch for method '${$methodNameExpr}'. Expected '$paramName', found '${element.name}'"
+                    )
+                  else {
+                    codec.decode(_root_.golem.data.StructuredValue.single(element.value)) match {
+                      case Left(err) =>
+                        failure = Some(s"Failed to decode parameter '$paramName' in method '${$methodNameExpr}': $err")
+                      case Right(decoded) =>
+                        buffer += decoded
+                    }
+                  }
+                  idx += 1
+                }
+
+                failure.fold[Either[String, Vector[Any]]](Right(buffer.result()))(Left(_))
+              }
+            case other =>
+              Left(s"Structured value mismatch for method '${$methodNameExpr}'. Expected tuple payload, found: $other")
+          }
+      }
+    }
+  }
+
+  private enum MethodParamAccess {
+    case NoArgs
+    case SingleArg
+    case MultiArgs
+  }
+
+  private enum InvocationKind {
+    case Awaitable
+    case FireAndForget
+  }
+}
