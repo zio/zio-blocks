@@ -142,9 +142,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
   def decode(input: ByteBuffer, config: ReaderConfig): Either[SchemaError, A] =
     try {
       var reader = JsonBinaryCodec.readerPool.get
-      if (reader.isInUse) {
-        reader = new JsonReader(buf = Array.emptyByteArray, charBuf = new Array[Char](config.preferredCharBufSize))
-      }
+      if (reader.isInUse) reader = jsonReader(Array.emptyByteArray, config)
       new Right(reader.read(this, input, config))
     } catch {
       case error if NonFatal(error) => new Left(toError(error))
@@ -164,7 +162,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    */
   def encode(value: A, output: ByteBuffer, config: WriterConfig): Unit = {
     var writer = JsonBinaryCodec.writerPool.get
-    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    if (writer.isInUse) writer = jsonWriter(config)
     writer.write(this, value, output, config)
   }
 
@@ -207,9 +205,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
   def decode(input: Array[Byte], config: ReaderConfig): Either[SchemaError, A] =
     try {
       var reader = JsonBinaryCodec.readerPool.get
-      if (reader.isInUse) {
-        reader = new JsonReader(buf = input, charBuf = new Array[Char](config.preferredCharBufSize))
-      }
+      if (reader.isInUse) reader = jsonReader(input, config)
       new Right(reader.read(this, input, 0, input.length, config))
     } catch {
       case error if NonFatal(error) => new Left(toError(error))
@@ -228,7 +224,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    */
   def encode(value: A, config: WriterConfig): Array[Byte] = {
     var writer = JsonBinaryCodec.writerPool.get
-    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    if (writer.isInUse) writer = jsonWriter(config)
     writer.write(this, value, config)
   }
 
@@ -271,9 +267,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
   def decode(input: java.io.InputStream, config: ReaderConfig): Either[SchemaError, A] =
     try {
       var reader = JsonBinaryCodec.readerPool.get
-      if (reader.isInUse) {
-        reader = new JsonReader(buf = Array.emptyByteArray, charBuf = new Array[Char](config.preferredCharBufSize))
-      }
+      if (reader.isInUse) reader = jsonReader(Array.emptyByteArray, config)
       new Right(reader.read(this, input, config))
     } catch {
       case error if NonFatal(error) => new Left(toError(error))
@@ -293,7 +287,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    */
   def encode(value: A, output: java.io.OutputStream, config: WriterConfig): Unit = {
     var writer = JsonBinaryCodec.writerPool.get
-    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    if (writer.isInUse) writer = jsonWriter(config)
     writer.write(this, value, output, config)
   }
 
@@ -337,9 +331,7 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
     try {
       val buf    = input.getBytes(UTF_8)
       var reader = JsonBinaryCodec.readerPool.get
-      if (reader.isInUse) {
-        reader = new JsonReader(buf = buf, charBuf = new Array[Char](config.preferredCharBufSize))
-      }
+      if (reader.isInUse) reader = jsonReader(buf, config)
       new Right(reader.read(this, buf, 0, buf.length, config))
     } catch {
       case error if NonFatal(error) => new Left(toError(error))
@@ -358,9 +350,15 @@ abstract class JsonBinaryCodec[A](val valueType: Int = JsonBinaryCodec.objectTyp
    */
   def encodeToString(value: A, config: WriterConfig): String = {
     var writer = JsonBinaryCodec.writerPool.get
-    if (writer.isInUse) writer = new JsonWriter(buf = Array.emptyByteArray, limit = 0)
+    if (writer.isInUse) writer = jsonWriter(config)
     writer.writeToString(this, value, config)
   }
+
+  private[this] def jsonReader(buf: Array[Byte], config: ReaderConfig): JsonReader =
+    new JsonReader(buf = buf, charBuf = new Array[Char](config.preferredCharBufSize), config = config)
+
+  private[this] def jsonWriter(config: WriterConfig): JsonWriter =
+    new JsonWriter(buf = Array.emptyByteArray, limit = 0, config = config)
 
   private[this] def toError(error: Throwable): SchemaError = new SchemaError(
     new ::(
