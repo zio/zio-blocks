@@ -1,11 +1,11 @@
 package zio.blocks.schema.migration
 
+import zio.schema.DynamicValue
 import zio.blocks.schema.migration.optic.DynamicOptic
 
 /**
  * Represents a purely data-driven migration step.
  * Uses DynamicOptic for paths and SchemaExpr for transformation logic.
- * STRICTLY ALGEBRAIC: Uses SchemaExpr instead of raw values where possible.
  */
 sealed trait MigrationAction {
   def at: DynamicOptic
@@ -17,7 +17,7 @@ object MigrationAction {
 
   final case class AddField(
     at: DynamicOptic,
-    defaultValue: SchemaExpr // UPDATED: DynamicValue থেকে SchemaExpr এ পরিবর্তন করা হলো
+    defaultValue: SchemaExpr // Updated: Phase 3 তে আমরা Pure Algebraic হওয়ার জন্য SchemaExpr ব্যবহার করছি
   ) extends MigrationAction
 
   final case class RenameField(
@@ -27,45 +27,41 @@ object MigrationAction {
 
   final case class DeleteField(
     at: DynamicOptic,
-    defaultForReverse: SchemaExpr = SchemaExpr.DefaultValue // রিভার্স করার জন্য ব্যাকআপ
+    defaultForReverse: SchemaExpr = SchemaExpr.DefaultValue
   ) extends MigrationAction
 
+  // 🔥 UPDATED: Matching with MigrationBuilder.changeFieldType
   final case class ChangeType(
     at: DynamicOptic,
-    targetType: String 
+    converter: String // Renamed from 'targetType' to 'converter' to match the Builder logic
   ) extends MigrationAction
 
   // --- Complex Actions ---
 
-  // ১. ভ্যালু ট্রান্সফর্ম করা (যেমন: স্যালারি ১০% বাড়ানো)
   final case class TransformValue(
     at: DynamicOptic,
-    transform: SchemaExpr 
+    transform: SchemaExpr
   ) extends MigrationAction
 
-  // ২. অপশনাল ফিল্ডকে ম্যান্ডেটরি করা (Option[T] -> T)
   final case class MandateField(
     at: DynamicOptic,
-    default: SchemaExpr 
+    default: SchemaExpr
   ) extends MigrationAction
 
-  // ৩. ম্যান্ডেটরি ফিল্ডকে অপশনাল করা (T -> Option[T])
   final case class OptionalizeField(
     at: DynamicOptic
   ) extends MigrationAction
 
-  // ৪. একাধিক ফিল্ড জোড়া লাগানো (যেমন: first + last = fullName)
   final case class JoinFields(
-    at: DynamicOptic, // যেখানে রেজাল্ট বসবে
-    sourcePaths: Vector[DynamicOptic], // যেখান থেকে ডাটা আসবে
-    combiner: SchemaExpr // কিভাবে জোড়া লাগবে সেই লজিক
+    at: DynamicOptic,
+    sourcePaths: Vector[DynamicOptic],
+    combiner: SchemaExpr
   ) extends MigrationAction
 
-  // ৫. একটি ফিল্ড ভেঙে একাধিক করা (যেমন: fullName -> first, last)
   final case class SplitField(
-    at: DynamicOptic, // যে ফিল্ডটা ভাঙব
-    targetPaths: Vector[DynamicOptic], // যেখানে টুকরোগুলো যাবে
-    splitter: SchemaExpr // কিভাবে ভাঙব সেই লজিক
+    at: DynamicOptic,
+    targetPaths: Vector[DynamicOptic],
+    splitter: SchemaExpr
   ) extends MigrationAction
 }
 

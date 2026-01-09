@@ -1,14 +1,17 @@
 package zio.blocks.schema.migration
 
+import zio.schema.DynamicValue
+
 /**
  * Represents a pure, serializable expression for value transformation.
- * Instead of using Scala functions (A => B), we use this ADT.
- * * NOTE: This is currently a placeholder to allow compilation of MigrationAction.
- * We will implement the full expression language (Add, Concat, etc.) in a later phase.
+ * Updated to support Constants (for AddField) and DefaultValue (for DropField).
  */
 sealed trait SchemaExpr
 
 object SchemaExpr {
-  // ভবিষ্যতের জন্য একটি ডিফল্ট ভ্যালু প্লেসহোল্ডার রাখা হলো
+  // ১. যখন আমরা ফিল্ড ড্রপ করি, তখন রিভার্স করার জন্য ডিফল্ট ভ্যালু লাগে
   case object DefaultValue extends SchemaExpr
+
+  // ২. যখন আমরা নতুন ফিল্ড অ্যাড করি, তখন একটা ফিক্সড ভ্যালু দিতে হয় (যেমন: 0 বা "")
+  final case class Constant(value: DynamicValue) extends SchemaExpr
 }
