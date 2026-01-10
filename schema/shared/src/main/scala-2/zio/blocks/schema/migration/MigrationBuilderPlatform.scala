@@ -4,11 +4,12 @@ import zio.blocks.schema._
 
 /**
  * Version-specific methods for MigrationBuilder (Scala 2).
- * 
- * Provides string-based field selection for Scala 2 compatibility.
- * Redundant methods (already in shared MigrationBuilder) have been removed.
+ *
+ * Provides string-based field selection for Scala 2 compatibility. Redundant
+ * methods (already in shared MigrationBuilder) have been removed.
  */
 private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder[A, B] =>
+
   /**
    * Build the final migration with runtime validation.
    */
