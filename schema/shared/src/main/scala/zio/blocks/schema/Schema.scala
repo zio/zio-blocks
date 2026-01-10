@@ -93,10 +93,139 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
       new Binding.Wrapper(x => new Right(wrap(x)), unwrap)
     )
   )
+
+  /**
+   * Compute a minimal patch that transforms oldValue into newValue.
+   * Uses smart heuristics to choose between delta operations and set operations.
+   * 
+   * Note: For complex structural diffs, use `diffDynamic` which returns a `DynamicPatch`
+   * that can be applied via `Patch.applyDynamic`.
+   */
+  def diff(oldValue: A, newValue: A): Patch[A] = {
+    val oldDv = toDynamicValue(oldValue)
+    val newDv = toDynamicValue(newValue)
+    
+    if (oldDv == newDv) {
+      Patch.empty[A](this)
+    } else {
+      // For typed Patch, we create a wrapper that applies via DynamicPatch
+      Patch.fromDynamicPatch(Schema.computeDiff(oldDv, newDv, DynamicOptic.root), this)
+    }
+  }
+
+  /**
+   * Compute a DynamicPatch that transforms oldValue into newValue.
+   * This is the most flexible form that can be serialized and applied with any PatchMode.
+   */
+  def diffDynamic(oldValue: A, newValue: A): DynamicPatch = {
+    val oldDv = toDynamicValue(oldValue)
+    val newDv = toDynamicValue(newValue)
+    Schema.computeDiff(oldDv, newDv, DynamicOptic.root)
+  }
+
+  /**
+   * Apply a DynamicPatch to a typed value.
+   */
+  def applyDynamicPatch(value: A, dynamicPatch: DynamicPatch, mode: PatchMode): Either[SchemaError, A] = {
+    val dynValue = toDynamicValue(value)
+    dynamicPatch(dynValue, mode).flatMap { resultDv =>
+      fromDynamicValue(resultDv)
+    }
+  }
+
+  /**
+   * Apply a patch to a value (convenience method with Strict mode).
+   */
+  def patch(value: A, p: Patch[A]): Either[OpticCheck, A] = p.applyOrFail(value)
 }
 
 object Schema extends SchemaCompanionVersionSpecific {
   def apply[A](implicit schema: Schema[A]): Schema[A] = schema
+
+  /**
+   * Compute a DynamicPatch that transforms oldValue into newValue.
+   */
+  private[schema] def computeDiff(
+    oldValue: DynamicValue,
+    newValue: DynamicValue,
+    path: DynamicOptic
+  ): DynamicPatch = {
+    if (oldValue == newValue) {
+      DynamicPatch.empty
+    } else {
+      (oldValue, newValue) match {
+        case (DynamicValue.Record(oldFields), DynamicValue.Record(newFields)) =>
+          // Diff each field
+          val ops = Vector.newBuilder[DynamicPatchOp]
+          val oldMap = oldFields.toMap
+          val newMap = newFields.toMap
+          
+          newFields.foreach { case (name, newFieldValue) =>
+            oldMap.get(name) match {
+              case Some(oldFieldValue) if oldFieldValue != newFieldValue =>
+                val fieldPath = path.field(name)
+                val fieldPatch = computeDiff(oldFieldValue, newFieldValue, fieldPath)
+                ops ++= fieldPatch.ops
+              case None =>
+                // New field - set it
+                ops += DynamicPatchOp(path.field(name), Operation.Set(newFieldValue))
+              case _ => // Same value, no-op
+            }
+          }
+          new DynamicPatch(ops.result())
+
+        case (DynamicValue.Variant(oldCase, oldInner), DynamicValue.Variant(newCase, newInner)) 
+            if oldCase == newCase =>
+          // Same case, diff inner value
+          computeDiff(oldInner, newInner, path.caseOf(oldCase))
+
+        case (DynamicValue.Sequence(oldElems), DynamicValue.Sequence(newElems)) =>
+          // Use LCS for sequence diff
+          val seqOps = LCS.diffSequences(oldElems, newElems)
+          if (seqOps.isEmpty) DynamicPatch.empty
+          else DynamicPatch.single(path, Operation.SequenceEdit(seqOps))
+
+        case (DynamicValue.Map(oldEntries), DynamicValue.Map(newEntries)) =>
+          // Use map diff
+          val mapOps = LCS.diffMaps(oldEntries, newEntries)
+          if (mapOps.isEmpty) DynamicPatch.empty
+          else DynamicPatch.single(path, Operation.MapEdit(mapOps))
+
+        case (DynamicValue.Primitive(oldPv), DynamicValue.Primitive(newPv)) =>
+          // Try to use delta operations for primitives
+          computePrimitiveDiff(oldPv, newPv, path)
+
+        case _ =>
+          // Different structure types - just set
+          DynamicPatch.single(path, Operation.Set(newValue))
+      }
+    }
+  }
+
+  private def computePrimitiveDiff(
+    oldPv: PrimitiveValue,
+    newPv: PrimitiveValue,
+    path: DynamicOptic
+  ): DynamicPatch = (oldPv, newPv) match {
+    case (PrimitiveValue.Int(o), PrimitiveValue.Int(n)) =>
+      DynamicPatch.single(path, Operation.PrimitiveDelta(PrimitiveOp.IntDelta(n - o)))
+    case (PrimitiveValue.Long(o), PrimitiveValue.Long(n)) =>
+      DynamicPatch.single(path, Operation.PrimitiveDelta(PrimitiveOp.LongDelta(n - o)))
+    case (PrimitiveValue.Double(o), PrimitiveValue.Double(n)) =>
+      DynamicPatch.single(path, Operation.PrimitiveDelta(PrimitiveOp.DoubleDelta(n - o)))
+    case (PrimitiveValue.Float(o), PrimitiveValue.Float(n)) =>
+      DynamicPatch.single(path, Operation.PrimitiveDelta(PrimitiveOp.FloatDelta(n - o)))
+    case (PrimitiveValue.String(o), PrimitiveValue.String(n)) =>
+      val ops = LCS.diffStrings(o, n)
+      if (ops.length < n.length) {
+        // Use edit ops if they are more compact than full string
+        DynamicPatch.single(path, Operation.PrimitiveDelta(PrimitiveOp.StringEdit(ops)))
+      } else {
+        DynamicPatch.single(path, Operation.Set(DynamicValue.Primitive(newPv)))
+      }
+    case _ =>
+      DynamicPatch.single(path, Operation.Set(DynamicValue.Primitive(newPv)))
+  }
 
   implicit val dynamic: Schema[DynamicValue] = new Schema(Reflect.dynamic[Binding])
 
