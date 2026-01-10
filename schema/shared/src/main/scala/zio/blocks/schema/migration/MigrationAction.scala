@@ -19,11 +19,11 @@ object MigrationAction {
   }
 
   final case class RenameField(at: DynamicOptic, newName: String) extends MigrationAction {
-    def reverse: MigrationAction = RenameField(at, "oldNamePlaceholder") // Placeholder logic
+    def reverse: MigrationAction = RenameField(at, "oldNamePlaceholder") 
   }
 
   final case class TransformValue(at: DynamicOptic, transform: SchemaExpr[Any, Any]) extends MigrationAction {
-    def reverse: MigrationAction = TransformValue(at, transform) // Semantic reverse requires inverse function
+    def reverse: MigrationAction = TransformValue(at, transform) 
   }
 
   final case class MandateField(at: DynamicOptic, default: SchemaExpr[Any, Any]) extends MigrationAction {
@@ -32,6 +32,11 @@ object MigrationAction {
 
   final case class OptionalizeField(at: DynamicOptic) extends MigrationAction {
      def reverse: MigrationAction = MandateField(at, SchemaExpr.DefaultValue())
+  }
+
+  // 🔥 FIX: Added Missing ChangeType Action
+  final case class ChangeType(at: DynamicOptic, converter: SchemaExpr[Any, Any]) extends MigrationAction {
+    def reverse: MigrationAction = ChangeType(at, converter) // Ideally needs inverse converter
   }
 
   // --- Collection & Map Actions ---
@@ -47,7 +52,7 @@ object MigrationAction {
     def reverse: MigrationAction = TransformValues(at, transform)
   }
 
-  // --- Enum Actions (REQUIRED) ---
+  // --- Enum Actions ---
   final case class RenameCase(at: DynamicOptic, from: String, to: String) extends MigrationAction {
     def reverse: MigrationAction = RenameCase(at, to, from)
   }

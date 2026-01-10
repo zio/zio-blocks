@@ -2,7 +2,7 @@ package zio.blocks.schema.migration
 
 import zio.schema.DynamicValue
 import zio.blocks.schema.migration.optic.{DynamicOptic, OpticStep}
-import scala.collection.immutable.ListMap
+// import scala.collection.immutable.ListMap // Unused import removed
 
 object MigrationEngine {
 
@@ -32,10 +32,30 @@ object MigrationEngine {
         updateAt(value, at) { leafValue =>
           transform.evalDynamic(leafValue).map(_.head)
         }
+      
+      // 🔥 FIX: Added Logic for ChangeType
+      case MigrationAction.ChangeType(at, converter) =>
+        updateAt(value, at) { leafValue =>
+          converter.evalDynamic(leafValue).map(_.head)
+        }
 
-      // --- Collection Actions (FIXED) ---
+      case MigrationAction.MandateField(at, default) =>
+         // Logic for Mandate (Option -> Value)
+         updateAt(value, at) { 
+           case DynamicValue.NoneValue => 
+             default.evalDynamic(value).map(_.head)
+           case DynamicValue.SomeValue(v) => Right(v)
+           case other => Right(other)
+         }
+
+      case MigrationAction.OptionalizeField(at) =>
+         // Logic for Optionalize (Value -> Option)
+         updateAt(value, at) { v => Right(DynamicValue.SomeValue(v)) }
+
+      // --- Collection Actions ---
       case MigrationAction.TransformElements(at, transform) =>
         updateAt(value, at) {
+          // 🔥 FIX: Correct syntax for Sequence
           case DynamicValue.Sequence(values) =>
             val newValues = values.map { v =>
               transform.evalDynamic(v).map(_.head)
@@ -45,9 +65,10 @@ object MigrationEngine {
           case other => Right(other)
         }
 
-      // --- Map Actions (FIXED) ---
+      // --- Map Actions ---
       case MigrationAction.TransformKeys(at, transform) =>
         updateAt(value, at) {
+          // 🔥 FIX: Correct syntax for Dictionary
           case DynamicValue.Dictionary(entries) =>
             val newEntries = entries.map { case (k, v) =>
                transform.evalDynamic(k).map(_.head).map(newK => (newK, v))
@@ -68,22 +89,22 @@ object MigrationEngine {
            case other => Right(other)
         }
 
-      // --- Enum Actions (FIXED) ---
+      // --- Enum Actions ---
       case MigrationAction.RenameCase(at, from, to) =>
         updateAt(value, at) {
-          // DynamicValue.Enumeration represents Sum Types (Enums)
-          case DynamicValue.Enumeration((id, inner)) if id == from =>
-            Right(DynamicValue.Enumeration((to, inner)))
+          // 🔥 FIX: Removed double parens ((id, inner)) -> (id, inner)
+          case DynamicValue.Enumeration(id, inner) if id == from =>
+            Right(DynamicValue.Enumeration(to, inner))
           case other => Right(other)
         }
 
       case MigrationAction.TransformCase(at, innerActions) =>
         updateAt(value, at) {
-          case DynamicValue.Enumeration((id, inner)) =>
-            // Recursively run the inner migration on the content of the case
+          // 🔥 FIX: Removed double parens
+          case DynamicValue.Enumeration(id, inner) =>
             val subMigration = DynamicMigration(innerActions)
             MigrationEngine.run(inner, subMigration).map { newInner =>
-              DynamicValue.Enumeration((id, newInner))
+              DynamicValue.Enumeration(id, newInner)
             }.left.map(e => OpticCheck(e.message))
           case other => Right(other)
         }
@@ -119,15 +140,15 @@ object MigrationEngine {
             case _ => Left(MigrationError(path, "Invalid path: Expected Field access for Record"))
           }
         
-        // Support for traversing Options (Some/None)
         case DynamicValue.SomeValue(inner) =>
            updateAt(inner, path)(f).map(DynamicValue.SomeValue)
+        
         case DynamicValue.NoneValue =>
            Right(DynamicValue.NoneValue)
 
-        // Support for traversing Enums
-        case DynamicValue.Enumeration((id, inner)) =>
-           updateAt(inner, path)(f).map(updatedInner => DynamicValue.Enumeration((id, updatedInner)))
+        // 🔥 FIX: Removed double parens
+        case DynamicValue.Enumeration(id, inner) =>
+           updateAt(inner, path)(f).map(updatedInner => DynamicValue.Enumeration(id, updatedInner))
 
         case _ => Left(MigrationError(path, "Traversal supported mainly for Records, Enums and Options"))
       }
