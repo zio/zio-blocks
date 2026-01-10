@@ -38,40 +38,6 @@ import scala.{
   Short => SShort
 }
 
-trait NonEmptyOps[+A, CC[+_], EC[+_]] {
-  def collect[B](pf: PartialFunction[A, B]): EC[B]
-  def exists(p: A => Boolean): Boolean
-  def filter(p: A => Boolean): EC[A]
-  def filterNot(p: A => Boolean): EC[A]
-  def find(p: A => Boolean): Option[A]
-  def foldLeft[B](z: B)(op: (B, A) => B): B
-  def forall(p: A => Boolean): Boolean
-  def grouped(size: Int): Iterator[CC[A]]
-  def head: A
-  def init: EC[A]
-  def iterator: Iterator[A]
-  def last: A
-  def map[B](f: A => B): CC[B]
-  def reduce[B >: A](op: (B, B) => B): B
-  def size: Int = toIterable.size
-  def tail: EC[A]
-  def toArray[B >: A: ClassTag]: Array[B] = toIterable.toArray
-  def toIterable: Iterable[A]             = iterator.toList
-  def toList: List[A]                     = toIterable.toList
-  def zip[B](that: CC[B]): CC[(A, B)]
-  def zipWithIndex: CC[(A, Int)]
-}
-
-trait NonEmptySeq[+A, CC[+_], EC[+_]] extends NonEmptyOps[A, CC, EC] {
-  def appended[B >: A](elem: B): CC[B]
-  def collectFirst[B](pf: PartialFunction[A, B]): Option[B]
-  def distinct: CC[A]
-  def prepended[B >: A](elem: B): CC[B]
-  def reverse: CC[A]
-  def sortBy[B](f: A => B)(implicit ord: Ordering[B]): CC[A]
-  def sorted[B >: A](implicit ord: Ordering[B]): CC[B]
-}
-
 /**
  * `ChunkLike` represents the capability for a `Chunk` to extend Scala's
  * collection library. Because of changes to Scala's collection library in 2.13,
@@ -91,10 +57,6 @@ trait ChunkLike[+A]
     with IndexedSeqOps[A, Chunk, Chunk[A]]
     with StrictOptimizedSeqOps[A, Chunk, Chunk[A]]
     with IterableFactoryDefaults[A, Chunk] { self: Chunk[A] =>
-
-  // this weird () is there to trigger the create of synthetic method $init$ and maintain binary compatibility
-  // removing it should trigger a mima failure
-  ()
 
   override final def appended[A1 >: A](a1: A1): Chunk[A1] =
     append(a1)
@@ -3601,9 +3563,7 @@ object Chunk extends ChunkFactory with ChunkPlatformSpecific {
  * `NonEmptyChunk`. Operations on `NonEmptyChunk` which could potentially return
  * an empty chunk will return a `Chunk` instead.
  */
-final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
-    extends NonEmptySeq[A, NonEmptyChunk, Chunk]
-    with Serializable { self =>
+final class NonEmptyChunk[+A] private (private val chunk: Chunk[A]) extends Serializable { self =>
 
   import NonEmptyChunk.nonEmpty
 
@@ -3634,7 +3594,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
   /**
    * Appends a single element to the end of this `NonEmptyChunk`.
    */
-  override def appended[A1 >: A](a: A1): NonEmptyChunk[A1] =
+  def appended[A1 >: A](a: A1): NonEmptyChunk[A1] =
     nonEmpty(chunk :+ a)
 
   /**
@@ -3655,13 +3615,13 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
   def asBits(implicit ev: A <:< Byte): NonEmptyChunk[Boolean] =
     nonEmpty(chunk.asBitsByte)
 
-  override def collect[B](pf: PartialFunction[A, B]): Chunk[B] =
+  def collect[B](pf: PartialFunction[A, B]): Chunk[B] =
     chunk.collect(pf)
 
-  override def collectFirst[B](pf: PartialFunction[A, B]): Option[B] =
+  def collectFirst[B](pf: PartialFunction[A, B]): Option[B] =
     chunk.collectFirst(pf)
 
-  override def distinct: NonEmptyChunk[A] =
+  def distinct: NonEmptyChunk[A] =
     nonEmpty(chunk.distinct)
 
   /**
@@ -3678,16 +3638,16 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
    * Determines whether a predicate is satisfied for at least one element of
    * this `NonEmptyChunk`.
    */
-  override def exists(p: A => Boolean): Boolean =
+  def exists(p: A => Boolean): Boolean =
     chunk.exists(p)
 
-  override def filter(p: A => Boolean): Chunk[A] =
+  def filter(p: A => Boolean): Chunk[A] =
     chunk.filter(p)
 
-  override def filterNot(p: A => Boolean): Chunk[A] =
+  def filterNot(p: A => Boolean): Chunk[A] =
     chunk.filterNot(p)
 
-  override def find(p: A => Boolean): Option[A] =
+  def find(p: A => Boolean): Option[A] =
     chunk.find(p)
 
   /**
@@ -3704,13 +3664,13 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
   def flatten[B](implicit ev: A <:< NonEmptyChunk[B]): NonEmptyChunk[B] =
     flatMap(ev)
 
-  override def foldLeft[B](z: B)(op: (B, A) => B): B =
+  def foldLeft[B](z: B)(op: (B, A) => B): B =
     chunk.foldLeft(z)(op)
 
-  override def forall(p: A => Boolean): Boolean =
+  def forall(p: A => Boolean): Boolean =
     chunk.forall(p)
 
-  override def grouped(size: Int): Iterator[NonEmptyChunk[A]] =
+  def grouped(size: Int): Iterator[NonEmptyChunk[A]] =
     chunk.grouped(size).map(nonEmpty)
 
   /**
@@ -3743,16 +3703,16 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
   override def hashCode: Int =
     chunk.hashCode
 
-  override def head: A =
+  def head: A =
     chunk.head
 
-  override def init: Chunk[A] =
+  def init: Chunk[A] =
     chunk.init
 
-  override def iterator: Iterator[A] =
+  def iterator: Iterator[A] =
     chunk.iterator
 
-  override def last: A =
+  def last: A =
     chunk.last
 
   /**
@@ -3801,7 +3761,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
   def prepended[A1 >: A](a: A1): NonEmptyChunk[A1] =
     nonEmpty(a +: chunk)
 
-  override def reduce[B >: A](op: (B, B) => B): B =
+  def reduce[B >: A](op: (B, B) => B): B =
     chunk.reduce(op)
 
   /**
@@ -3834,25 +3794,25 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
     b
   }
 
-  override def reverse: NonEmptyChunk[A] =
+  def reverse: NonEmptyChunk[A] =
     nonEmpty(chunk.reverse)
 
-  override def size: Int =
+  def size: Int =
     chunk.size
 
-  override def sortBy[B](f: A => B)(implicit ord: Ordering[B]): NonEmptyChunk[A] =
+  def sortBy[B](f: A => B)(implicit ord: Ordering[B]): NonEmptyChunk[A] =
     nonEmpty(chunk.sortBy(f))
 
-  override def sorted[B >: A](implicit ord: Ordering[B]): NonEmptyChunk[B] =
+  def sorted[B >: A](implicit ord: Ordering[B]): NonEmptyChunk[B] =
     nonEmpty(chunk.sorted[B])
 
-  override def tail: Chunk[A] =
+  def tail: Chunk[A] =
     chunk.tail
 
   /**
    * Converts this `NonEmptyChunk` to an array.
    */
-  override def toArray[B >: A: ClassTag]: Array[B] =
+  def toArray[B >: A: ClassTag]: Array[B] =
     chunk.toArray
 
   /**
@@ -3871,13 +3831,13 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
   /**
    * Converts this `NonEmptyChunk` to an `Iterable`.
    */
-  override def toIterable: Iterable[A] =
+  def toIterable: Iterable[A] =
     chunk
 
   /**
    * Converts this `NonEmptyChunk` to a `List`.
    */
-  override def toList: List[A] =
+  def toList: List[A] =
     chunk.toList
 
   /**
@@ -3920,7 +3880,7 @@ final class NonEmptyChunk[+A] private (private val chunk: Chunk[A])
   /**
    * Annotates each element of this `NonEmptyChunk` with its index.
    */
-  override def zipWithIndex: NonEmptyChunk[(A, Int)] =
+  def zipWithIndex: NonEmptyChunk[(A, Int)] =
     nonEmpty(chunk.zipWithIndex)
 
   /**
