@@ -55,7 +55,10 @@ object MigrationBuilderScala3Spec extends ZIOSpecDefault {
             .buildPartial
 
           assertTrue(migration.dynamic.actions.length == 1) &&
-          assertTrue(migration.dynamic.actions.head.asInstanceOf[MigrationAction.AddField].at.nodes.last == DynamicOptic.Node.Field("age"))
+          assertTrue(
+            migration.dynamic.actions.head.asInstanceOf[MigrationAction.AddField].at.nodes.last == DynamicOptic.Node
+              .Field("age")
+          )
         }
       ),
       suite("Selector Macro Tests")(
@@ -63,26 +66,26 @@ object MigrationBuilderScala3Spec extends ZIOSpecDefault {
           case class Address(street: String, city: String)
           case class Person(name: String, address: Address)
           case class PersonNew(name: String, address: Address, country: String)
-          
-          implicit val pSchema: Schema[Person] = Schema.derived
+
+          implicit val pSchema: Schema[Person]     = Schema.derived
           implicit val pnSchema: Schema[PersonNew] = Schema.derived
-          
+
           val migration = Migration
             .builder[Person, PersonNew]
             .addField(_.country, "USA")
             .buildPartial
-            
+
           assertTrue(migration.dynamic.actions.length == 1)
         },
         test("selector-based enum case selector _.status.when[Active]") {
           sealed trait Status
           object Status {
-            case object Active extends Status
+            case object Active   extends Status
             case object Inactive extends Status
           }
-          
+
           val optic = DynamicOptic.root.field("status").caseOf("Active")
-          
+
           assertTrue(optic.nodes.length == 2) &&
           assertTrue(optic.nodes.head == DynamicOptic.Node.Field("status")) &&
           assertTrue(optic.nodes.last == DynamicOptic.Node.Case("Active"))
