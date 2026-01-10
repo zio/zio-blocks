@@ -63,6 +63,87 @@ object SchemaExpr {
     private[this] val dynamicResult = new Right(schema.toDynamicValue(value) :: Nil)
   }
 
+  /**
+   * A constant dynamic value expression. Used for migration operations where a
+   * dynamic default is needed. Unlike Literal, this only stores the
+   * DynamicValue (no typed representation).
+   */
+  final case class DynamicLiteral[S](dynamicValue: DynamicValue) extends SchemaExpr[S, DynamicValue] {
+    def eval(input: S): Either[OpticCheck, Seq[DynamicValue]] = result
+
+    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = result
+
+    private[this] val result = new Right(dynamicValue :: Nil)
+  }
+
+  /**
+   * A special expression that extracts the default value from a schema.
+   *
+   * This implements the spec's `SchemaExpr.DefaultValue` concept:
+   *   - Uses the macro-captured field schema
+   *   - Calls schema.reflect.getDefaultValue
+   *   - Converts the value to DynamicValue
+   *   - Is stored for reverse migrations
+   *
+   * @tparam S
+   *   The source type (ignored for evaluation)
+   * @tparam A
+   *   The type of the default value
+   */
+  final case class DefaultValue[S, A](schema: Schema[A]) extends SchemaExpr[S, A] {
+    def eval(input: S): Either[OpticCheck, Seq[A]] =
+      extractDefault match {
+        case Some(value) => Right(Seq(value))
+        case None        =>
+          val error = OpticCheck.WrappingError(
+            DynamicOptic.root,
+            DynamicOptic.root,
+            s"No default value defined for ${schema.reflect.typeName}"
+          )
+          Left(OpticCheck(new ::(error, Nil)))
+      }
+
+    def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] =
+      extractDefault match {
+        case Some(value) => Right(Seq(schema.toDynamicValue(value)))
+        case None        =>
+          val error = OpticCheck.WrappingError(
+            DynamicOptic.root,
+            DynamicOptic.root,
+            s"No default value defined for ${schema.reflect.typeName}"
+          )
+          Left(OpticCheck(new ::(error, Nil)))
+      }
+
+    private def extractDefault: Option[A] = {
+      import zio.blocks.schema.binding._
+      schema.reflect match {
+        case r: Reflect.Record[Binding, A] @unchecked      => r.getDefaultValue
+        case v: Reflect.Variant[Binding, A] @unchecked     => v.getDefaultValue
+        case s: Reflect.Sequence[Binding, _, _] @unchecked => s.getDefaultValue.asInstanceOf[Option[A]]
+        case m: Reflect.Map[Binding, _, _, _] @unchecked   => m.getDefaultValue.asInstanceOf[Option[A]]
+        case p: Reflect.Primitive[Binding, A] @unchecked   => p.getDefaultValue
+        case w: Reflect.Wrapper[Binding, A, _] @unchecked  => w.getDefaultValue
+        case _                                             => None
+      }
+    }
+  }
+
+  /** Create a literal SchemaExpr from a value. */
+  def literal[S, A](value: A)(implicit schema: Schema[A]): SchemaExpr[S, A] =
+    Literal(value, schema)
+
+  /** Create a dynamic literal expression from a DynamicValue. */
+  def dynamicLiteral[S](value: DynamicValue): SchemaExpr[S, DynamicValue] =
+    DynamicLiteral(value)
+
+  /**
+   * Create a DefaultValue expression that extracts the default from a schema.
+   * This is used for reverse migrations to restore dropped fields.
+   */
+  def defaultValue[S, A](implicit schema: Schema[A]): SchemaExpr[S, A] =
+    DefaultValue(schema)
+
   final case class Optic[A, B](optic: zio.blocks.schema.Optic[A, B]) extends SchemaExpr[A, B] {
     def eval(input: A): Either[OpticCheck, Seq[B]] = optic match {
       case l: Lens[?, ?] =>
