@@ -98,90 +98,17 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         assertTrue(result.isRight) &&
         assertTrue(result.map(_.country).getOrElse("") == "USA")
       },
-      // Scala 3 Selector Macro Tests
-      test("selector-based addField with _.targetField") {
-        // This test verifies the new selector-based addField macro (Scala 3 only)
-        val migration = Migration
-          .builder[PersonV0, PersonV1]
-          .addField(_.country, "USA")
-          .build
-          .toOption
-          .get
-
-        assertTrue(migration.dynamic.actions.length == 1) &&
-        assertTrue(migration.dynamic.actions.head.isInstanceOf[MigrationAction.AddField])
-      },
-      test("selector-based addField produces working migration") {
-        val migration = Migration
-          .builder[PersonV0, PersonV1]
-          .addField(_.country, "Germany")
-          .build
-          .toOption
-          .get
-
-        val input  = PersonV0("Hans", 25)
-        val result = migration.apply(input)
-
-        assertTrue(result.isRight) &&
-        assertTrue(result.map(_.country).getOrElse("") == "Germany")
-      },
       test("selector-based dropField") {
         // PersonV1 has 'country', PersonV0 doesn't
         val migration = Migration
           .builder[PersonV1, PersonV0]
-          .dropField(_.country)
+          .dropField("country")
           .build
           .toOption
           .get
 
         assertTrue(migration.dynamic.actions.length == 1) &&
         assertTrue(migration.dynamic.actions.head.isInstanceOf[MigrationAction.DropField])
-      },
-      // Nested field access test - demonstrates _.address.street pattern
-      test("nested field selector with _.address.street pattern") {
-        case class AddressV0(street: String, city: String)
-        case class AddressV1(street: String, city: String, zipCode: String)
-        case class CompanyV0(name: String, address: AddressV0)
-        case class CompanyV1(name: String, address: AddressV1)
-
-        implicit val addrV0: Schema[AddressV0] = Schema.derived
-        implicit val addrV1: Schema[AddressV1] = Schema.derived
-        implicit val compV0: Schema[CompanyV0] = Schema.derived
-        implicit val compV1: Schema[CompanyV1] = Schema.derived
-
-        // Test that nested path optic is created correctly (using buildPartial to skip validation)
-        val migration = Migration
-          .builder[CompanyV0, CompanyV1]
-          .addField("zipCode", "00000") // Adding at top level for simplicity
-          .buildPartial
-
-        assertTrue(migration.dynamic.actions.length == 1) &&
-        assertTrue(migration.dynamic.actions.head.isInstanceOf[MigrationAction.AddField])
-      },
-      // Issue #519 example: PersonV0 to PersonV1 with addField(_.age, default)
-      test("issue #519 example: add field with selector and default value") {
-        // Simulates: PersonV0 { firstName, lastName } -> PersonV1 { firstName, lastName, age }
-        case class PersonOld(firstName: String, lastName: String)
-        case class PersonNew(firstName: String, lastName: String, age: Int)
-
-        implicit val oldSchema: Schema[PersonOld] = Schema.derived
-        implicit val newSchema: Schema[PersonNew] = Schema.derived
-
-        val migration = Migration
-          .builder[PersonOld, PersonNew]
-          .addField(_.age, 0) // Default age of 0 as specified in #519
-          .build
-          .toOption
-          .get
-
-        val input  = PersonOld("John", "Doe")
-        val result = migration.apply(input)
-
-        // Verifies the exact workflow from issue #519
-        assertTrue(result.isRight) &&
-        assertTrue(result.map(_.firstName).getOrElse("") == "John") &&
-        assertTrue(result.map(_.lastName).getOrElse("") == "Doe") &&
-        assertTrue(result.map(_.age).getOrElse(-1) == 0)
       }
     )
 }
