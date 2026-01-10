@@ -582,6 +582,15 @@ object SchemaVersionSpecificSpec extends ZIOSpecDefault {
         assert(traversal8.fold(IArray(1.0f, 2.0f, 3.0f))(0.0f, _ + _))(equalTo(6.0f)) &&
         assert(traversal9.fold(IArray(1.0, 2.0, 3.0))(0.0, _ + _))(equalTo(6.0))
       },
+      test("has consistent newObjectBuilder, addObject and resultObject") {
+        val schema      = Schema.derived[IArray[Int]]
+        val constructor = schema.reflect.asSequence.get.seqBinding.asInstanceOf[Binding.Seq[IArray, Int]].constructor
+        val xs          = constructor.newObjectBuilder[Int](0)
+        constructor.addObject(xs, 1)
+        constructor.addObject(xs, 2)
+        constructor.addObject(xs, 3)
+        assert(constructor.resultObject(xs))(equalTo(Array(1, 2, 3)))
+      },
       test("derives schema for array and IArray of opaque sub-types") {
         assert(Schema.derived[Array[StructureId]])(equalTo(Schema.derived[Array[String]])) &&
         assert(Schema.derived[IArray[StructureId]])(equalTo(Schema.derived[IArray[String]]))

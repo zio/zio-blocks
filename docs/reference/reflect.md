@@ -113,24 +113,24 @@ object Person {
           constructor = new Constructor[Person] {
             override def usedRegisters: RegisterOffset =
               RegisterOffset(objects = 2, ints = 1, doubles = 2)
-            override def construct(in: Registers, baseOffset: RegisterOffset): Person =
+            override def construct(in: Registers, offset: RegisterOffset): Person =
               Person(
-                in.getObject(baseOffset, RegisterOffset.getObjects(RegisterOffset.Zero)).asInstanceOf[String],
-                in.getObject(baseOffset, RegisterOffset.getObjects(RegisterOffset(objects = 1))).asInstanceOf[String],
-                in.getInt(baseOffset, RegisterOffset.getBytes(RegisterOffset.Zero)),
-                in.getDouble(baseOffset, RegisterOffset.getBytes(RegisterOffset(ints = 1))),
-                in.getDouble(baseOffset, RegisterOffset.getBytes(RegisterOffset(ints = 1, doubles = 1)))
+                in.getObject(offset).asInstanceOf[String],
+                in.getObject(offset + RegisterOffset(objects = 1)).asInstanceOf[String],
+                in.getInt(offset + RegisterOffset.Zero),
+                in.getDouble(offset + RegisterOffset(ints = 1)),
+                in.getDouble(offset + RegisterOffset(ints = 1, doubles = 1))
               )
           },
           deconstructor = new Deconstructor[Person] {
             override def usedRegisters: RegisterOffset =
               RegisterOffset(objects = 2, ints = 1, doubles = 2)
-            override def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Person): Unit = {
-              out.setObject(baseOffset, RegisterOffset.getObjects(RegisterOffset.Zero), in.name)
-              out.setObject(baseOffset, RegisterOffset.getObjects(RegisterOffset(objects = 1)), in.email)
-              out.setInt(baseOffset, RegisterOffset.getBytes(RegisterOffset.Zero), in.age)
-              out.setDouble(baseOffset, RegisterOffset.getBytes(RegisterOffset(ints = 1)), in.height)
-              out.setDouble(baseOffset, RegisterOffset.getBytes(RegisterOffset(ints = 1, doubles = 1)), in.weight)
+            override def deconstruct(out: Registers, offset: RegisterOffset, in: Person): Unit = {
+              out.setObject(offset, in.name)
+              out.setObject(offset + RegisterOffset(objects = 1), in.email)
+              out.setInt(offset, in.age)
+              out.setDouble(offset + RegisterOffset(ints = 1), in.height)
+              out.setDouble(offset + RegisterOffset(ints = 1, doubles = 1), in.weight)
             }
           },
           examples = Seq(Person("Jane", "jane@examle.com", 32, 180, 76.0))
@@ -422,18 +422,18 @@ object Tree {
         constructor = new Constructor[Tree] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)
 
-          def construct(in: Registers, baseOffset: RegisterOffset): Tree =
+          def construct(in: Registers, offset: RegisterOffset): Tree =
             Tree(
-              in.getInt(baseOffset, RegisterOffset.getBytes(RegisterOffset.Zero)),
-              in.getObject(baseOffset, RegisterOffset.getObjects(RegisterOffset.Zero)).asInstanceOf[List[Tree]]
+              in.getInt(offset),
+              in.getObject(offset).asInstanceOf[List[Tree]]
             )
         },
         deconstructor = new Deconstructor[Tree] {
           def usedRegisters: RegisterOffset = RegisterOffset(ints = 1, objects = 1)
 
-          def deconstruct(out: Registers, baseOffset: RegisterOffset, in: Tree): Unit = {
-            out.setInt(baseOffset, RegisterOffset.getBytes(RegisterOffset.Zero), in.value)
-            out.setObject(baseOffset, RegisterOffset.getObjects(RegisterOffset.Zero), in.children)
+          def deconstruct(out: Registers, offset: RegisterOffset, in: Tree): Unit = {
+            out.setInt(offset, in.value)
+            out.setObject(offset, in.children)
           }
         }
       )

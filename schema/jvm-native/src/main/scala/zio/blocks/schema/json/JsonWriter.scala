@@ -9,6 +9,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding.Registers
 import zio.blocks.schema.json.JsonWriter._
 import scala.annotation.tailrec
+import java.nio.charset.StandardCharsets.UTF_8
 import java.lang.Long.compareUnsigned
 
 /**
@@ -1082,6 +1083,35 @@ final class JsonWriter private[json] (
       }
     }
   }
+
+  /**
+   * Encodes a value of type `A` to a string.
+   *
+   * @param codec
+   *   a JSON value codec for type `A`
+   * @param x
+   *   the value to encode
+   * @param config
+   *   the writer configuration
+   * @return
+   *   the encoded JSON as a string
+   */
+  private[json] def writeToString[A](codec: JsonBinaryCodec[A], x: A, config: WriterConfig): String =
+    try {
+      top = 0
+      maxTop = 0
+      count = 0
+      indention = 0
+      comma = false
+      disableBufGrowing = false
+      this.config = config
+      codec.encodeValue(x, this)
+      new String(buf, 0, count, UTF_8)
+    } finally {
+      if (limit > config.preferredBufSize) reallocateBufToPreferredSize()
+      stack.clearObjects(maxTop)
+      top = -1
+    }
 
   private[this] def writeNestedStart(b: Byte): Unit = {
     writeOptionalCommaAndIndentionBeforeKey()
