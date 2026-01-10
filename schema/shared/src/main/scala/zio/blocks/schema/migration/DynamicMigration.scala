@@ -133,13 +133,20 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     if (actions.isEmpty) "Empty migration"
     else
       actions.map {
-        case MigrationAction.DropField(name)           => s"Drop field '$name'"
-        case MigrationAction.RenameField(old, newName) => s"Rename field '$old' to '$newName'"
-        case MigrationAction.AddField(name, _)         => s"Add field '$name'"
-        case MigrationAction.Optionalize(name)         => s"Make field '$name' optional"
-        case MigrationAction.Mandate(name, _)          => s"Make field '$name' mandatory"
-        case MigrationAction.RenameCase(old, newName)  => s"Rename case '$old' to '$newName'"
-        case MigrationAction.RemoveCase(name)          => s"Remove case '$name'"
+        case MigrationAction.DropField(name)             => s"Drop field '$name'"
+        case MigrationAction.RenameField(old, newName)   => s"Rename field '$old' to '$newName'"
+        case MigrationAction.AddField(name, _)           => s"Add field '$name'"
+        case MigrationAction.Optionalize(name)           => s"Make field '$name' optional"
+        case MigrationAction.Mandate(name, _)            => s"Make field '$name' mandatory"
+        case MigrationAction.RenameCase(old, newName)    => s"Rename case '$old' to '$newName'"
+        case MigrationAction.RemoveCase(name)            => s"Remove case '$name'"
+        case MigrationAction.Join(fields, result, _)     => s"Join fields ${fields.mkString(", ")} into '$result'"
+        case MigrationAction.Split(field, into)          => s"Split field '$field' into ${into.map(_._1).mkString(", ")}"
+        case MigrationAction.ChangeType(field, _)        => s"Change type of field '$field'"
+        case MigrationAction.TransformCase(caseName, _)  => s"Transform case '$caseName'"
+        case MigrationAction.TransformElements(field, _) => s"Transform elements in '$field'"
+        case MigrationAction.TransformKeys(field, _)     => s"Transform keys in '$field'"
+        case MigrationAction.TransformValues(field, _)   => s"Transform values in '$field'"
       }.mkString(" → ")
 
 }

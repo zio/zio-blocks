@@ -71,6 +71,14 @@ final class MigrationBuilder[A, B](
    */
   def build: Migration[A, B] =
     Migration[A, B](DynamicMigration(actions))(fromSchema, toSchema)
+
+  /**
+   * Build migration without validation (for incremental development).
+   *
+   * Unlike `build`, this does not verify schema compatibility.
+   */
+  def buildPartial: Migration[A, B] =
+    Migration[A, B](DynamicMigration(actions))(fromSchema, toSchema)
 }
 
 object MigrationBuilder {

@@ -499,4 +499,200 @@ object MigrationAction {
     def reverse: Either[MigrationError, MigrationAction] =
       Left(MigrationError.NotReversible(s"TransformCase($caseName) cannot be reversed"))
   }
+
+  // ============================================================================
+  // Collection / Map Actions
+  // ============================================================================
+
+  /**
+   * Transform all elements in a collection using an expression.
+   *
+   * @param fieldName
+   *   The collection field to transform
+   * @param transform
+   *   Expression to apply to each element
+   */
+  final case class TransformElements(
+    fieldName: String,
+    transform: SchemaExpr[DynamicValue, DynamicValue]
+  ) extends MigrationAction {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          fields.find(_._1 == fieldName) match {
+            case Some((_, DynamicValue.Sequence(elements))) =>
+              val transformed = elements.foldLeft[Either[MigrationError, Vector[DynamicValue]]](
+                Right(Vector.empty)
+              ) { (acc, elem) =>
+                acc.flatMap { accumulated =>
+                  transform.evalDynamic(elem) match {
+                    case Right(results) if results.nonEmpty =>
+                      Right(accumulated :+ results.head)
+                    case Right(_) =>
+                      Left(
+                        MigrationError.EvaluationFailed(
+                          DynamicOptic.root.field(fieldName),
+                          "TransformElements returned no value"
+                        )
+                      )
+                    case Left(error) =>
+                      Left(MigrationError.EvaluationFailed(DynamicOptic.root.field(fieldName), error.toString))
+                  }
+                }
+              }
+
+              transformed.map { newElements =>
+                val updated = fields.map {
+                  case (name, _) if name == fieldName => (name, DynamicValue.Sequence(newElements))
+                  case other                          => other
+                }
+                DynamicValue.Record(updated)
+              }
+
+            case Some(_) =>
+              Left(
+                MigrationError.TypeMismatch(
+                  DynamicOptic.root.field(fieldName),
+                  "Sequence",
+                  "other"
+                )
+              )
+            case None =>
+              Left(MigrationError.MissingField(DynamicOptic.root, fieldName))
+          }
+        case _ =>
+          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
+      }
+
+    def reverse: Either[MigrationError, MigrationAction] =
+      Left(MigrationError.NotReversible(s"TransformElements($fieldName) cannot be reversed"))
+  }
+
+  /**
+   * Transform all keys in a map using an expression.
+   *
+   * @param fieldName
+   *   The map field whose keys to transform
+   * @param transform
+   *   Expression to apply to each key
+   */
+  final case class TransformKeys(
+    fieldName: String,
+    transform: SchemaExpr[DynamicValue, DynamicValue]
+  ) extends MigrationAction {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          fields.find(_._1 == fieldName) match {
+            case Some((_, DynamicValue.Map(entries))) =>
+              val transformed = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](
+                Right(Vector.empty)
+              ) { (acc, entry) =>
+                acc.flatMap { accumulated =>
+                  transform.evalDynamic(entry._1) match {
+                    case Right(results) if results.nonEmpty =>
+                      Right(accumulated :+ (results.head -> entry._2))
+                    case Right(_) =>
+                      Left(
+                        MigrationError.EvaluationFailed(
+                          DynamicOptic.root.field(fieldName),
+                          "TransformKeys returned no value"
+                        )
+                      )
+                    case Left(error) =>
+                      Left(MigrationError.EvaluationFailed(DynamicOptic.root.field(fieldName), error.toString))
+                  }
+                }
+              }
+
+              transformed.map { newEntries =>
+                val updated = fields.map {
+                  case (name, _) if name == fieldName => (name, DynamicValue.Map(newEntries))
+                  case other                          => other
+                }
+                DynamicValue.Record(updated)
+              }
+
+            case Some(_) =>
+              Left(
+                MigrationError.TypeMismatch(
+                  DynamicOptic.root.field(fieldName),
+                  "Map",
+                  "other"
+                )
+              )
+            case None =>
+              Left(MigrationError.MissingField(DynamicOptic.root, fieldName))
+          }
+        case _ =>
+          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
+      }
+
+    def reverse: Either[MigrationError, MigrationAction] =
+      Left(MigrationError.NotReversible(s"TransformKeys($fieldName) cannot be reversed"))
+  }
+
+  /**
+   * Transform all values in a map using an expression.
+   *
+   * @param fieldName
+   *   The map field whose values to transform
+   * @param transform
+   *   Expression to apply to each value
+   */
+  final case class TransformValues(
+    fieldName: String,
+    transform: SchemaExpr[DynamicValue, DynamicValue]
+  ) extends MigrationAction {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      value match {
+        case DynamicValue.Record(fields) =>
+          fields.find(_._1 == fieldName) match {
+            case Some((_, DynamicValue.Map(entries))) =>
+              val transformed = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](
+                Right(Vector.empty)
+              ) { (acc, entry) =>
+                acc.flatMap { accumulated =>
+                  transform.evalDynamic(entry._2) match {
+                    case Right(results) if results.nonEmpty =>
+                      Right(accumulated :+ (entry._1 -> results.head))
+                    case Right(_) =>
+                      Left(
+                        MigrationError.EvaluationFailed(
+                          DynamicOptic.root.field(fieldName),
+                          "TransformValues returned no value"
+                        )
+                      )
+                    case Left(error) =>
+                      Left(MigrationError.EvaluationFailed(DynamicOptic.root.field(fieldName), error.toString))
+                  }
+                }
+              }
+
+              transformed.map { newEntries =>
+                val updated = fields.map {
+                  case (name, _) if name == fieldName => (name, DynamicValue.Map(newEntries))
+                  case other                          => other
+                }
+                DynamicValue.Record(updated)
+              }
+
+            case Some(_) =>
+              Left(
+                MigrationError.TypeMismatch(
+                  DynamicOptic.root.field(fieldName),
+                  "Map",
+                  "other"
+                )
+              )
+            case None =>
+              Left(MigrationError.MissingField(DynamicOptic.root, fieldName))
+          }
+        case _ =>
+          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
+      }
+
+    def reverse: Either[MigrationError, MigrationAction] =
+      Left(MigrationError.NotReversible(s"TransformValues($fieldName) cannot be reversed"))
+  }
 }
