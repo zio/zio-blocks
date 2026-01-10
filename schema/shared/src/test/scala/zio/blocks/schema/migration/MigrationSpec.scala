@@ -307,7 +307,6 @@ object MigrationSpec extends ZIOSpecDefault {
             afterSchema
           )
 
-          
           val reversed = migration.reverse
           assertTrue(reversed.sourceSchema == afterSchema) &&
           assertTrue(reversed.targetSchema == beforeSchema)
