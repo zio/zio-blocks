@@ -193,5 +193,12 @@ object Schema extends SchemaCompanionVersionSpecific {
   implicit def seq[A](implicit element: Schema[A]): Schema[Seq[A]] = new Schema(Reflect.seq(element.reflect))
 
   implicit def map[A, B](implicit key: Schema[A], value: Schema[B]): Schema[collection.immutable.Map[A, B]] =
-    new Schema(Reflect.map(key.reflect, value.reflect))
+    new Schema(Reflect.map(key.reflect, value.reflect))def structural[A](fields: (String, Schema[_])*): Schema[A] = {
+    val structuralFields = fields.map { case (name, schema) => 
+      name -> schema.reflect 
+    }.toMap
+    new Schema(Reflect.record[Binding, A](structuralFields))
+  }
+
+  def struct[A](fields: (String, Schema[_])*): Schema[A] = structural(fields: _*)
 }
