@@ -2,6 +2,7 @@ package zio.blocks.schema.migration
 
 import zio.schema.DynamicValue
 import zio.blocks.schema.migration.optic.{DynamicOptic, OpticStep}
+import scala.collection.immutable.ListMap
 
 object MigrationEngine {
 
@@ -14,7 +15,7 @@ object MigrationEngine {
 
   private def applyAction(value: DynamicValue, action: MigrationAction): Either[MigrationError, DynamicValue] = {
     action match {
-      // --- Record Actions (Supported in all versions) ---
+      // --- Record Actions ---
       case MigrationAction.AddField(at, defaultValue) =>
         defaultValue.evalDynamic(value) match {
           case Right(seq) if seq.nonEmpty => insertAt(value, at, seq.head)
@@ -32,13 +33,60 @@ object MigrationEngine {
           transform.evalDynamic(leafValue).map(_.head)
         }
 
-      // --- Map & Collection Actions (Disabled for older ZIO Schema) ---
-      
-      case MigrationAction.TransformKeys(at, _) =>
-        Left(MigrationError(at, "TransformKeys not supported: Upgrade ZIO Schema to 0.2.0+ to use DynamicValue.Sequence"))
+      // --- Collection Actions (FIXED) ---
+      case MigrationAction.TransformElements(at, transform) =>
+        updateAt(value, at) {
+          case DynamicValue.Sequence(values) =>
+            val newValues = values.map { v =>
+              transform.evalDynamic(v).map(_.head)
+            }
+            if (newValues.exists(_.isLeft)) Left(OpticCheck("Error transforming elements"))
+            else Right(DynamicValue.Sequence(newValues.map(_.right.get)))
+          case other => Right(other)
+        }
 
-      case MigrationAction.TransformValues(at, _) =>
-         Left(MigrationError(at, "TransformValues not supported: Upgrade ZIO Schema to 0.2.0+ to use DynamicValue.Sequence"))
+      // --- Map Actions (FIXED) ---
+      case MigrationAction.TransformKeys(at, transform) =>
+        updateAt(value, at) {
+          case DynamicValue.Dictionary(entries) =>
+            val newEntries = entries.map { case (k, v) =>
+               transform.evalDynamic(k).map(_.head).map(newK => (newK, v))
+            }
+            if (newEntries.exists(_.isLeft)) Left(OpticCheck("Error transforming keys"))
+            else Right(DynamicValue.Dictionary(newEntries.map(_.right.get)))
+          case other => Right(other)
+        }
+
+      case MigrationAction.TransformValues(at, transform) =>
+        updateAt(value, at) {
+           case DynamicValue.Dictionary(entries) =>
+             val newEntries = entries.map { case (k, v) =>
+               transform.evalDynamic(v).map(_.head).map(newV => (k, newV))
+             }
+             if (newEntries.exists(_.isLeft)) Left(OpticCheck("Error transforming values"))
+             else Right(DynamicValue.Dictionary(newEntries.map(_.right.get)))
+           case other => Right(other)
+        }
+
+      // --- Enum Actions (FIXED) ---
+      case MigrationAction.RenameCase(at, from, to) =>
+        updateAt(value, at) {
+          // DynamicValue.Enumeration represents Sum Types (Enums)
+          case DynamicValue.Enumeration((id, inner)) if id == from =>
+            Right(DynamicValue.Enumeration((to, inner)))
+          case other => Right(other)
+        }
+
+      case MigrationAction.TransformCase(at, innerActions) =>
+        updateAt(value, at) {
+          case DynamicValue.Enumeration((id, inner)) =>
+            // Recursively run the inner migration on the content of the case
+            val subMigration = DynamicMigration(innerActions)
+            MigrationEngine.run(inner, subMigration).map { newInner =>
+              DynamicValue.Enumeration((id, newInner))
+            }.left.map(e => OpticCheck(e.message))
+          case other => Right(other)
+        }
 
       case _ => Right(value) 
     }
@@ -58,7 +106,6 @@ object MigrationEngine {
       val tail = DynamicOptic(path.steps.tail)
 
       value match {
-        // Record Support
         case DynamicValue.Record(values) =>
           head match {
             case OpticStep.Field(fieldName) =>
@@ -72,16 +119,17 @@ object MigrationEngine {
             case _ => Left(MigrationError(path, "Invalid path: Expected Field access for Record"))
           }
         
-        // Option Support
+        // Support for traversing Options (Some/None)
         case DynamicValue.SomeValue(inner) =>
            updateAt(inner, path)(f).map(DynamicValue.SomeValue)
         case DynamicValue.NoneValue =>
            Right(DynamicValue.NoneValue)
 
-        // NOTE: 'Sequence' and 'Dictionary' cases removed to fix compilation error.
-        // If you need to traverse lists, ensure your ZIO Schema version has DynamicValue.Sequence.
-        
-        case _ => Left(MigrationError(path, "Traversal supported mainly for Records and Options in this version"))
+        // Support for traversing Enums
+        case DynamicValue.Enumeration((id, inner)) =>
+           updateAt(inner, path)(f).map(updatedInner => DynamicValue.Enumeration((id, updatedInner)))
+
+        case _ => Left(MigrationError(path, "Traversal supported mainly for Records, Enums and Options"))
       }
     }
   }
