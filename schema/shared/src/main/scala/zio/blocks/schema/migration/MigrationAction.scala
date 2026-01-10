@@ -8,40 +8,6 @@ import zio.blocks.schema._
  * Each action represents a structural transformation on data. Actions are
  * designed to be composable, serializable, and reversible where semantically
  * meaningful.
- *
- * The core set of actions covers the most common schema evolution patterns:
- *
- * **Field Operations:**
- *   - [[MigrationAction.RenameField]] - Rename a field in a record
- *   - [[MigrationAction.DropField]] - Remove a field (non-reversible)
- *   - [[MigrationAction.AddField]] - Add a field with default value
- *   - [[MigrationAction.Optionalize]] - Make a field optional (wrap in Some)
- *   - [[MigrationAction.Mandate]] - Make optional field required (extract from
- *     Some)
- *
- * **Case Operations:**
- *   - [[MigrationAction.RenameCase]] - Rename a case in an enum/variant
- *   - [[MigrationAction.RemoveCase]] - Remove a case (non-reversible)
- *
- * **Advanced Operations (using SchemaExpr):**
- *   - [[MigrationAction.Join]] - Combine multiple fields into one
- *   - [[MigrationAction.Split]] - Split one field into multiple
- *   - [[MigrationAction.ChangeType]] - Transform field type with coercion
- *   - [[MigrationAction.TransformCase]] - Transform case value
- *
- * Example usage:
- * {{{
- *   val action = MigrationAction.RenameField("oldName", "newName")
- *   val result = action.apply(dynamicValue)
- *
- *   // Reversible actions can be inverted
- *   val reverseAction = action.reverse  // Right(RenameField("newName", "oldName"))
- * }}}
- *
- * @see
- *   [[DynamicMigration]] for composing multiple actions
- * @see
- *   [[Migration]] for type-safe migrations between schemas
  */
 sealed trait MigrationAction extends Product with Serializable {
 
@@ -66,207 +32,196 @@ sealed trait MigrationAction extends Product with Serializable {
 
 object MigrationAction {
 
+  implicit class DynamicOpticOps(val optic: DynamicOptic) extends AnyVal {
+    def getDV(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      optic.get(value).left.map(MigrationError.EvaluationFailed(optic, _))
+
+    def setDV(root: DynamicValue, value: DynamicValue): Either[MigrationError, DynamicValue] =
+      optic.set(root, value).left.map(MigrationError.EvaluationFailed(optic, _))
+  }
+
+  def dropField(name: String): DropField = DropField(DynamicOptic.root.field(name))
+
+  def renameField(oldName: String, newName: String): Rename =
+    Rename(DynamicOptic.root.field(oldName), newName)
+
+  def addField(name: String, defaultValue: DynamicValue): AddField =
+    AddField(DynamicOptic.root.field(name), defaultValue)
+
+  def optionalize(name: String): Optionalize = Optionalize(DynamicOptic.root.field(name))
+
+  def mandate(name: String, defaultValue: DynamicValue): Mandate =
+    Mandate(DynamicOptic.root.field(name), defaultValue)
+
+  def renameCase(oldName: String, newName: String): RenameCase =
+    RenameCase(DynamicOptic.root, oldName, newName)
+
+  def removeCase(name: String): RemoveCase = RemoveCase(DynamicOptic.root, name)
+
+  def transformElements(name: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformElements =
+    TransformElements(DynamicOptic.root.field(name), transform)
+
+  def transformKeys(name: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformKeys =
+    TransformKeys(DynamicOptic.root.field(name), transform)
+
+  def transformValues(name: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformValues =
+    TransformValues(DynamicOptic.root.field(name), transform)
+
+  def transformCase(caseName: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformCase =
+    TransformCase(DynamicOptic.root, caseName, transform)
+
   // ============================================================================
   // Record Actions
   // ============================================================================
 
   /**
-   * Remove a field from a record.
+   * Drop a field from a record.
    *
-   * This action is not reversible since the removed data cannot be recovered.
-   *
-   * @param fieldName
-   *   The name of the field to drop
+   * @param at
+   *   DynamicOptic path to the field to remove
    */
-  final case class DropField(fieldName: String) extends MigrationAction {
+  final case class DropField(at: DynamicOptic) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          Right(DynamicValue.Record(fields.filterNot(_._1 == fieldName)))
+      at.nodes.toList match {
+        case nodes :+ DynamicOptic.Node.Field(fieldName) =>
+          val parentAt = DynamicOptic(nodes.toVector)
+          parentAt.getDV(value).flatMap {
+            case DynamicValue.Record(fields) =>
+              val updated = fields.filterNot(_._1 == fieldName)
+              if (updated.size == fields.size)
+                Left(MigrationError.MissingField(at, fieldName))
+              else parentAt.setDV(value, DynamicValue.Record(updated))
+            case _ =>
+              Left(MigrationError.TypeMismatch(parentAt, "Record", "parent is not a record"))
+          }
         case _ =>
-          Left(
-            MigrationError.TypeMismatch(
-              DynamicOptic.root,
-              "Record",
-              value.getClass.getSimpleName
-            )
-          )
+          Left(MigrationError.EvaluationFailed(at, "DropField only supports field paths"))
       }
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(MigrationError.NotReversible(s"DropField($fieldName) - cannot recover dropped data"))
+      Left(MigrationError.NotReversible(s"DropField($at) cannot be reversed"))
+  }
+
+  object DropField {
+    def apply(name: String): DropField = DropField(DynamicOptic.root.field(name))
   }
 
   /**
    * Rename a field in a record.
    *
-   * This action is fully reversible.
-   *
-   * @param oldName
-   *   The current field name
-   * @param newName
-   *   The new field name
+   * @param at
+   *   DynamicOptic path to the field to rename
+   * @param to
+   *   New field name
    */
-  final case class RenameField(oldName: String, newName: String) extends MigrationAction {
+  final case class Rename(at: DynamicOptic, to: String) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          val renamed = fields.map {
-            case (name, v) if name == oldName => (newName, v)
-            case other                        => other
+      at.nodes.toList match {
+        case nodes :+ DynamicOptic.Node.Field(oldName) =>
+          val parentAt = DynamicOptic(nodes.toVector)
+          parentAt.getDV(value).flatMap {
+            case DynamicValue.Record(fields) =>
+              val updated = fields.map {
+                case (name, v) if name == oldName => (to, v)
+                case other                        => other
+              }
+              parentAt.setDV(value, DynamicValue.Record(updated))
+            case _ =>
+              Left(MigrationError.TypeMismatch(parentAt, "Record", "parent is not a record"))
           }
-          Right(DynamicValue.Record(renamed))
         case _ =>
-          Left(
-            MigrationError.TypeMismatch(
-              DynamicOptic.root,
-              "Record",
-              value.getClass.getSimpleName
-            )
-          )
+          Left(MigrationError.EvaluationFailed(at, "Rename only supports field paths"))
       }
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Right(RenameField(newName, oldName))
+      at.nodes.toList match {
+        case nodes :+ DynamicOptic.Node.Field(_) =>
+          val newAt = DynamicOptic((nodes :+ DynamicOptic.Node.Field(to)).toVector)
+          Right(Rename(newAt, at.nodes.last.asInstanceOf[DynamicOptic.Node.Field].name))
+        case _ => Left(MigrationError.NotReversible(s"Rename($at) cannot be reversed"))
+      }
+  }
+
+  object Rename {
+    def apply(oldName: String, newName: String): Rename =
+      Rename(DynamicOptic.root.field(oldName), newName)
   }
 
   /**
    * Add a new field to a record with a constant default value.
    *
-   * This is reversible via DropField.
-   *
-   * @param fieldName
-   *   The name of the new field
+   * @param at
+   *   DynamicOptic path where the field should be added
    * @param defaultValue
    *   The default value for the new field
    */
-  final case class AddField(
-    fieldName: String,
-    defaultValue: DynamicValue
-  ) extends MigrationAction {
+  final case class AddField(at: DynamicOptic, defaultValue: DynamicValue) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          // Check if field already exists
-          if (fields.exists(_._1 == fieldName)) {
-            Right(value) // Field already exists, no-op
-          } else {
-            Right(DynamicValue.Record(fields :+ (fieldName -> defaultValue)))
+      at.nodes.toList match {
+        case nodes :+ DynamicOptic.Node.Field(fieldName) =>
+          val parentAt = DynamicOptic(nodes.toVector)
+          parentAt.getDV(value).flatMap {
+            case DynamicValue.Record(fields) =>
+              if (fields.exists(_._1 == fieldName)) Right(value)
+              else parentAt.setDV(value, DynamicValue.Record(fields :+ (fieldName -> defaultValue)))
+            case _ =>
+              Left(MigrationError.TypeMismatch(parentAt, "Record", "parent is not a record"))
           }
         case _ =>
-          Left(
-            MigrationError.TypeMismatch(
-              DynamicOptic.root,
-              "Record",
-              value.getClass.getSimpleName
-            )
-          )
+          Left(MigrationError.EvaluationFailed(at, "AddField only supports field paths"))
       }
 
-    def reverse: Either[MigrationError, MigrationAction] =
-      Right(DropField(fieldName))
+    def reverse: Either[MigrationError, MigrationAction] = Right(DropField(at))
+  }
+
+  object AddField {
+    def apply(name: String, defaultValue: DynamicValue): AddField =
+      AddField(DynamicOptic.root.field(name), defaultValue)
   }
 
   /**
    * Make a field optional by wrapping its value in Some.
    *
-   * If the field is missing, it becomes None. This is not fully reversible
-   * since None cases lose information.
-   *
-   * @param fieldName
-   *   The field to make optional
+   * @param at
+   *   DynamicOptic path to the field to make optional
    */
-  final case class Optionalize(fieldName: String) extends MigrationAction {
+  final case class Optionalize(at: DynamicOptic) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          val updated = fields.map {
-            case (name, v) if name == fieldName =>
-              // Wrap in Some variant
-              (name, DynamicValue.Variant("Some", v))
-            case other => other
-          }
-          // If field was missing, add as None
-          if (!fields.exists(_._1 == fieldName)) {
-            Right(
-              DynamicValue.Record(
-                updated :+ (fieldName -> DynamicValue.Variant("None", DynamicValue.Record(Vector.empty)))
-              )
-            )
-          } else {
-            Right(DynamicValue.Record(updated))
-          }
-        case _ =>
-          Left(
-            MigrationError.TypeMismatch(
-              DynamicOptic.root,
-              "Record",
-              value.getClass.getSimpleName
-            )
-          )
-      }
+      at.getDV(value).map(v => DynamicValue.Variant("Some", v)).flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(
-        MigrationError.NotReversible(
-          s"Optionalize($fieldName) - reverse would lose None cases"
-        )
-      )
+      Right(Mandate(at, DynamicValue.Primitive(PrimitiveValue.Unit)))
+  }
+
+  object Optionalize {
+    def apply(name: String): Optionalize = Optionalize(DynamicOptic.root.field(name))
   }
 
   /**
-   * Make an optional field required by extracting from Some or using a default
-   * for None.
+   * Make an optional field required.
    *
-   * @param fieldName
-   *   The field to make mandatory
-   * @param defaultForNone
-   *   Default value to use when encountering None
+   * @param at
+   *   DynamicOptic path to the field to mandate
+   * @param defaultValue
+   *   Value to use if the field is None
    */
-  final case class Mandate(
-    fieldName: String,
-    defaultForNone: DynamicValue
-  ) extends MigrationAction {
+  final case class Mandate(at: DynamicOptic, defaultValue: DynamicValue) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          fields.find(_._1 == fieldName) match {
-            case Some((_, DynamicValue.Variant("None", _))) =>
-              // Replace None with default
-              val updated = fields.map {
-                case (name, _) if name == fieldName => (name, defaultForNone)
-                case other                          => other
-              }
-              Right(DynamicValue.Record(updated))
-
-            case Some((_, DynamicValue.Variant("Some", innerValue))) =>
-              // Extract from Some
-              val updated = fields.map {
-                case (name, _) if name == fieldName => (name, innerValue)
-                case other                          => other
-              }
-              Right(DynamicValue.Record(updated))
-
-            case Some(_) =>
-              // Field exists but not an Option, keep as-is
-              Right(value)
-
-            case None =>
-              // Field missing, add with default
-              Right(DynamicValue.Record(fields :+ (fieldName -> defaultForNone)))
-          }
-        case _ =>
-          Left(
-            MigrationError.TypeMismatch(
-              DynamicOptic.root,
-              "Record",
-              value.getClass.getSimpleName
-            )
-          )
-      }
+      at.getDV(value)
+        .flatMap {
+          case DynamicValue.Variant("Some", v) => Right(v)
+          case DynamicValue.Variant("None", _) => Right(defaultValue)
+          case other                           => Left(MigrationError.TypeMismatch(at, "Optional", other.getClass.getSimpleName))
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Right(Optionalize(fieldName))
+      Right(Optionalize(at))
+  }
+
+  object Mandate {
+    def apply(name: String, defaultValue: DynamicValue): Mandate =
+      Mandate(DynamicOptic.root.field(name), defaultValue)
   }
 
   // ============================================================================
@@ -276,50 +231,57 @@ object MigrationAction {
   /**
    * Rename a case in an enum/variant.
    *
-   * This action is fully reversible.
-   *
+   * @param at
+   *   DynamicOptic path to the enum/variant
    * @param oldName
-   *   The current case name
+   *   The case name to change
    * @param newName
    *   The new case name
    */
-  final case class RenameCase(oldName: String, newName: String) extends MigrationAction {
+  final case class RenameCase(at: DynamicOptic, oldName: String, newName: String) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Variant(name, innerValue) if name == oldName =>
-          Right(DynamicValue.Variant(newName, innerValue))
-        case other =>
-          Right(other) // Not the case we're renaming, pass through
-      }
+      at.getDV(value)
+        .flatMap {
+          case DynamicValue.Variant(name, v) if name == oldName =>
+            Right(DynamicValue.Variant(newName, v))
+          case other => Right(other)
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Right(RenameCase(newName, oldName))
+      Right(RenameCase(at, newName, oldName))
+  }
+
+  object RenameCase {
+    def apply(oldName: String, newName: String): RenameCase =
+      RenameCase(DynamicOptic.root, oldName, newName)
   }
 
   /**
    * Remove a case from an enum/variant.
    *
-   * If data with the removed case is encountered, it returns an error. This is
-   * not reversible.
-   *
+   * @param at
+   *   DynamicOptic path to the enum/variant
    * @param caseName
    *   The case to remove
    */
-  final case class RemoveCase(caseName: String) extends MigrationAction {
+  final case class RemoveCase(at: DynamicOptic, caseName: String) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Variant(name, _) if name == caseName =>
-          Left(MigrationError.UnknownCase(DynamicOptic.root, caseName))
-        case other =>
-          Right(other)
-      }
+      at.getDV(value)
+        .flatMap {
+          case DynamicValue.Variant(name, _) if name == caseName =>
+            Left(MigrationError.UnknownCase(at, caseName))
+          case other =>
+            Right(other)
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(
-        MigrationError.NotReversible(
-          s"RemoveCase($caseName) - cannot recover removed case"
-        )
-      )
+      Left(MigrationError.NotReversible(s"RemoveCase($at, $caseName) - cannot recover removed case"))
+  }
+
+  object RemoveCase {
+    def apply(name: String): RemoveCase = RemoveCase(DynamicOptic.root, name)
   }
 
   // ============================================================================
@@ -328,371 +290,246 @@ object MigrationAction {
 
   /**
    * Join multiple fields into a single field using an expression.
-   *
-   * Example: Join firstName + lastName into fullName
-   *
-   * @param fieldNames
-   *   The fields to join
-   * @param resultName
-   *   The name of the resulting field
-   * @param expr
-   *   Expression to compute the joined value from the fields
    */
   final case class Join(
-    fieldNames: Vector[String],
-    resultName: String,
-    expr: SchemaExpr[DynamicValue, DynamicValue]
+    at: DynamicOptic,
+    sourcePaths: Vector[DynamicOptic],
+    combiner: SchemaExpr[DynamicValue, DynamicValue]
   ) extends MigrationAction {
-    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          val remaining = fields.filterNot(f => fieldNames.contains(f._1))
-          expr.evalDynamic(value) match {
-            case Right(results) if results.nonEmpty =>
-              Right(DynamicValue.Record(remaining :+ (resultName -> results.head)))
-            case Right(_) =>
-              Left(
-                MigrationError.EvaluationFailed(
-                  DynamicOptic.root,
-                  s"Join expression returned no value"
-                )
-              )
-            case Left(err) =>
-              Left(MigrationError.EvaluationFailed(DynamicOptic.root, err.toString))
-          }
-        case _ =>
-          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] = {
+      val sources             = sourcePaths.map(_.getDV(value))
+      val (errors, successes) = sources.partitionMap(identity)
+      if (errors.nonEmpty) Left(errors.head)
+      else {
+        // Join usually happens within a record context, but here we evaluate the combiner
+        // on the current state and set the result at 'at'.
+        combiner.evalDynamic(value) match {
+          case Right(results) if results.nonEmpty =>
+            at.setDV(value, results.head)
+          case Right(_) =>
+            Left(MigrationError.EvaluationFailed(at, "Join expression returned no value"))
+          case Left(err) =>
+            Left(MigrationError.EvaluationFailed(at, err.toString))
+        }
       }
+    }
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(
-        MigrationError.NotReversible(
-          "Join(" + fieldNames.mkString(", ") + " => " + resultName + ") cannot be reversed"
-        )
-      )
+      Left(MigrationError.NotReversible(s"Join at $at cannot be reversed"))
   }
 
   /**
    * Split a single field into multiple fields using expressions.
-   *
-   * @param fieldName
-   *   The field to split
-   * @param into
-   *   Vector of (newFieldName, expression) pairs
    */
   final case class Split(
-    fieldName: String,
-    into: Vector[(String, SchemaExpr[DynamicValue, DynamicValue])]
+    at: DynamicOptic,
+    targetPaths: Vector[DynamicOptic],
+    splitter: SchemaExpr[DynamicValue, DynamicValue]
   ) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          val remaining = fields.filterNot(_._1 == fieldName)
-          val results   = into.foldLeft[Either[MigrationError, Vector[(String, DynamicValue)]]](
-            Right(Vector.empty)
-          ) { case (acc, (name, expr)) =>
-            acc.flatMap { accumulated =>
-              expr.evalDynamic(value) match {
-                case Right(values) if values.nonEmpty =>
-                  Right(accumulated :+ (name -> values.head))
-                case Right(_) =>
-                  Left(
-                    MigrationError.EvaluationFailed(
-                      DynamicOptic.root,
-                      s"Split expression for '$name' returned no value"
-                    )
-                  )
-                case Left(err) =>
-                  Left(MigrationError.EvaluationFailed(DynamicOptic.root, err.toString))
+      at.getDV(value).flatMap { v =>
+        splitter.evalDynamic(v).left.map(e => MigrationError.EvaluationFailed(at, e.message)).flatMap { results =>
+          val valuesToDistribute: Vector[DynamicValue] =
+            if (results.size >= targetPaths.size) results.toVector
+            else
+              results.headOption match {
+                case Some(DynamicValue.Sequence(vals)) => vals
+                case _                                 => results.toVector
               }
-            }
+
+          if (valuesToDistribute.size < targetPaths.size)
+            Left(
+              MigrationError.EvaluationFailed(
+                at,
+                s"Split expression returned ${valuesToDistribute.size} values, expected at least ${targetPaths.size}"
+              )
+            )
+          else {
+            targetPaths
+              .zip(valuesToDistribute)
+              .foldLeft[Either[MigrationError, DynamicValue]](Right(value)) { case (acc, (path, valToSet)) =>
+                acc.flatMap(v => path.setDV(v, valToSet))
+              }
           }
-          results.map(newFields => DynamicValue.Record(remaining ++ newFields))
-        case _ =>
-          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
+        }
       }
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(
-        MigrationError.NotReversible(
-          "Split(" + fieldName + " => " + into.map(_._1).mkString(", ") + ") cannot be reversed"
-        )
-      )
+      Left(MigrationError.NotReversible(s"Split at $at cannot be reversed"))
+  }
+
+  /**
+   * Transform a value at a path using an expression.
+   */
+  final case class TransformValue(
+    at: DynamicOptic,
+    transform: SchemaExpr[DynamicValue, DynamicValue]
+  ) extends MigrationAction {
+    def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
+      at.getDV(value).flatMap { v =>
+        transform
+          .evalDynamic(v)
+          .left
+          .map(e => MigrationError.EvaluationFailed(at, e.message))
+          .map(_.head)
+          .flatMap(newValue => at.setDV(value, newValue))
+      }
+
+    def reverse: Either[MigrationError, MigrationAction] =
+      Left(MigrationError.NotReversible(s"TransformValue($at) cannot be reversed"))
   }
 
   /**
    * Change the type of a field using a coercion expression.
-   *
-   * @param fieldName
-   *   The field whose type to change
-   * @param coercion
-   *   Expression to convert the value
    */
   final case class ChangeType(
-    fieldName: String,
+    at: DynamicOptic,
     coercion: SchemaExpr[DynamicValue, DynamicValue]
   ) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          fields.find(_._1 == fieldName) match {
-            case Some((name, fieldValue)) =>
-              val wrappedValue = DynamicValue.Record(Vector((name, fieldValue)))
-              coercion.evalDynamic(wrappedValue) match {
-                case Right(results) if results.nonEmpty =>
-                  val updated = fields.map {
-                    case (n, _) if n == fieldName => (n, results.head)
-                    case other                    => other
-                  }
-                  Right(DynamicValue.Record(updated))
-                case Right(_) =>
-                  Left(
-                    MigrationError.EvaluationFailed(
-                      DynamicOptic.root.field(fieldName),
-                      s"ChangeType coercion returned no value"
-                    )
-                  )
-                case Left(err) =>
-                  Left(MigrationError.EvaluationFailed(DynamicOptic.root.field(fieldName), err.toString))
-              }
-            case None => Right(value)
+      at.getDV(value)
+        .flatMap { fieldValue =>
+          coercion.evalDynamic(fieldValue) match {
+            case Right(results) if results.nonEmpty => Right(results.head)
+            case Right(_)                           => Left(MigrationError.EvaluationFailed(at, "ChangeType returned no value"))
+            case Left(err)                          => Left(MigrationError.EvaluationFailed(at, err.toString))
           }
-        case _ =>
-          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
-      }
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(MigrationError.NotReversible(s"ChangeType($fieldName) cannot be reversed"))
+      Left(MigrationError.NotReversible(s"ChangeType($at) cannot be reversed"))
   }
 
   /**
-   * Transform the value of a specific case in an enum/variant.
-   *
-   * @param caseName
-   *   The case to transform
-   * @param transform
-   *   Expression to transform the case value
+   * Transform a case in an enum/variant.
    */
   final case class TransformCase(
+    at: DynamicOptic,
     caseName: String,
     transform: SchemaExpr[DynamicValue, DynamicValue]
   ) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Variant(name, innerValue) if name == caseName =>
-          transform.evalDynamic(innerValue) match {
-            case Right(results) if results.nonEmpty =>
-              Right(DynamicValue.Variant(name, results.head))
-            case Right(_) =>
-              Left(
-                MigrationError.EvaluationFailed(
-                  DynamicOptic.root,
-                  s"TransformCase expression returned no value"
-                )
-              )
-            case Left(err) =>
-              Left(MigrationError.EvaluationFailed(DynamicOptic.root, err.toString))
-          }
-        case other => Right(other)
-      }
+      at.getDV(value)
+        .flatMap {
+          case DynamicValue.Variant(name, v) if name == caseName =>
+            transform.evalDynamic(v).map(res => DynamicValue.Variant(name, res.head)).left.map { error =>
+              MigrationError.EvaluationFailed(at, error.message)
+            }
+          case other => Right(other)
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(MigrationError.NotReversible(s"TransformCase($caseName) cannot be reversed"))
+      Left(MigrationError.NotReversible(s"TransformCase($at, $caseName) - reverse not implemented"))
+  }
+
+  object TransformCase {
+    def apply(caseName: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformCase =
+      TransformCase(DynamicOptic.root, caseName, transform)
   }
 
   // ============================================================================
-  // Collection / Map Actions
+  // Collection Actions
   // ============================================================================
 
   /**
-   * Transform all elements in a collection using an expression.
-   *
-   * @param fieldName
-   *   The collection field to transform
-   * @param transform
-   *   Expression to apply to each element
+   * Transform elements in a collection.
    */
   final case class TransformElements(
-    fieldName: String,
+    at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, DynamicValue]
   ) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          fields.find(_._1 == fieldName) match {
-            case Some((_, DynamicValue.Sequence(elements))) =>
-              val transformed = elements.foldLeft[Either[MigrationError, Vector[DynamicValue]]](
-                Right(Vector.empty)
-              ) { (acc, elem) =>
-                acc.flatMap { accumulated =>
-                  transform.evalDynamic(elem) match {
-                    case Right(results) if results.nonEmpty =>
-                      Right(accumulated :+ results.head)
-                    case Right(_) =>
-                      Left(
-                        MigrationError.EvaluationFailed(
-                          DynamicOptic.root.field(fieldName),
-                          "TransformElements returned no value"
-                        )
-                      )
-                    case Left(error) =>
-                      Left(MigrationError.EvaluationFailed(DynamicOptic.root.field(fieldName), error.toString))
-                  }
-                }
-              }
-
-              transformed.map { newElements =>
-                val updated = fields.map {
-                  case (name, _) if name == fieldName => (name, DynamicValue.Sequence(newElements))
-                  case other                          => other
-                }
-                DynamicValue.Record(updated)
-              }
-
-            case Some(_) =>
-              Left(
-                MigrationError.TypeMismatch(
-                  DynamicOptic.root.field(fieldName),
-                  "Sequence",
-                  "other"
-                )
-              )
-            case None =>
-              Left(MigrationError.MissingField(DynamicOptic.root, fieldName))
-          }
-        case _ =>
-          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
-      }
+      at.getDV(value)
+        .flatMap {
+          case DynamicValue.Sequence(elements) =>
+            val results             = elements.map(transform.evalDynamic)
+            val (errors, successes) = results.partitionMap(identity)
+            if (errors.nonEmpty) {
+              Left(MigrationError.EvaluationFailed(at, errors.head.message))
+            } else {
+              Right(DynamicValue.Sequence(successes.flatten))
+            }
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "Sequence", other.getClass.getSimpleName))
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(MigrationError.NotReversible(s"TransformElements($fieldName) cannot be reversed"))
+      Left(MigrationError.NotReversible(s"TransformElements($at) - reverse not implemented"))
+  }
+
+  object TransformElements {
+    def apply(name: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformElements =
+      TransformElements(DynamicOptic.root.field(name), transform)
   }
 
   /**
-   * Transform all keys in a map using an expression.
-   *
-   * @param fieldName
-   *   The map field whose keys to transform
-   * @param transform
-   *   Expression to apply to each key
+   * Transform keys in a map.
    */
   final case class TransformKeys(
-    fieldName: String,
+    at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, DynamicValue]
   ) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          fields.find(_._1 == fieldName) match {
-            case Some((_, DynamicValue.Map(entries))) =>
-              val transformed = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](
-                Right(Vector.empty)
-              ) { (acc, entry) =>
-                acc.flatMap { accumulated =>
-                  transform.evalDynamic(entry._1) match {
-                    case Right(results) if results.nonEmpty =>
-                      Right(accumulated :+ (results.head -> entry._2))
-                    case Right(_) =>
-                      Left(
-                        MigrationError.EvaluationFailed(
-                          DynamicOptic.root.field(fieldName),
-                          "TransformKeys returned no value"
-                        )
-                      )
-                    case Left(error) =>
-                      Left(MigrationError.EvaluationFailed(DynamicOptic.root.field(fieldName), error.toString))
-                  }
-                }
-              }
-
-              transformed.map { newEntries =>
-                val updated = fields.map {
-                  case (name, _) if name == fieldName => (name, DynamicValue.Map(newEntries))
-                  case other                          => other
-                }
-                DynamicValue.Record(updated)
-              }
-
-            case Some(_) =>
-              Left(
-                MigrationError.TypeMismatch(
-                  DynamicOptic.root.field(fieldName),
-                  "Map",
-                  "other"
-                )
-              )
-            case None =>
-              Left(MigrationError.MissingField(DynamicOptic.root, fieldName))
-          }
-        case _ =>
-          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
-      }
+      at.getDV(value)
+        .flatMap {
+          case DynamicValue.Map(entries) =>
+            val results = entries.map { case (k, v) =>
+              transform.evalDynamic(k).map(newK => (newK.head, v))
+            }
+            val (errors, successes) = results.partitionMap(identity)
+            if (errors.nonEmpty) {
+              Left(MigrationError.EvaluationFailed(at, errors.head.message))
+            } else {
+              Right(DynamicValue.Map(successes))
+            }
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "Map", other.getClass.getSimpleName))
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(MigrationError.NotReversible(s"TransformKeys($fieldName) cannot be reversed"))
+      Left(MigrationError.NotReversible(s"TransformKeys($at) - reverse not implemented"))
+  }
+
+  object TransformKeys {
+    def apply(name: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformKeys =
+      TransformKeys(DynamicOptic.root.field(name), transform)
   }
 
   /**
-   * Transform all values in a map using an expression.
-   *
-   * @param fieldName
-   *   The map field whose values to transform
-   * @param transform
-   *   Expression to apply to each value
+   * Transform values in a map.
    */
   final case class TransformValues(
-    fieldName: String,
+    at: DynamicOptic,
     transform: SchemaExpr[DynamicValue, DynamicValue]
   ) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      value match {
-        case DynamicValue.Record(fields) =>
-          fields.find(_._1 == fieldName) match {
-            case Some((_, DynamicValue.Map(entries))) =>
-              val transformed = entries.foldLeft[Either[MigrationError, Vector[(DynamicValue, DynamicValue)]]](
-                Right(Vector.empty)
-              ) { (acc, entry) =>
-                acc.flatMap { accumulated =>
-                  transform.evalDynamic(entry._2) match {
-                    case Right(results) if results.nonEmpty =>
-                      Right(accumulated :+ (entry._1 -> results.head))
-                    case Right(_) =>
-                      Left(
-                        MigrationError.EvaluationFailed(
-                          DynamicOptic.root.field(fieldName),
-                          "TransformValues returned no value"
-                        )
-                      )
-                    case Left(error) =>
-                      Left(MigrationError.EvaluationFailed(DynamicOptic.root.field(fieldName), error.toString))
-                  }
-                }
-              }
-
-              transformed.map { newEntries =>
-                val updated = fields.map {
-                  case (name, _) if name == fieldName => (name, DynamicValue.Map(newEntries))
-                  case other                          => other
-                }
-                DynamicValue.Record(updated)
-              }
-
-            case Some(_) =>
-              Left(
-                MigrationError.TypeMismatch(
-                  DynamicOptic.root.field(fieldName),
-                  "Map",
-                  "other"
-                )
-              )
-            case None =>
-              Left(MigrationError.MissingField(DynamicOptic.root, fieldName))
-          }
-        case _ =>
-          Left(MigrationError.TypeMismatch(DynamicOptic.root, "Record", value.getClass.getSimpleName))
-      }
+      at.getDV(value)
+        .flatMap {
+          case DynamicValue.Map(entries) =>
+            val results = entries.map { case (k, v) =>
+              transform.evalDynamic(v).map(newV => (k, newV.head))
+            }
+            val (errors, successes) = results.partitionMap(identity)
+            if (errors.nonEmpty) {
+              Left(MigrationError.EvaluationFailed(at, errors.head.message))
+            } else {
+              Right(DynamicValue.Map(successes))
+            }
+          case other =>
+            Left(MigrationError.TypeMismatch(at, "Map", other.getClass.getSimpleName))
+        }
+        .flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(MigrationError.NotReversible(s"TransformValues($fieldName) cannot be reversed"))
+      Left(MigrationError.NotReversible(s"TransformValues($at) - reverse not implemented"))
+  }
+
+  object TransformValues {
+    def apply(name: String, transform: SchemaExpr[DynamicValue, DynamicValue]): TransformValues =
+      TransformValues(DynamicOptic.root.field(name), transform)
   }
 }

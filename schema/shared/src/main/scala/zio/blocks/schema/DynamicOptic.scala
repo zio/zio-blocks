@@ -27,6 +27,74 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def wrapped: DynamicOptic = new DynamicOptic(nodes :+ Node.Wrapped)
 
+  def get(value: DynamicValue): Either[String, DynamicValue] = {
+    def loop(current: DynamicValue, remaining: List[Node]): Either[String, DynamicValue] =
+      remaining match {
+        case Nil          => Right(current)
+        case node :: tail =>
+          node match {
+            case Node.Field(name) =>
+              current match {
+                case DynamicValue.Record(fields) =>
+                  fields
+                    .find(_._1 == name)
+                    .map(_._2)
+                    .toRight(s"Missing field '$name' in record")
+                    .flatMap(loop(_, tail))
+                case _ => Left(s"Expected record at $node, got ${current.getClass.getSimpleName}")
+              }
+            case Node.Case(name) =>
+              current match {
+                case DynamicValue.Variant(vname, v) if vname == name => loop(v, tail)
+                case DynamicValue.Variant(vname, _)                  => Left(s"Expected case '$name', got '$vname'")
+                case _                                               => Left(s"Expected variant at $node, got ${current.getClass.getSimpleName}")
+              }
+            case Node.AtIndex(index) =>
+              current match {
+                case DynamicValue.Sequence(elements) =>
+                  if (index >= 0 && index < elements.length) loop(elements(index), tail)
+                  else Left(s"Index $index out of bounds for sequence of size ${elements.length}")
+                case _ => Left(s"Expected sequence at $node, got ${current.getClass.getSimpleName}")
+              }
+            case _ => Left(s"Optic node $node not yet supported for get")
+          }
+      }
+    loop(value, nodes.toList)
+  }
+
+  def set(root: DynamicValue, value: DynamicValue): Either[String, DynamicValue] = {
+    def loop(current: DynamicValue, remaining: List[Node]): Either[String, DynamicValue] =
+      remaining match {
+        case Nil          => Right(value)
+        case node :: tail =>
+          node match {
+            case Node.Field(name) =>
+              current match {
+                case DynamicValue.Record(fields) =>
+                  val idx = fields.indexWhere(_._1 == name)
+                  if (idx >= 0) {
+                    loop(fields(idx)._2, tail).map { newValue =>
+                      DynamicValue.Record(fields.updated(idx, (name, newValue)))
+                    }
+                  } else {
+                    loop(DynamicValue.Record(Vector.empty), tail).map { newValue =>
+                      DynamicValue.Record(fields :+ (name, newValue))
+                    }
+                  }
+                case _ => Left(s"Expected record at $node, got ${current.getClass.getSimpleName}")
+              }
+            case Node.Case(name) =>
+              current match {
+                case DynamicValue.Variant(vname, v) if vname == name =>
+                  loop(v, tail).map(newValue => DynamicValue.Variant(name, newValue))
+                case _ => Left(s"Expected variant case '$name' at $node")
+              }
+            case _ => Left(s"Optic node $node not yet supported for set")
+          }
+      }
+    loop(root, nodes.toList)
+  }
+
   override lazy val toString: String = {
     val sb  = new StringBuilder
     val len = nodes.length

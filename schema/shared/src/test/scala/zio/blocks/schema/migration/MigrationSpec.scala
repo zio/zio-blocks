@@ -3,6 +3,7 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 import zio.test._
 import zio.test.Assertion._
+import zio.blocks.schema.migration.MigrationAction.DynamicOpticOps
 
 /**
  * Test specification for the DynamicMigration migration system.
@@ -16,9 +17,9 @@ object MigrationSpec extends ZIOSpecDefault {
   def spec: Spec[TestEnvironment, Any] =
     suite("MigrationSpec")(
       suite("MigrationAction")(
-        suite("RenameField")(
+        suite("Rename")(
           test("renames a field in a record") {
-            val action = MigrationAction.RenameField("oldName", "newName")
+            val action = MigrationAction.Rename("oldName", "newName")
             val record = DynamicValue.Record(
               Vector(
                 ("oldName", DynamicValue.Primitive(PrimitiveValue.Int(42))),
@@ -35,12 +36,12 @@ object MigrationSpec extends ZIOSpecDefault {
             assert(result)(isRight) && assert(hasNewName)(isRight(isTrue)) && assert(action.reverse)(isRight)
           },
           test("is fully reversible") {
-            val action  = MigrationAction.RenameField("a", "b")
+            val action  = MigrationAction.Rename("a", "b")
             val reverse = action.reverse
 
             assert(reverse)(isRight) &&
-            assert(reverse.map(_.asInstanceOf[MigrationAction.RenameField]))(
-              isRight(equalTo(MigrationAction.RenameField("b", "a")))
+            assert(reverse.map(_.asInstanceOf[MigrationAction.Rename]))(
+              isRight(equalTo(MigrationAction.Rename("b", "a")))
             )
           }
         ),
@@ -188,6 +189,108 @@ object MigrationSpec extends ZIOSpecDefault {
             val action = MigrationAction.RemoveCase("case")
             assert(action.reverse)(isLeft)
           }
+        ),
+        suite("Deep Paths")(
+          test("renames a nested field") {
+            val action = MigrationAction.Rename(
+              DynamicOptic.root.field("address").field("street"),
+              "streetName"
+            )
+            val record = DynamicValue.Record(
+              Vector(
+                (
+                  "address",
+                  DynamicValue.Record(
+                    Vector(
+                      ("street", DynamicValue.Primitive(PrimitiveValue.String("Main St")))
+                    )
+                  )
+                )
+              )
+            )
+
+            val result  = action.apply(record)
+            val updated = result.flatMap(DynamicOptic.root.field("address").field("streetName").getDV)
+
+            assert(result)(isRight) &&
+            assert(updated)(isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.String("Main St")))))
+          }
+        ),
+        suite("Join")(
+          test("joins multiple fields into one") {
+            val sources = Vector(DynamicOptic.root.field("a"), DynamicOptic.root.field("b"))
+            val target  = DynamicOptic.root.field("c")
+            val action  = MigrationAction.Join(
+              target,
+              sources,
+              SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.String("joined")), Schema.dynamic)
+            )
+            val record = DynamicValue.Record(
+              Vector(
+                "a" -> DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                "b" -> DynamicValue.Primitive(PrimitiveValue.Int(2))
+              )
+            )
+
+            val result = action.apply(record)
+            val joined = result.flatMap(target.getDV)
+
+            assert(joined)(isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.String("joined")))))
+          },
+          test("fails if source field is missing") {
+            val sources = Vector(DynamicOptic.root.field("missing"))
+            val action  = MigrationAction.Join(
+              DynamicOptic.root.field("target"),
+              sources,
+              SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(0)), Schema.dynamic)
+            )
+            val record = DynamicValue.Record(Vector.empty)
+
+            assert(action.apply(record))(isLeft)
+          }
+        ),
+        suite("Split")(
+          test("splits one field into multiple") {
+            val targetA = DynamicOptic.root.field("a")
+            val targetB = DynamicOptic.root.field("b")
+            val action  = MigrationAction.Split(
+              DynamicOptic.root.field("source"),
+              Vector(targetA, targetB),
+              SchemaExpr
+                .Literal(
+                  Vector(
+                    DynamicValue.Primitive(PrimitiveValue.Int(1)),
+                    DynamicValue.Primitive(PrimitiveValue.Int(2))
+                  ),
+                  Schema.vector[DynamicValue]
+                )
+                .asInstanceOf[SchemaExpr[DynamicValue, DynamicValue]]
+            )
+            val record =
+              DynamicValue.Record(Vector("source" -> DynamicValue.Primitive(PrimitiveValue.Int(0))))
+
+            val result = action.apply(record)
+            val valA   = result.flatMap(targetA.getDV)
+            val valB   = result.flatMap(targetB.getDV)
+
+            assert(valA)(isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(1))))) &&
+            assert(valB)(isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(2)))))
+          }
+        ),
+        suite("TransformValue")(
+          test("transforms a value at a path") {
+            val action = MigrationAction.TransformValue(
+              DynamicOptic.root.field("age"),
+              SchemaExpr.Literal(DynamicValue.Primitive(PrimitiveValue.Int(31)), Schema.dynamic)
+            )
+            val record =
+              DynamicValue.Record(Vector("age" -> DynamicValue.Primitive(PrimitiveValue.Int(30))))
+
+            val result       = action.apply(record)
+            val updatedValue = result.flatMap(DynamicOptic.root.field("age").getDV)
+
+            assert(updatedValue)(isRight(equalTo(DynamicValue.Primitive(PrimitiveValue.Int(31)))))
+          }
         )
       ),
       suite("DynamicMigration")(
@@ -203,7 +306,7 @@ object MigrationSpec extends ZIOSpecDefault {
           },
           test("composes actions in sequence") {
             val migration = DynamicMigration.fromActions(
-              MigrationAction.RenameField("a", "b"),
+              MigrationAction.Rename("a", "b"),
               MigrationAction.AddField("c", DynamicValue.Primitive(PrimitiveValue.Int(0)))
             )
             val record = DynamicValue.Record(
@@ -234,7 +337,7 @@ object MigrationSpec extends ZIOSpecDefault {
             assert(left.actions)(equalTo(right.actions))
           },
           test("identity law: empty ++ m == m && m ++ empty == m") {
-            val m = DynamicMigration.single(MigrationAction.RenameField("a", "b"))
+            val m = DynamicMigration.single(MigrationAction.Rename("a", "b"))
 
             assert((DynamicMigration.empty ++ m).actions)(equalTo(m.actions)) &&
             assert((m ++ DynamicMigration.empty).actions)(equalTo(m.actions))
@@ -242,7 +345,7 @@ object MigrationSpec extends ZIOSpecDefault {
         ),
         suite("Reversibility")(
           test("reversible migration round-trips correctly") {
-            val migration = DynamicMigration.single(MigrationAction.RenameField("old", "new"))
+            val migration = DynamicMigration.single(MigrationAction.Rename("old", "new"))
             val record    = DynamicValue.Record(
               Vector(
                 ("old", DynamicValue.Primitive(PrimitiveValue.String("value")))
@@ -259,12 +362,24 @@ object MigrationSpec extends ZIOSpecDefault {
           },
           test("identity law: m.reverse.reverse == Right(m)") {
             val m = DynamicMigration.fromActions(
-              MigrationAction.RenameField("a", "b"),
+              MigrationAction.Rename("a", "b"),
               MigrationAction.RenameCase("X", "Y")
             )
 
             val result = m.reverse.flatMap(_.reverse)
             assert(result.map(_.actions))(isRight(equalTo(m.actions)))
+          },
+          test("structural reverse law: (m1 ++ m2).reverse == m2.reverse ++ m1.reverse") {
+            val m1 = DynamicMigration.single(MigrationAction.Rename("a", "b"))
+            val m2 = DynamicMigration.single(MigrationAction.Rename("c", "d"))
+
+            val left  = (m1 ++ m2).reverse
+            val right = for {
+              r1 <- m1.reverse
+              r2 <- m2.reverse
+            } yield r2 ++ r1
+
+            assert(left.map(_.actions))(equalTo(right.map(_.actions)))
           },
           test("fails to reverse non-reversible migration") {
             val migration = DynamicMigration.single(MigrationAction.DropField("field"))
@@ -283,7 +398,7 @@ object MigrationSpec extends ZIOSpecDefault {
           implicit val personV2Schema: Schema[PersonV2] = Schema.derived
 
           val migration = Migration[Person, PersonV2](
-            DynamicMigration.single(MigrationAction.RenameField("name", "fullName"))
+            DynamicMigration.single(MigrationAction.Rename("name", "fullName"))
           )
 
           val person = Person("Alice", 30)
@@ -292,6 +407,50 @@ object MigrationSpec extends ZIOSpecDefault {
           assert(result)(isRight) &&
           assert(result.map(_.fullName))(isRight(equalTo("Alice"))) &&
           assert(result.map(_.age))(isRight(equalTo(30)))
+        },
+        test("complex chaining: V1 -> V2 -> V3") {
+          case class V1(a: Int)
+          case class V2(a: Int, b: String)
+          case class V3(a: Int, c: String)
+
+          implicit val s1: Schema[V1] = Schema.derived
+          implicit val s2: Schema[V2] = Schema.derived
+          implicit val s3: Schema[V3] = Schema.derived
+
+          val m1 = Migration.builder[V1, V2].addField("b", "init").build.toOption.get
+          val m2 = Migration.builder[V2, V3].renameField("b", "c").build.toOption.get
+
+          val v1     = V1(1)
+          val result = for {
+            v2 <- m1.apply(v1)
+            v3 <- m2.apply(v2)
+          } yield v3
+
+          assert(result)(isRight(equalTo(V3(1, "init"))))
+        },
+        test("semantic inverse law: m(m.reverse(v)) == v for reversible migrations") {
+          case class Data(x: Int, y: String)
+          case class DataRenamed(z: Int, y: String)
+
+          implicit val dataSchema: Schema[Data]           = Schema.derived
+          implicit val renamedSchema: Schema[DataRenamed] = Schema.derived
+
+          val migration = Migration
+            .builder[Data, DataRenamed]
+            .renameField("x", "z")
+            .build
+            .toOption
+            .get
+
+          val original = Data(42, "hello")
+
+          val result = for {
+            reversed    <- migration.reverse
+            transformed <- migration.apply(original)
+            restored    <- reversed.apply(transformed)
+          } yield restored
+
+          assert(result)(isRight(equalTo(original)))
         }
       )
     )

@@ -127,26 +127,30 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     actions.forall(_.reverse.isRight)
 
   /**
-   * Get a human-readable description of this migration.
+   * Returns a human-readable description of the migration.
    */
   def describe: String =
     if (actions.isEmpty) "Empty migration"
     else
       actions.map {
-        case MigrationAction.DropField(name)             => s"Drop field '$name'"
-        case MigrationAction.RenameField(old, newName)   => s"Rename field '$old' to '$newName'"
-        case MigrationAction.AddField(name, _)           => s"Add field '$name'"
-        case MigrationAction.Optionalize(name)           => s"Make field '$name' optional"
-        case MigrationAction.Mandate(name, _)            => s"Make field '$name' mandatory"
-        case MigrationAction.RenameCase(old, newName)    => s"Rename case '$old' to '$newName'"
-        case MigrationAction.RemoveCase(name)            => s"Remove case '$name'"
-        case MigrationAction.Join(fields, result, _)     => s"Join fields ${fields.mkString(", ")} into '$result'"
-        case MigrationAction.Split(field, into)          => s"Split field '$field' into ${into.map(_._1).mkString(", ")}"
-        case MigrationAction.ChangeType(field, _)        => s"Change type of field '$field'"
-        case MigrationAction.TransformCase(caseName, _)  => s"Transform case '$caseName'"
-        case MigrationAction.TransformElements(field, _) => s"Transform elements in '$field'"
-        case MigrationAction.TransformKeys(field, _)     => s"Transform keys in '$field'"
-        case MigrationAction.TransformValues(field, _)   => s"Transform values in '$field'"
+        case MigrationAction.DropField(at)              => s"Drop field at '$at'"
+        case MigrationAction.Rename(at, to)             => s"Rename field at '$at' to '$to'"
+        case MigrationAction.AddField(at, _)            => s"Add field at '$at'"
+        case MigrationAction.Optionalize(at)            => s"Make field at '$at' optional"
+        case MigrationAction.Mandate(at, _)             => s"Make field at '$at' mandatory"
+        case MigrationAction.RenameCase(at, _, newName) => s"Rename case in '$at' to '$newName'"
+        case MigrationAction.RemoveCase(at, name)       => s"Remove case '$name' in '$at'"
+        case MigrationAction.Join(at, sources, _)       =>
+          s"Join fields ${sources.mkString(", ")} at '$at'"
+        case MigrationAction.Split(at, targets, _) =>
+          s"Split field into ${targets.mkString(", ")} at '$at'"
+        case MigrationAction.TransformValue(at, _)          => s"Transform value at '$at'"
+        case MigrationAction.ChangeType(at, _)              => s"Change type of field at '$at'"
+        case MigrationAction.TransformCase(at, caseName, _) =>
+          s"Transform case '$caseName' in '$at'"
+        case MigrationAction.TransformElements(at, _) => s"Transform elements in '$at'"
+        case MigrationAction.TransformKeys(at, _)     => s"Transform keys in '$at'"
+        case MigrationAction.TransformValues(at, _)   => s"Transform values in '$at'"
       }.mkString(" → ")
 
 }

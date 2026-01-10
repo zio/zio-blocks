@@ -42,4 +42,11 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   )(using fromSchema: Schema[A], toSchema: Schema[B]): MigrationBuilder[A, B] = ${
     MigrationBuilderMacros.optionalizeImpl[A, B]('self, 'field, 'fromSchema, 'toSchema)
   }
+
+  /**
+   * Build the final migration with compile-time validation.
+   */
+  inline def build: Either[String, Migration[A, B]] = ${
+    MigrationBuilderMacros.validateAndBuild[A, B]('self)
+  }
 }

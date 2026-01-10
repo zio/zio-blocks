@@ -11,7 +11,8 @@ import zio.blocks.schema.binding.RegisterOffset._
 import zio.blocks.schema.CommonMacroOps
 
 trait SchemaCompanionVersionSpecific {
-  inline def derived[A]: Schema[A] = ${ SchemaCompanionVersionSpecificImpl.derived }
+  inline def derived[A]: Schema[A]    = ${ SchemaCompanionVersionSpecificImpl.derived }
+  inline def structural[A]: Schema[A] = ${ StructuralSchemaMacros.structuralImpl[A] }
 }
 
 private object SchemaCompanionVersionSpecificImpl {
