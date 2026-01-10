@@ -14,9 +14,23 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
   case class PersonV0(name: String, age: Int)
   case class PersonV1(name: String, age: Int, country: String)
 
-  enum StatusV0 { case Active, Inactive }
-  enum StatusV1 { case Active, Legacy   }
-  enum StatusV2 { case Active           }
+  // Use sealed traits for Scala 2/3 cross-compatibility (enums are Scala 3 only)
+  sealed trait StatusV0
+  object StatusV0 {
+    case object Active   extends StatusV0
+    case object Inactive extends StatusV0
+  }
+
+  sealed trait StatusV1
+  object StatusV1 {
+    case object Active extends StatusV1
+    case object Legacy extends StatusV1
+  }
+
+  sealed trait StatusV2
+  object StatusV2 {
+    case object Active extends StatusV2
+  }
 
   implicit val personV0Schema: Schema[PersonV0] = Schema.derived[PersonV0]
   implicit val personV1Schema: Schema[PersonV1] = Schema.derived[PersonV1]
