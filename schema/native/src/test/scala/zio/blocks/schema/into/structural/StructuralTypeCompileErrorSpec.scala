@@ -3,12 +3,12 @@ package zio.blocks.schema.into.structural
 import zio.test._
 
 /**
- * Tests that structural type conversions fail at compile time on Scala Native.
+ * Tests that structural types fail at compile time on Scala Native.
  */
 object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
 
   def spec = suite("StructuralTypeCompileErrorSpec")(
-    suite("Structural to Product - Compile Error on Native")(
+    suite("Structural types - Compile Error on Native")(
       test("structural type to case class fails to compile") {
         typeCheck {
           """
@@ -22,8 +22,8 @@ object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            // Structural type conversions require reflection, not supported on Native
-            result.swap.exists(_.toLowerCase.contains("structural type conversions are not supported on native"))
+            // Structural types require reflection, not supported on Native
+            result.swap.exists(_.toLowerCase.contains("structural types require reflection"))
           )
         }
       },
@@ -40,7 +40,7 @@ object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            result.swap.exists(_.toLowerCase.contains("structural type conversions are not supported on native"))
+            result.swap.exists(_.toLowerCase.contains("structural types require reflection"))
           )
         }
       }
