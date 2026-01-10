@@ -15,7 +15,6 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   def build: Either[String, Migration[A, B]] =
     self.validate.map(_ => Migration[A, B](DynamicMigration(self.actions))(self.fromSchema, self.toSchema))
 
-  def renameField(at: DynamicOptic, newName: String): MigrationBuilder[A, B] =
   // No platform-specific methods needed for Scala 2 at the moment as core methods are shared.
   // In the future, specialized Scala 2 macros could be added here.
 }
