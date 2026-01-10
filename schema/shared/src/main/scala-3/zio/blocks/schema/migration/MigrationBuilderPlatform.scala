@@ -47,7 +47,7 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
    * Add a field using type-safe selector on the target type.
    *
    * Example: `.addField(_.country, "USA")`
-   * 
+   *
    * Supports nested paths: `.addField(_.address.zipCode, "00000")`
    */
   inline def addField[T](

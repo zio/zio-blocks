@@ -13,12 +13,13 @@ private[migration] object MigrationBuilderMacros {
 
   /**
    * Extract a DynamicOptic from a selector function.
-   * 
+   *
    * Supports complex patterns:
-   * - Simple field: `_.fieldName` -> `.field("fieldName")`
-   * - Nested field: `_.address.street` -> `.field("address").field("street")`
-   * - Collection: `_.items.each` -> `.field("items").elements`
-   * - Enum case: `_.status.when[Active]` -> `.field("status").caseOf("Active")`
+   *   - Simple field: `_.fieldName` -> `.field("fieldName")`
+   *   - Nested field: `_.address.street` -> `.field("address").field("street")`
+   *   - Collection: `_.items.each` -> `.field("items").elements`
+   *   - Enum case: `_.status.when[Active]` ->
+   *     `.field("status").caseOf("Active")`
    */
   def extractDynamicOptic(using
     Quotes
@@ -110,8 +111,8 @@ private[migration] object MigrationBuilderMacros {
       case Select(_, fieldName) if !Set("each", "eachKey", "eachValue", "when").contains(fieldName) =>
         Right(fieldName)
       case Lambda(_, body) => findLastField(body)
-      case Block(_, expr) => findLastField(expr)
-      case _ => Left(s"Could not extract field name from: ${term.show}")
+      case Block(_, expr)  => findLastField(expr)
+      case _               => Left(s"Could not extract field name from: ${term.show}")
     }
 
     findLastField(selector)
@@ -349,8 +350,7 @@ private[migration] object MigrationBuilderMacros {
    * Validate field exists if possible - used for complex selectors where we
    * only validate if we can extract a simple field name.
    */
-  def validateFieldExistsIfPossible[T: Type](fieldName: String)(using Quotes): Unit = {
+  def validateFieldExistsIfPossible[T: Type](fieldName: String)(using Quotes): Unit =
     // Only validate for simple field access patterns
     validateFieldExists[T](fieldName)
-  }
 }
