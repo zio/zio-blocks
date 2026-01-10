@@ -97,6 +97,45 @@ object MigrationBuilderSpec extends ZIOSpecDefault {
         // Should succeed since we're adding the missing 'country' field
         assertTrue(result.isRight) &&
         assertTrue(result.map(_.country).getOrElse("") == "USA")
+      },
+      // Scala 3 Selector Macro Tests
+      test("selector-based addField with _.targetField") {
+        // This test verifies the new selector-based addField macro (Scala 3 only)
+        val migration = Migration
+          .builder[PersonV0, PersonV1]
+          .addField(_.country, "USA")
+          .build
+          .toOption
+          .get
+
+        assertTrue(migration.dynamic.actions.length == 1) &&
+        assertTrue(migration.dynamic.actions.head.isInstanceOf[MigrationAction.AddField])
+      },
+      test("selector-based addField produces working migration") {
+        val migration = Migration
+          .builder[PersonV0, PersonV1]
+          .addField(_.country, "Germany")
+          .build
+          .toOption
+          .get
+
+        val input  = PersonV0("Hans", 25)
+        val result = migration.apply(input)
+
+        assertTrue(result.isRight) &&
+        assertTrue(result.map(_.country).getOrElse("") == "Germany")
+      },
+      test("selector-based dropField") {
+        // PersonV1 has 'country', PersonV0 doesn't
+        val migration = Migration
+          .builder[PersonV1, PersonV0]
+          .dropField(_.country)
+          .build
+          .toOption
+          .get
+
+        assertTrue(migration.dynamic.actions.length == 1) &&
+        assertTrue(migration.dynamic.actions.head.isInstanceOf[MigrationAction.DropField])
       }
     )
 }

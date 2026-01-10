@@ -12,7 +12,113 @@ import zio.blocks.schema._
 private[migration] object MigrationBuilderMacros {
 
   /**
-   * Extract a field name from a selector function like `_.fieldName`.
+   * Extract a DynamicOptic from a selector function.
+   * 
+   * Supports complex patterns:
+   * - Simple field: `_.fieldName` -> `.field("fieldName")`
+   * - Nested field: `_.address.street` -> `.field("address").field("street")`
+   * - Collection: `_.items.each` -> `.field("items").elements`
+   * - Enum case: `_.status.when[Active]` -> `.field("status").caseOf("Active")`
+   */
+  def extractDynamicOptic(using
+    Quotes
+  )(
+    selector: quotes.reflect.Term
+  ): Either[String, Expr[DynamicOptic]] = {
+    import quotes.reflect.*
+
+    def loop(term: Term, acc: Expr[DynamicOptic]): Either[String, Expr[DynamicOptic]] = term match {
+      // Base case: identity (end of selector chain)
+      case Ident(_) => Right(acc)
+
+      // Field access: _.fieldName or _.a.b.c
+      case Select(inner, fieldName) if !Set("each", "eachKey", "eachValue").contains(fieldName) =>
+        loop(inner, '{ $acc.field(${ Expr(fieldName) }) })
+
+      // Collection traversal: _.list.each
+      case Apply(Select(inner, "each"), Nil) =>
+        loop(inner, '{ $acc.elements })
+
+      // Standalone .each on Select (no explicit Apply)
+      case Select(inner, "each") =>
+        loop(inner, '{ $acc.elements })
+
+      // Map key traversal: _.map.eachKey
+      case Apply(Select(inner, "eachKey"), Nil) =>
+        loop(inner, '{ $acc.mapKeys })
+
+      case Select(inner, "eachKey") =>
+        loop(inner, '{ $acc.mapKeys })
+
+      // Map value traversal: _.map.eachValue
+      case Apply(Select(inner, "eachValue"), Nil) =>
+        loop(inner, '{ $acc.mapValues })
+
+      case Select(inner, "eachValue") =>
+        loop(inner, '{ $acc.mapValues })
+
+      // Enum case selection: _.status.when[CaseName]
+      case TypeApply(Select(inner, "when"), List(caseType)) =>
+        val caseName = caseType.tpe.typeSymbol.name
+        loop(inner, '{ $acc.caseOf(${ Expr(caseName) }) })
+
+      // Apply without recognized method - try to extract inner
+      case Apply(inner, _) =>
+        loop(inner, acc)
+
+      case other =>
+        Left(s"Unsupported selector pattern: ${other.show}")
+    }
+
+    selector match {
+      // Pattern: x => x.fieldName (simple lambda)
+      case Lambda(List(ValDef(_, _, _)), body) =>
+        loop(body, '{ DynamicOptic.root })
+
+      // Pattern: _.fieldName (eta-expanded in block)
+      case Block(List(), Lambda(List(ValDef(_, _, _)), body)) =>
+        loop(body, '{ DynamicOptic.root })
+
+      // Pattern: Inlined expression (from inline def expansion)
+      case Inlined(_, _, inner) =>
+        extractDynamicOptic(inner)
+
+      // Pattern: Typed expression wrapper
+      case Typed(inner, _) =>
+        extractDynamicOptic(inner)
+
+      // Pattern: Block with bindings
+      case Block(bindings, expr) if bindings.nonEmpty =>
+        extractDynamicOptic(expr)
+
+      case other =>
+        Left(s"Expected a selector function like '_.fieldName', got: ${other.show}")
+    }
+  }
+
+  /**
+   * Extract just the last field name from a selector (for rename target).
+   */
+  def extractLastFieldName(using
+    Quotes
+  )(
+    selector: quotes.reflect.Term
+  ): Either[String, String] = {
+    import quotes.reflect.*
+
+    def findLastField(term: Term): Either[String, String] = term match {
+      case Select(_, fieldName) if !Set("each", "eachKey", "eachValue", "when").contains(fieldName) =>
+        Right(fieldName)
+      case Lambda(_, body) => findLastField(body)
+      case Block(_, expr) => findLastField(expr)
+      case _ => Left(s"Could not extract field name from: ${term.show}")
+    }
+
+    findLastField(selector)
+  }
+
+  /**
+   * Legacy: Extract a simple field name (for backward compatibility).
    */
   def extractFieldName(using
     Quotes
@@ -48,21 +154,22 @@ private[migration] object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    val oldName = extractFieldName(oldField.asTerm) match {
+    val oldOptic = extractDynamicOptic(oldField.asTerm) match {
+      case Right(optic) => optic
+      case Left(err)    => report.errorAndAbort(err)
+    }
+
+    val newName = extractLastFieldName(newField.asTerm) match {
       case Right(name) => name
       case Left(err)   => report.errorAndAbort(err)
     }
 
-    val newName = extractFieldName(newField.asTerm) match {
-      case Right(name) => name
-      case Left(err)   => report.errorAndAbort(err)
-    }
-
-    validateRename[A, B](oldName, newName)
+    // Validate if we can extract a simple field name for validation
+    extractFieldName(oldField.asTerm).foreach(validateFieldExistsIfPossible[A])
 
     '{
       MigrationBuilder[A, B](
-        $builder.actions :+ MigrationAction.Rename(DynamicOptic.root.field(${ Expr(oldName) }), ${ Expr(newName) })
+        $builder.actions :+ MigrationAction.Rename($oldOptic, ${ Expr(newName) })
       )($fromSchema, $toSchema)
     }
   }
@@ -75,16 +182,17 @@ private[migration] object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    val fieldName = extractFieldName(field.asTerm) match {
-      case Right(name) => name
-      case Left(err)   => report.errorAndAbort(err)
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
     }
 
-    validateFieldExists[A](fieldName)
+    // Validate if we can extract a simple field name for validation
+    extractFieldName(field.asTerm).foreach(validateFieldExistsIfPossible[A])
 
     '{
       MigrationBuilder[A, B](
-        $builder.actions :+ MigrationAction.DropField(DynamicOptic.root.field(${ Expr(fieldName) }))
+        $builder.actions :+ MigrationAction.DropField($optic)
       )($fromSchema, $toSchema)
     }
   }
@@ -97,16 +205,63 @@ private[migration] object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    val fieldName = extractFieldName(field.asTerm) match {
-      case Right(name) => name
-      case Left(err)   => report.errorAndAbort(err)
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
     }
 
-    validateFieldExists[A](fieldName)
+    // Validate if we can extract a simple field name for validation
+    extractFieldName(field.asTerm).foreach(validateFieldExistsIfPossible[A])
 
     '{
       MigrationBuilder[A, B](
-        $builder.actions :+ MigrationAction.Optionalize(DynamicOptic.root.field(${ Expr(fieldName) }))
+        $builder.actions :+ MigrationAction.Optionalize($optic)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def addFieldImpl[A: Type, B: Type, T: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    target: Expr[B => Any],
+    defaultValue: Expr[T],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]],
+    defaultSchema: Expr[Schema[T]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+
+    val optic = extractDynamicOptic(target.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+
+    '{
+      val dv = $defaultSchema.toDynamicValue($defaultValue)
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.AddField($optic, dv)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def mandateImpl[A: Type, B: Type, T: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    field: Expr[A => Any],
+    defaultValue: Expr[T],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]],
+    defaultSchema: Expr[Schema[T]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+
+    '{
+      val dv = $defaultSchema.toDynamicValue($defaultValue)
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.Mandate($optic, dv)
       )($fromSchema, $toSchema)
     }
   }
@@ -188,5 +343,14 @@ private[migration] object MigrationBuilderMacros {
         report.error(s"Field '$fieldName' not found in type ${tpe.show}. Valid fields: ${fields.mkString(", ")}")
       }
     }
+  }
+
+  /**
+   * Validate field exists if possible - used for complex selectors where we
+   * only validate if we can extract a simple field name.
+   */
+  def validateFieldExistsIfPossible[T: Type](fieldName: String)(using Quotes): Unit = {
+    // Only validate for simple field access patterns
+    validateFieldExists[T](fieldName)
   }
 }

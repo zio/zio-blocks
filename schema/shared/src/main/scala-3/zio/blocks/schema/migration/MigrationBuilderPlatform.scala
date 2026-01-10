@@ -44,6 +44,32 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   }
 
   /**
+   * Add a field using type-safe selector on the target type.
+   *
+   * Example: `.addField(_.country, "USA")`
+   * 
+   * Supports nested paths: `.addField(_.address.zipCode, "00000")`
+   */
+  inline def addField[T](
+    inline target: B => Any,
+    inline defaultValue: T
+  )(using fromSchema: Schema[A], toSchema: Schema[B], defaultSchema: Schema[T]): MigrationBuilder[A, B] = ${
+    MigrationBuilderMacros.addFieldImpl[A, B, T]('self, 'target, 'defaultValue, 'fromSchema, 'toSchema, 'defaultSchema)
+  }
+
+  /**
+   * Make a field required using type-safe selector.
+   *
+   * Example: `.mandate(_.optionalField, defaultWhenNone)`
+   */
+  inline def mandate[T](
+    inline field: A => Any,
+    inline defaultValue: T
+  )(using fromSchema: Schema[A], toSchema: Schema[B], defaultSchema: Schema[T]): MigrationBuilder[A, B] = ${
+    MigrationBuilderMacros.mandateImpl[A, B, T]('self, 'field, 'defaultValue, 'fromSchema, 'toSchema, 'defaultSchema)
+  }
+
+  /**
    * Build the final migration with compile-time validation.
    */
   inline def build: Either[String, Migration[A, B]] = ${
