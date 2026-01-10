@@ -3,8 +3,8 @@ package zio.blocks.schema.migration
 import zio.blocks.schema._
 
 /**
- * Version-specific methods for MigrationBuilder (Scala 2).
- * Provides string-based field selection for Scala 2 compatibility.
+ * Version-specific methods for MigrationBuilder (Scala 2). Provides
+ * string-based field selection for Scala 2 compatibility.
  */
 private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder[A, B] =>
   import scala.language.experimental.macros
@@ -13,20 +13,22 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   // Selector-based Macros
   // ============================================================================
 
-  def addField(target: B => Any, default: zio.blocks.schema.DynamicValue): MigrationBuilder[A, B] =
-    macro MigrationBuilderMacros.addFieldImpl[A, B]
+  def addField(target: B => Any, default: zio.blocks.schema.DynamicValue): MigrationBuilder[A, B] = macro
+    MigrationBuilderMacros.addFieldImpl[A, B]
 
-  def dropField(source: A => Any): MigrationBuilder[A, B] =
-    macro MigrationBuilderMacros.dropFieldImpl[A, B]
+  def dropField(source: A => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImpl[A, B]
 
-  def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] =
-    macro MigrationBuilderMacros.renameFieldImpl[A, B]
+  def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = macro
+    MigrationBuilderMacros.renameFieldImpl[A, B]
 
-  def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B] =
-    macro MigrationBuilderMacros.optionalizeFieldImpl[A, B]
+  def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B] = macro
+    MigrationBuilderMacros.optionalizeFieldImpl[A, B]
 
-  def mandateField(source: A => Option[_], target: B => Any, default: zio.blocks.schema.DynamicValue): MigrationBuilder[A, B] =
-    macro MigrationBuilderMacros.mandateFieldImpl[A, B]
+  def mandateField(
+    source: A => Option[_],
+    target: B => Any,
+    default: zio.blocks.schema.DynamicValue
+  ): MigrationBuilder[A, B] = macro MigrationBuilderMacros.mandateFieldImpl[A, B]
 
   // ============================================================================
   // String-based Convenience Aliases (Scala 2)
@@ -53,7 +55,9 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   /**
    * Make field required with typed default.
    */
-  def mandate[T](fieldName: String, defaultForNone: T)(implicit schema: zio.blocks.schema.Schema[T]): MigrationBuilder[A, B] =
+  def mandate[T](fieldName: String, defaultForNone: T)(implicit
+    schema: zio.blocks.schema.Schema[T]
+  ): MigrationBuilder[A, B] =
     self.mandateFieldWithDefault(fieldName, defaultForNone)
 
   /**
