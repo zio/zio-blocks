@@ -56,7 +56,11 @@ object MigrationValidator {
       }
       .flatMap { result =>
         if (isCompatible(result, target)) Right(())
-        else Left(s"Migration resulted in incompatible structure.\nResult: $result\nExpected: $target")
+        else {
+          val error = s"Migration resulted in incompatible structure.\nResult: $result\nExpected: $target"
+          System.err.println(s"[VALIDATOR ERROR] $error")
+          Left(error)
+        }
       }
 
   private def applyAction(structure: SchemaStructure, action: MigrationAction): Either[String, SchemaStructure] =
@@ -80,7 +84,7 @@ object MigrationValidator {
         if (at.nodes.length == 1) renameInRecord(structure)
         else modifyAtPath(structure, DynamicOptic(at.nodes.dropRight(1)))(renameInRecord)
 
-      case MigrationAction.DropField(at) =>
+      case MigrationAction.DropField(at, _) =>
         def dropInRecord(s: SchemaStructure): Either[String, SchemaStructure] = s match {
           case SchemaStructure.Record(fields) =>
             at.nodes.lastOption match {
@@ -133,19 +137,121 @@ object MigrationValidator {
         if (at.nodes.isEmpty) removeInVariant(structure)
         else modifyAtPath(structure, at)(removeInVariant)
 
-      case _ => Right(structure) // Pass through for actions not yet simulated
+      case MigrationAction.TransformValue(at, _) =>
+        modifyAtPath(structure, at)(s =>
+          if (isPrimitive(s)) Right(SchemaStructure.Primitive("Unknown")) // Primitives transform to other primitives
+          else Left(s"TransformValue can only be applied to primitives for this ticket, found: $s")
+        )
+
+      case MigrationAction.ChangeType(at, _) =>
+        modifyAtPath(structure, at)(s =>
+          if (isPrimitive(s)) Right(SchemaStructure.Primitive("Unknown"))
+          else Left(s"ChangeType can only be applied to primitives for this ticket, found: $s")
+        )
+
+      case MigrationAction.Join(at, sources, _) =>
+        // Join takes multiple sources and creates a new field
+        // For this ticket, sources and target must be primitives
+        def joinInRecord(s: SchemaStructure): Either[String, SchemaStructure] = s match {
+          case SchemaStructure.Record(fields) =>
+            at.nodes.lastOption match {
+              case Some(DynamicOptic.Node.Field(fieldName)) =>
+                Right(SchemaStructure.Record(fields + (fieldName -> SchemaStructure.Primitive("Unknown"))))
+              case _ => Left("Join at must end with a Field node")
+            }
+          case _ => Left("Join can only be applied to Record fields")
+        }
+
+        if (at.nodes.length == 1) joinInRecord(structure)
+        else modifyAtPath(structure, DynamicOptic(at.nodes.dropRight(1)))(joinInRecord)
+
+      case MigrationAction.Split(at, targets, _) =>
+        // Split takes one source and creates multiple target fields
+        modifyAtPath(structure, at)(s =>
+          if (isPrimitive(s)) Right(s) // The source field stays as a primitive (or could be dropped)
+          else Left(s"Split source must be a primitive for this ticket, found: $s")
+        ).flatMap { updatedStructure =>
+          // Now add the target fields
+          targets.foldLeft[Either[String, SchemaStructure]](Right(updatedStructure)) { (acc, targetPath) =>
+            acc.flatMap { s =>
+              def addTarget(inner: SchemaStructure): Either[String, SchemaStructure] = inner match {
+                case SchemaStructure.Record(fields) =>
+                  targetPath.nodes.lastOption match {
+                    case Some(DynamicOptic.Node.Field(fieldName)) =>
+                      Right(SchemaStructure.Record(fields + (fieldName -> SchemaStructure.Primitive("Unknown"))))
+                    case _ => Left("Split target at must end with a Field node")
+                  }
+                case _ => Left("Split target can only be added to Record fields")
+              }
+              if (targetPath.nodes.length == 1) addTarget(s)
+              else modifyAtPath(s, DynamicOptic(targetPath.nodes.dropRight(1)))(addTarget)
+            }
+          }
+        }
+
+      case MigrationAction.TransformElements(at, _) =>
+        modifyAtPath(structure, at) {
+          case SchemaStructure.Sequence(element) =>
+            if (isPrimitive(element)) Right(SchemaStructure.Sequence(element))
+            else Left("TransformElements can only be applied to primitive elements for this ticket")
+          case _ => Left("TransformElements can only be applied to Sequence structures")
+        }
+
+      case MigrationAction.TransformKeys(at, _) =>
+        modifyAtPath(structure, at) {
+          case SchemaStructure.MapStructure(key, value) =>
+            if (isPrimitive(key)) Right(SchemaStructure.MapStructure(key, value))
+            else Left("TransformKeys can only be applied to primitive keys for this ticket")
+          case _ => Left("TransformKeys can only be applied to Map structures")
+        }
+
+      case MigrationAction.TransformValues(at, _) =>
+        modifyAtPath(structure, at) {
+          case SchemaStructure.MapStructure(key, value) =>
+            if (isPrimitive(value)) Right(SchemaStructure.MapStructure(key, value))
+            else Left("TransformValues can only be applied to primitive values for this ticket")
+          case _ => Left("TransformValues can only be applied to Map structures")
+        }
+
+      case MigrationAction.Optionalize(at, _) =>
+        def optionalizeInRecord(s: SchemaStructure): Either[String, SchemaStructure] = s match {
+          case SchemaStructure.Record(fields) =>
+            at.nodes.lastOption match {
+              case Some(DynamicOptic.Node.Field(fieldName)) =>
+                fields.get(fieldName) match {
+                  case Some(fieldStructure) =>
+                    // Optionalized field is still compatible with the original structure in simulation
+                    Right(SchemaStructure.Record(fields + (fieldName -> fieldStructure)))
+                  case None => Left(s"Field '$fieldName' not found for optionalize")
+                }
+              case _ => Left("Optionalize at must end with a Field node")
+            }
+          case _ => Left("Optionalize can only be applied to Record fields")
+        }
+
+        if (at.nodes.length == 1) optionalizeInRecord(structure)
+        else modifyAtPath(structure, DynamicOptic(at.nodes.dropRight(1)))(optionalizeInRecord)
+
+      case _ => Right(structure)
     }
+
+  private def isPrimitive(s: SchemaStructure): Boolean = s match {
+    case SchemaStructure.Primitive(_) => true
+    case SchemaStructure.AnyValue     => true // Wildcard
+    case _                            => false
+  }
 
   private def isCompatible(actual: SchemaStructure, expected: SchemaStructure): Boolean =
     (actual, expected) match {
       case (a, b) if a == b                                         => true
       case (SchemaStructure.AnyValue, _)                            => true
       case (_, SchemaStructure.AnyValue)                            => true
+      case (SchemaStructure.Primitive("Unknown"), SchemaStructure.Primitive(_))    => true
+      case (SchemaStructure.Primitive(_), SchemaStructure.Primitive("Unknown"))    => true
       case (SchemaStructure.Record(af), SchemaStructure.Record(ef)) =>
         ef.forall { case (name, estructure) =>
           af.get(name).exists(astructure => isCompatible(astructure, estructure))
         }
-      // Add more cases ...
       case _ => false
     }
 

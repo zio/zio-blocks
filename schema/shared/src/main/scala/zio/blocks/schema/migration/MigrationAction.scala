@@ -79,8 +79,10 @@ object MigrationAction {
    *
    * @param at
    *   DynamicOptic path to the field to remove
+   * @param defaultForReverse
+   *   Default value to use when reversing this action (reconstructor)
    */
-  final case class DropField(at: DynamicOptic) extends MigrationAction {
+  final case class DropField(at: DynamicOptic, defaultForReverse: Option[DynamicValue] = None) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       at.nodes.toList match {
         case nodes :+ DynamicOptic.Node.Field(fieldName) =>
@@ -99,7 +101,10 @@ object MigrationAction {
       }
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Left(MigrationError.NotReversible(s"DropField($at) cannot be reversed"))
+      defaultForReverse match {
+        case Some(default) => Right(AddField(at, default))
+        case None          => Left(MigrationError.NotReversible(s"DropField($at) cannot be reversed without a default value"))
+      }
   }
 
   object DropField {
@@ -171,7 +176,7 @@ object MigrationAction {
           Left(MigrationError.EvaluationFailed(at, "AddField only supports field paths"))
       }
 
-    def reverse: Either[MigrationError, MigrationAction] = Right(DropField(at))
+    def reverse: Either[MigrationError, MigrationAction] = Right(DropField(at, Some(defaultValue)))
   }
 
   object AddField {
@@ -184,13 +189,18 @@ object MigrationAction {
    *
    * @param at
    *   DynamicOptic path to the field to make optional
+   * @param defaultForReverse
+   *   Default value to use when reversing back to required
    */
-  final case class Optionalize(at: DynamicOptic) extends MigrationAction {
+  final case class Optionalize(at: DynamicOptic, defaultForReverse: Option[DynamicValue] = None) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       at.getDV(value).map(v => DynamicValue.Variant("Some", v)).flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
-      Right(Mandate(at, DynamicValue.Primitive(PrimitiveValue.Unit)))
+      defaultForReverse match {
+        case Some(default) => Right(Mandate(at, default))
+        case None          => Left(MigrationError.NotReversible(s"Optionalize($at) cannot be reversed without a default value"))
+      }
   }
 
   object Optionalize {
@@ -301,9 +311,9 @@ object MigrationAction {
       val (errors, successes) = sources.partitionMap(identity)
       if (errors.nonEmpty) Left(errors.head)
       else {
-        // Join usually happens within a record context, but here we evaluate the combiner
-        // on the current state and set the result at 'at'.
-        combiner.evalDynamic(value) match {
+        // Pack multiple source values into a Sequence for the combiner
+        val input = DynamicValue.Sequence(successes.toVector)
+        combiner.evalDynamic(input) match {
           case Right(results) if results.nonEmpty =>
             at.setDV(value, results.head)
           case Right(_) =>
@@ -517,6 +527,7 @@ object MigrationAction {
             if (errors.nonEmpty) {
               Left(MigrationError.EvaluationFailed(at, errors.head.message))
             } else {
+              // Note: the toMap is needed to satisfy DynamicValue.Map's expected entry type if necessary
               Right(DynamicValue.Map(successes))
             }
           case other =>

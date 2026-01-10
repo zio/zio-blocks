@@ -85,7 +85,7 @@ object MigrationSpec extends ZIOSpecDefault {
           },
           test("reverse is DropField") {
             val action = MigrationAction.AddField("field", DynamicValue.Primitive(PrimitiveValue.Int(0)))
-            assert(action.reverse)(isRight(equalTo(MigrationAction.DropField("field"))))
+            assert(action.reverse)(isRight(equalTo(MigrationAction.DropField(DynamicOptic.root.field("field"), Some(DynamicValue.Primitive(PrimitiveValue.Int(0)))))))
           }
         ),
         suite("Optionalize")(

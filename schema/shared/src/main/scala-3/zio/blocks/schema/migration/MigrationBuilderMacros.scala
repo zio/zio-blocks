@@ -2,6 +2,8 @@ package zio.blocks.schema.migration
 
 import scala.quoted.*
 import zio.blocks.schema._
+import zio.blocks.schema.binding._
+import MigrationAction.DynamicOpticOps
 
 /**
  * Macros for the MigrationBuilder DSL.
@@ -192,8 +194,16 @@ private[migration] object MigrationBuilderMacros {
     extractFieldName(field.asTerm).foreach(validateFieldExistsIfPossible[A])
 
     '{
+      val fullDefaultOpt = $fromSchema.getDefaultValue
+      val default = fullDefaultOpt.flatMap { fullDefault =>
+        val dv = $fromSchema.reflect.toDynamicValue(fullDefault)(Binding.bindingHasBinding)
+        DynamicOpticOps($optic).getDV(dv).toOption
+      }.orElse {
+        $fromSchema.get($optic).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)(Binding.bindingHasBinding)))
+      }
+      
       MigrationBuilder[A, B](
-        $builder.actions :+ MigrationAction.DropField($optic)
+        $builder.actions :+ MigrationAction.DropField($optic, default)
       )($fromSchema, $toSchema)
     }
   }
@@ -215,8 +225,13 @@ private[migration] object MigrationBuilderMacros {
     extractFieldName(field.asTerm).foreach(validateFieldExistsIfPossible[A])
 
     '{
+      val default = $fromSchema.getDefaultValue.flatMap { fullDefault =>
+        $optic.getDV($fromSchema.reflect.toDynamicValue(fullDefault)).toOption
+      }.orElse {
+        $fromSchema.get($optic).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)))
+      }
       MigrationBuilder[A, B](
-        $builder.actions :+ MigrationAction.Optionalize($optic)
+        $builder.actions :+ MigrationAction.Optionalize($optic, default)
       )($fromSchema, $toSchema)
     }
   }
@@ -263,6 +278,195 @@ private[migration] object MigrationBuilderMacros {
       val dv = $defaultSchema.toDynamicValue($defaultValue)
       MigrationBuilder[A, B](
         $builder.actions :+ MigrationAction.Mandate($optic, dv)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def transformFieldImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    field: Expr[A => Any],
+    transform: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.TransformValue($optic, $transform)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def changeFieldTypeImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    field: Expr[A => Any],
+    converter: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.ChangeType($optic, $converter)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def transformElementsImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    field: Expr[A => Any],
+    transform: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.TransformElements($optic, $transform)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def transformKeysImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    field: Expr[A => Any],
+    transform: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.TransformKeys($optic, $transform)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def transformValuesImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    field: Expr[A => Any],
+    transform: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val optic = extractDynamicOptic(field.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.TransformValues($optic, $transform)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def transformCaseImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    selector: Expr[A => Any],
+    transform: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+
+    def splitOptic(term: Term): (Expr[DynamicOptic], String) = {
+      term match {
+        case TypeApply(Select(inner, "when"), List(caseType)) =>
+          val caseName = caseType.tpe.typeSymbol.name
+          val parentOptic: Expr[DynamicOptic] = extractDynamicOptic(inner) match {
+            case Right(o)  => o
+            case Left(err) => report.errorAndAbort(err)
+          }
+          (parentOptic, caseName)
+        case Inlined(_, _, inner) => splitOptic(inner)
+        case Lambda(_, body)      => splitOptic(body)
+        case Block(_, expr)       => splitOptic(expr)
+        case Typed(inner, _)      => splitOptic(inner)
+        case _ =>
+          report.errorAndAbort(s"transformCase requires a .when[Case] selector, got: ${term.show}")
+      }
+    }
+
+    val (atOptic, caseName) = splitOptic(selector.asTerm)
+
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.TransformCase($atOptic, ${ Expr(caseName) }, $transform)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def joinImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    target: Expr[B => Any],
+    combiner: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    sources: Expr[Seq[A => Any]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val targetOptic: Expr[DynamicOptic] = extractDynamicOptic(target.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+
+    val Varargs(sourceExprs) = sources: @unchecked
+    val sourceOptics: Seq[Expr[DynamicOptic]] = sourceExprs.map { s =>
+      extractDynamicOptic(s.asTerm) match {
+        case Right(o)  => o
+        case Left(err) => report.errorAndAbort(err)
+      }
+    }
+
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.Join($targetOptic, Vector(${ Varargs(sourceOptics) }: _*), $combiner)
+      )($fromSchema, $toSchema)
+    }
+  }
+
+  def splitImpl[A: Type, B: Type](
+    builder: Expr[MigrationBuilder[A, B]],
+    source: Expr[A => Any],
+    splitter: Expr[SchemaExpr[DynamicValue, DynamicValue]],
+    targets: Expr[Seq[B => Any]],
+    fromSchema: Expr[Schema[A]],
+    toSchema: Expr[Schema[B]]
+  )(using Quotes): Expr[MigrationBuilder[A, B]] = {
+    import quotes.reflect.*
+    val sourceOptic: Expr[DynamicOptic] = extractDynamicOptic(source.asTerm) match {
+      case Right(o)  => o
+      case Left(err) => report.errorAndAbort(err)
+    }
+
+    val Varargs(targetExprs) = targets: @unchecked
+    val targetOptics: Seq[Expr[DynamicOptic]] = targetExprs.map { t =>
+      extractDynamicOptic(t.asTerm) match {
+        case Right(o)  => o
+        case Left(err) => report.errorAndAbort(err)
+      }
+    }
+
+    '{
+      MigrationBuilder[A, B](
+        $builder.actions :+ MigrationAction.Split($sourceOptic, Vector(${ Varargs(targetOptics) }: _*), $splitter)
       )($fromSchema, $toSchema)
     }
   }
