@@ -307,9 +307,31 @@ object MigrationSpec extends ZIOSpecDefault {
             afterSchema
           )
 
+          
           val reversed = migration.reverse
           assertTrue(reversed.sourceSchema == afterSchema) &&
           assertTrue(reversed.targetSchema == beforeSchema)
+        },
+        test("satisfies best-effort semantic inverse law") {
+          // m.apply(a) == Right(b) => m.reverse.apply(b) == Right(a)
+          case class V1(name: String)
+          case class V2(fullName: String)
+
+          implicit val v1Schema: Schema[V1] = Schema.derived
+          implicit val v2Schema: Schema[V2] = Schema.derived
+
+          // Rename is fully reversible
+          val migration = Migration[V1, V2](
+            DynamicMigration.single(MigrationAction.Rename(DynamicOptic.root, "name", "fullName")),
+            v1Schema,
+            v2Schema
+          )
+
+          val v1 = V1("Alice")
+          for {
+            v2         <- migration.apply(v1)
+            restoredV1 <- migration.reverse.apply(v2)
+          } yield assertTrue(restoredV1 == v1)
         }
       ),
       suite("MigrationBuilder")(
