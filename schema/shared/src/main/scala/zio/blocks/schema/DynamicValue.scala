@@ -1,6 +1,6 @@
 package zio.blocks.schema
 
-sealed trait DynamicValue {
+sealed trait DynamicValue extends DynamicValueVersionSpecific {
   def typeIndex: Int
 
   def compare(that: DynamicValue): Int
