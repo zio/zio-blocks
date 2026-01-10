@@ -8,8 +8,8 @@ sealed trait PatchMode
 object PatchMode {
 
   /**
-   * Fail on precondition violations (e.g. modifying non-existent key,
-   * inserting at occupied index).
+   * Fail on precondition violations (e.g. modifying non-existent key, inserting
+   * at occupied index).
    */
   case object Strict extends PatchMode
 

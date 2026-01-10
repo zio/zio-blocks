@@ -1,25 +1,29 @@
 package zio.blocks.schema
 
 /**
- * An untyped patch that operates on DynamicValue.
- * This is the core representation that the typed Patch[A] wraps.
+ * An untyped patch that operates on DynamicValue. This is the core
+ * representation that the typed Patch[A] wraps.
  *
- * @param ops The sequence of patch operations to apply
+ * @param ops
+ *   The sequence of patch operations to apply
  */
 final case class DynamicPatch(ops: Vector[DynamicPatchOp]) {
 
   /**
-   * Compose this patch with another patch (monoid operation).
-   * The operations are applied sequentially: first this, then that.
+   * Compose this patch with another patch (monoid operation). The operations
+   * are applied sequentially: first this, then that.
    */
   def ++(that: DynamicPatch): DynamicPatch = new DynamicPatch(this.ops ++ that.ops)
 
   /**
    * Apply this patch to a DynamicValue with the specified mode.
    *
-   * @param value The value to patch
-   * @param mode The application mode (Strict, Lenient, or Clobber)
-   * @return Either an error or the patched value
+   * @param value
+   *   The value to patch
+   * @param mode
+   *   The application mode (Strict, Lenient, or Clobber)
+   * @return
+   *   Either an error or the patched value
    */
   def apply(value: DynamicValue, mode: PatchMode): Either[SchemaError, DynamicValue] = {
     var current = value
@@ -28,7 +32,7 @@ final case class DynamicPatch(ops: Vector[DynamicPatchOp]) {
     while (idx < len) {
       val op = ops(idx)
       DynamicPatch.applyOp(current, op.optic, op.operation, mode) match {
-        case Right(v) => current = v
+        case Right(v)  => current = v
         case Left(err) =>
           mode match {
             case PatchMode.Strict  => return Left(err)
@@ -150,9 +154,9 @@ object DynamicPatch {
         case DynamicOptic.Node.Elements =>
           value match {
             case DynamicValue.Sequence(elements) =>
-              var idx       = 0
-              val len       = elements.length
-              val newElems  = new Array[DynamicValue](len)
+              var idx      = 0
+              val len      = elements.length
+              val newElems = new Array[DynamicValue](len)
               while (idx < len) {
                 applyAtPath(elements(idx), optic, nodeIdx + 1, operation, mode, newTrace) match {
                   case Right(v)  => newElems(idx) = v
@@ -223,7 +227,7 @@ object DynamicPatch {
   private def applyPrimitiveDelta(
     value: DynamicValue,
     op: PrimitiveOp,
-    mode: PatchMode,
+    @annotation.nowarn("msg=unused") mode: PatchMode,
     trace: List[DynamicOptic.Node]
   ): Either[SchemaError, DynamicValue] = value match {
     case DynamicValue.Primitive(pv) =>

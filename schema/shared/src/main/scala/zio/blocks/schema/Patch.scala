@@ -21,23 +21,23 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
   def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source)
 
   /**
-   * Convert this typed Patch to an untyped DynamicPatch.
-   * Only works for patches that contain DynamicPatchPair operations.
-   * For typed operations, use applyDynamic which applies via Schema conversion.
+   * Convert this typed Patch to an untyped DynamicPatch. Only works for patches
+   * that contain DynamicPatchPair operations. For typed operations, use
+   * applyDynamic which applies via Schema conversion.
    */
   def toDynamicPatch: Option[DynamicPatch] = {
     val dynamicOps = ops.flatMap {
       case DynamicPatchPair(dynamicPatch) => dynamicPatch.ops
-      case _ => Vector.empty // Typed operations cannot be directly converted
+      case _                              => Vector.empty // Typed operations cannot be directly converted
     }
     if (dynamicOps.isEmpty && ops.nonEmpty) None
     else Some(new DynamicPatch(dynamicOps))
   }
 
   /**
-   * Apply this patch via DynamicValue conversion.
-   * This is useful when you need PatchMode control.
-   * Returns Left(error) if the patch cannot be converted to DynamicPatch or if application fails.
+   * Apply this patch via DynamicValue conversion. This is useful when you need
+   * PatchMode control. Returns Left(error) if the patch cannot be converted to
+   * DynamicPatch or if application fails.
    */
   def applyDynamic(s: S, mode: PatchMode): Either[SchemaError, S] = {
     val dynValue = source.toDynamicValue(s)
@@ -55,44 +55,61 @@ final case class Patch[S](ops: Vector[Patch.Pair[S, ?]], source: Schema[S]) {
   def apply(s: S): S =
     ops.foldLeft[S](s) { (s, single) =>
       single match {
-        case LensPair(optic, LensOp.Replace(a))           => optic.replace(s, a)
-        case LensPair(optic, op: LensOp.Increment)        => optic.asInstanceOf[Lens[S, Int]].modify(s, v => v + op.delta)
-        case LensPair(optic, op: LensOp.IncrementLong)    => optic.asInstanceOf[Lens[S, Long]].modify(s, v => v + op.delta)
-        case LensPair(optic, op: LensOp.IncrementDouble)  => optic.asInstanceOf[Lens[S, Double]].modify(s, v => v + op.delta)
-        case LensPair(optic, op: LensOp.IncrementFloat)   => optic.asInstanceOf[Lens[S, Float]].modify(s, v => v + op.delta)
-        case LensPair(optic, op: LensOp.IncrementShort)   => optic.asInstanceOf[Lens[S, Short]].modify(s, v => (v + op.delta).toShort)
-        case LensPair(optic, op: LensOp.IncrementByte)    => optic.asInstanceOf[Lens[S, Byte]].modify(s, v => (v + op.delta).toByte)
-        case LensPair(optic, op: LensOp.IncrementBigInt)  => optic.asInstanceOf[Lens[S, BigInt]].modify(s, v => v + op.delta)
-        case LensPair(optic, op: LensOp.IncrementBigDecimal) => optic.asInstanceOf[Lens[S, BigDecimal]].modify(s, v => v + op.delta)
-        case LensPair(optic, op: LensOp.EditString)       => optic.asInstanceOf[Lens[S, String]].modify(s, v => applyStringOps(v, op.ops))
-        case LensPair(optic, op: LensOp.AppendVector[?])  => optic.asInstanceOf[Lens[S, Vector[Any]]].modify(s, v => v ++ op.elements)
-        case LensPair(optic, op: LensOp.InsertAtVector[?]) => optic.asInstanceOf[Lens[S, Vector[Any]]].modify(s, v => {
-          val (before, after) = v.splitAt(op.index)
-          before ++ op.elements ++ after
-        })
-        case LensPair(optic, op: LensOp.DeleteAtVector[?])   => optic.asInstanceOf[Lens[S, Vector[Any]]].modify(s, v => v.take(op.index) ++ v.drop(op.index + op.count))
-        case LensPair(optic, op: LensOp.AddMapKey[?, ?])  => optic.asInstanceOf[Lens[S, Map[Any, Any]]].modify(s, m => m + (op.key -> op.value))
-        case LensPair(optic, op: LensOp.RemoveMapKey[?, ?]) => optic.asInstanceOf[Lens[S, Map[Any, Any]]].modify(s, m => m - op.key)
+        case LensPair(optic, LensOp.Replace(a))          => optic.replace(s, a)
+        case LensPair(optic, op: LensOp.Increment)       => optic.asInstanceOf[Lens[S, Int]].modify(s, v => v + op.delta)
+        case LensPair(optic, op: LensOp.IncrementLong)   => optic.asInstanceOf[Lens[S, Long]].modify(s, v => v + op.delta)
+        case LensPair(optic, op: LensOp.IncrementDouble) =>
+          optic.asInstanceOf[Lens[S, Double]].modify(s, v => v + op.delta)
+        case LensPair(optic, op: LensOp.IncrementFloat) =>
+          optic.asInstanceOf[Lens[S, Float]].modify(s, v => v + op.delta)
+        case LensPair(optic, op: LensOp.IncrementShort) =>
+          optic.asInstanceOf[Lens[S, Short]].modify(s, v => (v + op.delta).toShort)
+        case LensPair(optic, op: LensOp.IncrementByte) =>
+          optic.asInstanceOf[Lens[S, Byte]].modify(s, v => (v + op.delta).toByte)
+        case LensPair(optic, op: LensOp.IncrementBigInt) =>
+          optic.asInstanceOf[Lens[S, BigInt]].modify(s, v => v + op.delta)
+        case LensPair(optic, op: LensOp.IncrementBigDecimal) =>
+          optic.asInstanceOf[Lens[S, BigDecimal]].modify(s, v => v + op.delta)
+        case LensPair(optic, op: LensOp.EditString) =>
+          optic.asInstanceOf[Lens[S, String]].modify(s, v => applyStringOps(v, op.ops))
+        case LensPair(optic, op: LensOp.AppendVector[?]) =>
+          optic.asInstanceOf[Lens[S, Vector[Any]]].modify(s, v => v ++ op.elements)
+        case LensPair(optic, op: LensOp.InsertAtVector[?]) =>
+          optic
+            .asInstanceOf[Lens[S, Vector[Any]]]
+            .modify(
+              s,
+              v => {
+                val (before, after) = v.splitAt(op.index)
+                before ++ op.elements ++ after
+              }
+            )
+        case LensPair(optic, op: LensOp.DeleteAtVector[?]) =>
+          optic.asInstanceOf[Lens[S, Vector[Any]]].modify(s, v => v.take(op.index) ++ v.drop(op.index + op.count))
+        case LensPair(optic, op: LensOp.AddMapKey[?, ?]) =>
+          optic.asInstanceOf[Lens[S, Map[Any, Any]]].modify(s, m => m + (op.key -> op.value))
+        case LensPair(optic, op: LensOp.RemoveMapKey[?, ?]) =>
+          optic.asInstanceOf[Lens[S, Map[Any, Any]]].modify(s, m => m - op.key)
         case PrismPair(optic, PrismOp.Replace(a))         => optic.replace(s, a)
         case OptionalPair(optic, OptionalOp.Replace(a))   => optic.replace(s, a)
         case TraversalPair(optic, TraversalOp.Replace(a)) => optic.modify(s, _ => a)
-        case DynamicPatchPair(dynamicPatch) =>
+        case DynamicPatchPair(dynamicPatch)               =>
           // Apply via DynamicValue conversion
           val dynValue = source.toDynamicValue(s)
           dynamicPatch(dynValue, PatchMode.Strict) match {
             case Right(resultDv) => source.fromDynamicValue(resultDv).getOrElse(s)
-            case Left(_) => s // On error in apply, return original (use applyDynamic for error handling)
+            case Left(_)         => s // On error in apply, return original (use applyDynamic for error handling)
           }
       }
     }
 
   private def applyStringOps(str: String, ops: Vector[StringOp]): String = {
-    val sb = new StringBuilder(str)
+    val sb  = new StringBuilder(str)
     var idx = 0
     while (idx < ops.length) {
       ops(idx) match {
         case StringOp.Insert(i, text) => sb.insert(i, text)
-        case StringOp.Delete(i, len) => sb.delete(i, i + len)
+        case StringOp.Delete(i, len)  => sb.delete(i, i + len)
       }
       idx += 1
     }
@@ -180,23 +197,24 @@ object Patch {
     Patch(Vector.empty, schema)
 
   /**
-   * Create a Patch[S] that wraps a DynamicPatch.
-   * When applied, this patch converts the value to DynamicValue, applies the DynamicPatch,
-   * and converts back to the typed value.
+   * Create a Patch[S] that wraps a DynamicPatch. When applied, this patch
+   * converts the value to DynamicValue, applies the DynamicPatch, and converts
+   * back to the typed value.
    */
   def fromDynamicPatch[S](dynamicPatch: DynamicPatch, schema: Schema[S]): Patch[S] =
     new Patch[S](Vector(DynamicPatchPair(dynamicPatch)), schema)
 
   /**
-   * A special Pair that wraps a DynamicPatch for application via DynamicValue conversion.
+   * A special Pair that wraps a DynamicPatch for application via DynamicValue
+   * conversion.
    */
   private[schema] case class DynamicPatchPair[S](dynamicPatch: DynamicPatch) extends Pair[S, Any] {
     def optic: Optic[S, Any] = null // Not used for DynamicPatchPair
-    def op: Op[Any] = null // Not used for DynamicPatchPair
+    def op: Op[Any]          = null // Not used for DynamicPatchPair
   }
 
   /** Set a field/element to a value using dynamic patch (clobber semantics) */
-  def set[S, A](optic: Optic[S, A], value: A)(implicit schema: Schema[S], targetSchema: Schema[A]): Patch[S] =
+  def set[S, A](optic: Optic[S, A], value: A)(implicit schema: Schema[S]): Patch[S] =
     Patch.replace(optic.asInstanceOf[Lens[S, A]], value)
 
   /** Increment an Int field by a delta */
@@ -236,11 +254,17 @@ object Patch {
     Patch(Vector(LensPair(optic, LensOp.EditString(edits))), schema)
 
   /** Append elements to a Vector field */
-  def append[S, A](optic: Lens[S, Vector[A]], elements: Vector[A])(implicit schema: Schema[S], elemSchema: Schema[A]): Patch[S] =
+  def append[S, A](optic: Lens[S, Vector[A]], elements: Vector[A])(implicit
+    schema: Schema[S],
+    elemSchema: Schema[A]
+  ): Patch[S] =
     Patch(Vector(LensPair(optic, LensOp.AppendVector(elements, elemSchema))), schema)
 
   /** Insert elements at a specific index in a Vector field */
-  def insertAt[S, A](optic: Lens[S, Vector[A]], index: Int, elements: Vector[A])(implicit schema: Schema[S], elemSchema: Schema[A]): Patch[S] =
+  def insertAt[S, A](optic: Lens[S, Vector[A]], index: Int, elements: Vector[A])(implicit
+    schema: Schema[S],
+    elemSchema: Schema[A]
+  ): Patch[S] =
     Patch(Vector(LensPair(optic, LensOp.InsertAtVector(index, elements, elemSchema))), schema)
 
   /** Delete elements from a Vector field starting at index */
@@ -248,12 +272,20 @@ object Patch {
     Patch(Vector(LensPair(optic, LensOp.DeleteAtVector[A](index, count))), schema)
 
   /** Add a key-value pair to a Map field */
-  def addKey[S, K, V](optic: Lens[S, Map[K, V]], key: K, value: V)(implicit schema: Schema[S], keySchema: Schema[K], valueSchema: Schema[V]): Patch[S] =
+  def addKey[S, K, V](optic: Lens[S, Map[K, V]], key: K, value: V)(implicit
+    schema: Schema[S],
+    keySchema: Schema[K],
+    valueSchema: Schema[V]
+  ): Patch[S] =
     Patch(Vector(LensPair(optic, LensOp.AddMapKey(key, value, keySchema, valueSchema))), schema)
 
   /** Remove a key from a Map field */
-  def removeKey[S, K, V](optic: Lens[S, Map[K, V]], key: K)(implicit schema: Schema[S], keySchema: Schema[K]): Patch[S] =
-    Patch(Vector(LensPair(optic, LensOp.RemoveMapKey(key, keySchema))), schema)
+  def removeKey[S, K, V](optic: Lens[S, Map[K, V]], key: K)(implicit
+    schema: Schema[S],
+    keySchema: Schema[K],
+    valueSchema: Schema[V]
+  ): Patch[S] =
+    Patch(Vector(LensPair(optic, LensOp.RemoveMapKey[K, V](key, keySchema, valueSchema))), schema)
 
   sealed trait Op[A]
 
@@ -261,28 +293,28 @@ object Patch {
 
   object LensOp {
     case class Replace[A](a: A) extends LensOp[A]
-    
+
     // Numeric increment operations
-    case class Increment(delta: Int) extends LensOp[Int]
-    case class IncrementLong(delta: Long) extends LensOp[Long]
-    case class IncrementDouble(delta: Double) extends LensOp[Double]
-    case class IncrementFloat(delta: Float) extends LensOp[Float]
-    case class IncrementShort(delta: Short) extends LensOp[Short]
-    case class IncrementByte(delta: Byte) extends LensOp[Byte]
-    case class IncrementBigInt(delta: BigInt) extends LensOp[BigInt]
+    case class Increment(delta: Int)                  extends LensOp[Int]
+    case class IncrementLong(delta: Long)             extends LensOp[Long]
+    case class IncrementDouble(delta: Double)         extends LensOp[Double]
+    case class IncrementFloat(delta: Float)           extends LensOp[Float]
+    case class IncrementShort(delta: Short)           extends LensOp[Short]
+    case class IncrementByte(delta: Byte)             extends LensOp[Byte]
+    case class IncrementBigInt(delta: BigInt)         extends LensOp[BigInt]
     case class IncrementBigDecimal(delta: BigDecimal) extends LensOp[BigDecimal]
-    
+
     // String edit operation
     case class EditString(ops: Vector[StringOp]) extends LensOp[String]
-    
+
     // Vector operations
-    case class AppendVector[A](elements: Vector[A], schema: Schema[A]) extends LensOp[Vector[A]]
+    case class AppendVector[A](elements: Vector[A], schema: Schema[A])               extends LensOp[Vector[A]]
     case class InsertAtVector[A](index: Int, elements: Vector[A], schema: Schema[A]) extends LensOp[Vector[A]]
-    case class DeleteAtVector[A](index: Int, count: Int) extends LensOp[Vector[A]]
-    
+    case class DeleteAtVector[A](index: Int, count: Int)                             extends LensOp[Vector[A]]
+
     // Map operations
     case class AddMapKey[K, V](key: K, value: V, keySchema: Schema[K], valueSchema: Schema[V]) extends LensOp[Map[K, V]]
-    case class RemoveMapKey[K, V](key: K, keySchema: Schema[K]) extends LensOp[Map[K, V]]
+    case class RemoveMapKey[K, V](key: K, keySchema: Schema[K], valueSchema: Schema[V])        extends LensOp[Map[K, V]]
   }
 
   sealed trait PrismOp[A] extends Op[A]

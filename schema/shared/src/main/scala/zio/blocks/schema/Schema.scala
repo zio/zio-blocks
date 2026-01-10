@@ -95,16 +95,16 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   )
 
   /**
-   * Compute a minimal patch that transforms oldValue into newValue.
-   * Uses smart heuristics to choose between delta operations and set operations.
-   * 
-   * Note: For complex structural diffs, use `diffDynamic` which returns a `DynamicPatch`
-   * that can be applied via `Patch.applyDynamic`.
+   * Compute a minimal patch that transforms oldValue into newValue. Uses smart
+   * heuristics to choose between delta operations and set operations.
+   *
+   * Note: For complex structural diffs, use `diffDynamic` which returns a
+   * `DynamicPatch` that can be applied via `Patch.applyDynamic`.
    */
   def diff(oldValue: A, newValue: A): Patch[A] = {
     val oldDv = toDynamicValue(oldValue)
     val newDv = toDynamicValue(newValue)
-    
+
     if (oldDv == newDv) {
       Patch.empty[A](this)
     } else {
@@ -114,8 +114,8 @@ final case class Schema[A](reflect: Reflect.Bound[A]) {
   }
 
   /**
-   * Compute a DynamicPatch that transforms oldValue into newValue.
-   * This is the most flexible form that can be serialized and applied with any PatchMode.
+   * Compute a DynamicPatch that transforms oldValue into newValue. This is the
+   * most flexible form that can be serialized and applied with any PatchMode.
    */
   def diffDynamic(oldValue: A, newValue: A): DynamicPatch = {
     val oldDv = toDynamicValue(oldValue)
@@ -149,21 +149,20 @@ object Schema extends SchemaCompanionVersionSpecific {
     oldValue: DynamicValue,
     newValue: DynamicValue,
     path: DynamicOptic
-  ): DynamicPatch = {
+  ): DynamicPatch =
     if (oldValue == newValue) {
       DynamicPatch.empty
     } else {
       (oldValue, newValue) match {
         case (DynamicValue.Record(oldFields), DynamicValue.Record(newFields)) =>
           // Diff each field
-          val ops = Vector.newBuilder[DynamicPatchOp]
+          val ops    = Vector.newBuilder[DynamicPatchOp]
           val oldMap = oldFields.toMap
-          val newMap = newFields.toMap
-          
+
           newFields.foreach { case (name, newFieldValue) =>
             oldMap.get(name) match {
               case Some(oldFieldValue) if oldFieldValue != newFieldValue =>
-                val fieldPath = path.field(name)
+                val fieldPath  = path.field(name)
                 val fieldPatch = computeDiff(oldFieldValue, newFieldValue, fieldPath)
                 ops ++= fieldPatch.ops
               case None =>
@@ -174,8 +173,7 @@ object Schema extends SchemaCompanionVersionSpecific {
           }
           new DynamicPatch(ops.result())
 
-        case (DynamicValue.Variant(oldCase, oldInner), DynamicValue.Variant(newCase, newInner)) 
-            if oldCase == newCase =>
+        case (DynamicValue.Variant(oldCase, oldInner), DynamicValue.Variant(newCase, newInner)) if oldCase == newCase =>
           // Same case, diff inner value
           computeDiff(oldInner, newInner, path.caseOf(oldCase))
 
@@ -200,7 +198,6 @@ object Schema extends SchemaCompanionVersionSpecific {
           DynamicPatch.single(path, Operation.Set(newValue))
       }
     }
-  }
 
   private def computePrimitiveDiff(
     oldPv: PrimitiveValue,

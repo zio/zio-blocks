@@ -9,7 +9,8 @@ object LCS {
    * Compute the edit operations needed to transform `oldStr` into `newStr`.
    * Uses the classic LCS algorithm to find the minimal edit sequence.
    *
-   * @return A vector of StringOp operations that transform oldStr to newStr
+   * @return
+   *   A vector of StringOp operations that transform oldStr to newStr
    */
   def diffStrings(oldStr: String, newStr: String): Vector[StringOp] = {
     if (oldStr == newStr) return Vector.empty
@@ -42,7 +43,7 @@ object LCS {
 
     // Track pending inserts and deletes for batching
     var pendingInsertIdx  = -1
-    var pendingInsertText = new StringBuilder
+    val pendingInsertText = new StringBuilder
     var pendingDeleteIdx  = -1
     var pendingDeleteLen  = 0
 
@@ -101,7 +102,8 @@ object LCS {
    * Compute the edit operations needed to transform `oldSeq` into `newSeq`.
    * Uses the classic LCS algorithm to find the minimal edit sequence.
    *
-   * @return A vector of SeqOp operations that transform oldSeq to newSeq
+   * @return
+   *   A vector of SeqOp operations that transform oldSeq to newSeq
    */
   def diffSequences(oldSeq: Vector[DynamicValue], newSeq: Vector[DynamicValue]): Vector[SeqOp] = {
     if (oldSeq == newSeq) return Vector.empty
@@ -189,7 +191,7 @@ object LCS {
 
     // Reverse and fix insert orders since we built operations backwards
     val rawOps = ops.result().reverse
-    
+
     // Reorder inserts to put values in correct order
     rawOps.map {
       case SeqOp.Insert(idx, values) => SeqOp.Insert(idx, values.reverse)
@@ -200,7 +202,8 @@ object LCS {
   /**
    * Compute the edit operations needed to transform `oldMap` into `newMap`.
    *
-   * @return A vector of MapOp operations that transform oldMap to newMap
+   * @return
+   *   A vector of MapOp operations that transform oldMap to newMap
    */
   def diffMaps(
     oldMap: Vector[(DynamicValue, DynamicValue)],
@@ -210,7 +213,6 @@ object LCS {
     val oldKeys  = oldMap.map(_._1).toSet
     val newKeys  = newMap.map(_._1).toSet
     val oldIndex = oldMap.toMap
-    val newIndex = newMap.toMap
 
     // Removed keys
     oldKeys.foreach { key =>
