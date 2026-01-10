@@ -22,8 +22,7 @@ object StructuralTypeCompileErrorSpec extends ZIOSpecDefault {
         }.map { result =>
           assertTrue(
             result.isLeft,
-            // Scala 2: "Non-Dynamic structural type conversions are not supported on Native"
-            // Scala 3: "Structural type conversions are not supported on Native"
+            // Structural type conversions require reflection, not supported on Native
             result.swap.exists(_.toLowerCase.contains("structural type conversions are not supported on native"))
           )
         }

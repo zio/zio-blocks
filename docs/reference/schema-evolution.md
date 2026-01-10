@@ -333,82 +333,61 @@ The macro looks for:
 
 ## Structural Type Support
 
-ZIO Blocks supports conversions involving structural types with platform-specific constraints.
+ZIO Blocks supports conversions involving structural types on JVM only, as they require reflection.
 
 ### Platform Compatibility Matrix
 
 | Conversion | JVM | JS | Native | Notes |
 |------------|-----|-----|--------|-------|
-| Product → Selectable/Dynamic | ✅ | ✅ | ✅ | Cross-platform with Map constructor |
-| Product → Pure Structural | ✅ | ❌ | ❌ | JVM only (reflection) |
-| Selectable/Dynamic → Product | ✅ | ✅ | ✅ | Cross-platform via `selectDynamic` |
-| Pure Structural → Product | ✅ | ❌ | ❌ | JVM only (reflection) |
+| Product → Structural | ✅ | ❌ | ❌ | JVM only (reflection) |
+| Structural → Product | ✅ | ❌ | ❌ | JVM only (reflection) |
 
-**Key insight**: If your structural type extends `Selectable` (Scala 3) or `Dynamic` (Scala 2), conversions work on **all platforms** in **both directions**. Pure structural types (without these traits) require reflection and only work on JVM.
+**Key insight**: Structural types require runtime reflection to access their members, which is only available on JVM. On JS and Native platforms, structural type conversions will fail at compile time with a helpful error message.
 
-### Scala 3: Selectable Types (Cross-Platform)
+### Structural Types (JVM Only)
 
-For cross-platform structural type support in Scala 3, implement `Selectable` with a `Map[String, Any]` constructor:
-
-```scala
-class Record(fields: Map[String, Any]) extends Selectable {
-  def selectDynamic(name: String): Any = fields(name)
-}
-
-type PersonLike = Record { def name: String; def age: Int }
-
-case class Person(name: String, age: Int)
-
-// Works on JVM, JS, and Native!
-val as = As.derived[Person, PersonLike]
-```
-
-**Requirements for Selectable targets:**
-- Companion object with `apply(Map[String, Any]): T`, OR
-- Public constructor taking `Map[String, Any]`
-
-### Scala 2: Dynamic Types (Cross-Platform)
-
-For cross-platform support in Scala 2, use `scala.Dynamic`:
-
-```scala
-import scala.language.dynamics
-
-class DynamicRecord(val fields: Map[String, Any]) extends Dynamic {
-  def selectDynamic(name: String): Any = fields(name)
-}
-
-object DynamicRecord {
-  def apply(map: Map[String, Any]): DynamicRecord = new DynamicRecord(map)
-}
-
-type PersonLike = DynamicRecord { def name: String; def age: Int }
-
-// Works on JVM and JS
-val as = As.derived[Person, PersonLike]
-```
-
-### Pure Structural Types (JVM Only)
-
-Pure structural types without Selectable/Dynamic require reflection:
+Structural types are types defined by their members rather than their name:
 
 ```scala
 // JVM ONLY - will fail at compile time on JS/Native
 case class Person(name: String, age: Int)
 
+// Structural type to case class
 val into = Into.derived[{ def name: String; def age: Int }, Person]
+
+// Case class to structural type  
+val toStructural = Into.derived[Person, { def name: String; def age: Int }]
 ```
 
 **Compile-time error on non-JVM platforms:**
 ```
 Cannot derive Into[..., Person]: Structural type conversions are not supported on JS.
 
-Structural types require reflection APIs which are only available on JVM.
+Structural types require reflection APIs (getClass.getMethod) which are only available on JVM.
 
 Consider:
-  - Implementing Selectable trait to enable cross-platform support
   - Using a case class instead of a structural type
+  - Using a tuple instead of a structural type
   - Only using structural type conversions in JVM-only code
+```
+
+### Working with Structural Types
+
+```scala
+import scala.language.reflectiveCalls
+
+// Create a structural type instance
+def makePerson(n: String, a: Int): { def name: String; def age: Int } = new {
+  def name: String = n
+  def age: Int = a
+}
+
+case class Person(name: String, age: Int)
+
+// Convert structural → case class
+val into = Into.derived[{ def name: String; def age: Int }, Person]
+val result = into.into(makePerson("Alice", 30))
+// Right(Person("Alice", 30))
 ```
 
 ## Scala 2 vs Scala 3 Differences
@@ -418,7 +397,7 @@ Consider:
 | Derivation syntax | `Into.derived[A, B]` | `Into.derived[A, B]` |
 | Enum support | Sealed traits only | Scala 3 enums + sealed traits |
 | Opaque types | N/A | ✅ Supported |
-| Structural types | Dynamic-based | Selectable-based |
+| Structural types | JVM only (reflection) | JVM only (reflection) |
 | ZIO Prelude newtypes | ✅ `assert { ... }` syntax | ✅ `override def assertion` syntax |
 | Error messages | Detailed macro errors | Detailed macro errors |
 
@@ -474,14 +453,14 @@ implicit val addressConvert: Into[AddressV1, AddressV2] =
 val personConvert = Into.derived[PersonV1, PersonV2]
 ```
 
-### 4. Use Platform-Appropriate Structural Types
+### 4. Structural Types Are JVM-Only
 
 ```scala
-// Cross-platform: Use Selectable (Scala 3) or Dynamic (Scala 2)
-class Record(fields: Map[String, Any]) extends Selectable { ... }
+// JVM-only: Structural types require reflection
+type PersonLike = { def name: String }
 
-// JVM-only: Pure structural types
-type PersonLike = { def name: String }  // Requires reflection
+// For cross-platform code, use case classes instead
+case class PersonLike(name: String)
 ```
 
 ## Complete Example
