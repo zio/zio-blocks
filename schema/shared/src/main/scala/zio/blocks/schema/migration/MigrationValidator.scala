@@ -220,8 +220,12 @@ object MigrationValidator {
               case Some(DynamicOptic.Node.Field(fieldName)) =>
                 fields.get(fieldName) match {
                   case Some(fieldStructure) =>
-                    // Optionalized field is still compatible with the original structure in simulation
-                    Right(SchemaStructure.Record(fields + (fieldName -> fieldStructure)))
+                    // Transform structure to Option representation (Variant with None and Some)
+                    val optionStructure = SchemaStructure.Variant(Map(
+                      "None" -> SchemaStructure.Record(Map.empty),
+                      "Some" -> SchemaStructure.Record(Map("value" -> fieldStructure))
+                    ))
+                    Right(SchemaStructure.Record(fields + (fieldName -> optionStructure)))
                   case None => Left(s"Field '$fieldName' not found for optionalize")
                 }
               case _ => Left("Optionalize at must end with a Field node")

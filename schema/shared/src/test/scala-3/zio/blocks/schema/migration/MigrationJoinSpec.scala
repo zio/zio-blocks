@@ -17,25 +17,33 @@ object MigrationJoinSpec extends ZIOSpecDefault {
   }
 
   def spec = suite("MigrationJoinSpec")(
-    test("Join merges multiple fields into one") {
-      val firstNameExpr = SchemaExpr.DynamicOpticExpr(DynamicOptic.root.at(0))
-      val lastNameExpr  = SchemaExpr.DynamicOpticExpr(DynamicOptic.root.at(1))
-      val spaceExpr     = SchemaExpr.Literal[DynamicValue, String](" ", Schema.string)
+    test("Join merges fields in specified order (verifying extracted values are used)") {
+      // We explicitly join lastName THEN firstName.
+      // If Join works correctly, it passes Sequence(lastName, firstName) to the expression.
+      // So index 0 = lastName, index 1 = firstName.
+      // We want to form "Doe, John".
       
-      val customExpr = SchemaExpr.StringConcat(
-        firstNameExpr.asInstanceOf[SchemaExpr[DynamicValue, String]],
+      val firstArgExpr  = SchemaExpr.DynamicOpticExpr(DynamicOptic.root.at(0)) // Expects lastName
+      val secondArgExpr = SchemaExpr.DynamicOpticExpr(DynamicOptic.root.at(1)) // Expects firstName
+      val commaExpr     = SchemaExpr.Literal[DynamicValue, String](", ", Schema.string)
+      
+      val combinerExpr = SchemaExpr.StringConcat(
+        firstArgExpr.asInstanceOf[SchemaExpr[DynamicValue, String]],
         SchemaExpr.StringConcat(
-          spaceExpr,
-          lastNameExpr.asInstanceOf[SchemaExpr[DynamicValue, String]]
+          commaExpr,
+          secondArgExpr.asInstanceOf[SchemaExpr[DynamicValue, String]]
         )
       ).asInstanceOf[SchemaExpr[DynamicValue, DynamicValue]]
 
+      // PersonV1 is single field, so we map to fullName.
+      // PersonV0 is (firstName, lastName).
+      
       val migration = MigrationBuilder[PersonV0, PersonV1]
         .join(
           _.fullName,
-          customExpr,
-          _.firstName,
-          _.lastName
+          combinerExpr,
+          _.lastName,  // Source 1 (becomes index 0)
+          _.firstName  // Source 2 (becomes index 1)
         )
         .dropField(_.firstName)
         .dropField(_.lastName)
@@ -45,7 +53,9 @@ object MigrationJoinSpec extends ZIOSpecDefault {
       val v0 = PersonV0("John", "Doe")
       val result = migration(v0)
        
-      assert(result)(isRight(equalTo(PersonV1("John Doe"))))
+      // If Join uses extracted fields: "Doe, John"
+      // If Join uses root record: "John, Doe" (because index 0 is first name in record)
+      assert(result)(isRight(equalTo(PersonV1("Doe, John"))))
     },
     test("Best-Effort Reversibility: DropField -> AddField") {
        final case class UserV0(id: Int, name: String)

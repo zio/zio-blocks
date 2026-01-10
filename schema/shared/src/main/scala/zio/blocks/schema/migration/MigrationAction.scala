@@ -194,7 +194,9 @@ object MigrationAction {
    */
   final case class Optionalize(at: DynamicOptic, defaultForReverse: Option[DynamicValue] = None) extends MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
-      at.getDV(value).map(v => DynamicValue.Variant("Some", v)).flatMap(newValue => at.setDV(value, newValue))
+      at.getDV(value).map(v => 
+        DynamicValue.Variant("Some", DynamicValue.Record(Vector("value" -> v)))
+      ).flatMap(newValue => at.setDV(value, newValue))
 
     def reverse: Either[MigrationError, MigrationAction] =
       defaultForReverse match {
@@ -219,7 +221,12 @@ object MigrationAction {
     def apply(value: DynamicValue): Either[MigrationError, DynamicValue] =
       at.getDV(value)
         .flatMap {
-          case DynamicValue.Variant("Some", v) => Right(v)
+          case DynamicValue.Variant("Some", DynamicValue.Record(fields)) => 
+            fields.find(_._1 == "value").map(_._2) match {
+              case Some(v) => Right(v)
+              case None    => Left(MigrationError.EvaluationFailed(at, "Expected 'value' field in Some variant"))
+            }
+          case DynamicValue.Variant("Some", v) => Right(v) // Fallback for simple wrapper
           case DynamicValue.Variant("None", _) => Right(defaultValue)
           case other                           => Left(MigrationError.TypeMismatch(at, "Optional", other.getClass.getSimpleName))
         }
