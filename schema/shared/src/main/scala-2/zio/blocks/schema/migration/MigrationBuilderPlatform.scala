@@ -13,16 +13,15 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
   // Selector-based Macros
   // ============================================================================
 
-  def addField(target: B => Any, default: zio.blocks.schema.DynamicValue): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.addFieldImpl[A, B]
+  // format: off
+  def addField(target: B => Any, default: zio.blocks.schema.DynamicValue): MigrationBuilder[A, B] = macro MigrationBuilderMacros.addFieldImpl[A, B]
 
   def dropField(source: A => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.dropFieldImpl[A, B]
 
-  def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.renameFieldImpl[A, B]
+  def renameField(from: A => Any, to: B => Any): MigrationBuilder[A, B] = macro MigrationBuilderMacros.renameFieldImpl[A, B]
 
-  def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B] = macro
-    MigrationBuilderMacros.optionalizeFieldImpl[A, B]
+  def optionalizeField(source: A => Any, target: B => Option[_]): MigrationBuilder[A, B] = macro MigrationBuilderMacros.optionalizeFieldImpl[A, B]
+  // format: on
 
   def mandateField(
     source: A => Option[_],
