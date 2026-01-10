@@ -221,10 +221,12 @@ object MigrationValidator {
                 fields.get(fieldName) match {
                   case Some(fieldStructure) =>
                     // Transform structure to Option representation (Variant with None and Some)
-                    val optionStructure = SchemaStructure.Variant(Map(
-                      "None" -> SchemaStructure.Record(Map.empty),
-                      "Some" -> SchemaStructure.Record(Map("value" -> fieldStructure))
-                    ))
+                    val optionStructure = SchemaStructure.Variant(
+                      Map(
+                        "None" -> SchemaStructure.Record(Map.empty),
+                        "Some" -> SchemaStructure.Record(Map("value" -> fieldStructure))
+                      )
+                    )
                     Right(SchemaStructure.Record(fields + (fieldName -> optionStructure)))
                   case None => Left(s"Field '$fieldName' not found for optionalize")
                 }
@@ -247,12 +249,12 @@ object MigrationValidator {
 
   private def isCompatible(actual: SchemaStructure, expected: SchemaStructure): Boolean =
     (actual, expected) match {
-      case (a, b) if a == b                                         => true
-      case (SchemaStructure.AnyValue, _)                            => true
-      case (_, SchemaStructure.AnyValue)                            => true
-      case (SchemaStructure.Primitive("Unknown"), SchemaStructure.Primitive(_))    => true
-      case (SchemaStructure.Primitive(_), SchemaStructure.Primitive("Unknown"))    => true
-      case (SchemaStructure.Record(af), SchemaStructure.Record(ef)) =>
+      case (a, b) if a == b                                                     => true
+      case (SchemaStructure.AnyValue, _)                                        => true
+      case (_, SchemaStructure.AnyValue)                                        => true
+      case (SchemaStructure.Primitive("Unknown"), SchemaStructure.Primitive(_)) => true
+      case (SchemaStructure.Primitive(_), SchemaStructure.Primitive("Unknown")) => true
+      case (SchemaStructure.Record(af), SchemaStructure.Record(ef))             =>
         ef.forall { case (name, estructure) =>
           af.get(name).exists(astructure => isCompatible(astructure, estructure))
         }

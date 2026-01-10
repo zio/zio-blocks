@@ -55,7 +55,14 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     inline target: B => Any,
     inline defaultValue: T
   )(using defaultSchema: Schema[T]): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.addFieldImpl[A, B, T]('self, 'target, 'defaultValue, '{ self.fromSchema }, '{ self.toSchema }, 'defaultSchema)
+    MigrationBuilderMacros.addFieldImpl[A, B, T](
+      'self,
+      'target,
+      'defaultValue,
+      '{ self.fromSchema },
+      '{ self.toSchema },
+      'defaultSchema
+    )
   }
 
   /**
@@ -67,7 +74,14 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     inline field: A => Any,
     inline defaultValue: T
   )(using defaultSchema: Schema[T]): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.mandateImpl[A, B, T]('self, 'field, 'defaultValue, '{ self.fromSchema }, '{ self.toSchema }, 'defaultSchema)
+    MigrationBuilderMacros.mandateImpl[A, B, T](
+      'self,
+      'field,
+      'defaultValue,
+      '{ self.fromSchema },
+      '{ self.toSchema },
+      'defaultSchema
+    )
   }
 
   /**
@@ -87,7 +101,13 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     inline field: A => Any,
     inline converter: SchemaExpr[DynamicValue, DynamicValue]
   ): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.changeFieldTypeImpl[A, B]('self, 'field, 'converter, '{ self.fromSchema }, '{ self.toSchema })
+    MigrationBuilderMacros.changeFieldTypeImpl[A, B](
+      'self,
+      'field,
+      'converter,
+      '{ self.fromSchema },
+      '{ self.toSchema }
+    )
   }
 
   /**
@@ -97,7 +117,13 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     inline field: A => Any,
     inline transform: SchemaExpr[DynamicValue, DynamicValue]
   ): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.transformElementsImpl[A, B]('self, 'field, 'transform, '{ self.fromSchema }, '{ self.toSchema })
+    MigrationBuilderMacros.transformElementsImpl[A, B](
+      'self,
+      'field,
+      'transform,
+      '{ self.fromSchema },
+      '{ self.toSchema }
+    )
   }
 
   /**
@@ -117,7 +143,13 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     inline field: A => Any,
     inline transform: SchemaExpr[DynamicValue, DynamicValue]
   ): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.transformValuesImpl[A, B]('self, 'field, 'transform, '{ self.fromSchema }, '{ self.toSchema })
+    MigrationBuilderMacros.transformValuesImpl[A, B](
+      'self,
+      'field,
+      'transform,
+      '{ self.fromSchema },
+      '{ self.toSchema }
+    )
   }
 
   /**
@@ -127,7 +159,13 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     inline caseSelector: A => Any,
     inline transform: SchemaExpr[DynamicValue, DynamicValue]
   ): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.transformCaseImpl[A, B]('self, 'caseSelector, 'transform, '{ self.fromSchema }, '{ self.toSchema })
+    MigrationBuilderMacros.transformCaseImpl[A, B](
+      'self,
+      'caseSelector,
+      'transform,
+      '{ self.fromSchema },
+      '{ self.toSchema }
+    )
   }
 
   /**
@@ -149,7 +187,14 @@ private[migration] trait MigrationBuilderPlatform[A, B] { self: MigrationBuilder
     inline splitter: SchemaExpr[DynamicValue, DynamicValue],
     inline targets: B => Any*
   ): MigrationBuilder[A, B] = ${
-    MigrationBuilderMacros.splitImpl[A, B]('self, 'source, 'splitter, 'targets, '{ self.fromSchema }, '{ self.toSchema })
+    MigrationBuilderMacros.splitImpl[A, B](
+      'self,
+      'source,
+      'splitter,
+      'targets,
+      '{ self.fromSchema },
+      '{ self.toSchema }
+    )
   }
 
   /**

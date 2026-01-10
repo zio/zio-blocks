@@ -133,10 +133,10 @@ final case class DynamicMigration(actions: Vector[MigrationAction]) {
     if (actions.isEmpty) "Empty migration"
     else
       actions.map {
-        case MigrationAction.DropField(at, _)              => s"Drop field at '$at'"
+        case MigrationAction.DropField(at, _)           => s"Drop field at '$at'"
         case MigrationAction.Rename(at, to)             => s"Rename field at '$at' to '$to'"
         case MigrationAction.AddField(at, _)            => s"Add field at '$at'"
-        case MigrationAction.Optionalize(at, _)            => s"Make field at '$at' optional"
+        case MigrationAction.Optionalize(at, _)         => s"Make field at '$at' optional"
         case MigrationAction.Mandate(at, _)             => s"Make field at '$at' mandatory"
         case MigrationAction.RenameCase(at, _, newName) => s"Rename case in '$at' to '$newName'"
         case MigrationAction.RemoveCase(at, name)       => s"Remove case '$name' in '$at'"

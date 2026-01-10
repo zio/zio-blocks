@@ -195,13 +195,17 @@ private[migration] object MigrationBuilderMacros {
 
     '{
       val fullDefaultOpt = $fromSchema.getDefaultValue
-      val default = fullDefaultOpt.flatMap { fullDefault =>
+      val default        = fullDefaultOpt.flatMap { fullDefault =>
         val dv = $fromSchema.reflect.toDynamicValue(fullDefault)(Binding.bindingHasBinding)
         DynamicOpticOps($optic).getDV(dv).toOption
       }.orElse {
-        $fromSchema.get($optic).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)(Binding.bindingHasBinding)))
+        $fromSchema
+          .get($optic)
+          .flatMap(r =>
+            r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)(Binding.bindingHasBinding))
+          )
       }
-      
+
       MigrationBuilder[A, B](
         $builder.actions :+ MigrationAction.DropField($optic, default)
       )($fromSchema, $toSchema)
@@ -228,7 +232,9 @@ private[migration] object MigrationBuilderMacros {
       val default = $fromSchema.getDefaultValue.flatMap { fullDefault =>
         $optic.getDV($fromSchema.reflect.toDynamicValue(fullDefault)).toOption
       }.orElse {
-        $fromSchema.get($optic).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)))
+        $fromSchema
+          .get($optic)
+          .flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)))
       }
       MigrationBuilder[A, B](
         $builder.actions :+ MigrationAction.Optionalize($optic, default)
@@ -386,10 +392,10 @@ private[migration] object MigrationBuilderMacros {
   )(using Quotes): Expr[MigrationBuilder[A, B]] = {
     import quotes.reflect.*
 
-    def splitOptic(term: Term): (Expr[DynamicOptic], String) = {
+    def splitOptic(term: Term): (Expr[DynamicOptic], String) =
       term match {
         case TypeApply(Select(inner, "when"), List(caseType)) =>
-          val caseName = caseType.tpe.typeSymbol.name
+          val caseName                        = caseType.tpe.typeSymbol.name
           val parentOptic: Expr[DynamicOptic] = extractDynamicOptic(inner) match {
             case Right(o)  => o
             case Left(err) => report.errorAndAbort(err)
@@ -399,10 +405,9 @@ private[migration] object MigrationBuilderMacros {
         case Lambda(_, body)      => splitOptic(body)
         case Block(_, expr)       => splitOptic(expr)
         case Typed(inner, _)      => splitOptic(inner)
-        case _ =>
+        case _                    =>
           report.errorAndAbort(s"transformCase requires a .when[Case] selector, got: ${term.show}")
       }
-    }
 
     val (atOptic, caseName) = splitOptic(selector.asTerm)
 
@@ -427,7 +432,7 @@ private[migration] object MigrationBuilderMacros {
       case Left(err) => report.errorAndAbort(err)
     }
 
-    val Varargs(sourceExprs) = sources: @unchecked
+    val Varargs(sourceExprs)                  = sources: @unchecked
     val sourceOptics: Seq[Expr[DynamicOptic]] = sourceExprs.map { s =>
       extractDynamicOptic(s.asTerm) match {
         case Right(o)  => o
@@ -456,7 +461,7 @@ private[migration] object MigrationBuilderMacros {
       case Left(err) => report.errorAndAbort(err)
     }
 
-    val Varargs(targetExprs) = targets: @unchecked
+    val Varargs(targetExprs)                  = targets: @unchecked
     val targetOptics: Seq[Expr[DynamicOptic]] = targetExprs.map { t =>
       extractDynamicOptic(t.asTerm) match {
         case Right(o)  => o

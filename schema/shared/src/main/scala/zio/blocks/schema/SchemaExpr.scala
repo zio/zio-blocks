@@ -109,7 +109,6 @@ object SchemaExpr {
     private[this] val toDynamicValue: B => DynamicValue = optic.focus.toDynamicValue
   }
 
-
   sealed trait UnaryOp[A, +B] extends SchemaExpr[A, B] {
     def expr: SchemaExpr[A, B]
   }
@@ -315,7 +314,7 @@ object SchemaExpr {
    * Represents a dynamic lookup of a default value from a schema.
    */
   final case class DefaultValue[S](default: DynamicValue) extends SchemaExpr[S, DynamicValue] {
-    def eval(input: S): Either[OpticCheck, Seq[DynamicValue]] = Right(Seq(default))
+    def eval(input: S): Either[OpticCheck, Seq[DynamicValue]]        = Right(Seq(default))
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = Right(Seq(default))
   }
 
@@ -324,18 +323,18 @@ object SchemaExpr {
    */
   final case class DynamicOpticExpr[S, B](optic: DynamicOptic) extends SchemaExpr[S, B] {
     def eval(input: S): Either[OpticCheck, Seq[B]] = evalDynamic(input).map(_.map {
-      case dv: DynamicValue.Primitive => 
+      case dv: DynamicValue.Primitive =>
         val extracted: Any = dv.value match {
-          case p: PrimitiveValue.String => p.value
-          case p: PrimitiveValue.Int    => p.value
+          case p: PrimitiveValue.String  => p.value
+          case p: PrimitiveValue.Int     => p.value
           case p: PrimitiveValue.Boolean => p.value
-          case p: PrimitiveValue.Double => p.value
-          case p: PrimitiveValue.Long   => p.value
-          case p: PrimitiveValue.Float  => p.value
-          case p: PrimitiveValue.Short  => p.value
-          case p: PrimitiveValue.Byte   => p.value
-          case p: PrimitiveValue.Char   => p.value
-          case p => p
+          case p: PrimitiveValue.Double  => p.value
+          case p: PrimitiveValue.Long    => p.value
+          case p: PrimitiveValue.Float   => p.value
+          case p: PrimitiveValue.Short   => p.value
+          case p: PrimitiveValue.Byte    => p.value
+          case p: PrimitiveValue.Char    => p.value
+          case p                         => p
         }
         extracted.asInstanceOf[B]
       case dv => dv.asInstanceOf[B]
@@ -344,13 +343,13 @@ object SchemaExpr {
     def evalDynamic(input: S): Either[OpticCheck, Seq[DynamicValue]] = {
       val dynamicInput = input match {
         case dv: DynamicValue => dv
-        case other => 
+        case other            =>
           // This should not happen in migrations as they work on DynamicValue
           throw new IllegalArgumentException(s"Expected DynamicValue input for DynamicOpticExpr, got: $other")
       }
       optic.get(dynamicInput) match {
         case Right(value) => Right(Seq(value))
-        case Left(err) => Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic.root, optic, err), Nil)))
+        case Left(err)    => Left(OpticCheck(::(OpticCheck.WrappingError(DynamicOptic.root, optic, err), Nil)))
       }
     }
   }

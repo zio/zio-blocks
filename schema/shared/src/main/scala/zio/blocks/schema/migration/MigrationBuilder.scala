@@ -47,7 +47,8 @@ final class MigrationBuilder[A, B](
    * Drop a field at the given optic path.
    */
   def dropField(at: DynamicOptic): MigrationBuilder[A, B] = {
-    val default = fromSchema.get(at).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)))
+    val default =
+      fromSchema.get(at).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)))
     copy(actions = actions :+ MigrationAction.DropField(at, default))
   }
 
@@ -91,7 +92,8 @@ final class MigrationBuilder[A, B](
    * Make a field at the given optic path optional.
    */
   def optionalize(at: DynamicOptic): MigrationBuilder[A, B] = {
-    val default = fromSchema.get(at).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)))
+    val default =
+      fromSchema.get(at).flatMap(r => r.getDefaultValue.map(v => r.asInstanceOf[Reflect.Bound[Any]].toDynamicValue(v)))
     copy(actions = actions :+ MigrationAction.Optionalize(at, default))
   }
 
