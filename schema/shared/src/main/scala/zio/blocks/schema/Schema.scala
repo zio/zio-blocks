@@ -76,6 +76,16 @@ final case class Schema[A](reflect: Reflect.Bound[A]) extends SchemaVersionSpeci
 
   def modifiers(modifiers: Iterable[Modifier.Reflect]): Schema[A] = new Schema(reflect.modifiers(modifiers))
 
+  def diff(oldValue: A, newValue: A): Patch[A] = {
+    val oldDynamic   = toDynamicValue(oldValue)
+    val newDynamic   = toDynamicValue(newValue)
+    val dynamicPatch = zio.blocks.schema.patch.Differ.diff(oldDynamic, newDynamic)
+    Patch(dynamicPatch, this)
+  }
+
+  def patch(value: A, patch: Patch[A]): Either[SchemaError, A] =
+    patch.apply(value, PatchMode.Strict)
+
   def wrap[B: Schema](wrap: B => Either[String, A], unwrap: A => B): Schema[A] = new Schema(
     new Reflect.Wrapper[Binding, A, B](
       Schema[B].reflect,
