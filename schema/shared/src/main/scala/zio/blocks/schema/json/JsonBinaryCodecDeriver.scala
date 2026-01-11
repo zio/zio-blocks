@@ -735,7 +735,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Int] = constructor.resultInt(constructor.newIntBuilder(0))
+                override def nullValue: Col[Int] = constructor.emptyInt
               }
             } else {
               new JsonBinaryCodec[Col[Int]]() {
@@ -778,7 +778,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Int] = constructor.resultInt(constructor.newIntBuilder(0))
+                override def nullValue: Col[Int] = constructor.emptyInt
               }
             }
           case JsonBinaryCodec.longType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -822,7 +822,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Long] = constructor.resultLong(constructor.newLongBuilder(0))
+                override def nullValue: Col[Long] = constructor.emptyLong
               }
             } else {
               new JsonBinaryCodec[Col[Long]]() {
@@ -865,7 +865,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Long] = constructor.resultLong(constructor.newLongBuilder(0))
+                override def nullValue: Col[Long] = constructor.emptyLong
               }
             }
           case JsonBinaryCodec.floatType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -909,7 +909,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Float] = constructor.resultFloat(constructor.newFloatBuilder(0))
+                override def nullValue: Col[Float] = constructor.emptyFloat
               }
             } else {
               new JsonBinaryCodec[Col[Float]]() {
@@ -952,7 +952,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Float] = constructor.resultFloat(constructor.newFloatBuilder(0))
+                override def nullValue: Col[Float] = constructor.emptyFloat
               }
             }
           case JsonBinaryCodec.doubleType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -996,7 +996,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Double] = constructor.resultDouble(constructor.newDoubleBuilder(0))
+                override def nullValue: Col[Double] = constructor.emptyDouble
               }
             } else {
               new JsonBinaryCodec[Col[Double]]() {
@@ -1039,7 +1039,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Double] = constructor.resultDouble(constructor.newDoubleBuilder(0))
+                override def nullValue: Col[Double] = constructor.emptyDouble
               }
             }
           case JsonBinaryCodec.booleanType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1083,7 +1083,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Boolean] = constructor.resultBoolean(constructor.newBooleanBuilder(0))
+                override def nullValue: Col[Boolean] = constructor.emptyBoolean
               }
             } else {
               new JsonBinaryCodec[Col[Boolean]]() {
@@ -1126,7 +1126,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Boolean] = constructor.resultBoolean(constructor.newBooleanBuilder(0))
+                override def nullValue: Col[Boolean] = constructor.emptyBoolean
               }
             }
           case JsonBinaryCodec.byteType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1170,7 +1170,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Byte] = constructor.resultByte(constructor.newByteBuilder(0))
+                override def nullValue: Col[Byte] = constructor.emptyByte
               }
             } else {
               new JsonBinaryCodec[Col[Byte]]() {
@@ -1213,7 +1213,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Byte] = constructor.resultByte(constructor.newByteBuilder(0))
+                override def nullValue: Col[Byte] = constructor.emptyByte
               }
             }
           case JsonBinaryCodec.charType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1257,7 +1257,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Char] = constructor.resultChar(constructor.newCharBuilder(0))
+                override def nullValue: Col[Char] = constructor.emptyChar
               }
             } else {
               new JsonBinaryCodec[Col[Char]]() {
@@ -1300,7 +1300,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Char] = constructor.resultChar(constructor.newCharBuilder(0))
+                override def nullValue: Col[Char] = constructor.emptyChar
               }
             }
           case JsonBinaryCodec.shortType if binding.deconstructor.isInstanceOf[SpecializedIndexed[Col]] =>
@@ -1344,7 +1344,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Short] = constructor.resultShort(constructor.newShortBuilder(0))
+                override def nullValue: Col[Short] = constructor.emptyShort
               }
             } else {
               new JsonBinaryCodec[Col[Short]]() {
@@ -1387,7 +1387,7 @@ class JsonBinaryCodecDeriver private[json] (
                   out.writeArrayEnd()
                 }
 
-                override def nullValue: Col[Short] = constructor.resultShort(constructor.newShortBuilder(0))
+                override def nullValue: Col[Short] = constructor.emptyShort
               }
             }
           case _ =>
@@ -1427,7 +1427,7 @@ class JsonBinaryCodecDeriver private[json] (
                 out.writeArrayEnd()
               }
 
-              override def nullValue: Col[Elem] = constructor.resultObject(constructor.newObjectBuilder(0))
+              override def nullValue: Col[Elem] = constructor.emptyObject[Elem]
             }
         }
       } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
@@ -1484,7 +1484,7 @@ class JsonBinaryCodecDeriver private[json] (
             out.writeObjectEnd()
           }
 
-          override def nullValue: Map[Key, Value] = constructor.resultObject(constructor.newObjectBuilder(0))
+          override def nullValue: Map[Key, Value] = constructor.emptyObject[Key, Value]
         }
       } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isRecord) {

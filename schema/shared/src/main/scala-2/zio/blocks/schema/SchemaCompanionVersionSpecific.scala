@@ -390,7 +390,7 @@ private object SchemaCompanionVersionSpecific {
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArrayConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                     def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                       var buf = builder.buffer
@@ -409,6 +409,8 @@ private object SchemaCompanionVersionSpecific {
                       if (buf.length == size) buf
                       else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
                     }
+
+                    def emptyObject[B]: Array[B] = Array.empty[$elementTpe].asInstanceOf[Array[B]]
                   },
                   deconstructor = SeqDeconstructor.arrayDeconstructor
                 )
@@ -428,7 +430,7 @@ private object SchemaCompanionVersionSpecific {
                 seqBinding = new Binding.Seq(
                   constructor = new SeqConstructor.ArraySeqConstructor {
                     def newObjectBuilder[B](sizeHint: Int): Builder[B] =
-                      new Builder(new Array[$elementTpe](sizeHint).asInstanceOf[Array[B]], 0)
+                      new Builder(new Array[$elementTpe](Math.max(sizeHint, 1)).asInstanceOf[Array[B]], 0)
 
                     def addObject[B](builder: ObjectBuilder[B], a: B): Unit = {
                       var buf = builder.buffer
@@ -447,6 +449,8 @@ private object SchemaCompanionVersionSpecific {
                       if (buf.length == size) buf
                       else java.util.Arrays.copyOf(buf.asInstanceOf[Array[$copyOfTpe]], size).asInstanceOf[Array[B]]
                     }
+
+                    def emptyObject[B]: ArraySeq[B] = ArraySeq.empty[$elementTpe].asInstanceOf[ArraySeq[B]]
                   },
                   deconstructor = SeqDeconstructor.arraySeqDeconstructor
                 )

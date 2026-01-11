@@ -9,6 +9,8 @@ trait MapConstructor[M[_, _]] {
 
   def resultObject[K, V](builder: ObjectBuilder[K, V]): M[K, V]
 
+  def emptyObject[K, V]: M[K, V]
+
   def updated[K, V](map: M[K, V], key: K, value: V): M[K, V]
 }
 
@@ -23,6 +25,8 @@ object MapConstructor {
     def addObject[K, V](builder: ObjectBuilder[K, V], k: K, v: V): Unit = builder.addOne((k, v))
 
     def resultObject[K, V](builder: ObjectBuilder[K, V]): Map[K, V] = builder.result()
+
+    def emptyObject[K, V]: Map[K, V] = Map.empty
 
     def updated[K, V](map: Map[K, V], key: K, value: V): Map[K, V] = map.updated(key, value)
   }
