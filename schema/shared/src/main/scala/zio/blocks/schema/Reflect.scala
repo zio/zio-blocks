@@ -64,7 +64,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
   def get(dynamic: DynamicOptic): Option[Reflect[F, ?]] = {
     @tailrec
     def loop(current: Reflect[F, ?], idx: Int): Option[Reflect[F, ?]] =
-      if (idx == dynamic.nodes.length) new Some(current)
+      if (idx == dynamic.nodes.length) Some(current)
       else {
         loop(
           dynamic.nodes(idx) match {
@@ -153,7 +153,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
 
   def updated[B](dynamic: DynamicOptic)(f: Reflect.Updater[F]): Option[Reflect[F, A]] = {
     def loop(current: Reflect[F, ?], idx: Int): Option[Reflect[F, ?]] =
-      if (idx == dynamic.nodes.length) new Some(f.update(current.asInstanceOf[Reflect[F, B]]))
+      if (idx == dynamic.nodes.length) Some(f.update(current.asInstanceOf[Reflect[F, B]]))
       else {
         dynamic.nodes(idx) match {
           case DynamicOptic.Node.Field(name) =>
@@ -162,7 +162,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 record.modifyField(name)(new Term.Updater[F] {
                   def update[S, C](input: Term[F, S, C]): Option[Term[F, S, C]] =
                     loop(input.value, idx + 1) match {
-                      case Some(value) => new Some(input.copy(value = value.asInstanceOf[Reflect[F, C]]))
+                      case Some(value) => Some(input.copy(value = value.asInstanceOf[Reflect[F, C]]))
                       case _           => None
                     }
                 })
@@ -174,7 +174,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 variant.modifyCase(name)(new Term.Updater[F] {
                   def update[S, C](input: Term[F, S, C]): Option[Term[F, S, C]] =
                     loop(input.value, idx + 1) match {
-                      case Some(value) => new Some(input.copy(value = value.asInstanceOf[Reflect[F, C]]))
+                      case Some(value) => Some(input.copy(value = value.asInstanceOf[Reflect[F, C]]))
                       case _           => None
                     }
                 })
@@ -186,7 +186,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 val sequence = unknown.sequence
                 loop(sequence.element, idx + 1) match {
                   case Some(element) =>
-                    new Some(sequence.copy(element = element.asInstanceOf[Reflect[F, unknown.ElementType]]))
+                    Some(sequence.copy(element = element.asInstanceOf[Reflect[F, unknown.ElementType]]))
                   case _ => None
                 }
               case _ => None
@@ -197,7 +197,7 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 val wrapper = unknown.wrapper
                 loop(wrapper.wrapped, idx + 1) match {
                   case Some(element) =>
-                    new Some(wrapper.copy(wrapped = element.asInstanceOf[Reflect[F, unknown.Wrapped]]))
+                    Some(wrapper.copy(wrapped = element.asInstanceOf[Reflect[F, unknown.Wrapped]]))
                   case _ => None
                 }
               case _ => None
@@ -208,12 +208,12 @@ sealed trait Reflect[F[_, _], A] extends Reflectable[A] { self =>
                 val map = unknown.map
                 if (node == DynamicOptic.Node.MapKeys) {
                   loop(map.key, idx + 1) match {
-                    case Some(key) => new Some(map.copy(key = key.asInstanceOf[Reflect[F, unknown.KeyType]]))
+                    case Some(key) => Some(map.copy(key = key.asInstanceOf[Reflect[F, unknown.KeyType]]))
                     case _         => None
                   }
                 } else {
                   loop(map.value, idx + 1) match {
-                    case Some(value) => new Some(map.copy(value = value.asInstanceOf[Reflect[F, unknown.ValueType]]))
+                    case Some(value) => Some(map.copy(value = value.asInstanceOf[Reflect[F, unknown.ValueType]]))
                     case _           => None
                   }
                 }
@@ -313,7 +313,7 @@ object Reflect {
 
     def fieldByName(name: String): Option[Term[F, A, ?]] = {
       val idx = fieldIndexByName.get(name)
-      if (idx >= 0) new Some(fields(idx))
+      if (idx >= 0) Some(fields(idx))
       else None
     }
 
@@ -354,16 +354,16 @@ object Reflect {
             if (fieldValues(idx) ne null) addError(SchemaError.missingField(trace, this.fields(idx).name))
             idx += 1
           }
-          if (error.isDefined) new Left(error.get)
-          else new Right(constructor.construct(registers, 0))
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a record"))
+          if (error.isDefined) Left(error.get)
+          else Right(constructor.construct(registers, 0))
+        case _ => Left(SchemaError.expectationMismatch(trace, "Expected a record"))
       }
 
     def lensByName[B](name: String): Option[Lens[A, B]] = lensByIndex(fieldIndexByName.get(name))
 
     def lensByIndex[B](index: Int): Option[Lens[A, B]] =
       if (index >= 0 && index < fields.length) {
-        new Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, B]]))
+        Some(Lens(this.asInstanceOf[Reflect.Record.Bound[A]], fields(index).asInstanceOf[Term.Bound[A, B]]))
       } else None
 
     def metadata: F[NodeBinding, A] = recordBinding
@@ -376,7 +376,7 @@ object Reflect {
       val idx = fieldIndexByName.get(name)
       if (idx >= 0) {
         f.update(fields(idx)) match {
-          case Some(field) => new Some(copy(fields = fields.updated(idx, field)))
+          case Some(field) => Some(copy(fields = fields.updated(idx, field)))
           case _           => None
         }
       } else None
@@ -421,7 +421,7 @@ object Reflect {
 
     def nodeType: Reflect.Type.Record.type = Reflect.Type.Record
 
-    override def asRecord: Option[Reflect.Record[F, A]] = new Some(this)
+    override def asRecord: Option[Reflect.Record[F, A]] = Some(this)
 
     override def isRecord: Boolean = true
   }
@@ -523,7 +523,7 @@ object Reflect {
 
     def caseByName(name: String): Option[Term[F, A, ? <: A]] = {
       val idx = caseIndexByName.get(name)
-      if (idx >= 0) new Some(cases(idx))
+      if (idx >= 0) Some(cases(idx))
       else None
     }
 
@@ -542,8 +542,8 @@ object Reflect {
             case_.value
               .asInstanceOf[Reflect[F, A]]
               .fromDynamicValue(value, new DynamicOptic.Node.Case(case_.name) :: trace)
-          } else new Left(SchemaError.unknownCase(trace, discriminator))
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a variant"))
+          } else Left(SchemaError.unknownCase(trace, discriminator))
+        case _ => Left(SchemaError.expectationMismatch(trace, "Expected a variant"))
       }
 
     def matchers(implicit F: HasBinding[F]): Matchers[A] = F.matchers(variantBinding)
@@ -558,7 +558,7 @@ object Reflect {
       val idx = caseIndexByName.get(name)
       if (idx >= 0) {
         f.update(cases(idx)) match {
-          case Some(case_) => new Some(copy(cases = cases.updated(idx, case_)))
+          case Some(case_) => Some(copy(cases = cases.updated(idx, case_)))
           case _           => None
         }
       } else None
@@ -568,7 +568,7 @@ object Reflect {
 
     def prismByIndex[B <: A](index: Int): Option[Prism[A, B]] =
       if (index >= 0 && index < cases.length) {
-        new Some(Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, B]]))
+        Some(Prism(this.asInstanceOf[Reflect.Variant.Bound[A]], cases(index).asInstanceOf[Term.Bound[A, B]]))
       } else None
 
     def toDynamicValue(value: A)(implicit F: HasBinding[F]): DynamicValue = {
@@ -586,7 +586,7 @@ object Reflect {
 
     def nodeType: Reflect.Type.Variant.type = Reflect.Type.Variant
 
-    override def asVariant: Option[Reflect.Variant[F, A]] = new Some(this)
+    override def asVariant: Option[Reflect.Variant[F, A]] = Some(this)
 
     override def isVariant: Boolean = true
   }
@@ -646,8 +646,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultBoolean(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultBoolean(builder).asInstanceOf[C[A]])
                 case _: PrimitiveType.Byte =>
                   val builder = constructor.newByteBuilder(elements.size)
                   elements.foreach { elem =>
@@ -657,8 +657,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultByte(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultByte(builder).asInstanceOf[C[A]])
                 case _: PrimitiveType.Char =>
                   val builder = constructor.newCharBuilder(elements.size)
                   elements.foreach { elem =>
@@ -668,8 +668,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultChar(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultChar(builder).asInstanceOf[C[A]])
                 case _: PrimitiveType.Short =>
                   val builder = constructor.newShortBuilder(elements.size)
                   elements.foreach { elem =>
@@ -679,8 +679,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultShort(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultShort(builder).asInstanceOf[C[A]])
                 case _: PrimitiveType.Int =>
                   val builder = constructor.newIntBuilder(elements.size)
                   elements.foreach { elem =>
@@ -690,8 +690,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultInt(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultInt(builder).asInstanceOf[C[A]])
                 case _: PrimitiveType.Long =>
                   val builder = constructor.newLongBuilder(elements.size)
                   elements.foreach { elem =>
@@ -701,8 +701,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultLong(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultLong(builder).asInstanceOf[C[A]])
                 case _: PrimitiveType.Float =>
                   val builder = constructor.newFloatBuilder(elements.size)
                   elements.foreach { elem =>
@@ -712,8 +712,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultFloat(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultFloat(builder).asInstanceOf[C[A]])
                 case _: PrimitiveType.Double =>
                   val builder = constructor.newDoubleBuilder(elements.size)
                   elements.foreach { elem =>
@@ -723,8 +723,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultDouble(builder).asInstanceOf[C[A]])
                 case _ =>
                   val builder = constructor.newObjectBuilder[A](elements.size)
                   elements.foreach { elem =>
@@ -734,8 +734,8 @@ object Reflect {
                       case Left(error)  => addError(error)
                     }
                   }
-                  if (error.isDefined) new Left(error.get)
-                  else new Right(constructor.resultObject(builder))
+                  if (error.isDefined) Left(error.get)
+                  else Right(constructor.resultObject(builder))
               }
             case _ =>
               val builder = constructor.newObjectBuilder[A](elements.size)
@@ -746,10 +746,10 @@ object Reflect {
                   case Left(error)  => addError(error)
                 }
               }
-              if (error.isDefined) new Left(error.get)
-              else new Right(constructor.resultObject(builder))
+              if (error.isDefined) Left(error.get)
+              else Right(constructor.resultObject(builder))
           }
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a sequence"))
+        case _ => Left(SchemaError.expectationMismatch(trace, "Expected a sequence"))
       }
     }
 
@@ -782,9 +782,9 @@ object Reflect {
     def nodeType: Reflect.Type.Sequence[C] = new Reflect.Type.Sequence
 
     override def asSequence(implicit ev: IsCollection[C[A]]): Option[Reflect.Sequence[F, ev.Elem, ev.Collection]] =
-      new Some(this.asInstanceOf[Reflect.Sequence[F, ev.Elem, ev.Collection]])
+      Some(this.asInstanceOf[Reflect.Sequence[F, ev.Elem, ev.Collection]])
 
-    override def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] = new Some(new Reflect.Sequence.Unknown[F] {
+    override def asSequenceUnknown: Option[Reflect.Sequence.Unknown[F]] = Some(new Reflect.Sequence.Unknown[F] {
       def sequence: Reflect.Sequence[F, ElementType, CollectionType] =
         self.asInstanceOf[Reflect.Sequence[F, ElementType, CollectionType]]
     })
@@ -847,16 +847,19 @@ object Reflect {
           elements.foreach { case (key, value) =>
             this.key.fromDynamicValue(key, keyTrace) match {
               case Right(keyValue) =>
-                this.value.fromDynamicValue(value, new DynamicOptic.Node.AtMapKey(keyValue) :: valueTrace) match {
-                  case Right(valueValue) => constructor.addObject(builder, keyValue, valueValue)
-                  case Left(error)       => addError(error)
+                val keyDV = this.key.toDynamicValue(keyValue)
+                this.value.fromDynamicValue(value, DynamicOptic.Node.AtMapKey(keyDV) :: valueTrace) match {
+                  case Right(vv) =>
+                    val valueValue = vv
+                    constructor.addObject(builder, keyValue, valueValue)
+                  case Left(err) => addError(err)
                 }
-              case Left(error) => addError(error)
+              case Left(err) => addError(err)
             }
           }
-          if (error.isDefined) new Left(error.get)
-          else new Right(constructor.resultObject(builder))
-        case _ => new Left(SchemaError.expectationMismatch(trace, "Expected a map"))
+          if (error.isDefined) Left(error.get)
+          else Right(constructor.resultObject(builder))
+        case _ => Left(SchemaError.expectationMismatch(trace, "Expected a map"))
       }
     }
 
@@ -896,9 +899,9 @@ object Reflect {
     def nodeType: Reflect.Type.Map[M] = new Reflect.Type.Map
 
     override def asMap(implicit ev: IsMap[M[K, V]]): Option[Reflect.Map[F, ev.Key, ev.Value, ev.Map]] =
-      new Some(this.asInstanceOf[Reflect.Map[F, ev.Key, ev.Value, ev.Map]])
+      Some(this.asInstanceOf[Reflect.Map[F, ev.Key, ev.Value, ev.Map]])
 
-    override def asMapUnknown: Option[Reflect.Map.Unknown[F]] = new Some(new Reflect.Map.Unknown[F] {
+    override def asMapUnknown: Option[Reflect.Map.Unknown[F]] = Some(new Reflect.Map.Unknown[F] {
       def map: Reflect.Map[F, KeyType, ValueType, MapType] =
         self.asInstanceOf[Reflect.Map[F, KeyType, ValueType, MapType]]
     })
@@ -945,7 +948,7 @@ object Reflect {
 
     private[schema] def fromDynamicValue(value: DynamicValue, trace: List[DynamicOptic.Node])(implicit
       F: HasBinding[F]
-    ): Either[SchemaError, DynamicValue] = new Right(value)
+    ): Either[SchemaError, DynamicValue] = Right(value)
 
     def metadata: F[NodeBinding, DynamicValue] = dynamicBinding
 
@@ -964,7 +967,7 @@ object Reflect {
 
     def nodeType: Reflect.Type.Dynamic.type = Reflect.Type.Dynamic
 
-    override def asDynamic: Option[Reflect.Dynamic[F]] = new Some(this)
+    override def asDynamic: Option[Reflect.Dynamic[F]] = Some(this)
 
     override def isDynamic: Boolean = true
   }
@@ -1020,7 +1023,7 @@ object Reflect {
 
     def nodeType: Reflect.Type.Primitive.type = Reflect.Type.Primitive
 
-    override def asPrimitive: Option[Reflect.Primitive[F, A]] = new Some(this)
+    override def asPrimitive: Option[Reflect.Primitive[F, A]] = Some(this)
 
     override def isPrimitive: Boolean = true
   }
@@ -1061,7 +1064,7 @@ object Reflect {
       (wrapped.fromDynamicValue(value) match {
         case Right(unwrapped) =>
           binding.wrap(unwrapped) match {
-            case Left(error) => new Left(SchemaError.expectationMismatch(trace, s"Expected ${typeName.name}: $error"))
+            case Left(error) => Left(SchemaError.expectationMismatch(trace, s"Expected ${typeName.name}: $error"))
             case right       => right
           }
         case left => left
@@ -1085,7 +1088,7 @@ object Reflect {
 
     def typeName(value: TypeName[A]): Wrapper[F, A, B] = copy(typeName = value)
 
-    override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = new Some(new Reflect.Wrapper.Unknown[F] {
+    override def asWrapperUnknown: Option[Reflect.Wrapper.Unknown[F]] = Some(new Reflect.Wrapper.Unknown[F] {
       def wrapper: Reflect.Wrapper[F, Wrapping, Wrapped] = self.asInstanceOf[Reflect.Wrapper[F, Wrapping, Wrapped]]
     })
 

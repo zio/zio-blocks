@@ -3,6 +3,7 @@ package zio.blocks.schema.json
 import zio.blocks.schema.json._
 import zio.blocks.schema.json.JsonBinaryCodec._
 import zio.blocks.schema.binding.{Binding, BindingType, HasBinding, Registers, RegisterOffset}
+import zio.blocks.schema.binding.Binding.bindingHasBinding
 import zio.blocks.schema._
 import zio.blocks.schema.binding.{Constructor, Discriminator}
 import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
@@ -1432,23 +1433,27 @@ class JsonBinaryCodecDeriver private[json] (
         }
       } else sequence.seqBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isMap) {
-      val map = reflect.asMapUnknown.get.map
+      val mapUnknown = reflect.asMapUnknown.get
+      type K = mapUnknown.KeyType
+      type V = mapUnknown.ValueType
+      type M[X, Y] = mapUnknown.MapType[X, Y]
+      val map = mapUnknown.map.asInstanceOf[Reflect.Map.Bound[K, V, M]]
       if (map.mapBinding.isInstanceOf[Binding[?, ?]]) {
-        val binding = map.mapBinding.asInstanceOf[Binding.Map[Map, Key, Value]]
-        val codec1  = deriveCodec(map.key).asInstanceOf[JsonBinaryCodec[Key]]
-        val codec2  = deriveCodec(map.value).asInstanceOf[JsonBinaryCodec[Value]]
-        new JsonBinaryCodec[Map[Key, Value]]() {
+        val binding = map.mapBinding.asInstanceOf[Binding.Map[M, K, V]]
+        val codec1  = deriveCodec(map.key).asInstanceOf[JsonBinaryCodec[K]]
+        val codec2  = deriveCodec(map.value).asInstanceOf[JsonBinaryCodec[V]]
+        new JsonBinaryCodec[M[K, V]]() {
           private[this] val deconstructor = binding.deconstructor
           private[this] val constructor   = binding.constructor
           private[this] val keyCodec      = codec1
           private[this] val valueCodec    = codec2
 
-          def decodeValue(in: JsonReader, default: Map[Key, Value]): Map[Key, Value] =
+          def decodeValue(in: JsonReader, default: M[K, V]): M[K, V] =
             if (in.isNextToken('{')) {
               if (in.isNextToken('}')) default
               else {
                 in.rollbackToken()
-                val builder = constructor.newObjectBuilder[Key, Value](8)
+                val builder = constructor.newObjectBuilder[K, V](8)
                 var idx     = -1
                 while ({
                   idx += 1
@@ -1460,12 +1465,14 @@ class JsonBinaryCodecDeriver private[json] (
                   val v =
                     try valueCodec.decodeValue(in, valueCodec.nullValue)
                     catch {
-                      case error if NonFatal(error) => in.decodeError(new DynamicOptic.Node.AtMapKey(k), error)
+                      case error if NonFatal(error) =>
+                        val keyDV = map.key.toDynamicValue(k)
+                        in.decodeError(DynamicOptic.Node.AtMapKey(keyDV), error)
                     }
                   constructor.addObject(builder, k, v)
                   in.isNextToken(',')
                 }) ()
-                if (in.isCurrentToken('}')) constructor.resultObject[Key, Value](builder)
+                if (in.isCurrentToken('}')) constructor.resultObject[K, V](builder)
                 else in.objectEndOrCommaError()
               }
             } else {
@@ -1473,7 +1480,7 @@ class JsonBinaryCodecDeriver private[json] (
               in.readNullOrTokenError(default, '[')
             }
 
-          def encodeValue(x: Map[Key, Value], out: JsonWriter): Unit = {
+          def encodeValue(x: M[K, V], out: JsonWriter): Unit = {
             out.writeObjectStart()
             val it = deconstructor.deconstruct(x)
             while (it.hasNext) {
@@ -1484,7 +1491,7 @@ class JsonBinaryCodecDeriver private[json] (
             out.writeObjectEnd()
           }
 
-          override def nullValue: Map[Key, Value] = constructor.emptyObject[Key, Value]
+          override def nullValue: M[K, V] = constructor.emptyObject[K, V]
         }
       } else map.mapBinding.asInstanceOf[BindingInstance[TC, ?, A]].instance.force
     } else if (reflect.isRecord) {

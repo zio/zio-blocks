@@ -2,6 +2,7 @@ package zio.blocks.schema
 
 import zio.test._
 import zio.test.Assertion._
+import zio.blocks.schema.SchemaError
 import java.time.YearMonth
 
 object PatchSpec extends ZIOSpecDefault {
@@ -90,21 +91,21 @@ object PatchSpec extends ZIOSpecDefault {
       val patch1         = Patch.replace(PaymentMethod.payPal, PayPal("y@gmail.com"))
       val patch2         = Patch.replace(PaymentMethod.payPalEmail, "y@gmail.com")
       val patch3         = Patch.replace(Person.paymentMethods(PaymentMethod.payPalEmail), "y@gmail.com")
-      assert(patch1(paymentMethod1))(equalTo(paymentMethod1)) &&
+      assert(patch1.applyLenient(paymentMethod1))(equalTo(paymentMethod1)) &&
       assert(patch1.applyOption(paymentMethod1))(isNone) &&
       assert(patch1.applyOrFail(paymentMethod1))(
         isLeft(
           hasError(
-            "During attempted access at .when[PayPal], encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
+            "Unknown case 'PayPal'"
           )
         )
       ) &&
-      assert(patch2(paymentMethod1))(equalTo(paymentMethod1)) &&
+      assert(patch2.applyLenient(paymentMethod1))(equalTo(paymentMethod1)) &&
       assert(patch2.applyOption(paymentMethod1))(isNone) &&
       assert(patch2.applyOrFail(paymentMethod1))(
         isLeft(
           hasError(
-            "During attempted access at .when[PayPal].email, encountered an unexpected case at .when[PayPal]: expected PayPal, but got CreditCard"
+            "Unknown case 'PayPal'"
           )
         )
       ) &&
@@ -112,7 +113,7 @@ object PatchSpec extends ZIOSpecDefault {
       assert(patch3.applyOrFail(person1))(
         isLeft(
           hasError(
-            "During attempted access at .paymentMethods.each.when[PayPal].email, encountered an empty sequence at .paymentMethods.each"
+            "Empty sequence"
           )
         )
       )
@@ -127,8 +128,8 @@ object PatchSpec extends ZIOSpecDefault {
     }
   )
 
-  private[this] def hasError(message: String): Assertion[OpticCheck] =
-    hasField[OpticCheck, String]("message", _.message, containsString(message))
+  private[this] def hasError(message: String): Assertion[SchemaError] =
+    hasField[SchemaError, String]("message", _.message, containsString(message))
 }
 
 sealed trait PaymentMethod

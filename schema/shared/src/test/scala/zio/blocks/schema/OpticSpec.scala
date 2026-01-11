@@ -1129,7 +1129,7 @@ object OpticSpec extends ZIOSpecDefault {
         assert(Wrapper.r1.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped)))) &&
         assert(Wrapper.r1_b.toDynamic)(equalTo(DynamicOptic(Vector(Wrapped, Field("b"))))) &&
         assert(Case5.aas.toDynamic)(equalTo(DynamicOptic(Vector(Field("as"), AtIndex(1))))) &&
-        assert(Case6.akmil.toDynamic)(equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(1))))) &&
+        assert(Case6.akmil.toDynamic)(equalTo(DynamicOptic(Vector(Field("mil"), AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(1))))))) &&
         assert(Variant1.c1_d.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case1"), Field("d"))))) &&
         assert(Variant1.c2_r3.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"))))) &&
         assert(Variant1.c2_r3_r1.toDynamic)(equalTo(DynamicOptic(Vector(Case("Case2"), Field("r3"), Field("r1")))))
@@ -1693,8 +1693,8 @@ object OpticSpec extends ZIOSpecDefault {
               OpticCheck(
                 errors = ::(
                   MissingKey(
-                    full = DynamicOptic(Vector(Field("mil"), AtMapKey(1))),
-                    prefix = DynamicOptic(Vector(Field("mil"), AtMapKey(1))),
+                    full = DynamicOptic(Vector(Field("mil"), AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(1))))),
+                    prefix = DynamicOptic(Vector(Field("mil"), AtMapKey(DynamicValue.Primitive(PrimitiveValue.Int(1))))),
                     key = 1
                   ),
                   Nil
@@ -3788,8 +3788,10 @@ object OpticSpecTypes {
       Traversal.mapValues(Reflect.map(Reflect.int[Binding], Variant1.reflect))(Variant1.c1)(Case1.d)
     val akms: Optional[Map[Char, String], String] =
       Optional.atKey(Reflect.map(Reflect.char[Binding], Reflect.string[Binding]), 'A')
-    val akmc1_d: Optional[Map[Char, Case1], Double] =
-      Optional.atKey(Reflect.map(Reflect.char[Binding], Case1.reflect), 'A')(Case1.d)
+    val akmc1_d: Optional[Map[Char, Case1], Double] = {
+      val opt = Optional.atKey(Reflect.map(Reflect.char[Binding], Case1.reflect), 'A')
+      opt(Case1.d)
+    }
     val aasasi_asi: Traversal[ArraySeq[ArraySeq[Int]], Int] =
       Optional.at(
         Schema
@@ -4218,10 +4220,14 @@ object OpticSpecTypes {
       )
     val lli_ali: Traversal[List[List[Int]], Int] =
       Traversal.listValues(Reflect.list(Reflect.int[Binding]))(Optional.at(Reflect.list(Reflect.int[Binding]), 1))
-    val akmill_ll: Traversal[Map[Int, List[Long]], Long] =
-      Optional.atKey(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), 1)(Traversal.listValues(Reflect.long))
-    val aksmill_ll: Traversal[Map[Int, List[Long]], Long] =
-      Traversal.atKeys(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), Seq(1))(Traversal.listValues(Reflect.long))
+    val akmill_ll: Traversal[Map[Int, List[Long]], Long] = {
+      val opt = Optional.atKey(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), 1)
+      opt(Traversal.listValues(Reflect.long))
+    }
+    val aksmill_ll: Traversal[Map[Int, List[Long]], Long] = {
+      val trav = Traversal.atKeys(Reflect.map(Reflect.int, Reflect.list(Reflect.long)), Seq(1))
+      trav(Traversal.listValues(Reflect.long))
+    }
     val lmil_akmil: Traversal[List[Map[Int, Long]], Long] =
       Traversal.listValues(Reflect.map(Reflect.int, Reflect.long))(
         Optional.atKey(Reflect.map(Reflect.int, Reflect.long), 1)

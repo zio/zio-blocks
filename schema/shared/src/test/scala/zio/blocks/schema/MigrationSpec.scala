@@ -1,5 +1,6 @@
 package zio.blocks.schema
 
+import scala.annotation.nowarn
 import zio.test._
 import zio.test.Assertion._
 
@@ -284,10 +285,14 @@ object MigrationSpec extends ZIOSpecDefault {
     ),
     suite("Typed DSL (Macros)")(
       test("extracts field names from selectors") {
+        @nowarn("unused")
         case class PersonV0(firstName: String)
+        @nowarn("unused")
         case class PersonV1(name: String, age: Int)
 
+        @nowarn("unused")
         implicit val schemaV0: Schema[PersonV0] = Schema.derived
+        @nowarn("unused")
         implicit val schemaV1: Schema[PersonV1] = Schema.derived
 
         val migration = Migration
@@ -312,10 +317,14 @@ object MigrationSpec extends ZIOSpecDefault {
         assert(migration(record))(isRight(equalTo(expected)))
       },
       test("automatic derivation between versions") {
+        @nowarn("unused")
         case class PersonV0(name: String)
+        @nowarn("unused")
         case class PersonV1(name: String, age: Int = 18)
 
+        @nowarn("unused")
         implicit val schemaV0: Schema[PersonV0] = Schema.derived
+        @nowarn("unused")
         implicit val schemaV1: Schema[PersonV1] = Schema.derived
 
         val migration = Migration.derived[PersonV0, PersonV1]

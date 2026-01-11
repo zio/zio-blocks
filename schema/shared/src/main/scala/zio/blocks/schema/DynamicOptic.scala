@@ -15,9 +15,19 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 
   def atIndices(indices: Int*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtIndices(indices))
 
-  def atKey[K](key: K): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKey(key))
+  def atKey(key: DynamicValue): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKey(key))
 
-  def atKeys[K](keys: K*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKeys(keys))
+  def atKey(key: String): DynamicOptic = atKey(DynamicValue.Primitive(PrimitiveValue.String(key)))
+
+  def atKey(key: Int): DynamicOptic = atKey(DynamicValue.Primitive(PrimitiveValue.Int(key)))
+
+  def atKeys(keys: DynamicValue*): DynamicOptic = new DynamicOptic(nodes :+ Node.AtMapKeys(keys.toVector))
+
+  def atKeys(keys: String*)(implicit d: DummyImplicit): DynamicOptic = 
+    atKeys(keys.map(k => DynamicValue.Primitive(PrimitiveValue.String(k))): _*)
+
+  def atKeys(keys: Int*)(implicit d: DummyImplicit, d2: DummyImplicit): DynamicOptic = 
+    atKeys(keys.map(k => DynamicValue.Primitive(PrimitiveValue.Int(k))): _*)
 
   def elements: DynamicOptic = new DynamicOptic(nodes :+ Node.Elements)
 
@@ -52,6 +62,8 @@ case class DynamicOptic(nodes: IndexedSeq[DynamicOptic.Node]) {
 }
 
 object DynamicOptic {
+  implicit val schema: Schema[DynamicOptic] = Schema.derived
+
   val root: DynamicOptic = new DynamicOptic(Vector.empty)
 
   val elements: DynamicOptic = new DynamicOptic(Vector(Node.Elements))
@@ -63,19 +75,20 @@ object DynamicOptic {
   val wrapped: DynamicOptic = new DynamicOptic(Vector(Node.Wrapped))
 
   sealed trait Node
-
   object Node {
+    implicit val schema: Schema[Node] = Schema.derived
+
     case class Field(name: String) extends Node
 
     case class Case(name: String) extends Node
 
     case class AtIndex(index: Int) extends Node
 
-    case class AtMapKey[K](key: K) extends Node
+    case class AtMapKey(key: DynamicValue) extends Node
 
     case class AtIndices(index: Seq[Int]) extends Node
 
-    case class AtMapKeys[K](keys: Seq[K]) extends Node
+    case class AtMapKeys(keys: Vector[DynamicValue]) extends Node
 
     case object Elements extends Node
 

@@ -4,6 +4,7 @@ import zio.blocks.schema.binding.RegisterOffset.RegisterOffset
 import zio.blocks.schema.binding._
 import scala.collection.immutable.ArraySeq
 import scala.collection.mutable
+import scala.annotation.nowarn
 import scala.util.control.NoStackTrace
 
 /**
@@ -32,7 +33,7 @@ sealed trait Optic[S, A] { self =>
 
   def apply[B](that: Traversal[A, B]): Traversal[S, B]
 
-  def apply[B](that: Optic[A, B]): Optic[S, B] = that match {
+  def apply[B](that: Optic[A, B]): Optic[S, B] = (that: @unchecked) match {
     case l: Lens[A, B]      => apply(l)
     case p: Prism[A, B]     => apply(p)
     case o: Optional[A, B]  => apply(o)
@@ -57,7 +58,7 @@ sealed trait Optic[S, A] { self =>
     val list = self.asEquivalent[List[B]]
     list.focus match {
       case List(element) => list(Traversal.listValues(element))
-      case _             => sys.error("Expected List")
+      case _             => throw new IllegalStateException("Expected List")
     }
   }
 
@@ -67,7 +68,7 @@ sealed trait Optic[S, A] { self =>
     val vector = self.asEquivalent[Vector[B]]
     vector.focus match {
       case Vector(element) => vector(Traversal.vectorValues(element))
-      case _               => sys.error("Expected Vector")
+      case _               => throw new IllegalStateException("Expected Vector")
     }
   }
 
@@ -77,7 +78,7 @@ sealed trait Optic[S, A] { self =>
     val set = self.asEquivalent[Set[B]]
     set.focus match {
       case Set(element) => set(Traversal.setValues(element))
-      case _            => sys.error("Expected Set")
+      case _            => throw new IllegalStateException("Expected Set")
     }
   }
 
@@ -242,9 +243,9 @@ object Lens {
 
     override def modify(s: S, f: S => S): S = f(s)
 
-    override def modifyOption(s: S, f: S => S): Option[S] = new Some(f(s))
+    override def modifyOption(s: S, f: S => S): Option[S] = Some(f(s))
 
-    override def modifyOrFail(s: S, f: S => S): Either[OpticCheck, S] = new Right(f(s))
+    override def modifyOrFail(s: S, f: S => S): Either[OpticCheck, S] = Right(f(s))
 
     lazy val toDynamic: DynamicOptic = DynamicOptic.root
   }
@@ -347,9 +348,9 @@ object Lens {
       x.asInstanceOf[S]
     }
 
-    def modifyOption(s: S, f: A => A): Option[S] = new Some(modify(s, f))
+    def modifyOption(s: S, f: A => A): Option[S] = Some(modify(s, f))
 
-    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = new Right(modify(s, f))
+    def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = Right(modify(s, f))
 
     lazy val toDynamic: DynamicOptic =
       new DynamicOptic(ArraySeq.unsafeWrapArray(focusTerms.map(term => new DynamicOptic.Node.Field(term.name))))
@@ -371,8 +372,8 @@ sealed trait Prism[S, A <: S] extends Optic[S, A] {
 
   def getOrFail(s: S): Either[OpticCheck, A] =
     getOption(s) match {
-      case Some(a) => new Right(a)
-      case _       => new Left(check(s).get)
+      case Some(a) => Right(a)
+      case _       => Left(check(s).get)
     }
 
   def reverseGet(a: A): S
@@ -383,8 +384,8 @@ sealed trait Prism[S, A <: S] extends Optic[S, A] {
 
   def replaceOrFail(s: S, a: A): Either[OpticCheck, S] =
     replaceOption(s, a) match {
-      case Some(s) => new Right(s)
-      case _       => new Left(check(s).get)
+      case Some(s) => Right(s)
+      case _       => Left(check(s).get)
     }
 
   def apply[B <: A](that: Prism[A, B]): Prism[S, B] = Prism(this, that)
@@ -442,7 +443,7 @@ object Prism {
       while (idx < len) {
         val lastX = x
         x = matchers(idx).downcastOrNull(x)
-        if (x == null) return new Some(toOpticCheck(idx, lastX))
+        if (x == null) return Some(toOpticCheck(idx, lastX))
         idx += 1
       }
       None
@@ -457,7 +458,7 @@ object Prism {
         if (x == null) return None
         idx += 1
       }
-      new Some(x.asInstanceOf[A])
+      Some(x.asInstanceOf[A])
     }
 
     def reverseGet(a: A): S = a
@@ -483,7 +484,7 @@ object Prism {
         if (x == null) return None
         idx += 1
       }
-      new Some(a)
+      Some(a)
     }
 
     def modify(s: S, f: A => A): S = {
@@ -507,7 +508,7 @@ object Prism {
         if (x == null) return None
         idx += 1
       }
-      new Some(f(x.asInstanceOf[A]))
+      Some(f(x.asInstanceOf[A]))
     }
 
     def modifyOrFail(s: S, f: A => A): Either[OpticCheck, S] = {
@@ -517,10 +518,10 @@ object Prism {
       while (idx < len) {
         val lastX = x
         x = matchers(idx).downcastOrNull(x)
-        if (x == null) return new Left(toOpticCheck(idx, lastX))
+        if (x == null) return Left(toOpticCheck(idx, lastX))
         idx += 1
       }
-      new Right(f(x.asInstanceOf[A]))
+      Right(f(x.asInstanceOf[A]))
     }
 
     private[this] def toOpticCheck(idx: Int, lastX: Any): OpticCheck = {
@@ -551,8 +552,8 @@ sealed trait Optional[S, A] extends Optic[S, A] {
 
   def getOrFail(s: S): Either[OpticCheck, A] =
     getOption(s) match {
-      case Some(a) => new Right(a)
-      case _       => new Left(check(s).get)
+      case Some(a) => Right(a)
+      case _       => Left(check(s).get)
     }
 
   def replace(s: S, a: A): S
@@ -647,8 +648,8 @@ object Optional {
     new OptionalImpl(Array(seq), Array(seq.element.asTerm("at")), Array[Any](index))
   }
 
-  def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K): Optional[M[K, V], V] =
-    new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array[Any](key))
+  def atKey[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], key: K)(implicit @nowarn("unused") schema: Schema[K]): Optional[M[K, V], V] =
+    new OptionalImpl(Array(map), Array(map.value.asTerm("atKey")), Array(key))
 
   def wrapped[A, B](wrapper: Reflect.Wrapper.Bound[A, B]): Optional[A, B] =
     new OptionalImpl(Array(wrapper), Array(wrapper.wrapped.asTerm("wrapped")), Array[Any](null))
@@ -702,11 +703,15 @@ object Optional {
               index = params(idx).asInstanceOf[Int]
             )
           case source =>
-            val map = source.asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
+            val mapUnknown = source.asMapUnknown.get
+            type K = mapUnknown.KeyType
+            type V = mapUnknown.ValueType
+            type M[X, Y] = mapUnknown.MapType[X, Y]
+            val map = mapUnknown.map.asInstanceOf[Reflect.Map.Bound[K, V, M]]
             bindings(idx) = new AtKeyBinding(
               mapDeconstructor = map.mapDeconstructor,
               mapConstructor = map.mapConstructor,
-              key = params(idx).asInstanceOf[Key]
+              key = params(idx).asInstanceOf[K]
             )
         }
         idx += 1
@@ -740,7 +745,7 @@ object Optional {
               val focusTermName  = focusTerms(idx).name
               val unexpectedCase =
                 new OpticCheck.UnexpectedCase(focusTermName, actualCase, toDynamic, toDynamic(idx), lastX)
-              return new Some(new OpticCheck(new ::(unexpectedCase, Nil)))
+              return Some(new OpticCheck(new ::(unexpectedCase, Nil)))
             }
           case wrapperBinding: WrappedBinding[Wrapping, Wrapped] @scala.unchecked =>
             x = wrapperBinding.unwrap(x.asInstanceOf[Wrapping])
@@ -754,7 +759,7 @@ object Optional {
                 if (colSize <= colIdx) {
                   val sequenceIndexOutOfBounds =
                     new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, colSize)
-                  return new Some(new OpticCheck(new ::(sequenceIndexOutOfBounds, Nil)))
+                  return Some(new OpticCheck(new ::(sequenceIndexOutOfBounds, Nil)))
                 }
                 indexed.elementType(col) match {
                   case _: RegisterType.Boolean.type => x = indexed.booleanAt(x.asInstanceOf[Col[Boolean]], colIdx)
@@ -779,7 +784,7 @@ object Optional {
                 else {
                   val sequenceIndexOutOfBounds =
                     new OpticCheck.SequenceIndexOutOfBounds(toDynamic, toDynamic(idx), colIdx, currIdx)
-                  return new Some(new OpticCheck(new ::(sequenceIndexOutOfBounds, Nil)))
+                  return Some(new OpticCheck(new ::(sequenceIndexOutOfBounds, Nil)))
                 }
             }
           case binding =>
@@ -790,7 +795,7 @@ object Optional {
               case Some(value) =>
                 x = value
               case _ =>
-                return new Some(new OpticCheck(new ::(new OpticCheck.MissingKey(toDynamic, toDynamic(idx), key), Nil)))
+                return Some(new OpticCheck(new ::(new OpticCheck.MissingKey(toDynamic, toDynamic(idx), key), Nil)))
             }
         }
         idx += 1
@@ -855,7 +860,7 @@ object Optional {
         }
         idx += 1
       }
-      new Some(x.asInstanceOf[A])
+      Some(x.asInstanceOf[A])
     }
 
     def replace(s: S, a: A): S = {
@@ -879,7 +884,7 @@ object Optional {
             a
           }
         )
-        if (success) new Some(x.asInstanceOf[S])
+        if (success) Some(x.asInstanceOf[S])
         else None
       } catch {
         case _: OpticCheckBuilder => None
@@ -899,10 +904,10 @@ object Optional {
             a
           }
         )
-        if (success) new Right(x.asInstanceOf[S])
-        else new Left(check(s).get)
+        if (success) Right(x.asInstanceOf[S])
+        else Left(check(s).get)
       } catch {
-        case ocb: OpticCheckBuilder => new Left(ocb.toOpticCheck())
+        case ocb: OpticCheckBuilder => Left(ocb.toOpticCheck())
       }
     }
 
@@ -1150,7 +1155,7 @@ object Optional {
             f(a)
           }
         )
-        if (success) new Some(x.asInstanceOf[S])
+        if (success) Some(x.asInstanceOf[S])
         else None
       } catch {
         case _: OpticCheckBuilder => None
@@ -1170,10 +1175,10 @@ object Optional {
             f(a)
           }
         )
-        if (success) new Right(x.asInstanceOf[S])
-        else new Left(check(s).get)
+        if (success) Right(x.asInstanceOf[S])
+        else Left(check(s).get)
       } catch {
-        case ocb: OpticCheckBuilder => new Left(ocb.toOpticCheck())
+        case ocb: OpticCheckBuilder => Left(ocb.toOpticCheck())
       }
     }
 
@@ -1199,7 +1204,10 @@ object Optional {
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
             case binding =>
-              new DynamicOptic.Node.AtMapKey[Key](binding.asInstanceOf[AtKeyBinding[Key, Map]].key)
+              val atKey = binding.asInstanceOf[AtKeyBinding[Key, Map]]
+              val mapReflect = sources(idx).asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
+              val dynamicKey = mapReflect.key.toDynamicValue(atKey.key)(Binding.bindingHasBinding)
+              new DynamicOptic.Node.AtMapKey(dynamicKey)
           }
         }
         idx += 1
@@ -1236,8 +1244,8 @@ sealed trait Traversal[S, A] extends Optic[S, A] { self =>
         }
       }
     )
-    if (one) new Right(reduced)
-    else new Left(check(s).get)
+    if (one) Right(reduced)
+    else Left(check(s).get)
   }
 
   def apply[B](that: Lens[A, B]): Traversal[S, B] = Traversal(this, that)
@@ -1266,9 +1274,9 @@ object Traversal {
     new TraversalImpl(Array(seq), Array(seq.element.asTerm("atIndices")), Array[Any](sortedIndices))
   }
 
-  def atKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], keys: Seq[K]): Traversal[M[K, V], V] = {
+  def atKeys[K, V, M[_, _]](map: Reflect.Map.Bound[K, V, M], keys: Seq[K])(implicit @nowarn("unused") schema: Schema[K]): Traversal[M[K, V], V] = {
     require(keys.nonEmpty)
-    new TraversalImpl(Array(map), Array(map.value.asTerm("atKeys")), Array[Any](keys))
+    new TraversalImpl(Array(map), Array(map.value.asTerm("atKeys")), Array(keys))
   }
 
   def apply[S, T, A](first: Traversal[S, T], second: Traversal[T, A]): Traversal[S, A] = {
@@ -1420,26 +1428,30 @@ object Traversal {
               )
             }
           case source =>
-            val map = source.asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
+            val mapUnknown = source.asMapUnknown.get
+            type K = mapUnknown.KeyType
+            type V = mapUnknown.ValueType
+            type M[X, Y] = mapUnknown.MapType[X, Y]
+            val map = mapUnknown.map.asInstanceOf[Reflect.Map.Bound[K, V, M]]
             if (focusTermName == "atKey") {
-              bindings(idx) = new AtKeyBinding[Key, Map](
+              bindings(idx) = new AtKeyBinding[K, M](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor,
-                key = params(idx).asInstanceOf[Key]
+                key = params(idx).asInstanceOf[K]
               )
             } else if (focusTermName == "atKeys") {
-              bindings(idx) = new AtKeysBinding[Key, Map](
+              bindings(idx) = new AtKeysBinding[K, M](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor,
-                keys = params(idx).asInstanceOf[Seq[Key]]
+                keys = params(idx).asInstanceOf[Seq[K]]
               )
             } else if (focusTermName == "key") {
-              bindings(idx) = new MapKeyBinding[Map](
+              bindings(idx) = new MapKeyBinding[M](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor
               )
             } else {
-              bindings(idx) = new MapValueBinding[Map](
+              bindings(idx) = new MapValueBinding[M](
                 mapDeconstructor = map.mapDeconstructor,
                 mapConstructor = map.mapConstructor
               )
@@ -1460,7 +1472,7 @@ object Traversal {
       val errors = List.newBuilder[OpticCheck.Single]
       checkRecursive(Registers(usedRegisters), 0, s, errors)
       errors.result() match {
-        case errs: ::[OpticCheck.Single] => new Some(new OpticCheck(errs))
+        case errs: ::[OpticCheck.Single] => Some(new OpticCheck(errs))
         case _                           => None
       }
     }
@@ -2799,7 +2811,7 @@ object Traversal {
             f(a)
           }
         )
-        if (modified) new Some(x.asInstanceOf[S])
+        if (modified) Some(x.asInstanceOf[S])
         else None
       } catch {
         case _: OpticCheckBuilder => None
@@ -2819,10 +2831,10 @@ object Traversal {
             f(a)
           }
         )
-        if (modified) new Right(x.asInstanceOf[S])
-        else new Left(check(s).get)
+        if (modified) Right(x.asInstanceOf[S])
+        else Left(check(s).get)
       } catch {
-        case ocb: OpticCheckBuilder => new Left(ocb.toOpticCheck())
+        case ocb: OpticCheckBuilder => Left(ocb.toOpticCheck())
       }
     }
 
@@ -2847,12 +2859,16 @@ object Traversal {
               DynamicOptic.Node.Wrapped
             case at: AtBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndex(at.index)
-            case atKey: AtKeyBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKey[Key](atKey.key)
+            case atKeyBinding: AtKeyBinding[Key, Map] @scala.unchecked =>
+              val mapReflect = sources(idx).asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
+              val dynamicKey = mapReflect.key.toDynamicValue(atKeyBinding.key)(Binding.bindingHasBinding)
+              new DynamicOptic.Node.AtMapKey(dynamicKey)
             case atIndices: AtIndicesBinding[Col] @scala.unchecked =>
               new DynamicOptic.Node.AtIndices(ArraySeq.unsafeWrapArray(atIndices.indices))
             case atKeys: AtKeysBinding[Key, Map] @scala.unchecked =>
-              new DynamicOptic.Node.AtMapKeys[Key](atKeys.keys)
+              val mapReflect = sources(idx).asInstanceOf[Reflect.Map.Bound[Key, Value, Map]]
+              val dynamicKeys = atKeys.keys.toVector.map(k => mapReflect.key.toDynamicValue(k)(Binding.bindingHasBinding))
+              new DynamicOptic.Node.AtMapKeys(dynamicKeys)
             case _: SeqBinding[Col] @scala.unchecked =>
               DynamicOptic.Node.Elements
             case _: MapKeyBinding[Map] @scala.unchecked =>
