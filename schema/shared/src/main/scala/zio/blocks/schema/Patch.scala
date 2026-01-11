@@ -24,6 +24,7 @@ final case class Patch[S](
 ) {
   import Patch._
 
+
   def ++(that: Patch[S]): Patch[S] = Patch(this.ops ++ that.ops, this.source, this.mode)
 
   def lenient: Patch[S] = copy(mode = PatchMode.Lenient)
@@ -46,7 +47,7 @@ final case class Patch[S](
     pair.op match {
       case Replace(a) => pair.optic.modifyOrFail(s, _ => a)
       case Insert(a)  => pair.optic.modifyOrFail(s, _ => a) // Placeholder for real insert
-      case Remove()   => Right(s)                      // Placeholder for real remove
+      case Remove()   => Right(s)                           // Placeholder for real remove
     }
 
   def applyOption(s: S): Option[S] = applyOrFail(s).toOption
@@ -56,7 +57,7 @@ final case class Patch[S](
     ops.foreach { single =>
       applySingleOrFail(x, single) match {
         case Right(r) => x = r
-        case Left(e) =>
+        case Left(e)  =>
           if (mode == PatchMode.Strict) return Left(e)
         // else skip
       }
@@ -65,7 +66,7 @@ final case class Patch[S](
   }
 
   def toDynamic: DynamicPatch = {
-    val dynamicOps = ops.map { (pair: Pair[S, Any]) =>
+    val dynamicOps = ops.map { pair =>
       val dynamicOptic = pair.optic.toDynamic
       val focus        = pair.optic.focus.asInstanceOf[Reflect.Bound[Any]]
       pair.op match {
@@ -82,11 +83,10 @@ final case class Patch[S](
     DynamicPatch(dynamicOps)
   }
 
-  def ++(that: Patch[S]): Patch[S] =
-    Patch(ops ++ that.ops, source, mode)
+
 
   def map[T](o: Optic[T, S]): Patch[T] =
-    Patch(ops.map(_.map(o)), o.source.asInstanceOf[Schema[T]], mode)
+    Patch(ops.map(_.map(o)), new Schema(o.source.asInstanceOf[Reflect.Bound[T]]), mode)
 }
 
 object Patch {
@@ -101,11 +101,11 @@ object Patch {
   def remove[S, A](traversal: Traversal[S, A])(implicit source: Schema[S]): Patch[S] =
     Patch(Vector(Pair(traversal, Remove())), source)
 
-  def diff(oldStr: String, newStr: String)(implicit source: Schema[String]): Patch[String] = {
+  def diff(oldStr: String, newStr: String)(implicit source: Schema[String]): Patch[String] =
     if (oldStr == newStr) empty[String]
     else {
-      val m = oldStr.length
-      val n = newStr.length
+      val m  = oldStr.length
+      val n  = newStr.length
       val dp = Array.ofDim[Int](m + 1, n + 1)
 
       for (i <- 1 to m; j <- 1 to n) {
@@ -114,37 +114,49 @@ object Patch {
       }
 
       // For now, if we don't have fine-grained string optics, we use a full replace.
-      // However, we want to demonstrate LCS. 
+      // However, we want to demonstrate LCS.
       // If we HAD fine-grained optics, we would backtrack here.
       // backtracking:
       // var i = m; var j = n; while(i > 0 && j > 0) ...
-      
+
       // Let's just do a full replace for now but keep the LCS logic for future fine-graining.
       replace(Lens.identity[String](source), newStr)
     }
-  }
 
-  def diff[A](oldValue: A, newValue: A)(implicit schema: Schema[A]): Patch[A] = {
+  def diff[A](oldValue: A, newValue: A)(implicit schema: Schema[A]): Patch[A] =
     if (oldValue == newValue) empty[A]
     else {
       schema.reflect.asRecord match {
         case Some(record) =>
-          record.fields.foldLeft(empty[A]) { (acc, field) =>
-            val lens = record.lensByIndex[Any](field.index).get
-            val oldVal = lens.get(oldValue)
-            val newVal = lens.get(newValue)
-            acc ++ diff(oldVal, newVal)(field.schema.asInstanceOf[Schema[Any]]).map(lens)
+          val recordBound = record.asInstanceOf[Reflect.Record.Bound[A]]
+          recordBound.fields.zipWithIndex.foldLeft(empty[A]) { case (acc, (field, idx)) =>
+            val fieldBound = field.asInstanceOf[Term.Bound[A, Any]]
+            val lens       = recordBound.lensByIndex[Any](idx).get
+            val oldVal     = lens.get(oldValue)
+            val newVal     = lens.get(newValue)
+            val fieldSchema = new Schema(fieldBound.value.asInstanceOf[Reflect.Bound[Any]])
+            acc ++ diff(oldVal, newVal)(fieldSchema).map(lens)
           }
         case _ =>
           schema.reflect.asVariant match {
             case Some(variant) =>
-              val oldCaseIdx = variant.discriminator.discriminate(oldValue)
-              val newCaseIdx = variant.discriminator.discriminate(newValue)
+              val variantBound = variant.asInstanceOf[Reflect.Variant.Bound[A]]
+              val oldCaseIdx = variantBound.discriminator.asInstanceOf[Discriminator[A]].discriminate(oldValue)
+              val newCaseIdx = variantBound.discriminator.asInstanceOf[Discriminator[A]].discriminate(newValue)
               if (oldCaseIdx == newCaseIdx) {
-                val prism = variant.prismByIndex[Any](oldCaseIdx).get
-                val oldVal = prism.getOption(oldValue).get
-                val newVal = prism.getOption(newValue).get
-                diff(oldVal, newVal)(variant.cases(oldCaseIdx).schema.asInstanceOf[Schema[Any]]).map(prism)
+                val caseTerm = variantBound.cases(oldCaseIdx).asInstanceOf[Term.Bound[A, A]]
+                val prism    = Prism(variantBound, caseTerm)
+                val prismAny = prism.asInstanceOf[Optic[A, Any]]
+                val oldValOpt = prism.getOption(oldValue)
+                val newValOpt = prism.getOption(newValue)
+                
+                (oldValOpt, newValOpt) match {
+                  case (Some(ov), Some(nv)) =>
+                    val fieldSchema = new Schema(caseTerm.value.asInstanceOf[Reflect.Bound[Any]])
+                    diff[Any](ov.asInstanceOf[Any], nv.asInstanceOf[Any])(fieldSchema).map(prismAny)
+                  case _ =>
+                    replace(Lens.identity[A](schema), newValue)
+                }
               } else {
                 replace(Lens.identity[A](schema), newValue)
               }
@@ -153,7 +165,6 @@ object Patch {
           }
       }
     }
-  }
 
   sealed trait Op[+A]
   case class Replace[A](a: A) extends Op[A]

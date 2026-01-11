@@ -1,0 +1,16 @@
+[info] welcome to sbt 1.12.0 (Microsoft Java 17.0.17)
+[info] loading settings for project zio-blocks-build-build from sbt-updates.sbt...
+[info] loading project definition from C:\Users\ashut\OneDrive\Documents\latest algora bounty prs\zio-blocks\project\project
+[info] loading settings for project zio-blocks-build from plugins.sbt...
+[info] loading project definition from C:\Users\ashut\OneDrive\Documents\latest algora bounty prs\zio-blocks\project
+[info] loading settings for project root from build.sbt...
+[info] resolving key references (22671 settings) ...
+[info] set current project to root (in build file:/C:/Users/ashut/OneDrive/Documents/latest%20algora%20bounty%20prs/zio-blocks/)
+[info] compiling 2 Scala sources to C:\Users\ashut\OneDrive\Documents\latest algora bounty prs\zio-blocks\schema\jvm\target\scala-3.3.7\classes ...
+[warn] -- Warning: C:\Users\ashut\OneDrive\Documents\latest algora bounty prs\zio-blocks\schema\shared\src\main\scala\zio\blocks\schema\Patch.scala:61:40 
+[warn] 61 |          if (mode == PatchMode.Strict) return Left(e)
+[warn]    |                                        ^^^^^^^^^^^^^^
+[warn]    |Non local returns are no longer supported; use `boundary` and `boundary.break` in `scala.util` instead
+[warn] one warning found
+[info] done compiling
+[success] Total time: 13 s, completed 11-Jan-2026, 6:18:27 pm

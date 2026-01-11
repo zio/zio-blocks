@@ -218,11 +218,14 @@ object Lens {
     new LensImpl(Array(source), Array(focusTerm))
   }
 
-  def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] = {
-    val lens1 = first.asInstanceOf[LensImpl[?, ?]]
-    val lens2 = second.asInstanceOf[LensImpl[?, ?]]
-    new LensImpl(lens1.sources ++ lens2.sources, lens1.focusTerms ++ lens2.focusTerms)
-  }
+  def apply[S, T, A](first: Lens[S, T], second: Lens[T, A]): Lens[S, A] =
+    (first, second) match {
+      case (_: IdentityLens[?], l2)                  => l2.asInstanceOf[Lens[S, A]]
+      case (l1, _: IdentityLens[?])                  => l1.asInstanceOf[Lens[S, A]]
+      case (l1: LensImpl[?, ?], l2: LensImpl[?, ?]) =>
+        new LensImpl(l1.sources ++ l2.sources, l1.focusTerms ++ l2.focusTerms)
+      case _                                         => throw new IllegalArgumentException("Unknown Lens implementation")
+    }
 
   def identity[S](implicit schema: Schema[S]): Lens[S, S] = new IdentityLens(schema)
 
@@ -568,15 +571,17 @@ sealed trait Optional[S, A] extends Optic[S, A] {
 }
 
 object Optional {
-  def apply[S, T, A](first: Optional[S, T], second: Lens[T, A]): Optional[S, A] = {
-    val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
-    val lens2     = second.asInstanceOf[Lens.LensImpl[?, ?]]
-    new OptionalImpl(
-      optional1.sources ++ lens2.sources,
-      optional1.focusTerms ++ lens2.focusTerms,
-      optional1.params ++ new Array[Any](lens2.sources.length)
-    )
-  }
+  def apply[S, T, A](first: Optional[S, T], second: Lens[T, A]): Optional[S, A] =
+    (first, second) match {
+      case (opt: OptionalImpl[?, ?], lens: Lens.LensImpl[?, ?]) =>
+        new OptionalImpl(
+          opt.sources ++ lens.sources,
+          opt.focusTerms ++ lens.focusTerms,
+          opt.params ++ new Array[Any](lens.sources.length)
+        )
+      case (opt, _: Lens.IdentityLens[?]) => opt.asInstanceOf[Optional[S, A]]
+      case _                              => throw new IllegalArgumentException("Unknown implementation")
+    }       
 
   def apply[S, T, A <: T](first: Optional[S, T], second: Prism[T, A]): Optional[S, A] = {
     val optional1 = first.asInstanceOf[OptionalImpl[?, ?]]
@@ -1276,15 +1281,17 @@ object Traversal {
     )
   }
 
-  def apply[S, T, A](first: Traversal[S, T], second: Lens[T, A]): Traversal[S, A] = {
-    val traversal1 = first.asInstanceOf[TraversalImpl[?, ?]]
-    val lens2      = second.asInstanceOf[Lens.LensImpl[?, ?]]
-    new TraversalImpl(
-      traversal1.sources ++ lens2.sources,
-      traversal1.focusTerms ++ lens2.focusTerms,
-      traversal1.params ++ new Array[Any](lens2.sources.length)
-    )
-  }
+  def apply[S, T, A](first: Traversal[S, T], second: Lens[T, A]): Traversal[S, A] =
+    (first, second) match {
+      case (trav: TraversalImpl[?, ?], lens: Lens.LensImpl[?, ?]) =>
+        new TraversalImpl(
+          trav.sources ++ lens.sources,
+          trav.focusTerms ++ lens.focusTerms,
+          trav.params ++ new Array[Any](lens.sources.length)
+        )
+      case (trav, _: Lens.IdentityLens[?]) => trav.asInstanceOf[Traversal[S, A]]
+      case _                               => throw new IllegalArgumentException("Unknown implementation")
+    }
 
   def apply[S, T, A <: T](first: Traversal[S, T], second: Prism[T, A]): Traversal[S, A] = {
     val traversal1 = first.asInstanceOf[TraversalImpl[?, ?]]
