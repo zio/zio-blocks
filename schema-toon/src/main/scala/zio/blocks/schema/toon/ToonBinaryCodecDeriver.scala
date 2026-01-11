@@ -169,7 +169,29 @@ class ToonBinaryCodecDeriver private[toon] (
       arrayFormat
     )
 
-  // Deriver trait implementations
+  /**
+   * Derives a codec for primitive types.
+   *
+   * Maps each primitive type to its corresponding TOON codec implementation.
+   *
+   * {{{
+   * // Automatically called during schema derivation
+   * val intCodec = derivePrimitive(PrimitiveType.Int, ...)
+   * }}}
+   *
+   * @param primitiveType
+   *   the primitive type to derive a codec for
+   * @param typeName
+   *   the type name
+   * @param binding
+   *   the binding for this primitive
+   * @param doc
+   *   documentation for this type
+   * @param modifiers
+   *   reflection modifiers
+   * @return
+   *   a lazy codec for the primitive type
+   */
   override def derivePrimitive[F[_, _], A](
     primitiveType: PrimitiveType[A],
     typeName: TypeName[A],
@@ -180,10 +202,13 @@ class ToonBinaryCodecDeriver private[toon] (
     primitiveType match {
       case _: PrimitiveType.Unit.type      => ToonBinaryCodec.unitCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.Boolean        => ToonBinaryCodec.booleanCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.Byte           => ToonBinaryCodec.byteCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.Short          => ToonBinaryCodec.shortCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.Int            => ToonBinaryCodec.intCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.Long           => ToonBinaryCodec.longCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.Float          => ToonBinaryCodec.floatCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.Double         => ToonBinaryCodec.doubleCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.Char           => ToonBinaryCodec.charCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.String         => ToonBinaryCodec.stringCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.BigInt         => ToonBinaryCodec.bigIntCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.BigDecimal     => ToonBinaryCodec.bigDecimalCodec.asInstanceOf[ToonBinaryCodec[A]]
@@ -195,6 +220,8 @@ class ToonBinaryCodecDeriver private[toon] (
       case _: PrimitiveType.OffsetDateTime => ToonBinaryCodec.offsetDateTimeCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.ZonedDateTime  => ToonBinaryCodec.zonedDateTimeCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _: PrimitiveType.Period         => ToonBinaryCodec.periodCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.ZoneId         => ToonBinaryCodec.zoneIdCodec.asInstanceOf[ToonBinaryCodec[A]]
+      case _: PrimitiveType.ZoneOffset     => ToonBinaryCodec.zoneOffsetCodec.asInstanceOf[ToonBinaryCodec[A]]
       case _                               => ??? // TODO: Add remaining primitive types as needed
     }
   }
@@ -333,6 +360,31 @@ class ToonBinaryCodecDeriver private[toon] (
       modifiers
     )(F, D).force
 
+  /**
+   * Derives a codec for record types (case classes, products).
+   *
+   * Encodes records as key-value pairs with field names and values.
+   *
+   * {{{
+   * // For case class Person(name: String, age: Int)
+   * // Encodes as:
+   * // name: Alice
+   * // age: 30
+   * }}}
+   *
+   * @param fields
+   *   the fields of the record
+   * @param typeName
+   *   the type name
+   * @param binding
+   *   the binding for this record
+   * @param doc
+   *   documentation for this type
+   * @param modifiers
+   *   reflection modifiers
+   * @return
+   *   a lazy codec for the record type
+   */
   override def deriveRecord[F[_, _], A](
     fields: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
@@ -383,6 +435,31 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
+  /**
+   * Derives a codec for variant types (sealed traits, ADTs).
+   *
+   * Encodes variants based on the configured discriminator kind.
+   *
+   * {{{
+   * // For sealed trait Shape with case Circle and Rectangle
+   * // With DiscriminatorKind.Key, encodes as:
+   * // Circle:
+   * //   radius: 5.0
+   * }}}
+   *
+   * @param cases
+   *   the cases of the variant
+   * @param typeName
+   *   the type name
+   * @param binding
+   *   the binding for this variant
+   * @param doc
+   *   documentation for this type
+   * @param modifiers
+   *   reflection modifiers
+   * @return
+   *   a lazy codec for the variant type
+   */
   override def deriveVariant[F[_, _], A](
     cases: IndexedSeq[Term[F, A, ?]],
     typeName: TypeName[A],
@@ -443,6 +520,35 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
+  /**
+   * Derives a codec for sequence types (List, Vector, etc.).
+   *
+   * Encodes sequences based on the configured array format.
+   *
+   * {{{
+   * // For List(1, 2, 3) with ArrayFormat.Inline:
+   * // [3]: 1,2,3
+   * //
+   * // With ArrayFormat.List:
+   * // [3]:
+   * //   - 1
+   * //   - 2
+   * //   - 3
+   * }}}
+   *
+   * @param element
+   *   the element type reflect
+   * @param typeName
+   *   the type name
+   * @param binding
+   *   the binding for this sequence
+   * @param doc
+   *   documentation for this type
+   * @param modifiers
+   *   reflection modifiers
+   * @return
+   *   a lazy codec for the sequence type
+   */
   override def deriveSequence[F[_, _], C[_], A](
     element: Reflect[F, A],
     typeName: TypeName[C[A]],
@@ -510,6 +616,37 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
+  /**
+   * Derives a codec for map types.
+   *
+   * String-keyed maps are encoded as object-like structures. Other key types
+   * use bracket notation.
+   *
+   * {{{
+   * // For Map("a" -> 1, "b" -> 2):
+   * // a: 1
+   * // b: 2
+   * //
+   * // For Map(1 -> "a", 2 -> "b"):
+   * // [1]: a
+   * // [2]: b
+   * }}}
+   *
+   * @param key
+   *   the key type reflect
+   * @param value
+   *   the value type reflect
+   * @param typeName
+   *   the type name
+   * @param binding
+   *   the binding for this map
+   * @param doc
+   *   documentation for this type
+   * @param modifiers
+   *   reflection modifiers
+   * @return
+   *   a lazy codec for the map type
+   */
   override def deriveMap[F[_, _], M[_, _], K, V](
     key: Reflect[F, K],
     value: Reflect[F, V],
@@ -561,6 +698,21 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
+  /**
+   * Derives a codec for dynamic values.
+   *
+   * Handles runtime-typed values that can be primitives, records, variants,
+   * sequences, or maps.
+   *
+   * @param binding
+   *   the binding for dynamic values
+   * @param doc
+   *   documentation for this type
+   * @param modifiers
+   *   reflection modifiers
+   * @return
+   *   a lazy codec for dynamic values
+   */
   override def deriveDynamic[F[_, _]](
     binding: Binding[BindingType.Dynamic, DynamicValue],
     doc: Doc,
@@ -610,6 +762,31 @@ class ToonBinaryCodecDeriver private[toon] (
     }
   }
 
+  /**
+   * Derives a codec for wrapper types (newtypes).
+   *
+   * Transparently encodes/decodes the wrapped value.
+   *
+   * {{{
+   * // For case class UserId(value: Int)
+   * // Encodes as: 42 (just the wrapped Int)
+   * }}}
+   *
+   * @param wrapped
+   *   the wrapped type reflect
+   * @param typeName
+   *   the type name
+   * @param wrapperPrimitiveType
+   *   optional primitive type if wrapper is primitive
+   * @param binding
+   *   the binding for this wrapper
+   * @param doc
+   *   documentation for this type
+   * @param modifiers
+   *   reflection modifiers
+   * @return
+   *   a lazy codec for the wrapper type
+   */
   override def deriveWrapper[F[_, _], A, B](
     wrapped: Reflect[F, B],
     typeName: TypeName[A],

@@ -6,11 +6,73 @@ import java.nio.charset.StandardCharsets
 import zio.blocks.schema.SchemaError
 import zio.blocks.schema.codec.BinaryCodec
 
+/**
+ * Abstract base class for TOON binary codecs.
+ *
+ * Provides encoding and decoding functionality for values of type `A` to and
+ * from TOON format.
+ *
+ * @tparam A
+ *   the type of values this codec handles
+ */
 abstract class ToonBinaryCodec[A] extends BinaryCodec[A] {
+
+  /**
+   * Decodes a value from TOON format.
+   *
+   * {{{
+   * val reader = ToonReader("Alice")
+   * val name = stringCodec.decodeValue(reader, "")
+   * // Result: "Alice"
+   * }}}
+   *
+   * @param in
+   *   the TOON reader to read from
+   * @param default
+   *   the default value to use if decoding fails (may be null)
+   * @return
+   *   the decoded value
+   */
   def decodeValue(in: ToonReader, default: A): A
+
+  /**
+   * Encodes a value to TOON format.
+   *
+   * {{{
+   * val writer = ToonWriter()
+   * stringCodec.encodeValue("Alice", writer)
+   * // Result: "Alice" (or "\"Alice\"" if quoting is required)
+   * }}}
+   *
+   * @param x
+   *   the value to encode
+   * @param out
+   *   the TOON writer to write to
+   */
   def encodeValue(x: A, out: ToonWriter): Unit
 
-  def decodeKey(in: ToonReader): A           = ???
+  /**
+   * Decodes a key from TOON format.
+   *
+   * Used for map keys and field names. Not yet implemented.
+   *
+   * @param in
+   *   the TOON reader to read from
+   * @return
+   *   the decoded key
+   */
+  def decodeKey(in: ToonReader): A = ???
+
+  /**
+   * Encodes a key to TOON format.
+   *
+   * Used for map keys and field names. Not yet implemented.
+   *
+   * @param x
+   *   the key to encode
+   * @param out
+   *   the TOON writer to write to
+   */
   def encodeKey(x: A, out: ToonWriter): Unit = ???
 
   override def decode(input: ByteBuffer): Either[SchemaError, A] = {
@@ -20,6 +82,20 @@ abstract class ToonBinaryCodec[A] extends BinaryCodec[A] {
     decode(new ByteArrayInputStream(bytes))
   }
 
+  /**
+   * Decodes a value from an InputStream containing TOON data.
+   *
+   * {{{
+   * val input = new ByteArrayInputStream("Alice".getBytes)
+   * val result = stringCodec.decode(input)
+   * // Result: Right("Alice")
+   * }}}
+   *
+   * @param input
+   *   the input stream to read from
+   * @return
+   *   either the decoded value or a schema error
+   */
   def decode(input: InputStream): Either[SchemaError, A] =
     try {
       val reader = new ToonReader(ToonReaderConfig.default, input)
@@ -33,6 +109,19 @@ abstract class ToonBinaryCodec[A] extends BinaryCodec[A] {
     output.put(bytes)
   }
 
+  /**
+   * Encodes a value to a byte array in TOON format.
+   *
+   * {{{
+   * val bytes = stringCodec.encodeToBytes("Alice")
+   * // Result: Array[Byte] containing UTF-8 encoded "Alice"
+   * }}}
+   *
+   * @param value
+   *   the value to encode
+   * @return
+   *   the encoded bytes
+   */
   def encodeToBytes(value: A): Array[Byte] = {
     val out    = new ByteArrayOutputStream()
     val writer = new ToonWriter(ToonWriterConfig.default, out)
@@ -41,9 +130,35 @@ abstract class ToonBinaryCodec[A] extends BinaryCodec[A] {
     out.toByteArray
   }
 
+  /**
+   * Encodes a value to a TOON format string.
+   *
+   * {{{
+   * val toon = stringCodec.encodeToString("Alice")
+   * // Result: "Alice"
+   * }}}
+   *
+   * @param value
+   *   the value to encode
+   * @return
+   *   the TOON format string
+   */
   def encodeToString(value: A): String =
     new String(encodeToBytes(value), StandardCharsets.UTF_8)
 
+  /**
+   * Decodes a value from a TOON format string.
+   *
+   * {{{
+   * val result = stringCodec.decodeFromString("Alice")
+   * // Result: Right("Alice")
+   * }}}
+   *
+   * @param value
+   *   the TOON format string to decode
+   * @return
+   *   either the decoded value or a schema error
+   */
   def decodeFromString(value: String): Either[SchemaError, A] =
     decode(new ByteArrayInputStream(value.getBytes(StandardCharsets.UTF_8)))
 }
@@ -115,6 +230,17 @@ object ToonBinaryCodec {
     if (x >= 0 && x < 1000) SMALL_INT_STRINGS(x)
     else x.toString
 
+  /**
+   * Codec for String values.
+   *
+   * Automatically quotes strings that contain special characters.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.stringCodec
+   * codec.encodeToString("hello")      // Result: "hello"
+   * codec.encodeToString("hello world") // Result: "\"hello world\""
+   * }}}
+   */
   val stringCodec: ToonBinaryCodec[String] = new ToonBinaryCodec[String] {
     override def decodeValue(in: ToonReader, default: String): String = in.readString()
     override def encodeValue(x: String, out: ToonWriter): Unit        =
@@ -125,11 +251,90 @@ object ToonBinaryCodec {
       }
   }
 
+  /**
+   * Codec for Byte values.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.byteCodec
+   * codec.encodeToString(42.toByte)  // Result: "42"
+   * codec.encodeToString(-128.toByte) // Result: "-128"
+   * }}}
+   */
+  val byteCodec: ToonBinaryCodec[Byte] = new ToonBinaryCodec[Byte] {
+    override def decodeValue(in: ToonReader, default: Byte): Byte = in.readInt().toByte
+    override def encodeValue(x: Byte, out: ToonWriter): Unit      = out.writeRaw(x.toString)
+  }
+
+  /**
+   * Codec for Short values.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.shortCodec
+   * codec.encodeToString(1000.toShort) // Result: "1000"
+   * codec.encodeToString(-32768.toShort) // Result: "-32768"
+   * }}}
+   */
+  val shortCodec: ToonBinaryCodec[Short] = new ToonBinaryCodec[Short] {
+    override def decodeValue(in: ToonReader, default: Short): Short = in.readInt().toShort
+    override def encodeValue(x: Short, out: ToonWriter): Unit       = out.writeRaw(x.toString)
+  }
+
+  /**
+   * Codec for Char values.
+   *
+   * Encodes as a single-character string.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.charCodec
+   * codec.encodeToString('A') // Result: "A"
+   * codec.encodeToString(' ') // Result: "\" \"" (quoted because space)
+   * }}}
+   */
+  val charCodec: ToonBinaryCodec[Char] = new ToonBinaryCodec[Char] {
+    override def decodeValue(in: ToonReader, default: Char): Char = {
+      val s = in.readString()
+      if (s.length == 1) s.charAt(0)
+      else throw new RuntimeException(s"Expected single character, got: $s")
+    }
+    override def encodeValue(x: Char, out: ToonWriter): Unit = {
+      val s = x.toString
+      if (requiresQuoting(s)) {
+        out.writeQuotedString(s)
+      } else {
+        out.writeRaw(s)
+      }
+    }
+  }
+
+  /**
+   * Codec for Int values.
+   *
+   * Uses cached string representations for small values (0-999) for
+   * performance.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.intCodec
+   * codec.encodeToString(42)   // Result: "42"
+   * codec.encodeToString(-100) // Result: "-100"
+   * }}}
+   */
   val intCodec: ToonBinaryCodec[Int] = new ToonBinaryCodec[Int] {
     override def decodeValue(in: ToonReader, default: Int): Int = in.readInt()
     override def encodeValue(x: Int, out: ToonWriter): Unit     = out.writeRaw(intToString(x))
   }
 
+  /**
+   * Codec for Long values.
+   *
+   * Uses cached string representations for small values (0-999) for
+   * performance.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.longCodec
+   * codec.encodeToString(42L)          // Result: "42"
+   * codec.encodeToString(9999999999L)  // Result: "9999999999"
+   * }}}
+   */
   val longCodec: ToonBinaryCodec[Long] = new ToonBinaryCodec[Long] {
     override def decodeValue(in: ToonReader, default: Long): Long = in.readString().toLong
     override def encodeValue(x: Long, out: ToonWriter): Unit      =
@@ -138,6 +343,17 @@ object ToonBinaryCodec {
       else out.writeRaw(x.toString)
   }
 
+  /**
+   * Codec for Float values.
+   *
+   * NaN and Infinity are encoded as `null`. Normalizes -0.0 to 0.0.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.floatCodec
+   * codec.encodeToString(3.14f)     // Result: "3.14"
+   * codec.encodeToString(Float.NaN) // Result: "null"
+   * }}}
+   */
   val floatCodec: ToonBinaryCodec[Float] = new ToonBinaryCodec[Float] {
     override def decodeValue(in: ToonReader, default: Float): Float = {
       val s = in.readString()
@@ -156,6 +372,17 @@ object ToonBinaryCodec {
       }
   }
 
+  /**
+   * Codec for Double values.
+   *
+   * NaN and Infinity are encoded as `null`. Normalizes -0.0 to 0.0.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.doubleCodec
+   * codec.encodeToString(3.14159)      // Result: "3.14159"
+   * codec.encodeToString(Double.NaN)   // Result: "null"
+   * }}}
+   */
   val doubleCodec: ToonBinaryCodec[Double] = new ToonBinaryCodec[Double] {
     override def decodeValue(in: ToonReader, default: Double): Double = {
       val s = in.readString()
@@ -174,12 +401,31 @@ object ToonBinaryCodec {
       }
   }
 
+  /**
+   * Codec for BigInt values.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.bigIntCodec
+   * codec.encodeToString(BigInt("123456789012345678901234567890"))
+   * // Result: "123456789012345678901234567890"
+   * }}}
+   */
   val bigIntCodec: ToonBinaryCodec[BigInt] = new ToonBinaryCodec[BigInt] {
     override def decodeValue(in: ToonReader, default: BigInt): BigInt = BigInt(in.readString())
     override def encodeValue(x: BigInt, out: ToonWriter): Unit        =
       out.writeRaw(x.toString)
   }
 
+  /**
+   * Codec for BigDecimal values.
+   *
+   * Uses plain string representation to avoid scientific notation.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.bigDecimalCodec
+   * codec.encodeToString(BigDecimal("123.456")) // Result: "123.456"
+   * }}}
+   */
   val bigDecimalCodec: ToonBinaryCodec[BigDecimal] = new ToonBinaryCodec[BigDecimal] {
     override def decodeValue(in: ToonReader, default: BigDecimal): BigDecimal = BigDecimal(in.readString())
     override def encodeValue(x: BigDecimal, out: ToonWriter): Unit            =
@@ -187,6 +433,15 @@ object ToonBinaryCodec {
       out.writeRaw(x.bigDecimal.toPlainString)
   }
 
+  /**
+   * Codec for Boolean values.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.booleanCodec
+   * codec.encodeToString(true)  // Result: "true"
+   * codec.encodeToString(false) // Result: "false"
+   * }}}
+   */
   val booleanCodec: ToonBinaryCodec[Boolean] = new ToonBinaryCodec[Boolean] {
     override def decodeValue(in: ToonReader, default: Boolean): Boolean = in.readBoolean()
     override def encodeValue(x: Boolean, out: ToonWriter): Unit         =
@@ -194,12 +449,29 @@ object ToonBinaryCodec {
       if (x) out.writeRaw("true") else out.writeRaw("false")
   }
 
+  /**
+   * Codec for Unit values.
+   *
+   * Encodes as empty string, decodes by ignoring input.
+   */
   val unitCodec: ToonBinaryCodec[Unit] = new ToonBinaryCodec[Unit] {
     override def decodeValue(in: ToonReader, default: Unit): Unit = ()
     override def encodeValue(x: Unit, out: ToonWriter): Unit      = () // Write nothing
   }
 
   // java.time codecs - all use ISO-8601 format and are quoted
+
+  /**
+   * Codec for java.time.Instant values.
+   *
+   * Uses ISO-8601 format.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.instantCodec
+   * codec.encodeToString(Instant.parse("2023-01-15T10:30:00Z"))
+   * // Result: "\"2023-01-15T10:30:00Z\""
+   * }}}
+   */
   val instantCodec: ToonBinaryCodec[java.time.Instant] = new ToonBinaryCodec[java.time.Instant] {
     override def decodeValue(in: ToonReader, default: java.time.Instant): java.time.Instant =
       java.time.Instant.parse(in.readString())
@@ -207,6 +479,17 @@ object ToonBinaryCodec {
       out.writeQuotedString(x.toString)
   }
 
+  /**
+   * Codec for java.time.LocalDate values.
+   *
+   * Uses ISO-8601 format (yyyy-MM-dd).
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.localDateCodec
+   * codec.encodeToString(LocalDate.of(2023, 1, 15))
+   * // Result: "\"2023-01-15\""
+   * }}}
+   */
   val localDateCodec: ToonBinaryCodec[java.time.LocalDate] = new ToonBinaryCodec[java.time.LocalDate] {
     override def decodeValue(in: ToonReader, default: java.time.LocalDate): java.time.LocalDate =
       java.time.LocalDate.parse(in.readString())
@@ -214,6 +497,17 @@ object ToonBinaryCodec {
       out.writeQuotedString(x.toString)
   }
 
+  /**
+   * Codec for java.time.LocalTime values.
+   *
+   * Uses ISO-8601 format (HH:mm:ss).
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.localTimeCodec
+   * codec.encodeToString(LocalTime.of(10, 30, 0))
+   * // Result: "\"10:30:00\""
+   * }}}
+   */
   val localTimeCodec: ToonBinaryCodec[java.time.LocalTime] = new ToonBinaryCodec[java.time.LocalTime] {
     override def decodeValue(in: ToonReader, default: java.time.LocalTime): java.time.LocalTime =
       java.time.LocalTime.parse(in.readString())
@@ -221,6 +515,17 @@ object ToonBinaryCodec {
       out.writeQuotedString(x.toString)
   }
 
+  /**
+   * Codec for java.time.LocalDateTime values.
+   *
+   * Uses ISO-8601 format (yyyy-MM-ddTHH:mm:ss).
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.localDateTimeCodec
+   * codec.encodeToString(LocalDateTime.of(2023, 1, 15, 10, 30))
+   * // Result: "\"2023-01-15T10:30:00\""
+   * }}}
+   */
   val localDateTimeCodec: ToonBinaryCodec[java.time.LocalDateTime] = new ToonBinaryCodec[java.time.LocalDateTime] {
     override def decodeValue(in: ToonReader, default: java.time.LocalDateTime): java.time.LocalDateTime =
       java.time.LocalDateTime.parse(in.readString())
@@ -228,6 +533,17 @@ object ToonBinaryCodec {
       out.writeQuotedString(x.toString)
   }
 
+  /**
+   * Codec for java.time.OffsetDateTime values.
+   *
+   * Uses ISO-8601 format with offset.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.offsetDateTimeCodec
+   * codec.encodeToString(OffsetDateTime.parse("2023-01-15T10:30:00+01:00"))
+   * // Result: "\"2023-01-15T10:30:00+01:00\""
+   * }}}
+   */
   val offsetDateTimeCodec: ToonBinaryCodec[java.time.OffsetDateTime] = new ToonBinaryCodec[java.time.OffsetDateTime] {
     override def decodeValue(in: ToonReader, default: java.time.OffsetDateTime): java.time.OffsetDateTime =
       java.time.OffsetDateTime.parse(in.readString())
@@ -235,6 +551,17 @@ object ToonBinaryCodec {
       out.writeQuotedString(x.toString)
   }
 
+  /**
+   * Codec for java.time.ZonedDateTime values.
+   *
+   * Uses ISO-8601 format with zone.
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.zonedDateTimeCodec
+   * codec.encodeToString(ZonedDateTime.parse("2023-01-15T10:30:00+01:00[Europe/Paris]"))
+   * // Result: "\"2023-01-15T10:30:00+01:00[Europe/Paris]\""
+   * }}}
+   */
   val zonedDateTimeCodec: ToonBinaryCodec[java.time.ZonedDateTime] = new ToonBinaryCodec[java.time.ZonedDateTime] {
     override def decodeValue(in: ToonReader, default: java.time.ZonedDateTime): java.time.ZonedDateTime =
       java.time.ZonedDateTime.parse(in.readString())
@@ -242,6 +569,17 @@ object ToonBinaryCodec {
       out.writeQuotedString(x.toString)
   }
 
+  /**
+   * Codec for java.time.Duration values.
+   *
+   * Uses ISO-8601 duration format (PT...).
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.durationCodec
+   * codec.encodeToString(Duration.ofHours(2))
+   * // Result: "\"PT2H\""
+   * }}}
+   */
   val durationCodec: ToonBinaryCodec[java.time.Duration] = new ToonBinaryCodec[java.time.Duration] {
     override def decodeValue(in: ToonReader, default: java.time.Duration): java.time.Duration =
       java.time.Duration.parse(in.readString())
@@ -249,10 +587,57 @@ object ToonBinaryCodec {
       out.writeQuotedString(x.toString)
   }
 
+  /**
+   * Codec for java.time.Period values.
+   *
+   * Uses ISO-8601 period format (P...).
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.periodCodec
+   * codec.encodeToString(Period.ofDays(7))
+   * // Result: "\"P7D\""
+   * }}}
+   */
   val periodCodec: ToonBinaryCodec[java.time.Period] = new ToonBinaryCodec[java.time.Period] {
     override def decodeValue(in: ToonReader, default: java.time.Period): java.time.Period =
       java.time.Period.parse(in.readString())
     override def encodeValue(x: java.time.Period, out: ToonWriter): Unit =
       out.writeQuotedString(x.toString)
+  }
+
+  /**
+   * Codec for java.time.ZoneId values.
+   *
+   * Encodes zone IDs as strings (e.g., "America/New_York", "UTC").
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.zoneIdCodec
+   * codec.encodeToString(ZoneId.of("America/New_York"))
+   * // Result: "\"America/New_York\""
+   * }}}
+   */
+  val zoneIdCodec: ToonBinaryCodec[java.time.ZoneId] = new ToonBinaryCodec[java.time.ZoneId] {
+    override def decodeValue(in: ToonReader, default: java.time.ZoneId): java.time.ZoneId =
+      java.time.ZoneId.of(in.readString())
+    override def encodeValue(x: java.time.ZoneId, out: ToonWriter): Unit =
+      out.writeQuotedString(x.getId)
+  }
+
+  /**
+   * Codec for java.time.ZoneOffset values.
+   *
+   * Encodes zone offsets as strings (e.g., "+01:00", "Z").
+   *
+   * {{{
+   * val codec = ToonBinaryCodec.zoneOffsetCodec
+   * codec.encodeToString(ZoneOffset.of("+01:00"))
+   * // Result: "\"+01:00\""
+   * }}}
+   */
+  val zoneOffsetCodec: ToonBinaryCodec[java.time.ZoneOffset] = new ToonBinaryCodec[java.time.ZoneOffset] {
+    override def decodeValue(in: ToonReader, default: java.time.ZoneOffset): java.time.ZoneOffset =
+      java.time.ZoneOffset.of(in.readString())
+    override def encodeValue(x: java.time.ZoneOffset, out: ToonWriter): Unit =
+      out.writeQuotedString(x.getId)
   }
 }
